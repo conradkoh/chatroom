@@ -1101,7 +1101,7 @@ export default defineSchema({
         reason: v.string(),
         deadline: v.number(),
         timestamp: v.number(),
-        wantResume: v.optional(v.boolean()),
+        wantResumeOnFail: v.optional(v.boolean()),
       }),
       // An agent stop was requested (replaces command.stopAgent; includes deadline)
       v.object({

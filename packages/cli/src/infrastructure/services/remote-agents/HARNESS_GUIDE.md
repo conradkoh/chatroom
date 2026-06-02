@@ -320,6 +320,6 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 | `commandcode` | Direct `cmd` child | Long-lived headless (`--max-turns`) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
 | `copilot` | Direct `copilot` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
 
-**Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` calls `resumeTurn` instead of kill when `wantResume` is true. A **requestStart replace** always kills via `doStop` regardless of resume state.
+**Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` calls `resumeTurn` instead of kill when `wantResumeOnFail` is true. A **requestStart replace** always kills via `doStop` regardless of resume state.
 
 **Residual risk (all CLI harnesses):** tool subprocesses that call `setsid` and leave the agent PG may survive group kill — upstream CLI behavior, not fixable in Chatroom alone.

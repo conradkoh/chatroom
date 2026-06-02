@@ -35,10 +35,10 @@ export async function restartAgentsOnNewContext(
       agentHarness: config.agentHarness,
       model: config.model,
       workingDir: config.workingDir,
-      reason: 'platform.new_context',
+      reason: 'platform.auto_restart_on_new_context',
       deadline: now + AGENT_REQUEST_DEADLINE_MS,
       timestamp: now,
-      wantResume: config.wantResumeOnFail ?? true,
+      wantResumeOnFail: config.wantResumeOnFail ?? true,
     });
     await transitionAgentStatus(ctx, chatroomId, config.role, 'agent.requestStart', 'running');
     restartedRoles.push(config.role);

@@ -55,7 +55,7 @@ export interface StartAgentInput {
   reason: AgentStartReason;
   /**
    * When true (default), resume-capable harnesses continue the session after a
-   * turn failure (daemon maps to imperative `wantResume` on agent.requestStart).
+   * turn failure (persisted on agent.requestStart as wantResumeOnFail).
    */
   wantResumeOnFail?: boolean;
 }
@@ -176,7 +176,7 @@ export async function startAgent(
     reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
-    wantResume: resolvedWantResumeOnFail,
+    wantResumeOnFail: resolvedWantResumeOnFail,
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 

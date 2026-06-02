@@ -168,8 +168,8 @@ function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.Reac
 
 // ─── Agent Request Start ──────────────────────────────────────────────────────
 
-function formatWantResumeLabel(wantResume: boolean | undefined): string {
-  return wantResume === false ? 'resume on failure off' : 'resume on failure on';
+function formatWantResumeOnFailLabel(wantResumeOnFail: boolean | undefined): string {
+  return wantResumeOnFail === false ? 'resume on failure off' : 'resume on failure on';
 }
 
 function renderAgentRequestStartCell(
@@ -182,7 +182,7 @@ function renderAgentRequestStartCell(
       badgeText="Req Start"
       badgeColor="warning"
       primaryInfo={event.role}
-      secondaryInfo={`${formatWantResumeLabel(event.wantResume)} · ${event.reason}`}
+      secondaryInfo={`${formatWantResumeOnFailLabel(event.wantResumeOnFail)} · ${event.reason}`}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -204,7 +204,7 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
       <DetailRow label="Reason" value={event.reason} />
       <DetailRow
         label="Resume on failure"
-        value={formatWantResumeLabel(event.wantResume)}
+        value={formatWantResumeOnFailLabel(event.wantResumeOnFail)}
       />
       <DetailRow label="Deadline" value={formatTimestampFull(event.deadline)} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />

@@ -81,18 +81,18 @@ describe('onRequestStartAgent', () => {
       model: event.model,
       workingDir: event.workingDir,
       reason: event.reason,
-      wantResume: true,
+      wantResumeOnFail: true,
     });
   });
 
-  test('passes wantResume=false when event specifies it', async () => {
+  test('passes wantResumeOnFail=false when event specifies it', async () => {
     const ctx = createMockCtx();
-    const event = createEvent({ wantResume: false });
+    const event = createEvent({ wantResumeOnFail: false });
 
     await onRequestStartAgent(ctx, event);
 
     expect(ctx.deps.agentProcessManager.ensureRunning).toHaveBeenCalledWith(
-      expect.objectContaining({ wantResume: false })
+      expect.objectContaining({ wantResumeOnFail: false })
     );
   });
 

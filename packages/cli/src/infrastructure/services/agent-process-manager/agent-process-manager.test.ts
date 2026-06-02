@@ -233,7 +233,7 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
-    test('onAgentEnd kills instead of resumeTurn when wantResume is false', async () => {
+    test('onAgentEnd kills instead of resumeTurn when wantResumeOnFail is false', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const onAgentEndRegistrar = vi.fn();
       const resumableService = {
@@ -254,7 +254,7 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(
         createOpts({
           agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'],
-          wantResume: false,
+          wantResumeOnFail: false,
         })
       );
 

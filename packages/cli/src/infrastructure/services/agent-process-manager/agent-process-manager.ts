@@ -36,7 +36,7 @@ export interface AgentSlot {
   /** Harness-native session ID when supportsSessionResume is true. */
   harnessSessionId?: string;
   /** When false, onAgentEnd kills instead of resumeTurn even for resumable harnesses. */
-  wantResume: boolean;
+  wantResumeOnFail: boolean;
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -60,7 +60,7 @@ export interface EnsureRunningOpts {
   workingDir: string;
   reason: string;
   /** When false, onAgentEnd kills instead of resumeTurn. Defaults to true. */
-  wantResume?: boolean;
+  wantResumeOnFail?: boolean;
 }
 
 export interface StopOpts {
@@ -261,7 +261,7 @@ export class AgentProcessManager {
     role: string;
     pid: number;
     harness: AgentHarness;
-    wantResume: boolean;
+    wantResumeOnFail: boolean;
   }): Promise<void> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -275,10 +275,10 @@ export class AgentProcessManager {
     const capabilities = getHarnessCapabilities(opts.harness);
 
     console.log(
-      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} wantResume=${opts.wantResume} supportsResume=${capabilities.supportsSessionResume}`
+      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} wantResumeOnFail=${opts.wantResumeOnFail} supportsResume=${capabilities.supportsSessionResume}`
     );
 
-    if (capabilities.supportsSessionResume && opts.wantResume) {
+    if (capabilities.supportsSessionResume && opts.wantResumeOnFail) {
       const service = this.deps.agentServices.get(opts.harness);
       if (service?.resumeTurn) {
         if (slot) {
@@ -372,7 +372,7 @@ export class AgentProcessManager {
     const harness = slot.harness;
     const model = slot.model;
     const workingDir = slot.workingDir;
-    const wantResume = slot.wantResume;
+    const wantResumeOnFail = slot.wantResumeOnFail;
 
     // Transition: running → idle
     slot.state = 'idle';
@@ -442,7 +442,7 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
-      wantResume,
+      wantResumeOnFail,
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
@@ -539,7 +539,7 @@ export class AgentProcessManager {
   private getOrCreateSlot(key: string): AgentSlot {
     let slot = this.slots.get(key);
     if (!slot) {
-      slot = { state: 'idle', wantResume: true };
+      slot = { state: 'idle', wantResumeOnFail: true };
       this.slots.set(key, slot);
     }
     return slot;
@@ -723,10 +723,10 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     // Transition: idle → spawning
     slot.state = 'spawning';
-    slot.wantResume = opts.wantResume ?? true;
+    slot.wantResumeOnFail = opts.wantResumeOnFail ?? true;
 
     console.log(
-      `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResume=${slot.wantResume} reason=${opts.reason}`
+      `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResumeOnFail=${slot.wantResumeOnFail} reason=${opts.reason}`
     );
 
     try {
@@ -904,7 +904,7 @@ export class AgentProcessManager {
             role: opts.role,
             pid,
             harness: opts.agentHarness,
-            wantResume: slot.wantResume,
+            wantResumeOnFail: slot.wantResumeOnFail,
           });
         });
       }

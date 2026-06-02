@@ -65,7 +65,7 @@ export type AgentRequestStartEvent = {
   reason: string;
   deadline: number;
   timestamp: number;
-  wantResume?: boolean;
+  wantResumeOnFail?: boolean;
 };
 
 export type AgentRequestStopEvent = {

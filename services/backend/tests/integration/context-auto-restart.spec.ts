@@ -36,7 +36,9 @@ async function findNewContextRestartEvents(chatroomId: Id<'chatroom_rooms'>) {
       .collect();
   });
   return events.filter(
-    (e) => e.type === 'agent.requestStart' && (e as { reason?: string }).reason === 'platform.new_context'
+    (e) =>
+      e.type === 'agent.requestStart' &&
+      (e as { reason?: string }).reason === 'platform.auto_restart_on_new_context'
   );
 }
 
