@@ -20,6 +20,7 @@ import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
 import { useMachineModels } from '../../../hooks/useMachineModels';
+import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
@@ -253,10 +254,13 @@ export function useAgentControls({
     Partial<Record<AgentHarness, string>>
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
-  const [wantResumeOnFail, setWantResumeOnFail] = useState(teamWantResumeOnFail ?? true);
-  const [autoRestartOnNewContext, setAutoRestartOnNewContext] = useState(
-    teamAutoRestartOnNewContext ?? false
-  );
+  const teamBehavior = useTeamAgentBehaviorSettings({
+    chatroomId,
+    role,
+    teamWantResumeOnFail,
+    teamAutoRestartOnNewContext,
+  });
+  const { wantResumeOnFail, seedFromTeamConfig } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -334,8 +338,7 @@ export function useAgentControls({
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
-    setWantResumeOnFail(teamWantResumeOnFail ?? true);
-    setAutoRestartOnNewContext(teamAutoRestartOnNewContext ?? false);
+    seedFromTeamConfig();
     setIsInitialized(true);
   }, [
     isInitialized,
@@ -344,21 +347,8 @@ export function useAgentControls({
     runningAgentConfig,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
-    teamWantResumeOnFail,
-    teamAutoRestartOnNewContext,
+    seedFromTeamConfig,
   ]);
-
-  useEffect(() => {
-    if (teamWantResumeOnFail !== undefined) {
-      setWantResumeOnFail(teamWantResumeOnFail);
-    }
-  }, [teamWantResumeOnFail]);
-
-  useEffect(() => {
-    if (teamAutoRestartOnNewContext !== undefined) {
-      setAutoRestartOnNewContext(teamAutoRestartOnNewContext);
-    }
-  }, [teamAutoRestartOnNewContext]);
 
   // Available models from the selected machine filtered by selected harness
   const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
@@ -627,8 +617,7 @@ export function useAgentControls({
     selectedHarness,
     selectedModel,
     workingDir,
-    wantResumeOnFail,
-    autoRestartOnNewContext,
+    teamBehavior,
     isStarting,
     isStopping,
     error,
@@ -653,8 +642,6 @@ export function useAgentControls({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
-    setWantResumeOnFail,
-    setAutoRestartOnNewContext,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -673,8 +660,6 @@ interface RemoteTabContentProps {
   daemonStartCommand: string;
   chatroomId: string;
   role: string;
-  wantResumeOnFail?: boolean;
-  autoRestartOnNewContext?: boolean;
   /** When provided, skips a duplicate workspace registry subscription in this tab. */
   linkedMachineIds?: ReadonlySet<string>;
 }
@@ -686,8 +671,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   daemonStartCommand,
   chatroomId,
   role,
-  wantResumeOnFail: persistedWantResumeOnFail,
-  autoRestartOnNewContext: persistedAutoRestartOnNewContext,
   linkedMachineIds: linkedMachineIdsProp,
 }: RemoteTabContentProps) {
   const {
@@ -714,10 +697,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
-    wantResumeOnFail,
-    autoRestartOnNewContext,
-    setWantResumeOnFail,
-    setAutoRestartOnNewContext,
+    teamBehavior,
     rehomeConfirmOpen,
     rehomeDialogLabels,
     handleConfirmRehomeStart,
@@ -1221,14 +1201,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           </div>
 
           <RemoteAgentAdvancedSettings
-            chatroomId={chatroomId}
             role={role}
             agentHarness={displayHarness}
-            wantResumeOnFail={persistedWantResumeOnFail ?? wantResumeOnFail}
-            autoRestartOnNewContext={persistedAutoRestartOnNewContext ?? autoRestartOnNewContext}
+            wantResumeOnFail={teamBehavior.effectiveWantResumeOnFail}
+            autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
             disabled={isBusy}
-            onWantResumeOnFailChange={setWantResumeOnFail}
-            onAutoRestartOnNewContextChange={setAutoRestartOnNewContext}
+            isSavingWantResumeOnFail={teamBehavior.isSavingWantResumeOnFail}
+            isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}
+            onWantResumeOnFailChange={(checked) => void teamBehavior.updateWantResumeOnFail(checked)}
+            onAutoRestartOnNewContextChange={(checked) =>
+              void teamBehavior.updateAutoRestartOnNewContext(checked)
+            }
           />
 
           <AlertDialog

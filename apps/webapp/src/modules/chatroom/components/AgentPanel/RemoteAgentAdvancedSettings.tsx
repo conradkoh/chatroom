@@ -1,12 +1,8 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { roleSupportsAutoRestartOnNewContextSetting } from '@workspace/backend/src/domain/entities/team-agent-settings';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2 } from 'lucide-react';
-import { memo, useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { memo } from 'react';
 
 import type { AgentHarness } from '../../types/machine';
 import { harnessSupportsSessionResume } from '../../types/machine';
@@ -15,110 +11,29 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export interface RemoteAgentAdvancedSettingsProps {
-  chatroomId: string;
   role: string;
   /** Harness used for resume-on-failure visibility (selected or running). */
   agentHarness: AgentHarness | null;
-  wantResumeOnFail?: boolean;
-  autoRestartOnNewContext?: boolean;
+  wantResumeOnFail: boolean;
+  autoRestartOnNewContext: boolean;
   disabled?: boolean;
-  /** Called when resume-on-failure changes so start commands use the latest value. */
-  onWantResumeOnFailChange?: (enabled: boolean) => void;
-  /** Called when auto-restart-on-new-context changes so parent state stays in sync. */
-  onAutoRestartOnNewContextChange?: (enabled: boolean) => void;
+  isSavingWantResumeOnFail?: boolean;
+  isSavingAutoRestartOnNewContext?: boolean;
+  onWantResumeOnFailChange: (enabled: boolean) => void;
+  onAutoRestartOnNewContextChange: (enabled: boolean) => void;
 }
 
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
-  chatroomId,
   role,
   agentHarness,
-  wantResumeOnFail = true,
-  autoRestartOnNewContext = false,
+  wantResumeOnFail,
+  autoRestartOnNewContext,
   disabled = false,
+  isSavingWantResumeOnFail = false,
+  isSavingAutoRestartOnNewContext = false,
   onWantResumeOnFailChange,
   onAutoRestartOnNewContextChange,
 }: RemoteAgentAdvancedSettingsProps) {
-  const setWantResumeOnFail = useSessionMutation(api.machines.setWantResumeOnFail);
-  const setAutoRestartOnNewContext = useSessionMutation(api.machines.setAutoRestartOnNewContext);
-
-  const [isSavingWantResumeOnFail, setIsSavingWantResumeOnFail] = useState(false);
-  const [isSavingAutoRestartOnNewContext, setIsSavingAutoRestartOnNewContext] = useState(false);
-  const [localWantResumeOnFail, setLocalWantResumeOnFail] = useState(wantResumeOnFail);
-  const [localAutoRestartOnNewContext, setLocalAutoRestartOnNewContext] =
-    useState(autoRestartOnNewContext);
-
-  useEffect(() => {
-    if (!isSavingWantResumeOnFail) {
-      setLocalWantResumeOnFail(wantResumeOnFail);
-    }
-  }, [wantResumeOnFail, isSavingWantResumeOnFail]);
-
-  useEffect(() => {
-    if (!isSavingAutoRestartOnNewContext) {
-      setLocalAutoRestartOnNewContext(autoRestartOnNewContext);
-    }
-  }, [autoRestartOnNewContext, isSavingAutoRestartOnNewContext]);
-
-  const handleWantResumeOnFailChange = useCallback(
-    async (checked: boolean) => {
-      setLocalWantResumeOnFail(checked);
-      onWantResumeOnFailChange?.(checked);
-      setIsSavingWantResumeOnFail(true);
-      try {
-        await setWantResumeOnFail({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          enabled: checked,
-        });
-      } catch (err) {
-        setLocalWantResumeOnFail(wantResumeOnFail);
-        onWantResumeOnFailChange?.(wantResumeOnFail);
-        toast.error(
-          err instanceof Error ? err.message : 'Failed to update resume-on-failure setting'
-        );
-      } finally {
-        setIsSavingWantResumeOnFail(false);
-      }
-    },
-    [
-      chatroomId,
-      onWantResumeOnFailChange,
-      role,
-      setWantResumeOnFail,
-      wantResumeOnFail,
-    ]
-  );
-
-  const handleAutoRestartOnNewContextChange = useCallback(
-    async (checked: boolean) => {
-      setLocalAutoRestartOnNewContext(checked);
-      onAutoRestartOnNewContextChange?.(checked);
-      setIsSavingAutoRestartOnNewContext(true);
-      try {
-        await setAutoRestartOnNewContext({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          enabled: checked,
-        });
-      } catch (err) {
-        setLocalAutoRestartOnNewContext(autoRestartOnNewContext);
-        onAutoRestartOnNewContextChange?.(autoRestartOnNewContext);
-        toast.error(
-          err instanceof Error ? err.message : 'Failed to update auto-restart setting'
-        );
-      } finally {
-        setIsSavingAutoRestartOnNewContext(false);
-      }
-    },
-    [
-      autoRestartOnNewContext,
-      chatroomId,
-      onAutoRestartOnNewContextChange,
-      role,
-      setAutoRestartOnNewContext,
-    ]
-  );
-
   const showResumeSessionOnFailureSetting =
     agentHarness != null && harnessSupportsSessionResume(agentHarness);
   const showStartNewSessionOnNewContextSetting =
@@ -163,9 +78,9 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-chatroom-text-muted" />
               )}
               <Switch
-                checked={localWantResumeOnFail}
+                checked={wantResumeOnFail}
                 disabled={disabled || isSavingWantResumeOnFail}
-                onCheckedChange={(checked) => void handleWantResumeOnFailChange(checked)}
+                onCheckedChange={onWantResumeOnFailChange}
                 aria-label="Resume session on failure"
               />
             </div>
@@ -187,9 +102,9 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-chatroom-text-muted" />
               )}
               <Switch
-                checked={localAutoRestartOnNewContext}
+                checked={autoRestartOnNewContext}
                 disabled={disabled || isSavingAutoRestartOnNewContext}
-                onCheckedChange={(checked) => void handleAutoRestartOnNewContextChange(checked)}
+                onCheckedChange={onAutoRestartOnNewContextChange}
                 aria-label="Start new session on new context"
               />
             </div>

@@ -175,8 +175,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           prompt={prompt}
           linkedMachineIds={linkedMachineIds}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
-          wantResumeOnFail={agentRoleView?.wantResumeOnFail}
-          autoRestartOnNewContext={agentRoleView?.autoRestartOnNewContext}
         />
 
         {/* Restart stats row — always shown when data is loaded */}
