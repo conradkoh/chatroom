@@ -1204,7 +1204,8 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   if (!sessionId) return; // not authed yet — skip silently
 
   const client = await getConvexClient();
-  sendLifecycleHeartbeat(client, { sessionId, chatroomId, role, action: actionCommand.name() });
+  // Presence-only heartbeat — omit action so join skips no-op lastSeenAction patches.
+  sendLifecycleHeartbeat(client, { sessionId, chatroomId, role });
 });
 
 program.parse();

@@ -71,7 +71,7 @@ export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
 // ─── Participant Lifecycle Heartbeat ─────────────────────────────────────────
 
 /** Minimum interval between participant `lastSeenAt` writes (ms).
- *  CLI preAction fires on every command; throttling reduces listParticipantPresence churn.
+ *  CLI preAction fires on every command; throttling reduces presence subscription churn.
  *  Set to 30s to match agent presence UI refresh cadence. */
 export const PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS = 30_000;
 

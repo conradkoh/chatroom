@@ -58,23 +58,24 @@ export const join = mutation({
     const now = Date.now();
 
     if (existing) {
-      // Update presence fields and optionally connectionId/action/agentType.
       // connectionId is only updated when explicitly provided — never cleared by heartbeats
       // that don't supply a connectionId, to avoid breaking superseded-connection detection.
-      const hasMaterialChange =
-        args.connectionId !== undefined ||
-        args.action !== undefined ||
-        args.agentType !== undefined;
+      const connectionIdChanged =
+        args.connectionId !== undefined && args.connectionId !== existing.connectionId;
+      const agentTypeChanged =
+        args.agentType !== undefined && args.agentType !== existing.agentType;
+      const actionChanged =
+        args.action !== undefined && args.action !== existing.lastSeenAction;
       const lastSeenAtStale =
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
 
-      if (hasMaterialChange || lastSeenAtStale) {
+      if (connectionIdChanged || agentTypeChanged || actionChanged || lastSeenAtStale) {
         await ctx.db.patch('chatroom_participants', existing._id, {
-          ...(args.connectionId !== undefined ? { connectionId: args.connectionId } : {}),
+          ...(connectionIdChanged ? { connectionId: args.connectionId } : {}),
           ...(lastSeenAtStale ? { lastSeenAt: now } : {}),
-          ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
-          ...(args.agentType ? { agentType: args.agentType } : {}),
+          ...(actionChanged ? { lastSeenAction: args.action } : {}),
+          ...(agentTypeChanged && args.agentType ? { agentType: args.agentType } : {}),
         });
       }
       participantId = existing._id;
