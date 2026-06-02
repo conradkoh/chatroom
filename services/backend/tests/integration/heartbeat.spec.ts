@@ -122,4 +122,45 @@ describe('Participant Join', () => {
 
     expect(participant!.lastSeenAction).toBe('get-next-task:started');
   });
+
+  test('join with unchanged action does not patch within throttle window', async () => {
+    const { sessionId } = await createTestSession('test-join-noop-action');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const afterFirst = await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      return { lastSeenAt: p!.lastSeenAt, lastSeenAction: p!.lastSeenAction };
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const afterSecond = await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      return { lastSeenAt: p!.lastSeenAt, lastSeenAction: p!.lastSeenAction };
+    });
+
+    expect(afterSecond).toEqual(afterFirst);
+  });
 });
