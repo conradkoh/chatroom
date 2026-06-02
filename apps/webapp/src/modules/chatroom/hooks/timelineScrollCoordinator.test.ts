@@ -12,6 +12,9 @@ describe('TimelineScrollCoordinator', () => {
 
   const maxScrollTop = () => el.scrollHeight - el.clientHeight;
 
+  /** Virtualizer scrollToOffset is deferred via queueMicrotask (avoids flushSync-in-layout). */
+  const flushVirtualizerSync = () => Promise.resolve();
+
   beforeEach(() => {
     coordinator = new TimelineScrollCoordinator();
     el = document.createElement('div');
@@ -240,15 +243,31 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('syncs virtualizer scrollOffset from the DOM after tail reconcile', () => {
+  it('syncs virtualizer scrollOffset from the DOM after tail reconcile', async () => {
     const scrollToOffset = vi.fn();
     coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
     Object.defineProperty(el, 'scrollTop', { value: 900, writable: true, configurable: true });
     Object.defineProperty(el, 'scrollHeight', { value: 1300, writable: true, configurable: true });
 
     coordinator.followTail('auto');
+    expect(scrollToOffset).not.toHaveBeenCalled();
 
+    await flushVirtualizerSync();
     expect(scrollToOffset).toHaveBeenCalledWith(900, { behavior: 'auto' });
+  });
+
+  it('notifyTopChromeDelta adjusts DOM immediately and defers virtualizer sync', async () => {
+    const scrollToOffset = vi.fn();
+    coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
+    Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 2000, writable: true, configurable: true });
+
+    coordinator.notifyTopChromeDelta(48);
+    expect(el.scrollTop).toBe(248);
+    expect(scrollToOffset).not.toHaveBeenCalled();
+
+    await flushVirtualizerSync();
+    expect(scrollToOffset).toHaveBeenCalledWith(248, { behavior: 'auto' });
   });
 
   it('preserves scrollTop via captured anchor when wasLoadingOlder was not committed during chrome defer', () => {
@@ -321,7 +340,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
-  it('preserves scrollTop when prepending while loading older (preserve_position)', () => {
+  it('preserves scrollTop when prepending while loading older (preserve_position)', async () => {
     const scrollToOffset = vi.fn();
     coordinator.setVirtualizer({ scrollToEnd, scrollToOffset });
 
@@ -354,6 +373,7 @@ describe('TimelineScrollCoordinator', () => {
 
     expect(el.scrollTop).toBe(2120);
     expect(scrollToEnd).not.toHaveBeenCalled();
+    await flushVirtualizerSync();
     expect(scrollToOffset).toHaveBeenCalled();
   });
 

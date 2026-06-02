@@ -109,6 +109,9 @@ export class TimelineScrollCoordinator {
   private pendingPrependPreserve = false;
   private prependAnchor: PrependScrollAnchor | null = null;
   private prependSettleRafId: number | null = null;
+  /** Coalesced offset for deferred virtualizer sync (scrollToOffset uses flushSync). */
+  private pendingVirtualizerSyncTop: number | null = null;
+  private virtualizerSyncScheduled = false;
 
   constructor(initialPinned = true) {
     this.pinned = initialPinned;
@@ -229,6 +232,8 @@ export class TimelineScrollCoordinator {
 
     this.intentQueue.length = 0;
     this.tailSettle = null;
+    this.pendingVirtualizerSyncTop = null;
+    this.virtualizerSyncScheduled = false;
     this.el = null;
     this.virtualizer = null;
   }
@@ -666,7 +671,6 @@ export class TimelineScrollCoordinator {
 
     this.runProgrammaticScroll(() => {
       this.el!.scrollTop += deltaPx;
-      this.virtualizer?.scrollToOffset?.(this.el!.scrollTop, { behavior: 'auto' });
       this.syncVirtualizerScrollFromDom();
     });
   }
@@ -708,7 +712,6 @@ export class TimelineScrollCoordinator {
     if (!this.el) return;
 
     this.el.scrollTop = targetTop;
-    this.virtualizer?.scrollToOffset?.(targetTop, { behavior: 'auto' });
     this.syncVirtualizerScrollFromDom();
   }
 
@@ -728,7 +731,6 @@ export class TimelineScrollCoordinator {
     if (Math.abs(this.el.scrollTop - targetTop) < 0.5) return true;
 
     this.el.scrollTop = targetTop;
-    this.virtualizer?.scrollToOffset?.(targetTop, { behavior: 'auto' });
     this.syncVirtualizerScrollFromDom();
     return true;
   }
@@ -830,6 +832,9 @@ export class TimelineScrollCoordinator {
   /**
    * TanStack Virtual caches scrollOffset from scroll events; DOM-only writes leave the
    * range empty until the user scrolls. scrollToOffset + a synthetic scroll event sync it.
+   *
+   * Virtualizer scroll commands use flushSync and must not run during React layout
+   * (e.g. notifyTopChromeDelta from useLayoutEffect) — defer to a microtask.
    */
   private syncVirtualizerScrollFromDom(): void {
     if (!this.el) return;
@@ -840,8 +845,21 @@ export class TimelineScrollCoordinator {
       this.el.scrollTop = top;
     }
 
-    this.virtualizer?.scrollToOffset?.(top, { behavior: 'auto' });
-    this.el.dispatchEvent(new Event('scroll'));
+    this.scheduleVirtualizerSync(top);
+  }
+
+  private scheduleVirtualizerSync(top: number): void {
+    this.pendingVirtualizerSyncTop = top;
+    if (this.virtualizerSyncScheduled) return;
+    this.virtualizerSyncScheduled = true;
+    queueMicrotask(() => {
+      this.virtualizerSyncScheduled = false;
+      const offset = this.pendingVirtualizerSyncTop;
+      this.pendingVirtualizerSyncTop = null;
+      if (offset === null || !this.el) return;
+      this.virtualizer?.scrollToOffset?.(offset, { behavior: 'auto' });
+      this.el.dispatchEvent(new Event('scroll'));
+    });
   }
 
   private computeIsAtBottom(): boolean {
