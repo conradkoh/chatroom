@@ -6,6 +6,7 @@ import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 
 /**
  * Tracks which commit SHAs have already been fetched (or confirmed not-found / error)
@@ -31,18 +32,8 @@ export async function syncCommitDetails(
   ctx: DaemonContext,
   seenShasMap?: Map<string, Set<string>>
 ): Promise<void> {
-  let workspaces: { workingDir: string }[];
-  try {
-    workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for commit-detail sync: ${getErrorMessage(err)}`
-    );
-    return;
-  }
+  const workspaces = await getWorkspacesForMachine(ctx);
+  if (workspaces.length === 0) return;
 
   const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
 

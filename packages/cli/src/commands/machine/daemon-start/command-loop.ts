@@ -28,6 +28,7 @@ import { processManager } from './handlers/process/manager.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import { startLogObserverPoll } from './handlers/process/log-observer-sync.js';
+import { invalidateWorkspacesForMachineCache } from './workspace-cache.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -400,6 +401,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       .then(() => {
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
+        invalidateWorkspacesForMachineCache(ctx);
         // When observedSyncEnabled is true, skip periodic pushes — handled by observed-sync subscription instead
         if (!ctx.observedSyncEnabled) {
           pushGitState(ctx).catch((err: unknown) => {
