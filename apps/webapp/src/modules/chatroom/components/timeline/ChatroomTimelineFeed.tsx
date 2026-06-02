@@ -189,12 +189,9 @@ export function ChatroomTimelineFeed({
     const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
     if (measuredChrome === topChromeHeight) return;
 
-    const el = scrollParentRef.current;
     const chromeDelta = measuredChrome - topChromeHeight;
-    // Preserve viewport when top chrome grows (load-older spinner); skip only at tail.
-    if (el && chromeDelta !== 0 && !coordinator.current.isAtBottom()) {
-      el.scrollTop += chromeDelta;
-      virtualizerRef.current.scrollToOffset(el.scrollTop, { behavior: 'auto' });
+    if (chromeDelta !== 0) {
+      coordinator.current.notifyTopChromeDelta(chromeDelta);
     }
     setTopChromeHeight(measuredChrome);
   });

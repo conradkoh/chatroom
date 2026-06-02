@@ -104,6 +104,23 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
+  it('jumpToEnd pins immediately and uses auto scroll from unpinned partial position', () => {
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 120,
+      writable: true,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event('scroll'));
+    expect(coordinator.isPinned).toBe(false);
+
+    scrollToEnd.mockClear();
+    coordinator.jumpToEnd('smooth');
+
+    expect(coordinator.isPinned).toBe(true);
+    expect(el.scrollTop).toBe(maxScrollTop());
+    expect(scrollToEnd).toHaveBeenCalledWith({ behavior: 'auto' });
+  });
+
   it('jumpToEnd stays pinned when scroll events fire mid-flight during programmatic scroll', () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
@@ -125,6 +142,32 @@ describe('TimelineScrollCoordinator', () => {
     expect(el.scrollTop).toBe(maxScrollTop());
   });
 
+  it('follows tail on append when pinned but not yet flush at the tail', () => {
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 80,
+      writable: true,
+      configurable: true,
+    });
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 2,
+      tailKey: 'evt-1',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 3,
+      tailKey: 'evt-2',
+      isLoadingOlder: false,
+    });
+
+    expect(scrollToEnd).toHaveBeenCalled();
+    expect(coordinator.isPinned).toBe(true);
+  });
+
   it('follows tail on append when pinned', () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
@@ -141,6 +184,40 @@ describe('TimelineScrollCoordinator', () => {
       isLoadingOlder: false,
     });
 
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
+
+  it('re-snaps during append tail settle when new tail row measures in', async () => {
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 2,
+      tailKey: 'evt-1',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 3,
+      tailKey: 'evt-2',
+      isLoadingOlder: false,
+    });
+
+    Object.defineProperty(el, 'scrollHeight', { value: 1500, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', { value: 500, writable: true, configurable: true });
+
+    await new Promise<void>((resolve) => {
+      const wait = () => {
+        if (el.scrollTop === maxScrollTop()) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(wait);
+      };
+      requestAnimationFrame(wait);
+    });
+
+    expect(el.scrollTop).toBe(1100);
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
@@ -448,6 +525,83 @@ describe('TimelineScrollCoordinator', () => {
 
     coordinator.notifyTailRowResized(9);
 
+    expect(scrollToEnd).not.toHaveBeenCalled();
+  });
+
+  it('coalesces multiple tail_settle intents in one flush pass', () => {
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+    scrollToEnd.mockClear();
+
+    coordinator.notifyTailRowResized(9);
+    coordinator.notifyTailRowResized(9);
+    coordinator.notifyTailRowResized(9);
+
+    // Without coalescing, each notify could trigger multiple scroll passes.
+    expect(scrollToEnd.mock.calls.length).toBeLessThan(6);
+  });
+
+  it('pinned tail guard corrects scrollTop below max while pinned', async () => {
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 120,
+      writable: true,
+      configurable: true,
+    });
+    coordinator.followTail('auto');
+
+    await new Promise<void>((resolve) => {
+      const wait = () => {
+        if (el.scrollTop === maxScrollTop()) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(wait);
+      };
+      requestAnimationFrame(wait);
+    });
+
+    expect(el.scrollTop).toBe(maxScrollTop());
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
+
+  it('endResize enqueues follow and tail settle when pinned', () => {
+    coordinator.beginResize();
+    scrollToEnd.mockClear();
+    coordinator.endResize();
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
+
+  it('does not unpin on scroll while programmatic tail follow is active', () => {
+    Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+    expect(coordinator.isPinned).toBe(false);
+
+    coordinator.followTail('auto');
+    expect(coordinator.isPinned).toBe(true);
+    expect(coordinator.isProgrammaticScrollActive()).toBe(true);
+
+    Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+
+    expect(coordinator.isPinned).toBe(true);
+  });
+
+  it('cancels pending tail work when user scrolls away from the tail', () => {
+    scrollToEnd.mockClear();
+
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop() - 80,
+      writable: true,
+      configurable: true,
+    });
+    el.dispatchEvent(new Event('scroll'));
+
+    expect(coordinator.isPinned).toBe(false);
+    coordinator.notifyTailRowResized(9);
     expect(scrollToEnd).not.toHaveBeenCalled();
   });
 });

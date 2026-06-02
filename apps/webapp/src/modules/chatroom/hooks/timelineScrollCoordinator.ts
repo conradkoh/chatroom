@@ -17,6 +17,9 @@ import { TIMELINE_PIN_AT_BOTTOM_THRESHOLD } from '../components/timeline/timelin
 
 const AT_BOTTOM_THRESHOLD = TIMELINE_PIN_AT_BOTTOM_THRESHOLD;
 const USER_SCROLL_TIMEOUT_MS = 200;
+/** Cap pinned-tail guard rAF iterations so a stuck layout cannot spin forever. */
+const PINNED_TAIL_GUARD_MAX_ITERATIONS = 30;
+
 export type VirtualizerScrollApi = {
   scrollToEnd: (options?: { behavior?: 'auto' | 'smooth' }) => void;
   scrollToIndex?: (
@@ -45,6 +48,26 @@ export type PrependScrollAnchor = {
 
 type PinListener = () => void;
 
+type ScrollIntent =
+  | { type: 'follow_tail'; behavior: 'auto' | 'smooth' }
+  | {
+      type: 'tail_settle';
+      tailIndex?: number;
+      onSettled?: () => void;
+      maxFrames?: number;
+    }
+  | { type: 'snap' }
+  | { type: 'preserve_prepend'; scrollEl: HTMLElement }
+  | { type: 'adjust_top_chrome'; deltaPx: number }
+  | { type: 'cancel_programmatic' };
+
+type TailSettleState = {
+  frames: number;
+  maxFrames: number;
+  tailIndex?: number;
+  onSettled?: () => void;
+};
+
 export class TimelineScrollCoordinator {
   private pinned = true;
   private readonly pinListeners = new Set<PinListener>();
@@ -56,10 +79,15 @@ export class TimelineScrollCoordinator {
   private userScrollTimeout: ReturnType<typeof setTimeout> | null = null;
   private resizing = false;
   private programmaticScroll = false;
+  private programmaticScrollDepth = 0;
 
-  private pendingSnap = false;
-  private rafId: number | null = null;
-  private tailSettleRafId: number | null = null;
+  private readonly intentQueue: ScrollIntent[] = [];
+  private workerRafId: number | null = null;
+  private followTailRafId: number | null = null;
+  private pinnedTailGuardRafId: number | null = null;
+  private pinnedTailGuardIterations = 0;
+  private isFlushingQueue = false;
+  private tailSettle: TailSettleState | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
   private prevEventCount = 0;
@@ -149,7 +177,7 @@ export class TimelineScrollCoordinator {
 
     this.resizeObserver = new ResizeObserver(() => {
       if (this.pinned && !this.resizing && this.computeIsAtBottom()) {
-        this.enqueueSnap();
+        this.enqueue({ type: 'snap' });
       }
     });
     this.resizeObserver.observe(el);
@@ -174,22 +202,20 @@ export class TimelineScrollCoordinator {
       this.userScrollTimeout = null;
     }
 
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+    if (this.workerRafId !== null) {
+      cancelAnimationFrame(this.workerRafId);
+      this.workerRafId = null;
     }
 
-    if (this.tailSettleRafId !== null) {
-      cancelAnimationFrame(this.tailSettleRafId);
-      this.tailSettleRafId = null;
-    }
+    this.stopPinnedTailGuard();
 
     if (this.prependSettleRafId !== null) {
       cancelAnimationFrame(this.prependSettleRafId);
       this.prependSettleRafId = null;
     }
 
-    this.pendingSnap = false;
+    this.intentQueue.length = 0;
+    this.tailSettle = null;
     this.el = null;
     this.virtualizer = null;
   }
@@ -205,16 +231,25 @@ export class TimelineScrollCoordinator {
   endResize(): void {
     this.resizing = false;
     if (this.pinned) {
-      this.followTail('auto');
+      this.enqueue({ type: 'follow_tail', behavior: 'auto' });
+      this.enqueue({ type: 'tail_settle' });
+      this.schedulePinnedTailGuard();
     }
   }
 
   // ─── User actions ────────────────────────────────────────────────────────
 
-  /** Jump chip — same tail recovery as pinned follow (DOM snap + virtualizer sync + settle). */
-  jumpToEnd(behavior: 'auto' | 'smooth' = 'smooth'): void {
-    this.followTail(behavior);
-    this.scheduleTailSettle();
+  /** Jump chip — pin immediately, snap to max with auto, then settle + guard as rows measure in. */
+  jumpToEnd(_behavior: 'auto' | 'smooth' = 'smooth'): void {
+    this.setPinned(true);
+    this.runProgrammaticScroll(
+      () => {
+        this.applyTailScroll('auto');
+      },
+      { targetCheck: () => this.computeIsAtBottom() }
+    );
+    this.enqueue({ type: 'tail_settle' });
+    this.schedulePinnedTailGuard();
   }
 
   /**
@@ -225,7 +260,15 @@ export class TimelineScrollCoordinator {
     if (!this.shouldFollowTail()) {
       return;
     }
-    this.scheduleTailSettle({ tailIndex });
+    this.enqueue({ type: 'tail_settle', tailIndex });
+  }
+
+  /** Preserve viewport when top chrome height changes (load-older spinner). No-op at tail. */
+  notifyTopChromeDelta(deltaPx: number): void {
+    if (deltaPx === 0 || this.computeIsAtBottom()) {
+      return;
+    }
+    this.enqueue({ type: 'adjust_top_chrome', deltaPx });
   }
 
   /**
@@ -233,19 +276,7 @@ export class TimelineScrollCoordinator {
    */
   followTail(behavior: 'auto' | 'smooth' = 'auto'): void {
     this.setPinned(true);
-    this.runProgrammaticScroll(
-      () => {
-        this.snapDomImmediate();
-        this.scrollVirtualizer(behavior);
-        this.syncVirtualizerScrollFromDom();
-      },
-      { targetCheck: () => this.computeIsAtBottom() }
-    );
-    requestAnimationFrame(() => {
-      this.scrollVirtualizer(behavior);
-      this.snapDomImmediate();
-      this.syncVirtualizerScrollFromDom();
-    });
+    this.enqueue({ type: 'follow_tail', behavior });
   }
 
   /**
@@ -272,9 +303,13 @@ export class TimelineScrollCoordinator {
       this.hasInitialScroll = true;
       this.allowLoadOlder = false;
       if (this.pinned) {
-        this.scheduleTailSettle({ onSettled: () => {
-          this.allowLoadOlder = true;
-        } });
+        this.enqueue({
+          type: 'tail_settle',
+          onSettled: () => {
+            this.allowLoadOlder = true;
+          },
+        });
+        this.schedulePinnedTailGuard();
       } else {
         this.allowLoadOlder = true;
       }
@@ -286,11 +321,15 @@ export class TimelineScrollCoordinator {
           this.pendingPrependPreserve = false;
           this.prependAnchor = null;
         } else {
-          this.applyPrependScrollPreserve(scrollEl);
+          this.enqueue({ type: 'preserve_prepend', scrollEl });
         }
-      } else if (this.shouldFollowTail()) {
+      } else if (this.pinned) {
         // Tail key covers subscription slide-off (same count); count covers growth without tail rotation.
-        this.followTail('auto');
+        // Match jumpToEnd: follow_tail + tail_settle for variable-height rows (context dividers, handoffs).
+        const tailIndex = eventCount > 0 ? eventCount - 1 : undefined;
+        this.enqueue({ type: 'follow_tail', behavior: 'auto' });
+        this.enqueue({ type: 'tail_settle', tailIndex });
+        this.schedulePinnedTailGuard();
       }
 
       this.prevScrollHeight = scrollEl.scrollHeight;
@@ -303,11 +342,291 @@ export class TimelineScrollCoordinator {
     this.wasLoadingOlder = isLoadingOlder;
   }
 
+  // ─── Intent queue ────────────────────────────────────────────────────────
+
+  private enqueue(intent: ScrollIntent): void {
+    this.intentQueue.push(intent);
+    if (!this.isFlushingQueue) {
+      this.flushQueue();
+    }
+  }
+
+  private scheduleWorker(): void {
+    if (this.workerRafId !== null) return;
+    this.workerRafId = requestAnimationFrame(() => {
+      this.workerRafId = null;
+      this.flushQueue();
+    });
+  }
+
+  private cancelPendingTailWork(): void {
+    for (let i = this.intentQueue.length - 1; i >= 0; i--) {
+      const intent = this.intentQueue[i];
+      if (
+        intent.type === 'follow_tail' ||
+        intent.type === 'tail_settle' ||
+        intent.type === 'snap'
+      ) {
+        this.intentQueue.splice(i, 1);
+      }
+    }
+    if (this.workerRafId !== null) {
+      cancelAnimationFrame(this.workerRafId);
+      this.workerRafId = null;
+    }
+    if (this.followTailRafId !== null) {
+      cancelAnimationFrame(this.followTailRafId);
+      this.followTailRafId = null;
+    }
+    this.stopPinnedTailGuard();
+    this.tailSettle = null;
+    this.programmaticScrollDepth = 0;
+    this.programmaticScroll = false;
+  }
+
+  private isTailBlockedByPrepend(): boolean {
+    return this.pendingPrependPreserve || this.prependSettleRafId !== null;
+  }
+
+  private flushQueue(): void {
+    if (this.isFlushingQueue) return;
+    this.isFlushingQueue = true;
+
+    let needsAnotherFrame = false;
+
+    try {
+      needsAnotherFrame = this.runFlushCycle();
+    } finally {
+      this.isFlushingQueue = false;
+    }
+
+    if (this.intentQueue.length > 0) {
+      this.flushQueue();
+      return;
+    }
+
+    if (needsAnotherFrame) {
+      this.scheduleWorker();
+    }
+  }
+
+  /** One coalesced apply pass; returns true when tail settle needs another animation frame. */
+  private runFlushCycle(): boolean {
+    let needsAnotherFrame = false;
+
+    // Process cancellations first.
+    for (let i = this.intentQueue.length - 1; i >= 0; i--) {
+      if (this.intentQueue[i].type === 'cancel_programmatic') {
+        this.intentQueue.splice(i, 1);
+        this.cancelPendingTailWork();
+      }
+    }
+
+    const blockTail = this.isTailBlockedByPrepend();
+
+    // Drain prepend / chrome intents before tail work.
+    for (let i = 0; i < this.intentQueue.length; ) {
+      const intent = this.intentQueue[i];
+      if (intent.type === 'preserve_prepend') {
+        this.intentQueue.splice(i, 1);
+        this.applyPrependScrollPreserve(intent.scrollEl);
+      } else if (intent.type === 'adjust_top_chrome') {
+        this.intentQueue.splice(i, 1);
+        this.applyTopChromeDelta(intent.deltaPx);
+      } else {
+        i++;
+      }
+    }
+
+    // Coalesce tail-related intents for this frame (last follow_tail behavior wins).
+    let followBehavior: 'auto' | 'smooth' | null = null;
+    let snap = false;
+    const tailSettleIntents: Extract<ScrollIntent, { type: 'tail_settle' }>[] = [];
+
+    for (let i = this.intentQueue.length - 1; i >= 0; i--) {
+      const intent = this.intentQueue[i];
+      if (intent.type === 'follow_tail' || intent.type === 'tail_settle' || intent.type === 'snap') {
+        this.intentQueue.splice(i, 1);
+        if (blockTail) continue;
+        if (intent.type === 'follow_tail') {
+          followBehavior = intent.behavior;
+        } else if (intent.type === 'snap') {
+          snap = true;
+        } else {
+          tailSettleIntents.unshift(intent);
+        }
+      }
+    }
+
+    if (tailSettleIntents.length > 0) {
+      const merged = tailSettleIntents.reduce(
+        (acc, intent) => ({
+          tailIndex: intent.tailIndex ?? acc.tailIndex,
+          maxFrames: intent.maxFrames ?? acc.maxFrames,
+          onSettled: intent.onSettled
+            ? () => {
+                acc.onSettled?.();
+                intent.onSettled?.();
+              }
+            : acc.onSettled,
+        }),
+        {} as { tailIndex?: number; maxFrames?: number; onSettled?: () => void }
+      );
+      this.startTailSettle(merged);
+    }
+
+    if (!blockTail && (followBehavior !== null || snap)) {
+      const behavior = followBehavior ?? 'auto';
+      if (followBehavior !== null) {
+        this.setPinned(true);
+      }
+      this.applyFollowTailIntent(behavior);
+    }
+
+    if (this.tailSettle !== null) {
+      needsAnotherFrame = this.tickTailSettle();
+    }
+
+    return needsAnotherFrame;
+  }
+
+  private startTailSettle(options: {
+    tailIndex?: number;
+    onSettled?: () => void;
+    maxFrames?: number;
+  }): void {
+    this.tailSettle = {
+      frames: 0,
+      maxFrames: options.maxFrames ?? 24,
+      tailIndex: options.tailIndex,
+      onSettled: options.onSettled,
+    };
+
+    if (this.pinned && this.el) {
+      this.applyFollowTailIntent('auto', options.tailIndex);
+    }
+  }
+
+  /** Returns true when tail settle should continue on the next frame. */
+  private tickTailSettle(): boolean {
+    const state = this.tailSettle;
+    if (!state) return false;
+
+    state.frames++;
+    const visibleCount = this.virtualizer?.getVisibleCount?.() ?? 1;
+    const rangeEmpty = visibleCount === 0;
+    const atBottom = this.computeIsAtBottom();
+
+    if (this.pinned && this.el && (!atBottom || rangeEmpty)) {
+      this.applyFollowTailIntent('auto', state.tailIndex);
+    }
+
+    const settled = atBottom && !rangeEmpty && state.frames >= 2;
+    if (settled || state.frames >= state.maxFrames) {
+      const onSettled = state.onSettled;
+      this.tailSettle = null;
+      onSettled?.();
+      return false;
+    }
+
+    return true;
+  }
+
+  private applyFollowTailIntent(behavior: 'auto' | 'smooth', tailIndex?: number): void {
+    this.runProgrammaticScroll(
+      () => {
+        this.applyTailScroll(behavior, tailIndex);
+      },
+      { targetCheck: () => this.computeIsAtBottom() }
+    );
+    if (this.followTailRafId !== null) {
+      cancelAnimationFrame(this.followTailRafId);
+    }
+    this.followTailRafId = requestAnimationFrame(() => {
+      this.followTailRafId = null;
+      if (!this.pinned || this.isTailBlockedByPrepend()) {
+        return;
+      }
+      this.applyTailScroll(behavior, tailIndex);
+    });
+  }
+
+  /** While pinned, correct scrollTop below max via the intent queue (no separate React watchdog). */
+  private schedulePinnedTailGuard(): void {
+    if (this.pinnedTailGuardRafId !== null) return;
+    if (!this.canRunPinnedTailGuard()) return;
+
+    this.pinnedTailGuardIterations = 0;
+    this.pinnedTailGuardRafId = requestAnimationFrame(() => this.tickPinnedTailGuard());
+  }
+
+  private stopPinnedTailGuard(): void {
+    if (this.pinnedTailGuardRafId !== null) {
+      cancelAnimationFrame(this.pinnedTailGuardRafId);
+      this.pinnedTailGuardRafId = null;
+    }
+    this.pinnedTailGuardIterations = 0;
+  }
+
+  private canRunPinnedTailGuard(): boolean {
+    return (
+      this.pinned &&
+      !this.resizing &&
+      !this.userScrolling &&
+      !this.isTailBlockedByPrepend() &&
+      this.el !== null
+    );
+  }
+
+  private isBelowMaxScroll(): boolean {
+    if (!this.el) return false;
+    return this.el.scrollTop < this.getMaxScrollTop() - 0.5;
+  }
+
+  private tickPinnedTailGuard(): void {
+    this.pinnedTailGuardRafId = null;
+
+    if (!this.canRunPinnedTailGuard()) {
+      this.pinnedTailGuardIterations = 0;
+      return;
+    }
+
+    if (this.isBelowMaxScroll()) {
+      this.pinnedTailGuardIterations++;
+      if (this.pinnedTailGuardIterations <= PINNED_TAIL_GUARD_MAX_ITERATIONS) {
+        this.enqueue({ type: 'follow_tail', behavior: 'auto' });
+        this.enqueue({ type: 'tail_settle' });
+      }
+    } else {
+      this.pinnedTailGuardIterations = 0;
+      return;
+    }
+
+    if (this.canRunPinnedTailGuard() && this.isBelowMaxScroll()) {
+      this.pinnedTailGuardRafId = requestAnimationFrame(() => this.tickPinnedTailGuard());
+    }
+  }
+
+  /** Single DOM + virtualizer apply path for tail follow / snap / settle. */
+  private applyTailScroll(behavior: 'auto' | 'smooth', tailIndex?: number): void {
+    if (tailIndex !== undefined && tailIndex >= 0) {
+      this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
+    }
+    this.scrollVirtualizer(behavior);
+    this.snapDomImmediate();
+    this.syncVirtualizerScrollFromDom();
+  }
+
   // ─── Private ─────────────────────────────────────────────────────────────
 
   private setPinned(pinned: boolean): void {
     if (this.pinned === pinned) return;
     this.pinned = pinned;
+    if (pinned) {
+      this.schedulePinnedTailGuard();
+    } else {
+      this.stopPinnedTailGuard();
+    }
     for (const listener of this.pinListeners) {
       listener();
     }
@@ -315,24 +634,6 @@ export class TimelineScrollCoordinator {
 
   private scrollVirtualizer(behavior: 'auto' | 'smooth'): void {
     this.virtualizer?.scrollToEnd({ behavior });
-  }
-
-  private enqueueSnap(): void {
-    this.pendingSnap = true;
-    if (this.rafId === null) {
-      this.rafId = requestAnimationFrame(() => {
-        this.processSnapQueue();
-      });
-    }
-  }
-
-  private processSnapQueue(): void {
-    if (this.pendingSnap && this.pinned && this.el) {
-      this.snapDomImmediate();
-      this.scrollVirtualizer('auto');
-    }
-    this.pendingSnap = false;
-    this.rafId = null;
   }
 
   private snapDomImmediate(): void {
@@ -345,6 +646,18 @@ export class TimelineScrollCoordinator {
    * Restore the exact viewport using scrollTop + scrollHeight delta, then re-settle
    * over a few frames as rows measure in (avoids scrollToIndex row-snapping jank).
    */
+  private applyTopChromeDelta(deltaPx: number): void {
+    if (!this.el || deltaPx === 0 || this.computeIsAtBottom()) {
+      return;
+    }
+
+    this.runProgrammaticScroll(() => {
+      this.el!.scrollTop += deltaPx;
+      this.virtualizer?.scrollToOffset?.(this.el!.scrollTop, { behavior: 'auto' });
+      this.syncVirtualizerScrollFromDom();
+    });
+  }
+
   private applyPrependScrollPreserve(scrollEl: HTMLElement): void {
     if (!this.el) return;
 
@@ -454,11 +767,23 @@ export class TimelineScrollCoordinator {
     return Math.max(0, this.el.scrollHeight - this.el.clientHeight);
   }
 
+  private beginProgrammaticScroll(): void {
+    this.programmaticScrollDepth++;
+    this.programmaticScroll = true;
+  }
+
+  private endProgrammaticScroll(): void {
+    this.programmaticScrollDepth = Math.max(0, this.programmaticScrollDepth - 1);
+    if (this.programmaticScrollDepth === 0) {
+      this.programmaticScroll = false;
+    }
+  }
+
   private runProgrammaticScroll(
     action: () => void,
     options: { targetCheck?: () => boolean } = {}
   ): void {
-    this.programmaticScroll = true;
+    this.beginProgrammaticScroll();
     action();
 
     const { targetCheck } = options;
@@ -466,7 +791,7 @@ export class TimelineScrollCoordinator {
       // Fallback: clear after 2 rAFs (preserves existing behavior for mid-list scrolls).
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          this.programmaticScroll = false;
+          this.endProgrammaticScroll();
         });
       });
       return;
@@ -479,74 +804,16 @@ export class TimelineScrollCoordinator {
     const tick = (): void => {
       frames++;
       if (targetCheck()) {
-        this.programmaticScroll = false;
+        this.endProgrammaticScroll();
         return;
       }
       if (frames >= maxFrames) {
-        this.programmaticScroll = false;
+        this.endProgrammaticScroll();
         return;
       }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-  }
-
-  /**
-   * Multi-frame tail recovery — virtualizer range and DOM scrollHeight often lag one
-   * or more frames after count changes.
-   */
-  private scheduleTailSettle(options: {
-    tailIndex?: number;
-    maxFrames?: number;
-    onSettled?: () => void;
-  } = {}): void {
-    const maxFrames = options.maxFrames ?? 24;
-    const tailIndex = options.tailIndex;
-
-    if (this.tailSettleRafId !== null) {
-      cancelAnimationFrame(this.tailSettleRafId);
-    }
-
-    let frames = 0;
-
-    const tick = (): void => {
-      frames++;
-      const visibleCount = this.virtualizer?.getVisibleCount?.() ?? 1;
-      const rangeEmpty = visibleCount === 0;
-      const atBottom = this.computeIsAtBottom();
-
-      if (this.pinned && this.el && (!atBottom || rangeEmpty)) {
-        this.runProgrammaticScroll(() => {
-          this.reconcileTailScroll(tailIndex);
-        });
-      }
-
-      const settled = atBottom && !rangeEmpty && frames >= 2;
-
-      if (settled || frames >= maxFrames) {
-        this.tailSettleRafId = null;
-        options.onSettled?.();
-        return;
-      }
-
-      this.tailSettleRafId = requestAnimationFrame(tick);
-    };
-
-    this.runProgrammaticScroll(() => {
-      this.reconcileTailScroll(tailIndex);
-    });
-
-    this.tailSettleRafId = requestAnimationFrame(tick);
-  }
-
-  /** Align DOM, virtualizer scrollOffset (via scrollToOffset), and visible range. */
-  private reconcileTailScroll(tailIndex: number | undefined): void {
-    if (tailIndex !== undefined && tailIndex >= 0) {
-      this.virtualizer?.scrollToIndex?.(tailIndex, { align: 'end', behavior: 'auto' });
-    }
-    this.scrollVirtualizer('auto');
-    this.snapDomImmediate();
-    this.syncVirtualizerScrollFromDom();
   }
 
   /**
@@ -574,6 +841,8 @@ export class TimelineScrollCoordinator {
   }
 
   private handleUserScroll = (): void => {
+    this.stopPinnedTailGuard();
+    this.enqueue({ type: 'cancel_programmatic' });
     this.userScrolling = true;
 
     if (this.userScrollTimeout !== null) {
@@ -594,9 +863,21 @@ export class TimelineScrollCoordinator {
   };
 
   private handleScrollEvent = (): void => {
-    if (this.programmaticScroll) return;
-
     const atBottom = this.computeIsAtBottom();
+
+    if (
+      !atBottom &&
+      this.pinned &&
+      this.tailSettle === null &&
+      !this.isFlushingQueue &&
+      !this.programmaticScroll
+    ) {
+      this.cancelPendingTailWork();
+      this.setPinned(false);
+      return;
+    }
+
+    if (this.programmaticScroll) return;
 
     if (atBottom && !this.pinned) {
       this.setPinned(true);
@@ -604,9 +885,5 @@ export class TimelineScrollCoordinator {
     }
 
     if (this.userScrolling) return;
-
-    if (!atBottom && this.pinned) {
-      this.setPinned(false);
-    }
   };
 }
