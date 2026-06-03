@@ -42,6 +42,7 @@
       "outputs": ["dist/**"]
     },
     "@workspace/webapp#typecheck": {
+      "dependsOn": ["^typecheck"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/services/backend/src/**"]
     },
     "@workspace/webapp#build": {
