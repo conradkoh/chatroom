@@ -1,26 +1,39 @@
 'use client';
 
 /**
- * useChatroomMessageStore — message fetch + local merge for the timeline.
+ * useChatroomMessageStore — cursor-pinned delta subscription for the timeline.
  *
- * Pass 1 (release behavior): same model as legacy useMessages — reactive
- * subscribeLatestMessages tail + imperative listMessagesBefore pagination.
- *
- * UI hooks (useChatroomTimeline, useChatroomTimelineFeedData) read from here;
- * ChatroomTimelineFeed should not call Convex message APIs directly.
+ * Architecture (matches direct-harness turn store pattern):
+ * 1. Initial load — imperative getLatestMessages(limit); pin tailAfterCreationTime
+ * 2. Live tail — useSessionQuery(subscribeMessagesSince, { afterCreationTime })
+ * 3. Merge — reducer appends/updates by _id; chronological order in store
+ * 4. Older pages — imperative listMessagesBefore on scroll-up
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useConvex } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
 import type { Message } from '../types/message';
 
-export const MESSAGE_SUBSCRIPTION_LIMIT = 20;
-export const MESSAGE_LOAD_OLDER_PAGE_SIZE = 20;
+import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
+
+export const MESSAGE_STORE_LIMIT = 20;
+export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 20;
+
+/** Match legacy useMessages: a full initial window implies more history may exist. */
+export function inferHasMoreOlder(messageCount: number, hasMoreFromServer: boolean): boolean {
+  return hasMoreFromServer || messageCount >= MESSAGE_STORE_LIMIT;
+}
+
+/** History is exhausted only when the server returns zero rows for a page. */
+export function hasMoreOlderAfterPage(pageLength: number): boolean {
+  return pageLength > 0;
+}
+
+// ─── Wire → domain mapping ───────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function toMessage(m: any): Message {
@@ -48,6 +61,109 @@ export function toMessage(m: any): Message {
   };
 }
 
+// ─── State ───────────────────────────────────────────────────────────────────
+
+interface State {
+  messages: Message[];
+  tailAfterCreationTime: number | null;
+  isInitialized: boolean;
+  hasMoreOlder: boolean;
+  isLoadingOlder: boolean;
+}
+
+const initialState: State = {
+  messages: [],
+  tailAfterCreationTime: null,
+  isInitialized: false,
+  hasMoreOlder: false,
+  isLoadingOlder: false,
+};
+
+// ─── Actions ─────────────────────────────────────────────────────────────────
+
+type Action =
+  | {
+      type: 'INITIALIZE';
+      messages: Message[];
+      tailAfterCreationTime: number;
+      hasMoreOlder: boolean;
+    }
+  | { type: 'MERGE_TAIL'; messages: Message[] }
+  | { type: 'PREPEND_OLDER'; messages: Message[]; hasMoreOlder: boolean }
+  | { type: 'LOAD_OLDER_START' }
+  | { type: 'LOAD_OLDER_FAILED' }
+  | { type: 'RESET' };
+
+function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] {
+  if (incoming.length === 0) return existing;
+  const idxById = new Map(existing.map((m, i) => [m._id, i]));
+  const result = [...existing];
+  for (const msg of incoming) {
+    const idx = idxById.get(msg._id);
+    if (idx !== undefined) {
+      result[idx] = msg;
+    } else {
+      result.push(msg);
+    }
+  }
+  result.sort((a, b) => a._creationTime - b._creationTime);
+  return result;
+}
+
+function filterNewMessages(existing: Message[], incoming: Message[]): Message[] {
+  const existingIds = new Set(existing.map((m) => m._id));
+  return incoming.filter((m) => !existingIds.has(m._id));
+}
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'INITIALIZE': {
+      if (state.isInitialized) return state;
+      return {
+        ...state,
+        messages: action.messages,
+        tailAfterCreationTime: action.tailAfterCreationTime,
+        isInitialized: true,
+        hasMoreOlder: action.hasMoreOlder,
+      };
+    }
+    case 'MERGE_TAIL': {
+      if (!state.isInitialized) return state;
+      const merged = mergeMessagesById(state.messages, action.messages);
+      if (merged === state.messages) return state;
+      return { ...state, messages: merged };
+    }
+    case 'PREPEND_OLDER': {
+      if (action.messages.length === 0) {
+        return {
+          ...state,
+          hasMoreOlder: action.hasMoreOlder,
+          isLoadingOlder: false,
+        };
+      }
+      const merged = [...action.messages, ...state.messages].sort(
+        (a, b) => a._creationTime - b._creationTime
+      );
+      return {
+        ...state,
+        messages: merged,
+        hasMoreOlder: action.hasMoreOlder,
+        isLoadingOlder: false,
+      };
+    }
+    case 'LOAD_OLDER_START':
+      return state.isLoadingOlder ? state : { ...state, isLoadingOlder: true };
+    case 'LOAD_OLDER_FAILED':
+      return { ...state, isLoadingOlder: false };
+    case 'RESET':
+      return initialState;
+    default:
+      return state;
+  }
+}
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
 export interface UseChatroomMessageStoreResult {
   messages: Message[];
   isLoading: boolean;
@@ -60,131 +176,164 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const convex = useConvex();
   const [sessionId] = useSessionId();
-
-  const subscriptionResult = useSessionQuery(api.messageList.subscribeLatestMessages, {
-    chatroomId: typedChatroomId,
-    limit: MESSAGE_SUBSCRIPTION_LIMIT,
-  });
-
-  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [exhaustedOlder, setExhaustedOlder] = useState(false);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const [initialLoadRequested, setInitialLoadRequested] = useState(false);
   const isLoadingOlderRef = useRef(false);
-  const prevLiveRef = useRef<Message[]>([]);
+  /** When a page overlaps the tail window (duplicates only), next load uses this cursor. */
+  const loadOlderBeforeRef = useRef<number | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+  const hasMoreOlderRef = useRef(false);
+  const isInitializedRef = useRef(false);
+  messagesRef.current = state.messages;
+  hasMoreOlderRef.current = state.hasMoreOlder;
+  isInitializedRef.current = state.isInitialized;
 
   useEffect(() => {
-    setOlderMessages([]);
-    setExhaustedOlder(false);
-    setIsLoadingOlder(false);
+    dispatch({ type: 'RESET' });
+    setInitialLoadRequested(false);
     isLoadingOlderRef.current = false;
-    prevLiveRef.current = [];
+    loadOlderBeforeRef.current = null;
   }, [chatroomId]);
 
+  // ── Initial load (imperative, one-shot) ───────────────────────────────────
   useEffect(() => {
-    if (subscriptionResult === undefined) return;
+    if (state.isInitialized || !sessionId || initialLoadRequested) return;
+    setInitialLoadRequested(true);
 
-    const live = subscriptionResult.map(toMessage);
-    const prevLive = prevLiveRef.current;
-
-    if (prevLive.length > 0) {
-      const newLiveIds = new Set(live.map((m) => m._id));
-      const dropped = prevLive.filter((m) => !newLiveIds.has(m._id));
-
-      if (dropped.length > 0) {
-        setOlderMessages((prev) => {
-          const knownIds = new Set([
-            ...prev.map((m) => m._id),
-            ...live.map((m) => m._id),
-          ]);
-          const toPrepend = dropped
-            .filter((m) => !knownIds.has(m._id))
-            .sort((a, b) => a._creationTime - b._creationTime);
-          if (toPrepend.length === 0) return prev;
-          return [...toPrepend, ...prev];
+    void convex
+      .query(api.messageList.getLatestMessages, {
+        sessionId,
+        chatroomId: typedChatroomId,
+        limit: MESSAGE_STORE_LIMIT,
+      })
+      .then((data) => {
+        const messages = data.messages.map(toMessage);
+        dispatch({
+          type: 'INITIALIZE',
+          messages,
+          tailAfterCreationTime: data.tailAfterCreationTime,
+          hasMoreOlder: inferHasMoreOlder(messages.length, data.hasMore),
         });
-      }
-    }
+      })
+      .catch((err: unknown) => {
+        console.error('[useChatroomMessageStore] Initial load failed:', err);
+        setInitialLoadRequested(false);
+      });
+  }, [state.isInitialized, sessionId, convex, typedChatroomId, initialLoadRequested]);
 
-    prevLiveRef.current = live;
-  }, [subscriptionResult]);
+  // ── Tail subscription (pinned cursor) ─────────────────────────────────────
+  const tailData = useSessionQuery(
+    api.messageList.subscribeMessagesSince,
+    state.isInitialized && state.tailAfterCreationTime !== null
+      ? {
+          chatroomId: typedChatroomId,
+          afterCreationTime: state.tailAfterCreationTime,
+        }
+      : 'skip'
+  );
 
-  const messages = useMemo(() => {
-    const live = (subscriptionResult ?? []).map(toMessage);
-    const olderIds = new Set(olderMessages.map((m) => m._id));
-    const dedupedLive = live.filter((m) => !olderIds.has(m._id));
-    return [...olderMessages, ...dedupedLive];
-  }, [subscriptionResult, olderMessages]);
-
-  const subLen = subscriptionResult?.length ?? 0;
-  const hasMoreOlder = !exhaustedOlder && subLen >= MESSAGE_SUBSCRIPTION_LIMIT;
-
-  const oldestMessageRef = useRef<Message | undefined>(undefined);
-  oldestMessageRef.current = messages[0];
+  useEffect(() => {
+    if (!tailData) return;
+    dispatch({ type: 'MERGE_TAIL', messages: tailData.map(toMessage) });
+  }, [tailData]);
 
   const loadOlderMessages = useCallback(() => {
-    if (isLoadingOlderRef.current) {
-      logLoadOlder('loadOlderMessages skipped', { reason: 'in-flight' });
-      return;
-    }
-    if (exhaustedOlder) {
-      logLoadOlder('loadOlderMessages skipped', { reason: 'exhaustedOlder' });
-      return;
-    }
-    if (!sessionId) {
-      logLoadOlder('loadOlderMessages skipped', { reason: 'no sessionId' });
+    if (
+      isLoadingOlderRef.current ||
+      !hasMoreOlderRef.current ||
+      !sessionId ||
+      !isInitializedRef.current
+    ) {
+      logLoadOlder('loadOlderMessages skipped', {
+        reason: isLoadingOlderRef.current
+          ? 'in-flight'
+          : !hasMoreOlderRef.current
+            ? 'noMoreOlder'
+            : !sessionId
+              ? 'no sessionId'
+              : 'notInitialized',
+      });
       return;
     }
 
-    const oldest = oldestMessageRef.current;
-    const before = oldest ? oldest._creationTime : Date.now();
-
-    logLoadOlder('loadOlderMessages fetch', {
-      before,
-      oldestId: oldest?._id ?? null,
-      currentCount: messages.length,
-    });
+    const oldestInStore = messagesRef.current[0];
+    if (!oldestInStore) {
+      logLoadOlder('loadOlderMessages skipped', { reason: 'emptyStore' });
+      return;
+    }
 
     isLoadingOlderRef.current = true;
-    setIsLoadingOlder(true);
+    dispatch({ type: 'LOAD_OLDER_START' });
 
     void (async () => {
       try {
-        const older = await convex.query(api.messageList.listMessagesBefore, {
-          chatroomId: typedChatroomId,
+        let before = loadOlderBeforeRef.current ?? oldestInStore._creationTime;
+        logLoadOlder('loadOlderMessages fetch', {
           before,
-          limit: MESSAGE_LOAD_OLDER_PAGE_SIZE,
-          sessionId,
+          oldestId: oldestInStore._id,
+          currentCount: messagesRef.current.length,
         });
 
-        logLoadOlder('loadOlderMessages result', {
-          fetched: older.length,
-          before,
-        });
+        let page = (
+          await convex.query(api.messageList.listMessagesBefore, {
+            chatroomId: typedChatroomId,
+            before,
+            limit: MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
+            sessionId,
+          })
+        ).map(toMessage);
 
-        if (older.length === 0) {
-          setExhaustedOlder(true);
-        } else {
-          setOlderMessages((prev) => [...older.map(toMessage), ...prev]);
-          if (older.length < MESSAGE_LOAD_OLDER_PAGE_SIZE) {
-            setExhaustedOlder(true);
-          }
+        // Overlap with the tail window can return duplicates only — retry further back once.
+        let newOnes = filterNewMessages(messagesRef.current, page);
+        if (newOnes.length === 0 && page.length > 0) {
+          const minTime = Math.min(...page.map((m) => m._creationTime));
+          before = minTime - 1;
+          page = (
+            await convex.query(api.messageList.listMessagesBefore, {
+              chatroomId: typedChatroomId,
+              before,
+              limit: MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
+              sessionId,
+            })
+          ).map(toMessage);
+          newOnes = filterNewMessages(messagesRef.current, page);
         }
-      } catch (error) {
-        logLoadOlder('loadOlderMessages error', {
-          message: error instanceof Error ? error.message : String(error),
+
+        if (page.length === 0) {
+          loadOlderBeforeRef.current = null;
+        } else if (newOnes.length === 0) {
+          const minTime = Math.min(...page.map((m) => m._creationTime));
+          loadOlderBeforeRef.current = minTime - 1;
+        } else {
+          loadOlderBeforeRef.current = null;
+        }
+
+        dispatch({
+          type: 'PREPEND_OLDER',
+          messages: newOnes,
+          hasMoreOlder: hasMoreOlderAfterPage(page.length),
         });
+        logLoadOlder('loadOlderMessages result', {
+          fetched: page.length,
+          prepended: newOnes.length,
+          before,
+        });
+      } catch (err: unknown) {
+        logLoadOlder('loadOlderMessages error', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+        dispatch({ type: 'LOAD_OLDER_FAILED' });
       } finally {
         isLoadingOlderRef.current = false;
-        setIsLoadingOlder(false);
       }
     })();
-  }, [convex, typedChatroomId, sessionId, exhaustedOlder, messages.length]);
+  }, [convex, typedChatroomId, sessionId]);
 
   return {
-    messages,
-    isLoading: subscriptionResult === undefined,
-    hasMoreOlder,
-    isLoadingOlder,
+    messages: state.messages,
+    isLoading: !state.isInitialized,
+    hasMoreOlder: state.hasMoreOlder,
+    isLoadingOlder: state.isLoadingOlder,
     loadOlderMessages,
   };
 }
