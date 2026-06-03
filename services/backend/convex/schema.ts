@@ -2042,6 +2042,8 @@ export default defineSchema({
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_machine_workingDir_status', ['machineId', 'workingDir', 'status'])
     .index('by_machineId_status', ['machineId', 'status'])
+    .index('by_machineId_logObserverCount', ['machineId', 'logObserverCount'])
+    .index('by_machineId_pendingFullOutputSync', ['machineId', 'pendingFullOutputSync'])
     .index('by_status', ['status']),
 
   /**

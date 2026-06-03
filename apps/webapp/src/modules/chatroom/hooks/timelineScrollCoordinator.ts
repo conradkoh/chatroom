@@ -103,7 +103,6 @@ export class TimelineScrollCoordinator {
   private prevScrollHeight = 0;
   private wasLoadingOlder = false;
   private hasInitialScroll = false;
-  private allowLoadOlder = false;
   private loadOlderIntent: LoadOlderIntent = 'preserve_position';
   /** Set when preserve_position load starts; cleared after prepend is handled. */
   private pendingPrependPreserve = false;
@@ -142,7 +141,8 @@ export class TimelineScrollCoordinator {
   }
 
   getAllowLoadOlder(): boolean {
-    return this.allowLoadOlder;
+    // Deprecated alias — scroll-driven load uses isProgrammaticScrollActive() instead.
+    return !this.programmaticScroll;
   }
 
   /** True while a programmatic scroll (initial follow, tail snap) is in progress. */
@@ -172,6 +172,25 @@ export class TimelineScrollCoordinator {
   /** Keeps wasLoadingOlder in sync even when layout commit is deferred (e.g. chrome measure). */
   syncIsLoadingOlder(isLoadingOlder: boolean): void {
     this.wasLoadingOlder = isLoadingOlder;
+  }
+
+  /** Reset pagination/scroll bookkeeping when switching chatrooms (coordinator ref persists). */
+  resetForChatroom(): void {
+    this.cancelPendingTailWork();
+
+    if (this.prependSettleRafId !== null) {
+      cancelAnimationFrame(this.prependSettleRafId);
+      this.prependSettleRafId = null;
+    }
+
+    this.prevEventCount = 0;
+    this.prevTailKey = null;
+    this.prevScrollHeight = 0;
+    this.wasLoadingOlder = false;
+    this.hasInitialScroll = false;
+    this.loadOlderIntent = 'preserve_position';
+    this.pendingPrependPreserve = false;
+    this.prependAnchor = null;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -309,17 +328,9 @@ export class TimelineScrollCoordinator {
 
     if (eventCount > 0 && !this.hasInitialScroll) {
       this.hasInitialScroll = true;
-      this.allowLoadOlder = false;
       if (this.pinned) {
-        this.enqueue({
-          type: 'tail_settle',
-          onSettled: () => {
-            this.allowLoadOlder = true;
-          },
-        });
+        this.enqueue({ type: 'tail_settle' });
         this.schedulePinnedTailGuard();
-      } else {
-        this.allowLoadOlder = true;
       }
     } else if (scrollEl && (countIncreased || tailChanged)) {
       if (isPrependWhileLoadingOlder) {

@@ -3,8 +3,7 @@
 /**
  * useChatroomTimeline — paginated chatroom history as linear timeline events.
  *
- * Reuses subscribeLatestMessages + imperative load-older from useMessages,
- * then maps each row to a TimelineEvent for the virtualized timeline feed.
+ * Maps messages from useChatroomMessageStore to TimelineEvent view models.
  */
 
 import { useMemo } from 'react';
@@ -12,7 +11,7 @@ import { useMemo } from 'react';
 import { mapMessageToTimelineEvent } from '../timeline/mapMessageToTimelineEvent';
 import type { TimelineEvent } from '../timeline/types';
 
-import { useMessages } from './useMessages';
+import { useChatroomMessageStore } from './useChatroomMessageStore';
 
 export interface UseChatroomTimelineResult {
   events: TimelineEvent[];
@@ -29,7 +28,7 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     hasMoreOlder,
     isLoadingOlder,
     loadOlderMessages,
-  } = useMessages(chatroomId);
+  } = useChatroomMessageStore(chatroomId);
 
   const events = useMemo(
     () => messages.map(mapMessageToTimelineEvent),

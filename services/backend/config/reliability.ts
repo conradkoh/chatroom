@@ -68,10 +68,16 @@ export const OBSERVED_SAFETY_POLL_MS = 30_000;
  *  Set to 30s. */
 export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
 
+/** Workspaces are included in daemon sync lists only if observed within this window (ms). */
+export const WORKSPACE_RECENCY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/** Daemon reconcile interval for workspace-list subscription TTL drift (ms). */
+export const WORKSPACE_LIST_RECONCILE_MS = 60 * 60 * 1000; // 1 hour
+
 // ─── Participant Lifecycle Heartbeat ─────────────────────────────────────────
 
 /** Minimum interval between participant `lastSeenAt` writes (ms).
- *  CLI preAction fires on every command; throttling reduces listParticipantPresence churn.
+ *  CLI preAction fires on every command; throttling reduces presence subscription churn.
  *  Set to 30s to match agent presence UI refresh cadence. */
 export const PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS = 30_000;
 

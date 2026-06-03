@@ -241,7 +241,7 @@ When touching timeline scroll:
 2. **Always** bracket composer resizes with `beginResize` / `endResize`.
 3. **Route** chrome height changes through `notifyTopChromeDelta`.
 4. **Commit** layout changes through `commitTimelineLayout` in `useLayoutEffect` (not `useEffect`).
-5. **Gate** load-older on `getAllowLoadOlder()` (false until initial tail settle completes).
+5. **Gate** scroll-driven load-older on `isProgrammaticScrollActive()` (not while tail snap is in flight). Button clicks bypass this.
 6. **Test** with variable-height rows: context dividers, handoffs, long markdown, agent streaming.
 
 ---

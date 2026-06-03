@@ -16,7 +16,9 @@ import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
+import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
+import { WORKSPACE_RECENCY_WINDOW_MS } from '../config/reliability';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 
@@ -92,6 +94,31 @@ export const removeWorkspace = mutation({
     await requireWorkspaceWriteAccess(ctx, args.sessionId, args.workspaceId);
 
     return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
+  },
+});
+
+/**
+ * Observation-first workspace list for a machine (daemon subscription target).
+ * Only returns workspaces whose chatroom was observed within `recencyWindowMs`.
+ */
+export const listRecentlyObservedWorkspacesForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    recencyWindowMs: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'write-access',
+    });
+    return listRecentlyObservedWorkspacesForMachineUseCase(ctx, {
+      machineId: args.machineId,
+      recencyWindowMs: args.recencyWindowMs ?? WORKSPACE_RECENCY_WINDOW_MS,
+    });
   },
 });
 

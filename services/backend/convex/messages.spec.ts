@@ -32,7 +32,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const now = Date.now();
-    return await ctx.db.insert('chatroom_tasks', {
+    const taskId = await ctx.db.insert('chatroom_tasks', {
       chatroomId,
       createdBy: 'user',
       content: 'active task',
@@ -41,6 +41,17 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
       updatedAt: now,
       queuePosition: 0,
     });
+    await ctx.db.insert('chatroom_taskCounts', {
+      chatroomId,
+      pending: 0,
+      acknowledged: 0,
+      inProgress: 1,
+      completed: 0,
+      queueSize: 0,
+      backlogCount: 0,
+      pendingReviewCount: 0,
+    });
+    return taskId;
   });
 }
 
@@ -489,5 +500,47 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
       chatroomId,
     });
     expect(queuedAfter.length).toBe(1);
+  });
+});
+
+describe('deletePendingMessage and materialized counts', () => {
+  test('deleting pending message decrements pending count so next send is not queued', async () => {
+    const { sessionId } = await createTestSession('del-pending-counts-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'pending message',
+      type: 'message',
+    });
+
+    await t.mutation(api.messages.deletePendingMessage, {
+      sessionId,
+      messageId,
+    });
+
+    const counts = await t.query(api.tasks.getTaskCounts, {
+      sessionId,
+      chatroomId,
+    });
+    expect(counts.pending).toBe(0);
+    expect(counts.acknowledged).toBe(0);
+    expect(counts.in_progress).toBe(0);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'second message after delete',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queued.length).toBe(0);
   });
 });

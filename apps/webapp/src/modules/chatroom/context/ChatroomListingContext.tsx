@@ -4,6 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
+import { usePresenceForChatrooms } from '../hooks/usePresenceForChatrooms';
 import { deriveChatStatus } from '../utils/deriveChatStatus';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -52,20 +53,25 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
  * Provider that fetches chatroom listing data using five focused subscriptions:
  *
  * 1. `listByUser`                    — base chatroom rows (sorted, lightweight)
- * 2. `listParticipantPresence`       — agent presence; re-fires on heartbeats (30s)
+ * 2. `getPresenceForChatroom` (×N)   — per-chatroom presence; heartbeats scoped to one room
  * 3. `listFavoriteIds`               — favorited chatroom IDs
  * 4. `listUnreadStatus`              — per-chatroom unread indicator
  * 5. `listAgentOverview`             — remote agent running state per chatroom
  *
- * Splitting into five subscriptions means a participant heartbeat (every 30s)
- * only re-runs `listParticipantPresence`, not the entire bundle.
+ * Splitting into five subscription groups means a participant heartbeat (every 30s)
+ * only re-runs presence for that chatroom, not the entire listing.
  */
 export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 1. Base chatroom data — lightweight, invalidated only by chatroom changes
   const baseChatrooms = useSessionQuery(api.chatrooms.listByUser);
 
-  // 2. Participant presence — re-fires on every agent heartbeat (30s)
-  const presenceData = useSessionQuery(api.chatrooms.listParticipantPresence);
+  const chatroomIds = useMemo(
+    () => (baseChatrooms ?? []).map((c) => c._id as string),
+    [baseChatrooms]
+  );
+
+  // 2. Participant presence — one subscription per chatroom (scoped invalidation)
+  const presenceData = usePresenceForChatrooms(chatroomIds);
 
   // 3. Favorites — re-fires only when favorites change
   const favoriteIds = useSessionQuery(api.chatrooms.listFavoriteIds);

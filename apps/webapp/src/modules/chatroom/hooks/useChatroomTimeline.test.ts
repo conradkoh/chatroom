@@ -1,15 +1,15 @@
 /**
- * Unit tests for useChatroomTimeline — event mapping over useMessages.
+ * Unit tests for useChatroomTimeline — event mapping over useChatroomMessageStore.
  */
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type { Message } from '../types/message';
 
-const mockUseMessages = vi.fn();
+const mockUseChatroomMessageStore = vi.fn();
 
-vi.mock('./useMessages', () => ({
-  useMessages: (...args: unknown[]) => mockUseMessages(...args),
+vi.mock('./useChatroomMessageStore', () => ({
+  useChatroomMessageStore: (...args: unknown[]) => mockUseChatroomMessageStore(...args),
 }));
 
 import { useChatroomTimeline } from './useChatroomTimeline';
@@ -27,8 +27,8 @@ function makeMessage(id: string, creationTime: number, overrides: Partial<Messag
 
 describe('useChatroomTimeline', () => {
   beforeEach(() => {
-    mockUseMessages.mockReset();
-    mockUseMessages.mockReturnValue({
+    mockUseChatroomMessageStore.mockReset();
+    mockUseChatroomMessageStore.mockReturnValue({
       messages: [],
       isLoading: false,
       hasMoreOlder: false,
@@ -37,9 +37,9 @@ describe('useChatroomTimeline', () => {
     });
   });
 
-  it('passes through loading and pagination state from useMessages', () => {
+  it('passes through loading and pagination state from useChatroomMessageStore', () => {
     const loadOlderMessages = vi.fn();
-    mockUseMessages.mockReturnValue({
+    mockUseChatroomMessageStore.mockReturnValue({
       messages: [],
       isLoading: true,
       hasMoreOlder: true,
@@ -49,7 +49,7 @@ describe('useChatroomTimeline', () => {
 
     const { result } = renderHook(() => useChatroomTimeline('room-1'));
 
-    expect(mockUseMessages).toHaveBeenCalledWith('room-1');
+    expect(mockUseChatroomMessageStore).toHaveBeenCalledWith('room-1');
     expect(result.current.isLoading).toBe(true);
     expect(result.current.hasMoreOlder).toBe(true);
     expect(result.current.isLoadingOlder).toBe(true);
@@ -57,7 +57,7 @@ describe('useChatroomTimeline', () => {
   });
 
   it('maps messages to timeline events in order', () => {
-    mockUseMessages.mockReturnValue({
+    mockUseChatroomMessageStore.mockReturnValue({
       messages: [
         makeMessage('ctx-1', 1000, { type: 'new-context', senderRole: 'system' }),
         makeMessage('user-1', 2000, { senderRole: 'user', type: 'message' }),

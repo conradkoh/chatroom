@@ -23,6 +23,33 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ACTIVE_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
+type MaterializedTaskCounts = {
+  pending: number;
+  acknowledged: number;
+  inProgress: number;
+};
+
+/** Shared with getTaskCounts — any active-slot task means user messages should queue. */
+export function hasActiveTaskFromMaterializedCounts(counts: MaterializedTaskCounts): boolean {
+  return counts.pending > 0 || counts.acknowledged > 0 || counts.inProgress > 0;
+}
+
+async function shouldEnqueueMessageFromTaskScan(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  for (const status of ACTIVE_TASK_STATUSES) {
+    const active = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', status)
+      )
+      .first();
+    if (active) return true;
+  }
+  return false;
+}
+
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
   createdBy: string;
@@ -56,16 +83,17 @@ export async function shouldEnqueueMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  for (const status of ACTIVE_TASK_STATUSES) {
-    const active = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', chatroomId).eq('status', status)
-      )
-      .first();
-    if (active) return true;
+  const materializedCounts = await ctx.db
+    .query('chatroom_taskCounts')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .first();
+
+  if (materializedCounts) {
+    return hasActiveTaskFromMaterializedCounts(materializedCounts);
   }
-  return false;
+
+  // Migration safety: chatrooms without a counts doc fall back to indexed task scan.
+  return shouldEnqueueMessageFromTaskScan(ctx, chatroomId);
 }
 
 /**

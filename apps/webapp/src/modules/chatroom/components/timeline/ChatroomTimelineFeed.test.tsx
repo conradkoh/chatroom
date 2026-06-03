@@ -16,6 +16,7 @@ const virtualizerOptions: Array<{
   scrollMargin?: number;
   paddingEnd?: number;
   overscan?: number;
+  measureElement?: (el: HTMLElement) => number;
 }> = [];
 
 let lastVirtualizerInstance: Record<string, unknown> | null = null;
@@ -344,6 +345,16 @@ describe('ChatroomTimelineFeed load-older guards', () => {
 
     expect(loadOlderEvents).toHaveBeenCalledTimes(1);
     expect(coordinator.current.isAtBottom()).toBe(false);
+  });
+
+  it('load older button works during programmatic tail scroll', async () => {
+    const user = userEvent.setup();
+    const { coordinator } = renderFeed();
+    expect(coordinator.current.isProgrammaticScrollActive()).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /load older messages/i }));
+
+    expect(loadOlderEvents).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -879,5 +890,62 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     expect(el.scrollTop).toBe(scrollTopBeforeSpinner + 24);
     expect(mockScrollToEnd).not.toHaveBeenCalled();
+  });
+
+  it('disables browser overflow-anchor so manual prepend correction is not double-applied', async () => {
+    renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    expect(el.className).toContain('[overflow-anchor:none]');
+  });
+
+  it('skips chrome shrink compensation when older messages land after loading', async () => {
+    const notifyTopChromeDelta = vi.spyOn(
+      TimelineScrollCoordinator.prototype,
+      'notifyTopChromeDelta'
+    );
+    const { rerender, coordinator } = renderFeed();
+    await flushRaf();
+
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    const chrome = el.firstElementChild as HTMLElement;
+    timelineIsLoadingOlder = true;
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 56 });
+    scrollElProps(el, 300, 2500);
+
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    notifyTopChromeDelta.mockClear();
+    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
+    timelineIsLoadingOlder = false;
+    timelineEvents = [...buildEvents(10).map((e, i) => ({ ...e, id: `older-${i}` })), ...buildEvents(25)];
+
+    act(() => {
+      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    });
+
+    expect(notifyTopChromeDelta).not.toHaveBeenCalled();
+    notifyTopChromeDelta.mockRestore();
+  });
+
+  it('registers custom measureElement that caches rounded heights by data-id', () => {
+    renderFeed();
+    const measureElement = virtualizerOptions.at(-1)?.measureElement as
+      | ((el: HTMLElement) => number)
+      | undefined;
+    expect(measureElement).toBeTypeOf('function');
+
+    const row = document.createElement('div');
+    row.setAttribute('data-id', 'evt-round');
+    Object.defineProperty(row, 'getBoundingClientRect', {
+      value: () => ({ height: 64.7 }),
+    });
+
+    expect(measureElement!(row)).toBe(65);
   });
 });

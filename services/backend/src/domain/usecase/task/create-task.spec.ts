@@ -7,7 +7,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { shouldEnqueueMessage } from './create-task';
+import { shouldEnqueueMessage, hasActiveTaskFromMaterializedCounts } from './create-task';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -34,7 +34,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 
 async function seedTask(
   chatroomId: Id<'chatroom_rooms'>,
-  status: 'pending' | 'in_progress' | 'completed'
+  status: 'pending' | 'acknowledged' | 'in_progress' | 'completed'
 ) {
   return await t.run(async (ctx) => {
     const now = Date.now();
@@ -50,9 +50,62 @@ async function seedTask(
   });
 }
 
+async function seedMaterializedCounts(
+  chatroomId: Id<'chatroom_rooms'>,
+  counts: Partial<{
+    pending: number;
+    acknowledged: number;
+    inProgress: number;
+    completed: number;
+    queueSize: number;
+    backlogCount: number;
+    pendingReviewCount: number;
+  }>
+) {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_taskCounts', {
+      chatroomId,
+      pending: 0,
+      acknowledged: 0,
+      inProgress: 0,
+      completed: 0,
+      queueSize: 0,
+      backlogCount: 0,
+      pendingReviewCount: 0,
+      ...counts,
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe('hasActiveTaskFromMaterializedCounts', () => {
+  test('returns false when all active counters are zero', () => {
+    expect(
+      hasActiveTaskFromMaterializedCounts({ pending: 0, acknowledged: 0, inProgress: 0 })
+    ).toBe(false);
+  });
+
+  test('returns true when pending > 0', () => {
+    expect(
+      hasActiveTaskFromMaterializedCounts({ pending: 1, acknowledged: 0, inProgress: 0 })
+    ).toBe(true);
+  });
+
+  test('returns true when acknowledged > 0', () => {
+    expect(
+      hasActiveTaskFromMaterializedCounts({ pending: 0, acknowledged: 1, inProgress: 0 })
+    ).toBe(true);
+  });
+
+  test('returns true when inProgress > 0', () => {
+    expect(
+      hasActiveTaskFromMaterializedCounts({ pending: 0, acknowledged: 0, inProgress: 1 })
+    ).toBe(true);
+  });
+});
 
 describe('shouldEnqueueMessage', () => {
   test('returns false when no active tasks exist', async () => {
@@ -143,5 +196,59 @@ describe('shouldEnqueueMessage', () => {
     });
 
     expect(enqueue).toBe(true);
+  });
+
+  describe('materialized chatroom_taskCounts path', () => {
+    test('returns true from counts doc without scanning task rows (pending)', async () => {
+      const { sessionId } = await createTestSession('det-mat-1');
+      const chatroomId = await createChatroom(sessionId);
+
+      await seedMaterializedCounts(chatroomId, { pending: 1 });
+
+      const enqueue = await t.run(async (ctx) => {
+        return await shouldEnqueueMessage(ctx, chatroomId);
+      });
+
+      expect(enqueue).toBe(true);
+    });
+
+    test('returns true from counts doc (acknowledged)', async () => {
+      const { sessionId } = await createTestSession('det-mat-2');
+      const chatroomId = await createChatroom(sessionId);
+
+      await seedMaterializedCounts(chatroomId, { acknowledged: 1 });
+
+      const enqueue = await t.run(async (ctx) => {
+        return await shouldEnqueueMessage(ctx, chatroomId);
+      });
+
+      expect(enqueue).toBe(true);
+    });
+
+    test('returns true from counts doc (inProgress)', async () => {
+      const { sessionId } = await createTestSession('det-mat-3');
+      const chatroomId = await createChatroom(sessionId);
+
+      await seedMaterializedCounts(chatroomId, { inProgress: 1 });
+
+      const enqueue = await t.run(async (ctx) => {
+        return await shouldEnqueueMessage(ctx, chatroomId);
+      });
+
+      expect(enqueue).toBe(true);
+    });
+
+    test('returns false when materialized active counters are all zero', async () => {
+      const { sessionId } = await createTestSession('det-mat-4');
+      const chatroomId = await createChatroom(sessionId);
+
+      await seedMaterializedCounts(chatroomId, { completed: 5, queueSize: 2 });
+
+      const enqueue = await t.run(async (ctx) => {
+        return await shouldEnqueueMessage(ctx, chatroomId);
+      });
+
+      expect(enqueue).toBe(false);
+    });
   });
 });

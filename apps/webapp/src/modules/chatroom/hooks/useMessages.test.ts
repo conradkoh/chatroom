@@ -1,15 +1,15 @@
 /**
- * Unit tests for useMessages hook.
+ * Unit tests for useChatroomMessageStore / useMessages.
  *
- * Mocks useSessionQuery, useConvex, and useSessionId to test merge/dedup
- * and load-older behavior without a live Convex backend.
+ * Mocks imperative getLatestMessages, reactive subscribeMessagesSince,
+ * and listMessagesBefore.
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-let mockSubscriptionData: Array<Record<string, unknown>> | undefined = [];
+let mockTailData: Array<Record<string, unknown>> | undefined = [];
 const mockConvexQuery = vi.fn();
 
 vi.mock('convex/react', () => ({
@@ -18,13 +18,17 @@ vi.mock('convex/react', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
-  useSessionQuery: (_query: unknown, _args: unknown) => mockSubscriptionData,
+  useSessionQuery: (_query: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    return mockTailData;
+  },
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messageList: {
-      subscribeLatestMessages: 'subscribeLatestMessages',
+      getLatestMessages: 'getLatestMessages',
+      subscribeMessagesSince: 'subscribeMessagesSince',
       listMessagesBefore: 'listMessagesBefore',
     },
   },
@@ -47,111 +51,132 @@ function makeMsg(
   };
 }
 
+function mockInitialLoad(
+  messages: Array<Record<string, unknown>>,
+  hasMore = false
+) {
+  const sorted = [...messages].sort(
+    (a, b) => (a._creationTime as number) - (b._creationTime as number)
+  );
+  const tailAfterCreationTime = sorted[0]?._creationTime ?? 0;
+  mockConvexQuery.mockImplementation((endpoint: string) => {
+    if (endpoint === 'getLatestMessages') {
+      return Promise.resolve({ messages: sorted, hasMore, tailAfterCreationTime });
+    }
+    if (endpoint === 'listMessagesBefore') {
+      return Promise.resolve([]);
+    }
+    return Promise.resolve([]);
+  });
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 import { useMessages } from './useMessages';
 
-describe('useMessages', () => {
+describe('useMessages (delta store)', () => {
   beforeEach(() => {
-    mockSubscriptionData = [];
+    mockTailData = [];
     mockConvexQuery.mockReset();
-    mockConvexQuery.mockResolvedValue([]);
+    mockInitialLoad([]);
   });
 
-  it('isLoading=true while subscription is undefined', () => {
-    mockSubscriptionData = undefined;
+  it('isLoading=true until initial getLatestMessages resolves', () => {
+    mockConvexQuery.mockImplementation(
+      () => new Promise(() => {})
+    );
     const { result } = renderHook(() => useMessages('room-1'));
     expect(result.current.isLoading).toBe(true);
   });
 
-  it('isLoading=false once subscription resolves', () => {
-    mockSubscriptionData = [];
+  it('isLoading=false after initial load', async () => {
+    mockInitialLoad([makeMsg('msg-1', 1000)]);
     const { result } = renderHook(() => useMessages('room-1'));
-    expect(result.current.isLoading).toBe(false);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.messages).toHaveLength(1);
   });
 
-  it('hasMoreOlder=true when subscription is at cap (20)', () => {
-    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
-      makeMsg(`msg-${i}`, i * 1000)
+  it('hasMoreOlder=true when initial load reports hasMore', async () => {
+    mockInitialLoad(
+      Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000)),
+      true
     );
     const { result } = renderHook(() => useMessages('room-1'));
-    expect(result.current.hasMoreOlder).toBe(true);
+    await waitFor(() => expect(result.current.hasMoreOlder).toBe(true));
   });
 
-  it('hasMoreOlder=false when subscription below cap and no older pages', () => {
-    mockSubscriptionData = [makeMsg('msg-1', 1000)];
+  it('hasMoreOlder=true when initial window is full even if hasMore is false', async () => {
+    mockInitialLoad(
+      Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000)),
+      false
+    );
     const { result } = renderHook(() => useMessages('room-1'));
-    expect(result.current.hasMoreOlder).toBe(false);
+    await waitFor(() => expect(result.current.hasMoreOlder).toBe(true));
   });
 
-  it('empty chatroom: first message from subscription appears immediately', () => {
-    mockSubscriptionData = [makeMsg('msg-1', 1_000_000)];
+  it('hasMoreOlder=false when initial window is below cap', async () => {
+    mockInitialLoad([makeMsg('msg-1', 1000)], false);
     const { result } = renderHook(() => useMessages('room-1'));
-
-    expect(result.current.messages).toHaveLength(1);
-    expect(result.current.messages[0]!._id).toBe('msg-1');
+    await waitFor(() => expect(result.current.hasMoreOlder).toBe(false));
   });
 
-  it('subscription messages are returned in chronological order', () => {
-    mockSubscriptionData = [
+  it('merges new messages from tail subscription without full-window refetch', async () => {
+    mockInitialLoad([makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)]);
+    mockTailData = [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)];
+
+    const { result, rerender } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.messages).toHaveLength(2));
+
+    mockTailData = [
       makeMsg('msg-1', 1000),
       makeMsg('msg-2', 2000),
       makeMsg('msg-3', 3000),
     ];
-    const { result } = renderHook(() => useMessages('room-1'));
-
-    expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-3']);
-  });
-
-  it('retains messages that slide out of the subscription window', async () => {
-    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
-      makeMsg(`msg-${i}`, i * 1000)
-    );
-    const { result, rerender } = renderHook(() => useMessages('room-1'));
-    expect(result.current.messages).toHaveLength(20);
-
-    mockSubscriptionData = [
-      ...Array.from({ length: 19 }, (_, i) => makeMsg(`msg-${i + 1}`, (i + 1) * 1000)),
-      makeMsg('msg-20', 20_000),
-    ];
     rerender();
-
-    await waitFor(() => {
-      const ids = result.current.messages.map((m) => m._id);
-      expect(ids).toContain('msg-0');
-      expect(ids).toHaveLength(21);
-    });
-  });
-
-  it('deduplicates message that appears in both older pages and subscription', async () => {
-    mockSubscriptionData = [
-      makeMsg('msg-2', 2000),
-      makeMsg('msg-3', 3000),
-      makeMsg('msg-4', 4000),
-    ];
-    mockConvexQuery.mockResolvedValue([makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)]);
-
-    const { result } = renderHook(() => useMessages('room-1'));
-
-    await act(async () => {
-      result.current.loadOlderMessages();
-    });
 
     await waitFor(() => {
       expect(result.current.messages.map((m) => m._id)).toEqual([
         'msg-1',
         'msg-2',
         'msg-3',
-        'msg-4',
       ]);
     });
   });
 
+  it('updates existing row when tail subscription replaces taskStatus', async () => {
+    mockInitialLoad([makeMsg('msg-1', 1000, { taskStatus: 'pending' })]);
+    const { result, rerender } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.messages[0]!.taskStatus).toBe('pending'));
+
+    mockTailData = [makeMsg('msg-1', 1000, { taskStatus: 'in_progress' })];
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.messages[0]!.taskStatus).toBe('in_progress');
+    });
+  });
+
   it('loadOlderMessages calls listMessagesBefore with oldest creation time', async () => {
-    mockSubscriptionData = [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)];
-    mockConvexQuery.mockResolvedValue([makeMsg('msg-0', 500)]);
+    mockInitialLoad(
+      [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
+      true
+    );
+    mockConvexQuery.mockImplementation((endpoint: string) => {
+      if (endpoint === 'getLatestMessages') {
+        return Promise.resolve({
+          messages: [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
+          hasMore: true,
+          tailAfterCreationTime: 1000,
+        });
+      }
+      if (endpoint === 'listMessagesBefore') {
+        return Promise.resolve([makeMsg('msg-0', 500)]);
+      }
+      return Promise.resolve([]);
+    });
 
     const { result } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
       result.current.loadOlderMessages();
@@ -164,112 +189,105 @@ describe('useMessages', () => {
         limit: 20,
         sessionId: 'session-1',
       });
+      expect(result.current.messages.map((m) => m._id)).toEqual([
+        'msg-0',
+        'msg-1',
+        'msg-2',
+      ]);
     });
   });
 
-  it('sets hasMoreOlder=false when loadOlder returns no messages', async () => {
-    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
-      makeMsg(`msg-${i}`, i * 1000)
+  it('issues a second listMessagesBefore after a duplicate-only page', async () => {
+    mockInitialLoad(
+      [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
+      true
     );
-    mockConvexQuery.mockResolvedValue([]);
+    const beforeArgs: number[] = [];
+    mockConvexQuery.mockImplementation((endpoint: string, args?: { before?: number }) => {
+      if (endpoint === 'getLatestMessages') {
+        return Promise.resolve({
+          messages: [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
+          hasMore: true,
+          tailAfterCreationTime: 1000,
+        });
+      }
+      if (endpoint === 'listMessagesBefore') {
+        beforeArgs.push(args?.before ?? -1);
+        if (beforeArgs.length <= 2) {
+          return Promise.resolve([makeMsg('msg-1', 1000)]);
+        }
+        return Promise.resolve([makeMsg('older-0', 500)]);
+      }
+      return Promise.resolve([]);
+    });
 
     const { result } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      result.current.loadOlderMessages();
+    });
+    await waitFor(() => expect(result.current.isLoadingOlder).toBe(false));
+    const callsAfterFirst = beforeArgs.length;
+
+    await act(async () => {
+      result.current.loadOlderMessages();
+    });
+    await waitFor(() => {
+      expect(beforeArgs.length).toBeGreaterThan(callsAfterFirst);
+      expect(result.current.messages.some((m) => m._id === 'older-0')).toBe(true);
+    });
+  });
+
+  it('keeps hasMoreOlder true after a partial older page (fewer than page size)', async () => {
+    mockInitialLoad(
+      Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000)),
+      true
+    );
+    mockConvexQuery.mockImplementation((endpoint: string) => {
+      if (endpoint === 'getLatestMessages') {
+        const messages = Array.from({ length: 20 }, (_, i) =>
+          makeMsg(`msg-${i}`, i * 1000)
+        );
+        return Promise.resolve({
+          messages,
+          hasMore: true,
+          tailAfterCreationTime: 0,
+        });
+      }
+      if (endpoint === 'listMessagesBefore') {
+        return Promise.resolve([makeMsg('older-0', 50)]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const { result } = renderHook(() => useMessages('room-1'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasMoreOlder).toBe(true);
 
     await act(async () => {
       result.current.loadOlderMessages();
     });
 
     await waitFor(() => {
-      expect(result.current.hasMoreOlder).toBe(false);
-    });
-  });
-
-  it('isLoadingOlder=true while loadOlder is in flight', async () => {
-    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
-      makeMsg(`msg-${i}`, i * 1000)
-    );
-    let resolveQuery: (value: unknown[]) => void = () => {};
-    mockConvexQuery.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveQuery = resolve;
-        })
-    );
-
-    const { result } = renderHook(() => useMessages('room-1'));
-
-    act(() => {
-      result.current.loadOlderMessages();
-    });
-
-    expect(result.current.isLoadingOlder).toBe(true);
-
-    await act(async () => {
-      resolveQuery([]);
-    });
-
-    await waitFor(() => {
-      expect(result.current.isLoadingOlder).toBe(false);
-    });
-  });
-
-  it('reflects taskStatus from subscription data', () => {
-    mockSubscriptionData = [
-      makeMsg('msg-1', 1000, { taskId: 'task-1', taskStatus: 'completed' }),
-    ];
-    const { result } = renderHook(() => useMessages('room-1'));
-    expect(result.current.messages[0]!.taskStatus).toBe('completed');
-  });
-
-  it('resets local pagination state when chatroomId changes', async () => {
-    mockSubscriptionData = Array.from({ length: 20 }, (_, i) =>
-      makeMsg(`msg-${i}`, i * 1000)
-    );
-    mockConvexQuery.mockResolvedValue([makeMsg('old-0', 500)]);
-
-    const { result, rerender } = renderHook(({ roomId }) => useMessages(roomId), {
-      initialProps: { roomId: 'room-1' },
-    });
-
-    await act(async () => {
-      result.current.loadOlderMessages();
-    });
-    await waitFor(() => {
-      expect(result.current.messages.length).toBe(21);
-    });
-
-    rerender({ roomId: 'room-2' });
-
-    await waitFor(() => {
-      expect(result.current.messages).toHaveLength(20);
-      expect(result.current.messages.every((m) => m._id.startsWith('msg-'))).toBe(true);
+      expect(result.current.messages.some((m) => m._id === 'older-0')).toBe(true);
       expect(result.current.hasMoreOlder).toBe(true);
     });
   });
-});
 
-describe('useMessages — empty-chatroom first-message regression', () => {
-  beforeEach(() => {
-    mockSubscriptionData = [];
-    mockConvexQuery.mockReset();
-  });
+  it('resets store when chatroomId changes', async () => {
+    mockInitialLoad([makeMsg('a-1', 1000)]);
+    const { result, rerender } = renderHook(({ roomId }) => useMessages(roomId), {
+      initialProps: { roomId: 'room-1' },
+    });
+    await waitFor(() => expect(result.current.messages[0]!._id).toBe('a-1'));
 
-  it('empty chatroom: subscription picks up first message once resolved', () => {
-    mockSubscriptionData = [makeMsg('first-msg', 1_700_000_000_001)];
+    mockInitialLoad([makeMsg('b-1', 2000)]);
+    rerender({ roomId: 'room-2' });
 
-    const { result } = renderHook(() => useMessages('chatroom-1'));
-
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.messages).toHaveLength(1);
-    expect(result.current.messages[0]!._id).toBe('first-msg');
-  });
-
-  it('isLoading=true while subscription has not resolved (no premature messages)', () => {
-    mockSubscriptionData = undefined;
-
-    const { result } = renderHook(() => useMessages('chatroom-2'));
-
-    expect(result.current.isLoading).toBe(true);
-    expect(result.current.messages).toHaveLength(0);
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.messages[0]!._id).toBe('b-1');
+    });
   });
 });

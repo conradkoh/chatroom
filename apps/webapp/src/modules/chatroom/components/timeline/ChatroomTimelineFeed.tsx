@@ -1,10 +1,7 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
-import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
-import { usePaginatedQuery } from 'convex/react';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import type React from 'react';
 import {
@@ -17,8 +14,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { useChatroomTimeline } from '../../hooks/useChatroomTimeline';
-import { useHandoffNotification } from '../../hooks/useHandoffNotification';
+import { useChatroomTimelineFeedData } from '../../hooks/useChatroomTimelineFeedData';
 import type { PrependScrollAnchor, TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 
@@ -28,6 +24,7 @@ import { QueuedMessagesIndicator } from '../QueuedMessagesIndicator';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import type { MachineNameEntry } from './timelineRowStyles';
+import { logLoadOlder } from './timelineLoadOlderDebug';
 import {
   getTimelineItemKey,
   shouldTriggerLoadOlder,
@@ -63,7 +60,20 @@ export function ChatroomTimelineFeed({
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const measurementCacheRef = useRef<Map<string, number>>(new Map());
   const tailMeasureRef = useRef<{ id: string; size: number } | null>(null);
-  const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
+  const prevEventCountRef = useRef(0);
+  const prevIsLoadingOlderRef = useRef(false);
+
+  const {
+    events,
+    isLoading,
+    hasMoreOlder,
+    isLoadingOlder,
+    loadOlderEvents,
+    isEventStreamOpen,
+    setIsEventStreamOpen,
+    latestEvent,
+    eventsPaginated,
+  } = useChatroomTimelineFeedData(chatroomId);
 
   const isPinned = useSyncExternalStore(
     (onStoreChange) => coordinator.current.subscribe(onStoreChange),
@@ -71,32 +81,18 @@ export function ChatroomTimelineFeed({
     () => coordinator.current.getSnapshot()
   );
 
-  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents } =
-    useChatroomTimeline(chatroomId);
+  const prevChatroomIdRef = useRef<string | null>(null);
 
-  const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
-  useHandoffNotification(messagesForNotify, chatroomId);
+  useEffect(() => {
+    if (prevChatroomIdRef.current !== null && prevChatroomIdRef.current !== chatroomId) {
+      coordinator.current.resetForChatroom();
+    }
+    prevChatroomIdRef.current = chatroomId;
+  }, [chatroomId, coordinator]);
 
   useEffect(() => {
     onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
-  }, [onRegisterOpenEventStream]);
-
-  const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    limit: 1,
-  });
-
-  const [eventSessionId] = useSessionId();
-  const eventsPaginated = usePaginatedQuery(
-    api.events.listLatestEventsPaginated,
-    isEventStreamOpen && eventSessionId
-      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, sessionId: eventSessionId }
-      : 'skip',
-    { initialNumItems: 20 }
-  );
-
-  const latestEvent: EventStreamEvent | null =
-    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
+  }, [onRegisterOpenEventStream, setIsEventStreamOpen]);
 
   const initialMeasurementsCache = useMemo((): VirtualItem[] => {
     // Snapshot the cache once at mount. Re-mounts (chatroom switch) re-create.
@@ -130,6 +126,14 @@ export function ChatroomTimelineFeed({
     followOnAppend: false,
     scrollEndThreshold: TIMELINE_SCROLL_END_THRESHOLD,
     initialMeasurementsCache,
+    measureElement: (el) => {
+      const id = el.getAttribute('data-id');
+      const height = Math.round(el.getBoundingClientRect().height);
+      if (id && height > 0) {
+        measurementCacheRef.current.set(id, height);
+      }
+      return height;
+    },
   });
   useEffect(() => {
     const cache = measurementCacheRef.current;
@@ -185,17 +189,9 @@ export function ChatroomTimelineFeed({
     coordinator.current.syncIsLoadingOlder(isLoadingOlder);
   }, [coordinator, isLoadingOlder]);
 
-  useLayoutEffect(() => {
-    const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
-    if (measuredChrome === topChromeHeight) return;
-
-    const chromeDelta = measuredChrome - topChromeHeight;
-    if (chromeDelta !== 0) {
-      coordinator.current.notifyTopChromeDelta(chromeDelta);
-    }
-    setTopChromeHeight(measuredChrome);
-  });
-
+  // Prepend preserve must run before top-chrome measurement on the same layout pass.
+  // Otherwise spinner removal shrinks scrollMargin first and the viewport jumps before
+  // height-delta correction runs (guide §6a + §6b).
   useLayoutEffect(() => {
     coordinator.current.setVirtualizer({
       scrollToEnd: (options) => virtualizerRef.current.scrollToEnd(options),
@@ -223,9 +219,53 @@ export function ChatroomTimelineFeed({
     });
   }, [coordinator, events, isLoadingOlder, tailEventKey, topChromeHeight]);
 
+  useLayoutEffect(() => {
+    const measuredChrome = topChromeRef.current?.offsetHeight ?? 0;
+    if (measuredChrome === topChromeHeight) return;
+
+    const chromeDelta = measuredChrome - topChromeHeight;
+    const eventsPrepended =
+      events.length > prevEventCountRef.current &&
+      prevIsLoadingOlderRef.current &&
+      !isLoadingOlder;
+    const skipChromeDelta =
+      chromeDelta < 0 &&
+      (coordinator.current.isPrependScrollPreservationActive() || eventsPrepended);
+    if (chromeDelta !== 0 && !skipChromeDelta) {
+      coordinator.current.notifyTopChromeDelta(chromeDelta);
+    }
+    setTopChromeHeight(measuredChrome);
+    prevEventCountRef.current = events.length;
+    prevIsLoadingOlderRef.current = isLoadingOlder;
+  });
+
   const tryLoadOlder = useCallback(
-    (intent: 'preserve_position' | 'fill_viewport' = 'preserve_position') => {
-      if (!coordinator.current.getAllowLoadOlder() || !hasMoreOlder || isLoadingOlder) return;
+    (
+      intent: 'preserve_position' | 'fill_viewport' = 'preserve_position',
+      options: { userInitiated?: boolean } = {}
+    ) => {
+      const userInitiated = options.userInitiated ?? false;
+      const programmaticScroll = coordinator.current.isProgrammaticScrollActive();
+      const blockedReason = !hasMoreOlder
+        ? 'hasMoreOlder=false'
+        : isLoadingOlder
+          ? 'isLoadingOlder=true'
+          : !userInitiated && programmaticScroll
+            ? 'programmaticScroll=true'
+            : null;
+
+      logLoadOlder('tryLoadOlder', {
+        intent,
+        userInitiated,
+        programmaticScroll,
+        hasMoreOlder,
+        isLoadingOlder,
+        eventCount: events.length,
+        blockedReason,
+      });
+
+      if (blockedReason) return;
+
       const el = scrollParentRef.current;
       const firstVisible = virtualizer.getVirtualItems()[0];
       let anchor: PrependScrollAnchor | undefined;
@@ -242,13 +282,13 @@ export function ChatroomTimelineFeed({
         }
       }
       coordinator.current.setLoadOlderIntent(intent, anchor);
+      logLoadOlder('invoke loadOlderEvents', { intent, anchorKey: anchor?.key ?? null });
       loadOlderEvents();
     },
-    [coordinator, events, hasMoreOlder, isLoadingOlder, loadOlderEvents, virtualizer]
+    [coordinator, events, hasMoreOlder, isLoadingOlder, loadOlderEvents, topChromeHeight, virtualizer]
   );
 
   const handleScroll = useCallback(() => {
-    if (!coordinator.current.getAllowLoadOlder()) return;
     if (coordinator.current.isProgrammaticScrollActive()) return;
 
     const el = scrollParentRef.current;
@@ -271,7 +311,7 @@ export function ChatroomTimelineFeed({
   const virtualizedContentHeight = virtualizer.getTotalSize();
 
   useEffect(() => {
-    if (!coordinator.current.getAllowLoadOlder() || !isPinned) return;
+    if (coordinator.current.isProgrammaticScrollActive() || !isPinned) return;
 
     const el = scrollParentRef.current;
     if (!el || !hasMoreOlder || isLoadingOlder) return;
@@ -355,14 +395,14 @@ export function ChatroomTimelineFeed({
       <div
         ref={scrollRefCallback}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 [overflow-anchor:auto] scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 [overflow-anchor:none] scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         data-testid="chatroom-timeline-scroll"
       >
         <div ref={topChromeRef}>
           {canLoadMore && (
             <button
               type="button"
-              onClick={() => tryLoadOlder('preserve_position')}
+              onClick={() => tryLoadOlder('preserve_position', { userInitiated: true })}
               className="w-full py-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors"
             >
               <ChevronUp size={12} />
@@ -394,8 +434,9 @@ export function ChatroomTimelineFeed({
             if (!event) return null;
             return (
               <div
-                key={event.id}
+                key={virtualRow.key}
                 data-index={virtualRow.index}
+                data-id={event.id}
                 ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
@@ -403,6 +444,7 @@ export function ChatroomTimelineFeed({
                   left: 0,
                   width: '100%',
                   transform: `translateY(${virtualRow.start}px)`,
+                  contain: 'layout style',
                 }}
               >
                 <TimelineEventRow event={event} chatroomId={chatroomId} machines={machines} />
