@@ -37,6 +37,20 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "cache": false
+    },
+    // Package-specific tasks REPLACE the global task — they do not merge.
+    // Always re-declare dependsOn and outputs from the global task when overriding.
+    "@workspace/backend#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": ["dist/**"]
+    },
+    "@workspace/webapp#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/services/backend/src/**"]
+    },
+    "@workspace/webapp#build": {
+      "dependsOn": ["^typecheck", "typecheck"],
+      "outputs": [".next/**", "!.next/cache/**"]
     }
   }
 }

@@ -8,8 +8,17 @@
  * the query falls back to the old counting approach (migration safety).
  */
 
-import type { Id } from '../../../../convex/_generated/dataModel';
-import type { MutationCtx } from '../../../../convex/_generated/server';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
+import { ACTIVE_TASK_STATUSES } from '../../entities/task';
+
+type DbCtx = MutationCtx | QueryCtx;
+
+export type ActiveTaskCounts = {
+  pending: number;
+  acknowledged: number;
+  inProgress: number;
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -108,4 +117,109 @@ export async function adjustTaskCountsForTransition(
   if (newField) {
     await adjustTaskCount(ctx, chatroomId, newField, 1);
   }
+}
+
+/** Count active tasks from source rows (indexed by status). */
+export async function countActiveTasksFromSource(
+  ctx: DbCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<ActiveTaskCounts> {
+  const [pendingTasks, acknowledgedTasks, inProgressTasks] = await Promise.all([
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', 'pending')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', 'in_progress')
+      )
+      .collect(),
+  ]);
+
+  return {
+    pending: pendingTasks.length,
+    acknowledged: acknowledgedTasks.length,
+    inProgress: inProgressTasks.length,
+  };
+}
+
+export function activeTaskCountsDrifted(
+  materialized: ActiveTaskCounts & { pending: number; acknowledged: number; inProgress: number },
+  actual: ActiveTaskCounts
+): boolean {
+  return (
+    materialized.pending !== actual.pending ||
+    materialized.acknowledged !== actual.acknowledged ||
+    materialized.inProgress !== actual.inProgress
+  );
+}
+
+/** Returns true if any active status has at least one task row. */
+export async function hasActiveTaskFromSource(
+  ctx: DbCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  for (const status of ACTIVE_TASK_STATUSES) {
+    const active = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', status)
+      )
+      .first();
+    if (active) return true;
+  }
+  return false;
+}
+
+/**
+ * Re-sync pending/acknowledged/inProgress on the materialized counts doc from task rows.
+ * No-op when counts doc is missing or active counters already match source.
+ */
+export async function reconcileActiveTaskCountsFromSource(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  const counts = await ctx.db
+    .query('chatroom_taskCounts')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .first();
+
+  if (!counts) return false;
+
+  const actual = await countActiveTasksFromSource(ctx, chatroomId);
+  if (!activeTaskCountsDrifted(counts, actual)) {
+    return false;
+  }
+
+  await ctx.db.patch('chatroom_taskCounts', counts._id, {
+    pending: actual.pending,
+    acknowledged: actual.acknowledged,
+    inProgress: actual.inProgress,
+  });
+
+  return true;
+}
+
+/** Active counts for UI/API: source when materialized active counters drift. */
+export function resolveActiveCountsForRead(
+  materialized: Doc<'chatroom_taskCounts'>,
+  actual: ActiveTaskCounts
+): ActiveTaskCounts {
+  if (!activeTaskCountsDrifted(materialized, actual)) {
+    return {
+      pending: materialized.pending,
+      acknowledged: materialized.acknowledged,
+      inProgress: materialized.inProgress,
+    };
+  }
+  return actual;
 }

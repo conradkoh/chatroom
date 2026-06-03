@@ -43,7 +43,20 @@ Defined in `remote-agent-service.ts`. Every harness must provide:
 - `pid` — tracked by the daemon for stop/idle/restart
 - `onExit(cb)` — fires when the harness turn ends
 - `onOutput(cb)` — fires on new stdout/stderr activity (updates `lastOutputAt`)
-- `onAgentEnd?(cb)` — optional; fires when the agent completes a turn (Pi, Cursor, SDK harnesses)
+- `onAgentEnd?(cb)` — optional; fires when the agent completes a turn (see capabilities)
+
+### Lifecycle vs wire events
+
+Canonical vocabulary lives in `services/backend/src/domain/entities/harness/lifecycle-events.ts` and per-harness `HarnessCapabilities` in `types.ts`.
+
+| Layer | Meaning | Examples |
+|-------|---------|----------|
+| **Lifecycle** (daemon boundary) | Stable semantics for `AgentProcessManager` | `lifecycle.turn.completed` → `onAgentEnd`, `lifecycle.process.exited` → `onExit` |
+| **Wire** (harness-specific) | Protocol/SDK signals before adaptation | Pi NDJSON `wire.ndjson.agent_end`, Cursor `sdk.cursor.run.completed` |
+
+**CLI-only wire events:** kinds with `cliOnly: true` (all `wire.ndjson.*`) are **never** emitted by SDK harnesses. SDK harnesses synthesize `lifecycle.turn.completed` from SDK APIs (e.g. after `run.wait()`), not from NDJSON on child stdout.
+
+Declare `runtimeKind`, `lifecycle`, and `wireEvents` in each `*.config.ts` under `services/backend/src/domain/entities/harness/`.
 
 ---
 

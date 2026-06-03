@@ -5,7 +5,11 @@
 import { describe, expect, test } from 'vitest';
 
 import { AGENT_HARNESSES } from '../agent.js';
-import { getHarnessCapabilities } from './types.js';
+import {
+  CLI_ONLY_WIRE_EVENT_KINDS,
+  isCliOnlyWireEvent,
+} from './lifecycle-events.js';
+import { getHarnessCapabilities, getHarnessRuntimeKind } from './types.js';
 
 describe('getHarnessCapabilities', () => {
   test('every AgentHarness has a capabilities entry', () => {
@@ -16,9 +20,7 @@ describe('getHarnessCapabilities', () => {
 
   test('opencode-sdk, pi, and cursor-sdk support session resume', () => {
     for (const harness of ['opencode-sdk', 'pi', 'cursor-sdk'] as const) {
-      expect(getHarnessCapabilities(harness)).toEqual({
-        supportsSessionResume: true,
-      });
+      expect(getHarnessCapabilities(harness).supportsSessionResume).toBe(true);
     }
   });
 
@@ -27,9 +29,40 @@ describe('getHarnessCapabilities', () => {
       (h) => h !== 'opencode-sdk' && h !== 'pi' && h !== 'cursor-sdk'
     );
     for (const harness of nonResumable) {
-      expect(getHarnessCapabilities(harness)).toEqual({
-        supportsSessionResume: false,
-      });
+      expect(getHarnessCapabilities(harness).supportsSessionResume).toBe(false);
+    }
+  });
+
+  test('SDK harnesses use runtimeKind sdk', () => {
+    expect(getHarnessRuntimeKind('cursor-sdk')).toBe('sdk');
+    expect(getHarnessRuntimeKind('opencode-sdk')).toBe('sdk');
+  });
+
+  test('CLI harnesses use runtimeKind cli', () => {
+    for (const harness of ['pi', 'opencode', 'cursor', 'claude'] as const) {
+      expect(getHarnessRuntimeKind(harness)).toBe('cli');
+    }
+  });
+
+  test('SDK harnesses never declare CLI-only NDJSON wire events', () => {
+    for (const harness of ['cursor-sdk', 'opencode-sdk'] as const) {
+      const { wireEvents } = getHarnessCapabilities(harness);
+      for (const kind of wireEvents) {
+        expect(isCliOnlyWireEvent(kind)).toBe(false);
+      }
+    }
+  });
+
+  test('Pi is the only harness that emits wire.ndjson.agent_end', () => {
+    const withNdjsonAgentEnd = AGENT_HARNESSES.filter((h) =>
+      getHarnessCapabilities(h).wireEvents.includes('wire.ndjson.agent_end')
+    );
+    expect(withNdjsonAgentEnd).toEqual(['pi']);
+  });
+
+  test('every CLI-only wire kind is marked cliOnly in the catalog', () => {
+    for (const kind of CLI_ONLY_WIRE_EVENT_KINDS) {
+      expect(isCliOnlyWireEvent(kind)).toBe(true);
     }
   });
 });

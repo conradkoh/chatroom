@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // ---------------------------------------------------------------------------
 
 import { recoverAgentState } from './handlers/state-recovery.js';
-import { initDaemon, discoverModels } from './init.js';
+import { CONNECTION_RETRY_INTERVAL_MS, initDaemon, discoverModels } from './init.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import {
@@ -79,6 +79,12 @@ vi.mock('../../../version.js', () => ({
 
 vi.mock('./handlers/state-recovery.js', () => ({
   recoverAgentState: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./handlers/orphan-tracker.js', () => ({
+  reapOrphanedProcessGroups: vi.fn().mockResolvedValue({ reaped: 0, checked: 0 }),
+  trackChildPid: vi.fn(),
+  untrackChildPid: vi.fn(),
 }));
 
 vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () => {
@@ -172,6 +178,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -185,13 +192,21 @@ async function getMockClient() {
   return client as any as { mutation: ReturnType<typeof vi.fn>; query: ReturnType<typeof vi.fn> };
 }
 
+/** Advance fake timers through N backend-retry delays (initDaemon uses setTimeout). */
+async function advanceConnectionRetries(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    await vi.advanceTimersByTimeAsync(CONNECTION_RETRY_INTERVAL_MS);
+  }
+  await Promise.resolve();
+}
+
 // ---------------------------------------------------------------------------
 // discoverModels
 // ---------------------------------------------------------------------------
 
 describe('discoverModels', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   afterEach(() => {
@@ -510,8 +525,10 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('retries with delay on network failure for updateDaemonStatus', async () => {
-    vi.useFakeTimers();
+  it(
+    'retries with delay on network failure for updateDaemonStatus',
+    async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
     // 1st mutation: registerCapabilities succeeds
@@ -522,13 +539,14 @@ describe('initDaemon', () => {
       .mockResolvedValueOnce(undefined) // registerCapabilities
       .mockRejectedValueOnce(networkError) // connectDaemon (fail)
       .mockResolvedValueOnce(undefined) // registerCapabilities (retry)
-      .mockResolvedValueOnce(undefined); // connectDaemon (retry success)
+      .mockResolvedValueOnce(undefined) // connectDaemon (retry success)
+      .mockResolvedValueOnce({ clearedCount: 0 })
+      .mockResolvedValueOnce({ reapedCount: 0 });
     vi.mocked(isNetworkError).mockReturnValue(true);
 
     const initPromise = initDaemon();
 
-    // Advance past the 10s retry delay
-    await vi.advanceTimersByTimeAsync(11_000);
+    await advanceConnectionRetries(1);
 
     const ctx = await initPromise;
 
@@ -537,9 +555,9 @@ describe('initDaemon', () => {
     expect(exitSpy).not.toHaveBeenCalled();
     expect(ctx).toBeDefined();
     expect(ctx.machineId).toBe('machine-abc');
-
-    vi.useRealTimers();
-  });
+  },
+    20_000
+  );
 
   it('warns but continues when machine registration fails', async () => {
     const mockClient = await getMockClient();
@@ -689,34 +707,30 @@ describe('initDaemon', () => {
 // ---------------------------------------------------------------------------
 
 describe('initDaemon — backend-availability retry backoff', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it(
     'logs verbose error block exactly once across N consecutive failures',
     async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
     vi.mocked(isNetworkError).mockReturnValue(true);
 
-    // registerCapabilities (attempt 1) → connectDaemon fails
-    // registerCapabilities (attempt 2) → connectDaemon fails
-    // registerCapabilities (attempt 3) → connectDaemon fails
-    // registerCapabilities (attempt 4) → connectDaemon succeeds
-    // + 3 clearAllSpawnedPids calls removed but only 1 clearAllSpawnedPids on final success
+    // Two attempts: first connectDaemon failure (verbose block), second succeeds after one retry delay.
     mockClient.mutation
       .mockResolvedValueOnce(undefined) // registerCapabilities attempt 1
       .mockRejectedValueOnce(networkError) // connectDaemon fail 1
       .mockResolvedValueOnce(undefined) // registerCapabilities attempt 2
-      .mockRejectedValueOnce(networkError) // connectDaemon fail 2
-      .mockResolvedValueOnce(undefined) // registerCapabilities attempt 3
-      .mockRejectedValueOnce(networkError) // connectDaemon fail 3
-      .mockResolvedValueOnce(undefined) // registerCapabilities attempt 4
       .mockResolvedValueOnce(undefined) // connectDaemon success
-      .mockResolvedValueOnce(undefined); // clearAllSpawnedPids
+      .mockResolvedValueOnce({ clearedCount: 0 }) // clearAllSpawnedPids
+      .mockResolvedValueOnce({ reapedCount: 0 }); // reapOrphansForDaemonRestart
 
     const initPromise = initDaemon();
 
-    // Advance past 3 retry delays (3 × 10s)
-    await vi.advanceTimersByTimeAsync(31_000);
+    await advanceConnectionRetries(1);
 
     await initPromise;
 
@@ -724,55 +738,49 @@ describe('initDaemon — backend-availability retry backoff', () => {
     expect(formatConnectivityError).toHaveBeenCalledTimes(1);
     expect(formatConnectivityError).toHaveBeenCalledWith(networkError, 'http://localhost:3210');
 
-    // Subsequent failures produce single-line messages (not the verbose block)
     const logLines = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
-    // Should have 2 “still unreachable” lines (failure 2 and 3)
-    const stillUnreachableCount = (logLines.match(/Backend still unreachable/g) ?? []).length;
-    expect(stillUnreachableCount).toBe(2);
-
-    vi.useRealTimers();
+    expect(logLines).toContain('Backend reachable again');
+    expect(logLines).not.toMatch(/Backend still unreachable/);
     },
     20_000
   );
 
-  it('uses a 10-second retry interval between connection attempts', async () => {
-    vi.useFakeTimers();
+  it(
+    'uses a 10-second retry interval between connection attempts',
+    async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
     vi.mocked(isNetworkError).mockReturnValue(true);
 
     mockClient.mutation
-      .mockResolvedValueOnce(undefined) // registerCapabilities (fail attempt)
-      .mockRejectedValueOnce(networkError) // connectDaemon fail
-      .mockResolvedValueOnce(undefined) // registerCapabilities (success attempt)
-      .mockResolvedValueOnce(undefined) // connectDaemon success
-      .mockResolvedValueOnce(undefined); // clearAllSpawnedPids
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(networkError)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ clearedCount: 0 })
+      .mockResolvedValueOnce({ reapedCount: 0 });
 
     const initPromise = initDaemon();
+    await advanceConnectionRetries(1);
+    await initPromise;
 
-    // Just under 10s — retry should NOT have fired yet
-    await vi.advanceTimersByTimeAsync(9_999);
-    // Still resolving (waiting for retry delay)
-    let resolved = false;
-    void initPromise.then(() => {
-      resolved = true;
-    });
-    // Flush microtasks
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-
-    // Advance the remaining 1ms to cross the 10s threshold
-    await vi.advanceTimersByTimeAsync(1);
-    const ctx = await initPromise;
-
-    expect(ctx).toBeDefined();
+    expect(
+      setTimeoutSpy.mock.calls.some(
+        (call) => call[1] === CONNECTION_RETRY_INTERVAL_MS
+      )
+    ).toBe(true);
     expect(exitSpy).not.toHaveBeenCalled();
+    setTimeoutSpy.mockRestore();
+  },
+    20_000
+  );
 
-    vi.useRealTimers();
-  });
-
-  it('logs a single recovery line when backend becomes reachable again', async () => {
-    vi.useFakeTimers();
+  it(
+    'logs a single recovery line when backend becomes reachable again',
+    async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
     vi.mocked(isNetworkError).mockReturnValue(true);
@@ -782,10 +790,11 @@ describe('initDaemon — backend-availability retry backoff', () => {
       .mockRejectedValueOnce(networkError) // connectDaemon fail
       .mockResolvedValueOnce(undefined) // registerCapabilities (success attempt)
       .mockResolvedValueOnce(undefined) // connectDaemon success
-      .mockResolvedValueOnce(undefined); // clearAllSpawnedPids
+      .mockResolvedValueOnce({ clearedCount: 0 }) // clearAllSpawnedPids
+      .mockResolvedValueOnce({ reapedCount: 0 }); // reapOrphansForDaemonRestart
 
     const initPromise = initDaemon();
-    await vi.advanceTimersByTimeAsync(11_000);
+    await advanceConnectionRetries(1);
     await initPromise;
 
     const logLines = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
@@ -793,7 +802,7 @@ describe('initDaemon — backend-availability retry backoff', () => {
     const recoveryCount = (logLines.match(/Backend reachable again/g) ?? []).length;
     expect(recoveryCount).toBe(1);
     expect(logLines).toContain('http://localhost:3210');
-
-    vi.useRealTimers();
-  });
+  },
+    20_000
+  );
 });

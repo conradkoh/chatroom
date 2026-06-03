@@ -60,13 +60,21 @@ export interface DaemonHarnessSessionContext {
 
 export interface SpawnResult {
   pid: number;
+  /**
+   * `lifecycle.process.exited` — OS child (CLI binary or SDK keeper) exited.
+   * Stop reason is derived from exit code/signal (`agent_process.*`).
+   */
   onExit: (
     cb: (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
   ) => void;
+  /** `lifecycle.output.activity` — stream or stdout/stderr activity. */
   onOutput: (cb: () => void) => void;
   /**
-   * Optional: fires when the agent completes a turn (agent_end event).
-   * Not all agent runtimes support this — implemented by PiAgentService and CursorAgentService.
+   * `lifecycle.turn.completed` — one agent turn finished; daemon may call `resumeTurn`.
+   *
+   * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):
+   * - CLI: e.g. Pi NDJSON `wire.ndjson.agent_end` (SDK harnesses never emit this).
+   * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
    */
   onAgentEnd?: (cb: () => void) => void;
   /** Session ID for harnesses that support session resume. Undefined if not applicable. */
@@ -116,7 +124,7 @@ export interface RemoteAgentService {
   spawn(options: SpawnOptions): Promise<SpawnResult>;
 
   /**
-   * Resume an ongoing session after an agent_end turn.
+   * Resume an ongoing session after `lifecycle.turn.completed`.
    * Only implement on harnesses where supportsSessionResume = true.
    * Called by AgentProcessManager instead of killing and re-spawning.
    */

@@ -1,0 +1,63 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  decideResumePathOnRestart,
+  resumePathAfterTurnCompleted,
+  shouldAutoRestartAfterProcessExit,
+} from './decide-resume-path.js';
+
+describe('decideResumePathOnRestart', () => {
+  it('uses daemon_memory when wantResume and snapshot exist', () => {
+    expect(
+      decideResumePathOnRestart({
+        supportsSessionResume: true,
+        wantResume: true,
+        hasStoredSnapshot: true,
+      })
+    ).toBe('daemon_memory');
+  });
+
+  it('falls back to cold spawn without snapshot or wantResume', () => {
+    expect(
+      decideResumePathOnRestart({
+        supportsSessionResume: true,
+        wantResume: true,
+        hasStoredSnapshot: false,
+      })
+    ).toBe('cold');
+    expect(
+      decideResumePathOnRestart({
+        supportsSessionResume: true,
+        wantResume: false,
+        hasStoredSnapshot: true,
+      })
+    ).toBe('cold');
+    expect(
+      decideResumePathOnRestart({
+        supportsSessionResume: false,
+        wantResume: true,
+        hasStoredSnapshot: true,
+      })
+    ).toBe('cold');
+  });
+});
+
+describe('shouldAutoRestartAfterProcessExit', () => {
+  it('restarts on process outcomes', () => {
+    expect(shouldAutoRestartAfterProcessExit('agent_process.crashed')).toBe(true);
+    expect(shouldAutoRestartAfterProcessExit('agent_process.exited_clean')).toBe(true);
+  });
+
+  it('does not restart on intentional stops', () => {
+    expect(shouldAutoRestartAfterProcessExit('user.stop')).toBe(false);
+    expect(shouldAutoRestartAfterProcessExit('daemon.shutdown')).toBe(false);
+    expect(shouldAutoRestartAfterProcessExit('daemon.respawn')).toBe(false);
+  });
+});
+
+describe('resumePathAfterTurnCompleted', () => {
+  it('returns in_process only for resumable harnesses', () => {
+    expect(resumePathAfterTurnCompleted(true)).toBe('in_process');
+    expect(resumePathAfterTurnCompleted(false)).toBe('none');
+  });
+});
