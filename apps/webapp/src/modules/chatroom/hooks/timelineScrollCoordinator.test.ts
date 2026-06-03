@@ -410,7 +410,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(el.scrollTop).toBe(1100);
   });
 
-  it('defers allowLoadOlder until after initial scroll settles', async () => {
+  it('defers scroll-driven load-older while programmatic tail scroll is active', async () => {
     coordinator.commitTimelineLayout({
       scrollEl: el,
       eventCount: 2,
@@ -418,11 +418,11 @@ describe('TimelineScrollCoordinator', () => {
       isLoadingOlder: false,
     });
 
-    expect(coordinator.getAllowLoadOlder()).toBe(false);
+    expect(coordinator.isProgrammaticScrollActive()).toBe(true);
 
     await new Promise<void>((resolve) => {
       const wait = () => {
-        if (coordinator.getAllowLoadOlder()) {
+        if (!coordinator.isProgrammaticScrollActive()) {
           resolve();
           return;
         }
@@ -431,7 +431,7 @@ describe('TimelineScrollCoordinator', () => {
       requestAnimationFrame(wait);
     });
 
-    expect(coordinator.getAllowLoadOlder()).toBe(true);
+    expect(coordinator.isProgrammaticScrollActive()).toBe(false);
   });
 
   it('does not follow tail on append when unpinned and not at bottom', () => {
@@ -603,5 +603,25 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isPinned).toBe(false);
     coordinator.notifyTailRowResized(9);
     expect(scrollToEnd).not.toHaveBeenCalled();
+  });
+
+  it('resetForChatroom clears prepend state', () => {
+    coordinator.setLoadOlderIntent('preserve_position', {
+      key: 'evt-1',
+      index: 0,
+      scrollTop: 100,
+      scrollHeight: 1000,
+      offsetInItem: 0,
+    });
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 10,
+      tailKey: 'evt-9',
+      isLoadingOlder: false,
+    });
+
+    coordinator.resetForChatroom();
+
+    expect(coordinator.isPrependScrollPreservationActive()).toBe(false);
   });
 });
