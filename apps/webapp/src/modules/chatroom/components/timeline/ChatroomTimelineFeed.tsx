@@ -1,10 +1,7 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
-import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
-import { usePaginatedQuery } from 'convex/react';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import type React from 'react';
 import {
@@ -17,8 +14,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { useChatroomTimeline } from '../../hooks/useChatroomTimeline';
-import { useHandoffNotification } from '../../hooks/useHandoffNotification';
+import { useChatroomTimelineFeedData } from '../../hooks/useChatroomTimelineFeedData';
 import type { PrependScrollAnchor, TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 
@@ -66,19 +62,24 @@ export function ChatroomTimelineFeed({
   const tailMeasureRef = useRef<{ id: string; size: number } | null>(null);
   const prevEventCountRef = useRef(0);
   const prevIsLoadingOlderRef = useRef(false);
-  const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
+
+  const {
+    events,
+    isLoading,
+    hasMoreOlder,
+    isLoadingOlder,
+    loadOlderEvents,
+    isEventStreamOpen,
+    setIsEventStreamOpen,
+    latestEvent,
+    eventsPaginated,
+  } = useChatroomTimelineFeedData(chatroomId);
 
   const isPinned = useSyncExternalStore(
     (onStoreChange) => coordinator.current.subscribe(onStoreChange),
     () => coordinator.current.getSnapshot(),
     () => coordinator.current.getSnapshot()
   );
-
-  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents } =
-    useChatroomTimeline(chatroomId);
-
-  const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
-  useHandoffNotification(messagesForNotify, chatroomId);
 
   const prevChatroomIdRef = useRef<string | null>(null);
 
@@ -91,24 +92,7 @@ export function ChatroomTimelineFeed({
 
   useEffect(() => {
     onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
-  }, [onRegisterOpenEventStream]);
-
-  const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    limit: 1,
-  });
-
-  const [eventSessionId] = useSessionId();
-  const eventsPaginated = usePaginatedQuery(
-    api.events.listLatestEventsPaginated,
-    isEventStreamOpen && eventSessionId
-      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, sessionId: eventSessionId }
-      : 'skip',
-    { initialNumItems: 20 }
-  );
-
-  const latestEvent: EventStreamEvent | null =
-    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
+  }, [onRegisterOpenEventStream, setIsEventStreamOpen]);
 
   const initialMeasurementsCache = useMemo((): VirtualItem[] => {
     // Snapshot the cache once at mount. Re-mounts (chatroom switch) re-create.
