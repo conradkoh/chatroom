@@ -56,7 +56,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
-import { CURSOR_SDK_FALLBACK_MODELS, resolveCursorSdkModel } from './cursor-models.js';
+import { resolveCursorSdkModel } from './cursor-models.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 
 export type CursorSdkAgentServiceDeps = CLIAgentServiceDeps;
@@ -192,7 +192,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
   async listModels(): Promise<string[]> {
     const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) return [...CURSOR_SDK_FALLBACK_MODELS];
+    if (!apiKey) return [];
 
     try {
       const { Cursor } = await loadSdk();
@@ -201,14 +201,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         MODELS_LIST_TIMEOUT_MS,
         'Cursor.models.list'
       );
-      const ids = models.map((m) => m.id).filter((id) => id.length > 0);
-      return ids.length > 0 ? ids : [...CURSOR_SDK_FALLBACK_MODELS];
+      return models.map((m) => m.id).filter((id) => id.length > 0);
     } catch (err) {
       console.warn(
-        `[cursor-sdk] Cursor.models.list failed, using fallback list:`,
+        `[cursor-sdk] Cursor.models.list failed:`,
         err instanceof Error ? err.message : err
       );
-      return [...CURSOR_SDK_FALLBACK_MODELS];
+      return [];
     }
   }
 
@@ -345,8 +344,17 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     initialPrompt: string;
     forceFirstTurn: boolean;
   }): SpawnResult {
-    const { pid, keeper, agent, context, agentName, model, workingDir, initialPrompt, forceFirstTurn } =
-      args;
+    const {
+      pid,
+      keeper,
+      agent,
+      context,
+      agentName,
+      model,
+      workingDir,
+      initialPrompt,
+      forceFirstTurn,
+    } = args;
 
     const entry = this.registerProcess(pid, context);
     const logPrefix = buildLogPrefix(context);
