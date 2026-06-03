@@ -117,7 +117,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentCreateFn).toHaveBeenCalledWith({
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
-        model: { id: 'composer-2.5' },
+        model: { id: 'composer-2.5', params: [{ id: 'fast', value: 'false' }] },
         local: { cwd: '/tmp/work', settingSources: [] },
       });
     });

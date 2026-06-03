@@ -560,7 +560,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         Agent.create({
           apiKey,
           name: agentName,
-          model: { id: modelId },
+          model: { id: modelId, params: [{ id: 'fast', value: 'false' }] },
           local: { cwd: options.workingDir, settingSources: [] },
         }),
         AGENT_CREATE_TIMEOUT_MS,
