@@ -16,7 +16,10 @@ import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers
 import { isProcessAlive } from '../../deps/process.js';
 import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import { resolveStopReason } from '../../machine/stop-reason.js';
+import {
+  resolveStopReason,
+  shouldRetainHarnessSessionForReconnect,
+} from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { Signals } from '../../types/signals.js';
@@ -387,6 +390,26 @@ export class AgentProcessManager {
     const harness = slot.harness;
     const model = slot.model;
     const workingDir = slot.workingDir;
+    const harnessSessionId = slot.harnessSessionId;
+
+    if (
+      harness &&
+      harnessSessionId &&
+      getHarnessCapabilities(harness).supportsSessionResume &&
+      shouldRetainHarnessSessionForReconnect(stopReason)
+    ) {
+      const service = this.deps.agentServices.get(harness);
+      const harnessMeta = service
+        ? this.readHarnessReconnectMetadata(service, opts.pid)
+        : undefined;
+      this.recordLastHarnessSession(key, {
+        harnessSessionId,
+        harness,
+        agentName: harnessMeta?.agentName ?? '',
+        workingDir: workingDir ?? '',
+        model: model ?? harnessMeta?.model,
+      });
+    }
 
     // Transition: running → idle
     slot.state = 'idle';
@@ -1142,8 +1165,13 @@ export class AgentProcessManager {
     try {
       const harness = slot.harness;
       const service = harness ? this.deps.agentServices.get(harness) : undefined;
+      const supportsResume = harness
+        ? getHarnessCapabilities(harness).supportsSessionResume
+        : false;
       const preserveForResume =
-        opts.reason === 'user.stop' && Boolean(slot.harnessSessionId);
+        Boolean(slot.harnessSessionId) &&
+        supportsResume &&
+        shouldRetainHarnessSessionForReconnect(opts.reason);
 
       if (harness && slot.harnessSessionId) {
         if (preserveForResume) {

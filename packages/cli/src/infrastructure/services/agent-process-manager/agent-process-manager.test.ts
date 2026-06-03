@@ -1344,6 +1344,67 @@ describe('AgentProcessManager', () => {
         expect(service.spawn).toHaveBeenCalledTimes(1);
       });
     });
+
+    test('exited_clean retains daemon memory and reconnects cursor-sdk via resumeFromDaemonMemory', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: 100,
+        harnessSessionId: 'cursor-agent-1',
+        harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      const localDeps = {
+        ...createDeps(),
+        agentServices: new Map([['cursor-sdk', cursorSdkService]]),
+      };
+      const localManager = new AgentProcessManager(localDeps);
+
+      await localManager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'cursor-sdk',
+      });
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+
+      localManager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 0,
+        signal: null,
+      });
+
+      await vi.waitFor(() => {
+        expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      });
+
+      expect(cursorSdkService.spawn).toHaveBeenCalledOnce();
+      expect(getLastHarnessSessions(localManager).get(key)).toEqual({
+        harnessSessionId: 'cursor-agent-1',
+        harness: 'cursor-sdk',
+        agentName: 'builder@c1',
+        workingDir: '/tmp/test',
+        model: 'gpt-4',
+      });
+      expect(localManager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('cursor-agent-1');
+    });
   });
 
   // ── recover ───────────────────────────────────────────────────────────

@@ -38,3 +38,22 @@ export function resolveStopReason(code: number | null, signal: string | null): S
   if (code === 0) return 'agent_process.exited_clean';
   return 'agent_process.crashed';
 }
+
+/**
+ * Whether daemon-memory harness session metadata should be kept for reconnect
+ * (resumeFromDaemonMemory) after this stop or process exit.
+ *
+ * Intentional platform/daemon stops clear memory; user.stop and automated process
+ * outcomes retain it when the harness supports session resume.
+ */
+export function shouldRetainHarnessSessionForReconnect(reason: StopReason): boolean {
+  switch (reason) {
+    case 'user.stop':
+    case 'agent_process.exited_clean':
+    case 'agent_process.signal':
+    case 'agent_process.crashed':
+      return true;
+    default:
+      return false;
+  }
+}

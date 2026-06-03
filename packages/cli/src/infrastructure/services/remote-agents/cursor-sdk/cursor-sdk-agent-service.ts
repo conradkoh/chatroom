@@ -508,7 +508,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         const reason = err instanceof Error ? err.message : String(err);
         process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
       } finally {
-        if (!session.agentClosed && !session.preserveForResume) {
+        // Only tear down the Cursor agent on intentional abort without preserve.
+        // Unexpected keeper exit leaves the session open for resumeFromDaemonMemory.
+        if (!session.agentClosed && session.aborted && !session.preserveForResume) {
           try {
             agent.close();
             session.agentClosed = true;
