@@ -24,6 +24,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Message } from '../types/message';
 
+import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
+
 const SUBSCRIPTION_LIMIT = 20;
 const LOAD_OLDER_PAGE_SIZE = 20;
 
@@ -133,10 +135,27 @@ export function useMessages(chatroomId: string): UseMessagesResult {
   oldestMessageRef.current = messages[0];
 
   const loadOlderMessages = useCallback(() => {
-    if (isLoadingOlderRef.current || exhaustedOlder || !sessionId) return;
+    if (isLoadingOlderRef.current) {
+      logLoadOlder('loadOlderMessages skipped', { reason: 'in-flight' });
+      return;
+    }
+    if (exhaustedOlder) {
+      logLoadOlder('loadOlderMessages skipped', { reason: 'exhaustedOlder' });
+      return;
+    }
+    if (!sessionId) {
+      logLoadOlder('loadOlderMessages skipped', { reason: 'no sessionId' });
+      return;
+    }
 
     const oldest = oldestMessageRef.current;
     const before = oldest ? oldest._creationTime : Date.now();
+
+    logLoadOlder('loadOlderMessages fetch', {
+      before,
+      oldestId: oldest?._id ?? null,
+      currentCount: messages.length,
+    });
 
     isLoadingOlderRef.current = true;
     setIsLoadingOlder(true);
@@ -150,6 +169,11 @@ export function useMessages(chatroomId: string): UseMessagesResult {
           sessionId,
         });
 
+        logLoadOlder('loadOlderMessages result', {
+          fetched: older.length,
+          before,
+        });
+
         if (older.length === 0) {
           setExhaustedOlder(true);
         } else {
@@ -158,12 +182,16 @@ export function useMessages(chatroomId: string): UseMessagesResult {
             setExhaustedOlder(true);
           }
         }
+      } catch (error) {
+        logLoadOlder('loadOlderMessages error', {
+          message: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         isLoadingOlderRef.current = false;
         setIsLoadingOlder(false);
       }
     })();
-  }, [convex, typedChatroomId, sessionId, exhaustedOlder]);
+  }, [convex, typedChatroomId, sessionId, exhaustedOlder, messages.length]);
 
   return {
     messages,
