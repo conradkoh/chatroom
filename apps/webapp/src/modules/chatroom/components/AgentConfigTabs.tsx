@@ -371,10 +371,7 @@ export function useAgentControls({
   // Wait for async machine models + filter before deriving selection — avoids flashing
   // a stale model label when switching machines or harnesses.
   const modelSelectionReady =
-    !!selectedMachineId &&
-    !!selectedHarness &&
-    !machineModelsLoading &&
-    !machineModelFilterLoading;
+    !!selectedMachineId && !!selectedHarness && !machineModelsLoading && !machineModelFilterLoading;
 
   // Visible models = available models minus those hidden by the filter.
   // The combobox and automatic model selection use this list.
@@ -582,10 +579,10 @@ export function useAgentControls({
     [roleConfigs, chatroomWorkspaces]
   );
 
-  // Wrapper for harness change — does NOT clear other harnesses' model memory.
+  // Wrapper for harness change — does NOT clear other harnesses' model memory,
+  // and does NOT reset resumeSession so the user's preference persists across harness switches.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
     setSelectedHarness(harness);
-    setResumeSession(true);
   }, []);
 
   // Wrapper for user manually selecting a model — stored per harness
