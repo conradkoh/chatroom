@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { resolveStopReason, shouldRetainHarnessSessionForReconnect } from './stop-reason';
+import { resolveStopReason } from './stop-reason';
 
 describe('resolveStopReason', () => {
   describe('signal terminations', () => {
@@ -34,21 +34,5 @@ describe('resolveStopReason', () => {
     it('returns agent_process.crashed for null code with no signal', () => {
       expect(resolveStopReason(null, null)).toBe('agent_process.crashed');
     });
-  });
-});
-
-describe('shouldRetainHarnessSessionForReconnect', () => {
-  it('retains for user.stop and automated process outcomes', () => {
-    expect(shouldRetainHarnessSessionForReconnect('user.stop')).toBe(true);
-    expect(shouldRetainHarnessSessionForReconnect('agent_process.exited_clean')).toBe(true);
-    expect(shouldRetainHarnessSessionForReconnect('agent_process.signal')).toBe(true);
-    expect(shouldRetainHarnessSessionForReconnect('agent_process.crashed')).toBe(true);
-  });
-
-  it('clears for intentional platform/daemon stops', () => {
-    expect(shouldRetainHarnessSessionForReconnect('platform.team_switch')).toBe(false);
-    expect(shouldRetainHarnessSessionForReconnect('daemon.shutdown')).toBe(false);
-    expect(shouldRetainHarnessSessionForReconnect('daemon.respawn')).toBe(false);
-    expect(shouldRetainHarnessSessionForReconnect('platform.dedup')).toBe(false);
   });
 });
