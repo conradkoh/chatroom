@@ -6,8 +6,8 @@
  *
  *   text delta      – { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "..." } }
  *   thinking delta  – { type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "..." } }
- *   agent_start     – { type: "agent_start" }
- *   agent_end       – { type: "agent_end" }
+ *   agent_start     – { type: "agent_start" }  → wire.ndjson.agent_start (CLI-only)
+ *   agent_end       – { type: "agent_end" }    → wire.ndjson.agent_end → lifecycle.turn.completed
  *   tool call       – { type: "tool_execution_start", toolName: "...", toolArgs: { ... } }
  *   tool result     – { type: "tool_execution_end", toolName: "...", ... }
  *   (unknown)       – any other object — ignored, but onAnyEvent still fires

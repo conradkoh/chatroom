@@ -37,6 +37,16 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "cache": false
+    },
+    "@workspace/backend#typecheck": {
+      "outputs": ["dist/**"]
+    },
+    "@workspace/webapp#typecheck": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/services/backend/src/**"]
+    },
+    "@workspace/webapp#build": {
+      "dependsOn": ["^typecheck", "typecheck"],
+      "outputs": [".next/**", "!.next/cache/**"]
     }
   }
 }

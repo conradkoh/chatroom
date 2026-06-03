@@ -16,8 +16,14 @@ import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers
 import { isProcessAlive } from '../../deps/process.js';
 import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import { resolveStopReason } from '../../machine/stop-reason.js';
-import type { StopReason } from '../../machine/stop-reason.js';
+import type { HarnessSessionSnapshot, StopReason } from '../../../domain/agent-lifecycle/index.js';
+import {
+  decideResumePathOnRestart,
+  resolveStopReason,
+  shouldAutoRestartAfterProcessExit,
+  shouldPreserveHarnessTeardown,
+  shouldRetainHarnessSessionForReconnect,
+} from '../../../domain/agent-lifecycle/index.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { Signals } from '../../types/signals.js';
 import type {
@@ -32,10 +38,8 @@ import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** In-memory reconnect context per chatroom+role (lost on daemon restart). */
-export interface LastHarnessSessionContext extends DaemonHarnessSessionContext {
-  harness: AgentHarness;
-}
+/** @deprecated Use HarnessSessionSnapshot — kept for tests and external imports. */
+export type LastHarnessSessionContext = HarnessSessionSnapshot;
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
@@ -165,7 +169,7 @@ export class AgentProcessManager {
   private readonly deps: AgentProcessManagerDeps;
   private readonly slots = new Map<string, AgentSlot>();
   /** Latest harness session reconnect context per chatroom+role — in-memory only. */
-  private readonly lastHarnessSessions = new Map<string, LastHarnessSessionContext>();
+  private readonly lastHarnessSessions = new Map<string, HarnessSessionSnapshot>();
 
   /** Queue of failed recordAgentExited calls awaiting retry. */
   private readonly exitRetryQueue: RetryQueueItem[] = [];
@@ -276,7 +280,7 @@ export class AgentProcessManager {
     const slot = this.slots.get(key);
     if (slot?.resumeInFlight) {
       console.log(
-        `[AgentProcessManager] agent_end: skipping duplicate resume for ${opts.role} (resume already in flight)`
+        `[AgentProcessManager] lifecycle.turn.completed: skipping duplicate resume for ${opts.role} (resume already in flight)`
       );
       return;
     }
@@ -284,7 +288,7 @@ export class AgentProcessManager {
     const capabilities = getHarnessCapabilities(opts.harness);
 
     console.log(
-      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${capabilities.supportsSessionResume}`
+      `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${capabilities.supportsSessionResume}`
     );
 
     if (capabilities.supportsSessionResume) {
@@ -387,6 +391,26 @@ export class AgentProcessManager {
     const harness = slot.harness;
     const model = slot.model;
     const workingDir = slot.workingDir;
+    const harnessSessionId = slot.harnessSessionId;
+
+    if (
+      harness &&
+      harnessSessionId &&
+      getHarnessCapabilities(harness).supportsSessionResume &&
+      shouldRetainHarnessSessionForReconnect(stopReason)
+    ) {
+      const service = this.deps.agentServices.get(harness);
+      const harnessMeta = service
+        ? this.readHarnessReconnectMetadata(service, opts.pid)
+        : undefined;
+      this.recordLastHarnessSession(key, {
+        harnessSessionId,
+        harness,
+        agentName: harnessMeta?.agentName ?? '',
+        workingDir: workingDir ?? '',
+        model: model ?? harnessMeta?.model,
+      });
+    }
 
     // Transition: running → idle
     slot.state = 'idle';
@@ -425,19 +449,15 @@ export class AgentProcessManager {
     }
 
     // Restart decision
-    const isIntentionalStop =
-      stopReason === 'user.stop' ||
-      stopReason === 'platform.team_switch' ||
-      stopReason === 'daemon.shutdown';
-    const isDaemonRespawn = stopReason === 'daemon.respawn';
-
-    if (isIntentionalStop) {
-      this.deps.crashLoop.clear(opts.chatroomId, opts.role);
-      return; // No restart
-    }
-
-    if (isDaemonRespawn) {
-      return; // Caller will ensureRunning
+    if (!shouldAutoRestartAfterProcessExit(stopReason)) {
+      if (
+        stopReason === 'user.stop' ||
+        stopReason === 'platform.team_switch' ||
+        stopReason === 'daemon.shutdown'
+      ) {
+        this.deps.crashLoop.clear(opts.chatroomId, opts.role);
+      }
+      return;
     }
 
     // Auto-restart (if we have enough info)
@@ -977,7 +997,12 @@ export class AgentProcessManager {
       }
 
       let spawnResult: SpawnResult | undefined;
-      if (wantResume) {
+      const resumePath = decideResumePathOnRestart({
+        supportsSessionResume: getHarnessCapabilities(opts.agentHarness).supportsSessionResume,
+        wantResume,
+        hasStoredSnapshot: this.lastHarnessSessions.has(key),
+      });
+      if (resumePath === 'daemon_memory') {
         spawnResult =
           (await this.tryDaemonMemoryResume({
             key,
@@ -1115,7 +1140,7 @@ export class AgentProcessManager {
     }
   }
 
-  private recordLastHarnessSession(key: string, ctx: LastHarnessSessionContext): void {
+  private recordLastHarnessSession(key: string, ctx: HarnessSessionSnapshot): void {
     this.lastHarnessSessions.set(key, ctx);
   }
 
@@ -1142,8 +1167,14 @@ export class AgentProcessManager {
     try {
       const harness = slot.harness;
       const service = harness ? this.deps.agentServices.get(harness) : undefined;
-      const preserveForResume =
-        opts.reason === 'user.stop' && Boolean(slot.harnessSessionId);
+      const supportsResume = harness
+        ? getHarnessCapabilities(harness).supportsSessionResume
+        : false;
+      const preserveForResume = shouldPreserveHarnessTeardown(
+        opts.reason,
+        supportsResume,
+        Boolean(slot.harnessSessionId)
+      );
 
       if (harness && slot.harnessSessionId) {
         if (preserveForResume) {
