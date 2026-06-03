@@ -199,7 +199,7 @@ describe('shouldEnqueueMessage', () => {
   });
 
   describe('materialized chatroom_taskCounts path', () => {
-    test('returns true from counts doc without scanning task rows (pending)', async () => {
+    test('reconciles stale pending count and returns false when no task rows exist', async () => {
       const { sessionId } = await createTestSession('det-mat-1');
       const chatroomId = await createChatroom(sessionId);
 
@@ -209,10 +209,32 @@ describe('shouldEnqueueMessage', () => {
         return await shouldEnqueueMessage(ctx, chatroomId);
       });
 
+      expect(enqueue).toBe(false);
+
+      const counts = await t.run(async (ctx) => {
+        return await ctx.db
+          .query('chatroom_taskCounts')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .first();
+      });
+      expect(counts?.pending).toBe(0);
+    });
+
+    test('returns true when counts and task rows agree (pending)', async () => {
+      const { sessionId } = await createTestSession('det-mat-1b');
+      const chatroomId = await createChatroom(sessionId);
+
+      await seedMaterializedCounts(chatroomId, { pending: 1 });
+      await seedTask(chatroomId, 'pending');
+
+      const enqueue = await t.run(async (ctx) => {
+        return await shouldEnqueueMessage(ctx, chatroomId);
+      });
+
       expect(enqueue).toBe(true);
     });
 
-    test('returns true from counts doc (acknowledged)', async () => {
+    test('reconciles stale acknowledged count when no task rows exist', async () => {
       const { sessionId } = await createTestSession('det-mat-2');
       const chatroomId = await createChatroom(sessionId);
 
@@ -222,10 +244,18 @@ describe('shouldEnqueueMessage', () => {
         return await shouldEnqueueMessage(ctx, chatroomId);
       });
 
-      expect(enqueue).toBe(true);
+      expect(enqueue).toBe(false);
+
+      const counts = await t.run(async (ctx) => {
+        return await ctx.db
+          .query('chatroom_taskCounts')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .first();
+      });
+      expect(counts?.acknowledged).toBe(0);
     });
 
-    test('returns true from counts doc (inProgress)', async () => {
+    test('reconciles stale inProgress count when no task rows exist', async () => {
       const { sessionId } = await createTestSession('det-mat-3');
       const chatroomId = await createChatroom(sessionId);
 
@@ -235,7 +265,15 @@ describe('shouldEnqueueMessage', () => {
         return await shouldEnqueueMessage(ctx, chatroomId);
       });
 
-      expect(enqueue).toBe(true);
+      expect(enqueue).toBe(false);
+
+      const counts = await t.run(async (ctx) => {
+        return await ctx.db
+          .query('chatroom_taskCounts')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .first();
+      });
+      expect(counts?.inProgress).toBe(0);
     });
 
     test('returns false when materialized active counters are all zero', async () => {
