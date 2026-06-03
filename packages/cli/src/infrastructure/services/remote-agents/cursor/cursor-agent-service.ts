@@ -30,6 +30,14 @@ const CURSOR_COMMAND = 'agent';
 
 const CURSOR_PROVIDER = 'cursor';
 
+/**
+ * Injected at the top of every system prompt to prevent the Cursor agent from
+ * spawning internal subagents. Cursor's backend defaults to fast-routing and
+ * may spawn subagents (explore, generalPurpose, etc.) which use a different
+ * model and ignore the parent agent's instructions.
+ */
+const NO_SUBAGENT_DIRECTIVE = 'NEVER spawn subagents. Follow the chatroom instructions strictly.';
+
 const CURSOR_MODELS: string[] = [
   // Anthropic Claude
   'claude-4.6-opus-high',
@@ -130,9 +138,10 @@ export class CursorAgentService extends BaseCLIAgentService {
       args.push('--model', resolveCursorCliModel(options.model));
     }
 
-    const fullPrompt = options.systemPrompt
-      ? `${options.systemPrompt}\n\n${options.prompt}`
-      : options.prompt;
+    const systemPrompt = options.systemPrompt
+      ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
+      : NO_SUBAGENT_DIRECTIVE;
+    const fullPrompt = `${systemPrompt}\n\n${options.prompt}`;
 
     const childProcess: ChildProcess = this.deps.spawn(CURSOR_COMMAND, args, {
       cwd: options.workingDir,

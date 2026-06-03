@@ -23,6 +23,16 @@ import type { ChildProcess } from 'node:child_process';
 // Type-only import — no runtime effect, safe even if native deps fail to load.
 import type { Run, SDKAgent } from '@cursor/sdk';
 
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+/**
+ * Injected at the top of every system prompt to prevent the Cursor agent from
+ * spawning internal subagents. Cursor's backend defaults to fast-routing and
+ * may spawn subagents (explore, generalPurpose, etc.) which use a different
+ * model and ignore the parent agent's instructions.
+ */
+const NO_SUBAGENT_DIRECTIVE = 'NEVER spawn subagents. Follow the chatroom instructions strictly.';
+
 // ─── Lazy SDK loader ───────────────────────────────────────────────────────────
 // @cursor/sdk loads sqlite3 (a native .node addon) on import. We defer the
 // import until first use so that sqlite3 binary failures are caught at call
@@ -282,9 +292,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const agentName = stored.agentName;
     const modelId = resolveModelId(options.model ?? stored.model);
-    const fullPrompt = options.systemPrompt
-      ? `${options.systemPrompt}\n\n${options.prompt}`
-      : options.prompt;
+    const systemPrompt = options.systemPrompt
+      ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
+      : NO_SUBAGENT_DIRECTIVE;
+    const fullPrompt = `${systemPrompt}\n\n${options.prompt}`;
 
     let agent: SDKAgent;
     try {
@@ -549,9 +560,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const agentName = buildAgentName(context);
     const modelId = resolveModelId(options.model);
-    const fullPrompt = options.systemPrompt
-      ? `${options.systemPrompt}\n\n${options.prompt}`
-      : options.prompt;
+    const systemPrompt = options.systemPrompt
+      ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
+      : NO_SUBAGENT_DIRECTIVE;
+    const fullPrompt = `${systemPrompt}\n\n${options.prompt}`;
 
     let agent: SDKAgent;
     try {
