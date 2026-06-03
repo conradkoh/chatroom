@@ -276,7 +276,7 @@ export class AgentProcessManager {
     const slot = this.slots.get(key);
     if (slot?.resumeInFlight) {
       console.log(
-        `[AgentProcessManager] agent_end: skipping duplicate resume for ${opts.role} (resume already in flight)`
+        `[AgentProcessManager] lifecycle.turn.completed: skipping duplicate resume for ${opts.role} (resume already in flight)`
       );
       return;
     }
@@ -284,7 +284,7 @@ export class AgentProcessManager {
     const capabilities = getHarnessCapabilities(opts.harness);
 
     console.log(
-      `[AgentProcessManager] agent_end: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${capabilities.supportsSessionResume}`
+      `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${capabilities.supportsSessionResume}`
     );
 
     if (capabilities.supportsSessionResume) {
