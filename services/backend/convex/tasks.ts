@@ -20,9 +20,14 @@ import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
+  countActiveTasksFromSource,
+  resolveActiveCountsForRead,
+} from '../src/domain/usecase/task/task-counts';
+import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
+import { hasActiveTaskFromMaterializedCounts } from '../src/domain/usecase/task/create-task';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -842,8 +847,6 @@ export const getTaskCounts = query({
 
     if (materializedCounts) {
       // Cross-check queueSize against actual queue records to prevent stale notices.
-      // This is a lightweight indexed query that ensures the "needs promotion" UI
-      // only appears when there genuinely are queued messages.
       const firstQueuedMessage = await ctx.db
         .query('chatroom_messageQueue')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -851,10 +854,22 @@ export const getTaskCounts = query({
       const actualHasQueued = firstQueuedMessage !== null;
       const queueCount = actualHasQueued ? Math.max(materializedCounts.queueSize, 1) : 0;
 
+      // Cross-check active counters when materialized says busy (read-only; mutations heal on send).
+      const activeCounts = hasActiveTaskFromMaterializedCounts(materializedCounts)
+        ? resolveActiveCountsForRead(
+            materializedCounts,
+            await countActiveTasksFromSource(ctx, args.chatroomId)
+          )
+        : {
+            pending: materializedCounts.pending,
+            acknowledged: materializedCounts.acknowledged,
+            inProgress: materializedCounts.inProgress,
+          };
+
       return {
-        pending: materializedCounts.pending,
-        acknowledged: materializedCounts.acknowledged,
-        in_progress: materializedCounts.inProgress,
+        pending: activeCounts.pending,
+        acknowledged: activeCounts.acknowledged,
+        in_progress: activeCounts.inProgress,
         queued: queueCount,
         backlog: materializedCounts.backlogCount,
         pendingUserReview: materializedCounts.pendingReviewCount,

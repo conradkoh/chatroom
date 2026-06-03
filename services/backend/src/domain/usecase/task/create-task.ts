@@ -18,10 +18,14 @@
  * instead of a backend ensure-agent handler.
  */
 
-import { adjustTaskCount } from './task-counts';
+import {
+  adjustTaskCount,
+  hasActiveTaskFromSource,
+  reconcileActiveTaskCountsFromSource,
+} from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { ACTIVE_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
+import { resolveTaskRole } from '../../entities/task';
 
 type MaterializedTaskCounts = {
   pending: number;
@@ -32,22 +36,6 @@ type MaterializedTaskCounts = {
 /** Shared with getTaskCounts — any active-slot task means user messages should queue. */
 export function hasActiveTaskFromMaterializedCounts(counts: MaterializedTaskCounts): boolean {
   return counts.pending > 0 || counts.acknowledged > 0 || counts.inProgress > 0;
-}
-
-async function shouldEnqueueMessageFromTaskScan(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<boolean> {
-  for (const status of ACTIVE_TASK_STATUSES) {
-    const active = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', chatroomId).eq('status', status)
-      )
-      .first();
-    if (active) return true;
-  }
-  return false;
 }
 
 export interface CreateTaskArgs {
@@ -89,11 +77,21 @@ export async function shouldEnqueueMessage(
     .first();
 
   if (materializedCounts) {
-    return hasActiveTaskFromMaterializedCounts(materializedCounts);
+    const fromMaterialized = hasActiveTaskFromMaterializedCounts(materializedCounts);
+    if (!fromMaterialized) {
+      return false;
+    }
+
+    // Cross-check: materialized counters can drift (e.g. pending: 1 with no task row).
+    const fromSource = await hasActiveTaskFromSource(ctx, chatroomId);
+    if (fromMaterialized !== fromSource) {
+      await reconcileActiveTaskCountsFromSource(ctx, chatroomId);
+    }
+    return fromSource;
   }
 
   // Migration safety: chatrooms without a counts doc fall back to indexed task scan.
-  return shouldEnqueueMessageFromTaskScan(ctx, chatroomId);
+  return hasActiveTaskFromSource(ctx, chatroomId);
 }
 
 /**
