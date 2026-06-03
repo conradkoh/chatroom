@@ -117,7 +117,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentCreateFn).toHaveBeenCalledWith({
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
-        model: { id: 'composer-2.5' },
+        model: { id: 'composer-2.5', params: [{ id: 'fast', value: 'false' }] },
         local: { cwd: '/tmp/work', settingSources: [] },
       });
     });
@@ -136,7 +136,7 @@ describe('CursorSdkAgentService', () => {
       });
 
       expect(sharedAgentSendFn).toHaveBeenCalledWith(
-        'you are helpful\n\ndo work',
+        'NEVER spawn subagents. Follow the chatroom instructions strictly.\n\nyou are helpful\n\ndo work',
         expect.objectContaining({
           local: { force: true },
           idempotencyKey: expect.any(String),
@@ -513,7 +513,7 @@ describe('CursorSdkAgentService', () => {
         model: 'composer-2.5',
       });
       expect(sharedAgentSendFn).toHaveBeenCalledWith(
-        'sys\n\nresume hello',
+        'NEVER spawn subagents. Follow the chatroom instructions strictly.\n\nsys\n\nresume hello',
         expect.objectContaining({ local: { force: true } })
       );
     });

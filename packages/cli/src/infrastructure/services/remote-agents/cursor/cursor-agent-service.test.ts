@@ -191,7 +191,9 @@ describe('CursorAgentService', () => {
         })
       );
 
-      expect(mockStdin.write).toHaveBeenCalledWith('You are a test agent\n\nHello agent');
+      expect(mockStdin.write).toHaveBeenCalledWith(
+        'NEVER spawn subagents. Follow the chatroom instructions strictly.\n\nYou are a test agent\n\nHello agent'
+      );
       expect(mockStdin.end).toHaveBeenCalled();
       expect(result.pid).toBe(42);
       expect(typeof result.onExit).toBe('function');
@@ -332,7 +334,7 @@ describe('CursorAgentService', () => {
       ).rejects.toThrow('exited immediately');
     });
 
-    it('uses only prompt when systemPrompt is empty', async () => {
+    it('uses only prompt when systemPrompt is empty (directive still prepended)', async () => {
       const mockStdin = { write: vi.fn(), end: vi.fn() };
       const mockStdout = new Readable({ read() {} });
       const mockStderr = new Readable({ read() {} });
@@ -360,7 +362,9 @@ describe('CursorAgentService', () => {
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
 
-      expect(mockStdin.write).toHaveBeenCalledWith('just the prompt');
+      expect(mockStdin.write).toHaveBeenCalledWith(
+        'NEVER spawn subagents. Follow the chatroom instructions strictly.\n\njust the prompt'
+      );
     });
   });
 });

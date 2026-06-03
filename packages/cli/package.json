@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.53.3",
+  "version": "1.53.4",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -15,7 +15,7 @@
     "prepublishOnly": "pnpm build && pnpm test"
   },
   "dependencies": {
-    "@cursor/sdk": "^1.0.15",
+    "@cursor/sdk": "^1.0.17",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",
