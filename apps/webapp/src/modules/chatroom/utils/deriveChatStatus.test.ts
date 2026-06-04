@@ -5,6 +5,8 @@ import { deriveChatStatus, type AgentPresence } from './deriveChatStatus';
 function agent(overrides: Partial<AgentPresence> = {}): AgentPresence {
   return {
     lastSeenAction: 'get-next-task:started',
+    lastStatus: 'agent.waiting',
+    lastDesiredState: 'running',
     isAlive: true,
     ...overrides,
   };
@@ -22,25 +24,44 @@ describe('deriveChatStatus', () => {
     );
   });
 
-  it('returns active when all online agents are waiting on get-next-task', () => {
+  it('returns active when all online agents are waiting (agent.waiting)', () => {
     expect(
       deriveChatStatus('active', [
-        agent({ lastSeenAction: 'get-next-task:started' }),
-        agent({ lastSeenAction: 'get-next-task:started' }),
+        agent({ lastStatus: 'agent.waiting' }),
+        agent({ lastStatus: 'agent.waiting' }),
       ])
     ).toBe('active');
   });
 
-  it('returns working when an agent has a non-wait action', () => {
-    expect(deriveChatStatus('active', [agent({ lastSeenAction: 'task read' })])).toBe('working');
+  it('returns working when an agent is processing a task (task.inProgress)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.inProgress' })])).toBe('working');
   });
 
-  it('returns active when agents are online but not all waiting and not working', () => {
+  it('returns working when an agent just completed a task (task.completed)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('working');
+  });
+
+  it('matches the agent sidebar: non-working event types stay active', () => {
+    // task.acknowledged resolves to the 'ready' variant (TASK RECEIVED), not 'working'.
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe('active');
+    // agent.registered / agent.requestStart are transitioning, not working.
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe('active');
+  });
+
+  it('returns working when any online agent is working among waiting peers', () => {
     expect(
       deriveChatStatus('active', [
-        agent({ lastSeenAction: 'get-next-task:started' }),
-        agent({ lastSeenAction: null }),
+        agent({ lastStatus: 'agent.waiting' }),
+        agent({ lastStatus: 'task.inProgress' }),
       ])
-    ).toBe('active');
+    ).toBe('working');
+  });
+
+  it('ignores a working status from an offline/exited agent', () => {
+    expect(
+      deriveChatStatus('active', [
+        agent({ lastStatus: 'task.inProgress', lastSeenAction: 'exited', isAlive: false }),
+      ])
+    ).toBe('idle');
   });
 });

@@ -91,21 +91,6 @@ export const stripParticipantStaleFields = migrations.define({
 });
 
 /**
- * Migration: Delete old-format chatroom_agentPreferences documents.
- * Old format lacks agentHarness field (has harnessByRole map instead).
- * Idempotent: documents with agentHarness are skipped.
- */
-export const deleteOldFormatAgentPreferences = migrations.define({
-  table: 'chatroom_agentPreferences',
-  migrateOne: async (ctx, pref) => {
-    const raw = pref as Record<string, unknown>;
-    if (raw.agentHarness === undefined) {
-      await ctx.db.delete('chatroom_agentPreferences', pref._id);
-    }
-  },
-});
-
-/**
  * Migration: Delete pre-refactor chatroom_messageQueue documents with legacy taskId field.
  * Old documents have taskId but lack queuePosition, making them impossible to promote.
  * Idempotent: documents without taskId are skipped.
@@ -370,7 +355,6 @@ export const runAll = migrations.runner([
   // Machine & Agent Config
   internal.migrations.migrateAvailableModelsToPerHarness,
   internal.migrations.stripParticipantStaleFields,
-  internal.migrations.deleteOldFormatAgentPreferences,
   internal.migrations.deleteLegacyMessageQueueDocuments,
   internal.migrations.migrateQueuedTasks,
   internal.migrations.migrateTeamRoleKeyAddTeamId,

@@ -9,7 +9,6 @@ import React, { memo, useState, useMemo } from 'react';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentConfigTabs';
-import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow } from './AgentStatusRow';
@@ -54,10 +53,6 @@ export interface InlineAgentCardProps {
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
   agentRoleView?: AgentRoleView;
-  /** User's saved preference for this role's remote agent config */
-  agentPreference?: AgentPreference;
-  /** Called when user starts an agent — persists preference to backend */
-  onSavePreference?: (pref: AgentPreference) => void;
   /** Pre-fetched restart summary from parent batch query.
    * When provided, InlineAgentCard skips its own per-card subscription.
    * Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view).
@@ -81,8 +76,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   agentConfigs,
   sendCommand,
   agentRoleView,
-  agentPreference,
-  onSavePreference,
   restartSummary: restartSummaryProp,
 }: InlineAgentCardProps) {
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
@@ -96,8 +89,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     sendCommand,
     teamConfigModel: agentRoleView?.model,
     teamConfigHarness: agentRoleView?.agentHarness,
-    agentPreference,
-    onSavePreference,
     teamConfigMachineId: agentRoleView?.machineId,
     teamAutoRestartOnNewContext: agentRoleView?.autoRestartOnNewContext,
     chatroomWorkspaces,

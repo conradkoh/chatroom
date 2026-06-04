@@ -5,9 +5,6 @@
  *   1. Updates the chatroom's team configuration
  *   2. Dispatches stop events for running agents on stale roles
  *   3. Deletes teamAgentConfigs (these belong to the platform, not the machine)
- *
- * agentPreferences are also preserved — they're UI hints for pre-populating
- * the start form and remain useful if the user switches back.
  */
 
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';

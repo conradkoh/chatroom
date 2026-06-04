@@ -7,7 +7,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
-import { RemoteTabContent, useAgentControls, type AgentPreference } from './AgentConfigTabs';
+import { RemoteTabContent, useAgentControls } from './AgentConfigTabs';
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
@@ -54,19 +54,8 @@ function mkMachine(id: string, hostname: string): MachineInfo {
   };
 }
 
-function RunningModelFilterHarness({
-  runningAgentConfig,
-}: {
-  runningAgentConfig?: AgentConfig;
-}) {
+function RunningModelFilterHarness({ runningAgentConfig }: { runningAgentConfig?: AgentConfig }) {
   const machines = [mkMachine('a', 'host-a')];
-  const pref: AgentPreference = {
-    role: 'builder',
-    machineId: 'a',
-    agentHarness: 'cursor',
-    workingDir: '/workspace',
-    model: 'openai/gpt-4o',
-  };
   const controls = useAgentControls({
     role: 'builder',
     chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
@@ -75,7 +64,6 @@ function RunningModelFilterHarness({
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
     teamConfigHarness: 'cursor',
     teamConfigMachineId: 'a',
-    agentPreference: pref,
   });
   return (
     <RemoteTabContent
@@ -107,9 +95,7 @@ describe('ModelFilter visibility while agent is running', () => {
       />
     );
 
-    const filterBtn = await waitFor(() =>
-      screen.getByTitle('Filter models')
-    );
+    const filterBtn = await waitFor(() => screen.getByTitle('Filter models'));
     expect(filterBtn).toBeInTheDocument();
   });
 
@@ -131,9 +117,7 @@ describe('ModelFilter visibility while agent is running', () => {
       />
     );
 
-    const filterBtn = await waitFor(() =>
-      screen.getByTitle('Filter models')
-    );
+    const filterBtn = await waitFor(() => screen.getByTitle('Filter models'));
     // Clicking should not throw — triggers the filter panel
     await expect(user.click(filterBtn)).resolves.not.toThrow();
   });

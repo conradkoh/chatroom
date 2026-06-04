@@ -7,7 +7,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
-import { RemoteTabContent, useAgentControls, type AgentPreference } from './AgentConfigTabs';
+import { RemoteTabContent, useAgentControls } from './AgentConfigTabs';
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
@@ -69,22 +69,27 @@ function RehomeHarness({
   sendCommand?: SendCommandFn;
 }) {
   const machines = [mkMachine('a', 'host-a'), mkMachine('b', 'host-b')];
-  const pref: AgentPreference = {
-    role: 'builder',
+  // "Last used" config lives on machine 'b' (persisted teamAgentConfig), while the
+  // team-config binding points at machine 'a' — so seeding picks 'b' and starting
+  // triggers a re-home from 'a' → 'b'.
+  const lastUsed: AgentConfig = {
     machineId: 'b',
-    agentHarness: 'cursor',
+    hostname: 'host-b',
+    role: 'builder',
+    agentType: 'cursor',
     workingDir: '/workspace',
     model: 'openai/gpt-4o',
+    availableHarnesses: ['cursor'],
+    updatedAt: Date.now(),
   };
   const controls = useAgentControls({
     role: 'builder',
     chatroomId: 'jd7testchatroom0000000000000001' as Id<'chatroom_rooms'>,
     connectedMachines: machines,
-    agentConfigs: [] as AgentConfig[],
+    agentConfigs: [lastUsed],
     sendCommand,
     teamConfigHarness: 'cursor',
     teamConfigMachineId: 'a',
-    agentPreference: pref,
   });
   return (
     <RemoteTabContent

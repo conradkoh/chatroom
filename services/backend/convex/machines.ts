@@ -8,10 +8,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/core/accessCheck';
 import { getSession, requireSession } from './auth/core/session';
-import {
-  getMachineOwner,
-  requireMachineOwner,
-} from './auth/cli/machineAccess';
+import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
@@ -132,7 +129,7 @@ async function getOwnedMachine(
 async function upsertMachineModels(
   ctx: MutationCtx,
   machineId: string,
-  availableModels: Record<string, string[]> | undefined,
+  availableModels: Record<string, string[]> | undefined
 ): Promise<void> {
   if (availableModels === undefined) {
     // Don't clobber existing models when caller didn't supply them.
@@ -607,11 +604,7 @@ export const listMachines = query({
 export const getMachineModels = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return { availableModels: {} as Record<string, string[]> };
 
     const machine = await ctx.db
@@ -644,11 +637,7 @@ export const getDaemonStatus = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) {
       return { connected: false, lastSeenAt: null };
     }
@@ -742,6 +731,7 @@ export const getMachineAgentConfigs = query({
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
         spawnedAt: config.spawnedAt,
+        wantResume: config.wantResume,
       };
     });
 
@@ -756,11 +746,7 @@ export const getCommandEvents = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return { events: [] };
 
     const now = Date.now();
@@ -881,11 +867,7 @@ export const getDaemonPongEvent = query({
     afterEventId: v.optional(v.id('chatroom_eventStream')),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return null;
 
     const pongEvents = await ctx.db
@@ -1020,7 +1002,7 @@ export const updateDaemonStatus = mutation({
 
     // TODO: Remove once chatroom_machineStatus is the sole source of truth.
     // Kept for backward compatibility during migration.
-    await ctx.db.patch("chatroom_machines", machine._id, {
+    await ctx.db.patch('chatroom_machines', machine._id, {
       daemonConnected: args.connected,
       lastSeenAt: now,
     });
@@ -1032,7 +1014,7 @@ export const updateDaemonStatus = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
+      await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
         lastSeenAt: now,
         daemonConnected: args.connected,
       });
@@ -1060,7 +1042,7 @@ export const updateDaemonStatus = mutation({
       });
     } else if (machineStatus.status !== desiredStatus) {
       // Actual state transition — write
-      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
+      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
         status: desiredStatus,
         lastTransitionAt: now,
       });
@@ -1089,8 +1071,7 @@ export const daemonHeartbeat = mutation({
       .first();
 
     if (existingLiveness) {
-      const livenessStale =
-        now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+      const livenessStale = now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
       const needsDaemonConnected = existingLiveness.daemonConnected !== true;
       if (livenessStale || needsDaemonConnected) {
         await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
@@ -1121,7 +1102,7 @@ export const daemonHeartbeat = mutation({
       });
     } else if (machineStatus.status === 'offline') {
       // Transition offline → online
-      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
+      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
         status: 'online',
         lastTransitionAt: now,
       });
@@ -1237,6 +1218,13 @@ export const sendCommand = mutation({
       const resolvedWorkingDir =
         args.payload.workingDir ??
         (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
+      // Backfill the resume preference from the persisted config when the caller
+      // omits it (e.g. a restart that doesn't re-send the flag). Without this, an
+      // omitted value would fall through to the use-case default and silently
+      // reset a previously-persisted `false` back to `true`.
+      const resolvedWantResume =
+        args.payload.wantResume ??
+        (existingConfig?.type === 'remote' ? existingConfig.wantResume : undefined);
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
@@ -1264,7 +1252,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: 'user.start',
-          wantResume: args.payload.wantResume,
+          wantResume: resolvedWantResume,
         },
         machine
       );
@@ -1915,60 +1903,6 @@ export const getTeamAgentConfigs = query({
   },
 });
 
-// ─── Agent Preferences ────────────────────────────────────────────────────────
-
-/** Upserts the user's preferred remote agent configuration (machine, harness, model, workingDir) for a chatroom+role. */
-export const saveAgentPreference = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    machineId: v.string(),
-    agentHarness: agentHarnessValidator,
-    model: v.optional(v.string()),
-    workingDir: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new Error('Authentication required');
-    }
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) throw new Error('Chatroom not found');
-    if (chatroom.ownerId !== auth.user._id) {
-      throw new Error('Not authorized to save agent preferences for this chatroom');
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_userId_chatroom_role', (q) =>
-        q.eq('userId', auth.user._id).eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .first();
-
-    const now = Date.now();
-    const pref = {
-      userId: auth.user._id,
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      agentHarness: args.agentHarness,
-      model: args.model,
-      workingDir: args.workingDir,
-      updatedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_agentPreferences', existing._id, pref);
-    } else {
-      await ctx.db.insert('chatroom_agentPreferences', { ...pref, createdAt: now });
-    }
-
-    return { success: true };
-  },
-});
-
 /** Returns the model visibility filters for a machine+harness combination, or null if unconfigured. */
 export const getMachineModelFilters = query({
   args: {
@@ -2390,7 +2324,7 @@ export const getAgentOverviewForChatroom = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return null;
 
-    const chatroom = await ctx.db.get("chatroom_rooms", args.chatroomId);
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
 
     const userMachines = await ctx.db
@@ -2681,38 +2615,6 @@ export const clearAllSpawnedPids = mutation({
     }
 
     return { clearedCount };
-  },
-});
-
-export const getAgentPreferences = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      return { preferences: [] };
-    }
-
-    const preferences = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_userId_chatroom_role', (q) =>
-        q.eq('userId', auth.user._id).eq('chatroomId', args.chatroomId)
-      )
-      .collect();
-
-    return {
-      preferences: preferences
-        .filter((p) => p.role && p.agentHarness)
-        .map((p) => ({
-          role: p.role!,
-          machineId: p.machineId,
-          agentHarness: p.agentHarness!,
-          model: p.model,
-          workingDir: p.workingDir,
-        })),
-    };
   },
 });
 

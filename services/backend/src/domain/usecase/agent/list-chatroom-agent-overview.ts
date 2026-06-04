@@ -98,12 +98,8 @@ export async function listChatroomAgentOverview(
 
       let agentStatus: ChatroomAgentOverview['agentStatus'];
       if (configs.length === 0) {
-        const preferences = await ctx.db
-          .query('chatroom_agentPreferences')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-          .collect();
-        const hasPreferences = preferences.some((p) => p.userId === input.userId);
-        agentStatus = hasPreferences ? 'stopped' : 'none';
+        // No team agent config has ever been written for this chatroom.
+        agentStatus = 'none';
       } else {
         agentStatus = runningConfigs.length > 0 ? 'running' : 'stopped';
       }
