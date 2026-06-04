@@ -11,6 +11,7 @@ import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
+import { countMessagesSinceCapped } from '../../src/domain/usecase/context/count-messages-since';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
@@ -97,15 +98,14 @@ export async function getTaskDeliveryPromptData(
   if (chatroom.currentContextId) {
     const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
     if (context) {
-      // Count only messages since context creation to compute staleness.
-      // Uses compound index for an indexed range scan (no full table scan).
-      const recentMessages = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) =>
-          q.eq('chatroomId', chatroomId).gte('_creationTime', context.createdAt)
-        )
-        .collect();
-      const messagesSinceContext = recentMessages.length;
+      // Count messages since context creation to compute staleness.
+      // Bounded read (see countMessagesSinceCapped): caps the number of message
+      // documents scanned instead of collecting every message since the context.
+      const messagesSinceContext = await countMessagesSinceCapped(
+        ctx,
+        chatroomId,
+        context.createdAt
+      );
 
       // Compute time elapsed since context creation
       const elapsedMs = Date.now() - context.createdAt;

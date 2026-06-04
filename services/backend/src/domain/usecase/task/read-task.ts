@@ -26,6 +26,7 @@ import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
+import { countMessagesSinceCapped } from '../context/count-messages-since';
 
 // ============================================================================
 // TYPES
@@ -160,8 +161,8 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
  * Fetches the current pinned context for a chatroom, including
  * trigger message content and staleness metrics.
  *
- * Uses chatroom.messageCount (atomic counter) when available to avoid
- * expensive .collect() calls on large chatrooms.
+ * Computes "messages since context" via a bounded indexed range scan
+ * (see countMessagesSinceCapped) rather than a full message collect.
  */
 async function fetchCurrentContext(
   ctx: MutationCtx,
@@ -181,15 +182,10 @@ async function fetchCurrentContext(
   const elapsedMs = Date.now() - context.createdAt;
   const elapsedHours = elapsedMs / (1000 * 60 * 60);
 
-  // Compute messages since context creation.
-  // We count only messages created after the context to avoid collecting the entire
-  // chatroom history. This is efficient even for large chatrooms because we filter
-  // by creation time and only need to count the recent subset.
-  // Compute messages since context using atomic counter (no scan needed)
-  let messagesSinceContext = 0;
-  if (context.messageCountAtCreation != null && chatroom?.messageCount != null) {
-    messagesSinceContext = Math.max(0, chatroom.messageCount - context.messageCountAtCreation);
-  }
+  // Compute messages since context creation via a bounded indexed range scan
+  // (see countMessagesSinceCapped). This previously read chatroom.messageCount —
+  // a deprecated counter that is never incremented — so the result was always 0.
+  const messagesSinceContext = await countMessagesSinceCapped(ctx, chatroomId, context.createdAt);
 
   // Fetch trigger message if available
   let triggerMessageContent: string | undefined;

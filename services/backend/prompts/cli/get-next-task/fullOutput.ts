@@ -13,6 +13,7 @@
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
+import { formatMessagesSinceContext } from '../../../src/domain/usecase/context/count-messages-since';
 import { classifyCommand } from '../classify/command';
 import { contextNewCommand, contextNewHint } from '../context/new';
 
@@ -134,7 +135,9 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     // Staleness warning: many messages since context was set
     if (currentContext.messagesSinceContext >= 10) {
       lines.push('');
-      lines.push(`⚠️ Stale context: ${currentContext.messagesSinceContext} messages since set.`);
+      lines.push(
+        `⚠️ Stale context: ${formatMessagesSinceContext(currentContext.messagesSinceContext)} messages since set.`
+      );
       if (isEntryPoint) {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``

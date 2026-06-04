@@ -18,6 +18,7 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { countMessagesSinceCapped } from '../src/domain/usecase/context/count-messages-since';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
@@ -2024,15 +2025,14 @@ export const getTaskDeliveryPrompt = query({
     if (chatroom.currentContextId) {
       const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
       if (context) {
-        // Count only messages since context creation to compute staleness.
-        // Uses compound index for an indexed range scan (no full table scan).
-        const recentMessages = await ctx.db
-          .query('chatroom_messages')
-          .withIndex('by_chatroom', (q) =>
-            q.eq('chatroomId', args.chatroomId).gte('_creationTime', context.createdAt)
-          )
-          .collect();
-        const messagesSinceContext = recentMessages.length;
+        // Count messages since context creation to compute staleness.
+        // Bounded read (see countMessagesSinceCapped): caps the number of message
+        // documents scanned instead of collecting every message since the context.
+        const messagesSinceContext = await countMessagesSinceCapped(
+          ctx,
+          args.chatroomId,
+          context.createdAt
+        );
 
         // Compute time elapsed since context creation
         const elapsedMs = Date.now() - context.createdAt;

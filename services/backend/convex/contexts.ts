@@ -1,32 +1,11 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Id } from './_generated/dataModel';
-import type { QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { countMessagesSinceCapped } from '../src/domain/usecase/context/count-messages-since';
 import { restartAgentsOnNewContext } from '../src/domain/usecase/context/restart-agents-on-new-context';
-
-/**
- * Count messages in a chatroom created after a given timestamp.
- * Uses the `by_chatroom` index to perform an indexed range scan starting
- * from `sinceTimestamp`, avoiding a full table scan that would exceed
- * Convex's 16MB per-function read limit.
- */
-async function countMessagesSince(
-  ctx: { db: QueryCtx['db'] },
-  chatroomId: Id<'chatroom_rooms'>,
-  sinceTimestamp: number
-): Promise<number> {
-  const messages = await ctx.db
-    .query('chatroom_messages')
-    .withIndex('by_chatroom', (q) =>
-      q.eq('chatroomId', chatroomId).gte('_creationTime', sinceTimestamp)
-    )
-    .collect();
-  return messages.length;
-}
 
 /** Creates a new context for a chatroom and sets it as the current pinned context. */
 export const createContext = mutation({
@@ -154,9 +133,9 @@ export const getContext = query({
     await requireChatroomAccess(ctx, args.sessionId, context.chatroomId);
 
     // Get message count since context creation to compute staleness.
-    // Only reads recent messages (after context.createdAt) instead of ALL messages
-    // to avoid exceeding Convex's 16MB per-function read limit.
-    const messagesSinceContext = await countMessagesSince(
+    // Bounded read (see countMessagesSinceCapped): caps the number of message
+    // documents scanned instead of collecting every message since the context.
+    const messagesSinceContext = await countMessagesSinceCapped(
       ctx,
       context.chatroomId,
       context.createdAt
@@ -194,9 +173,13 @@ export const getCurrentContext = query({
     }
 
     // Get message count since context creation to compute staleness.
-    // Only reads recent messages (after context.createdAt) instead of ALL messages
-    // to avoid exceeding Convex's 16MB per-function read limit.
-    const messagesSinceContext = await countMessagesSince(ctx, args.chatroomId, context.createdAt);
+    // Bounded read (see countMessagesSinceCapped): caps the number of message
+    // documents scanned instead of collecting every message since the context.
+    const messagesSinceContext = await countMessagesSinceCapped(
+      ctx,
+      args.chatroomId,
+      context.createdAt
+    );
 
     // Compute time elapsed since context creation
     const elapsedMs = Date.now() - context.createdAt;

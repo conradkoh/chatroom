@@ -106,6 +106,9 @@ export function renderTaskPrompt(input: RenderTaskPromptInput): string {
     // Staleness notice (unchanged)
     const hoursAgo = Math.round(input.context.elapsedHours);
     const msgsSince = input.context.messagesSinceContext;
+    // The backend caps this count for bandwidth; a value above 50 is reported
+    // as "50+" since the exact total beyond the staleness threshold is unused.
+    const msgsSinceLabel = msgsSince > 50 ? '50+' : String(msgsSince);
     const isStale = hoursAgo >= 24 || msgsSince >= 50;
     if (isStale) {
       const ageLabel =
@@ -113,7 +116,7 @@ export function renderTaskPrompt(input: RenderTaskPromptInput): string {
           ? `${Math.round(hoursAgo / 24)}d old`
           : hoursAgo >= 24
             ? `${hoursAgo}h old`
-            : `${msgsSince} messages old`;
+            : `${msgsSinceLabel} messages old`;
       lines.push(`<system-notice>`);
       lines.push(`⚠️ Context is ${ageLabel}.`);
       lines.push(`   Entry point role will update when needed.`);

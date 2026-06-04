@@ -422,7 +422,11 @@ export async function inspectContext(
 
     // Staleness information
     console.log(`\n📊 Staleness:`);
-    console.log(`   Messages since context: ${context.messagesSinceContext}`);
+    // The backend caps this count for bandwidth; a value above 50 is reported
+    // as "50+" since the exact total beyond the staleness threshold is unused.
+    const msgsSinceLabel =
+      context.messagesSinceContext > 50 ? '50+' : String(context.messagesSinceContext);
+    console.log(`   Messages since context: ${msgsSinceLabel}`);
     console.log(`   Time elapsed: ${context.elapsedHours.toFixed(1)} hours`);
 
     // Staleness warnings
