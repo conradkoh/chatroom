@@ -3,9 +3,11 @@
  *
  * Covers the resolver dispatch and the structural guarantees the backlog
  * item requires:
- *  - planner → user report includes Proof (files changed) and a mermaid
- *    System Design section, in markdown.
- *  - planner → builder delegation brief includes goal/scope/requirements.
+ *  - planner → user report includes Proof (files changed), Key technical
+ *    decisions, Key tradeoffs, Tech debt observed, and a mermaid System
+ *    Design section, all in markdown, with no optional fields.
+ *  - planner → builder delegation brief includes goal/scope/requirements and
+ *    has no optional fields ("Not Applicable" convention).
  *  - unknown role pairs resolve to null (caller falls back to free-form).
  */
 
@@ -59,6 +61,17 @@ describe('handoff-templates > planner → user report', () => {
     expect(report).toContain('pnpm typecheck && pnpm test');
   });
 
+  test('requires key technical decisions, tradeoffs, and tech debt sections', () => {
+    expect(report).toContain('## Key Technical Decisions');
+    expect(report).toContain('## Key Tradeoffs');
+    expect(report).toContain('## Tech Debt Observed');
+  });
+
+  test('has no optional fields — instructs Not Applicable instead', () => {
+    expect(report).toContain('Not Applicable');
+    expect(report).not.toMatch(/—\s*optional/i);
+  });
+
   test('is markdown (fenced code block)', () => {
     expect(report).toContain('```markdown');
   });
@@ -71,6 +84,12 @@ describe('handoff-templates > planner → builder delegation brief', () => {
     expect(brief).toContain('## Goal');
     expect(brief).toContain('## Scope & Files');
     expect(brief).toContain('## Requirements (acceptance criteria)');
+  });
+
+  test('has no optional fields — Skills section is mandatory', () => {
+    expect(brief).toContain('## Skills to activate');
+    expect(brief).not.toContain('## Skills to activate (optional)');
+    expect(brief).toContain('Not Applicable');
   });
 
   test('frames structured workflows as optional, not required', () => {

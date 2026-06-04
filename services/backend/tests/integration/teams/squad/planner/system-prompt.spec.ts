@@ -337,7 +337,7 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Default: delegate with a Delegation Brief.** A structured workflow is NOT required before handing off to the builder — a clear, self-contained brief is enough for most work.
 
-      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in:
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
       \`\`\`markdown
       ## Goal
@@ -350,11 +350,11 @@ describe('Squad Team > Planner > System Prompt', () => {
       - <verifiable outcome the builder can self-check>
       - Verify: \`pnpm typecheck && pnpm test\`
 
-      ## Skills to activate (optional)
-      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder>
+      ## Skills to activate
+      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
 
       ## Out of scope
-      - <what NOT to touch>
+      - <what NOT to touch, or "Not Applicable">
       \`\`\`
 
       Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.

@@ -95,7 +95,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       4. Delegate ONE slice to the builder (a structured workflow is optional, not required):
 
-      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in:
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
       \`\`\`markdown
       ## Goal
@@ -108,11 +108,11 @@ describe('Squad Team > Planner > Get Next Task', () => {
       - <verifiable outcome the builder can self-check>
       - Verify: \`pnpm typecheck && pnpm test\`
 
-      ## Skills to activate (optional)
-      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder>
+      ## Skills to activate
+      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
 
       ## Out of scope
-      - <what NOT to touch>
+      - <what NOT to touch, or "Not Applicable">
       \`\`\`
 
       Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
@@ -129,7 +129,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
          Run: pnpm typecheck && pnpm test
 
-      **Report Template (Planner → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown:
+      **Report Template (Planner → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown. Fill in EVERY section: if one does not apply, write \`Not Applicable\` (do not delete the section):
 
       \`\`\`markdown
       ## Summary
@@ -139,8 +139,17 @@ describe('Squad Team > Planner > Get Next Task', () => {
       - \`path/to/file.ts\` — <what changed and why>
       <list every file you (or the builder) modified; this is the evidence of work>
 
+      ## Key Technical Decisions
+      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
+
+      ## Key Tradeoffs
+      - <what was weighed against what, and why you chose this path, or "Not Applicable">
+
+      ## Tech Debt Observed
+      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
+
       ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; omit only for trivial changes>
+      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
 
       \`\`\`mermaid
       flowchart TD
@@ -151,7 +160,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       - \`pnpm typecheck && pnpm test\` — <result>
 
       ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions — optional>
+      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
       \`\`\`
       </next-steps>
 

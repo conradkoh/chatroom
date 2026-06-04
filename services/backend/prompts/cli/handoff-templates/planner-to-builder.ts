@@ -14,10 +14,12 @@
  * handing a unit of work to the builder.
  *
  * The template is intentionally compact: name the outcome, the concrete
- * artifacts, verifiable acceptance criteria, and what to leave alone.
+ * artifacts, verifiable acceptance criteria, and what to leave alone. Every
+ * field is mandatory — when a section does not apply the planner writes
+ * `Not Applicable` rather than omitting it, so the brief is never ambiguous.
  */
 export function getPlannerToBuilderHandoffTemplate(): string {
-  return `**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in:
+  return `**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
 \`\`\`markdown
 ## Goal
@@ -30,11 +32,11 @@ export function getPlannerToBuilderHandoffTemplate(): string {
 - <verifiable outcome the builder can self-check>
 - Verify: \`pnpm typecheck && pnpm test\`
 
-## Skills to activate (optional)
-- <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder>
+## Skills to activate
+- <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
 
 ## Out of scope
-- <what NOT to touch>
+- <what NOT to touch, or "Not Applicable">
 \`\`\`
 
 Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;
