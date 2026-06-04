@@ -12,9 +12,9 @@
 
 import { ConvexError } from 'convex/values';
 
+import { validateSession } from './sessionValidation';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../_generated/server';
-import { validateSession } from './sessionValidation';
 
 /** The result of a successful session auth check. */
 export type SessionAuth = {
@@ -50,9 +50,7 @@ export async function getSession(
   if (!result.ok) {
     return null;
   }
-  const user = await ctx.db.get('users', result.userId);
-  if (!user) {
-    return null;
-  }
-  return { userId: result.userId, user };
+  // validateSession already loaded the full user doc — reuse it instead of
+  // issuing a second identical `ctx.db.get('users', ...)` on every authed call.
+  return { userId: result.userId, user: result.user };
 }

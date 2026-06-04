@@ -10,9 +10,9 @@
 
 import { ConvexError } from 'convex/values';
 
+import { validateSession, type ValidatedSession } from './sessionValidation';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../_generated/server';
-import { validateSession, type ValidatedSession } from './sessionValidation';
 
 /** Authenticated chatroom access result containing session and chatroom document. */
 export interface AuthenticatedChatroomAccess {
@@ -69,6 +69,7 @@ export async function requireChatroomAccess(
       userId: sessionResult.userId,
       userName: sessionResult.userName,
       sessionType: sessionResult.sessionType,
+      user: sessionResult.user,
     },
     chatroom: accessResult.chatroom,
   };
