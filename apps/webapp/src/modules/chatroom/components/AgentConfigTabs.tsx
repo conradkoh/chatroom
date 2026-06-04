@@ -552,7 +552,10 @@ export function useAgentControls({
           model: selectedModel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
-          wantResume: resumeSession,
+          // Use the authoritative persisted value (what the toggle displays while
+          // running), not raw local form state, so a restart round-trips exactly
+          // what the UI shows. Falls back to local state for pre-field configs.
+          wantResume: runningAgentConfig.wantResume ?? resumeSession,
         },
       });
       setSuccess('Restart command sent!');

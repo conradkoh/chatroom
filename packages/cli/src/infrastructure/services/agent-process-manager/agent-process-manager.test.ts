@@ -98,6 +98,7 @@ function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
     model: 'gpt-4',
     workingDir: '/tmp/test',
     reason: 'user.start',
+    wantResume: true,
     ...overrides,
   };
 }
@@ -229,8 +230,7 @@ describe('AgentProcessManager', () => {
         deps.backend.mutation as ReturnType<typeof vi.fn>
       ).mock.calls.filter(
         (call: unknown[]) =>
-          call.length >= 2 &&
-          (call[1] as Record<string, unknown>)?.reason === 'session not found'
+          call.length >= 2 && (call[1] as Record<string, unknown>)?.reason === 'session not found'
       );
       expect(sessionResumeFailedCalls).toHaveLength(1);
       expect(sessionResumeFailedCalls[0][1]).toMatchObject({
@@ -367,9 +367,7 @@ describe('AgentProcessManager', () => {
       deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
       manager = new AgentProcessManager(deps);
 
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk', wantResume: false })
-      );
+      await manager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk', wantResume: false }));
       await manager.stop({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -393,9 +391,7 @@ describe('AgentProcessManager', () => {
           args.reason === undefined &&
           args.harnessSessionId !== undefined
       );
-      expect(
-        sessionResumedArgs.some((args) => args.harnessSessionId === 'sess-1')
-      ).toBe(true);
+      expect(sessionResumedArgs.some((args) => args.harnessSessionId === 'sess-1')).toBe(true);
     });
 
     test('cursor-sdk wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
@@ -427,9 +423,7 @@ describe('AgentProcessManager', () => {
       deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
       manager = new AgentProcessManager(deps);
 
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk', wantResume: false })
-      );
+      await manager.ensureRunning(createOpts({ agentHarness: 'cursor-sdk', wantResume: false }));
       await manager.stop({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -453,9 +447,9 @@ describe('AgentProcessManager', () => {
           args.reason === undefined &&
           args.harnessSessionId !== undefined
       );
-      expect(
-        sessionResumedArgs.some((args) => args.harnessSessionId === 'cursor-agent-1')
-      ).toBe(true);
+      expect(sessionResumedArgs.some((args) => args.harnessSessionId === 'cursor-agent-1')).toBe(
+        true
+      );
     });
 
     test('pi wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
@@ -533,9 +527,7 @@ describe('AgentProcessManager', () => {
       const sessionResumeFailedCalls = getMutationCallsByArgs(
         deps,
         (args) =>
-          typeof args.reason === 'string' &&
-          args.pid === undefined &&
-          args.stopReason === undefined
+          typeof args.reason === 'string' && args.pid === undefined && args.stopReason === undefined
       );
       expect(sessionResumeFailedCalls).toHaveLength(0);
     });
@@ -633,9 +625,7 @@ describe('AgentProcessManager', () => {
       deps.agentServices = new Map([['opencode-sdk', opencodeSdkService]]);
       manager = new AgentProcessManager(deps);
 
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk', wantResume: false })
-      );
+      await manager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk', wantResume: false }));
 
       const updateSpawnedCalls = getMutationCallsByArgs(
         deps,

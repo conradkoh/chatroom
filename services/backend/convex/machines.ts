@@ -1218,6 +1218,13 @@ export const sendCommand = mutation({
       const resolvedWorkingDir =
         args.payload.workingDir ??
         (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
+      // Backfill the resume preference from the persisted config when the caller
+      // omits it (e.g. a restart that doesn't re-send the flag). Without this, an
+      // omitted value would fall through to the use-case default and silently
+      // reset a previously-persisted `false` back to `true`.
+      const resolvedWantResume =
+        args.payload.wantResume ??
+        (existingConfig?.type === 'remote' ? existingConfig.wantResume : undefined);
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
@@ -1245,7 +1252,7 @@ export const sendCommand = mutation({
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
           reason: 'user.start',
-          wantResume: args.payload.wantResume,
+          wantResume: resolvedWantResume,
         },
         machine
       );

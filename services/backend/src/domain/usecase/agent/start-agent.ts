@@ -15,8 +15,8 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
 import { transitionAgentStatus } from './transition-agent-status';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import {
@@ -174,22 +174,23 @@ export async function startAgent(
 
   const now = Date.now();
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.requestStart',
-    chatroomId,
-    machineId,
-    role,
-    agentHarness,
-    model,
-    workingDir,
-    reason,
-    deadline: now + AGENT_REQUEST_DEADLINE_MS,
-    timestamp: now,
-    wantResume: resolvedWantResume,
-    ...(resolvedAutoRestartOnNewContext !== undefined
-      ? { autoRestartOnNewContext: resolvedAutoRestartOnNewContext }
-      : {}),
-  });
+  await ctx.db.insert(
+    'chatroom_eventStream',
+    buildAgentRequestStartEvent(
+      {
+        chatroomId,
+        machineId,
+        role,
+        agentHarness,
+        model,
+        workingDir,
+        reason,
+        wantResume: resolvedWantResume,
+        autoRestartOnNewContext: resolvedAutoRestartOnNewContext,
+      },
+      now
+    )
+  );
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
   return {

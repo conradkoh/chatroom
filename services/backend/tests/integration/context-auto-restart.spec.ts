@@ -75,6 +75,9 @@ test('createContext emits agent.requestStart for builder with autoRestartOnNewCo
   expect(restartEvents[0].machineId).toBe(machineId);
   if (restartEvents[0].type === 'agent.requestStart') {
     expect(restartEvents[0].autoRestartOnNewContext).toBe(true);
+    // A new pinned context is a deliberate fresh start — never resume the prior
+    // harness session, regardless of the persisted wantResume preference.
+    expect(restartEvents[0].wantResume).toBe(false);
   }
 });
 
