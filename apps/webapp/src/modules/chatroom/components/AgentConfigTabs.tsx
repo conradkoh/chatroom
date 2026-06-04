@@ -94,11 +94,12 @@ function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): stri
 //
 // INITIALIZATION MODEL
 // ────────────────────
-// Form state is initialized ONCE when machines first become available,
-// using a snapshot of the agentPreference taken at mount time.
-// After initialization, all state changes come exclusively from explicit
-// user interactions (handleMachineChange, handleHarnessChange, etc.) — never
-// from reactive prop updates.
+// Form state is initialized ONCE when machines first become available.
+// The "last used" configuration comes from a single source — the persisted
+// teamAgentConfigs (roleConfigs) — so the form reflects exactly what the agent
+// was last started with. After initialization, all state changes come
+// exclusively from explicit user interactions (handleMachineChange,
+// handleHarnessChange, etc.) — never from reactive prop updates.
 //
 // DISPLAY WHEN RUNNING
 // ─────────────────────
@@ -244,7 +245,6 @@ export function useAgentControls({
   sendCommand,
   teamConfigModel,
   teamConfigHarness,
-  agentPreference,
   onSavePreference,
   teamConfigMachineId,
   teamAutoRestartOnNewContext,
@@ -259,9 +259,14 @@ export function useAgentControls({
   /** Model from team config — used as fallback when machine config has no model */
   teamConfigModel?: string;
   /** Harness from team config — used as a seeding hint for initialization when
-   *  no roleConfig or matching preference is found */
+   *  no roleConfig is found */
   teamConfigHarness?: AgentHarness;
-  /** User's saved preference for this role — used as default pre-population */
+  /**
+   * User's saved preference for this role.
+   * @deprecated No longer read for seeding — the persisted teamAgentConfig is the
+   * single "last used" source. Still accepted (and written via onSavePreference)
+   * pending full removal of the agentPreference store.
+   */
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — saves preference for future sessions */
   onSavePreference?: (pref: AgentPreference) => void;
@@ -274,8 +279,6 @@ export function useAgentControls({
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
 }) {
-  // Snapshot the preference at mount — never react to preference updates
-  const initialPreferenceRef = useRef(agentPreference);
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
 
@@ -340,21 +343,22 @@ export function useAgentControls({
 
   // ── Single initialize-once effect ────────────────────────────────
   // Fires exactly once — when machines first become available.
-  // Uses initialPreferenceRef.current (snapshotted at mount) so this
-  // never re-runs due to preference updates from Convex.
+  // The "last used" config is derived solely from the persisted teamAgentConfigs
+  // (roleConfigs); the agentPreference store is no longer consulted.
   useEffect(() => {
     if (isInitialized || connectedMachines.length === 0) return;
 
-    const pref = initialPreferenceRef.current;
+    // Single source of truth for "last used": persisted teamAgentConfigs.
+    // Preference seeding has been removed — pass `undefined` to the derive helpers.
     const machine = deriveInitialMachineId(
       connectedMachines,
       roleConfigs,
       runningAgentConfig,
-      pref
+      undefined
     );
     if (
       chatroomWorkspacesLoading &&
-      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, pref)
+      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, undefined)
     ) {
       return;
     }
@@ -362,10 +366,10 @@ export function useAgentControls({
       machine,
       connectedMachines,
       roleConfigs,
-      pref,
+      undefined,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref, chatroomWorkspaces);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, undefined, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
@@ -446,16 +450,6 @@ export function useAgentControls({
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
 
-    // Saved user preference model (from mount-time snapshot — not reactive)
-    const pref = initialPreferenceRef.current;
-    const prefModel =
-      pref &&
-      pref.machineId === selectedMachineId &&
-      pref.agentHarness === selectedHarness &&
-      pref.model
-        ? pref.model
-        : undefined;
-
     return selectModel({
       selectedHarness,
       availableModels: availableModelsForHarness,
@@ -463,7 +457,8 @@ export function useAgentControls({
       userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
       machineConfigModel: config?.model ?? undefined,
       teamConfigModel,
-      preferenceModel: prefModel,
+      // Preference model seeding removed — teamAgentConfigs is the single source.
+      preferenceModel: undefined,
     });
   }, [
     modelSelectionReady,
@@ -631,8 +626,7 @@ export function useAgentControls({
       setSelectedHarness(null);
       setUserModelByHarness({});
       // Re-initialize working dir for the new machine from current roleConfigs
-      const pref = initialPreferenceRef.current;
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref, chatroomWorkspaces);
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, undefined, chatroomWorkspaces);
       setWorkingDir(wd);
     },
     [roleConfigs, chatroomWorkspaces]
