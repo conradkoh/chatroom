@@ -49,6 +49,7 @@ import { useCommandDialog } from './context/CommandDialogContext';
 import { DirectHarnessView } from './direct-harness/components/DirectHarnessView';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
+import type { AgentConfig } from './types/machine';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -379,11 +380,7 @@ export function ChatroomDashboard({
   const router = useRouter();
 
   // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const {
-    coordinator: timelineScrollCoordinator,
-    beginResize,
-    endResize,
-  } = useTimelineScroll();
+  const { coordinator: timelineScrollCoordinator, beginResize, endResize } = useTimelineScroll();
 
   // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
   const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
@@ -653,6 +650,22 @@ export function ChatroomDashboard({
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId);
 
+  // Per-role "last used" config derived from the persisted teamAgentConfigs
+  // (the single source of truth, replacing the removed agentPreference store).
+  // Keyed by lowercased role; when a role has multiple configs (across machines),
+  // the most-recently-updated one wins.
+  const roleConfigMap = useMemo(() => {
+    const map = new Map<string, AgentConfig>();
+    for (const config of agentPanelData.machineConfigs) {
+      const key = config.role.toLowerCase();
+      const existing = map.get(key);
+      if (!existing || config.updatedAt > existing.updatedAt) {
+        map.set(key, config);
+      }
+    }
+    return map;
+  }, [agentPanelData.machineConfigs]);
+
   // Machine name map for event stream display
   const machineNameMap = useMemo(() => {
     const map = new Map<string, { hostname: string; alias?: string }>();
@@ -845,28 +858,28 @@ export function ChatroomDashboard({
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
   const handleStartAllRemoteAgents = useCallback(async () => {
     const agentRoles = teamRoles.filter((r) => r !== 'user');
-    // Check if all roles have a saved preference
-    const missingRoles = agentRoles.filter((role) => !agentPanelData.agentPreferenceMap.has(role));
+    // Check if all roles have a saved config
+    const missingRoles = agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
     if (missingRoles.length > 0) {
       // Open settings modal at agents tab to configure
       handleCmdOpenSettings('agents');
       return;
     }
-    // Start all agents in parallel using their saved preferences
+    // Start all agents in parallel using their persisted configs
     setIsStartingAllAgents(true);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
     const results = await Promise.allSettled(
       agentRoles.map((role) => {
-        const pref = agentPanelData.agentPreferenceMap.get(role)!;
+        const config = roleConfigMap.get(role.toLowerCase())!;
         return agentPanelData.sendCommand({
-          machineId: pref.machineId,
+          machineId: config.machineId,
           type: 'start-agent' as const,
           payload: {
             chatroomId: chatroomIdTyped,
             role,
-            model: pref.model,
-            agentHarness: pref.agentHarness,
-            workingDir: pref.workingDir,
+            model: config.model,
+            agentHarness: config.agentType,
+            workingDir: config.workingDir,
           },
         });
       })
@@ -879,7 +892,7 @@ export function ChatroomDashboard({
     if (failed.length > 0) {
       toast.error(`Failed to start: ${failed.join(', ')}`);
     }
-  }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
+  }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
 
   // Stop all remote agents confirmation dialog state
   const [stopAllConfirmOpen, setStopAllConfirmOpen] = useState(false);
@@ -942,8 +955,8 @@ export function ChatroomDashboard({
   const handleRestartAllRemoteAgents = useCallback(async () => {
     const agentRoles = teamRoles.filter((r) => r !== 'user');
 
-    // Check if all roles have a saved preference
-    const missingRoles = agentRoles.filter((role) => !agentPanelData.agentPreferenceMap.has(role));
+    // Check if all roles have a saved config
+    const missingRoles = agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
     if (missingRoles.length > 0) {
       // Open settings modal at agents tab to configure
       handleCmdOpenSettings('agents');
@@ -978,16 +991,16 @@ export function ChatroomDashboard({
       // Start all agents (including ones that were stopped)
       const results = await Promise.allSettled(
         agentRoles.map((role) => {
-          const pref = agentPanelData.agentPreferenceMap.get(role)!;
+          const config = roleConfigMap.get(role.toLowerCase())!;
           return agentPanelData.sendCommand({
-            machineId: pref.machineId,
+            machineId: config.machineId,
             type: 'start-agent' as const,
             payload: {
               chatroomId: chatroomIdTyped,
               role,
-              model: pref.model,
-              agentHarness: pref.agentHarness,
-              workingDir: pref.workingDir,
+              model: config.model,
+              agentHarness: config.agentType,
+              workingDir: config.workingDir,
             },
           });
         })
@@ -1009,16 +1022,16 @@ export function ChatroomDashboard({
       const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
       const results = await Promise.allSettled(
         agentRoles.map((role) => {
-          const pref = agentPanelData.agentPreferenceMap.get(role)!;
+          const config = roleConfigMap.get(role.toLowerCase())!;
           return agentPanelData.sendCommand({
-            machineId: pref.machineId,
+            machineId: config.machineId,
             type: 'start-agent' as const,
             payload: {
               chatroomId: chatroomIdTyped,
               role,
-              model: pref.model,
-              agentHarness: pref.agentHarness,
-              workingDir: pref.workingDir,
+              model: config.model,
+              agentHarness: config.agentType,
+              workingDir: config.workingDir,
             },
           });
         })
@@ -1035,7 +1048,7 @@ export function ChatroomDashboard({
         toast.success(`Started ${agentRoles.length} agent(s)`);
       }
     }
-  }, [teamRoles, agentPanelData, chatroomId, handleCmdOpenSettings]);
+  }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
 
   // Build command palette commands
   const { openDialog } = useCommandDialog();

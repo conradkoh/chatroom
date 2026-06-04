@@ -740,60 +740,6 @@ export default defineSchema({
     .index('by_chatroom_and_filename_latest', ['chatroomId', 'filename', 'isLatest']),
 
   // ============================================================================
-  // AGENT PREFERENCE TABLES
-  // User's preferred remote agent configuration per chatroom+role
-  // ============================================================================
-
-  /**
-   * User preferences for remote agent configuration per chatroom and role.
-   * Stores the last-used (or explicitly saved) machine, harness, model, and
-   * working directory so the Remote tab in the UI pre-populates these values
-   * as sensible defaults when the user opens it.
-   *
-   * This is separate from chatroom_teamAgentConfigs, which is the authoritative
-   * active config used by auto-restart logic. agentPreferences are purely
-   * informational/UI hints - they do not drive any backend behavior.
-   *
-   * Written by: the UI's "Start Agent" action (via saveAgentPreference mutation).
-   * Read by: the Remote tab UI to pre-populate fields as defaults.
-   */
-  chatroom_agentPreferences: defineTable({
-    // Owner of this preference (user who clicked Start Agent)
-    userId: v.id('users'),
-    // Chatroom this preference applies to
-    chatroomId: v.id('chatroom_rooms'),
-    // Role this preference is for (e.g. "planner", "builder")
-    // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
-    // See migration.migrateAgentPreferencesToPerRole for cleanup.
-    role: v.optional(v.string()),
-    // Preferred machine ID
-    machineId: v.string(),
-    // Preferred agent harness
-    // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
-    // See migration.migrateAgentPreferencesToPerRole for cleanup.
-    agentHarness: v.optional(agentHarnessValidator),
-    // Preferred AI model
-    model: v.optional(v.string()),
-    // Preferred working directory (absolute path on the machine)
-    workingDir: v.optional(v.string()),
-    // When this preference was last saved
-    updatedAt: v.number(),
-    // When this preference was first created
-    // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
-    createdAt: v.optional(v.number()),
-    // DEPRECATED SHAPE: old documents (pre-migration) may have these role-map fields
-    // instead of the per-role `agentHarness` and `role` fields.
-    // See migration.deleteOldFormatAgentPreferences for cleanup.
-    // These fields must remain in the schema until the migration has run in production.
-    harnessByRole: v.optional(
-      v.record(v.string(), v.union(v.literal('opencode'), v.literal('pi')))
-    ),
-    modelByRole: v.optional(v.record(v.string(), v.string())),
-  })
-    .index('by_userId_chatroom_role', ['userId', 'chatroomId', 'role'])
-    .index('by_chatroom', ['chatroomId']),
-
-  // ============================================================================
   // MACHINE MANAGEMENT TABLES
   // Remote machine identity and command execution
   // ============================================================================

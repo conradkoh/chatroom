@@ -155,35 +155,6 @@ describe('listChatroomAgentOverview — solo team', () => {
   });
 });
 
-describe('listChatroomAgentOverview — agent preferences without team config', () => {
-  test('returns stopped status when preferences exist but no team config', async () => {
-    const { sessionId } = await createTestSession('test-lcao-pref-stopped-1');
-    const machineId = 'machine-lcao-pref-stopped-1';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    const ownerId = await getOwnerUserId(chatroomId);
-
-    await t.mutation(api.machines.saveAgentPreference, {
-      sessionId: sessionId as any,
-      chatroomId,
-      role: 'builder',
-      machineId,
-      agentHarness: 'opencode',
-      model: 'claude-sonnet-4',
-      workingDir: '/test/workspace',
-    });
-
-    const results = await t.run(async (ctx) => {
-      return listChatroomAgentOverview(ctx, { userId: ownerId });
-    });
-
-    const entry = results.find((r) => r.chatroomId === chatroomId);
-    expect(entry).toBeDefined();
-    expect(entry!.agentStatus).toBe('stopped');
-    expect(entry!.runningRoles).toEqual([]);
-  });
-});
-
 describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
   test('returns stopped status when agent has PID but daemon is disconnected', async () => {
     const { sessionId } = await createTestSession('test-lcao-disconn-1');
