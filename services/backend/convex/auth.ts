@@ -5,7 +5,8 @@ import { featureFlags } from '../config/featureFlags';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
-import { getAccessLevel, isSystemAdmin } from '../modules/auth/accessControl';
+import { getResolvedPermissionsForUser } from '../application/auth/resolve';
+import { getAccessLevel } from '../modules/auth/accessControl';
 import { generateLoginCode, getCodeExpirationTime, isCodeExpired } from '../modules/auth/codeUtils';
 import type { AuthState } from '../modules/auth/types/AuthState';
 
@@ -53,7 +54,7 @@ export const getState = query({
       state: 'authenticated' as const,
       user,
       accessLevel: getAccessLevel(user),
-      isSystemAdmin: isSystemAdmin(user),
+      permissions: getResolvedPermissionsForUser(user),
       authMethod: exists.authMethod,
     };
   },

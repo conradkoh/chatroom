@@ -1,19 +1,19 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { isSystemAdmin } from '../../../modules/auth/accessControl';
+import {
+  AUTH_PROVIDER_MANAGE_PERMISSION,
+  requireAuthenticatedPermission,
+} from '../../../application/auth';
 import { getAuthUserOptional } from '../../../modules/auth/getAuthUser';
 import { api, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { action, internalMutation, mutation, query } from '../../_generated/server';
 
 /**
- * SYSTEM ADMIN ONLY: Google Authentication Provider Configuration Management
+ * Google Authentication Provider Configuration Management
  *
- * All functions in this module require system administrator access.
- * These functions are used to configure and manage Google OAuth settings.
- *
- * Security Note: Every function in this module MUST verify system admin access.
+ * All functions require the `auth:provider:manage` permission (not a role name check).
  */
 
 /**
@@ -40,16 +40,11 @@ export const getConfig = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args): Promise<GoogleAuthConfigData | null> => {
-    // Verify system admin access
     const user = await getAuthUserOptional(ctx, args);
-    if (!user || !isSystemAdmin(user)) {
-      throw new ConvexError({
-        code: 'FORBIDDEN',
-        message: 'Only system administrators can view Google Auth configuration',
-      });
-    }
+    requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
+      unauthorizedMessage: 'Only system administrators can view Google Auth configuration',
+    });
 
-    // Get the configuration for Google auth
     const config = await ctx.db
       .query('auth_providerConfigs')
       .withIndex('by_type', (q) => q.eq('type', 'google'))
@@ -59,7 +54,6 @@ export const getConfig = query({
       return null;
     }
 
-    // Compute derived values
     const hasClientSecret = !!config.clientSecret;
     const isConfigured = !!(config.clientId && config.clientSecret);
 
@@ -68,7 +62,7 @@ export const getConfig = query({
       enabled: config.enabled,
       projectId: config.projectId,
       clientId: config.clientId,
-      clientSecret: undefined, // Never return the secret
+      clientSecret: undefined,
       hasClientSecret,
       isConfigured,
       redirectUris: config.redirectUris,
@@ -91,29 +85,16 @@ export const updateConfig = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Verify system admin access
     const user = await getAuthUserOptional(ctx, args);
-    if (!user) {
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'You must be logged in to configure Google Auth',
-      });
-    }
+    requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
+      unauthorizedMessage: 'You must be logged in to configure Google Auth',
+    });
 
-    if (!isSystemAdmin(user)) {
-      throw new ConvexError({
-        code: 'FORBIDDEN',
-        message: 'Only system administrators can configure Google Auth',
-      });
-    }
-
-    // Check if configuration already exists
     const existingConfig = await ctx.db
       .query('auth_providerConfigs')
       .withIndex('by_type', (q) => q.eq('type', 'google'))
       .first();
 
-    // Validate input
     if (!args.clientId.trim()) {
       throw new ConvexError({
         code: 'VALIDATION_ERROR',
@@ -130,7 +111,6 @@ export const updateConfig = mutation({
       });
     }
 
-    // Validate redirect URIs
     for (const uri of args.redirectUris) {
       try {
         new URL(uri);
@@ -143,8 +123,6 @@ export const updateConfig = mutation({
     }
 
     const now = Date.now();
-
-    // Determine which client secret to use
     const clientSecretToUse = args.clientSecret.trim() || existingConfig?.clientSecret || '';
 
     const configData = {
@@ -159,10 +137,8 @@ export const updateConfig = mutation({
     };
 
     if (existingConfig) {
-      // Update existing configuration
       await ctx.db.patch('auth_providerConfigs', existingConfig._id, configData);
     } else {
-      // Create new configuration
       await ctx.db.insert('auth_providerConfigs', configData);
     }
 
@@ -182,38 +158,24 @@ export const toggleEnabled = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Verify system admin access
     const user = await getAuthUserOptional(ctx, args);
-    if (!user) {
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'You must be logged in to toggle Google Auth',
-      });
-    }
-
-    if (!isSystemAdmin(user)) {
-      throw new ConvexError({
-        code: 'FORBIDDEN',
-        message: 'Only system administrators can toggle Google Auth',
-      });
-    }
+    requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
+      unauthorizedMessage: 'You must be logged in to toggle Google Auth',
+    });
 
     const now = Date.now();
 
-    // Check if configuration already exists
     const existingConfig = await ctx.db
       .query('auth_providerConfigs')
       .withIndex('by_type', (q) => q.eq('type', 'google'))
       .first();
 
     if (existingConfig) {
-      // Update existing configuration
       await ctx.db.patch('auth_providerConfigs', existingConfig._id, {
         enabled: args.enabled,
         configuredAt: now,
       });
     } else {
-      // Create minimal configuration with enabled flag
       await ctx.db.insert('auth_providerConfigs', {
         type: 'google' as const,
         enabled: args.enabled,
@@ -234,8 +196,6 @@ export const toggleEnabled = mutation({
 
 /**
  * Tests Google Auth configuration by validating credentials with Google's API.
- * Self-contained function that handles authentication, database access, and external
- * Google API testing all within a single action. No additional API calls needed.
  */
 export const testConfig = action({
   args: {
@@ -251,7 +211,6 @@ export const testConfig = action({
     message: string;
     details?: { issues?: string[] };
   }> => {
-    // Verify system admin access by calling a query
     const authState = await ctx.runQuery(api.auth.getState, { sessionId: args.sessionId });
     if (authState.state !== 'authenticated') {
       throw new ConvexError({
@@ -260,19 +219,11 @@ export const testConfig = action({
       });
     }
 
-    if (!isSystemAdmin(authState.user)) {
-      throw new ConvexError({
-        code: 'FORBIDDEN',
-        message: 'Only system administrators can test Google Auth configuration',
-      });
-    }
+    requireAuthenticatedPermission(authState.user, AUTH_PROVIDER_MANAGE_PERMISSION);
 
     let clientSecret = args.clientSecret;
 
-    // If no client secret provided, we need to get it from the database
-    // We'll use a simple mutation to access the saved configuration
     if (!clientSecret) {
-      // Call a simple mutation that can access the database and return the client secret
       const savedSecret = await ctx.runMutation(
         internal.system.auth.google.getClientSecretForTesting,
         {
@@ -291,31 +242,23 @@ export const testConfig = action({
       clientSecret = savedSecret;
     }
 
-    // Test the credentials with Google API
     return _testNewCredentials(args.clientId, clientSecret);
   },
 });
 
 /**
  * Internal mutation to retrieve the client secret for testing purposes.
- * Only accessible by system administrators. Returns the client secret directly.
- * This is an internal function to prevent external access to sensitive data.
  */
 export const getClientSecretForTesting = internalMutation({
   args: {
     ...SessionIdArg,
   },
   handler: async (ctx, args): Promise<string | null> => {
-    // Verify system admin access
     const user = await getAuthUserOptional(ctx, args);
-    if (!user || !isSystemAdmin(user)) {
-      throw new ConvexError({
-        code: 'FORBIDDEN',
-        message: 'Only system administrators can access client secret for testing',
-      });
-    }
+    requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
+      unauthorizedMessage: 'Only system administrators can access client secret for testing',
+    });
 
-    // Query the database directly to get the saved configuration
     const config = await ctx.db
       .query('auth_providerConfigs')
       .withIndex('by_type', (q) => q.eq('type', 'google'))
@@ -354,13 +297,10 @@ async function _testNewCredentials(
     };
   }
 
-  // Test credentials by attempting to exchange a dummy authorization code
-  // This will validate that the credentials are real and properly configured
   try {
     const tokenEndpoint = 'https://oauth2.googleapis.com/token';
     const testRedirectUri = 'http://localhost:3000/login/google/callback';
 
-    // Try to exchange a dummy code - this will fail but will tell us if credentials are valid
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers: {
@@ -380,9 +320,7 @@ async function _testNewCredentials(
       error_description?: string;
     };
 
-    // Check the error type to determine if credentials are valid
     if (result.error === 'invalid_grant') {
-      // This means the credentials are valid but the code is invalid (expected)
       return {
         success: true,
         message: 'Credentials are valid! Google accepted the Client ID and Secret.',
@@ -405,7 +343,6 @@ async function _testNewCredentials(
       };
     }
 
-    // Any other error might indicate network issues or other problems
     return {
       success: false,
       message: `Unexpected response from Google: ${result.error || 'Unknown error'}`,
@@ -428,23 +365,11 @@ export const resetConfig = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Verify system admin access
     const user = await getAuthUserOptional(ctx, args);
-    if (!user) {
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'You must be logged in to reset Google Auth configuration',
-      });
-    }
+    requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
+      unauthorizedMessage: 'You must be logged in to reset Google Auth configuration',
+    });
 
-    if (!isSystemAdmin(user)) {
-      throw new ConvexError({
-        code: 'FORBIDDEN',
-        message: 'Only system administrators can reset Google Auth configuration',
-      });
-    }
-
-    // Find and delete existing configuration
     const existingConfig = await ctx.db
       .query('auth_providerConfigs')
       .withIndex('by_type', (q) => q.eq('type', 'google'))

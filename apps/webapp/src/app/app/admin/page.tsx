@@ -3,6 +3,7 @@
 import { Settings, Shield, Users } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppInfo } from '@/modules/app/useAppInfo';
 import { useAuthState } from '@/modules/auth/AuthProvider';
@@ -20,6 +21,7 @@ interface _StatusCardData {
  */
 export default function AdminDashboard() {
   const authState = useAuthState();
+  const hasSystemAdminAccess = useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION);
   const { appInfo, isLoading } = useAppInfo();
 
   /**
@@ -47,15 +49,15 @@ export default function AdminDashboard() {
         title: 'Your Access',
         value:
           authState?.state === 'authenticated'
-            ? authState.accessLevel === 'system_admin'
-              ? 'Admin'
-              : 'User'
+            ? hasSystemAdminAccess
+              ? 'System Administrator'
+              : 'Standard User'
             : '...',
-        description: 'Access level',
+        description: 'Effective permissions (not role name)',
         icon: <Users className="h-4 w-4 text-muted-foreground" />,
       },
     ];
-  }, [authState, appInfo, isLoading]);
+  }, [authState, appInfo, hasSystemAdminAccess, isLoading]);
 
   /**
    * Memoized Google auth status for system information section.

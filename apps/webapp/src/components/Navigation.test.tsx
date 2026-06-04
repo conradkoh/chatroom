@@ -61,7 +61,7 @@ describe('Navigation', () => {
         name: 'Test User',
       },
       accessLevel: 'user',
-      isSystemAdmin: false,
+      permissions: ['attendance:read', 'presentation:read'],
     });
 
     render(<Navigation />);

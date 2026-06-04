@@ -1,18 +1,23 @@
 'use client';
 
-import { ArrowLeft, Menu, Settings, Shield, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Menu, Settings, Shield, ShieldX, X } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 
+import { RequirePermission, SYSTEM_ADMIN_ACCESS_PERMISSION } from '@/application/auth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { AdminGuard } from '@/modules/admin/AdminGuard';
+import { useAuthState } from '@/modules/auth/AuthProvider';
 
-interface AdminLayoutProps {
+interface SystemAdminLayoutProps {
   children: React.ReactNode;
 }
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+/** Layout for `/app/admin` — platform system administration (not business/org admin). */
+export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) {
+  const authState = useAuthState();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const openSidebar = useCallback(() => {
@@ -29,15 +34,68 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     }
   }, []);
 
+  useEffect(() => {
+    if (authState?.state === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [authState, router]);
+
+  if (authState === undefined) {
+    return _renderAuthLoading('Checking access permissions...');
+  }
+
+  if (authState.state === 'unauthenticated') {
+    return _renderAuthLoading('Redirecting to login...');
+  }
+
   return (
-    <AdminGuard>
+    <RequirePermission
+      permission={SYSTEM_ADMIN_ACCESS_PERMISSION}
+      fallback={_renderSystemAdminAccessDenied()}
+    >
       <div className="flex h-full min-h-0">
         {_renderMobileHeader(openSidebar)}
         {_renderMobileSidebar(sidebarOpen, closeSidebar, handleBackdropKeyDown)}
         {_renderDesktopSidebar(closeSidebar)}
         {_renderMainContent(children)}
       </div>
-    </AdminGuard>
+    </RequirePermission>
+  );
+}
+
+function _renderAuthLoading(message: string) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="flex flex-col items-center gap-2">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function _renderSystemAdminAccessDenied() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <Card className="p-8">
+          <div className="space-y-6 text-center">
+            <ShieldX className="mx-auto h-16 w-16 text-destructive/60" />
+            <h1 className="text-2xl font-semibold">Access Denied</h1>
+            <p className="text-muted-foreground">
+              You need <span className="font-medium">system administrator</span> access (
+              <span className="font-medium">{SYSTEM_ADMIN_ACCESS_PERMISSION}</span>).
+            </p>
+            <Link href="/app">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Return to Application
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
 }
 
@@ -47,7 +105,7 @@ function _renderMobileHeader(openSidebar: () => void) {
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={openSidebar}>
           <Menu className="h-4 w-4 mr-2" />
-          Admin Menu
+          System Admin
         </Button>
         <Link href="/app">
           <Button variant="ghost" size="sm">
@@ -122,8 +180,8 @@ function _renderSidebarContent(closeSidebar: () => void) {
           </Button>
         </div>
         <div className="border-b pb-2">
-          <h2 className="text-lg font-semibold">Admin Panel</h2>
-          <p className="text-sm text-muted-foreground">System Administration</p>
+          <h2 className="text-lg font-semibold">System Admin</h2>
+          <p className="text-sm text-muted-foreground">Platform administration</p>
         </div>
       </div>
 

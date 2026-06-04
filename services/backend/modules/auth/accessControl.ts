@@ -18,19 +18,9 @@ export function getAccessLevel(user: Doc<'users'>): AccessLevel {
 }
 
 /**
- * Checks if a user has system administrator access level.
- * @param user - The user document to check
- * @returns true if the user is a system administrator, false otherwise
- */
-export function isSystemAdmin(user: Doc<'users'>): boolean {
-  return getAccessLevel(user) === 'system_admin';
-}
-
-/**
  * Checks if a user has at least the specified access level.
- * @param user - The user document to check
- * @param requiredLevel - The minimum required access level
- * @returns true if the user meets the access level requirement, false otherwise
+ * @deprecated Prefer `hasPermission` from `application/auth` for authorization checks.
+ * `accessLevel` is legacy assignment data that maps to roles — do not use for new guards.
  */
 export function hasAccessLevel(user: Doc<'users'>, requiredLevel: AccessLevel): boolean {
   if (requiredLevel === 'user') {
@@ -38,7 +28,7 @@ export function hasAccessLevel(user: Doc<'users'>, requiredLevel: AccessLevel): 
   }
 
   if (requiredLevel === 'system_admin') {
-    return isSystemAdmin(user);
+    return getAccessLevel(user) === 'system_admin';
   }
 
   return false;

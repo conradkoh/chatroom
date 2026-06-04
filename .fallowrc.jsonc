@@ -61,7 +61,12 @@
       "**/components/ui/**",
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
-      "**/tests/**"
+      "**/tests/**",
+      // RBAC Option A: mirror permissions/roles/resolve between webapp and backend (see application/README.md in each package)
+      "apps/webapp/src/application/auth/**",
+      "services/backend/application/auth/permissions.ts",
+      "services/backend/application/auth/roles.ts",
+      "services/backend/application/auth/resolve.ts"
     ]
   },
   "health": {
