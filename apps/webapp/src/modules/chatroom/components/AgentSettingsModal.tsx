@@ -357,7 +357,9 @@ const MachineRow = memo(function MachineRow({
 
   // Connectivity via getDaemonStatus — tiny heartbeat payload, doesn't invalidate listMachines.
   const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
-  const statusResult = useSessionQuery(api.machines.getDaemonStatus, { machineId: machine.machineId });
+  const statusResult = useSessionQuery(api.machines.getDaemonStatus, {
+    machineId: machine.machineId,
+  });
   const lastSeenAt = statusResult?.lastSeenAt ?? 0;
 
   const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
@@ -800,8 +802,6 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
     connectedMachines,
     machineConfigs: agentConfigs,
     sendCommand,
-    agentPreferenceMap,
-    savePreference,
     isLoading: isPanelLoading,
   } = useAgentPanelData(chatroomId);
 
@@ -890,8 +890,6 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
                 agentConfigs={agentConfigs}
                 sendCommand={sendCommand}
                 agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
-                agentPreference={agentPreferenceMap.get(agent.role.toLowerCase())}
-                onSavePreference={savePreference}
                 restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
               />
             );

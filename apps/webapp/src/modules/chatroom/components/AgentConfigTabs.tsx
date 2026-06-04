@@ -74,15 +74,6 @@ export interface AgentConfigTabsProps {
   sendCommand: SendCommandFn;
 }
 
-/** User's saved preference for a single role's remote agent config. */
-export interface AgentPreference {
-  role: string;
-  machineId: string;
-  agentHarness: AgentHarness;
-  model?: string;
-  workingDir?: string;
-}
-
 function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
   return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
 }
@@ -118,15 +109,11 @@ function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): stri
 export function deriveInitialMachineId(
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
-  runningAgentConfig: AgentConfig | undefined,
-  preference: AgentPreference | undefined
+  runningAgentConfig: AgentConfig | undefined
 ): string | null {
   if (connectedMachines.length === 0) return null;
-  // Priority: running agent > saved preference > existing config machine
+  // Priority: running agent > existing config machine
   if (runningAgentConfig) return runningAgentConfig.machineId;
-  if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
-    return preference.machineId;
-  }
   const configMachine = connectedMachines.find((m) =>
     roleConfigs.some((c) => c.machineId === m.machineId)
   );
@@ -138,20 +125,12 @@ function deriveInitialHarness(
   machineId: string | null,
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined,
   teamConfigHarness?: AgentHarness
 ): AgentHarness | null {
   if (!machineId) return null;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
   const available = machine?.availableHarnesses ?? [];
-  // Priority: saved preference > existing config harness > team config harness > only option
-  if (
-    preference &&
-    preference.machineId === machineId &&
-    available.includes(preference.agentHarness)
-  ) {
-    return preference.agentHarness;
-  }
+  // Priority: existing config harness > team config harness > only option
   const config = roleConfigs.find((c) => c.machineId === machineId);
   if (config && available.includes(config.agentType)) return config.agentType;
   if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
@@ -162,15 +141,11 @@ function deriveInitialHarness(
 export function deriveInitialWorkingDir(
   machineId: string | null,
   roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined,
   chatroomWorkspaces?: Workspace[]
 ): string {
   if (machineId) {
     const config = roleConfigs.find((c) => c.machineId === machineId);
     if (config?.workingDir) return config.workingDir;
-    if (preference && preference.machineId === machineId && preference.workingDir) {
-      return preference.workingDir;
-    }
     if (chatroomWorkspaces) {
       const ws = chatroomWorkspaces.find((w) => w.machineId === machineId);
       if (ws?.workingDir) return ws.workingDir;
@@ -180,25 +155,20 @@ export function deriveInitialWorkingDir(
     const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
     if (latest.workingDir) return latest.workingDir;
   }
-  return preference?.workingDir ?? '';
+  return '';
 }
 
 /** True when one-shot init should wait for chatroom workspaces before resolving working dir. */
 export function shouldDeferInitUntilWorkspacesLoad(
   machineId: string | null,
-  roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined
+  roleConfigs: AgentConfig[]
 ): boolean {
   if (machineId) {
     const config = roleConfigs.find((c) => c.machineId === machineId);
     if (config?.workingDir) return false;
-    if (preference && preference.machineId === machineId && preference.workingDir) {
-      return false;
-    }
     return true;
   }
   if (roleConfigs.some((c) => c.workingDir)) return false;
-  if (preference?.workingDir) return false;
   return false;
 }
 
@@ -245,7 +215,6 @@ export function useAgentControls({
   sendCommand,
   teamConfigModel,
   teamConfigHarness,
-  onSavePreference,
   teamConfigMachineId,
   teamAutoRestartOnNewContext,
   chatroomWorkspaces,
@@ -261,15 +230,6 @@ export function useAgentControls({
   /** Harness from team config — used as a seeding hint for initialization when
    *  no roleConfig is found */
   teamConfigHarness?: AgentHarness;
-  /**
-   * User's saved preference for this role.
-   * @deprecated No longer read for seeding — the persisted teamAgentConfig is the
-   * single "last used" source. Still accepted (and written via onSavePreference)
-   * pending full removal of the agentPreference store.
-   */
-  agentPreference?: AgentPreference;
-  /** Called when user starts an agent — saves preference for future sessions */
-  onSavePreference?: (pref: AgentPreference) => void;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
   /** Persisted auto-restart-on-new-context preference from team agent config. */
@@ -344,32 +304,22 @@ export function useAgentControls({
   // ── Single initialize-once effect ────────────────────────────────
   // Fires exactly once — when machines first become available.
   // The "last used" config is derived solely from the persisted teamAgentConfigs
-  // (roleConfigs); the agentPreference store is no longer consulted.
+  // (roleConfigs).
   useEffect(() => {
     if (isInitialized || connectedMachines.length === 0) return;
 
     // Single source of truth for "last used": persisted teamAgentConfigs.
-    // Preference seeding has been removed — pass `undefined` to the derive helpers.
-    const machine = deriveInitialMachineId(
-      connectedMachines,
-      roleConfigs,
-      runningAgentConfig,
-      undefined
-    );
-    if (
-      chatroomWorkspacesLoading &&
-      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, undefined)
-    ) {
+    const machine = deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig);
+    if (chatroomWorkspacesLoading && shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs)) {
       return;
     }
     const harness = deriveInitialHarness(
       machine,
       connectedMachines,
       roleConfigs,
-      undefined,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, undefined, chatroomWorkspaces);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
@@ -457,8 +407,6 @@ export function useAgentControls({
       userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
       machineConfigModel: config?.model ?? undefined,
       teamConfigModel,
-      // Preference model seeding removed — teamAgentConfigs is the single source.
-      preferenceModel: undefined,
     });
   }, [
     modelSelectionReady,
@@ -514,14 +462,6 @@ export function useAgentControls({
             ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
           },
         });
-        // Save user preference so the Remote tab pre-populates these values next time
-        onSavePreference?.({
-          role,
-          machineId: selectedMachineId,
-          agentHarness: selectedHarness,
-          model: selectedModel || undefined,
-          workingDir: workingDir.trim() || undefined,
-        });
         setSuccess('Start command sent!');
         setTimeout(() => setSuccess(null), 2000);
       } catch (err) {
@@ -539,7 +479,6 @@ export function useAgentControls({
       sendCommand,
       chatroomId,
       role,
-      onSavePreference,
     ]
   );
 
@@ -626,7 +565,7 @@ export function useAgentControls({
       setSelectedHarness(null);
       setUserModelByHarness({});
       // Re-initialize working dir for the new machine from current roleConfigs
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, undefined, chatroomWorkspaces);
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, chatroomWorkspaces);
       setWorkingDir(wd);
     },
     [roleConfigs, chatroomWorkspaces]

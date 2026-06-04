@@ -77,34 +77,9 @@ export async function getAgentConfigForStart(
     }
   }
 
-  // Resolve defaults using the priority chain:
-  // 1. Agent preference (user's last-used config for this role)
-  // 2. Team config (authoritative team-level config)
+  // Resolve defaults from the authoritative team-level config.
 
-  const roleLower = input.role.toLowerCase();
-
-  // 1. Check preference
-  const preference = await ctx.db
-    .query('chatroom_agentPreferences')
-    .withIndex('by_userId_chatroom_role', (q) =>
-      q.eq('userId', input.userId).eq('chatroomId', input.chatroomId).eq('role', roleLower)
-    )
-    .first();
-
-  if (preference) {
-    return {
-      role: input.role,
-      connectedMachines,
-      defaults: {
-        machineId: preference.machineId,
-        agentHarness: preference.agentHarness as AgentHarness | undefined,
-        model: preference.model,
-        workingDir: preference.workingDir,
-      },
-    };
-  }
-
-  // 2. Check team config
+  // Check team config
   let teamConfig = null;
   if (chatroom.teamId) {
     const startTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role);

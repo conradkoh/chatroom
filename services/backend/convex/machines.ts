@@ -1903,60 +1903,6 @@ export const getTeamAgentConfigs = query({
   },
 });
 
-// ─── Agent Preferences ────────────────────────────────────────────────────────
-
-/** Upserts the user's preferred remote agent configuration (machine, harness, model, workingDir) for a chatroom+role. */
-export const saveAgentPreference = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    machineId: v.string(),
-    agentHarness: agentHarnessValidator,
-    model: v.optional(v.string()),
-    workingDir: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new Error('Authentication required');
-    }
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) throw new Error('Chatroom not found');
-    if (chatroom.ownerId !== auth.user._id) {
-      throw new Error('Not authorized to save agent preferences for this chatroom');
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_userId_chatroom_role', (q) =>
-        q.eq('userId', auth.user._id).eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .first();
-
-    const now = Date.now();
-    const pref = {
-      userId: auth.user._id,
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      agentHarness: args.agentHarness,
-      model: args.model,
-      workingDir: args.workingDir,
-      updatedAt: now,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_agentPreferences', existing._id, pref);
-    } else {
-      await ctx.db.insert('chatroom_agentPreferences', { ...pref, createdAt: now });
-    }
-
-    return { success: true };
-  },
-});
-
 /** Returns the model visibility filters for a machine+harness combination, or null if unconfigured. */
 export const getMachineModelFilters = query({
   args: {
@@ -2669,38 +2615,6 @@ export const clearAllSpawnedPids = mutation({
     }
 
     return { clearedCount };
-  },
-});
-
-export const getAgentPreferences = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      return { preferences: [] };
-    }
-
-    const preferences = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_userId_chatroom_role', (q) =>
-        q.eq('userId', auth.user._id).eq('chatroomId', args.chatroomId)
-      )
-      .collect();
-
-    return {
-      preferences: preferences
-        .filter((p) => p.role && p.agentHarness)
-        .map((p) => ({
-          role: p.role!,
-          machineId: p.machineId,
-          agentHarness: p.agentHarness!,
-          model: p.model,
-          workingDir: p.workingDir,
-        })),
-    };
   },
 });
 

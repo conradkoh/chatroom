@@ -2,7 +2,7 @@
  * Get Agent Config for Start — Integration Tests
  *
  * Tests the use case that returns form defaults for the "Start Agent" dialog,
- * resolving from preference → teamConfig → machineConfig fallback chain.
+ * resolving from teamConfig → machineConfig fallback.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -74,42 +74,6 @@ describe('getAgentConfigForStart — no defaults', () => {
     });
 
     expect(result!.connectedMachines).toHaveLength(0);
-  });
-});
-
-// ─── Preference as default ────────────────────────────────────────────────────
-
-describe('getAgentConfigForStart — preference fallback', () => {
-  test('returns preference as default when available', async () => {
-    const { sessionId } = await createTestSession('test-gacfs-pref-1');
-    const machineId = 'machine-gacfs-pref-1';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
-    const ownerId = await getOwnerUserId(chatroomId);
-
-    // Save a preference
-    await t.mutation(api.machines.saveAgentPreference, {
-      sessionId: sessionId as any,
-      chatroomId,
-      role: 'builder',
-      machineId,
-      agentHarness: 'opencode',
-      model: 'preferred-model',
-      workingDir: '/preferred/dir',
-    });
-
-    const result = await t.run(async (ctx) => {
-      return getAgentConfigForStart(ctx, {
-        chatroomId,
-        role: 'builder',
-        userId: ownerId,
-      });
-    });
-
-    expect(result!.defaults.machineId).toBe(machineId);
-    expect(result!.defaults.agentHarness).toBe('opencode');
-    expect(result!.defaults.model).toBe('preferred-model');
-    expect(result!.defaults.workingDir).toBe('/preferred/dir');
   });
 });
 

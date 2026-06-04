@@ -46,10 +46,8 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     teamRoles,
     connectedMachines,
     machineConfigs: agentConfigs,
-    agentPreferenceMap,
     isLoading: isPanelLoading,
     sendCommand,
-    savePreference,
   } = useAgentPanelData(chatroomId);
 
   // Fetch live agent statuses from event stream
@@ -144,8 +142,6 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
                     agentConfigs={agentConfigs}
                     sendCommand={sendCommand}
                     agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
-                    agentPreference={agentPreferenceMap.get(agent.role.toLowerCase())}
-                    onSavePreference={savePreference}
                     restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
                   />
                 );

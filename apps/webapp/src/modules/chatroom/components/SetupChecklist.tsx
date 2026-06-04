@@ -100,10 +100,8 @@ export const SetupChecklist = memo(function SetupChecklist({
     agents: agentRoleViews,
     connectedMachines,
     machineConfigs,
-    agentPreferenceMap,
     isLoading,
     sendCommand,
-    savePreference,
   } = useAgentPanelData(chatroomId);
 
   // ── Agent statuses (event stream) ─────────────────────────────────
@@ -331,8 +329,6 @@ export const SetupChecklist = memo(function SetupChecklist({
                     agentConfigs={machineConfigs}
                     sendCommand={sendCommand}
                     agentRoleView={agentRoleView}
-                    agentPreference={agentPreferenceMap.get(role.toLowerCase())}
-                    onSavePreference={savePreference}
                     restartSummary={restartSummaryMap.get(role.toLowerCase())}
                   />
                 );

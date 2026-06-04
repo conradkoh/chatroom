@@ -11,7 +11,6 @@
  * Previously defined migrations (all ported to migrations.ts):
  * - migrateAvailableModelsToPerHarness
  * - stripParticipantStaleFields
- * - deleteOldFormatAgentPreferences
  * - deleteLegacyMessageQueueDocuments
  * - migrateQueuedTasks
  * - migrateTeamRoleKeyAddTeamId
