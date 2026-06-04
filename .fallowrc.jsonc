@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  // Migrated from knip.jsonc
+  "ignoreDependencies": [
+    "husky",
+    "lint-staged",
+    "eslint",
+    "eslint-config-next",
+    "eslint-config-prettier",
+    "@eslint/eslintrc",
+    "@convex-dev/eslint-plugin",
+    "@typescript-eslint/eslint-plugin",
+    "@typescript-eslint/parser",
+    "eslint-plugin-import",
+    "eslint-plugin-jsdoc",
+    "eslint-plugin-react",
+    "eslint-plugin-react-hooks",
+    "eslint-plugin-react-you-might-not-need-an-effect",
+    "globals",
+    "convex-test",
+    "@edge-runtime/vm",
+    "@hookform/resolvers",
+    "@mdx-js/loader",
+    "@mdx-js/react",
+    "remark-gfm",
+    "react-icons",
+    "bun",
+    "@radix-ui/react-tooltip"
+  ],
+  "ignoreUnresolvedImports": [
+    "**/convex/_generated/**",
+    "../migration.js",
+    "./dataModel.js",
+    "./_generated/dataModel.js"
+  ],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
+  // Test files, generated code, and ShadCN export barrels (UI stays in import graph)
+  "ignorePatterns": [
+    "**/_generated/**",
+    "**/convex/_generated/**",
+    "**/*.test.{ts,tsx}",
+    "**/*.spec.{ts,tsx}",
+    "**/__tests__/**",
+    "**/tests/**",
+    "**/test.setup.{ts,mts}",
+    "**/test-utils.{ts,tsx}",
+    "**/vitest.config.{ts,mts}",
+    "**/next.config.{ts,js,mjs}",
+    "**/playwright.config.{ts,js}",
+    "**/eslint.config.{ts,js,mjs}"
+  ],
+  "ignoreExports": [
+    { "file": "**/components/ui/**", "exports": ["*"] }
+  ],
+  "duplicates": {
+    "ignore": [
+      "**/_generated/**",
+      "**/components/ui/**",
+      "**/*.test.{ts,tsx}",
+      "**/*.spec.{ts,tsx}",
+      "**/tests/**",
+      // RBAC Option A: mirror permissions/roles/resolve between webapp and backend (see application/README.md in each package)
+      "apps/webapp/src/application/auth/**",
+      "services/backend/application/auth/permissions.ts",
+      "services/backend/application/auth/roles.ts",
+      "services/backend/application/auth/resolve.ts"
+    ]
+  },
+  "health": {
+    "ignore": [
+      "**/_generated/**",
+      "**/components/ui/**",
+      "**/*.test.{ts,tsx}",
+      "**/*.spec.{ts,tsx}",
+      "**/tests/**"
+    ]
+  },
+  "audit": {
+    "gate": "new-only"
+  }
+}

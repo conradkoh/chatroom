@@ -1,3 +1,4 @@
+import type { Permission } from '../../../application/auth/permissions';
 import type { Doc } from '../../../convex/_generated/dataModel';
 import type { AccessLevel } from '../accessControl';
 
@@ -16,7 +17,8 @@ export type AuthState =
       state: 'authenticated';
       user: Doc<'users'>;
       accessLevel: AccessLevel;
-      isSystemAdmin: boolean;
+      /** Effective permissions from application/auth role resolution. */
+      permissions: Permission[];
       authMethod?: 'google' | 'login_code' | 'recovery_code' | 'anonymous' | 'username_password';
     };
 

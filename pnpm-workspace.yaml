@@ -2,6 +2,12 @@ packages:
   - 'apps/*'
   - 'services/*'
   - 'packages/*'
+
+# Delay installing newly published versions (supply-chain protection).
+# See docs/developer/pnpm/minimum-release-age.md
+minimumReleaseAge: 1440 # minutes (24 hours)
+minimumReleaseAgeStrict: true
+
 allowBuilds:
   bun: true
   esbuild: true

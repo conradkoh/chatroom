@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
+import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,10 +32,11 @@ import { useAuthState } from '@/modules/auth/AuthProvider';
 
 /**
  * User menu dropdown component with profile links and logout functionality.
- * Shows user information and navigation options, with admin access for system administrators.
+ * Shows user information and navigation options, including a system-admin portal link when allowed.
  */
 export function UserMenu() {
   const authState = useAuthState();
+  const showSystemAdminLink = useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION);
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -70,7 +72,12 @@ export function UserMenu() {
         handleLogout,
         isLoggingOut
       )}
-      {_renderUserDropdownMenu(authState, showLogoutConfirmation, isLoggingOut)}
+      {_renderUserDropdownMenu(
+        authState,
+        showLogoutConfirmation,
+        isLoggingOut,
+        showSystemAdminLink
+      )}
     </>
   );
 }
@@ -115,10 +122,9 @@ function _renderLogoutConfirmDialog(
 function _renderUserDropdownMenu(
   authState: Extract<NonNullable<ReturnType<typeof useAuthState>>, { state: 'authenticated' }>,
   showLogoutConfirmation: () => void,
-  isLoggingOut: boolean
+  isLoggingOut: boolean,
+  showSystemAdminLink: boolean
 ) {
-  const isSystemAdmin = authState.user.accessLevel === 'system_admin';
-
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -138,7 +144,7 @@ function _renderUserDropdownMenu(
         <Link href="/app">
           <DropdownMenuItem className="cursor-pointer">Dashboard</DropdownMenuItem>
         </Link>
-        {isSystemAdmin && (
+        {showSystemAdminLink && (
           <Link href="/app/admin">
             <DropdownMenuItem className="cursor-pointer">
               <Settings className="h-4 w-4" />
