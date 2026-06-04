@@ -22,14 +22,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { onCommandRun, onCommandStop, shutdownAllCommands } from './command-runner.js';
-import { processManager } from './process/manager.js';
 import {
-  deriveTerminalStatus,
-  SIGTERM_GRACE_PERIOD_MS,
-  SOFT_TIMEOUT_MS,
-} from './process/state.js';
+  forceKillAllCommands,
+  onCommandRun,
+  onCommandStop,
+  shutdownAllCommands,
+} from './command-runner.js';
 import type { DaemonContext } from '../types.js';
+import { processManager } from './process/manager.js';
+import { deriveTerminalStatus, SIGTERM_GRACE_PERIOD_MS, SOFT_TIMEOUT_MS } from './process/state.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be declared before any imports that use them
@@ -170,7 +171,7 @@ async function flushAsyncWork(): Promise<void> {
 
 let ctx: DaemonContext;
 // Captured in beforeEach so integration tests can selectively restore just this spy
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 let processKillSpy: { mockRestore: () => void };
 
 beforeEach(() => {
@@ -252,7 +253,7 @@ describe('shutdownAllCommands', () => {
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
     const killedCall = mutationCalls.find((c) => (c[1] as any)?.status === 'killed');
     expect(killedCall).toBeDefined();
-    expect((killedCall![1] as any).terminationReason).toBe('daemon-shutdown');
+    expect((killedCall?.[1] as any).terminationReason).toBe('daemon-shutdown');
   });
 
   it('force-kills with SIGKILL after grace period for SIGTERM-ignoring processes', async () => {
@@ -298,6 +299,62 @@ describe('shutdownAllCommands', () => {
     expect(process.kill).toHaveBeenCalledWith(-7777, 'SIGTERM');
     // child.kill should NOT be called directly (we use process.kill instead)
     expect(fakeChild.kill).not.toHaveBeenCalled();
+  });
+
+  it('SIGTERMs processes even when the backend status update rejects (kill is off the network critical path)', async () => {
+    vi.useFakeTimers();
+    const fakeChild = createFakeChild(6161);
+    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
+
+    await onCommandRun(ctx, {
+      runId: 'run-backend-down' as any,
+      commandName: 'test',
+      script: 'sleep 60',
+      workingDir: '/tmp',
+    });
+
+    // Simulate an unreachable backend during shutdown.
+    vi.mocked(ctx.deps.backend.mutation).mockRejectedValue(new Error('network down'));
+
+    const shutdownPromise = shutdownAllCommands(ctx);
+    // SIGTERM must already have been delivered before any grace period — it does
+    // not depend on the (failed) network mutation resolving.
+    expect(process.kill).toHaveBeenCalledWith(-6161, 'SIGTERM');
+
+    await vi.advanceTimersByTimeAsync(6_000);
+    await shutdownPromise;
+
+    expect(processManager.size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2. forceKillAllCommands — synchronous force-exit path (second Ctrl+C)
+// ---------------------------------------------------------------------------
+
+describe('forceKillAllCommands', () => {
+  it('is a no-op when no processes are running', () => {
+    expect(() => forceKillAllCommands()).not.toThrow();
+    expect(process.kill).not.toHaveBeenCalled();
+  });
+
+  it('synchronously SIGKILLs every tracked process group without awaiting', async () => {
+    vi.useFakeTimers();
+    const fakeChild = createFakeChild(5151);
+    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
+
+    await onCommandRun(ctx, {
+      runId: 'run-force' as any,
+      commandName: 'test',
+      script: 'sleep 60',
+      workingDir: '/tmp',
+    });
+    expect(processManager.size).toBe(1);
+
+    forceKillAllCommands();
+
+    // Immediate SIGKILL to the process group — no SIGTERM, no grace period.
+    expect(process.kill).toHaveBeenCalledWith(-5151, 'SIGKILL');
   });
 });
 
@@ -596,7 +653,7 @@ describe('24-hour soft timeout', () => {
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
     const killedCall = mutationCalls.find((c) => (c[1] as any)?.status === 'killed');
     expect(killedCall).toBeDefined();
-    expect((killedCall![1] as any).terminationReason).toBe('timeout-24h');
+    expect((killedCall?.[1] as any).terminationReason).toBe('timeout-24h');
 
     // SIGTERM sent to the entire process group (negative PID)
     expect(process.kill).toHaveBeenCalledWith(-5555, 'SIGTERM');
@@ -681,8 +738,11 @@ describe('process-group kill (real process tree)', () => {
 
     // Wire the module-level spawn mock to delegate to the real child_process.spawn.
     // This means onCommandRun's internal spawn() call uses a real process.
-    const { spawn: realSpawn, execSync } =
-      await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    const actual = (await vi.importActual('node:child_process')) as {
+      spawn: typeof spawn;
+      execSync: (command: string) => Buffer;
+    };
+    const { spawn: realSpawn, execSync } = actual;
     vi.mocked(spawn).mockImplementation(realSpawn as any);
 
     // Run the command through the real handler (exercises the detached:true spawn path)
@@ -700,7 +760,8 @@ describe('process-group kill (real process tree)', () => {
     // Get the tracked process PID
     const tracked = processManager.get(String(runId));
     expect(tracked).toBeDefined();
-    const pid = tracked!.process.pid!;
+    const pid = tracked?.process.pid;
+    if (pid === undefined) throw new Error('expected tracked process to have a pid');
 
     // Verify sh leader is alive
     expect(() => process.kill(pid, 0)).not.toThrow();

@@ -4,6 +4,7 @@
  * Uses a temporary HOME directory to avoid polluting the real ~/.chatroom.
  */
 
+import type { ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   clearTrackedPids,
+  forceKillAllTrackedProcessGroups,
   getChildPidsFilePath,
   reapOrphanedProcessGroups,
   trackChildPid,
@@ -41,7 +43,10 @@ let testHome: string;
 beforeEach(() => {
   // Redirect HOME to a fresh temp dir so tests don't pollute ~/.chatroom
   originalHome = process.env.HOME;
-  testHome = join(tmpdir(), `orphan-tracker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  testHome = join(
+    tmpdir(),
+    `orphan-tracker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
   process.env.HOME = testHome;
 });
 
@@ -138,13 +143,58 @@ describe('reapOrphanedProcessGroups — unit', () => {
   });
 });
 
+// ─── C2. forceKillAllTrackedProcessGroups — synchronous force-exit path ──────
+
+describe('forceKillAllTrackedProcessGroups', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns 0 when no PIDs are tracked', () => {
+    expect(forceKillAllTrackedProcessGroups()).toBe(0);
+  });
+
+  it('SIGKILLs each tracked process group via negative PID', () => {
+    const killSpy = vi.spyOn(process, 'kill').mockReturnValue(true);
+    trackChildPid(31001);
+    trackChildPid(31002);
+
+    const killed = forceKillAllTrackedProcessGroups();
+
+    expect(killed).toBe(2);
+    expect(killSpy).toHaveBeenCalledWith(-31001, 'SIGKILL');
+    expect(killSpy).toHaveBeenCalledWith(-31002, 'SIGKILL');
+  });
+
+  it('is best-effort: counts only groups that were actually signalled', () => {
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid) => {
+      if (pid === -32002) throw new Error('ESRCH');
+      return true;
+    });
+    trackChildPid(32001);
+    trackChildPid(32002);
+
+    const killed = forceKillAllTrackedProcessGroups();
+
+    expect(killed).toBe(1);
+    expect(killSpy).toHaveBeenCalledWith(-32001, 'SIGKILL');
+  });
+
+  it('does not throw when no pids file exists', () => {
+    expect(existsSync(getChildPidsFilePath())).toBe(false);
+    expect(() => forceKillAllTrackedProcessGroups()).not.toThrow();
+  });
+});
+
 // ─── D. Integration test — real process tree ─────────────────────────────────
 
 describe('reapOrphanedProcessGroups — integration (real process tree)', () => {
   it('reaps a real orphaned detached process group and clears the pids file', async () => {
     if (process.platform === 'win32') return;
 
-    const { spawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    const { spawn } = (await vi.importActual('node:child_process')) as {
+      spawn: (command: string, args: string[], options: object) => ChildProcess;
+    };
 
     // Spawn a real detached child (simulating a process left over from a crashed daemon)
     const child = spawn('sh', ['-c', 'sleep 30'], {
@@ -153,7 +203,8 @@ describe('reapOrphanedProcessGroups — integration (real process tree)', () => 
     });
     child.unref(); // Don't keep the test process alive
 
-    const pid = child.pid!;
+    const pid = child.pid;
+    if (pid === undefined) throw new Error('expected spawned child to have a pid');
     expect(pid).toBeGreaterThan(0);
 
     // Wait briefly for the process to start
