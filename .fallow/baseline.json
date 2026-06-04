@@ -1,0 +1,48 @@
+{
+  "unused_files": [
+    "apps/webapp/src/components/DateRangePicker.tsx",
+    "apps/webapp/src/components/ThemeToggle.tsx",
+    "apps/webapp/src/components/ui/alert.tsx",
+    "apps/webapp/src/components/ui/collapsible.tsx",
+    "apps/webapp/src/components/ui/fixed-size-dialog.mdx",
+    "apps/webapp/src/components/ui/fixed-size-dialog.tsx",
+    "apps/webapp/src/modules/checklist/checklist-empty-state.tsx"
+  ],
+  "unused_exports": [
+    "apps/webapp/src/modules/password-protection/index.ts:generatePasswordHash",
+    "apps/webapp/src/modules/password-protection/index.ts:verifyPassword",
+    "apps/webapp/src/modules/password-protection/password-utils.ts:generatePasswordHash",
+    "services/backend/modules/auth/accessControl.ts:hasAccessLevel",
+    "services/backend/modules/auth/accessControl.ts:getUserAccessLevel",
+    "services/backend/modules/auth/getAuthUser.ts:getAuthUser"
+  ],
+  "unused_types": [
+    "apps/webapp/src/modules/attendance/types.ts:AttendanceMode",
+    "apps/webapp/src/modules/attendance/types.ts:AttendanceRecord",
+    "apps/webapp/src/modules/checklist/types.ts:ChecklistItemProps",
+    "apps/webapp/src/modules/checklist/types.ts:ChecklistItemFormProps",
+    "apps/webapp/src/modules/password-protection/index.ts:PasswordProtectConfig",
+    "apps/webapp/src/modules/password-protection/index.ts:PasswordProtectContextValue",
+    "services/backend/modules/auth/types/AuthState.ts:GoogleUserProfile"
+  ],
+  "private_type_leaks": [],
+  "unused_dependencies": [],
+  "unused_dev_dependencies": [],
+  "circular_dependencies": [],
+  "re_export_cycles": [],
+  "unused_optional_dependencies": [],
+  "unused_enum_members": [],
+  "unused_class_members": [],
+  "unresolved_imports": [],
+  "unlisted_dependencies": [],
+  "duplicate_exports": [],
+  "type_only_dependencies": [],
+  "test_only_dependencies": [],
+  "boundary_violations": [],
+  "stale_suppressions": [],
+  "unused_catalog_entries": [],
+  "empty_catalog_groups": [],
+  "unresolved_catalog_references": [],
+  "unused_dependency_overrides": [],
+  "misconfigured_dependency_overrides": []
+}

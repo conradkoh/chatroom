@@ -1,0 +1,12 @@
+# Run lint-staged to only process staged files
+pnpm lint-staged
+
+# Fallow audit: dead code, complexity, and duplication on changed files (new issues only)
+command -v fallow >/dev/null 2>&1 || exit 0
+UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+if [ -n "$UPSTREAM" ]; then
+  BASE="$(git merge-base "$UPSTREAM" HEAD 2>/dev/null || echo "$UPSTREAM")"
+else
+  BASE="master"
+fi
+fallow audit --base "$BASE" --dead-code-baseline .fallow/baseline.json --quiet --gate-marker pre-commit
