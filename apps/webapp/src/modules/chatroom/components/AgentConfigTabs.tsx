@@ -94,11 +94,12 @@ function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): stri
 //
 // INITIALIZATION MODEL
 // ────────────────────
-// Form state is initialized ONCE when machines first become available,
-// using a snapshot of the agentPreference taken at mount time.
-// After initialization, all state changes come exclusively from explicit
-// user interactions (handleMachineChange, handleHarnessChange, etc.) — never
-// from reactive prop updates.
+// Form state is initialized ONCE when machines first become available.
+// The "last used" configuration comes from a single source — the persisted
+// teamAgentConfigs (roleConfigs) — so the form reflects exactly what the agent
+// was last started with. After initialization, all state changes come
+// exclusively from explicit user interactions (handleMachineChange,
+// handleHarnessChange, etc.) — never from reactive prop updates.
 //
 // DISPLAY WHEN RUNNING
 // ─────────────────────
@@ -201,6 +202,41 @@ export function shouldDeferInitUntilWorkspacesLoad(
   return false;
 }
 
+/**
+ * Picks the initial resume-session toggle value from PERSISTED state so the
+ * toggle reflects what the agent was last started with — even when the agent is
+ * currently STOPPED and the page was just loaded (when `runningAgentConfig` is
+ * undefined and the lock-step sync effect never fires).
+ *
+ * Without this seed the toggle falls back to the bare `true` form default, so a
+ * config last started with `wantResume: false` would mislead the user with `true`
+ * after a reload. We default to `true` ONLY when no persisted preference exists
+ * (a genuinely new start) — never to mask a known value during load.
+ *
+ * Selection priority mirrors the other `deriveInitial*` helpers: running config →
+ * the config for the chosen machine → the most-recently-updated config for the role.
+ */
+export function deriveInitialResumeSession(
+  machineId: string | null,
+  roleConfigs: AgentConfig[],
+  runningAgentConfig: AgentConfig | undefined
+): boolean {
+  if (runningAgentConfig?.wantResume !== undefined) {
+    return runningAgentConfig.wantResume;
+  }
+  const machineConfig = machineId ? roleConfigs.find((c) => c.machineId === machineId) : undefined;
+  if (machineConfig?.wantResume !== undefined) {
+    return machineConfig.wantResume;
+  }
+  if (roleConfigs.length > 0) {
+    const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+    if (latest.wantResume !== undefined) {
+      return latest.wantResume;
+    }
+  }
+  return true;
+}
+
 export function useAgentControls({
   role,
   chatroomId,
@@ -209,7 +245,6 @@ export function useAgentControls({
   sendCommand,
   teamConfigModel,
   teamConfigHarness,
-  agentPreference,
   onSavePreference,
   teamConfigMachineId,
   teamAutoRestartOnNewContext,
@@ -224,9 +259,14 @@ export function useAgentControls({
   /** Model from team config — used as fallback when machine config has no model */
   teamConfigModel?: string;
   /** Harness from team config — used as a seeding hint for initialization when
-   *  no roleConfig or matching preference is found */
+   *  no roleConfig is found */
   teamConfigHarness?: AgentHarness;
-  /** User's saved preference for this role — used as default pre-population */
+  /**
+   * User's saved preference for this role.
+   * @deprecated No longer read for seeding — the persisted teamAgentConfig is the
+   * single "last used" source. Still accepted (and written via onSavePreference)
+   * pending full removal of the agentPreference store.
+   */
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — saves preference for future sessions */
   onSavePreference?: (pref: AgentPreference) => void;
@@ -239,8 +279,6 @@ export function useAgentControls({
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
 }) {
-  // Snapshot the preference at mount — never react to preference updates
-  const initialPreferenceRef = useRef(agentPreference);
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
 
@@ -305,21 +343,22 @@ export function useAgentControls({
 
   // ── Single initialize-once effect ────────────────────────────────
   // Fires exactly once — when machines first become available.
-  // Uses initialPreferenceRef.current (snapshotted at mount) so this
-  // never re-runs due to preference updates from Convex.
+  // The "last used" config is derived solely from the persisted teamAgentConfigs
+  // (roleConfigs); the agentPreference store is no longer consulted.
   useEffect(() => {
     if (isInitialized || connectedMachines.length === 0) return;
 
-    const pref = initialPreferenceRef.current;
+    // Single source of truth for "last used": persisted teamAgentConfigs.
+    // Preference seeding has been removed — pass `undefined` to the derive helpers.
     const machine = deriveInitialMachineId(
       connectedMachines,
       roleConfigs,
       runningAgentConfig,
-      pref
+      undefined
     );
     if (
       chatroomWorkspacesLoading &&
-      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, pref)
+      shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs, undefined)
     ) {
       return;
     }
@@ -327,14 +366,17 @@ export function useAgentControls({
       machine,
       connectedMachines,
       roleConfigs,
-      pref,
+      undefined,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref, chatroomWorkspaces);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, undefined, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
+    // Seed the resume toggle from the persisted config so a stopped-on-load agent
+    // shows its last-started value instead of the bare `true` default.
+    setResumeSession(deriveInitialResumeSession(machine, roleConfigs, runningAgentConfig));
     seedFromTeamConfig();
     setIsInitialized(true);
   }, [
@@ -346,6 +388,24 @@ export function useAgentControls({
     chatroomWorkspacesLoading,
     seedFromTeamConfig,
   ]);
+
+  // ── Keep the resume toggle in lock-step with the running agent ────
+  // While an agent is running, its actual `wantResume` (from the backend config)
+  // is the source of truth and the toggle is disabled. Mirror that value into
+  // local form state so that when the agent STOPS, the toggle retains what the
+  // agent was started with instead of snapping back to the default `true`. This
+  // covers every stop path (Stop button, Restart, or a stop triggered elsewhere).
+  //
+  // This is a deliberate exception to the "no reactive prop→state sync" rule: the
+  // toggle is disabled while running, so this can never fight user input, and once
+  // the agent stops `runningWantResume` is undefined so it never overrides a value
+  // the user sets after stopping.
+  const runningWantResume = runningAgentConfig?.wantResume;
+  useEffect(() => {
+    if (runningWantResume !== undefined) {
+      setResumeSession(runningWantResume);
+    }
+  }, [runningWantResume]);
 
   // Available models from the selected machine filtered by selected harness
   const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
@@ -371,10 +431,7 @@ export function useAgentControls({
   // Wait for async machine models + filter before deriving selection — avoids flashing
   // a stale model label when switching machines or harnesses.
   const modelSelectionReady =
-    !!selectedMachineId &&
-    !!selectedHarness &&
-    !machineModelsLoading &&
-    !machineModelFilterLoading;
+    !!selectedMachineId && !!selectedHarness && !machineModelsLoading && !machineModelFilterLoading;
 
   // Visible models = available models minus those hidden by the filter.
   // The combobox and automatic model selection use this list.
@@ -393,16 +450,6 @@ export function useAgentControls({
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
 
-    // Saved user preference model (from mount-time snapshot — not reactive)
-    const pref = initialPreferenceRef.current;
-    const prefModel =
-      pref &&
-      pref.machineId === selectedMachineId &&
-      pref.agentHarness === selectedHarness &&
-      pref.model
-        ? pref.model
-        : undefined;
-
     return selectModel({
       selectedHarness,
       availableModels: availableModelsForHarness,
@@ -410,7 +457,8 @@ export function useAgentControls({
       userChoice: selectedHarness ? userModelByHarness[selectedHarness] : undefined,
       machineConfigModel: config?.model ?? undefined,
       teamConfigModel,
-      preferenceModel: prefModel,
+      // Preference model seeding removed — teamAgentConfigs is the single source.
+      preferenceModel: undefined,
     });
   }, [
     modelSelectionReady,
@@ -555,7 +603,10 @@ export function useAgentControls({
           model: selectedModel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
-          wantResume: resumeSession,
+          // Use the authoritative persisted value (what the toggle displays while
+          // running), not raw local form state, so a restart round-trips exactly
+          // what the UI shows. Falls back to local state for pre-field configs.
+          wantResume: runningAgentConfig.wantResume ?? resumeSession,
         },
       });
       setSuccess('Restart command sent!');
@@ -575,17 +626,16 @@ export function useAgentControls({
       setSelectedHarness(null);
       setUserModelByHarness({});
       // Re-initialize working dir for the new machine from current roleConfigs
-      const pref = initialPreferenceRef.current;
-      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref, chatroomWorkspaces);
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, undefined, chatroomWorkspaces);
       setWorkingDir(wd);
     },
     [roleConfigs, chatroomWorkspaces]
   );
 
-  // Wrapper for harness change — does NOT clear other harnesses' model memory.
+  // Wrapper for harness change — does NOT clear other harnesses' model memory,
+  // and does NOT reset resumeSession so the user's preference persists across harness switches.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
     setSelectedHarness(harness);
-    setResumeSession(true);
   }, []);
 
   // Wrapper for user manually selecting a model — stored per harness
@@ -712,6 +762,13 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
   const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
   const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
+  // When running, show the actual resume preference the agent was started with
+  // (from the backend config). Falls back to local form state for older configs
+  // that predate the persisted field, or while not running.
+  const displayResumeSession =
+    isAgentRunning && runningAgentConfig!.wantResume !== undefined
+      ? runningAgentConfig!.wantResume
+      : resumeSession;
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -1205,7 +1262,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <RemoteAgentAdvancedSettings
             role={role}
             agentHarness={displayHarness}
-            resumeSession={resumeSession}
+            resumeSession={displayResumeSession}
             autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
             disabled={isBusy || isAgentRunning}
             isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}

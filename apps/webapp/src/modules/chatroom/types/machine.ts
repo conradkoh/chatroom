@@ -44,6 +44,13 @@ export interface AgentConfig {
   updatedAt: number;
   spawnedAgentPid?: number;
   spawnedAt?: number;
+  /**
+   * The resume-session preference the agent was started with (from the backend
+   * team config). Used to display the actual running value rather than local
+   * form state. Undefined for configs that were never started after this field
+   * was introduced.
+   */
+  wantResume?: boolean;
 }
 
 export type SendCommandArgs =

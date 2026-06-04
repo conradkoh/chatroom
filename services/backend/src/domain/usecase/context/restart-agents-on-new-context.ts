@@ -2,8 +2,8 @@
  * Restart remote agents that opted into auto-restart when pinned context changes.
  */
 
+import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
@@ -27,20 +27,25 @@ export async function restartAgentsOnNewContext(
       continue;
     }
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStart',
-      chatroomId,
-      machineId: config.machineId,
-      role: config.role,
-      agentHarness: config.agentHarness,
-      model: config.model,
-      workingDir: config.workingDir,
-      reason: 'platform.auto_restart_on_new_context',
-      deadline: now + AGENT_REQUEST_DEADLINE_MS,
-      timestamp: now,
-      wantResume: false,
-      autoRestartOnNewContext: config.autoRestartOnNewContext,
-    });
+    await ctx.db.insert(
+      'chatroom_eventStream',
+      buildAgentRequestStartEvent(
+        {
+          chatroomId,
+          machineId: config.machineId,
+          role: config.role,
+          agentHarness: config.agentHarness,
+          model: config.model,
+          workingDir: config.workingDir,
+          reason: 'platform.auto_restart_on_new_context',
+          // A new pinned context is a deliberate fresh start: do NOT resume the
+          // prior harness session even if the persisted preference was true.
+          wantResume: false,
+          autoRestartOnNewContext: config.autoRestartOnNewContext,
+        },
+        now
+      )
+    );
     await transitionAgentStatus(ctx, chatroomId, config.role, 'agent.requestStart', 'running');
     restartedRoles.push(config.role);
   }

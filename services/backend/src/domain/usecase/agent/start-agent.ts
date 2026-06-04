@@ -15,8 +15,8 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
 import { transitionAgentStatus } from './transition-agent-status';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import {
@@ -55,8 +55,10 @@ export interface StartAgentInput {
   reason: AgentStartReason;
   /**
    * When true (default), resume-capable harnesses try to continue from the
-   * daemon's last session for this chatroom+role on first launch (observability
-   * snapshot on agent.requestStart only — not persisted on team config).
+   * daemon's last session for this chatroom+role on first launch. The resolved
+   * value is persisted on the team agent config so the UI can show the actual
+   * value the running agent was started with, and is also emitted on the
+   * agent.requestStart event for observability.
    */
   wantResume?: boolean;
 }
@@ -134,6 +136,9 @@ export async function startAgent(
       workingDir,
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
+      // Persist the resolved resume preference so the UI can show the actual
+      // value the running agent was started with.
+      wantResume: resolvedWantResume,
       ...(preservedAutoRestartOnNewContext !== undefined
         ? { autoRestartOnNewContext: preservedAutoRestartOnNewContext }
         : {}),
@@ -169,22 +174,23 @@ export async function startAgent(
 
   const now = Date.now();
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.requestStart',
-    chatroomId,
-    machineId,
-    role,
-    agentHarness,
-    model,
-    workingDir,
-    reason,
-    deadline: now + AGENT_REQUEST_DEADLINE_MS,
-    timestamp: now,
-    wantResume: resolvedWantResume,
-    ...(resolvedAutoRestartOnNewContext !== undefined
-      ? { autoRestartOnNewContext: resolvedAutoRestartOnNewContext }
-      : {}),
-  });
+  await ctx.db.insert(
+    'chatroom_eventStream',
+    buildAgentRequestStartEvent(
+      {
+        chatroomId,
+        machineId,
+        role,
+        agentHarness,
+        model,
+        workingDir,
+        reason,
+        wantResume: resolvedWantResume,
+        autoRestartOnNewContext: resolvedAutoRestartOnNewContext,
+      },
+      now
+    )
+  );
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
   return {

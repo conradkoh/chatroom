@@ -1,10 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import {
-  agentHarnessValidator,
-  agentTypeValidator,
-} from '../src/domain/entities/agent';
+import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 
 // agentHarnessValidator re-exported for backward compatibility
 // Canonical source is entities/agent.ts.
@@ -966,6 +963,14 @@ export default defineSchema({
 
     /** When true, restart this remote agent after the entry role sets new context. */
     autoRestartOnNewContext: v.optional(v.boolean()),
+
+    /**
+     * The resume-session preference used for the current/last start of this
+     * agent. Persisted so the UI can show the actual value the running agent
+     * was started with (rather than local form state). Resolved value:
+     * defaults to true when the caller omits it.
+     */
+    wantResume: v.optional(v.boolean()),
 
     /** @deprecated Legacy field — no longer written. Kept for existing documents. */
     wantResumeOnFail: v.optional(v.boolean()),
@@ -2026,14 +2031,16 @@ export default defineSchema({
      * and clears this field. This avoids N× reactive chunk fan-out during a run:
      * only a single row update per flush instead of an insert per flush.
      */
-    tailOutput: v.optional(v.object({
-      compression: v.literal('gzip'),
-      content: v.string(),           // base64-encoded gzipped UTF-8
-      byteLength: v.number(),        // decompressed byte length of the tail window
-      totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
-      updatedAt: v.number(),
-      lineCount: v.optional(v.number()), // V2: lines included in tail (max 50)
-    })),
+    tailOutput: v.optional(
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(), // base64-encoded gzipped UTF-8
+        byteLength: v.number(), // decompressed byte length of the tail window
+        totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
+        updatedAt: v.number(),
+        lineCount: v.optional(v.number()), // V2: lines included in tail (max 50)
+      })
+    ),
     /** V2: refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
     logObserverCount: v.optional(v.number()),
     /** V2: webapp requested one-shot full log flush from daemon temp file */
@@ -2055,7 +2062,7 @@ export default defineSchema({
   chatroom_commandOutput: defineTable({
     runId: v.id('chatroom_commandRuns'),
     content: v.union(
-      v.string(),                                              // Legacy: plain UTF-8 text
+      v.string(), // Legacy: plain UTF-8 text
       v.object({ compression: v.literal('gzip'), content: v.string() }) // base64-encoded gzip
     ),
     chunkIndex: v.number(),
@@ -2446,7 +2453,9 @@ export default defineSchema({
     /** Payload for refreshCapabilities commands. */
     refreshCapabilities: v.optional(v.object({ initiatedBy: v.string() })),
     /** Payload for refreshSessionTitle commands. */
-    refreshSessionTitle: v.optional(v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })),
+    refreshSessionTitle: v.optional(
+      v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })
+    ),
     status: v.union(
       v.literal('pending'),
       v.literal('inProgress'),

@@ -71,8 +71,13 @@ export interface EnsureRunningOpts {
   model?: string;
   workingDir: string;
   reason: string;
-  /** When true (default), try daemon-memory resume on stop→start (same daemon process). */
-  wantResume?: boolean;
+  /**
+   * Whether to try daemon-memory resume on stop→start (same daemon process).
+   * Required: the "absent ⇒ default true" decision is resolved at the daemon
+   * event boundary (on-request-start-agent), so callers here always pass a
+   * concrete value. Forgetting it is a compile error.
+   */
+  wantResume: boolean;
 }
 
 export interface StopOpts {
@@ -116,11 +121,13 @@ export interface AgentProcessManagerDeps {
       harness: AgentHarness
     ) => Promise<void>;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => Promise<void>;
-    listAgentEntries: (machineId: string) => Promise<{
-      chatroomId: string;
-      role: string;
-      entry: { pid: number; harness: AgentHarness };
-    }[]>;
+    listAgentEntries: (machineId: string) => Promise<
+      {
+        chatroomId: string;
+        role: string;
+        entry: { pid: number; harness: AgentHarness };
+      }[]
+    >;
   };
   spawning: {
     shouldAllowSpawn: (
@@ -187,7 +194,11 @@ export class AgentProcessManager {
     const slot = this.getOrCreateSlot(key);
 
     // Stale slot — process died without onExit; reset before kill/spawn
-    if (slot.state === 'running' && slot.pid && !isProcessAlive(this.deps.processes.kill, slot.pid)) {
+    if (
+      slot.state === 'running' &&
+      slot.pid &&
+      !isProcessAlive(this.deps.processes.kill, slot.pid)
+    ) {
       slot.state = 'idle';
       slot.pid = undefined;
       slot.harness = undefined;
@@ -311,17 +322,11 @@ export class AgentProcessManager {
               machineId: this.deps.machineId,
               chatroomId: opts.chatroomId,
               role: opts.role,
-              ...(slot?.harnessSessionId
-                ? { harnessSessionId: slot.harnessSessionId }
-                : {}),
+              ...(slot?.harnessSessionId ? { harnessSessionId: slot.harnessSessionId } : {}),
             });
-            console.log(
-              `[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`
-            );
+            console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`);
           } catch (err) {
-            console.log(
-              `   ⚠️  Failed to emit sessionResumed event: ${(err as Error).message}`
-            );
+            console.log(`   ⚠️  Failed to emit sessionResumed event: ${(err as Error).message}`);
           }
 
           return;
@@ -334,9 +339,7 @@ export class AgentProcessManager {
               chatroomId: opts.chatroomId,
               role: opts.role,
               reason,
-              ...(slot?.harnessSessionId
-                ? { harnessSessionId: slot.harnessSessionId }
-                : {}),
+              ...(slot?.harnessSessionId ? { harnessSessionId: slot.harnessSessionId } : {}),
             });
             console.log(
               `[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${opts.role}`
@@ -476,6 +479,9 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
+      // Non-intentional exit: prefer resuming the harness session when supported
+      // so the agent rejoins where it left off rather than cold-restarting.
+      wantResume: true,
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
@@ -797,7 +803,9 @@ export class AgentProcessManager {
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
-        stored.harness !== opts.agentHarness ? 'harness changed' : 'incomplete session in daemon memory',
+        stored.harness !== opts.agentHarness
+          ? 'harness changed'
+          : 'incomplete session in daemon memory',
         stored.harnessSessionId
       );
       return null;
@@ -883,9 +891,7 @@ export class AgentProcessManager {
       });
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${role}`);
     } catch (err) {
-      console.log(
-        `   ⚠️  Failed to emit sessionResumeFailed event: ${(err as Error).message}`
-      );
+      console.log(`   ⚠️  Failed to emit sessionResumeFailed event: ${(err as Error).message}`);
     }
   }
 
@@ -896,7 +902,7 @@ export class AgentProcessManager {
   ): Promise<OperationResult> {
     // Transition: idle → spawning
     slot.state = 'spawning';
-    const wantResume = opts.wantResume ?? true;
+    const wantResume = opts.wantResume;
 
     console.log(
       `[AgentProcessManager] harness start: role=${opts.role} harness=${opts.agentHarness} wantResume=${wantResume} reason=${opts.reason}`
@@ -1178,9 +1184,7 @@ export class AgentProcessManager {
 
       if (harness && slot.harnessSessionId) {
         if (preserveForResume) {
-          const harnessMeta = service
-            ? this.readHarnessReconnectMetadata(service, pid)
-            : undefined;
+          const harnessMeta = service ? this.readHarnessReconnectMetadata(service, pid) : undefined;
           this.recordLastHarnessSession(key, {
             harnessSessionId: slot.harnessSessionId,
             harness,
