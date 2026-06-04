@@ -1,3 +1,5 @@
+import type { AuthState } from '@workspace/backend/modules/auth/types/AuthState';
+
 import { allPermissions, type Permission } from './permissions';
 import {
   type AppRole,
@@ -54,6 +56,22 @@ export function hasPermission(user: UserForPermissions, permission: Permission):
     }
   }
   return false;
+}
+
+/**
+ * Permission check for AuthState — tolerates missing `permissions` (stale session/cache).
+ */
+export function authStateHasPermission(
+  authState: AuthState | undefined,
+  permission: Permission
+): boolean {
+  if (!authState || authState.state !== 'authenticated') {
+    return false;
+  }
+  if (Array.isArray(authState.permissions)) {
+    return authState.permissions.includes(permission);
+  }
+  return hasPermission(authState.user, permission);
 }
 
 /** Resolves concrete registry permissions held by the user (mirrors backend). */

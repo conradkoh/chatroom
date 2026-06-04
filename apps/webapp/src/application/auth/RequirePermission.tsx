@@ -4,6 +4,7 @@ import { ShieldX } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import type { Permission } from './permissions';
+import { authStateHasPermission } from './resolve';
 
 import { Card } from '@/components/ui/card';
 import { useAuthState } from '@/modules/auth/AuthProvider';
@@ -20,8 +21,7 @@ export interface RequirePermissionProps {
 // fallow-ignore-next-line complexity
 export function RequirePermission({ permission, children, fallback }: RequirePermissionProps) {
   const authState = useAuthState();
-  const allowed =
-    authState?.state === 'authenticated' && authState.permissions.includes(permission);
+  const allowed = authStateHasPermission(authState, permission);
 
   if (!allowed) {
     return fallback ?? _defaultFallback(permission);
