@@ -147,7 +147,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
     expect(guidance).toContain(
-      'Feed phases to the builder incrementally — one at a time, not all at once'
+      'Feed slices to the builder incrementally — one at a time, not all at once'
     );
     expect(guidance).not.toContain('tackle one layer at a time');
   });
@@ -160,7 +160,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Feed phases to the builder incrementally');
+    expect(guidance).not.toContain('Feed slices to the builder incrementally');
   });
 
   test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
@@ -171,7 +171,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Feed phases to the builder incrementally');
+    expect(guidance).not.toContain('Feed slices to the builder incrementally');
   });
 
   // ---------------------------------------------------------------------------

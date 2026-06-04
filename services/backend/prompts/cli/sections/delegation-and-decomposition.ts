@@ -20,11 +20,11 @@ export function getDelegationAndDecompositionSection(config: TeamCompositionConf
 
   return `**Delegation & Decomposition:**
 
-Break complex tasks into small, focused phases. For multi-step work (2+ steps), activate the workflow skill to plan and track execution:
+Break complex tasks into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below). A structured workflow is not required to delegate.
+
+For genuinely multi-phase, interdependent work — or when the user asks for a tracked plan — you can optionally activate the workflow skill to plan and track execution as a DAG:
 
 \`\`\`bash
 CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate workflow --chatroom-id=<id> --role=planner
-\`\`\`
-
-Refer to **Delegation Guidelines** below for the full step-by-step workflow commands.`;
+\`\`\``;
 }

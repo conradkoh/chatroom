@@ -93,17 +93,66 @@ describe('Squad Team > Planner > Get Next Task', () => {
       <summary of current focus>
       EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
-      4. Delegate phase 1 to builder:
+      4. Delegate ONE slice to the builder (a structured workflow is optional, not required):
 
-      ⚠️ Before delivering to user: Verify the codebase is in a good state.
-         Run: pnpm typecheck && pnpm test
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in:
+
+      \`\`\`markdown
+      ## Goal
+      <one sentence: the outcome this slice delivers>
+
+      ## Scope & Files
+      - \`path/to/file.ts\` — <what to create/change> (use full paths when known)
+
+      ## Requirements (acceptance criteria)
+      - <verifiable outcome the builder can self-check>
+      - Verify: \`pnpm typecheck && pnpm test\`
+
+      ## Skills to activate (optional)
+      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder>
+
+      ## Out of scope
+      - <what NOT to touch>
+      \`\`\`
+
+      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=builder << 'EOF'
       ---MESSAGE---
-      [Your message here]
+      [Your delegation brief here]
       EOF
       \`\`\`
       (targets: builder, reviewer, user)
+
+      5. When the work is done, deliver to the user using this report template:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
+
+      **Report Template (Planner → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown:
+
+      \`\`\`markdown
+      ## Summary
+      <what was accomplished, in plain terms — no references to prior messages>
+
+      ## Proof — files changed
+      - \`path/to/file.ts\` — <what changed and why>
+      <list every file you (or the builder) modified; this is the evidence of work>
+
+      ## System Design
+      <include a mermaid diagram when the change has non-trivial structure; omit only for trivial changes>
+
+      \`\`\`mermaid
+      flowchart TD
+          A[Component] --> B[Component]
+      \`\`\`
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <result>
+
+      ## Notes / Next steps
+      <anything the user should know, follow-ups, or open questions — optional>
+      \`\`\`
       </next-steps>
 
       ============================================================

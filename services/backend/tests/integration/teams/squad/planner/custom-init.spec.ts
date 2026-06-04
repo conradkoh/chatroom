@@ -260,98 +260,76 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       **Delegation & Decomposition:**
 
-      Break complex tasks into small, focused phases. For multi-step work (2+ steps), activate the workflow skill to plan and track execution:
+      Break complex tasks into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below). A structured workflow is not required to delegate.
+
+      For genuinely multi-phase, interdependent work — or when the user asks for a tracked plan — you can optionally activate the workflow skill to plan and track execution as a DAG:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate workflow --chatroom-id=<id> --role=planner
       \`\`\`
 
-      Refer to **Delegation Guidelines** below for the full step-by-step workflow commands.
-
       **Delegation Guidelines:**
 
-      Break complex features into small, focused phases. For architecture/SOLID guidance, activate the \`software-engineering\` skill.
+      Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role="planner"\`.
 
       **Decision flow:**
       \`\`\`mermaid
       flowchart TD
           A[Receive task] --> B{Can handle alone?}
           B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
-          B -->|No: needs builder| D[List available skills]
-          D -->|skill list| E[Create workflow]
-          E --> F[Specify + execute]
-          F --> G[Delegate step to builder]
-          G --> H[Review output]
-          H -->|Not acceptable| I[Hand back with feedback]
-          I --> G
-          H -->|Acceptable| J[Complete step]
-          J -->|More steps| G
-          J -->|All done| K[Deliver to user]
+          B -->|No: needs builder| D[Write a Delegation Brief]
+          D --> E[Hand off ONE slice to builder]
+          E --> F[Review output]
+          F -->|Not acceptable| G[Hand back with feedback]
+          G --> E
+          F -->|Acceptable| H{More slices?}
+          H -->|Yes| E
+          H -->|No| I[Deliver to user]
       \`\`\`
 
-      **Workflow commands** (a workflow MUST exist before handing off to builder):
+      **Default: delegate with a Delegation Brief.** A structured workflow is NOT required before handing off to the builder — a clear, self-contained brief is enough for most work.
 
-      1. **List available skills** before planning: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role="planner"\`
-      2. **Activate workflow skill**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in:
 
-      3. **Create workflow**:
+      \`\`\`markdown
+      ## Goal
+      <one sentence: the outcome this slice delivers>
 
-         **How to decompose** — think about the phases a human engineer would actually go through to ship the work, then make each phase a step. The right phases depend entirely on what you're building. Some heuristics:
+      ## Scope & Files
+      - \`path/to/file.ts\` — <what to create/change> (use full paths when known)
 
-         - **Each step should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
-         - **One step ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
-         - **Order by dependency**, not by team convention. A step should be runnable/testable when its dependencies are done.
-         - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
-         - **Split a phase** when it contains multiple distinct artifacts (e.g., two unrelated use cases → two steps).
-         - **Always end with a code review step** for code-producing workflows.
+      ## Requirements (acceptance criteria)
+      - <verifiable outcome the builder can self-check>
+      - Verify: \`pnpm typecheck && pnpm test\`
 
-         **Illustrative example only** — DO NOT copy the step keys, count, or descriptions verbatim. This shows the *shape* of a good decomposition for one specific feature (adding comments to posts). Your steps will look different.
+      ## Skills to activate (optional)
+      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder>
 
-         \`\`\`
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow create --chatroom-id=<id> --role="planner" --workflow-key="<your-feature-key>" << 'EOF'
-         {"steps": [
-           {"stepKey": "schema",             "description": "Design the comments table schema + indexes",                "dependsOn": [],                       "order": 1},
-           {"stepKey": "entities",           "description": "Define Comment domain entity + validation",                  "dependsOn": ["schema"],               "order": 2},
-           {"stepKey": "use-cases",          "description": "Implement createComment/listComments use cases + unit tests","dependsOn": ["entities"],             "order": 3},
-           {"stepKey": "api",                "description": "Expose use cases via API layer (mutations/queries)",         "dependsOn": ["use-cases"],            "order": 4},
-           {"stepKey": "frontend-components","description": "Build CommentList + CommentForm presentational components",  "dependsOn": ["api"],                  "order": 5},
-           {"stepKey": "frontend-hooks",     "description": "Wire components to API via useComments/useCreateComment",    "dependsOn": ["frontend-components"],  "order": 6},
-           {"stepKey": "review",             "description": "Code review",                                                 "dependsOn": ["frontend-hooks"],       "order": 7}
-         ]}
-         EOF
-         \`\`\`
+      ## Out of scope
+      - <what NOT to touch>
+      \`\`\`
 
-         Other shapes are equally valid — e.g., a bug fix might be \`reproduce → fix → regression-test → review\`; a refactor might be \`extract-interface → migrate-callers → delete-old → review\`; an infra change might have no frontend phases at all. Decompose the work in front of you, not the example.
+      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 
-      4. **Specify** each step: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow specify --workflow-key="<key>" --step-key="<step>" --assignee-role="<role>" --chatroom-id=<id> --role="planner"\`
-         - Provide GOAL, SKILLS, REQUIREMENTS, WARNINGS via heredoc
-         - **SKILLS**: Include full \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate <name> --chatroom-id=<id> --role="planner"\` commands that the assignee should run
-         - Use the \`skill list\` output from step 1 to choose the right skills per step
-      5. **Execute**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow execute --workflow-key="<key>" --chatroom-id=<id> --role="planner"\`
-      6. **Delegate**: handoff with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-view --workflow-key="<key>" --step-key="<step>" --chatroom-id=<id> --role="planner"\` command
-      7. **On handback**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow step-complete --workflow-key="<key>" --step-key="<step>" --chatroom-id=<id> --role="planner"\` or hand back with feedback
-      8. **Check next**: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow status --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` → delegate, self-handle, or deliver
+      **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
-      ⚠️ Workflows complete automatically when all steps are done. Only use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow exit --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` to abandon.
+      - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+      - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
+      - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
+      - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-      **Step specification quality:**
-      When specifying steps with \`workflow specify\`, give the builder enough to act without guessing:
-      - **Concrete artifacts**: name the files/modules to create or change (full paths when known)
-      - **Contracts**: when a step produces an interface other steps depend on, sketch it inline (TypeScript types, function signatures, or schema shape)
-      - **Acceptance criteria**: how the builder will know they're done
+      **Optional: structured workflows (opt-in).** For genuinely multi-phase, interdependent efforts — or when the user explicitly asks for a tracked plan — activate the \`workflow\` skill to plan and track execution as a DAG: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`. The skill documents the full \`workflow create/specify/execute/status\` command set. Don't reach for it for simple, single-slice work.
 
-      Adapt depth to the step — a one-file fix needs a sentence; a new module needs paths and types.
+      **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`.
 
-      **Code review:** Include a review step for code-producing workflows. Activate with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`
+      **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id=<id> --role="planner"\`.
 
-      **Backlog items:** When task originates from a backlog item, activate backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id=<id> --role="planner"\`
-
-      **If stuck:** After 2 failed rework attempts → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom workflow exit --workflow-key="<key>" --chatroom-id=<id> --role="planner"\` with reason → replan or deliver partial results.
+      **If stuck:** After 2 failed rework attempts → step back, replan the slice (or fall back to a structured workflow), or deliver partial results with a clear explanation.
 
       **Review loop:**
-      - Review completed work before moving to the next phase
-      - Send back with specific feedback if requirements aren't met
-      - Feed phases to the builder incrementally — one at a time, not all at once
+      - Review completed work before moving to the next slice.
+      - Send back with specific feedback if requirements aren't met.
+      - Feed slices to the builder incrementally — one at a time, not all at once.
 
       **Handoff Rules:**
 

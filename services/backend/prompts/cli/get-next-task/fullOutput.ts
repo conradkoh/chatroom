@@ -15,6 +15,7 @@
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { classifyCommand } from '../classify/command';
 import { contextNewCommand, contextNewHint } from '../context/new';
+import { getHandoffTemplate } from '../handoff-templates';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -279,19 +280,29 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `3. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
       lines.push(contextNewHint());
-      lines.push('4. Delegate phase 1 to builder:');
-      maybeAddVerificationReminder(lines, availableHandoffTargets);
+      lines.push(
+        '4. Delegate ONE slice to the builder (a structured workflow is optional, not required):'
+      );
+      lines.push('');
+      lines.push(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' }) ?? '');
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
       );
       lines.push('---MESSAGE---');
-      lines.push('[Your message here]');
+      lines.push('[Your delegation brief here]');
       lines.push('EOF');
       lines.push('```');
       if (availableHandoffTargets.length > 0) {
         lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
       }
+      // Eagerly deliver the report template so it shapes the final deliverable
+      // from the start — the user can only ever see the handoff-to-user message.
+      lines.push('');
+      lines.push('5. When the work is done, deliver to the user using this report template:');
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
+      lines.push('');
+      lines.push(getHandoffTemplate({ fromRole: 'planner', toRole: 'user' }) ?? '');
     } else {
       // Non-coordinator role receiving a user message
       let nextStepNum = 3;
