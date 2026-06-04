@@ -45,7 +45,7 @@ async function startAgent(
   machineId: string,
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
-  options?: { allowNewMachine?: boolean }
+  options?: { allowNewMachine?: boolean; wantResume?: boolean }
 ) {
   return await t.mutation(api.machines.sendCommand, {
     sessionId,
@@ -60,6 +60,7 @@ async function startAgent(
       ...(options?.allowNewMachine !== undefined
         ? { allowNewMachine: options.allowNewMachine }
         : {}),
+      ...(options?.wantResume !== undefined ? { wantResume: options.wantResume } : {}),
     },
   });
 }
@@ -334,5 +335,68 @@ describe('startAgent use case — desiredState', () => {
         .collect();
     });
     expect(switched.length).toBe(0);
+  });
+});
+
+describe('startAgent use case — wantResume persistence', () => {
+  async function readTeamConfig(chatroomId: Id<'chatroom_rooms'>, role: string) {
+    return await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', role))
+        )
+        .first();
+    });
+  }
+
+  test('persists wantResume: false on the team config when explicitly disabled', async () => {
+    const { sessionId } = await createTestSession('start-agent-resume-false');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-machine-resume-false';
+
+    await registerMachine(sessionId, machineId);
+    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: false });
+
+    const config = await readTeamConfig(chatroomId, 'builder');
+    expect(config?.wantResume).toBe(false);
+  });
+
+  test('persists wantResume: true on the team config when explicitly enabled', async () => {
+    const { sessionId } = await createTestSession('start-agent-resume-true');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-machine-resume-true';
+
+    await registerMachine(sessionId, machineId);
+    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: true });
+
+    const config = await readTeamConfig(chatroomId, 'builder');
+    expect(config?.wantResume).toBe(true);
+  });
+
+  test('defaults wantResume to true when omitted', async () => {
+    const { sessionId } = await createTestSession('start-agent-resume-default');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-machine-resume-default';
+
+    await registerMachine(sessionId, machineId);
+    await startAgent(sessionId, machineId, chatroomId, 'builder');
+
+    const config = await readTeamConfig(chatroomId, 'builder');
+    expect(config?.wantResume).toBe(true);
+  });
+
+  test('updates persisted wantResume on a subsequent start (false then true)', async () => {
+    const { sessionId } = await createTestSession('start-agent-resume-update');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-machine-resume-update';
+
+    await registerMachine(sessionId, machineId);
+
+    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: false });
+    expect((await readTeamConfig(chatroomId, 'builder'))?.wantResume).toBe(false);
+
+    await startAgent(sessionId, machineId, chatroomId, 'builder', { wantResume: true });
+    expect((await readTeamConfig(chatroomId, 'builder'))?.wantResume).toBe(true);
   });
 });

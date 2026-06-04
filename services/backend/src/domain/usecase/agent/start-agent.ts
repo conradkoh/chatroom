@@ -55,8 +55,10 @@ export interface StartAgentInput {
   reason: AgentStartReason;
   /**
    * When true (default), resume-capable harnesses try to continue from the
-   * daemon's last session for this chatroom+role on first launch (observability
-   * snapshot on agent.requestStart only — not persisted on team config).
+   * daemon's last session for this chatroom+role on first launch. The resolved
+   * value is persisted on the team agent config so the UI can show the actual
+   * value the running agent was started with, and is also emitted on the
+   * agent.requestStart event for observability.
    */
   wantResume?: boolean;
 }
@@ -134,6 +136,9 @@ export async function startAgent(
       workingDir,
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
+      // Persist the resolved resume preference so the UI can show the actual
+      // value the running agent was started with.
+      wantResume: resolvedWantResume,
       ...(preservedAutoRestartOnNewContext !== undefined
         ? { autoRestartOnNewContext: preservedAutoRestartOnNewContext }
         : {}),

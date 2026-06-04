@@ -8,10 +8,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from './auth/core/accessCheck';
 import { getSession, requireSession } from './auth/core/session';
-import {
-  getMachineOwner,
-  requireMachineOwner,
-} from './auth/cli/machineAccess';
+import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
@@ -132,7 +129,7 @@ async function getOwnedMachine(
 async function upsertMachineModels(
   ctx: MutationCtx,
   machineId: string,
-  availableModels: Record<string, string[]> | undefined,
+  availableModels: Record<string, string[]> | undefined
 ): Promise<void> {
   if (availableModels === undefined) {
     // Don't clobber existing models when caller didn't supply them.
@@ -607,11 +604,7 @@ export const listMachines = query({
 export const getMachineModels = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return { availableModels: {} as Record<string, string[]> };
 
     const machine = await ctx.db
@@ -644,11 +637,7 @@ export const getDaemonStatus = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) {
       return { connected: false, lastSeenAt: null };
     }
@@ -742,6 +731,7 @@ export const getMachineAgentConfigs = query({
         updatedAt: config.updatedAt,
         spawnedAgentPid: config.spawnedAgentPid,
         spawnedAt: config.spawnedAt,
+        wantResume: config.wantResume,
       };
     });
 
@@ -756,11 +746,7 @@ export const getCommandEvents = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return { events: [] };
 
     const now = Date.now();
@@ -881,11 +867,7 @@ export const getDaemonPongEvent = query({
     afterEventId: v.optional(v.id('chatroom_eventStream')),
   },
   handler: async (ctx, args) => {
-    const auth = await getMachineOwner(
-      ctx,
-      args.sessionId,
-      args.machineId
-    );
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return null;
 
     const pongEvents = await ctx.db
@@ -1020,7 +1002,7 @@ export const updateDaemonStatus = mutation({
 
     // TODO: Remove once chatroom_machineStatus is the sole source of truth.
     // Kept for backward compatibility during migration.
-    await ctx.db.patch("chatroom_machines", machine._id, {
+    await ctx.db.patch('chatroom_machines', machine._id, {
       daemonConnected: args.connected,
       lastSeenAt: now,
     });
@@ -1032,7 +1014,7 @@ export const updateDaemonStatus = mutation({
       .first();
 
     if (existingLiveness) {
-      await ctx.db.patch("chatroom_machineLiveness", existingLiveness._id, {
+      await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
         lastSeenAt: now,
         daemonConnected: args.connected,
       });
@@ -1060,7 +1042,7 @@ export const updateDaemonStatus = mutation({
       });
     } else if (machineStatus.status !== desiredStatus) {
       // Actual state transition — write
-      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
+      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
         status: desiredStatus,
         lastTransitionAt: now,
       });
@@ -1089,8 +1071,7 @@ export const daemonHeartbeat = mutation({
       .first();
 
     if (existingLiveness) {
-      const livenessStale =
-        now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+      const livenessStale = now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
       const needsDaemonConnected = existingLiveness.daemonConnected !== true;
       if (livenessStale || needsDaemonConnected) {
         await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
@@ -1121,7 +1102,7 @@ export const daemonHeartbeat = mutation({
       });
     } else if (machineStatus.status === 'offline') {
       // Transition offline → online
-      await ctx.db.patch("chatroom_machineStatus", machineStatus._id, {
+      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
         status: 'online',
         lastTransitionAt: now,
       });
@@ -2390,7 +2371,7 @@ export const getAgentOverviewForChatroom = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return null;
 
-    const chatroom = await ctx.db.get("chatroom_rooms", args.chatroomId);
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
 
     const userMachines = await ctx.db

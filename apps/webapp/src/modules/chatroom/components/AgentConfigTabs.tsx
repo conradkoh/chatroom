@@ -709,6 +709,13 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
   const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
   const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
+  // When running, show the actual resume preference the agent was started with
+  // (from the backend config). Falls back to local form state for older configs
+  // that predate the persisted field, or while not running.
+  const displayResumeSession =
+    isAgentRunning && runningAgentConfig!.wantResume !== undefined
+      ? runningAgentConfig!.wantResume
+      : resumeSession;
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -1202,7 +1209,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <RemoteAgentAdvancedSettings
             role={role}
             agentHarness={displayHarness}
-            resumeSession={resumeSession}
+            resumeSession={displayResumeSession}
             autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
             disabled={isBusy || isAgentRunning}
             isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}
