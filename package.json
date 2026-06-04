@@ -28,15 +28,6 @@
     "local:update": "bash scripts/local-update.sh",
     "dev:convex": "cd services/backend && npx convex run --internal dev:cleanup"
   },
-  "lint-staged": {
-    "**/*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "**/*.{json,md,css,scss,yml,mdx}": [
-      "prettier --write"
-    ]
-  },
   "keywords": [],
   "author": "",
   "license": "Elastic-2.0",

@@ -7,4 +7,6 @@ build
 .git
 coverage
 .pnpm-debug.log
+# Convex codegen (glob + explicit backend path)
 **/convex/_generated/**
+services/backend/convex/_generated/**
