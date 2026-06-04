@@ -63,6 +63,20 @@ function mkRunningConfig(wantResume: boolean): AgentConfig {
   };
 }
 
+/** A STOPPED (no spawnedAgentPid) config that still remembers its last wantResume. */
+function mkStoppedConfig(wantResume: boolean): AgentConfig {
+  return {
+    machineId: 'a',
+    hostname: 'host-a',
+    role: 'builder',
+    agentType: 'cursor-sdk',
+    workingDir: '/workspace',
+    availableHarnesses: ['cursor-sdk'],
+    updatedAt: Date.now(),
+    wantResume,
+  };
+}
+
 function Harness({
   agentConfigs,
   sendCommand = vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
@@ -145,6 +159,30 @@ describe('AgentConfigTabs resume toggle persistence', () => {
     );
 
     rerender(<Harness agentConfigs={[]} sendCommand={sendCommand} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Resume session' })).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
+    });
+  });
+
+  it('shows the resume toggle OFF on fresh load for a STOPPED agent last started with wantResume=false', async () => {
+    // Stopped-on-load: no running agent, but the persisted config remembers false.
+    // The toggle must seed from that persisted value, not the bare `true` default.
+    render(<Harness agentConfigs={[mkStoppedConfig(false)]} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Resume session' })).toHaveAttribute(
+        'aria-checked',
+        'false'
+      );
+    });
+  });
+
+  it('shows the resume toggle ON on fresh load for a STOPPED agent last started with wantResume=true', async () => {
+    render(<Harness agentConfigs={[mkStoppedConfig(true)]} />);
 
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Resume session' })).toHaveAttribute(

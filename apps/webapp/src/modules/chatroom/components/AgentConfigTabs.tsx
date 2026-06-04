@@ -201,6 +201,41 @@ export function shouldDeferInitUntilWorkspacesLoad(
   return false;
 }
 
+/**
+ * Picks the initial resume-session toggle value from PERSISTED state so the
+ * toggle reflects what the agent was last started with — even when the agent is
+ * currently STOPPED and the page was just loaded (when `runningAgentConfig` is
+ * undefined and the lock-step sync effect never fires).
+ *
+ * Without this seed the toggle falls back to the bare `true` form default, so a
+ * config last started with `wantResume: false` would mislead the user with `true`
+ * after a reload. We default to `true` ONLY when no persisted preference exists
+ * (a genuinely new start) — never to mask a known value during load.
+ *
+ * Selection priority mirrors the other `deriveInitial*` helpers: running config →
+ * the config for the chosen machine → the most-recently-updated config for the role.
+ */
+export function deriveInitialResumeSession(
+  machineId: string | null,
+  roleConfigs: AgentConfig[],
+  runningAgentConfig: AgentConfig | undefined
+): boolean {
+  if (runningAgentConfig?.wantResume !== undefined) {
+    return runningAgentConfig.wantResume;
+  }
+  const machineConfig = machineId ? roleConfigs.find((c) => c.machineId === machineId) : undefined;
+  if (machineConfig?.wantResume !== undefined) {
+    return machineConfig.wantResume;
+  }
+  if (roleConfigs.length > 0) {
+    const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+    if (latest.wantResume !== undefined) {
+      return latest.wantResume;
+    }
+  }
+  return true;
+}
+
 export function useAgentControls({
   role,
   chatroomId,
@@ -335,6 +370,9 @@ export function useAgentControls({
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
+    // Seed the resume toggle from the persisted config so a stopped-on-load agent
+    // shows its last-started value instead of the bare `true` default.
+    setResumeSession(deriveInitialResumeSession(machine, roleConfigs, runningAgentConfig));
     seedFromTeamConfig();
     setIsInitialized(true);
   }, [
