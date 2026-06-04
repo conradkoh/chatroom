@@ -4,7 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/core/chatroomAccess';
 import { getSession, requireSession } from './auth/core/session';
-import { isActiveParticipant } from '../src/domain/entities/participant';
+import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
@@ -475,14 +475,7 @@ export const listParticipantPresence = query({
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
           .collect();
 
-        return participants.map((p) => ({
-          chatroomId: chatroom._id as string,
-          role: p.role,
-          lastSeenAt: p.lastSeenAt ?? null,
-          lastSeenAction: p.lastSeenAction ?? null,
-          lastStatus: p.lastStatus ?? null,
-          lastDesiredState: p.lastDesiredState ?? null,
-        }));
+        return participants.map((p) => toParticipantPresence(chatroom._id as string, p));
       })
     );
 
@@ -505,14 +498,7 @@ export const getPresenceForChatroom = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    return participants.map((p) => ({
-      chatroomId: args.chatroomId as string,
-      role: p.role,
-      lastSeenAt: p.lastSeenAt ?? null,
-      lastSeenAction: p.lastSeenAction ?? null,
-      lastStatus: p.lastStatus ?? null,
-      lastDesiredState: p.lastDesiredState ?? null,
-    }));
+    return participants.map((p) => toParticipantPresence(args.chatroomId as string, p));
   },
 });
 
@@ -547,7 +533,7 @@ export const recordChatroomObservation = mutation({
       if (args.refresh) {
         patch.lastRefreshedAt = now;
       }
-      await ctx.db.patch("chatroom_observation", existing._id, patch);
+      await ctx.db.patch('chatroom_observation', existing._id, patch);
     } else {
       // Create new observation record
       await ctx.db.insert('chatroom_observation', {

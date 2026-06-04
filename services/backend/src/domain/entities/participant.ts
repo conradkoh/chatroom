@@ -22,3 +22,51 @@ export const PARTICIPANT_EXITED_ACTION = 'exited';
 export function isActiveParticipant(participant: { lastSeenAction?: string | null }): boolean {
   return participant.lastSeenAction !== PARTICIPANT_EXITED_ACTION;
 }
+
+/**
+ * Canonical participant-presence row exposed to clients.
+ *
+ * This is the single source of truth for the presence shape. Every query that
+ * surfaces participant presence (`listParticipantPresence`, `getPresenceForChatroom`,
+ * …) MUST build rows via {@link toParticipantPresence} so the contract cannot drift
+ * field-by-field across queries — and so the frontend can mirror exactly one shape.
+ *
+ * Note the optional DB columns are normalized to a REQUIRED `… | null` value here
+ * (not dropped, not defaulted to a plausible-but-wrong value): "not yet known" is
+ * represented explicitly as `null`, never silently coerced to a real-looking default.
+ */
+export interface ParticipantPresence {
+  chatroomId: string;
+  role: string;
+  lastSeenAt: number | null;
+  lastSeenAction: string | null;
+  lastStatus: string | null;
+  lastDesiredState: string | null;
+}
+
+/** Source fields a participant record contributes to its presence row. */
+export interface ParticipantPresenceSource {
+  role: string;
+  lastSeenAt?: number | null;
+  lastSeenAction?: string | null;
+  lastStatus?: string | null;
+  lastDesiredState?: string | null;
+}
+
+/**
+ * Maps a participant record into the canonical {@link ParticipantPresence} row.
+ * Optional columns become an explicit `null` rather than `undefined` or a default.
+ */
+export function toParticipantPresence(
+  chatroomId: string,
+  participant: ParticipantPresenceSource
+): ParticipantPresence {
+  return {
+    chatroomId,
+    role: participant.role,
+    lastSeenAt: participant.lastSeenAt ?? null,
+    lastSeenAction: participant.lastSeenAction ?? null,
+    lastStatus: participant.lastStatus ?? null,
+    lastDesiredState: participant.lastDesiredState ?? null,
+  };
+}
