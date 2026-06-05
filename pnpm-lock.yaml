@@ -309,6 +309,9 @@ importers:
       effect:
         specifier: ^3.0.0
         version: 3.21.2
+      jsonc-parser:
+        specifier: ^3.3.1
+        version: 3.3.1
     devDependencies:
       '@types/bun':
         specifier: latest
@@ -7128,6 +7131,12 @@ packages:
       }
     engines: { node: '>=6' }
     hasBin: true
+
+  jsonc-parser@3.3.1:
+    resolution:
+      {
+        integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==,
+      }
 
   jsx-ast-utils@3.3.5:
     resolution:
@@ -14439,6 +14448,8 @@ snapshots:
       minimist: 1.2.8
 
   json5@2.2.3: {}
+
+  jsonc-parser@3.3.1: {}
 
   jsx-ast-utils@3.3.5:
     dependencies:
