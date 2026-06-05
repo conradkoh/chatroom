@@ -14,7 +14,9 @@
  * handled by a real lexer rather than by pattern matching.
  */
 
-import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
+// Bun resolves package "main" (UMD) which uses runtime require('./impl/*') and breaks
+// when bundled into dist/index.js. The ESM entry uses static imports that bundle cleanly.
+import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser/lib/esm/main.js';
 
 /**
  * Parse JSONC content into a value, tolerating comments and trailing commas.
