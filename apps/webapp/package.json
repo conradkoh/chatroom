@@ -1,9 +1,10 @@
 {
   "name": "@workspace/webapp",
-  "version": "1.53.6",
+  "version": "1.54.0",
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env.local -- next dev",
+    "dev:clean": "rm -rf .next && dotenv -e .env.local -- env TURBOPACK_FS_CACHE=0 next dev",
     "build": "next build --turbopack",
     "start": "next start --turbopack",
     "typecheck": "tsc --noEmit",

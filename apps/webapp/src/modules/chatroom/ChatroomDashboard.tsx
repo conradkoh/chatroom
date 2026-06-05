@@ -19,6 +19,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -27,7 +28,7 @@ import { toast } from 'sonner';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { useTeamConfigs } from './hooks/use-team-configs';
 import { AgentPanel } from './components/AgentPanel';
-import { AgentSettingsModal } from './components/AgentSettingsModal';
+import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -37,16 +38,13 @@ import {
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
 import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
-import { ProcessesPanel } from './workspace/components/panels/ProcessesPanel';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { MessageInput } from './components/MessageInput';
-import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
-import { DirectHarnessView } from './direct-harness/components/DirectHarnessView';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import type { AgentConfig } from './types/machine';
@@ -61,13 +59,9 @@ import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
-import {
-  FileExplorerPanel,
-  FILE_EXPLORER_REFRESH_EVENT,
-} from './workspace/components/FileExplorerPanel';
+import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
-import { PullRequestsPanel } from './workspace/components/panels/PullRequestsPanel';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
@@ -101,6 +95,48 @@ import { toRepoHttpsUrl } from '@/lib/git-url';
 import { openExternalUrl } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
+
+const AgentSettingsModal = dynamic(
+  () => import('./components/AgentSettingsModal').then((m) => ({ default: m.AgentSettingsModal })),
+  { loading: () => null }
+);
+
+const SetupChecklistModal = dynamic(
+  () => import('./components/SetupChecklistModal').then((m) => ({ default: m.SetupChecklistModal })),
+  { loading: () => null }
+);
+
+const FileExplorerPanel = dynamic(
+  () =>
+    import('./workspace/components/FileExplorerPanel').then((m) => ({
+      default: m.FileExplorerPanel,
+    })),
+  { loading: () => <PanelLoadingSpinner /> }
+);
+
+const DirectHarnessView = dynamic(
+  () =>
+    import('./direct-harness/components/DirectHarnessView').then((m) => ({
+      default: m.DirectHarnessView,
+    })),
+  { loading: () => <PanelLoadingSpinner /> }
+);
+
+const PullRequestsPanel = dynamic(
+  () =>
+    import('./workspace/components/panels/PullRequestsPanel').then((m) => ({
+      default: m.PullRequestsPanel,
+    })),
+  { loading: () => <PanelLoadingSpinner /> }
+);
+
+const ProcessesPanel = dynamic(
+  () =>
+    import('./workspace/components/panels/ProcessesPanel').then((m) => ({
+      default: m.ProcessesPanel,
+    })),
+  { loading: () => <PanelLoadingSpinner /> }
+);
 
 // Constant to indicate "all machines" when stopping agents across all connected machines
 const ALL_MACHINES = '';

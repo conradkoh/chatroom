@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname, '../../'),
   },
+  // Disable when `.next/dev/cache/turbopack` grows unbounded and compaction pegs CPU.
+  // Use: TURBOPACK_FS_CACHE=0 pnpm dev  (or apps/webapp `pnpm dev:clean` after stopping dev)
+  experimental: {
+    turbopackFileSystemCacheForDev: process.env.TURBOPACK_FS_CACHE !== '0',
+  },
 };
 
 const withMDX = createMDX({
