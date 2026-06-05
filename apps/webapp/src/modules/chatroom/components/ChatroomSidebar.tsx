@@ -193,6 +193,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   }, [chatrooms]);
 
   const handleSelect = (chatroomId: string) => {
+    if (chatroomId === activeChatroomId) return;
     router.push(`/app/chatroom?id=${chatroomId}`);
   };
 

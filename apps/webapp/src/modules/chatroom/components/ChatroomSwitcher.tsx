@@ -2,8 +2,10 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Star } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useCallback, useState, useRef } from 'react';
+
+import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
 
 import {
   Command,
@@ -14,15 +16,14 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
-import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
+import { cn } from '@/lib/utils';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
 } from '@/modules/chatroom/context/ChatroomListingContext';
+import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
 // Status indicator colors - using squares per theme guidelines (mirrors ChatroomSidebar)
@@ -60,6 +61,10 @@ export function ChatroomSwitcher() {
     [openDialog, closeDialog]
   );
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeChatroomId =
+    pathname === '/app/chatroom' ? searchParams.get('id') : null;
   const { chatrooms } = useChatroomListing();
 
   const [searchValue, setSearchValue] = useState('');
@@ -92,7 +97,9 @@ export function ChatroomSwitcher() {
   }, [open, openDialog, closeDialog]);
 
   const handleSelect = (chatroomId: string) => {
-    router.push(`/app/chatroom?id=${chatroomId}`);
+    if (activeChatroomId !== chatroomId) {
+      router.push(`/app/chatroom?id=${chatroomId}`);
+    }
     setOpen(false);
   };
 

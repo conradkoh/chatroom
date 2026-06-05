@@ -33,7 +33,9 @@ export default function AppLayout({
       <AuthErrorBoundary>
         <ChatroomListingProvider>
           <CommandDialogProvider>
-            <ChatroomSwitcher />
+            <Suspense fallback={null}>
+              <ChatroomSwitcher />
+            </Suspense>
             <GlobalNotificationListener />
             <Suspense fallback={<PageSpinner />}>{children}</Suspense>
           </CommandDialogProvider>
