@@ -25,6 +25,12 @@ vi.mock('@cursor/sdk', () => ({
   },
 }));
 
+vi.mock('./cursor-sdk-package.js', () => ({
+  importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
+  getBundledCursorSdkVersion: vi.fn(() => '1.0.18'),
+  formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+}));
+
 function createMockDeps(overrides?: Partial<CursorSdkAgentServiceDeps>): CursorSdkAgentServiceDeps {
   return {
     execSync: vi.fn(),
