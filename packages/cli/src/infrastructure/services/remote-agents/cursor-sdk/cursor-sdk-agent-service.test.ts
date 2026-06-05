@@ -283,7 +283,8 @@ describe('CursorSdkAgentService', () => {
       });
 
       const waitingForResume = new Promise<void>((resolve) => {
-        result.onAgentEnd!(resolve);
+        if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+        result.onAgentEnd(resolve);
       });
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
@@ -316,7 +317,8 @@ describe('CursorSdkAgentService', () => {
 
       let agentEndCount = 0;
       // AgentProcessManager calls resumeTurn inside onAgentEnd — same turn, no await.
-      result.onAgentEnd!(() => {
+      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+      result.onAgentEnd(() => {
         agentEndCount++;
         if (agentEndCount === 1) {
           void service.resumeTurn(result.pid, 'daemon resume prompt');
@@ -417,7 +419,8 @@ describe('CursorSdkAgentService', () => {
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
       });
-      result.onAgentEnd!(() => agentEndTimes.push(Date.now()));
+      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+      result.onAgentEnd(() => agentEndTimes.push(Date.now()));
 
       await vi.waitFor(() => expect(agentEndTimes).toHaveLength(1));
       expect(runWait).toHaveBeenCalled();
@@ -449,6 +452,111 @@ describe('CursorSdkAgentService', () => {
       await service.stop(result.pid);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+      expect(sharedAgentCloseFn).toHaveBeenCalled();
+    });
+  });
+
+  describe('turn loop errors', () => {
+    it('writes spawn-error and exits when the run stream throws (e.g. Cursor auth failure)', async () => {
+      const authError = Object.assign(new Error('[unauthenticated] Error'), {
+        name: 'ConnectError',
+        code: 16,
+      });
+      const run = {
+        id: 'run-auth-fail',
+        stream: async function* () {
+          yield {
+            type: 'status',
+            agent_id: 'agent-1',
+            run_id: 'run-auth-fail',
+            status: 'ERROR',
+          };
+          throw authError;
+        },
+        wait: vi.fn(),
+        supports: () => false,
+        cancel: vi.fn(),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(5555);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      const exitInfo = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+      result.onExit(exitInfo);
+
+      await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+      expect(stderrWriteSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
+      );
+      expect(run.wait).not.toHaveBeenCalled();
+      expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
+      expect(sharedAgentCloseFn).toHaveBeenCalled();
+    });
+
+    it('writes spawn-error and exits when run.wait rejects after a successful stream', async () => {
+      const waitError = Object.assign(new Error('[unauthenticated] Error'), {
+        name: 'ConnectError',
+        code: 16,
+      });
+      const run = {
+        id: 'run-wait-fail',
+        stream: async function* () {},
+        wait: vi.fn().mockRejectedValue(waitError),
+        supports: () => false,
+        cancel: vi.fn(),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(5556);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+        kill: vi.fn((_pid: number, signal: number | string) => {
+          if (signal === 0) throw new Error('process not found');
+          return true;
+        }),
+      });
+      const service = new CursorSdkAgentService(deps);
+
+      const exitInfo = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+      });
+      result.onExit(exitInfo);
+
+      await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+      expect(stderrWriteSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
+      );
+      expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
     });
   });
