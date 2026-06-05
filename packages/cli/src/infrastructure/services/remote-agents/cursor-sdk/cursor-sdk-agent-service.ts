@@ -36,6 +36,7 @@ import type {
   VersionInfo,
 } from '../remote-agent-service.js';
 import { resolveCursorSdkModel } from './cursor-models.js';
+import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 
 type Run = CursorSdkModule.Run;
@@ -162,6 +163,7 @@ function resolveModelId(model?: string): string {
 function writeSpawnError(logPrefix: string, err: unknown): void {
   const reason = err instanceof Error ? err.message : String(err);
   process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
+  console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
 
 export class CursorSdkAgentService extends BaseCLIAgentService {
@@ -562,16 +564,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         if (exited) return;
         exited = true;
 
-        // Only tear down the Cursor agent on intentional abort without preserve.
-        // Unexpected keeper exit leaves the session open for resumeFromDaemonMemory.
-        if (!session.agentClosed && session.aborted && !session.preserveForResume) {
-          try {
-            agent.close();
-            session.agentClosed = true;
-          } catch {
-            // Best-effort
-          }
-        }
+        closeCursorAgentOnFailure(agent, session, exitCode);
 
         try {
           session.keeper.kill();
@@ -585,6 +578,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       writeSpawnError(logPrefix, err);
       if (exited) return;
       exited = true;
+      closeCursorAgentOnFailure(agent, session, 1, true);
       try {
         session.keeper.kill();
       } catch {

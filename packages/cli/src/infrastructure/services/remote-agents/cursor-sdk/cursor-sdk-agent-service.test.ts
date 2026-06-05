@@ -510,6 +510,7 @@ describe('CursorSdkAgentService', () => {
       );
       expect(run.wait).not.toHaveBeenCalled();
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
+      expect(sharedAgentCloseFn).toHaveBeenCalled();
     });
 
     it('writes spawn-error and exits when run.wait rejects after a successful stream', async () => {
@@ -556,6 +557,7 @@ describe('CursorSdkAgentService', () => {
         expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
       );
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
+      expect(sharedAgentCloseFn).toHaveBeenCalled();
     });
   });
 
