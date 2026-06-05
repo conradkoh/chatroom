@@ -253,4 +253,39 @@ describe('discoverCommands — monorepo', () => {
     const filtered = commands.filter((c) => c.name.includes('('));
     expect(filtered).toHaveLength(0);
   });
+
+  test('discovers turbo tasks when turbo.json is JSONC (comments + trailing commas)', async () => {
+    // Regression: a // comment in turbo.json used to make JSON.parse throw,
+    // silently hiding every turbo task from the process manager.
+    await writeFile(join(testDir, 'pnpm-lock.yaml'), '');
+    await createPackageJson(testDir, { name: 'root', scripts: { dev: 'turbo run dev' } });
+
+    const jsoncTurbo = `{
+  // The schema URL contains // inside a string and must be preserved.
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {},
+    /* block comment */
+    "typecheck": {},
+    "test": {}, // trailing comma below
+  }
+}`;
+    await writeFile(join(testDir, 'turbo.json'), jsoncTurbo);
+
+    const commands = await discoverCommands(testDir);
+
+    expect(commands).toContainEqual({
+      name: 'turbo: build',
+      script: 'pnpm turbo run build',
+      source: 'turbo.json',
+      subWorkspace: { type: 'npm', path: '.', name: 'root' },
+    });
+    expect(commands).toContainEqual({
+      name: 'turbo: typecheck',
+      script: 'pnpm turbo run typecheck',
+      source: 'turbo.json',
+      subWorkspace: { type: 'npm', path: '.', name: 'root' },
+    });
+    expect(commands.filter((c) => c.source === 'turbo.json')).toHaveLength(3);
+  });
 });
