@@ -80,10 +80,12 @@ describe('handoff-templates > planner → user report', () => {
 describe('handoff-templates > planner → builder delegation brief', () => {
   const brief = getPlannerToBuilderHandoffTemplate();
 
-  test('includes goal, scope, and acceptance criteria', () => {
+  test('includes goal, file-level scope, and acceptance criteria', () => {
     expect(brief).toContain('## Goal');
-    expect(brief).toContain('## Scope & Files');
+    expect(brief).toContain('## Files to implement (exhaustive, file-level)');
     expect(brief).toContain('## Requirements (acceptance criteria)');
+    expect(brief).toMatch(/every file|exhaustive/i);
+    expect(brief).toMatch(/no ambiguity|cannot misinterpret|cannot guess wrong/i);
   });
 
   test('has no optional fields — Skills section is mandatory', () => {
@@ -92,7 +94,26 @@ describe('handoff-templates > planner → builder delegation brief', () => {
     expect(brief).toContain('Not Applicable');
   });
 
-  test('frames structured workflows as optional, not required', () => {
-    expect(brief).toContain('Out of scope');
+  test('includes out of scope section', () => {
+    expect(brief).toContain('## Out of scope');
+  });
+
+  test('requires per-file change blocks with code snippets', () => {
+    expect(brief).toContain('**Change:**');
+    expect(brief).toMatch(/### `path\/to\//);
+    expect(brief).toMatch(/typescript/);
+  });
+
+  test('requires shared contracts with interfaces and reference snippets', () => {
+    expect(brief).toContain('## Shared contracts (planner-owned)');
+    expect(brief).toContain('### Interfaces & types');
+    expect(brief).toContain('### Reference snippets');
+    expect(brief).toMatch(/builder (implements|executes)/i);
+    expect(brief).not.toMatch(/builder (owns|designs)/i);
+  });
+
+  test('requires what to avoid section', () => {
+    expect(brief).toContain('## What to avoid');
+    expect(brief).toMatch(/anti-patterns|recurring mistakes/i);
   });
 });

@@ -339,22 +339,60 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
+      **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
+
+      **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
+
       \`\`\`markdown
       ## Goal
       <one sentence: the outcome this slice delivers>
 
-      ## Scope & Files
-      - \`path/to/file.ts\` — <what to create/change> (use full paths when known)
+      ## Files to implement (exhaustive, file-level)
+      List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+
+      ### \`path/to/file.ts\`
+      **Change:** <precisely what to add, modify, or remove in this file>
+
+      \`\`\`typescript
+      // Target code: exports, types, function bodies, component skeleton, query/mutation shape, etc.
+      // Enough that the builder can implement this file without inventing structure
+      \`\`\`
+
+      ### \`path/to/other-file.ts\`
+      **Change:** <...>
+
+      \`\`\`typescript
+      // ...
+      \`\`\`
+
+      (Add one ### block per file. If this slice touches only one file, still use the ### header.)
+
+      ## Shared contracts (planner-owned)
+      Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+
+      ### Interfaces & types
+      \`\`\`typescript
+      // Shared signatures, schemas, props, or DB shapes
+      \`\`\`
+
+      ### Reference snippets
+      \`\`\`typescript
+      // Canonical call patterns, hook usage, imports, or wiring between files
+      \`\`\`
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
       - Verify: \`pnpm typecheck && pnpm test\`
 
+      ## What to avoid
+      - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+
       ## Skills to activate
       - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
 
       ## Out of scope
-      - <what NOT to touch, or "Not Applicable">
+      - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
       \`\`\`
 
       Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
@@ -362,6 +400,9 @@ describe('Squad Team > Planner > System Prompt', () => {
       **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
       - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+      - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
+      - **You own technical design; the builder executes.** Per-file target code plus shared contracts in the brief — do not leave API shape for the builder to invent.
+      - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
       - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
       - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
       - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
