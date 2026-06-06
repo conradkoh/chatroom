@@ -93,17 +93,113 @@ describe('Squad Team > Planner > Get Next Task', () => {
       <summary of current focus>
       EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
-      4. Delegate phase 1 to builder:
+      4. Delegate ONE slice to the builder (a structured workflow is optional, not required):
 
-      ⚠️ Before delivering to user: Verify the codebase is in a good state.
-         Run: pnpm typecheck && pnpm test
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+
+      **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
+
+      **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
+
+      \`\`\`markdown
+      ## Goal
+      <one sentence: the outcome this slice delivers>
+
+      ## Files to implement (exhaustive, file-level)
+      List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+
+      ### \`path/to/file.ts\`
+      **Change:** <precisely what to add, modify, or remove in this file>
+
+      \`\`\`typescript
+      // Target code: exports, types, function bodies, component skeleton, query/mutation shape, etc.
+      // Enough that the builder can implement this file without inventing structure
+      \`\`\`
+
+      ### \`path/to/other-file.ts\`
+      **Change:** <...>
+
+      \`\`\`typescript
+      // ...
+      \`\`\`
+
+      (Add one ### block per file. If this slice touches only one file, still use the ### header.)
+
+      ## Shared contracts (planner-owned)
+      Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+
+      ### Interfaces & types
+      \`\`\`typescript
+      // Shared signatures, schemas, props, or DB shapes
+      \`\`\`
+
+      ### Reference snippets
+      \`\`\`typescript
+      // Canonical call patterns, hook usage, imports, or wiring between files
+      \`\`\`
+
+      ## Requirements (acceptance criteria)
+      - <verifiable outcome the builder can self-check>
+      - Verify: \`pnpm typecheck && pnpm test\`
+
+      ## What to avoid
+      - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+
+      ## Skills to activate
+      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
+
+      ## Out of scope
+      - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
+      \`\`\`
+
+      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=builder << 'EOF'
       ---MESSAGE---
-      [Your message here]
+      [Your delegation brief here]
       EOF
       \`\`\`
       (targets: builder, reviewer, user)
+
+      5. When the work is done, deliver to the user using this report template:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
+
+      **Report Template (Planner → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown. Fill in EVERY section: if one does not apply, write \`Not Applicable\` (do not delete the section):
+
+      \`\`\`markdown
+      ## Summary
+      <what was accomplished, in plain terms — no references to prior messages>
+
+      ## Proof — files changed
+      - \`path/to/file.ts\` — <what changed and why>
+      <list every file you (or the builder) modified; this is the evidence of work>
+
+      ## Key Technical Decisions
+      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
+
+      ## Key Tradeoffs
+      - <what was weighed against what, and why you chose this path, or "Not Applicable">
+
+      ## Tech Debt Observed
+      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
+
+      ## System Design
+      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
+
+      \`\`\`mermaid
+      flowchart TD
+          A[Component] --> B[Component]
+      \`\`\`
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <result>
+
+      ## Notes / Next steps
+      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
+      \`\`\`
       </next-steps>
 
       ============================================================

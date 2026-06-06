@@ -33,8 +33,6 @@ import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 
 // ─── File Paths ──────────────────────────────────────────────────────────────
 
-const CHATROOM_DIR = join(homedir(), '.chatroom');
-
 function getUrlHash(): string {
   const url = getConvexUrl();
   return createHash('sha256').update(url).digest('hex').substring(0, 8);
@@ -123,6 +121,30 @@ export function clearTrackedPids(): void {
   } catch {
     // Ignore — file may already be gone
   }
+}
+
+/**
+ * Synchronously SIGKILL every tracked process group, best-effort.
+ *
+ * Used by the force-exit path (e.g. second Ctrl+C) where we cannot afford to
+ * await anything — we must kill children and exit immediately. Reads PGIDs
+ * straight from the on-disk pids file so it works even if in-memory state is
+ * already torn down or inconsistent.
+ *
+ * Never throws. Returns the number of groups we attempted to kill.
+ */
+export function forceKillAllTrackedProcessGroups(): number {
+  if (process.platform === 'win32') return 0;
+  let killed = 0;
+  for (const pgid of readPids()) {
+    try {
+      process.kill(-pgid, 'SIGKILL');
+      killed++;
+    } catch {
+      // Already gone — best-effort
+    }
+  }
+  return killed;
 }
 
 /**

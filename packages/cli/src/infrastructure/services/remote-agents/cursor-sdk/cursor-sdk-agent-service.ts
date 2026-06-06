@@ -14,14 +14,36 @@
  * harness is hidden from the picker without affecting other harnesses.
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { createRequire } from 'node:module';
-import { randomUUID } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 // Type-only import — no runtime effect, safe even if native deps fail to load.
-import type { Run, SDKAgent } from '@cursor/sdk';
+import type * as CursorSdkModule from '@cursor/sdk';
+import { Effect } from 'effect';
+
+import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { DetectionResult } from '../detection-result.js';
+import type {
+  AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  SpawnContext,
+  SpawnOptions,
+  SpawnResult,
+  VersionInfo,
+} from '../remote-agent-service.js';
+import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+import {
+  formatCursorSdkLoadError,
+  getBundledCursorSdkVersion,
+  importBundledCursorSdk,
+} from './cursor-sdk-package.js';
+import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
+import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
+
+type Run = CursorSdkModule.Run;
+type SDKAgent = CursorSdkModule.SDKAgent;
+type LoadedCursorSdk = typeof CursorSdkModule;
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -38,36 +60,21 @@ const NO_SUBAGENT_DIRECTIVE = 'NEVER spawn subagents. Follow the chatroom instru
 // import until first use so that sqlite3 binary failures are caught at call
 // sites (isInstalled / spawn / listModels) rather than at daemon startup.
 
-let _sdkCache: typeof import('@cursor/sdk') | undefined;
+let _sdkCache: LoadedCursorSdk | undefined;
 let _sdkLoadError: unknown;
 
-async function loadSdk(): Promise<typeof import('@cursor/sdk')> {
+async function loadSdk(): Promise<LoadedCursorSdk> {
   if (_sdkCache) return _sdkCache;
   if (_sdkLoadError) throw _sdkLoadError;
   try {
-    _sdkCache = await import('@cursor/sdk');
+    // Load @cursor/sdk from this chatroom-cli install only (never a hoisted global copy).
+    _sdkCache = await importBundledCursorSdk();
     return _sdkCache;
   } catch (err) {
     _sdkLoadError = err;
     throw err;
   }
 }
-
-import { Effect } from 'effect';
-
-import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { DetectionResult } from '../detection-result.js';
-import type {
-  AgentStopOptions,
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
-  SpawnContext,
-  SpawnOptions,
-  SpawnResult,
-  VersionInfo,
-} from '../remote-agent-service.js';
-import { resolveCursorSdkModel } from './cursor-models.js';
-import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 
 export type CursorSdkAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -83,12 +90,8 @@ let cachedSdkPackageVersion: string | undefined;
 
 function getSdkPackageVersion(): string {
   if (cachedSdkPackageVersion) return cachedSdkPackageVersion;
-  const require = createRequire(import.meta.url);
-  const entry = require.resolve('@cursor/sdk');
-  const packageJsonPath = join(entry, '..', '..', '..', 'package.json');
-  const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version: string };
-  cachedSdkPackageVersion = pkg.version;
-  return pkg.version;
+  cachedSdkPackageVersion = getBundledCursorSdkVersion();
+  return cachedSdkPackageVersion;
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -156,6 +159,12 @@ function resolveModelId(model?: string): string {
   return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
 
+function writeSpawnError(logPrefix: string, err: unknown): void {
+  const reason = formatCursorSdkLoadError(err);
+  process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
+  console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
+}
+
 export class CursorSdkAgentService extends BaseCLIAgentService {
   readonly id = 'cursor-sdk';
   readonly displayName = 'Cursor (SDK)';
@@ -169,12 +178,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
   async isInstalled(): Promise<boolean> {
     if (!process.env.CURSOR_API_KEY?.trim()) return false;
-    // Verify the SDK's native deps (sqlite3) can actually load. If not, the
-    // harness hides itself rather than crashing the daemon on first spawn.
+    // Verify package integrity and native deps (sqlite3) before exposing the
+    // harness. Failures hide the harness rather than crashing the daemon.
     try {
       await loadSdk();
       return true;
-    } catch {
+    } catch (err) {
+      console.warn(`[cursor-sdk] unavailable: ${formatCursorSdkLoadError(err)}`);
       return false;
     }
   }
@@ -211,7 +221,8 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         MODELS_LIST_TIMEOUT_MS,
         'Cursor.models.list'
       );
-      return models.map((m) => m.id).filter((id) => id.length > 0);
+      const listedModelIds = models.map((m) => m.id).filter((id) => id.length > 0);
+      return normalizeCursorSdkListedModels(listedModelIds);
     } catch (err) {
       console.warn(
         `[cursor-sdk] Cursor.models.list failed:`,
@@ -288,6 +299,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     }
 
     const keeper = this.spawnKeeper(options.workingDir);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
     const context = options.context;
     const agentName = stored.agentName;
@@ -382,9 +394,11 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     };
     this.sessions.set(pid, session);
 
-    const exitCallbacks: Array<
-      (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
-    > = [];
+    const exitCallbacks: ((info: {
+      code: number | null;
+      signal: string | null;
+      context: SpawnContext;
+    }) => void)[] = [];
     const outputCallbacks: (() => void)[] = [];
     const agentEndCallbacks: (() => void)[] = [];
 
@@ -454,6 +468,8 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
     } = args;
 
+    let exited = false;
+
     void (async () => {
       let exitCode: number | null = 0;
       let exitSignal: string | null = null;
@@ -462,81 +478,94 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
       try {
         while (!session.aborted) {
-          const run = await withTimeout(
-            agent.send(nextPrompt, {
-              local: { force: isFirstTurn },
-              idempotencyKey: randomUUID(),
-            }),
-            SEND_TIMEOUT_MS,
-            'agent.send'
-          );
-          session.run = run;
-          isFirstTurn = false;
+          try {
+            const run = await withTimeout(
+              agent.send(nextPrompt, {
+                local: { force: isFirstTurn },
+                idempotencyKey: randomUUID(),
+              }),
+              SEND_TIMEOUT_MS,
+              'agent.send'
+            );
+            session.run = run;
+            isFirstTurn = false;
 
-          const adapter = new CursorSdkStreamAdapter(logPrefix);
-          adapter.onOutput(() => {
-            entry.lastOutputAt = Date.now();
-            for (const cb of outputCallbacks) cb();
-          });
-          adapter.onAgentEnd(() => {
-            for (const cb of agentEndCallbacks) cb();
-          });
+            const adapter = new CursorSdkStreamAdapter(logPrefix);
+            adapter.onOutput(() => {
+              entry.lastOutputAt = Date.now();
+              for (const cb of outputCallbacks) cb();
+            });
+            adapter.onAgentEnd(() => {
+              for (const cb of agentEndCallbacks) cb();
+            });
 
-          for await (const message of run.stream()) {
-            if (session.aborted) break;
-            adapter.handleMessage(message);
-          }
+            try {
+              for await (const message of run.stream()) {
+                if (session.aborted) break;
+                adapter.handleMessage(message);
+              }
+            } catch (streamErr) {
+              exitCode = 1;
+              writeSpawnError(logPrefix, streamErr);
+              break;
+            }
 
-          if (session.aborted) {
-            exitCode = 1;
-            exitSignal = 'SIGTERM';
-            break;
-          }
-
-          const result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
-          adapter.flushPendingOutput();
-
-          if (result.status === 'error') {
-            exitCode = 2;
-            process.stderr.write(`${logPrefix} run-error] run ${result.id} failed\n`);
-            break;
-          }
-
-          // Enter resume wait before finish() emits agent_end. handleAgentEnd
-          // calls resumeTurn synchronously from that callback; resumeResolve
-          // must already be registered or resumeTurn throws "not waiting for resume".
-          const resumePromise = waitForResumeOrAbort(session);
-
-          // finish() emits agent_end (wired to agentEndCallbacks) only after a
-          // successful run.wait(), so resumeTurn is not invoked mid-stream.
-          adapter.finish();
-
-          const resumePrompt = await resumePromise;
-          if (resumePrompt === null || session.aborted) {
             if (session.aborted) {
               exitCode = 1;
               exitSignal = 'SIGTERM';
+              break;
             }
+
+            let result;
+            try {
+              result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
+            } catch (waitErr) {
+              exitCode = 1;
+              writeSpawnError(logPrefix, waitErr);
+              break;
+            }
+
+            adapter.flushPendingOutput();
+
+            if (result.status === 'error') {
+              exitCode = 2;
+              process.stderr.write(`${logPrefix} run-error] run ${result.id} failed\n`);
+              break;
+            }
+
+            // Enter resume wait before finish() emits agent_end. handleAgentEnd
+            // calls resumeTurn synchronously from that callback; resumeResolve
+            // must already be registered or resumeTurn throws "not waiting for resume".
+            const resumePromise = waitForResumeOrAbort(session);
+
+            // finish() emits agent_end (wired to agentEndCallbacks) only after a
+            // successful run.wait(), so resumeTurn is not invoked mid-stream.
+            adapter.finish();
+
+            const resumePrompt = await resumePromise;
+            if (resumePrompt === null || session.aborted) {
+              if (session.aborted) {
+                exitCode = 1;
+                exitSignal = 'SIGTERM';
+              }
+              break;
+            }
+
+            nextPrompt = resumePrompt;
+          } catch (turnErr) {
+            exitCode = 1;
+            writeSpawnError(logPrefix, turnErr);
             break;
           }
-
-          nextPrompt = resumePrompt;
         }
       } catch (err) {
         exitCode = 1;
-        const reason = err instanceof Error ? err.message : String(err);
-        process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
+        writeSpawnError(logPrefix, err);
       } finally {
-        // Only tear down the Cursor agent on intentional abort without preserve.
-        // Unexpected keeper exit leaves the session open for resumeFromDaemonMemory.
-        if (!session.agentClosed && session.aborted && !session.preserveForResume) {
-          try {
-            agent.close();
-            session.agentClosed = true;
-          } catch {
-            // Best-effort
-          }
-        }
+        if (exited) return;
+        exited = true;
+
+        closeCursorAgentOnFailure(agent, session, exitCode);
 
         try {
           session.keeper.kill();
@@ -546,7 +575,18 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
         finishExit(exitCode, exitSignal);
       }
-    })();
+    })().catch((err) => {
+      writeSpawnError(logPrefix, err);
+      if (exited) return;
+      exited = true;
+      closeCursorAgentOnFailure(agent, session, 1, true);
+      try {
+        session.keeper.kill();
+      } catch {
+        // May already be dead
+      }
+      finishExit(1, null);
+    });
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
@@ -556,6 +596,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     }
 
     const keeper = this.spawnKeeper(options.workingDir);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
     const context = options.context;
     const agentName = buildAgentName(context);

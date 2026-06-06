@@ -18,6 +18,11 @@ describe('fetchClaudeModels', () => {
   const originalApiKey = process.env.ANTHROPIC_API_KEY;
   const originalFetch = globalThis.fetch;
 
+  function stubFetch(mock: ReturnType<typeof vi.fn>): void {
+    // vi.fn() is not assignable to typeof fetch (missing preconnect, etc.)
+    globalThis.fetch = mock as unknown as typeof fetch;
+  }
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -43,16 +48,14 @@ describe('fetchClaudeModels', () => {
 
   it('returns filtered claude models when API call succeeds', async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: [
-          { id: 'claude-opus-4-8' },
-          { id: 'claude-sonnet-4-6' },
-          { id: 'gpt-4' },
-        ],
-      }),
-    });
+    stubFetch(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'claude-opus-4-8' }, { id: 'claude-sonnet-4-6' }, { id: 'gpt-4' }],
+        }),
+      })
+    );
 
     const models = await fetchClaudeModels();
     expect(models).toEqual(['claude-opus-4-8', 'claude-sonnet-4-6']);
@@ -66,24 +69,26 @@ describe('fetchClaudeModels', () => {
 
   it('returns undefined on non-OK API response', async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false });
+    stubFetch(vi.fn().mockResolvedValue({ ok: false }));
 
     expect(await fetchClaudeModels()).toBeUndefined();
   });
 
   it('returns undefined when API returns no claude-* models', async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ id: 'gpt-4' }] }),
-    });
+    stubFetch(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [{ id: 'gpt-4' }] }),
+      })
+    );
 
     expect(await fetchClaudeModels()).toBeUndefined();
   });
 
   it('returns undefined on fetch exception', async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network error'));
+    stubFetch(vi.fn().mockRejectedValue(new Error('network error')));
 
     expect(await fetchClaudeModels()).toBeUndefined();
   });

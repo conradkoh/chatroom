@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.53.6",
+  "version": "1.54.0",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -12,16 +12,20 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "chatroom": "bun run src/index.ts",
-    "prepublishOnly": "pnpm build && pnpm test"
+    "prepublishOnly": "bun run scripts/guard-workspace-publish.ts",
+    "publish:prepare": "bun run scripts/prepare-npm-publish.ts",
+    "publish:verify": "bun run scripts/verify-publish-artifacts.ts"
   },
   "dependencies": {
-    "@cursor/sdk": "^1.0.17",
+    "@cursor/sdk": "1.0.18",
+    "sqlite3": "5.1.7",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",
     "convex": "^1.31.0",
     "convex-helpers": "^0.1.108",
-    "effect": "^3.0.0"
+    "effect": "^3.0.0",
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -48,5 +52,8 @@
     "dist/index.js.map",
     "package.json",
     "README.md"
+  ],
+  "bundledDependencies": [
+    "@cursor/sdk"
   ]
 }

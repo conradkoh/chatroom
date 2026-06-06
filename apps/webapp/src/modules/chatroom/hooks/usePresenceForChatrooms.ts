@@ -11,16 +11,20 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionId } from 'convex-helpers/react/sessions';
 import { useQueries } from 'convex/react';
+import type { FunctionReturnType } from 'convex/server';
 import { useMemo } from 'react';
 
-export type ChatroomPresenceEntry = {
-  chatroomId: string;
-  role: string;
-  lastSeenAt: number | null;
-  lastSeenAction: string | null;
-  lastStatus: string | null;
-  lastDesiredState: string | null;
-};
+/**
+ * A single participant-presence row.
+ *
+ * Derived directly from the backend `getPresenceForChatroom` return type so the
+ * frontend mirrors exactly ONE contract (single source of truth). Adding or
+ * renaming a presence field on the backend mapper flows here automatically —
+ * there is nothing to keep in sync by hand.
+ */
+export type ChatroomPresenceEntry = FunctionReturnType<
+  typeof api.chatrooms.getPresenceForChatroom
+>[number];
 
 /**
  * Subscribes to getPresenceForChatroom for each chatroom id.
@@ -73,16 +77,8 @@ export function usePresenceForChatrooms(
       if (rows instanceof Error) {
         continue;
       }
-      for (const row of rows) {
-        flat.push({
-          chatroomId: row.chatroomId,
-          role: row.role,
-          lastSeenAt: row.lastSeenAt,
-          lastSeenAction: row.lastSeenAction,
-          lastStatus: row.lastStatus,
-          lastDesiredState: row.lastDesiredState,
-        });
-      }
+      // Rows already match the canonical contract — no field-by-field copy needed.
+      flat.push(...rows);
     }
     return flat;
   }, [sessionId, chatroomIds, resultsByChatroom]);

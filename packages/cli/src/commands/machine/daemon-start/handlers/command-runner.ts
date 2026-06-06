@@ -12,10 +12,10 @@ import { getErrorMessage } from '../../../../utils/convex-error.js';
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids } from './orphan-tracker.js';
-import { TERMINAL_STATES } from './process/state.js';
+import { killProcess, killTrackedProcess } from './process/killer.js';
 import { processManager } from './process/manager.js';
 import { spawnCommandProcess } from './process/spawner.js';
-import { killProcess, killTrackedProcess } from './process/killer.js';
+import { TERMINAL_STATES } from './process/state.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -207,27 +207,38 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
 
   const trackedEntries = processManager.getAll();
 
+  // Phase 1 — kill first. Clearing the backend run status is best-effort and
+  // must NOT sit on the critical path: when the daemon is quitting the backend
+  // is often unreachable, and a stalled network mutation would delay (or with a
+  // hung connection, prevent) signalling the OS processes. So we SIGTERM every
+  // tracked process group up front before touching the network.
   for (const [, tracked] of trackedEntries) {
     clearInterval(tracked.flushTimer);
     if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
-
-    try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
-        runId: tracked.runId as any,
-        status: 'killed',
-        terminationReason: 'daemon-shutdown',
-      });
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to mark run as killed on shutdown: ${getErrorMessage(err)}`
-      );
-    }
-
     killProcess(tracked.process, 'SIGTERM');
   }
 
+  // Phase 2 — best-effort backend status updates, fired in parallel so they
+  // overlap the grace period instead of serializing in front of the kills.
+  const statusUpdates = Promise.allSettled(
+    trackedEntries.map(([, tracked]) =>
+      ctx.deps.backend
+        .mutation(api.commands.updateRunStatus, {
+          sessionId: ctx.sessionId as SessionId,
+          machineId: ctx.machineId,
+          runId: tracked.runId as any,
+          status: 'killed',
+          terminationReason: 'daemon-shutdown',
+        })
+        .catch((err) => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Failed to mark run as killed on shutdown: ${getErrorMessage(err)}`
+          );
+        })
+    )
+  );
+
+  // Phase 3 — grace period, then SIGKILL any survivors.
   await new Promise<void>((resolve) => {
     const t = setTimeout(resolve, 3_000);
     t.unref?.();
@@ -241,5 +252,30 @@ export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
 
   processManager.clear();
   clearTrackedPids();
+
+  // Wait for the best-effort status updates, but never let the network hang
+  // shutdown — cap the wait so a dead backend connection can't block exit.
+  await Promise.race([
+    statusUpdates,
+    new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, 2_000);
+      t.unref?.();
+    }),
+  ]);
+
   console.log(`[${formatTimestamp()}] All commands stopped`);
+}
+
+/**
+ * Synchronously SIGKILL every in-memory tracked command process group.
+ *
+ * Used by the force-exit path (second Ctrl+C) where we cannot await the
+ * graceful SIGTERM→grace→SIGKILL sequence. Best-effort and never throws.
+ */
+export function forceKillAllCommands(): void {
+  for (const [, tracked] of processManager.getAll()) {
+    clearInterval(tracked.flushTimer);
+    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
+    killProcess(tracked.process, 'SIGKILL');
+  }
 }

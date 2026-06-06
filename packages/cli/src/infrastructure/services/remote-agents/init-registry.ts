@@ -7,12 +7,14 @@ import { OpenCodeAgentService } from './opencode/index.js';
 import { OpenCodeSdkAgentService } from './opencode-sdk/index.js';
 import { PiAgentService } from './pi/index.js';
 import { registerHarness } from './registry.js';
+import { installDaemonFatalErrorGuard } from '../../daemon/fatal-error-guard.js';
 
 let initialized = false;
 
 /** Populate the harness registry. Safe to call multiple times (idempotent). */
 export function initHarnessRegistry(): void {
   if (initialized) return;
+  installDaemonFatalErrorGuard();
   registerHarness(new OpenCodeAgentService());
   registerHarness(new OpenCodeSdkAgentService());
   registerHarness(new PiAgentService());

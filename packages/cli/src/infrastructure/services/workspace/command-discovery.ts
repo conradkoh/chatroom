@@ -16,9 +16,10 @@
  * Returns a flat list of commands with name, script, and source.
  */
 
-import { access , readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join, relative, basename } from 'node:path';
 
+import { parseJsonc } from './jsonc.js';
 import { resolveSubWorkspaces } from './workspace-resolver.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
   try {
     const pkgPath = join(workingDir, 'package.json');
     const pkgContent = await readFile(pkgPath, 'utf-8');
-    const pkg = JSON.parse(pkgContent) as { name?: string; scripts?: Record<string, string> };
+    const pkg = parseJsonc<{ name?: string; scripts?: Record<string, string> }>(pkgContent);
 
     if (pkg.name) rootPackageName = pkg.name;
 
@@ -181,17 +182,23 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
         }
       }
     }
-  } catch {
-    // package.json doesn't exist or is invalid — skip
+  } catch (error) {
+    // package.json doesn't exist or is invalid — skip, but surface the reason.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.debug(`[command-discovery] skipping root package.json: ${(error as Error).message}`);
+    }
   }
 
   const rootSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
 
   // 2. Parse turbo.json tasks (root-level, all packages)
+  // turbo.json is JSONC — it may contain comments and trailing commas, which
+  // plain JSON.parse rejects. parseJsonc tolerates them so a single comment
+  // no longer silently hides every turbo task from command discovery.
   try {
     const turboPath = join(workingDir, 'turbo.json');
     const turboContent = await readFile(turboPath, 'utf-8');
-    const turbo = JSON.parse(turboContent) as { tasks?: Record<string, unknown> };
+    const turbo = parseJsonc<{ tasks?: Record<string, unknown> }>(turboContent);
 
     if (turbo.tasks && typeof turbo.tasks === 'object') {
       for (const taskName of Object.keys(turbo.tasks)) {
@@ -206,8 +213,12 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
         }
       }
     }
-  } catch {
-    // turbo.json doesn't exist or is invalid — skip
+  } catch (error) {
+    // turbo.json doesn't exist or is invalid — skip, but surface the reason so
+    // a malformed config does not fail silently.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.debug(`[command-discovery] skipping turbo.json: ${(error as Error).message}`);
+    }
   }
 
   // 3. Discover sub-workspace packages for monorepo support

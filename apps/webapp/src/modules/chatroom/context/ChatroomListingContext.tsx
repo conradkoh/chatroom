@@ -4,19 +4,25 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-import { usePresenceForChatrooms } from '../hooks/usePresenceForChatrooms';
+import {
+  type ChatroomPresenceEntry,
+  usePresenceForChatrooms,
+} from '../hooks/usePresenceForChatrooms';
 import { deriveChatStatus } from '../utils/deriveChatStatus';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface Agent {
-  role: string;
-  lastSeenAt: number | null;
-  lastSeenAction: string | null;
-  lastStatus: string | null;
-  lastDesiredState: string | null;
+/**
+ * A presence row enriched with the agent's live running state.
+ *
+ * Derived from the canonical {@link ChatroomPresenceEntry} (single source of
+ * truth) rather than re-declaring the presence fields — only the frontend-only
+ * `isAlive` flag is added, and `chatroomId` is dropped (rows are already grouped
+ * by chatroom here).
+ */
+export type Agent = Omit<ChatroomPresenceEntry, 'chatroomId'> & {
   isAlive: boolean;
-}
+};
 
 export interface ChatroomWithStatus {
   _id: string;
@@ -113,8 +119,8 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         role: p.role,
         lastSeenAt: p.lastSeenAt,
         lastSeenAction: p.lastSeenAction,
-        lastStatus: p.lastStatus ?? null,
-        lastDesiredState: p.lastDesiredState ?? null,
+        lastStatus: p.lastStatus,
+        lastDesiredState: p.lastDesiredState,
         isAlive: runningRoles.some((r) => r.toLowerCase() === p.role.toLowerCase()),
       });
       presenceByRoom.set(p.chatroomId, existing);

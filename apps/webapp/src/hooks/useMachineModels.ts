@@ -5,6 +5,10 @@
  * ~50KB payload from riding on listMachines re-pushes (see chatroom_machineModels
  * schema entry for full rationale).
  *
+ * The daemon is the source of truth for model lists: it discovers models via each
+ * harness service's listModels(), pushes them through register/refreshCapabilities,
+ * and this hook returns that stored snapshot unchanged.
+ *
  * Keep this hook tiny — single thin wrapper, one subscription per call site.
  * AgentConfigTabs renders one machine at a time in the settings modal; one
  * subscription is sufficient. Do NOT add fixed-slot or multi-machine patterns here.
@@ -28,10 +32,7 @@ export interface UseMachineModelsResult {
  * @param machineId - The machine UUID to query, or undefined when no machine is selected
  */
 export function useMachineModels(machineId: string | undefined): UseMachineModelsResult {
-  const result = useSessionQuery(
-    api.machines.getMachineModels,
-    machineId ? { machineId } : 'skip',
-  );
+  const result = useSessionQuery(api.machines.getMachineModels, machineId ? { machineId } : 'skip');
   return {
     availableModels: result?.availableModels ?? {},
     isLoading: machineId !== undefined && result === undefined,
