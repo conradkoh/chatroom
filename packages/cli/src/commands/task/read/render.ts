@@ -24,7 +24,6 @@ export interface RenderTaskPromptInput {
     triggerMessageContent?: string;
     triggerMessageSenderRole?: string;
     elapsedHours: number;
-    messagesSinceContext: number;
   };
   attachedBacklogItems?: { _id: string; content: string; status: string }[];
 }
@@ -103,17 +102,15 @@ export function renderTaskPrompt(input: RenderTaskPromptInput): string {
       lines.push(`</${senderTag}-message>`);
     }
 
-    // Staleness notice (unchanged)
+    // Staleness notice (time-based): soft warning at >= 4h, hard at >= 24h.
     const hoursAgo = Math.round(input.context.elapsedHours);
-    const msgsSince = input.context.messagesSinceContext;
-    const isStale = hoursAgo >= 24 || msgsSince >= 50;
-    if (isStale) {
+    if (hoursAgo >= 4) {
       const ageLabel =
         hoursAgo >= 48
           ? `${Math.round(hoursAgo / 24)}d old`
           : hoursAgo >= 24
             ? `${hoursAgo}h old`
-            : `${msgsSince} messages old`;
+            : `${hoursAgo}h old`;
       lines.push(`<system-notice>`);
       lines.push(`⚠️ Context is ${ageLabel}.`);
       lines.push(`   Entry point role will update when needed.`);

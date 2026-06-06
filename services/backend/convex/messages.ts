@@ -5,8 +5,8 @@ import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } fr
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
@@ -18,6 +18,7 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
@@ -137,9 +138,7 @@ async function enrichMessageAttachments(
  */
 export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
   // Batch task lookups: collect unique taskIds, fetch in parallel
-  const uniqueTaskIds = [
-    ...new Set(messages.filter((m) => m.taskId != null).map((m) => m.taskId!)),
-  ];
+  const uniqueTaskIds = [...new Set(messages.flatMap((m) => (m.taskId != null ? [m.taskId] : [])))];
   const taskMap = new Map<string, { status: string } | null>();
   const taskResults = await Promise.all(
     uniqueTaskIds.map(async (id) => {
@@ -152,7 +151,7 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
   }
 
   const taskIdsNeedingProgress = [
-    ...new Set(messages.filter((m) => m.taskId != null).map((m) => m.taskId!)),
+    ...new Set(messages.flatMap((m) => (m.taskId != null ? [m.taskId] : []))),
   ];
   const progressByTaskId = new Map<
     string,
@@ -354,40 +353,39 @@ async function _sendMessageHandler(
       });
 
       return queuedMessageId; // Return queue record ID as opaque message ID
-    } else {
-      // ─── Pending path: existing flow (store in chatroom_messages) ────────
-      const messageId = await ctx.db.insert('chatroom_messages', {
-        chatroomId: args.chatroomId,
-        senderRole: args.senderRole,
-        content: args.content,
-        targetRole,
-        type: args.type,
-        ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-        ...(args.attachedBacklogItemIds?.length && {
-          attachedBacklogItemIds: args.attachedBacklogItemIds,
-        }),
-        ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
-      });
-
-      await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-        lastActivityAt: Date.now(),
-      });
-
-      const { taskId } = await createTaskUsecase(ctx, {
-        chatroomId: args.chatroomId,
-        createdBy: 'user',
-        content: args.content,
-        forceStatus: undefined,
-        assignedTo,
-        sourceMessageId: messageId,
-        attachedTaskIds: args.attachedTaskIds,
-        queuePosition,
-      });
-
-      await ctx.db.patch('chatroom_messages', messageId, { taskId });
-
-      return messageId;
     }
+    // ─── Pending path: existing flow (store in chatroom_messages) ────────
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: args.senderRole,
+      content: args.content,
+      targetRole,
+      type: args.type,
+      ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
+      ...(args.attachedBacklogItemIds?.length && {
+        attachedBacklogItemIds: args.attachedBacklogItemIds,
+      }),
+      ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+    });
+
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+      lastActivityAt: Date.now(),
+    });
+
+    const { taskId } = await createTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      createdBy: 'user',
+      content: args.content,
+      forceStatus: undefined,
+      assignedTo,
+      sourceMessageId: messageId,
+      attachedTaskIds: args.attachedTaskIds,
+      queuePosition,
+    });
+
+    await ctx.db.patch('chatroom_messages', messageId, { taskId });
+
+    return messageId;
   }
   // ─── Non-user messages: always write to chatroom_messages ────────────────
   const messageId = await ctx.db.insert('chatroom_messages', {
@@ -616,7 +614,7 @@ async function _handoffHandler(
 
   for (const task of tasksToComplete) {
     // All tasks complete to 'completed' status
-    const newStatus: 'completed' = 'completed';
+    const newStatus = 'completed' as const;
 
     // Use FSM for transition — skip auto-promotion because the handoff handler
     // manages promotion explicitly (Step 6 for handoff-to-user).
@@ -1001,7 +999,13 @@ export const taskStarted = mutation({
         | 'new_feature'
         | 'follow_up';
     } else {
-      finalClassification = args.originMessageClassification!;
+      if (args.originMessageClassification == null) {
+        throw new ConvexError({
+          code: 'CLASSIFICATION_REQUIRED',
+          message: 'originMessageClassification is required when skipClassification is false',
+        });
+      }
+      finalClassification = args.originMessageClassification;
     }
 
     // Parse raw stdin for new_feature classification (Requirement #4: backend parsing)
@@ -1725,13 +1729,19 @@ export const listFeatures = query({
       .order('desc')
       .take(effectiveLimit * 10); // Over-fetch since not all user messages are new_feature
 
-    // Filter to new_feature messages with feature title
+    // Filter to new_feature messages with feature title (type predicate
+    // narrows `featureTitle` to `string` so the map below stays simple).
+    const isFeatureMessage = (
+      msg: Doc<'chatroom_messages'>
+    ): msg is Doc<'chatroom_messages'> & { featureTitle: string } =>
+      msg.classification === 'new_feature' && msg.featureTitle != null;
+
     const features = candidateMessages
-      .filter((msg) => msg.classification === 'new_feature' && msg.featureTitle)
+      .filter(isFeatureMessage)
       .slice(0, effectiveLimit)
       .map((msg) => ({
         id: msg._id,
-        title: msg.featureTitle!,
+        title: msg.featureTitle,
         descriptionPreview: msg.featureDescription
           ? msg.featureDescription.substring(0, 100) +
             (msg.featureDescription.length > 100 ? '...' : '')
@@ -2011,43 +2021,8 @@ export const getTaskDeliveryPrompt = query({
     // Validate session and check chatroom access
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Fetch current context for explicit context management
-    let currentContext: {
-      _id: string;
-      content: string;
-      createdBy: string;
-      createdAt: number;
-      messagesSinceContext: number;
-      elapsedHours: number;
-    } | null = null;
-
-    if (chatroom.currentContextId) {
-      const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
-      if (context) {
-        // Count only messages since context creation to compute staleness.
-        // Uses compound index for an indexed range scan (no full table scan).
-        const recentMessages = await ctx.db
-          .query('chatroom_messages')
-          .withIndex('by_chatroom', (q) =>
-            q.eq('chatroomId', args.chatroomId).gte('_creationTime', context.createdAt)
-          )
-          .collect();
-        const messagesSinceContext = recentMessages.length;
-
-        // Compute time elapsed since context creation
-        const elapsedMs = Date.now() - context.createdAt;
-        const elapsedHours = elapsedMs / (1000 * 60 * 60);
-
-        currentContext = {
-          _id: context._id,
-          content: context.content,
-          createdBy: context.createdBy,
-          createdAt: context.createdAt,
-          messagesSinceContext,
-          elapsedHours,
-        };
-      }
-    }
+    // Fetch current context (time-based staleness only — no message reads).
+    const currentContext = await loadCurrentContext(ctx, args.chatroomId);
 
     // Fetch the task
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -2121,6 +2096,9 @@ export const getTaskDeliveryPrompt = query({
 
     // Get context window (reuse getContextWindow logic)
     // Fetch recent messages for context
+    // fallow-ignore-next-line duplication
+    // (Pre-existing duplication with services/backend/convex/tasks/taskDelivery.ts
+    //  — origin/follow-up resolution; out of scope for this optimization PR.)
     const contextRecentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -2145,7 +2123,8 @@ export const getTaskDeliveryPrompt = query({
         if (msg.classification === 'follow_up' && msg.taskOriginMessageId) {
           originMessage = await ctx.db.get('chatroom_messages', msg.taskOriginMessageId);
           if (originMessage) {
-            originIndex = contextMessages.findIndex((m) => m._id === originMessage!._id);
+            const found = originMessage;
+            originIndex = contextMessages.findIndex((m) => m._id === found._id);
             break;
           }
         }
@@ -2388,14 +2367,10 @@ export const getTaskDeliveryPrompt = query({
             senderRole: originMessage.senderRole,
             content: originMessage.content,
             classification: originMessage.classification,
-            attachedMessages: originMessage.attachedMessageIds
-              ?.map((id) => attachedMessagesMap.get(id))
-              .filter(Boolean)
-              .map((m) => ({
-                _id: m!.id,
-                content: m!.content,
-                senderRole: m!.senderRole,
-              })),
+            attachedMessages: originMessage.attachedMessageIds?.flatMap((id) => {
+              const m = attachedMessagesMap.get(id);
+              return m ? [{ _id: m.id, content: m.content, senderRole: m.senderRole }] : [];
+            }),
           }
         : null,
       followUpCountSinceOrigin,
