@@ -1,4 +1,4 @@
-import type { HarnessCapabilities } from './types';
+import type { HarnessCapabilities } from './types.js';
 
 export const cursorSdkCapabilities: HarnessCapabilities = {
   runtimeKind: 'sdk',
