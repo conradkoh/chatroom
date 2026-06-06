@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   HARNESS_DISPLAY_NAMES,
   getHarnessDisplayName,
+  getModelDisplayLabel,
   harnessSupportsSessionResume,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
@@ -83,4 +84,14 @@ describe('harnessSupportsSessionResume', () => {
       expect(harnessSupportsSessionResume(harness)).toBe(false);
     }
   );
+});
+
+describe('getModelDisplayLabel', () => {
+  it('shows Auto for cursor-sdk auto routing model', () => {
+    expect(getModelDisplayLabel('auto')).toBe('Auto');
+  });
+
+  it('shows Auto for legacy default id until daemon refresh', () => {
+    expect(getModelDisplayLabel('default')).toBe('Auto');
+  });
 });

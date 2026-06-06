@@ -139,6 +139,12 @@ function slugToLabel(slug: string): string {
   return slug.replace(/-/g, ' ').toUpperCase();
 }
 
+/** Friendly labels for bare model slugs (cursor-sdk / cursor CLI). */
+const BARE_MODEL_DISPLAY_LABELS: Record<string, string> = {
+  auto: 'Auto',
+  default: 'Auto',
+};
+
 /**
  * Parse an OpenCode model ID (provider/model-slug format) into display parts.
  *
@@ -151,7 +157,10 @@ function slugToLabel(slug: string): string {
 function parseModelId(modelId: string): { provider: string; model: string } {
   const slashIdx = modelId.indexOf('/');
   if (slashIdx === -1) {
-    return { provider: '', model: slugToLabel(modelId) };
+    return {
+      provider: '',
+      model: BARE_MODEL_DISPLAY_LABELS[modelId] ?? slugToLabel(modelId),
+    };
   }
 
   const providerSlug = modelId.substring(0, slashIdx);

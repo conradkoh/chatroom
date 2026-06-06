@@ -32,7 +32,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
-import { mergeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
   formatCursorSdkLoadError,
   getBundledCursorSdkVersion,
@@ -222,7 +222,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         'Cursor.models.list'
       );
       const listedModelIds = models.map((m) => m.id).filter((id) => id.length > 0);
-      return mergeCursorSdkListedModels(listedModelIds);
+      return normalizeCursorSdkListedModels(listedModelIds);
     } catch (err) {
       console.warn(
         `[cursor-sdk] Cursor.models.list failed:`,

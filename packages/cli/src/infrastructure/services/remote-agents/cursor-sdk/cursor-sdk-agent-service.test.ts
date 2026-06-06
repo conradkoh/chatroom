@@ -663,14 +663,14 @@ describe('CursorSdkAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns API models with auto prepended when missing', async () => {
+    it('maps SDK default to UI-centric auto', async () => {
       vi.mocked(Cursor.models.list).mockResolvedValue([
         { id: 'default' },
         { id: 'composer-2.5' },
       ] as Awaited<ReturnType<typeof Cursor.models.list>>);
 
       const service = new CursorSdkAgentService(createMockDeps());
-      await expect(service.listModels()).resolves.toEqual(['auto', 'default', 'composer-2.5']);
+      await expect(service.listModels()).resolves.toEqual(['auto', 'composer-2.5']);
     });
 
     it('returns empty list when CURSOR_API_KEY is unset', async () => {
