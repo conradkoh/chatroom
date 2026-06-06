@@ -9,32 +9,12 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { pushCommands } from './command-sync-heartbeat.js';
-import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
-import { releaseLock } from '../pid.js';
-import { pushGitState, pushSingleWorkspaceGitState } from './git-heartbeat.js';
-import { syncCommitDetails } from './commit-detail-sync.js';
-import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
-import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
-import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
-import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
-import { startGitRequestSubscription } from './git-subscription.js';
-import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
-import { processManager } from './handlers/process/manager.js';
-import { handlePing } from './handlers/ping.js';
-import { discoverModels } from './init.js';
-import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
-import { startObservedSyncSubscription } from './observed-sync.js';
-import { startWorkspaceListSubscription } from './workspace-list-subscription.js';
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
@@ -44,7 +24,28 @@ import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-out
 import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
 import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { releaseLock } from '../pid.js';
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { pushCommands } from './command-sync-heartbeat.js';
+import { syncCommitDetails } from './commit-detail-sync.js';
+import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
+import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
+import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
+import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
+import { startFileContentSubscription } from './file-content-subscription.js';
+import { startFileTreeSubscription } from './file-tree-subscription.js';
+import { pushGitState, pushSingleWorkspaceGitState } from './git-heartbeat.js';
+import { startGitRequestSubscription } from './git-subscription.js';
+import { forceKillAllCommands, onCommandRun, onCommandStop } from './handlers/command-runner.js';
+import { forceKillAllTrackedProcessGroups } from './handlers/orphan-tracker.js';
+import { handlePing } from './handlers/ping.js';
+import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
+import { processManager } from './handlers/process/manager.js';
+import { discoverModels } from './init.js';
+import { startObservedSyncSubscription } from './observed-sync.js';
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
+import { startWorkspaceListSubscription } from './workspace-list-subscription.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -451,8 +452,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── Observed Sync Subscription ─────────────────────────────────────────
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
     null;
-  let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null =
-    null;
+  let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   // Gated by directHarnessWorkers flag. All return { stop: () => void }.
@@ -478,8 +478,61 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     syncCommitDetails(ctx).catch(() => {});
   }
 
+  // ── Shutdown timeouts ───────────────────────────────────────────────────
+  // Every awaited step in the graceful path is bounded so a single hung
+  // session/harness close (or a dead backend connection) can never wedge the
+  // daemon with orphaned children. The watchdog is the final backstop: if the
+  // whole sequence exceeds it, we force-kill everything and exit.
+  const PROCESS_KILL_TIMEOUT_MS = 6_000; // commands SIGTERM(3s)→SIGKILL + agents
+  const CLOSE_TIMEOUT_MS = 3_000; // per session/harness close()
+  const SHUTDOWN_WATCHDOG_MS = 12_000; // overall hard deadline
+
+  let signalCount = 0;
+  let isShuttingDown = false;
+
+  /** Best-effort, fully synchronous teardown used by the force-exit path. */
+  const forceExit = (code: number): never => {
+    try {
+      forceKillAllCommands();
+    } catch {
+      // best-effort
+    }
+    try {
+      // Catches detached process groups even if in-memory state is gone.
+      forceKillAllTrackedProcessGroups();
+    } catch {
+      // best-effort
+    }
+    try {
+      releaseLock();
+    } catch {
+      // best-effort
+    }
+    process.exit(code);
+  };
+
+  /** Await a promise but never wait longer than `ms`; swallows rejections. */
+  const withTimeout = async (p: Promise<unknown>, ms: number): Promise<void> => {
+    await Promise.race([
+      Promise.resolve(p).catch(() => {}),
+      new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, ms);
+        t.unref?.();
+      }),
+    ]);
+  };
+
   const shutdown = async () => {
-    console.log(`\n[${formatTimestamp()}] Shutting down...`);
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n[${formatTimestamp()}] Shutting down... (press Ctrl+C again to force)`);
+
+    // Hard deadline: regardless of what hangs below, the daemon WILL exit.
+    const watchdog = setTimeout(() => {
+      console.error(`[${formatTimestamp()}] Shutdown timed out — forcing exit.`);
+      forceExit(1);
+    }, SHUTDOWN_WATCHDOG_MS);
+    watchdog.unref?.();
 
     // Stop heartbeat timers
     clearInterval(heartbeatTimer);
@@ -497,24 +550,49 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
     if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
     if (lifecycleManager) lifecycleManager.stopMonitoring();
-    // Close all active direct-harness sessions
+
+    // Kill child processes FIRST (commands + agents). These hold ports and are
+    // the things users actually need dead. A slow/hung direct-harness close
+    // must never come before — or block — reaping them.
+    await withTimeout(onDaemonShutdown(ctx), PROCESS_KILL_TIMEOUT_MS);
+
+    // Then close all active direct-harness sessions, each guarded by a timeout.
     for (const handle of activeSessions.values()) {
-      await handle.close().catch(() => {});
+      await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
     }
-    // Kill all running harness processes
+    // Kill all running harness processes, each guarded by a timeout.
     for (const harness of harnesses.values()) {
-      await harness.close().catch(() => {});
+      await withTimeout(harness.close(), CLOSE_TIMEOUT_MS);
     }
 
-    await onDaemonShutdown(ctx);
-
+    clearTimeout(watchdog);
     releaseLock();
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-  process.on('SIGHUP', shutdown);
+  /**
+   * Signal handler. Registering a SIGINT listener disables Node's default
+   * Ctrl+C termination, so we must own the escalation ourselves: the first
+   * signal starts a graceful shutdown; a second signal forces an immediate
+   * SIGKILL of all children and exits. If the graceful path itself throws, we
+   * also force-exit so the daemon never lingers.
+   */
+  const handleSignal = (signal: NodeJS.Signals) => {
+    signalCount += 1;
+    if (signalCount >= 2) {
+      console.error(`\n[${formatTimestamp()}] Received ${signal} again — forcing immediate exit.`);
+      forceExit(1);
+      return;
+    }
+    shutdown().catch((err) => {
+      console.error(`[${formatTimestamp()}] Shutdown failed: ${getErrorMessage(err)}`);
+      forceExit(1);
+    });
+  };
+
+  process.on('SIGINT', () => handleSignal('SIGINT'));
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+  process.on('SIGHUP', () => handleSignal('SIGHUP'));
 
   // Open WebSocket connection for event stream subscription
   const wsClient = await getConvexWsClient();
