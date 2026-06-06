@@ -82,7 +82,7 @@
     "services/backend/modules/auth/types/AuthState.ts:GoogleUserProfile"
   ],
   "private_type_leaks": [],
-  "unused_dependencies": [],
+  "unused_dependencies": ["packages/cli/package.json:sqlite3"],
   "unused_dev_dependencies": [],
   "circular_dependencies": [],
   "re_export_cycles": [],
