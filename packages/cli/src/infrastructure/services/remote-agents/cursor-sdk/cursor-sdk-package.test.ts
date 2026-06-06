@@ -22,6 +22,24 @@ describe('cursor-sdk-package', () => {
     expect(sdk.Cursor).toBeDefined();
   });
 
+  it('loads named exports when resolved through the CJS entry path (Node global installs)', async () => {
+    const sdkRoot = join(CLI_ROOT, 'node_modules', '@cursor', 'sdk');
+    const cjsEntry = join(sdkRoot, 'dist', 'cjs', 'index.js');
+    const esmEntry = join(sdkRoot, 'dist', 'esm', 'index.js');
+    expect(cjsEntry).toBeTruthy();
+    expect(esmEntry).toBeTruthy();
+
+    const { createRequire } = await import('node:module');
+    const require = createRequire(join(CLI_ROOT, 'package.json'));
+    const resolvedCjs = require.resolve('@cursor/sdk', { paths: [CLI_ROOT] });
+    expect(resolvedCjs.endsWith('dist/cjs/index.js')).toBe(true);
+
+    const sdk = await importBundledCursorSdk(import.meta.url);
+    const { Agent, Cursor } = sdk;
+    expect(typeof Agent).toBe('function');
+    expect(Cursor).toBeDefined();
+  });
+
   it('formats chunk load failures with chatroom-cli reinstall guidance', () => {
     const message = formatCursorSdkLoadError(
       new Error(

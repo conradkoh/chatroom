@@ -63,12 +63,28 @@ function readInstalledSdkVersion(entryPath: string): string {
   return pkg.version;
 }
 
+function resolveSdkEsmImportPath(cjsEntryPath: string): string {
+  // require.resolve returns the CJS entry; Node dynamic import() then exposes
+  // exports on `default` instead of named bindings. Prefer the ESM entry so
+  // `const { Agent } = await loadSdk()` works under Node like a bare import().
+  const importPath = cjsEntryPath.includes('/dist/cjs/')
+    ? cjsEntryPath.replace('/dist/cjs/', '/dist/esm/')
+    : cjsEntryPath;
+  if (!existsSync(importPath)) {
+    throw new CursorSdkPackageError(
+      `@cursor/sdk ESM entry file is missing: ${importPath}. ${REINSTALL_HINT}`
+    );
+  }
+  return importPath;
+}
+
 /**
  * Resolve and import @cursor/sdk from this chatroom-cli install.
  *
  * Uses require.resolve(..., { paths: [chatroomCliRoot] }) so npm global installs
  * use the copy bundled with chatroom-cli, not a separately hoisted global package.
  */
+// fallow-ignore-next-line complexity
 export async function importBundledCursorSdk(
   moduleRef: string = import.meta.url
 ): Promise<LoadedCursorSdk> {
@@ -90,7 +106,7 @@ export async function importBundledCursorSdk(
     );
   }
 
-  return import(pathToFileURL(entryPath).href);
+  return import(pathToFileURL(resolveSdkEsmImportPath(entryPath)).href);
 }
 
 export function getBundledCursorSdkVersion(moduleRef: string = import.meta.url): string {
