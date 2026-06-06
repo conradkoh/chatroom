@@ -8,6 +8,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../../config/reliability';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
@@ -32,7 +33,8 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return liveness!.lastSeenAt;
+      if (!liveness) throw new Error('liveness record not found');
+      return liveness.lastSeenAt;
     });
 
     // Send another heartbeat within throttle window — lastSeenAt should not change
@@ -46,13 +48,14 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return liveness!.lastSeenAt;
+      if (!liveness) throw new Error('liveness record not found');
+      return liveness.lastSeenAt;
     });
 
     expect(withinWindow).toBe(before);
 
     // Advance past DAEMON_LIVENESS_WRITE_INTERVAL_MS and heartbeat again
-    const throttleMs = 25_000;
+    const throttleMs = DAEMON_LIVENESS_WRITE_INTERVAL_MS;
     await t.run(async (ctx) => {
       const liveness = await ctx.db
         .query('chatroom_machineLiveness')
@@ -75,7 +78,8 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return liveness!.lastSeenAt;
+      if (!liveness) throw new Error('liveness record not found');
+      return liveness.lastSeenAt;
     });
 
     expect(after).toBeGreaterThan(before);
@@ -111,7 +115,8 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return liveness!.daemonConnected;
+      if (!liveness) throw new Error('liveness record not found');
+      return liveness.daemonConnected;
     });
     expect(beforeHeartbeat).toBe(false);
 
@@ -127,7 +132,8 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return liveness!.daemonConnected;
+      if (!liveness) throw new Error('liveness record not found');
+      return liveness.daemonConnected;
     });
     expect(afterHeartbeat).toBe(true);
   });
@@ -144,7 +150,8 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return { lastSeenAt: machine!.lastSeenAt };
+      if (!machine) throw new Error('machine record not found');
+      return { lastSeenAt: machine.lastSeenAt };
     });
 
     await new Promise((r) => setTimeout(r, 10));
@@ -158,7 +165,8 @@ describe('Daemon Heartbeat', () => {
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return { lastSeenAt: machine!.lastSeenAt };
+      if (!machine) throw new Error('machine record not found');
+      return { lastSeenAt: machine.lastSeenAt };
     });
 
     // Machine doc should NOT have been updated by heartbeat
