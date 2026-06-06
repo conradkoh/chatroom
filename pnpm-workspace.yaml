@@ -7,6 +7,14 @@ packages:
 # See docs/developer/pnpm/minimum-release-age.md
 minimumReleaseAge: 1440 # minutes (24 hours)
 minimumReleaseAgeStrict: true
+# @cursor/sdk@1.0.17 is a broken publish (missing webpack chunks); 1.0.18 fixes it.
+minimumReleaseAgeExclude:
+  - '@cursor/sdk'
+  - '@cursor/sdk-darwin-arm64'
+  - '@cursor/sdk-darwin-x64'
+  - '@cursor/sdk-linux-arm64'
+  - '@cursor/sdk-linux-x64'
+  - '@cursor/sdk-win32-x64'
 
 allowBuilds:
   bun: true

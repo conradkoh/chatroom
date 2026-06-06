@@ -16,9 +16,6 @@
 
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { join } from 'node:path';
 
 // Type-only import — no runtime effect, safe even if native deps fail to load.
 import type * as CursorSdkModule from '@cursor/sdk';
@@ -36,6 +33,11 @@ import type {
   VersionInfo,
 } from '../remote-agent-service.js';
 import { resolveCursorSdkModel } from './cursor-models.js';
+import {
+  formatCursorSdkLoadError,
+  getBundledCursorSdkVersion,
+  importBundledCursorSdk,
+} from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 
@@ -65,7 +67,8 @@ async function loadSdk(): Promise<LoadedCursorSdk> {
   if (_sdkCache) return _sdkCache;
   if (_sdkLoadError) throw _sdkLoadError;
   try {
-    _sdkCache = await import('@cursor/sdk');
+    // Load @cursor/sdk from this chatroom-cli install only (never a hoisted global copy).
+    _sdkCache = await importBundledCursorSdk();
     return _sdkCache;
   } catch (err) {
     _sdkLoadError = err;
@@ -87,12 +90,8 @@ let cachedSdkPackageVersion: string | undefined;
 
 function getSdkPackageVersion(): string {
   if (cachedSdkPackageVersion) return cachedSdkPackageVersion;
-  const require = createRequire(import.meta.url);
-  const entry = require.resolve('@cursor/sdk');
-  const packageJsonPath = join(entry, '..', '..', '..', 'package.json');
-  const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version: string };
-  cachedSdkPackageVersion = pkg.version;
-  return pkg.version;
+  cachedSdkPackageVersion = getBundledCursorSdkVersion();
+  return cachedSdkPackageVersion;
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -161,7 +160,7 @@ function resolveModelId(model?: string): string {
 }
 
 function writeSpawnError(logPrefix: string, err: unknown): void {
-  const reason = err instanceof Error ? err.message : String(err);
+  const reason = formatCursorSdkLoadError(err);
   process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
@@ -179,12 +178,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
   async isInstalled(): Promise<boolean> {
     if (!process.env.CURSOR_API_KEY?.trim()) return false;
-    // Verify the SDK's native deps (sqlite3) can actually load. If not, the
-    // harness hides itself rather than crashing the daemon on first spawn.
+    // Verify package integrity and native deps (sqlite3) before exposing the
+    // harness. Failures hide the harness rather than crashing the daemon.
     try {
       await loadSdk();
       return true;
-    } catch {
+    } catch (err) {
+      console.warn(`[cursor-sdk] unavailable: ${formatCursorSdkLoadError(err)}`);
       return false;
     }
   }

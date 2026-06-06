@@ -12,10 +12,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "chatroom": "bun run src/index.ts",
-    "prepublishOnly": "pnpm build && pnpm test"
+    "prepublishOnly": "bun run scripts/guard-workspace-publish.ts",
+    "publish:prepare": "bun run scripts/prepare-npm-publish.ts",
+    "publish:verify": "bun run scripts/verify-publish-artifacts.ts"
   },
   "dependencies": {
-    "@cursor/sdk": "^1.0.17",
+    "@cursor/sdk": "1.0.18",
+    "sqlite3": "5.1.7",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",
@@ -49,5 +52,8 @@
     "dist/index.js.map",
     "package.json",
     "README.md"
+  ],
+  "bundledDependencies": [
+    "@cursor/sdk"
   ]
 }

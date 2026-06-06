@@ -22,6 +22,8 @@ patches/
 
 # Local dev
 .chatroom/
+packages/cli/.npm-publish/
+packages/cli/.npm-publish-repack/
 
 # opencode (local-only package lockfile; .opencode/.gitignore is self-ignored)
 /.opencode/package-lock.json

@@ -82,13 +82,16 @@
     "services/backend/modules/auth/types/AuthState.ts:GoogleUserProfile"
   ],
   "private_type_leaks": [],
-  "unused_dependencies": [],
+  "unused_dependencies": ["packages/cli/package.json:sqlite3"],
   "unused_dev_dependencies": [],
   "circular_dependencies": [],
   "re_export_cycles": [],
   "unused_optional_dependencies": [],
   "unused_enum_members": [],
-  "unused_class_members": [],
+  "unused_class_members": [
+    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:CursorSdkAgentService.getVersion",
+    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:CursorSdkAgentService.listModels"
+  ],
   "unresolved_imports": [],
   "unlisted_dependencies": [],
   "duplicate_exports": [],
