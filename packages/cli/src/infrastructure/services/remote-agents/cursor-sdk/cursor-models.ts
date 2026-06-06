@@ -1,6 +1,10 @@
 const CURSOR_PROVIDER = 'cursor';
 
-/** Valid Cursor SDK model IDs that Cursor.models.list omits but Agent.create accepts. */
+/**
+ * Valid Cursor SDK model IDs that Cursor.models.list omits but Agent.create accepts.
+ * Merged in listModels() — the daemon's discoverModels() path is the sole source of
+ * truth for what the web UI lists (register/refreshCapabilities → getMachineModels).
+ */
 const CURSOR_SDK_BUILTIN_MODELS = ['auto'] as const;
 
 /** Strip `cursor/` prefix so the SDK receives a bare model slug. */
