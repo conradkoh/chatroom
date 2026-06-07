@@ -11,6 +11,7 @@ import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
+import { loadCurrentContext } from '../../src/domain/usecase/context/load-current-context';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
@@ -84,43 +85,8 @@ export async function getTaskDeliveryPromptData(
 
   const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
 
-  // Fetch current context for explicit context management
-  let currentContext: {
-    _id: string;
-    content: string;
-    createdBy: string;
-    createdAt: number;
-    messagesSinceContext: number;
-    elapsedHours: number;
-  } | null = null;
-
-  if (chatroom.currentContextId) {
-    const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
-    if (context) {
-      // Count only messages since context creation to compute staleness.
-      // Uses compound index for an indexed range scan (no full table scan).
-      const recentMessages = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) =>
-          q.eq('chatroomId', chatroomId).gte('_creationTime', context.createdAt)
-        )
-        .collect();
-      const messagesSinceContext = recentMessages.length;
-
-      // Compute time elapsed since context creation
-      const elapsedMs = Date.now() - context.createdAt;
-      const elapsedHours = elapsedMs / (1000 * 60 * 60);
-
-      currentContext = {
-        _id: context._id,
-        content: context.content,
-        createdBy: context.createdBy,
-        createdAt: context.createdAt,
-        messagesSinceContext,
-        elapsedHours,
-      };
-    }
-  }
+  // Fetch current context (time-based staleness only — no message reads).
+  const currentContext = await loadCurrentContext(ctx, chatroomId);
 
   // Get context window (origin message + messages since)
   const contextRecentMessages = await ctx.db
@@ -147,7 +113,8 @@ export async function getTaskDeliveryPromptData(
       if (msg.classification === 'follow_up' && msg.taskOriginMessageId) {
         originMessage = await ctx.db.get('chatroom_messages', msg.taskOriginMessageId);
         if (originMessage) {
-          originIndex = contextMessages.findIndex((m) => m._id === originMessage!._id);
+          const found = originMessage;
+          originIndex = contextMessages.findIndex((m) => m._id === found._id);
           break;
         }
       }
@@ -237,14 +204,10 @@ export async function getTaskDeliveryPromptData(
           senderRole: originMessage.senderRole,
           content: originMessage.content,
           classification: originMessage.classification,
-          attachedMessages: originMessage.attachedMessageIds
-            ?.map((id) => attachedMessagesMap.get(id))
-            .filter(Boolean)
-            .map((m) => ({
-              _id: m!.id,
-              content: m!.content,
-              senderRole: m!.senderRole,
-            })),
+          attachedMessages: originMessage.attachedMessageIds?.flatMap((id) => {
+            const m = attachedMessagesMap.get(id);
+            return m ? [{ _id: m.id, content: m.content, senderRole: m.senderRole }] : [];
+          }),
         }
       : null,
     followUpCountSinceOrigin,

@@ -343,9 +343,6 @@ export async function listContexts(
       console.log(`\n🔹 Context ID: ${context._id}`);
       console.log(`   Created by: ${context.createdBy}`);
       console.log(`   Created at: ${timestamp}`);
-      if (context.messageCountAtCreation !== undefined) {
-        console.log(`   Messages at creation: ${context.messageCountAtCreation}`);
-      }
       console.log(`   Content:`);
       // Truncate to first 200 chars for list view
       const safeContent = sanitizeForTerminal(context.content);
@@ -420,19 +417,17 @@ export async function inspectContext(
     console.log(`   Created by: ${context.createdBy}`);
     console.log(`   Created at: ${new Date(context.createdAt).toLocaleString()}`);
 
-    // Staleness information
+    // Staleness information (time-based only)
     console.log(`\n📊 Staleness:`);
-    console.log(`   Messages since context: ${context.messagesSinceContext}`);
     console.log(`   Time elapsed: ${context.elapsedHours.toFixed(1)} hours`);
 
-    // Staleness warnings
-    if (context.messagesSinceContext >= 10) {
-      console.log(`\n⚠️  Many messages since this context was created.`);
-      console.log(`   Consider creating a new context with an updated summary.`);
-    }
+    // Staleness warnings: soft >= 4h, hard >= 24h
     if (context.elapsedHours >= 24) {
       console.log(`\n⚠️  This context is over 24 hours old.`);
       console.log(`   Consider creating a new context with an updated summary.`);
+    } else if (context.elapsedHours >= 4) {
+      console.log(`\n⚠️  This context is over 4 hours old.`);
+      console.log(`   Consider refreshing if the focus has shifted.`);
     }
 
     console.log(`\n📝 Content:`);

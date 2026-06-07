@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+
 import { renderTaskPrompt, type RenderTaskPromptInput } from './render.js';
 
 // ---------------------------------------------------------------------------
@@ -25,7 +26,6 @@ const FULL_INPUT: RenderTaskPromptInput = {
     triggerMessageContent: 'Please add login',
     triggerMessageSenderRole: 'user',
     elapsedHours: 2,
-    messagesSinceContext: 5,
   },
   attachedBacklogItems: [
     { _id: 'item-111', content: 'Add login page', status: 'pending' },
@@ -52,7 +52,6 @@ const STALE_INPUT: RenderTaskPromptInput = {
   context: {
     content: 'Old context here.',
     elapsedHours: 50,
-    messagesSinceContext: 100,
   },
 };
 

@@ -26,6 +26,7 @@ import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
+import { loadCurrentContext } from '../context/load-current-context';
 
 // ============================================================================
 // TYPES
@@ -46,7 +47,6 @@ export interface ReadTaskResult {
     triggerMessageContent?: string;
     triggerMessageSenderRole?: string;
     elapsedHours: number;
-    messagesSinceContext: number;
   };
   attachedBacklogItems?: {
     _id: string;
@@ -157,44 +157,28 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
 // ============================================================================
 
 /**
- * Fetches the current pinned context for a chatroom, including
- * trigger message content and staleness metrics.
+ * Fetches the current pinned context for a chatroom, including the trigger
+ * message content and time-based staleness (elapsed hours since creation).
  *
- * Uses chatroom.messageCount (atomic counter) when available to avoid
- * expensive .collect() calls on large chatrooms.
+ * Staleness is purely time-based — no message-doc reads — so this is O(1)
+ * regardless of chatroom message volume.
  */
 async function fetchCurrentContext(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<ReadTaskResult['context'] | null> {
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom?.currentContextId) {
+  const snapshot = await loadCurrentContext(ctx, chatroomId);
+  if (!snapshot) {
     return null;
   }
 
-  const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
-  if (!context) {
-    return null;
-  }
-
-  // Compute staleness: time elapsed since context creation
-  const elapsedMs = Date.now() - context.createdAt;
-  const elapsedHours = elapsedMs / (1000 * 60 * 60);
-
-  // Compute messages since context creation.
-  // We count only messages created after the context to avoid collecting the entire
-  // chatroom history. This is efficient even for large chatrooms because we filter
-  // by creation time and only need to count the recent subset.
-  // Compute messages since context using atomic counter (no scan needed)
-  let messagesSinceContext = 0;
-  if (context.messageCountAtCreation != null && chatroom?.messageCount != null) {
-    messagesSinceContext = Math.max(0, chatroom.messageCount - context.messageCountAtCreation);
-  }
-
-  // Fetch trigger message if available
+  // The shared loader covers chatroom + context + elapsedHours; we still
+  // need the trigger message details that this caller surfaces, so fetch
+  // the underlying context record once more to read `triggerMessageId`.
+  const context = await ctx.db.get('chatroom_contexts', snapshot._id as Id<'chatroom_contexts'>);
   let triggerMessageContent: string | undefined;
   let triggerMessageSenderRole: string | undefined;
-  if (context.triggerMessageId) {
+  if (context?.triggerMessageId) {
     const triggerMessage = await ctx.db.get('chatroom_messages', context.triggerMessageId);
     if (triggerMessage) {
       triggerMessageContent = triggerMessage.content;
@@ -203,11 +187,10 @@ async function fetchCurrentContext(
   }
 
   return {
-    content: context.content,
+    content: snapshot.content,
     triggerMessageContent,
     triggerMessageSenderRole,
-    elapsedHours,
-    messagesSinceContext,
+    elapsedHours: snapshot.elapsedHours,
   };
 }
 
