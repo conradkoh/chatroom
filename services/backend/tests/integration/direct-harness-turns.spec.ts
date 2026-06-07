@@ -152,7 +152,7 @@ describe('turns.markTurnProcessed', () => {
     expect(session?.lastProcessedTurnSeq).toBe(3);
   });
 
-  test('rejects when machine.userId !== auth.user._id', async () => {
+  test('rejects when machine.userId !== auth.userId', async () => {
     // Create a session owned by user A
     const { sessionId: ownerSession, workspaceId } =
       await setupWorkspaceForSession('mtp-unauth-owner');

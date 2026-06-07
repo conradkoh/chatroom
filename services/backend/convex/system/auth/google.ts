@@ -5,7 +5,7 @@ import {
   AUTH_PROVIDER_MANAGE_PERMISSION,
   requireAuthenticatedPermission,
 } from '../../../application/auth';
-import { getAuthUserOptional } from '../../../modules/auth/getAuthUser';
+import { getAuthUser } from '../../../modules/auth/session';
 import { api, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { action, internalMutation, mutation, query } from '../../_generated/server';
@@ -40,7 +40,7 @@ export const getConfig = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args): Promise<GoogleAuthConfigData | null> => {
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
       unauthorizedMessage: 'Only system administrators can view Google Auth configuration',
     });
@@ -85,7 +85,7 @@ export const updateConfig = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
       unauthorizedMessage: 'You must be logged in to configure Google Auth',
     });
@@ -158,7 +158,7 @@ export const toggleEnabled = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
       unauthorizedMessage: 'You must be logged in to toggle Google Auth',
     });
@@ -254,7 +254,7 @@ export const getClientSecretForTesting = internalMutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args): Promise<string | null> => {
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
       unauthorizedMessage: 'Only system administrators can access client secret for testing',
     });
@@ -365,7 +365,7 @@ export const resetConfig = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION, {
       unauthorizedMessage: 'You must be logged in to reset Google Auth configuration',
     });
