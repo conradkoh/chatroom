@@ -1,58 +1,37 @@
 /**
  * Session-level authentication helpers.
  *
- * These are the base building blocks for all resource-scoped auth helpers.
- * Use these when you only need to verify the caller is authenticated, without
- * checking ownership of a specific resource (machine, chatroom, workspace).
+ * Resolve a sessionId → userId in a single table read (CLI or web session),
+ * with NO users-doc read. Most authenticated endpoints only need `userId`
+ * for ownership checks / indexed lookups. Endpoints that need fields off the
+ * user document should read it explicitly (see `convex/auth.ts` getState).
  *
- * ## Naming convention
- * - `requireSession` — fail-closed: throws ConvexError NOT_AUTHENTICATED if invalid.
- * - `getSession`     — fail-open: returns null if invalid.
+ * - `requireSession` — fail-closed: throws ConvexError NOT_AUTHENTICATED.
+ * - `getSession`     — fail-open: returns null on miss.
  */
+import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { ConvexError } from 'convex/values';
-
-import type { Doc, Id } from '../../_generated/dataModel';
+import { getAuthUserId, requireAuthUserId } from '../../../modules/auth/cli-session';
+import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../_generated/server';
-import { validateSession } from './sessionValidation';
 
 /** The result of a successful session auth check. */
 export type SessionAuth = {
   userId: Id<'users'>;
-  user: Doc<'users'>;
 };
 
-/**
- * Require a valid authenticated session.
- * Throws ConvexError NOT_AUTHENTICATED if the session is invalid or the user is not found.
- * Use for endpoints where authentication is mandatory.
- */
 export async function requireSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
 ): Promise<SessionAuth> {
-  const auth = await getSession(ctx, sessionId);
-  if (!auth) {
-    throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Not authenticated' });
-  }
-  return auth;
+  const userId = await requireAuthUserId(ctx, { sessionId: sessionId as SessionId });
+  return { userId };
 }
 
-/**
- * Get authenticated session, returning null if invalid.
- * Use for fail-open endpoints that return empty results for unauthenticated callers.
- */
 export async function getSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
 ): Promise<SessionAuth | null> {
-  const result = await validateSession(ctx, sessionId);
-  if (!result.ok) {
-    return null;
-  }
-  const user = await ctx.db.get('users', result.userId);
-  if (!user) {
-    return null;
-  }
-  return { userId: result.userId, user };
+  const userId = await getAuthUserId(ctx, { sessionId: sessionId as SessionId });
+  return userId ? { userId } : null;
 }
