@@ -188,7 +188,7 @@ export const register = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
+    const userId = auth.userId;
     const now = Date.now();
 
     // Check if machine already exists
@@ -198,7 +198,7 @@ export const register = mutation({
       .first();
 
     if (existing) {
-      if (existing.userId !== user._id) {
+      if (existing.userId !== userId) {
         throw new Error(
           `machineId "${args.machineId}" is already registered to another user. Generate a new machineId (delete local config and re-run "chatroom machine register").`
         );
@@ -229,7 +229,7 @@ export const register = mutation({
     // Create new machine registration
     await ctx.db.insert('chatroom_machines', {
       machineId: args.machineId,
-      userId: user._id,
+      userId: userId,
       hostname: args.hostname,
       os: args.os,
       availableHarnesses: args.availableHarnesses,
@@ -259,7 +259,7 @@ export const setMachineAlias = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const machine = await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    const machine = await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     // Normalize: empty string or whitespace-only = clear alias
     const normalizedAlias = args.alias?.trim() || undefined;
@@ -296,7 +296,7 @@ export const refreshCapabilities = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
+    const userId = auth.userId;
 
     const existing = await ctx.db
       .query('chatroom_machines')
@@ -306,7 +306,7 @@ export const refreshCapabilities = mutation({
     if (!existing) {
       throw new Error('Machine not registered. Run `chatroom machine start` first.');
     }
-    if (existing.userId !== user._id) {
+    if (existing.userId !== userId) {
       throw new Error('Machine is registered to a different user');
     }
 
@@ -345,10 +345,10 @@ export const requestCapabilitiesRefresh = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
+    const userId = auth.userId;
 
     await requireAccess(ctx, {
-      accessor: { type: 'user', id: user._id },
+      accessor: { type: 'user', id: userId },
       resource: { type: 'chatroom', id: str(args.chatroomId) },
       permission: 'write-access',
     });
@@ -361,7 +361,7 @@ export const requestCapabilitiesRefresh = mutation({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
-    if (!machine || machine.userId !== user._id) {
+    if (!machine || machine.userId !== userId) {
       return { applied: false as const, reason: 'not_owner' as const };
     }
 
@@ -387,7 +387,7 @@ export const requestCapabilitiesRefresh = mutation({
 
     const batchId = await ctx.db.insert('chatroom_capabilities_refresh_batches', {
       chatroomId: args.chatroomId,
-      userId: user._id,
+      userId: userId,
       createdAt: now,
       expectedMachineCount: 1,
       finishedMachineCount: 0,
@@ -440,13 +440,13 @@ export const reportCapabilitiesRefreshResult = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
+    const userId = auth.userId;
 
     const machine = await ctx.db
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-    if (!machine || machine.userId !== user._id) {
+    if (!machine || machine.userId !== userId) {
       throw new Error('Machine not found or not owned by the current user');
     }
 
@@ -454,7 +454,7 @@ export const reportCapabilitiesRefreshResult = mutation({
     if (!batch) {
       throw new Error('Refresh batch not found');
     }
-    if (batch.userId !== user._id) {
+    if (batch.userId !== userId) {
       throw new Error('Refresh batch does not belong to the current user');
     }
 
@@ -575,11 +575,11 @@ export const listMachines = query({
     if (!auth) {
       return { machines: [] };
     }
-    const user = auth.user;
+    const userId = auth.userId;
 
     const machines = await ctx.db
       .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', user._id))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
 
     return {
@@ -672,18 +672,18 @@ export const getMachineAgentConfigs = query({
     if (!auth) {
       return { configs: [] };
     }
-    const user = auth.user;
+    const userId = auth.userId;
 
     // Verify chatroom access
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== user._id) {
+    if (!chatroom || chatroom.ownerId !== userId) {
       return { configs: [] };
     }
 
     // Get the user's machines for ownership filtering
     const userMachines = await ctx.db
       .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', user._id))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
@@ -1139,8 +1139,8 @@ export const sendLocalAction = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
-    await getOwnedMachine(ctx, args.machineId, user._id);
+    const userId = auth.userId;
+    await getOwnedMachine(ctx, args.machineId, userId);
 
     validateWorkingDir(args.workingDir);
 
@@ -1184,8 +1184,8 @@ export const sendCommand = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
-    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+    const userId = auth.userId;
+    const machine = await getOwnedMachine(ctx, args.machineId, userId);
 
     // Sanitize workingDir if provided in the payload
     if (args.payload?.workingDir) {
@@ -1247,7 +1247,7 @@ export const sendCommand = mutation({
           machineId: args.machineId,
           chatroomId: args.payload.chatroomId,
           role: args.payload.role,
-          userId: user._id,
+          userId: userId,
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
@@ -1265,7 +1265,7 @@ export const sendCommand = mutation({
         machineId: args.machineId,
         chatroomId: args.payload.chatroomId,
         role: args.payload.role,
-        userId: user._id,
+        userId: userId,
         reason: args.payload.reason ?? 'user.stop',
       });
       return {};
@@ -1300,7 +1300,7 @@ export const updateSpawnedAgent = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!spawnChatroom?.teamId) {
@@ -1415,7 +1415,7 @@ export const recordAgentExited = mutation({
     // 1. Auth + machine ownership check
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     // 2. Delegate to the agentExited use case (event insert + PID-gated cleanup + participant update)
     await agentExitedUseCase(ctx, {
@@ -1454,11 +1454,11 @@ async function runRecordRemoteAgentRegistered(
   }
 
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!chatroom || chatroom.ownerId !== auth.user._id) {
+  if (!chatroom || chatroom.ownerId !== auth.userId) {
     throw new Error('Chatroom not found or access denied');
   }
 
-  await getOwnedMachine(ctx, args.machineId, auth.user._id);
+  await getOwnedMachine(ctx, args.machineId, auth.userId);
   if (chatroom.teamId) {
     const regTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
     const teamCfgForReg = await ctx.db
@@ -1504,7 +1504,7 @@ async function runRecordCustomAgentRegistered(
 
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
   if (!chatroom) throw new Error('Chatroom not found');
-  if (chatroom.ownerId !== auth.user._id) {
+  if (chatroom.ownerId !== auth.userId) {
     throw new Error('Not authorized to modify team agent configs for this chatroom');
   }
 
@@ -1678,7 +1678,7 @@ export const ackPing = mutation({
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-    if (!machine || machine.userId !== auth.user._id) {
+    if (!machine || machine.userId !== auth.userId) {
       throw new Error('Machine not found or not owned by user');
     }
 
@@ -1709,8 +1709,8 @@ export const requestGitRefresh = mutation({
     if (!auth) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
-    await getOwnedMachine(ctx, args.machineId, user._id);
+    const userId = auth.userId;
+    await getOwnedMachine(ctx, args.machineId, userId);
 
     await ctx.db.insert('chatroom_eventStream', {
       type: 'daemon.gitRefresh',
@@ -1747,7 +1747,7 @@ export const saveTeamAgentConfig = mutation({
 
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) throw new Error('Chatroom not found');
-    if (chatroom.ownerId !== auth.user._id) {
+    if (chatroom.ownerId !== auth.userId) {
       throw new Error('Not authorized to modify team agent configs for this chatroom');
     }
 
@@ -1841,7 +1841,7 @@ export const setAutoRestartOnNewContext = mutation({
     if (!chatroom) {
       throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
     }
-    if (chatroom.ownerId !== auth.user._id) {
+    if (chatroom.ownerId !== auth.userId) {
       throw new ConvexError({
         code: 'UNAUTHORIZED',
         message: 'Not authorized to modify team agent configs for this chatroom',
@@ -1894,7 +1894,7 @@ export const getTeamAgentConfigs = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== auth.user._id) return [];
+    if (!chatroom || chatroom.ownerId !== auth.userId) return [];
 
     return await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -1983,13 +1983,13 @@ export const listRemoteAgentRunningStatus = query({
 
     const userMachines = await ctx.db
       .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
       .collect();
     const userMachineIds = new Set(userMachines.map((m) => m.machineId));
 
     const userChatrooms = await ctx.db
       .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.user._id))
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
       .collect();
 
     const results = await Promise.all(
@@ -2274,7 +2274,7 @@ export const getAgentStatus = query({
 
     return getAgentStatusForChatroom(ctx, {
       chatroomId: args.chatroomId,
-      userId: auth.user._id,
+      userId: auth.userId,
     });
   },
 });
@@ -2294,7 +2294,7 @@ export const getAgentStartConfig = query({
     return getAgentConfigForStart(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
-      userId: auth.user._id,
+      userId: auth.userId,
     });
   },
 });
@@ -2309,7 +2309,7 @@ export const listAgentOverview = query({
     if (!auth) return [];
 
     return listChatroomAgentOverview(ctx, {
-      userId: auth.user._id,
+      userId: auth.userId,
     });
   },
 });
@@ -2325,11 +2325,11 @@ export const getAgentOverviewForChatroom = query({
     if (!auth) return null;
 
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== auth.user._id) return null;
+    if (!chatroom || chatroom.ownerId !== auth.userId) return null;
 
     const userMachines = await ctx.db
       .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
       .collect();
     const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
@@ -2401,7 +2401,7 @@ export const getAssignedTasks = query({
 
     return getAssignedTasksForMachine(ctx, {
       machineId: args.machineId,
-      userId: auth.user._id,
+      userId: auth.userId,
     });
   },
 });
@@ -2423,7 +2423,7 @@ export const emitAgentStartFailed = mutation({
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     await assertMachineBelongsToChatroom(ctx, {
       chatroomId: args.chatroomId,
@@ -2480,7 +2480,7 @@ export const emitSessionResumed = mutation({
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     await assertMachineBelongsToChatroom(ctx, {
       chatroomId: args.chatroomId,
@@ -2517,7 +2517,7 @@ export const emitSessionResumeFailed = mutation({
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     await assertMachineBelongsToChatroom(ctx, {
       chatroomId: args.chatroomId,
@@ -2555,7 +2555,7 @@ export const emitRestartLimitReached = mutation({
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     await ctx.db.insert('chatroom_eventStream', {
       type: 'agent.restartLimitReached',
@@ -2588,7 +2588,7 @@ export const clearAllSpawnedPids = mutation({
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     // Find all configs for this machine that have a spawnedAgentPid
     const allConfigs = await ctx.db
@@ -2634,7 +2634,7 @@ export const getObservedChatroomsForMachine = query({
     }
 
     // Verify machine belongs to user
-    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
 
     const now = Date.now();
     const ttlThreshold = now - OBSERVATION_TTL_MS;
