@@ -12,10 +12,14 @@
  *   Better still, switch to `getAuthUserId` / `requireAuthUserId` if the
  *   caller only needs `userId` — that avoids the extra `users` read
  *   altogether and is the most common case.
+ *
+ * @see docs/developer/auth-session-helpers.md for the full migration guide.
  */
-// fallow-ignore-file duplicate-export
-// (Intentional name collision with `./session::getAuthUser` for the
-//  one-release deprecation window. Removed when the shim is deleted.)
+// Intentional back-compat bridge kept for one deprecation release. Nothing in
+// this repo imports it anymore (call sites moved to ./session), but downstream
+// forks may still import these names, so the file is retained until the shim
+// is deleted next release.
+// fallow-ignore-file unused-file
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 
@@ -29,8 +33,9 @@ import type { MutationCtx, QueryCtx } from '../../convex/_generated/server';
  *
  * Intentional name collision with `./session::getAuthUser` for the
  * one-release deprecation window — see file-level @deprecated note.
+ *
+ * @see docs/developer/auth-session-helpers.md for the migration guide.
  */
-// fallow-ignore-next-line unused-export
 export const getAuthUser = async (
   ctx: QueryCtx | MutationCtx,
   args: { sessionId: SessionId }
@@ -55,6 +60,8 @@ export const getAuthUser = async (
 /**
  * @deprecated Use `getAuthUser` from `./session` instead — it now returns
  * `null` on miss with no need for the try/catch wrapper.
+ *
+ * @see docs/developer/auth-session-helpers.md for the migration guide.
  */
 export const getAuthUserOptional = async (
   ctx: QueryCtx | MutationCtx,

@@ -17,6 +17,8 @@
  * machine-scoped sessions, etc.) should use {@link createAuthHelpers} with
  * an ordered list of {@link SessionResolver}s — see the JSDoc on that
  * function for a worked example.
+ *
+ * @see docs/developer/auth-session-helpers.md for the full guide.
  */
 
 import { ConvexError } from 'convex/values';
