@@ -148,7 +148,7 @@ interface ChatroomSidebarProps {
  *
  * Sections:
  * - Active: Chatrooms with chatStatus 'working' or 'active' (agents present and engaged)
- * - Recent: Top 5 most recently active non-active chatrooms
+ * - Recent: Top 50 most recently active non-active chatrooms
  * - Completed: Collapsible section for completed chatrooms
  *
  * Favorites are indicated by a star icon on the chatroom item rather than a separate section.
@@ -173,7 +173,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
       .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
       .sort((a, b) => a._creationTime - b._creationTime);
 
-    // Recent: Top 5 by lastActivityAt, excluding active and completed chatrooms
+    // Recent: Top 50 by lastActivityAt, excluding active and completed chatrooms
     const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
     const remainingChatrooms = chatrooms.filter(
       (c) => !engagedIds.has(c._id) && c.chatStatus !== 'completed'
@@ -183,7 +183,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
       const bTime = b.lastActivityAt || b._creationTime;
       return bTime - aTime || a._id.localeCompare(b._id); // stable tiebreaker
     });
-    const recentChatrooms = sortedByActivity.slice(0, 5);
+    const recentChatrooms = sortedByActivity.slice(0, 50);
 
     return {
       activeChatrooms: engagedChatrooms,

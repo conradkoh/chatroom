@@ -116,9 +116,81 @@ describe('updateTeam — chatroom fields', () => {
       return ctx.db.get('chatroom_rooms', chatroomId);
     });
 
-    expect(room!.teamId).toBe('duo');
-    expect(room!.teamName).toBe('Duo Team');
-    expect(room!.teamRoles).toEqual(['planner', 'builder']);
-    expect(room!.teamEntryPoint).toBe('planner');
+    expect(room?.teamId).toBe('duo');
+    expect(room?.teamName).toBe('Duo Team');
+    expect(room?.teamRoles).toEqual(['planner', 'builder']);
+    expect(room?.teamEntryPoint).toBe('planner');
+  });
+});
+
+// ─── Active tasks reassigned end-to-end (race-safety) ─────────────────────────
+
+describe('updateTeam — active task reassignment (end-to-end)', () => {
+  test('moves ALL active tasks (pending/acknowledged/in_progress) on a removed role to pending under the new entry point', async () => {
+    const { sessionId } = await createTestSession('test-ut-tasks-1');
+    const chatroomId = await createSquadChatroom(sessionId); // entry 'planner', roles planner/builder/reviewer
+
+    // Seed one task per active status, all assigned to 'reviewer' (a role removed on switch).
+    const now = Date.now();
+    const taskIds = await t.run(async (ctx) => {
+      const pendingId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'pending reviewer task',
+        status: 'pending',
+        assignedTo: 'reviewer',
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const ackId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'acknowledged reviewer task',
+        status: 'acknowledged',
+        assignedTo: 'reviewer',
+        acknowledgedAt: now,
+        queuePosition: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const inProgressId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'in-progress reviewer task',
+        status: 'in_progress',
+        assignedTo: 'reviewer',
+        acknowledgedAt: now,
+        startedAt: now,
+        queuePosition: 2,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { pendingId, ackId, inProgressId };
+    });
+
+    // Switch to a team WITHOUT 'reviewer', with a different entry point ('builder').
+    await t.mutation(api.chatrooms.updateTeam, {
+      sessionId: sessionId as any,
+      chatroomId,
+      teamId: 'duo',
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'builder',
+    });
+
+    const tasks = await t.run(async (ctx) => {
+      return Promise.all([
+        ctx.db.get('chatroom_tasks', taskIds.pendingId),
+        ctx.db.get('chatroom_tasks', taskIds.ackId),
+        ctx.db.get('chatroom_tasks', taskIds.inProgressId),
+      ]);
+    });
+
+    // No task is left on the removed 'reviewer' role; all are pending under the new entry point.
+    for (const task of tasks) {
+      expect(task?.status).toBe('pending');
+      expect(task?.assignedTo).toBe('builder');
+    }
   });
 });

@@ -152,6 +152,20 @@ describe('SessionEventForwarder', () => {
     };
   }
 
+  async function* usageLimitErrorStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-1',
+        error: {
+          name: 'GoUsageLimitError',
+          data: { message: 'Monthly usage limit reached. Resets in 6 days.' },
+        },
+      },
+    };
+  }
+
   async function* otherSessionStream(): AsyncGenerator<unknown> {
     await new Promise((r) => setTimeout(r, 10));
     yield {
@@ -275,6 +289,21 @@ describe('SessionEventForwarder', () => {
       '[fake-ts] role:builder session] Started] role: builder\n'
     );
     expect(target.write).toHaveBeenCalledTimes(1);
+  }, 10000);
+
+  it('session.error usage-limit -> agent_end fired + logged', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(usageLimitErrorStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: usage_limit_reached\n'
+    );
   }, 10000);
 
   it('file.edited forwarded', async () => {
@@ -681,8 +710,9 @@ describe('SessionEventForwarder', () => {
     // session.updated has no handler that writes to target, but it must not be silently
     // misrouted — the important assertion is that sessionStarted is set (write was called
     // for the 'Started' line) which only happens after the filter passes the event through.
-    const allLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0] as string);
+    const allLines = (target.write as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c: unknown[]) => c[0] as string
+    );
     expect(allLines.some((l) => l.includes('Started'))).toBe(true);
   }, 10000);
 });
