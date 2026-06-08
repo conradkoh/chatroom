@@ -5,7 +5,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { releaseTasksOnAgentExit } from './release-tasks-on-agent-exit';
+import { releaseTasksOnAgentExit, reassignInFlightTasksOnTeamSwitch } from './release-tasks-on-agent-exit';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -81,5 +81,73 @@ describe('releaseTasksOnAgentExit', () => {
         taskId,
       })
     ).rejects.toThrow(/not claimable by role planner/i);
+  });
+});
+
+describe('reassignInFlightTasksOnTeamSwitch', () => {
+  test('reassigns an already-pending task from a stale role to the new entry point', async () => {
+    const { sessionId } = await createTestSession('team-switch-pending-1');
+    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+
+    // A pending task left assigned to 'reviewer' (a role being removed on switch).
+    const now = Date.now();
+    const taskId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'stale pending task',
+        status: 'pending',
+        assignedTo: 'reviewer',
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    // Simulate updateTeam having already switched the entry point to 'planner'.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, {
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+      });
+    });
+
+    const reassigned = await t.run(async (ctx) => {
+      return await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
+    });
+
+    expect(reassigned).toBe(1);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
+  });
+
+  test('leaves a pending task already assigned to the entry point unchanged', async () => {
+    const { sessionId } = await createTestSession('team-switch-pending-2');
+    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+
+    const now = Date.now();
+    const taskId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'entry pending task',
+        status: 'pending',
+        assignedTo: 'builder',
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const reassigned = await t.run(async (ctx) => {
+      return await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
+    });
+
+    expect(reassigned).toBe(0);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.assignedTo).toBe('builder');
   });
 });
