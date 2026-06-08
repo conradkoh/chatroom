@@ -95,11 +95,11 @@ export function renderTaskPrompt(input: RenderTaskPromptInput): string {
     lines.push('</context>');
 
     if (input.context.triggerMessageContent) {
-      lines.push('in response to');
-      const senderTag = input.context.triggerMessageSenderRole ?? 'unknown';
-      lines.push(`<${senderTag}-message>`);
-      lines.push(input.context.triggerMessageContent);
-      lines.push(`</${senderTag}-message>`);
+      // The originating message is intentionally NOT inlined. Run the context command
+      // to retrieve the full context and the message that triggered it.
+      lines.push(
+        `(For the message that triggered this context, run: chatroom context read --chatroom-id="${chatroomId}" --role="${role}")`
+      );
     }
 
     // Staleness notice (time-based): soft warning at >= 4h, hard at >= 24h.
