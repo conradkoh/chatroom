@@ -12,10 +12,10 @@ import {
   type CheckAccessParams,
   type AccessResult,
   type Permission,
-} from '../../../src/domain/usecase/auth/extensions/check-access';
-import type { Id } from '../../_generated/dataModel';
-import type { QueryCtx, MutationCtx } from '../../_generated/server';
-import { str } from '../../utils/types';
+} from '../../src/domain/usecase/auth/extensions/check-access';
+import type { Id } from '../../convex/_generated/dataModel';
+import type { QueryCtx, MutationCtx } from '../../convex/_generated/server';
+import { str } from '../../convex/utils/types';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
 
@@ -33,7 +33,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
       return { userId: str(machine.userId) };
     },
     getChatroom: async (chatroomId: string) => {
-      const chatroom = await ctx.db.get("chatroom_rooms", chatroomId as Id<'chatroom_rooms'>);
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId as Id<'chatroom_rooms'>);
       if (!chatroom) return null;
       return {
         id: str(chatroom._id),

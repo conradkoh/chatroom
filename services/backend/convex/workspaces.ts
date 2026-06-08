@@ -10,8 +10,8 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { checkAccess, requireAccess } from './auth/core/accessCheck';
-import { getSession, requireSession } from './auth/core/session';
+import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
+import { getSession, requireSession } from './auth/session';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';

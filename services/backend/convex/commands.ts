@@ -10,9 +10,9 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { checkAccess, requireAccess } from './auth/core/accessCheck';
+import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireMachineOwner } from './auth/cli/machineAccess.js';
-import { getSession, requireSession } from './auth/core/session';
+import { getSession, requireSession } from './auth/session';
 
 import {
   handleRunCommand,

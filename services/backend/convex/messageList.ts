@@ -14,7 +14,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { query } from './_generated/server';
-import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { enrichMessages } from './messages';
 
 /** Max rows for initial latest-window and load-older page requests. */

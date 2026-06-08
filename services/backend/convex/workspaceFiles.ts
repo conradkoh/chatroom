@@ -10,8 +10,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
-import { requireAccess } from './auth/core/accessCheck';
-import { getSession } from './auth/core/session';
+import { requireAccess } from '../modules/auth/accessCheck';
+import { getSession } from './auth/session';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { restartAgentsOnNewContext } from '../src/domain/usecase/context/restart-agents-on-new-context';

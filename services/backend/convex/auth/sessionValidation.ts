@@ -9,10 +9,10 @@
 import {
   checkSession as checkSessionPure,
   type CheckSessionDeps,
-} from '../../../src/domain/usecase/auth/extensions/validate-session';
-import type { Id } from '../../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../../_generated/server';
-import { str } from '../../utils/types';
+} from '../../src/domain/usecase/auth/extensions/validate-session';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { str } from '../utils/types';
 
 export interface ValidatedSession {
   sessionId: string;
