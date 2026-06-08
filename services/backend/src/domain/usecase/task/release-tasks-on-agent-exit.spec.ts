@@ -5,7 +5,10 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { releaseTasksOnAgentExit, reassignInFlightTasksOnTeamSwitch } from './release-tasks-on-agent-exit';
+import {
+  releaseTasksOnAgentExit,
+  reassignInFlightTasksOnTeamSwitch,
+} from './release-tasks-on-agent-exit';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -149,5 +152,86 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(task?.assignedTo).toBe('builder');
+  });
+
+  test('moves an acknowledged task on a removed role to pending under the new entry point', async () => {
+    const { sessionId } = await createTestSession('team-switch-ack-1');
+    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+
+    // An acknowledged task claimed by 'reviewer' — a role removed on the switch.
+    const now = Date.now();
+    const taskId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'acknowledged reviewer task',
+        status: 'acknowledged',
+        assignedTo: 'reviewer',
+        acknowledgedAt: now,
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    // Simulate updateTeam having already switched the entry point to 'planner'.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, {
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+      });
+    });
+
+    const reassigned = await t.run(async (ctx) => {
+      return await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
+    });
+
+    expect(reassigned).toBe(1);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
+    expect(task?.acknowledgedAt).toBeUndefined();
+  });
+
+  test('moves an in_progress task on a removed role to pending under the new entry point', async () => {
+    const { sessionId } = await createTestSession('team-switch-inprogress-1');
+    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+
+    // An in_progress task being worked by 'reviewer' — a role removed on the switch.
+    const now = Date.now();
+    const taskId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'in-progress reviewer task',
+        status: 'in_progress',
+        assignedTo: 'reviewer',
+        acknowledgedAt: now,
+        startedAt: now,
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    // Simulate updateTeam having already switched the entry point to 'planner'.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, {
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+      });
+    });
+
+    const reassigned = await t.run(async (ctx) => {
+      return await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
+    });
+
+    expect(reassigned).toBe(1);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
+    expect(task?.startedAt).toBeUndefined();
   });
 });
