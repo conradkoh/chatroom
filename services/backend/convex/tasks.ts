@@ -965,6 +965,12 @@ export const getPendingTasksForRole = query({
             newConnectionId: participant.connectionId,
           };
         }
+
+        // This exact connection was recorded as exited/offline — tell the stale
+        // listener to terminate. A restarting agent has a different connectionId.
+        if (participant?.exitedConnectionId === args.connectionId) {
+          return { type: 'connection_closed' as const };
+        }
       }
 
       // Determine the entry point role for user messages

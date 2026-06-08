@@ -36,6 +36,7 @@ export type GetNextTaskResponse =
   | { type: 'no_tasks' }
   | { type: 'grace_period'; taskId: string; remainingMs: number }
   | { type: 'superseded'; newConnectionId: string }
+  | { type: 'connection_closed' }
   | { type: 'reconnect'; reason: string }
   | { type: 'error'; code: BackendErrorCode; message: string; fatal: boolean };
 
@@ -241,6 +242,10 @@ export class GetNextTaskSession {
         this.handleSuperseded();
         return;
 
+      case 'connection_closed':
+        this.handleConnectionClosed();
+        return;
+
       case 'grace_period':
         this.handleGracePeriod(response);
         return;
@@ -270,6 +275,21 @@ export class GetNextTaskSession {
       'Another get-next-task process started for this role.',
       'Impact: This process is being replaced by the newer connection.\n' +
         'Action: This is expected if you started a new get-next-task session.'
+    );
+  }
+
+  /**
+   * The backend recorded this exact connection as exited/offline (the agent went
+   * away while a background get-next-task kept running). Exit cleanly — a new
+   * agent session will open its own connection.
+   */
+  private handleConnectionClosed(): never {
+    this.logAndExit(
+      0,
+      'connection_closed',
+      'This get-next-task connection was closed because the agent exited or went offline.',
+      'Impact: This stale listener is exiting cleanly.\n' +
+        'Action: A new agent session establishes its own connection when started.'
     );
   }
 

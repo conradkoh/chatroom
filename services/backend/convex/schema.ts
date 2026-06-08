@@ -330,6 +330,12 @@ export default defineSchema({
     // When a new get-next-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
+    // The connectionId of the most recent get-next-task session that exited/went
+    // offline. A still-subscribed loop with this exact connectionId is told to
+    // terminate (see tasks.getPendingTasksForRole). Cleared when a new connection
+    // joins. A restarting agent has a different connectionId, so it is never
+    // falsely terminated.
+    exitedConnectionId: v.optional(v.string()),
     // Agent type - 'custom' or 'remote'
     agentType: v.optional(agentTypeValidator),
     // Timestamp of the last check-in received from this participant.

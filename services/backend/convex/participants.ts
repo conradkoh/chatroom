@@ -72,7 +72,7 @@ export const join = mutation({
 
       if (connectionIdChanged || agentTypeChanged || actionChanged || lastSeenAtStale) {
         await ctx.db.patch('chatroom_participants', existing._id, {
-          ...(connectionIdChanged ? { connectionId: args.connectionId } : {}),
+          ...(connectionIdChanged ? { connectionId: args.connectionId, exitedConnectionId: undefined } : {}),
           ...(lastSeenAtStale ? { lastSeenAt: now } : {}),
           ...(actionChanged ? { lastSeenAction: args.action } : {}),
           ...(agentTypeChanged && args.agentType ? { agentType: args.agentType } : {}),
@@ -181,6 +181,9 @@ export const leave = mutation({
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenAction: PARTICIPANT_EXITED_ACTION,
         connectionId: undefined,
+        ...(participant.connectionId
+          ? { exitedConnectionId: participant.connectionId }
+          : {}),
       });
     }
   },

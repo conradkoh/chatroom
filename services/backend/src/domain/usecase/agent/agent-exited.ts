@@ -122,6 +122,9 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenAction: PARTICIPANT_EXITED_ACTION,
         connectionId: undefined,
+        ...(participant.connectionId
+          ? { exitedConnectionId: participant.connectionId }
+          : {}),
       });
     }
   }
