@@ -46,7 +46,11 @@ export const get = query({
   },
 });
 
-/** Returns chatrooms owned by the user, sorted by last activity. */
+/**
+ * @deprecated Use `listByUserV2`, which folds in the caller's read cursor
+ * (`lastViewedAt`). No remaining app consumers after the sidebar migration —
+ * retained only until the V2 rollout is confirmed in production, then DELETE.
+ */
 export const listByUser = query({
   args: {
     ...SessionIdArg,
@@ -69,6 +73,55 @@ export const listByUser = query({
     });
 
     return chatrooms;
+  },
+});
+
+/**
+ * Returns chatrooms owned by the user, each enriched with the caller's read-cursor
+ * timestamp (`lastViewedAt`) so the sidebar can rank "Recent" by when the user last
+ * opened each chatroom.
+ *
+ * V2 of `listByUser`: folds the per-user read cursor into the base row so the frontend
+ * needs a single subscription (no separate read-cursor join) and `lastViewedAt` is an
+ * explicit field (`number | null`) rather than an optional merge.
+ */
+export const listByUserV2 = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+
+    const [chatrooms, readCursors] = await Promise.all([
+      ctx.db
+        .query('chatroom_rooms')
+        .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
+        .collect(),
+      ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+        .collect(),
+    ]);
+
+    const lastViewedByChatroom = new Map(
+      readCursors.map((c) => [c.chatroomId, c.lastSeenAt])
+    );
+
+    const enriched = chatrooms.map((chatroom) => ({
+      ...chatroom,
+      lastViewedAt: lastViewedByChatroom.get(chatroom._id) ?? null,
+    }));
+
+    // Preserve listByUser's ordering (most-recent activity first); the sidebar
+    // applies its own lastViewedAt-aware sort on top.
+    enriched.sort((a, b) => {
+      const aTime = a.lastActivityAt ?? a._creationTime;
+      const bTime = b.lastActivityAt ?? b._creationTime;
+      return bTime - aTime;
+    });
+
+    return enriched;
   },
 });
 
@@ -451,27 +504,6 @@ export const listUnreadStatus = query({
     );
 
     return unreadStatus;
-  },
-});
-
-/** Returns the authenticated user's read-cursor timestamps per chatroom (when they last opened each). */
-export const listReadCursors = query({
-  args: {
-    ...SessionIdArg,
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return [];
-
-    const cursors = await ctx.db
-      .query('chatroom_read_cursors')
-      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
-      .collect();
-
-    return cursors.map((c) => ({
-      chatroomId: c.chatroomId as string,
-      lastViewedAt: c.lastSeenAt,
-    }));
   },
 });
 

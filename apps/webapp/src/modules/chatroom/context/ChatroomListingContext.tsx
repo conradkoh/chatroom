@@ -34,8 +34,8 @@ export interface ChatroomWithStatus {
   teamRoles?: string[];
   teamEntryPoint?: string;
   lastActivityAt?: number;
-  /** Per-user timestamp of when this user last opened the chatroom (read cursor). */
-  lastViewedAt?: number;
+  /** Per-user timestamp of when this user last opened the chatroom (read cursor); null if never opened. */
+  lastViewedAt: number | null;
   agents: Agent[];
   chatStatus: 'working' | 'active' | 'idle' | 'completed';
   isFavorite: boolean;
@@ -60,19 +60,18 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
 /**
  * Provider that fetches chatroom listing data using five focused subscriptions:
  *
- * 1. `listByUser`                    — base chatroom rows (sorted, lightweight)
+ * 1. `listByUserV2`                   — base chatroom rows (sorted, with per-user lastViewedAt)
  * 2. `getPresenceForChatroom` (×N)   — per-chatroom presence; heartbeats scoped to one room
  * 3. `listFavoriteIds`               — favorited chatroom IDs
  * 4. `listUnreadStatus`              — per-chatroom unread indicator
  * 5. `listAgentOverview`             — remote agent running state per chatroom
- * 6. `listReadCursors`              — per-user last-viewed timestamps for Recent sort
  *
  * Splitting into five subscription groups means a participant heartbeat (every 30s)
  * only re-runs presence for that chatroom, not the entire listing.
  */
 export function ChatroomListingProvider({ children }: { children: ReactNode }) {
-  // 1. Base chatroom data — lightweight, invalidated only by chatroom changes
-  const baseChatrooms = useSessionQuery(api.chatrooms.listByUser);
+  // 1. Base chatroom data — includes per-user lastViewedAt, invalidated only by chatroom or read-cursor changes
+  const baseChatrooms = useSessionQuery(api.chatrooms.listByUserV2);
 
   const chatroomIds = useMemo(
     () => (baseChatrooms ?? []).map((c) => c._id as string),
@@ -91,9 +90,6 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 5. Remote agent running status — re-fires when any machine spawnedAgentPid changes
   const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
 
-  // 6. Per-user read cursors — used to bubble recently-opened chatrooms up in "Recent"
-  const readCursors = useSessionQuery(api.chatrooms.listReadCursors);
-
   // Merge the five subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
     // Wait for all subscriptions to resolve before returning data
@@ -102,15 +98,13 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       presenceData === undefined ||
       favoriteIds === undefined ||
       unreadStatus === undefined ||
-      remoteAgentStatusData === undefined ||
-      readCursors === undefined
+      remoteAgentStatusData === undefined
     ) {
       return undefined;
     }
 
     const favoriteSet = new Set(favoriteIds);
     const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
-    const lastViewedMap = new Map(readCursors.map((c) => [c.chatroomId, c.lastViewedAt]));
     const unreadHandoffMap = new Map(
       unreadStatus.map((u) => [u.chatroomId, u.hasUnreadHandoff ?? false])
     );
@@ -152,10 +146,10 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
           | 'none',
         runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
         runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
-        lastViewedAt: lastViewedMap.get(chatroom._id),
+        lastViewedAt: chatroom.lastViewedAt ?? null,
       } as ChatroomWithStatus;
     });
-  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData, readCursors]);
+  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData]);
 
   const value = useMemo(
     () => ({
