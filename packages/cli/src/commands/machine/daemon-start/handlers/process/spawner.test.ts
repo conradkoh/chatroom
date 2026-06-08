@@ -226,6 +226,36 @@ describe('spawnCommandProcess — new output flow', () => {
     expect(mockStore.destroy).toHaveBeenCalled();
   });
 
+  it('forces final tail flush on exit even when run is not observed', async () => {
+    vi.useFakeTimers();
+    const fakeChild = makeFakeChild();
+    vi.mocked(spawn).mockReturnValue(fakeChild as any);
+
+    // Simulate a command nobody is currently watching.
+    const { isRunLogObserved, consumePendingFullSync } = await import('./log-observer-sync.js');
+    vi.mocked(isRunLogObserved).mockReturnValue(false);
+    vi.mocked(consumePendingFullSync).mockReturnValue(false);
+
+    const { spawnCommandProcess } = await import('./spawner.js');
+    await spawnCommandProcess(
+      ctx,
+      { workingDir: '/tmp', commandName: 'test', script: 'exit 1', runId: 'run-5' as any },
+      'key-5'
+    );
+
+    // Produce some output, then the command exits (e.g. failed) while unobserved.
+    fakeChild.stdout.emit('data', Buffer.from('last few lines'));
+    fakeChild._exit(1, null);
+    await vi.runAllTimersAsync();
+
+    const tailCalls = vi.mocked(ctx.deps.backend.mutation as any).mock.calls.filter(
+      (c: any) => c[0] === 'mock-updateRunTailV2'
+    );
+    // Without the force fix this is 0 (gated by isRunLogObserved=false); with it, the
+    // final flush still syncs the tail.
+    expect(tailCalls.length).toBe(1);
+  });
+
   it('flushes final chunks via appendOutput on exit when full sync was requested', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
