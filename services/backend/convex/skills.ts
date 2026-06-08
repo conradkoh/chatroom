@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { activateSkill } from '../src/domain/usecase/skills/activate-skill';

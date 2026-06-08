@@ -11,9 +11,9 @@
  */
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { getAuthUserId, requireAuthUserId } from '../../../modules/auth/cli-session';
-import type { Id } from '../../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../../_generated/server';
+import { getAuthUserId, requireAuthUserId } from '../../modules/auth/cli-session';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 
 /** The result of a successful session auth check. */
 export type SessionAuth = {

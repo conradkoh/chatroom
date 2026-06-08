@@ -5,7 +5,7 @@ import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } fr
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
