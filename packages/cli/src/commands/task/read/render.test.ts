@@ -60,7 +60,7 @@ const STALE_INPUT: RenderTaskPromptInput = {
  * Captured manually — used for the size-constraint assertion.
  * DO NOT update without verifying against the actual renderer output.
  */
-const OLD_GOLDEN_LENGTH = 938;
+const OLD_GOLDEN_LENGTH = 988;
 
 // =========================================================================
 // Layout
@@ -196,5 +196,22 @@ describe('stale context', () => {
   it('still renders staleness notice', () => {
     const output = renderTaskPrompt(STALE_INPUT);
     expect(output).toContain('old');
+  });
+});
+
+// =========================================================================
+// Originating message disclosure
+// =========================================================================
+
+describe('originating message disclosure', () => {
+  it('does NOT inline the originating message or the "in response to" block', () => {
+    const output = renderTaskPrompt(FULL_INPUT);
+    expect(output).not.toContain('in response to');
+    expect(output).not.toContain('Please add login');
+  });
+
+  it('discloses the context read command instead', () => {
+    const output = renderTaskPrompt(FULL_INPUT);
+    expect(output).toContain('chatroom context read');
   });
 });
