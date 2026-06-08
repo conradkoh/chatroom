@@ -454,6 +454,27 @@ export const listUnreadStatus = query({
   },
 });
 
+/** Returns the authenticated user's read-cursor timestamps per chatroom (when they last opened each). */
+export const listReadCursors = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+
+    const cursors = await ctx.db
+      .query('chatroom_read_cursors')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return cursors.map((c) => ({
+      chatroomId: c.chatroomId as string,
+      lastViewedAt: c.lastSeenAt,
+    }));
+  },
+});
+
 /** Returns participant presence (role, lastSeenAt, lastSeenAction) for all chatrooms the user owns. */
 export const listParticipantPresence = query({
   args: {

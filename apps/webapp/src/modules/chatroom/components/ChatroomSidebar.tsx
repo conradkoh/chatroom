@@ -148,7 +148,7 @@ interface ChatroomSidebarProps {
  *
  * Sections:
  * - Active: Chatrooms with chatStatus 'working' or 'active' (agents present and engaged)
- * - Recent: Top 5 most recently active non-active chatrooms
+ * - Recent: Top 50 by most-recent of (activity, user last-viewed), excluding active and completed
  * - Completed: Collapsible section for completed chatrooms
  *
  * Favorites are indicated by a star icon on the chatroom item rather than a separate section.
@@ -173,17 +173,17 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
       .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
       .sort((a, b) => a._creationTime - b._creationTime);
 
-    // Recent: Top 5 by lastActivityAt, excluding active and completed chatrooms
+    // Recent: Top 50 by most-recent of (activity, user last-viewed), excluding active and completed.
     const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
     const remainingChatrooms = chatrooms.filter(
       (c) => !engagedIds.has(c._id) && c.chatStatus !== 'completed'
     );
+    const recencyOf = (c: (typeof remainingChatrooms)[number]) =>
+      Math.max(c.lastActivityAt ?? 0, c.lastViewedAt ?? 0, c._creationTime);
     const sortedByActivity = [...remainingChatrooms].sort((a, b) => {
-      const aTime = a.lastActivityAt || a._creationTime;
-      const bTime = b.lastActivityAt || b._creationTime;
-      return bTime - aTime || a._id.localeCompare(b._id); // stable tiebreaker
+      return recencyOf(b) - recencyOf(a) || a._id.localeCompare(b._id); // stable tiebreaker
     });
-    const recentChatrooms = sortedByActivity.slice(0, 5);
+    const recentChatrooms = sortedByActivity.slice(0, 50);
 
     return {
       activeChatrooms: engagedChatrooms,
