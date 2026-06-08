@@ -65,8 +65,10 @@ export async function reassignInFlightTasksOnTeamSwitch(
   const entryPoint = getTeamEntryPoint(chatroom);
   if (!entryPoint) return 0;
 
+  const normalizedEntry = entryPoint.toLowerCase();
   let reassigned = 0;
 
+  // Acknowledged / in_progress → pending, reassigned to the new entry point.
   for (const status of RELEASE_FROM_STATUSES) {
     const tasks = await ctx.db
       .query('chatroom_tasks')
@@ -86,6 +88,28 @@ export async function reassignInFlightTasksOnTeamSwitch(
       );
       reassigned++;
     }
+  }
+
+  // Already-pending tasks assigned to a now-stale role. transitionTask's no-op
+  // guard (currentStatus === newStatus) prevents it from updating assignedTo here,
+  // so patch directly. The new entry point's get-next-task (claimTask) filters
+  // pending tasks by assignedTo and will surface these. Tasks already targeting
+  // the entry point (or unassigned, which resolve to it dynamically) are skipped.
+  const pendingTasks = await ctx.db
+    .query('chatroom_tasks')
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', chatroomId).eq('status', 'pending')
+    )
+    .collect();
+
+  for (const task of pendingTasks) {
+    if (!task.assignedTo) continue;
+    if (task.assignedTo.toLowerCase() === normalizedEntry) continue;
+    await ctx.db.patch('chatroom_tasks', task._id, {
+      assignedTo: entryPoint,
+      updatedAt: Date.now(),
+    });
+    reassigned++;
   }
 
   return reassigned;
