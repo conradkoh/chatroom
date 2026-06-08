@@ -44,6 +44,29 @@ function formatLogLine(
   return `[${ts}] role:${options.role} ${kind}]${payload ? ` ${payload}` : ''}`;
 }
 
+/**
+ * Detects fatal provider usage-limit errors. OpenCode does NOT emit session.idle
+ * after such an error, so the agent would otherwise hang forever waiting for its
+ * turn to end. We treat these as a turn end and fire agent_end. Loose shape: the
+ * error name/type and message can arrive under different keys across SDK versions.
+ */
+function isUsageLimitError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as {
+    name?: unknown;
+    type?: unknown;
+    message?: unknown;
+    data?: { message?: unknown };
+  };
+  const name = String(e.name ?? e.type ?? '').toLowerCase();
+  const message = String(e.data?.message ?? e.message ?? '').toLowerCase();
+  return (
+    name.includes('usagelimit') ||
+    message.includes('usage limit') ||
+    message.includes('enable usage from your available balance')
+  );
+}
+
 function eventSessionId(event: OpenCodeEvent): string | undefined {
   const p = event.properties;
   if (!p || typeof p !== 'object') return undefined;
@@ -246,6 +269,14 @@ export function startSessionEventForwarder(
               payload += ` [command: ${props.command}]`;
             }
             errorTarget.write(formatLogLine(options, 'error', payload) + '\n');
+            // Usage-limit errors are terminal: OpenCode will not emit session.idle,
+            // so end the turn ourselves to avoid a hung agent.
+            if (isUsageLimitError(err)) {
+              target.write(
+                formatLogLine(options, 'agent_end', 'reason: usage_limit_reached') + '\n'
+              );
+              for (const cb of agentEndCallbacks) cb();
+            }
             break;
           }
           default:
