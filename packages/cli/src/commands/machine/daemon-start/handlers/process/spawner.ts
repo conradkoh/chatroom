@@ -21,8 +21,12 @@ import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js
 
 let tempDirReady = false;
 
-async function flushTailV2(ctx: DaemonContext, tracked: RunningProcess): Promise<void> {
-  if (!isRunLogObserved(tracked.runId)) return;
+async function flushTailV2(
+  ctx: DaemonContext,
+  tracked: RunningProcess,
+  force = false
+): Promise<void> {
+  if (!force && !isRunLogObserved(tracked.runId)) return;
 
   const tail = await tracked.store.getLastNLines(MAX_TAIL_LINES_V2);
   if (tail.content.length === 0) return;
@@ -93,7 +97,7 @@ async function flushFinalChunks(
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
-  await flushTailV2(ctx, tracked);
+  await flushTailV2(ctx, tracked, true); // final flush: always sync the tail, even if unobserved
   if (consumePendingFullSync(tracked.runId)) {
     await appendFullOutputChunks(ctx, tracked, runId);
   }
