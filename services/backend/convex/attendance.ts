@@ -3,7 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import { getAuthUserOptional } from '../modules/auth/getAuthUser';
+import { getAuthUser } from '../modules/auth/session';
 
 // Hardcoded attendance key
 const ATTENDANCE_KEY = 'default-attendance';
@@ -28,7 +28,7 @@ export const recordAttendance = mutation({
     const isManuallyJoined = args.isManuallyJoined;
 
     // For authenticated users
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     if (user && self) {
       attendanceUserId = user._id; //only associate the user if they are recording for themselves
     }
@@ -95,7 +95,7 @@ export const deleteAttendanceRecord = mutation({
     }
 
     // Check if the user is authorized to delete this record
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
 
     // Only allow deletion if:
     // 1. The user is the owner of the record (their userId matches)
@@ -127,7 +127,7 @@ export const getAttendanceData = query({
       .collect();
 
     // Get current user's response if authenticated
-    const user = await getAuthUserOptional(ctx, args);
+    const user = await getAuthUser(ctx, args);
     const currentUserResponse = user
       ? await ctx.db
           .query('attendanceRecords')

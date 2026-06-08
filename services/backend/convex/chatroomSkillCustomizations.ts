@@ -10,7 +10,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
-import { requireChatroomAccess } from './auth/core/chatroomAccess';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 
 // ---------------------------------------------------------------------------
 // Helpers

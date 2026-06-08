@@ -10,8 +10,8 @@
 
 import { ConvexError } from 'convex/values';
 
-import type { Doc, Id } from '../../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../../_generated/server';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { validateSession, type ValidatedSession } from './sessionValidation';
 
 /** Authenticated chatroom access result containing session and chatroom document. */

@@ -1,8 +1,12 @@
 /**
  * Observation-first workspace list for a machine.
  *
- * Uses `by_lastObservedAt` range query then intersects with machine workspaces,
- * avoiding N+1 observation lookups per chatroom.
+ * Looks up observations only for the chatrooms this machine actually has
+ * workspaces in (point lookups on `by_chatroomId`), instead of scanning the
+ * global `by_lastObservedAt` range across every chatroom and intersecting.
+ * Each machine typically spans only a handful of chatrooms, so this reads a
+ * tiny, bounded set of observation rows rather than the entire recently-active
+ * observation set on every call.
  */
 
 import { WORKSPACE_RECENCY_WINDOW_MS } from '../../../../config/reliability';
@@ -41,13 +45,21 @@ export async function listRecentlyObservedWorkspacesForMachine(
   const activeWorkspaces = workspaces.filter((ws) => isActiveWorkspace(ws.removedAt));
   if (activeWorkspaces.length === 0) return [];
 
-  const activeObservations = await ctx.db
-    .query('chatroom_observation')
-    .withIndex('by_lastObservedAt', (q) => q.gte('lastObservedAt', cutoff))
-    .collect();
-
-  const recentlyObservedChatrooms = new Set(
-    activeObservations.map((o) => o.chatroomId as Id<'chatroom_rooms'>)
+  // Resolve recency by reading the observation for each of this machine's
+  // chatrooms directly (one singleton row per chatroom via `by_chatroomId`),
+  // rather than collecting every recently-observed chatroom globally.
+  const chatroomIds = [...new Set(activeWorkspaces.map((ws) => ws.chatroomId))];
+  const recentlyObservedChatrooms = new Set<Id<'chatroom_rooms'>>();
+  await Promise.all(
+    chatroomIds.map(async (chatroomId) => {
+      const observation = await ctx.db
+        .query('chatroom_observation')
+        .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+      if (observation && observation.lastObservedAt >= cutoff) {
+        recentlyObservedChatrooms.add(chatroomId);
+      }
+    })
   );
 
   return activeWorkspaces

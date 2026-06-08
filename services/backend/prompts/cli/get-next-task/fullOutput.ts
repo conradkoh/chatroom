@@ -40,7 +40,6 @@ export interface FullCliOutputParams {
   /** Explicit context (new system) */
   currentContext: {
     content: string;
-    messagesSinceContext: number;
     elapsedHours: number;
   } | null;
 
@@ -132,22 +131,22 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
     );
 
-    // Staleness warning: many messages since context was set
-    if (currentContext.messagesSinceContext >= 10) {
+    // Time-based staleness: soft warning at >= 4h, hard warning at >= 24h.
+    // The count-based "messages since context" signal was removed in favor of
+    // pure time-based staleness (zero per-call message-doc reads).
+    if (currentContext.elapsedHours >= 24) {
+      const ageDays = Math.floor(currentContext.elapsedHours / 24);
       lines.push('');
-      lines.push(`⚠️ Stale context: ${currentContext.messagesSinceContext} messages since set.`);
+      lines.push(`⚠️ Context is ${ageDays}d old.`);
       if (isEntryPoint) {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
       }
-    }
-
-    // Staleness warning: old context
-    if (currentContext.elapsedHours >= 24) {
-      const ageDays = Math.floor(currentContext.elapsedHours / 24);
+    } else if (currentContext.elapsedHours >= 4) {
+      const ageHours = Math.floor(currentContext.elapsedHours);
       lines.push('');
-      lines.push(`⚠️ Context is ${ageDays}d old.`);
+      lines.push(`⚠️ Context is ${ageHours}h old — consider refreshing if stale.`);
       if (isEntryPoint) {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``

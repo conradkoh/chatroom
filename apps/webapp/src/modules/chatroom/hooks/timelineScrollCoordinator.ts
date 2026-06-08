@@ -323,8 +323,7 @@ export class TimelineScrollCoordinator {
     const tailChanged =
       tailKey !== null && tailKey !== this.prevTailKey && this.prevTailKey !== null;
     const isPrependWhileLoadingOlder =
-      countIncreased &&
-      (this.wasLoadingOlder || isLoadingOlder || this.pendingPrependPreserve);
+      countIncreased && (this.wasLoadingOlder || isLoadingOlder || this.pendingPrependPreserve);
 
     if (eventCount > 0 && !this.hasInitialScroll) {
       this.hasInitialScroll = true;
@@ -464,7 +463,11 @@ export class TimelineScrollCoordinator {
 
     for (let i = this.intentQueue.length - 1; i >= 0; i--) {
       const intent = this.intentQueue[i];
-      if (intent.type === 'follow_tail' || intent.type === 'tail_settle' || intent.type === 'snap') {
+      if (
+        intent.type === 'follow_tail' ||
+        intent.type === 'tail_settle' ||
+        intent.type === 'snap'
+      ) {
         this.intentQueue.splice(i, 1);
         if (blockTail) continue;
         if (intent.type === 'follow_tail') {
@@ -670,9 +673,10 @@ export class TimelineScrollCoordinator {
       return;
     }
 
+    const el = this.el;
     this.runProgrammaticScroll(() => {
-      this.el!.scrollTop += deltaPx;
-      this.virtualizer?.scrollToOffset?.(this.el!.scrollTop, { behavior: 'auto' });
+      el.scrollTop += deltaPx;
+      this.virtualizer?.scrollToOffset?.(el.scrollTop, { behavior: 'auto' });
       this.syncVirtualizerScrollFromDom();
     });
   }
@@ -739,10 +743,7 @@ export class TimelineScrollCoordinator {
     return true;
   }
 
-  private schedulePrependScrollSettle(
-    scrollEl: HTMLElement,
-    anchor: PrependScrollAnchor
-  ): void {
+  private schedulePrependScrollSettle(scrollEl: HTMLElement, anchor: PrependScrollAnchor): void {
     if (this.prependSettleRafId !== null) {
       cancelAnimationFrame(this.prependSettleRafId);
     }
@@ -847,7 +848,12 @@ export class TimelineScrollCoordinator {
     }
 
     this.virtualizer?.scrollToOffset?.(top, { behavior: 'auto' });
-    this.el.dispatchEvent(new Event('scroll'));
+    // Defer the synthetic scroll event so it does not fire inside a React lifecycle
+    // (e.g. useLayoutEffect). TanStack Virtual caches its scrollOffset from scroll events;
+    // a microtask is fast enough to maintain scroll-state consistency while avoiding
+    // the "flushSync called from inside a lifecycle method" React warning.
+    const el = this.el;
+    queueMicrotask(() => el.dispatchEvent(new Event('scroll')));
   }
 
   private computeIsAtBottom(): boolean {

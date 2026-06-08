@@ -30,7 +30,8 @@ export function useTheme() {
 }
 
 // Script to prevent flash of incorrect theme
-const themeScript = `
+// Exported so layout.tsx can inject it via next/script before hydration
+export const themeScript = `
 (() => {
   window.__theme = {
     value: localStorage.getItem('theme') || 'system',
@@ -93,12 +94,8 @@ const themeScript = `
 `;
 
 export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) {
-  // Custom attribute to use for theme application
   const attribute = targetSelector ? 'data-theme' : 'class';
-  const [mounted] = useState(() => typeof window !== 'undefined');
-  const [theme, _setTheme] = useState<Theme | null>(() =>
-    typeof window !== 'undefined' ? window.__theme.value : null
-  );
+  const [theme, _setTheme] = useState<Theme | null>(null);
   const setTheme = useCallback((theme: Theme) => {
     _setTheme(theme);
     window.__theme.setTheme(theme);
@@ -106,32 +103,20 @@ export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) 
 
   // We need to use this component pattern for hydration safety
   return (
-    <>
-      {/* Inject script to handle theme before React hydration */}
-      {}
-      <script dangerouslySetInnerHTML={{ __html: themeScript }} suppressHydrationWarning />
-
-      {mounted ? (
-        <ThemeContext.Provider value={{ theme, setTheme }}>
-          <NextThemesProvider
-            attribute={attribute}
-            defaultTheme="system"
-            enableSystem
-            themes={['light', 'dark']}
-            enableColorScheme
-            storageKey="theme"
-            // If a target selector is provided, use it as the element to apply theme to
-            {...(targetSelector && { selector: targetSelector })}
-          >
-            {children}
-          </NextThemesProvider>
-        </ThemeContext.Provider>
-      ) : (
-        // During SSR and before hydration, just render children
-        // The script above will handle theme application
-        children
-      )}
-    </>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      <NextThemesProvider
+        attribute={attribute}
+        defaultTheme="system"
+        enableSystem
+        themes={['light', 'dark']}
+        enableColorScheme
+        storageKey="theme"
+        // If a target selector is provided, use it as the element to apply theme to
+        {...(targetSelector && { selector: targetSelector })}
+      >
+        {children}
+      </NextThemesProvider>
+    </ThemeContext.Provider>
   );
 }
 
