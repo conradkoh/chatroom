@@ -42,9 +42,9 @@ export const AGENT_HARNESSES = [
 export type AgentHarness = (typeof AGENT_HARNESSES)[number];
 
 /** Enum-like object: AgentHarnessEnum.opencode === 'opencode', etc. */
-export const AgentHarnessEnum = Object.fromEntries(
-  AGENT_HARNESSES.map((h) => [h, h])
-) as { readonly [K in AgentHarness]: K };
+export const AgentHarnessEnum = Object.fromEntries(AGENT_HARNESSES.map((h) => [h, h])) as {
+  readonly [K in AgentHarness]: K;
+};
 
 /** Convex validator for agent harness types. */
 export const agentHarnessValidator = v.union(...toLiteralValidators(AGENT_HARNESSES));
@@ -75,9 +75,9 @@ export const AGENT_TYPES = ['remote', 'custom'] as const;
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
-export const AgentTypeEnum = Object.fromEntries(
-  AGENT_TYPES.map((t) => [t, t])
-) as { readonly [K in AgentType]: K };
+export const AgentTypeEnum = Object.fromEntries(AGENT_TYPES.map((t) => [t, t])) as {
+  readonly [K in AgentType]: K;
+};
 
 export const agentTypeValidator = v.union(...toLiteralValidators(AGENT_TYPES));
 
@@ -89,12 +89,7 @@ export const isAgentType = (value: unknown): value is AgentType =>
 /**
  * Types of commands that can be dispatched to a machine daemon.
  */
-export const MACHINE_COMMAND_TYPES = [
-  'start-agent',
-  'stop-agent',
-  'ping',
-  'status',
-] as const;
+export const MACHINE_COMMAND_TYPES = ['start-agent', 'stop-agent', 'ping', 'status'] as const;
 
 export type MachineCommandType = (typeof MACHINE_COMMAND_TYPES)[number];
 
@@ -102,9 +97,7 @@ export const MachineCommandTypeEnum = Object.fromEntries(
   MACHINE_COMMAND_TYPES.map((c) => [c, c])
 ) as { readonly [K in MachineCommandType]: K };
 
-export const machineCommandTypeValidator = v.union(
-  ...toLiteralValidators(MACHINE_COMMAND_TYPES)
-);
+export const machineCommandTypeValidator = v.union(...toLiteralValidators(MACHINE_COMMAND_TYPES));
 
 export const isMachineCommandType = (value: unknown): value is MachineCommandType =>
   (MACHINE_COMMAND_TYPES as readonly string[]).includes(value as string);
@@ -157,13 +150,11 @@ export const AGENT_START_REASONS = [
 
 export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
 
-export const AgentStartReasonEnum = Object.fromEntries(
-  AGENT_START_REASONS.map((r) => [r, r])
-) as { readonly [K in AgentStartReason]: K };
+export const AgentStartReasonEnum = Object.fromEntries(AGENT_START_REASONS.map((r) => [r, r])) as {
+  readonly [K in AgentStartReason]: K;
+};
 
-export const agentStartReasonValidator = v.union(
-  ...toLiteralValidators(AGENT_START_REASONS)
-);
+export const agentStartReasonValidator = v.union(...toLiteralValidators(AGENT_START_REASONS));
 
 export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
   (AGENT_START_REASONS as readonly string[]).includes(value as string);
@@ -184,6 +175,7 @@ export const AGENT_STOP_REASONS = [
   'user.stop',
   'platform.dedup',
   'platform.team_switch',
+  'platform.resume_storm',
   'daemon.respawn',
   'daemon.shutdown',
   'test',
@@ -191,13 +183,11 @@ export const AGENT_STOP_REASONS = [
 
 export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];
 
-export const AgentStopReasonEnum = Object.fromEntries(
-  AGENT_STOP_REASONS.map((r) => [r, r])
-) as { readonly [K in AgentStopReason]: K };
+export const AgentStopReasonEnum = Object.fromEntries(AGENT_STOP_REASONS.map((r) => [r, r])) as {
+  readonly [K in AgentStopReason]: K;
+};
 
-export const agentStopReasonValidator = v.union(
-  ...toLiteralValidators(AGENT_STOP_REASONS)
-);
+export const agentStopReasonValidator = v.union(...toLiteralValidators(AGENT_STOP_REASONS));
 
 export const isAgentStopReason = (value: unknown): value is AgentStopReason =>
   (AGENT_STOP_REASONS as readonly string[]).includes(value as string);
@@ -214,9 +204,9 @@ export const MODEL_SOURCES = ['team_config', 'none'] as const;
 
 export type ModelSource = (typeof MODEL_SOURCES)[number];
 
-export const ModelSourceEnum = Object.fromEntries(
-  MODEL_SOURCES.map((s) => [s, s])
-) as { readonly [K in ModelSource]: K };
+export const ModelSourceEnum = Object.fromEntries(MODEL_SOURCES.map((s) => [s, s])) as {
+  readonly [K in ModelSource]: K;
+};
 
 export const modelSourceValidator = v.union(...toLiteralValidators(MODEL_SOURCES));
 

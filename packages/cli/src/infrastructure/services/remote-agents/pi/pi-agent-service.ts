@@ -194,12 +194,7 @@ export class PiAgentService extends BaseCLIAgentService {
     model?: string;
     sessionId?: string;
   }): ChildProcess {
-    const rpcArgs: string[] = [
-      '--mode',
-      'rpc',
-      '--session-dir',
-      getPiSessionDir(args.workingDir),
-    ];
+    const rpcArgs: string[] = ['--mode', 'rpc', '--session-dir', getPiSessionDir(args.workingDir)];
 
     if (args.sessionId) {
       rpcArgs.push('--session', args.sessionId);
@@ -251,10 +246,7 @@ export class PiAgentService extends BaseCLIAgentService {
     });
   }
 
-  private async querySessionId(
-    reader: PiRpcReader,
-    stdin: ChildProcess['stdin']
-  ): Promise<string> {
+  private async querySessionId(reader: PiRpcReader, stdin: ChildProcess['stdin']): Promise<string> {
     if (!stdin) {
       throw new Error('Pi RPC process has no stdin');
     }
@@ -273,6 +265,7 @@ export class PiAgentService extends BaseCLIAgentService {
     });
   }
 
+  // fallow-ignore-next-line complexity
   private wireRpcProcess(args: {
     childProcess: ChildProcess;
     context: SpawnOptions['context'];
@@ -282,7 +275,10 @@ export class PiAgentService extends BaseCLIAgentService {
     reader?: PiRpcReader;
   }): SpawnResult {
     const { childProcess, context, workingDir, model, harnessSessionId } = args;
-    const pid = childProcess.pid!;
+    const pid = childProcess.pid;
+    if (pid == null) {
+      throw new Error('Pi RPC process has no PID');
+    }
 
     this.childProcesses.set(pid, childProcess);
     this.trackedSessions.set(pid, { harnessSessionId, workingDir, model });
@@ -294,7 +290,12 @@ export class PiAgentService extends BaseCLIAgentService {
     const logPrefix = `[pi:${roleTag}${chatroomSuffix}`;
 
     const outputCallbacks: (() => void)[] = [];
+    const logLineCallbacks: ((line: string) => void)[] = [];
     const agentEndCallbacks: (() => void)[] = [];
+
+    const emitLogLine = (line: string) => {
+      for (const cb of logLineCallbacks) cb(line);
+    };
 
     const onExit = (
       cb: (info: {
@@ -319,6 +320,10 @@ export class PiAgentService extends BaseCLIAgentService {
       agentEndCallbacks.push(cb);
     };
 
+    const onLogLine = (cb: (line: string) => void) => {
+      logLineCallbacks.push(cb);
+    };
+
     const baseResult: SpawnResult = {
       pid,
       harnessSessionId,
@@ -328,16 +333,28 @@ export class PiAgentService extends BaseCLIAgentService {
       },
       onExit,
       onOutput,
+      onLogLine,
+    };
+
+    const writeFormattedLogLine = (formatted: string) => {
+      process.stdout.write(`${formatted}\n`);
+      emitLogLine(formatted);
+    };
+
+    const onStderrData = (chunk: Buffer | string) => {
+      entry.lastOutputAt = Date.now();
+      for (const cb of outputCallbacks) cb();
+      emitLogLine(chunk.toString());
+    };
+
+    const attachStderr = (stream: NodeJS.ReadableStream | null | undefined) => {
+      if (!stream) return;
+      stream.pipe(process.stderr, { end: false });
+      stream.on('data', onStderrData);
     };
 
     if (!childProcess.stdout) {
-      if (childProcess.stderr) {
-        childProcess.stderr.pipe(process.stderr, { end: false });
-        childProcess.stderr.on('data', () => {
-          entry.lastOutputAt = Date.now();
-          for (const cb of outputCallbacks) cb();
-        });
-      }
+      attachStderr(childProcess.stderr);
       return baseResult;
     }
 
@@ -346,41 +363,47 @@ export class PiAgentService extends BaseCLIAgentService {
     let textBuffer = '';
     let thinkingBuffer = '';
 
-    const flushText = () => {
-      if (!textBuffer) return;
-      for (const line of textBuffer.split('\n')) {
-        if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
+    const flushBufferedLines = (buffer: string, kind: 'text' | 'thinking', clear: () => void) => {
+      if (!buffer) return;
+      for (const line of buffer.split('\n')) {
+        if (line) {
+          writeFormattedLogLine(`${logPrefix} ${kind}] ${line}`);
+        }
       }
-      textBuffer = '';
+      clear();
     };
 
-    const flushThinking = () => {
-      if (!thinkingBuffer) return;
-      for (const line of thinkingBuffer.split('\n')) {
-        if (line) process.stdout.write(`${logPrefix} thinking] ${line}\n`);
-      }
-      thinkingBuffer = '';
+    const flushText = () =>
+      flushBufferedLines(textBuffer, 'text', () => {
+        textBuffer = '';
+      });
+
+    const flushThinking = () =>
+      flushBufferedLines(thinkingBuffer, 'thinking', () => {
+        thinkingBuffer = '';
+      });
+
+    const notifyOutput = () => {
+      entry.lastOutputAt = Date.now();
+      for (const cb of outputCallbacks) cb();
     };
 
     reader.onTextDelta((delta) => {
       flushThinking();
       textBuffer += delta;
       if (textBuffer.includes('\n')) flushText();
-      entry.lastOutputAt = Date.now();
-      for (const cb of outputCallbacks) cb();
+      notifyOutput();
     });
 
     reader.onThinkingDelta((delta) => {
       flushText();
       thinkingBuffer += delta;
       if (thinkingBuffer.includes('\n')) flushThinking();
-      entry.lastOutputAt = Date.now();
-      for (const cb of outputCallbacks) cb();
+      notifyOutput();
     });
 
     reader.onAnyEvent(() => {
-      entry.lastOutputAt = Date.now();
-      for (const cb of outputCallbacks) cb();
+      notifyOutput();
     });
 
     reader.onAgentEnd(() => {
@@ -394,21 +417,15 @@ export class PiAgentService extends BaseCLIAgentService {
       flushText();
       flushThinking();
       const argsStr = toolArgs != null ? ` args: ${JSON.stringify(toolArgs)}` : '';
-      process.stdout.write(`${logPrefix} tool: ${name}${argsStr}]\n`);
+      writeFormattedLogLine(`${logPrefix} tool: ${name}${argsStr}]`);
     });
 
     reader.onToolResult((name, result) => {
       const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-      process.stdout.write(`${logPrefix} tool_result: ${name} result: ${resultStr}]\n`);
+      writeFormattedLogLine(`${logPrefix} tool_result: ${name} result: ${resultStr}]`);
     });
 
-    if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-      });
-    }
+    attachStderr(childProcess.stderr);
 
     return {
       ...baseResult,

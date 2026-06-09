@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agentResumeStorm from "../agentResumeStorm.js";
 import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
@@ -102,6 +103,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentResumeStorm: typeof agentResumeStorm;
   "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;

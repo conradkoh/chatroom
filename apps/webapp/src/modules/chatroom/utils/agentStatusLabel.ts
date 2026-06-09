@@ -73,6 +73,10 @@ export function resolveAgentStatus(
     return { label: 'OFFLINE (ERROR)', variant: 'error' };
   }
 
+  if (eventType === 'agent.resumeStormAborted') {
+    return { label: 'OFFLINE (ERROR)', variant: 'error' };
+  }
+
   // ── Online events ──────────────────────────────────────────────────────────
 
   if (eventType === 'agent.registered') {

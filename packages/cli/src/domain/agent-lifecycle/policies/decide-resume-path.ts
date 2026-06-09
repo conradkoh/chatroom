@@ -1,6 +1,5 @@
-import type { StopReason } from '../entities/stop-reason.js';
-
 import type { ResumePath } from '../entities/resume-path.js';
+import type { StopReason } from '../entities/stop-reason.js';
 
 /**
  * Resume strategy when starting or restarting an agent (ensureRunning).
@@ -22,16 +21,16 @@ export function decideResumePathOnRestart(input: {
 /**
  * Whether an unexpected process exit should trigger auto-restart (crash recovery).
  */
+const NO_AUTO_RESTART_STOP_REASONS = new Set<StopReason>([
+  'user.stop',
+  'platform.team_switch',
+  'platform.resume_storm',
+  'daemon.shutdown',
+  'daemon.respawn',
+]);
+
 export function shouldAutoRestartAfterProcessExit(stopReason: StopReason): boolean {
-  switch (stopReason) {
-    case 'user.stop':
-    case 'platform.team_switch':
-    case 'daemon.shutdown':
-    case 'daemon.respawn':
-      return false;
-    default:
-      return true;
-  }
+  return !NO_AUTO_RESTART_STOP_REASONS.has(stopReason);
 }
 
 /**
