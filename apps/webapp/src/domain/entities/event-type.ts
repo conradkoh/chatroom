@@ -30,6 +30,7 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.startFailed': { label: 'Agent Start Failed', badge: 'error' },
   'agent.sessionResumed': { label: 'Session Resumed', badge: 'success' },
   'agent.sessionResumeFailed': { label: 'Session Resume Failed', badge: 'warning' },
+  'agent.resumeStormAborted': { label: 'Resume Storm Aborted', badge: 'error' },
   'agent.restartLimitReached': { label: 'Agent Restart Limit', badge: 'error' },
   'machine.switched': { label: 'Machine Switched', badge: 'info' },
   'task.activated': { label: 'Task Activated', badge: 'success' },
@@ -56,9 +57,7 @@ export const SUPPORTED_EVENT_TYPES = {
 
 export type EventTypeName = keyof typeof SUPPORTED_EVENT_TYPES;
 
-export const SUPPORTED_EVENT_TYPE_NAMES = Object.keys(
-  SUPPORTED_EVENT_TYPES
-) as EventTypeName[];
+export const SUPPORTED_EVENT_TYPE_NAMES = Object.keys(SUPPORTED_EVENT_TYPES) as EventTypeName[];
 
 export function isSupportedEventType(type: string): type is EventTypeName {
   return type in SUPPORTED_EVENT_TYPES;

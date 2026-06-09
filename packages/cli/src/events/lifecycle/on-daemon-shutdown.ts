@@ -13,6 +13,8 @@ export async function onDaemonShutdown(ctx: DaemonContext): Promise<void> {
   // Kill all running command processes before stopping agents
   await shutdownAllCommands(ctx);
 
+  await ctx.deps.agentProcessManager.whenTurnEndsIdle();
+
   const activeAgents = ctx.deps.agentProcessManager.listActive();
 
   if (activeAgents.length > 0) {

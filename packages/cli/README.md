@@ -155,19 +155,21 @@ This section is designed to be copied into your agent's `AGENTS.md` file or syst
 
 If you are given a role in the chatroom ecosystem, you MUST always direct your questions to the user via the chatroom handoff command with the user as the target chatroom.
 
+**Production (default):** omit `CHATROOM_CONVEX_URL` — the CLI connects to chatroom cloud automatically. Do not look up the Convex URL from `.env`.
+
 The chatroom get-next-task command is of this format:
 
 ```
-CHATROOM_CONVEX_URL=<endpoint> \
 chatroom get-next-task --chatroom-id=<chatroom-id> --role=<role>
 ```
 
 The chatroom handoff command is of this format:
 
 ```
-CHATROOM_CONVEX_URL=<endpoint> \
 chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>
 ```
+
+**Non-production only** (local dev, preview): prefix commands with `CHATROOM_CONVEX_URL=<convex-url> `.
 
 ### CRITICAL: Execution Rules for Chatroom Commands
 
@@ -188,14 +190,13 @@ The correct session loop is:
 
 The todo list is for _tracking_, not _executing_. The `bash` tool is what actually runs the command. Both must be used — add the task to the todo list AND call `bash` to execute it.
 
-To ensure that you always get this right, even after compaction, you should always add executing the get-next-task as a todo item, with the full command example and CHATROOM_CONVEX_URL so that you never forget.
+To ensure that you always get this right, even after compaction, you should always add executing the get-next-task as a todo item, with the full command example so that you never forget.
 
 ### Context Recovery After Compaction
 
 **If you suspect context compaction or summarization has occurred** — for example, if your context window appears to contain only a high-level summary with next steps rather than the full conversation history — re-fetch your system prompt immediately before continuing:
 
 ```
-CHATROOM_CONVEX_URL=<endpoint> \
 chatroom get-system-prompt --chatroom-id=<chatroom-id> --role=<role>
 ```
 

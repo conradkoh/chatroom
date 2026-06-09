@@ -246,6 +246,28 @@ describe('agentExited use case', () => {
     expect(participant?.lastStatus).toBe('agent.started');
   });
 
+  test('preserves resume-storm participant status when stopReason is platform.resume_storm', async () => {
+    const { sessionId } = await createTestSession('ae-resume-storm-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-ae-storm';
+    await setupAgentConfig(sessionId, chatroomId, machineId, 'builder', 12345);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      await agentExited(ctx, {
+        chatroomId,
+        role: 'builder',
+        machineId,
+        pid: 12345,
+        stopReason: 'platform.resume_storm',
+      });
+    });
+
+    const participant = await getParticipant(chatroomId, 'builder');
+    expect(participant?.lastStatus).toBe('agent.resumeStormAborted');
+    expect(participant?.lastDesiredState).toBe('stopped');
+  });
+
   test('is idempotent (calling twice with same input is safe)', async () => {
     const { sessionId } = await createTestSession('ae-idempotent-1');
     const chatroomId = await createChatroom(sessionId);

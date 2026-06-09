@@ -70,6 +70,11 @@ export interface SpawnResult {
   /** `lifecycle.output.activity` — stream or stdout/stderr activity. */
   onOutput: (cb: () => void) => void;
   /**
+   * Human-readable log lines for resume-storm reason classification.
+   * Required when the harness has `supportsSessionResume: true` (see HARNESS_GUIDE.md §3.5).
+   */
+  onLogLine?: (cb: (line: string) => void) => void;
+  /**
    * `lifecycle.turn.completed` — one agent turn finished; daemon may call `resumeTurn`.
    *
    * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):

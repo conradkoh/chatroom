@@ -25,6 +25,6 @@ Break complex tasks into small, focused slices and delegate them one at a time u
 For genuinely multi-phase, interdependent work — or when the user asks for a tracked plan — you can optionally activate the workflow skill to plan and track execution as a DAG:
 
 \`\`\`bash
-CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate workflow --chatroom-id=<id> --role=planner
+chatroom skill activate workflow --chatroom-id=<id> --role=planner
 \`\`\``;
 }

@@ -314,7 +314,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       For genuinely multi-phase, interdependent work — or when the user asks for a tracked plan — you can optionally activate the workflow skill to plan and track execution as a DAG:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate workflow --chatroom-id=<id> --role=planner
+      chatroom skill activate workflow --chatroom-id=<id> --role=planner
       \`\`\`
 
       **Delegation Guidelines:**
@@ -390,7 +390,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
 
       ## Skills to activate
-      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
+      - <e.g. chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice, or "Not Applicable">

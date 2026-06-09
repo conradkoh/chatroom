@@ -82,6 +82,8 @@ describe('init', () => {
       expect(written).toContain('Reliability');
       expect(written).toContain('Command Reference');
       expect(written).toContain('Context Recovery');
+      expect(written).not.toContain('CHATROOM_CONVEX_URL=<endpoint>');
+      expect(written).toContain('chatroom get-next-task --chatroom-id=<id> --role=<role>');
     });
   });
 

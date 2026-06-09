@@ -6,6 +6,8 @@ export interface SessionEventForwarderOptions {
   target?: Writable;
   errorTarget?: Writable;
   now?: () => string;
+  /** Human-readable log lines for resume-storm reason classification. */
+  onLogLine?: (line: string) => void;
 }
 
 export interface SessionEventForwarderHandle {
@@ -42,6 +44,17 @@ function formatLogLine(
 ): string {
   const ts = options.now ? options.now() : new Date().toISOString();
   return `[${ts}] role:${options.role} ${kind}]${payload ? ` ${payload}` : ''}`;
+}
+
+function writeLogLine(
+  target: Writable,
+  options: SessionEventForwarderOptions,
+  kind: string,
+  payload?: string
+): void {
+  const line = formatLogLine(options, kind, payload);
+  target.write(`${line}\n`);
+  options.onLogLine?.(line);
 }
 
 /**
@@ -136,7 +149,7 @@ export function startSessionEventForwarder(
 
         if (!sessionStarted) {
           sessionStarted = true;
-          target.write(formatLogLine(options, 'session] Started', `role: ${options.role}`) + '\n');
+          writeLogLine(target, options, 'session] Started', `role: ${options.role}`);
         }
 
         switch (event.type) {
@@ -166,13 +179,13 @@ export function startSessionEventForwarder(
               const chunk =
                 props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
               if (chunk) {
-                target.write(formatLogLine(options, 'text', chunk) + '\n');
+                writeLogLine(target, options, 'text', chunk);
               }
             } else if (part?.type === 'reasoning') {
               const chunk =
                 props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
               if (chunk) {
-                target.write(formatLogLine(options, 'thinking', chunk) + '\n');
+                writeLogLine(target, options, 'thinking', chunk);
               }
             } else if (part?.type === 'tool' && part.tool) {
               const state =
@@ -215,7 +228,7 @@ export function startSessionEventForwarder(
               const seenKey = `${callID}:${state}`;
               if (!seenToolStates.has(seenKey)) {
                 seenToolStates.set(seenKey, payload);
-                target.write(formatLogLine(options, 'tool: ' + part.tool, payload) + '\n');
+                writeLogLine(target, options, 'tool: ' + part.tool, payload);
               }
               if (state === 'completed' || state === 'error') {
                 seenToolStates.delete(seenKey);
@@ -229,16 +242,16 @@ export function startSessionEventForwarder(
               | undefined;
             const kind = props?.action ?? props?.kind;
             const filePayload = kind ? `${props?.file} (${kind})` : props?.file;
-            target.write(formatLogLine(options, 'file', filePayload) + '\n');
+            writeLogLine(target, options, 'file', filePayload);
             break;
           }
           case 'session.idle': {
-            target.write(formatLogLine(options, 'agent_end') + '\n');
+            writeLogLine(target, options, 'agent_end');
             for (const cb of agentEndCallbacks) cb();
             break;
           }
           case 'session.compacted': {
-            target.write(formatLogLine(options, 'compacted') + '\n');
+            writeLogLine(target, options, 'compacted');
             break;
           }
           case 'session.status': {
@@ -246,7 +259,7 @@ export function startSessionEventForwarder(
             const currentStatus = props?.status?.type;
             if (currentStatus !== lastStatus) {
               lastStatus = currentStatus;
-              target.write(formatLogLine(options, 'status', currentStatus) + '\n');
+              writeLogLine(target, options, 'status', currentStatus);
             }
             break;
           }
@@ -268,13 +281,11 @@ export function startSessionEventForwarder(
             } else if (props?.command) {
               payload += ` [command: ${props.command}]`;
             }
-            errorTarget.write(formatLogLine(options, 'error', payload) + '\n');
+            writeLogLine(errorTarget, options, 'error', payload);
             // Usage-limit errors are terminal: OpenCode will not emit session.idle,
             // so end the turn ourselves to avoid a hung agent.
             if (isUsageLimitError(err)) {
-              target.write(
-                formatLogLine(options, 'agent_end', 'reason: usage_limit_reached') + '\n'
-              );
+              writeLogLine(target, options, 'agent_end', 'reason: usage_limit_reached');
               for (const cb of agentEndCallbacks) cb();
             }
             break;
@@ -285,7 +296,7 @@ export function startSessionEventForwarder(
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      errorTarget.write(formatLogLine(options, 'error', message) + '\n');
+      writeLogLine(errorTarget, options, 'error', message);
     } finally {
       doneResolve();
     }
