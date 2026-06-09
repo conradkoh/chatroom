@@ -6,7 +6,9 @@ import {
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
 import { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import { RAPID_RESUME_THRESHOLD } from '../../machine/rapid-resume-tracker.js';
+import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
+
+const STORM_THRESHOLD = new RapidResumeTracker().record('_', '_', 0).threshold;
 
 const CHATROOM_ID = 'test-chatroom';
 const ROLE = 'builder';
@@ -126,18 +128,18 @@ describe('AgentProcessManager rapid resume storm', () => {
       throw new Error('onAgentEnd callback was not registered');
     }
 
-    for (let i = 0; i < RAPID_RESUME_THRESHOLD; i++) {
+    for (let i = 0; i < STORM_THRESHOLD; i++) {
       agentEndCb();
       await Promise.resolve();
       now += 200;
     }
     await Promise.resolve();
 
-    expect(resumeTurn.mock.calls.length).toBeLessThan(RAPID_RESUME_THRESHOLD);
+    expect(resumeTurn.mock.calls.length).toBeLessThan(STORM_THRESHOLD);
     expect(
       getMutationCallsByArgs(
         deps,
-        (args) => args.reason === 'rate_limit' && args.endCount === RAPID_RESUME_THRESHOLD
+        (args) => args.reason === 'rate_limit' && args.endCount === STORM_THRESHOLD
       )
     ).toHaveLength(1);
     expect(piService.stop).toHaveBeenCalled();

@@ -37,7 +37,8 @@ describe('RapidResumeTracker', () => {
   test('reset clears history for role', () => {
     const tracker = new RapidResumeTracker();
     const t0 = 4_000_000;
-    for (let i = 0; i < RAPID_RESUME_THRESHOLD; i++) {
+    const { threshold } = tracker.record('room', 'builder', t0);
+    for (let i = 1; i < threshold; i++) {
       tracker.record('room', 'builder', t0 + i);
     }
     tracker.reset('room', 'builder');
