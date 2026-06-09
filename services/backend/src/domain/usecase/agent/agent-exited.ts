@@ -110,7 +110,14 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
     config.machineId === machineId; // Config belongs to same machine
 
   if (shouldUpdateParticipant) {
-    await transitionAgentStatus(ctx, chatroomId, role, 'agent.exited');
+    const isResumeStorm = stopReason === 'platform.resume_storm';
+    await transitionAgentStatus(
+      ctx,
+      chatroomId,
+      role,
+      isResumeStorm ? 'agent.resumeStormAborted' : 'agent.exited',
+      isResumeStorm ? 'stopped' : undefined
+    );
 
     // Also mark the participant as exited and clear the connection (matching
     // the cleanup previously done by cleanupMachineAgent).

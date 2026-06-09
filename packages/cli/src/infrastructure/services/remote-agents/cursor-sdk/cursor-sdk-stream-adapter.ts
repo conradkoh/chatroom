@@ -14,7 +14,10 @@ export class CursorSdkStreamAdapter {
   private agentEndEmitted = false;
   private textBuffer = '';
 
-  constructor(private readonly logPrefix: string) {}
+  constructor(
+    private readonly logPrefix: string,
+    private readonly emitLogLine?: (line: string) => void
+  ) {}
 
   onAgentEnd(cb: AgentEndCallback): void {
     this.agentEndCallbacks.push(cb);
@@ -33,21 +36,21 @@ export class CursorSdkStreamAdapter {
         break;
       case 'tool_call':
         this.flushText();
-        process.stdout.write(
-          `${this.logPrefix} tool: ${message.call_id} ${message.name} ${JSON.stringify({ status: message.status, args: message.args })}]\n`
+        this.writeLine(
+          `${this.logPrefix} tool: ${message.call_id} ${message.name} ${JSON.stringify({ status: message.status, args: message.args })}]`
         );
         break;
       case 'status':
-        process.stdout.write(`${this.logPrefix} status: ${message.status}]\n`);
+        this.writeLine(`${this.logPrefix} status: ${message.status}]`);
         // Terminal statuses are logged only; agent_end is emitted from finish()
         // after run.wait() so resumeTurn is not invoked mid-stream.
         break;
       case 'thinking':
-        process.stdout.write(`${this.logPrefix} thinking] ${message.text}\n`);
+        this.writeLine(`${this.logPrefix} thinking] ${message.text}`);
         break;
       case 'system':
         if (message.subtype === 'init') {
-          process.stdout.write(`${this.logPrefix} system: init]\n`);
+          this.writeLine(`${this.logPrefix} system: init]`);
         }
         break;
       default:
@@ -80,7 +83,7 @@ export class CursorSdkStreamAdapter {
   private flushText(): void {
     if (!this.textBuffer) return;
     for (const line of this.textBuffer.split('\n')) {
-      if (line) process.stdout.write(`${this.logPrefix} text] ${line}\n`);
+      if (line) this.writeLine(`${this.logPrefix} text] ${line}`);
     }
     this.textBuffer = '';
   }
@@ -89,8 +92,13 @@ export class CursorSdkStreamAdapter {
     if (this.agentEndEmitted) return;
     this.agentEndEmitted = true;
     this.flushText();
-    process.stdout.write(`${this.logPrefix} agent_end]\n`);
+    this.writeLine(`${this.logPrefix} agent_end]`);
     for (const cb of this.agentEndCallbacks) cb();
+  }
+
+  private writeLine(formatted: string): void {
+    process.stdout.write(`${formatted}\n`);
+    this.emitLogLine?.(formatted);
   }
 
   private notifyOutput(): void {

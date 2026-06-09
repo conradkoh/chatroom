@@ -8,6 +8,7 @@ export type StopReason =
   | 'user.stop'
   | 'platform.dedup'
   | 'platform.team_switch'
+  | 'platform.resume_storm'
   | 'daemon.respawn'
   | 'daemon.shutdown'
   | 'agent_process.exited_clean'

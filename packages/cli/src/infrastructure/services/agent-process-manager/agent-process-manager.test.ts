@@ -1,19 +1,21 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy slot access in integration-style tests */
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
-import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
   type LastHarnessSessionContext,
 } from './agent-process-manager.js';
+import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
+import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
+import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
 
 vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () => ({
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));
-import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -76,8 +78,14 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
+    resumeStormTracker: new RapidResumeTracker(),
     ...overrides,
   };
+}
+
+async function triggerAgentEnd(manager: AgentProcessManager, cb: () => void): Promise<void> {
+  cb();
+  await manager.whenTurnEndsIdle();
 }
 
 function getLastHarnessSessions(
@@ -175,6 +183,7 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(
         createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
       );
+      await manager.whenTurnEndsIdle();
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
@@ -223,6 +232,7 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(
         createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
       );
+      await manager.whenTurnEndsIdle();
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
@@ -259,6 +269,7 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(
         createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
+      await manager.whenTurnEndsIdle();
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
@@ -292,7 +303,7 @@ describe('AgentProcessManager', () => {
       );
 
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-      agentEndCb();
+      await triggerAgentEnd(manager, agentEndCb);
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(deps.processes.kill).not.toHaveBeenCalled();
@@ -315,7 +326,7 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(createOpts({ agentHarness: 'opencode' }));
 
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-      agentEndCb();
+      await triggerAgentEnd(manager, agentEndCb);
 
       expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
     });
@@ -881,7 +892,7 @@ describe('AgentProcessManager', () => {
     });
 
     test('unknown harness: returns failure', async () => {
-      const result = await manager.ensureRunning(
+      await manager.ensureRunning(
         createOpts({ agentHarness: 'cursor' }) // Use valid type but no service registered
       );
       // Remove the cursor service so it's "unknown"

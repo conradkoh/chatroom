@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 /**
  * ChatroomEvent — union type for all events in the chatroom_eventStream table.
  *
@@ -5,7 +6,7 @@
  * after receiving an event.
  */
 
-import type { AgentHarness } from './agent.js';
+import type { AgentHarness } from './agent';
 import type { Id } from '../../../convex/_generated/dataModel';
 
 export type AgentStartedEvent = {
@@ -141,6 +142,18 @@ export type AgentSessionResumeFailedEvent = {
   role: string;
   machineId: string;
   reason: string;
+  harnessSessionId?: string;
+  timestamp: number;
+};
+
+export type AgentResumeStormAbortedEvent = {
+  type: 'agent.resumeStormAborted';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  reason: 'unknown' | 'auth_error' | 'rate_limit' | 'config_error';
+  endCount: number;
+  windowMs: number;
   harnessSessionId?: string;
   timestamp: number;
 };

@@ -1183,6 +1183,23 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Auto-resume aborted: rapid agent_end without blocking on get-next-task
+      v.object({
+        type: v.literal('agent.resumeStormAborted'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        reason: v.union(
+          v.literal('unknown'),
+          v.literal('auth_error'),
+          v.literal('rate_limit'),
+          v.literal('config_error')
+        ),
+        endCount: v.number(),
+        windowMs: v.number(),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
       // Daemon hit crash loop limit and stopped restarting
       v.object({
         type: v.literal('agent.restartLimitReached'),

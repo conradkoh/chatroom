@@ -2,6 +2,8 @@
 
 import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
+import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
+
 import type {
   AgentStartedEvent,
   AgentExitedEvent,
@@ -14,9 +16,9 @@ import type {
   AgentRestartLimitReachedEvent,
   AgentSessionResumedEvent,
   AgentSessionResumeFailedEvent,
+  AgentResumeStormAbortedEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
-import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
 // ─── Agent Started ───────────────────────────────────────────────────────────
 
 function renderAgentStartedCell(event: AgentStartedEvent, isSelected: boolean): React.ReactNode {
@@ -76,6 +78,10 @@ function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): Re
     case 'daemon.respawn':
       badgeText = 'Exit';
       badgeColor = 'warning';
+      break;
+    case 'platform.resume_storm':
+      badgeText = 'Resume Storm';
+      badgeColor = 'error';
       break;
     case 'agent_process.crashed':
       badgeText = 'Crash';
@@ -396,6 +402,59 @@ function renderAgentRestartLimitReachedDetails(
   );
 }
 
+// ─── Agent Resume Storm Aborted ─────────────────────────────────────────────
+
+const RESUME_STORM_REASON_LABELS: Record<AgentResumeStormAbortedEvent['reason'], string> = {
+  unknown: 'Unknown',
+  auth_error: 'Auth error',
+  rate_limit: 'Rate limit',
+  config_error: 'Config error',
+};
+
+function formatResumeStormReason(reason: AgentResumeStormAbortedEvent['reason']): string {
+  return RESUME_STORM_REASON_LABELS[reason] ?? reason;
+}
+
+function renderAgentResumeStormAbortedCell(
+  event: AgentResumeStormAbortedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.resumeStormAborted"
+      badgeText="Resume Storm"
+      badgeColor="error"
+      primaryInfo={event.role}
+      secondaryInfo={`${formatResumeStormReason(event.reason)} (${event.endCount} ends / ${event.windowMs / 1000}s)`}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentResumeStormAbortedDetails(
+  event: AgentResumeStormAbortedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Resume Storm Aborted"
+      timestamp={event.timestamp}
+      type="agent.resumeStormAborted"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Reason" value={formatResumeStormReason(event.reason)} />
+      <DetailRow label="End Count" value={String(event.endCount)} />
+      <DetailRow label="Window" value={`${event.windowMs / 1000}s`} />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Agent Session Resumed ────────────────────────────────────────────────────
 
 function renderAgentSessionResumedCell(
@@ -532,6 +591,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.restartLimitReached'
   | 'agent.sessionResumed'
   | 'agent.sessionResumeFailed'
+  | 'agent.resumeStormAborted'
   | 'machine.switched'
 > = {
   'agent.started': {
@@ -577,6 +637,10 @@ export const agentEventDefinitions: Pick<
   'agent.sessionResumeFailed': {
     cellRenderer: renderAgentSessionResumeFailedCell,
     detailsRenderer: renderAgentSessionResumeFailedDetails,
+  },
+  'agent.resumeStormAborted': {
+    cellRenderer: renderAgentResumeStormAbortedCell,
+    detailsRenderer: renderAgentResumeStormAbortedDetails,
   },
   'machine.switched': {
     cellRenderer: renderMachineSwitchedCell,

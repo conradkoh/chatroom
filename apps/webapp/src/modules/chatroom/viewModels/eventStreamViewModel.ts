@@ -7,10 +7,7 @@
  */
 
 import type { EventBadgeVariant } from '@/domain/entities/event-type';
-import {
-  isSupportedEventType,
-  SUPPORTED_EVENT_TYPES,
-} from '@/domain/entities/event-type';
+import { isSupportedEventType, SUPPORTED_EVENT_TYPES } from '@/domain/entities/event-type';
 
 export type {
   EventBadgeVariant,

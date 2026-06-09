@@ -4,10 +4,10 @@ End-to-end steps for adding a new remote agent harness to the Chatroom CLI.
 
 **Harness kinds**
 
-| Kind | When to use | Examples |
-|------|-------------|----------|
+| Kind          | When to use                                              | Examples                                                       |
+| ------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
 | **CLI-based** | The runtime is a subprocess with stdout/stderr you parse | `cursor`, `claude`, `pi`, `opencode`, `copilot`, `commandcode` |
-| **SDK-based** | The runtime is a Node SDK (in-process API) | `cursor-sdk`, `opencode-sdk` |
+| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`                                   |
 
 Both kinds implement the same `RemoteAgentService` contract and register in `init-registry.ts`.
 
@@ -17,18 +17,18 @@ Both kinds implement the same `RemoteAgentService` contract and register in `ini
 
 Defined in `remote-agent-service.ts`. Every harness must provide:
 
-| Member | Purpose |
-|--------|---------|
-| `id` | Stable identifier stored in DB/config (e.g. `'cursor'`) |
-| `displayName` | Human label for the UI |
-| `command` | CLI binary used for install detection (even SDK harnesses often gate on a binary) |
-| `isInstalled()` | Async check — hide harness from picker when false |
-| `getVersion()` | Semver or null |
-| `listModels()` | Available model IDs |
-| `spawn(options)` | Start a turn; return PID + lifecycle callbacks |
-| `stop(pid)` | SIGTERM → wait → SIGKILL (override when SDK cleanup is needed) |
-| `isAlive(pid)` | Process still running? |
-| `getTrackedProcesses()` / `untrack(pid)` | Registry for daemon idle detection |
+| Member                                   | Purpose                                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `id`                                     | Stable identifier stored in DB/config (e.g. `'cursor'`)                           |
+| `displayName`                            | Human label for the UI                                                            |
+| `command`                                | CLI binary used for install detection (even SDK harnesses often gate on a binary) |
+| `isInstalled()`                          | Async check — hide harness from picker when false                                 |
+| `getVersion()`                           | Semver or null                                                                    |
+| `listModels()`                           | Available model IDs                                                               |
+| `spawn(options)`                         | Start a turn; return PID + lifecycle callbacks                                    |
+| `stop(pid)`                              | SIGTERM → wait → SIGKILL (override when SDK cleanup is needed)                    |
+| `isAlive(pid)`                           | Process still running?                                                            |
+| `getTrackedProcesses()` / `untrack(pid)` | Registry for daemon idle detection                                                |
 
 ### `SpawnOptions` inputs
 
@@ -44,15 +44,16 @@ Defined in `remote-agent-service.ts`. Every harness must provide:
 - `onExit(cb)` — fires when the harness turn ends
 - `onOutput(cb)` — fires on new stdout/stderr activity (updates `lastOutputAt`)
 - `onAgentEnd?(cb)` — optional; fires when the agent completes a turn (see capabilities)
+- `onLogLine?(cb)` — **required when `supportsSessionResume` is true**; human-readable log lines for resume-storm reason classification (see §3.5)
 
 ### Lifecycle vs wire events
 
 Canonical vocabulary lives in `services/backend/src/domain/entities/harness/lifecycle-events.ts` and per-harness `HarnessCapabilities` in `types.ts`.
 
-| Layer | Meaning | Examples |
-|-------|---------|----------|
+| Layer                           | Meaning                                    | Examples                                                                         |
+| ------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
 | **Lifecycle** (daemon boundary) | Stable semantics for `AgentProcessManager` | `lifecycle.turn.completed` → `onAgentEnd`, `lifecycle.process.exited` → `onExit` |
-| **Wire** (harness-specific) | Protocol/SDK signals before adaptation | Pi NDJSON `wire.ndjson.agent_end`, Cursor `sdk.cursor.run.completed` |
+| **Wire** (harness-specific)     | Protocol/SDK signals before adaptation     | Pi NDJSON `wire.ndjson.agent_end`, Cursor `sdk.cursor.run.completed`             |
 
 **CLI-only wire events:** kinds with `cliOnly: true` (all `wire.ndjson.*`) are **never** emitted by SDK harnesses. SDK harnesses synthesize `lifecycle.turn.completed` from SDK APIs (e.g. after `run.wait()`), not from NDJSON on child stdout.
 
@@ -118,12 +119,34 @@ Readers typically expose `onText`, `onAgentEnd`, `onToolCall`, etc., and write p
 
 ### 3.4 Single-shot vs long-lived CLIs
 
-| Mode | Behaviour | Examples |
-|------|-----------|----------|
+| Mode            | Behaviour                                                      | Examples                          |
+| --------------- | -------------------------------------------------------------- | --------------------------------- |
 | **Single-shot** | Process exits after one turn; daemon respawns for next message | `cursor`, `claude`, `commandcode` |
-| **Long-lived** | Process stays up; future prompts sent over stdin | `pi` (RPC mode) |
+| **Long-lived**  | Process stays up; future prompts sent over stdin               | `pi` (RPC mode)                   |
 
 Implement `onAgentEnd` when the daemon should restart the process between turns.
+
+### 3.5 In-process resume harnesses (`onLogLine`)
+
+Harnesses with `supportsSessionResume: true` (`pi`, `opencode-sdk`, `cursor-sdk`) keep the process alive between turns. When the agent hits API/auth/config errors, it may end turns in rapid succession and trigger a **resume storm** abort.
+
+`AgentProcessManager` registers `spawnResult.onLogLine` and keeps the last ~100 lines per agent slot. On storm abort, `classifyResumeStormReason()` scans those lines for rate-limit, auth, and config patterns.
+
+**Requirements for session-resume harnesses:**
+
+1. Return `onLogLine` from `spawn()` (and `resumeFromDaemonMemory()` when applicable).
+2. Emit the **same formatted strings** you write to stdout/stderr (prefix + kind + payload), one line per callback — include error paths (`spawn-error`, `session.error`, stderr chunks).
+3. Do not emit `onLogLine` for duplicate in-flight `agent_end` skips; the daemon handles that at the turn layer.
+
+Reference implementations:
+
+| Harness        | Where log lines are emitted                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pi`           | `pi-agent-service.ts` — `writeFormattedLogLine`, stderr `onStderrData`                                         |
+| `opencode-sdk` | `session-event-forwarder.ts` — `writeLogLine`; serve stderr in `registerRunningSession`                        |
+| `cursor-sdk`   | `cursor-sdk-stream-adapter.ts` — `writeLine`; `writeSpawnError` / `run-error` in `cursor-sdk-agent-service.ts` |
+
+Non-resume harnesses (kill-and-respawn per turn) do **not** need `onLogLine`.
 
 ---
 
@@ -186,14 +209,14 @@ void (async () => {
   }
 })();
 
-return { pid, onExit, onOutput, onAgentEnd };
+return { pid, onExit, onOutput, onAgentEnd, onLogLine };
 ```
 
-Collect callbacks in arrays (`exitCallbacks`, `outputCallbacks`) and invoke them from the IIFE when events occur.
+Collect callbacks in arrays (`exitCallbacks`, `outputCallbacks`, `logLineCallbacks`) and invoke them from the IIFE when events occur. If `supportsSessionResume` is true for your harness, wire `onLogLine` per §3.5.
 
 ### 4.4 Stream adapter
 
-Map SDK message types to the same log format CLI harnesses use. Example: `CursorSdkStreamAdapter` handles `SDKMessage` events and writes `[cursor-sdk:role@chatroom text]` lines.
+Map SDK message types to the same log format CLI harnesses use. Example: `CursorSdkStreamAdapter` handles `SDKMessage` events, writes `[cursor-sdk:role@chatroom text]` lines, and forwards each formatted line to `onLogLine` when provided.
 
 ### 4.5 Override `stop`
 
@@ -305,15 +328,15 @@ Inject optional deps (`sessionMetadataStore`, etc.) for opencode-sdk isolation t
 
 ## 8. Existing harness reference
 
-| ID | Kind | Key files |
-|----|------|-----------|
-| `claude` | CLI | `claude/claude-code-agent-service.ts`, `claude-stream-reader.ts` |
-| `commandcode` | CLI | `commandcode/command-code-agent-service.ts` |
-| `copilot` | CLI | `copilot/copilot-agent-service.ts` |
-| `cursor` | CLI | `cursor/cursor-agent-service.ts`, `cursor-stream-reader.ts` |
-| `opencode` | CLI | `opencode/opencode-agent-service.ts` |
-| `pi` | CLI (RPC) | `pi/pi-agent-service.ts`, `pi-rpc-reader.ts` |
-| `cursor-sdk` | SDK | `cursor-sdk/cursor-sdk-agent-service.ts`, `cursor-sdk-stream-adapter.ts` |
+| ID             | Kind         | Key files                                                                  |
+| -------------- | ------------ | -------------------------------------------------------------------------- |
+| `claude`       | CLI          | `claude/claude-code-agent-service.ts`, `claude-stream-reader.ts`           |
+| `commandcode`  | CLI          | `commandcode/command-code-agent-service.ts`                                |
+| `copilot`      | CLI          | `copilot/copilot-agent-service.ts`                                         |
+| `cursor`       | CLI          | `cursor/cursor-agent-service.ts`, `cursor-stream-reader.ts`                |
+| `opencode`     | CLI          | `opencode/opencode-agent-service.ts`                                       |
+| `pi`           | CLI (RPC)    | `pi/pi-agent-service.ts`, `pi-rpc-reader.ts`                               |
+| `cursor-sdk`   | SDK          | `cursor-sdk/cursor-sdk-agent-service.ts`, `cursor-sdk-stream-adapter.ts`   |
 | `opencode-sdk` | SDK (server) | `opencode-sdk/opencode-sdk-agent-service.ts`, `session-event-forwarder.ts` |
 
 ---
@@ -322,16 +345,16 @@ Inject optional deps (`sessionMetadataStore`, etc.) for opencode-sdk isolation t
 
 When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProcessManager.killExistingBeforeSpawn` tears down any live agent before spawning. In-memory slots use `doStop` → harness `stop(pid)`; persisted orphans (daemon restart) use `stopPersistedProcess` → harness `stop(pid)` when the harness is known.
 
-| Harness | Tracked PID | Process model | `stop()` behavior | requestStart replace | Persisted orphan |
-|---------|-------------|---------------|-------------------|----------------------|------------------|
-| `opencode` | Direct `opencode` child | Single-shot CLI, detached PG | Base: SIGTERM/SIGKILL group | `doStop` → base stop | `stopPersistedProcess` → base stop |
-| `opencode-sdk` | `opencode serve` server | SDK client in-process + server PG | Override: forwarder stop → `session.abort` → base stop; removes session metadata | `doStop` → override stop | `stopPersistedProcess` → override stop |
-| `pi` | Direct `pi` child | Long-lived RPC, stdin resume | Base group kill; `untrack` clears `childProcesses` | `doStop` → base stop + untrack | `stopPersistedProcess` → base stop |
-| `cursor` | Direct `agent` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
-| `cursor-sdk` | Keeper `node -e …` child | SDK in-process + keeper PG | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop | `stopPersistedProcess` → override stop |
-| `claude` | Direct `claude` child | Single-shot CLI (agentic turns) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
-| `commandcode` | Direct `cmd` child | Long-lived headless (`--max-turns`) | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
-| `copilot` | Direct `copilot` child | Single-shot CLI | Base group kill | `doStop` → base stop | `stopPersistedProcess` → base stop |
+| Harness        | Tracked PID              | Process model                       | `stop()` behavior                                                                                         | requestStart replace           | Persisted orphan                       |
+| -------------- | ------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------ | -------------------------------------- |
+| `opencode`     | Direct `opencode` child  | Single-shot CLI, detached PG        | Base: SIGTERM/SIGKILL group                                                                               | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
+| `opencode-sdk` | `opencode serve` server  | SDK client in-process + server PG   | Override: forwarder stop → `session.abort` → base stop; removes session metadata                          | `doStop` → override stop       | `stopPersistedProcess` → override stop |
+| `pi`           | Direct `pi` child        | Long-lived RPC, stdin resume        | Base group kill; `untrack` clears `childProcesses`                                                        | `doStop` → base stop + untrack | `stopPersistedProcess` → base stop     |
+| `cursor`       | Direct `agent` child     | Single-shot CLI                     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
+| `cursor-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG          | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop       | `stopPersistedProcess` → override stop |
+| `claude`       | Direct `claude` child    | Single-shot CLI (agentic turns)     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
+| `commandcode`  | Direct `cmd` child       | Long-lived headless (`--max-turns`) | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
+| `copilot`      | Direct `copilot` child   | Single-shot CLI                     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 
 **Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` always calls `resumeTurn` instead of kill. On stop→start (same daemon), `wantResume` on `agent.requestStart` controls whether the daemon tries daemon-memory reconnect:
 
