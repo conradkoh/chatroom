@@ -1,0 +1,13 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Monochrome paper plane icon">
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#26262B"/><stop offset="1" stop-color="#050507"/></linearGradient>
+    <linearGradient id="s" x1="68" y1="120" x2="196" y2="212" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F2F2F4"/><stop offset="1" stop-color="#B9B9C2"/></linearGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity="0.4"/></filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#t)"/>
+  <circle cx="50" cy="50" r="7" fill="#6E6E77"/><circle cx="74" cy="50" r="7" fill="#85858E"/><circle cx="98" cy="50" r="7" fill="#9C9CA5"/>
+  <line x1="30" y1="80" x2="226" y2="80" stroke="#39393F" stroke-width="2.5" stroke-linecap="round"/>
+  <g filter="url(#sh)" fill="url(#s)">
+    <path d="M66 122 L196 166 L66 210 L94 166 Z"/>
+  </g>
+</svg>
