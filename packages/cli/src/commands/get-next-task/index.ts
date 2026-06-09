@@ -5,16 +5,14 @@
  * init prompt) and then delegates to `GetNextTaskSession.start()`.
  */
 
-import {
-  getNextTaskGuidance,
-  getNextTaskReminder,
-} from '@workspace/backend/prompts/cli/index.js';
+import { getNextTaskGuidance, getNextTaskReminder } from '@workspace/backend/prompts/cli/index.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { GetNextTaskSession } from './session.js';
 import { api, type Id } from '../../api.js';
 import { getOtherSessionUrls, getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { getMachineId } from '../../infrastructure/machine/index.js';
 import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────
@@ -109,6 +107,9 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
   // Generate a unique connection ID for this get-next-task session
   const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+  // Resolve this machine's stable ID so close requests can be indexed per machine.
+  const machineId = (await getMachineId()) ?? undefined;
+
   // Determine agent type ('custom' | 'remote') from team agent config
   let participantAgentType: 'custom' | 'remote' | undefined;
   try {
@@ -136,6 +137,7 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
     role,
     action: 'get-next-task:connecting',
     connectionId,
+    machineId,
     agentType: participantAgentType,
   });
 
