@@ -147,7 +147,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
 
       ## Skills to activate
-      - <e.g. CHATROOM_CONVEX_URL=<endpoint> chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
+      - <e.g. chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
