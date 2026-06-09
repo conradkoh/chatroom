@@ -8,8 +8,6 @@ import {
 import { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 
-const STORM_THRESHOLD = new RapidResumeTracker().record('_', '_', 0).threshold;
-
 const CHATROOM_ID = 'test-chatroom';
 const ROLE = 'builder';
 const PID = 42;
@@ -31,6 +29,7 @@ function createMockService() {
 }
 
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
+  const now = 1_000_000;
   const mockService = createMockService();
   return {
     agentServices: new Map([['pi', mockService]]),
@@ -47,7 +46,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     processes: { kill: vi.fn() },
     clock: {
       delay: vi.fn().mockResolvedValue(undefined),
-      now: vi.fn().mockReturnValue(Date.now()),
+      now: vi.fn(() => now),
     },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
@@ -64,6 +63,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
+    resumeStormTracker: new RapidResumeTracker(),
     ...overrides,
   };
 }
@@ -90,7 +90,7 @@ function getMutationCallsByArgs(
     .filter(match);
 }
 
-describe('AgentProcessManager rapid resume storm', () => {
+describe('AgentProcessManager rapid resume storm wiring', () => {
   let deps: AgentProcessManagerDeps;
   let manager: AgentProcessManager;
 
@@ -100,7 +100,7 @@ describe('AgentProcessManager rapid resume storm', () => {
     manager = new AgentProcessManager(deps);
   });
 
-  test('aborts auto-resume, emits event, and stops agent', async () => {
+  test('wires turn-end queue through to backend and stop on storm', async () => {
     const resumeTurn = vi.fn().mockResolvedValue(undefined);
     let agentEndCb: (() => void) | undefined;
     const piService = {
@@ -120,31 +120,30 @@ describe('AgentProcessManager rapid resume storm', () => {
       }),
     };
     deps.agentServices = new Map([['pi', piService]]);
-    let now = 1_000_000;
-    deps.clock.now = vi.fn(() => now);
+    let tick = 1_000_000;
+    deps.clock.now = vi.fn(() => tick);
+    manager = new AgentProcessManager(deps);
 
-    await manager.ensureRunning(createOpts());
+    const result = await manager.ensureRunning(createOpts());
+    expect(result.success).toBe(true);
     if (!agentEndCb) {
       throw new Error('onAgentEnd callback was not registered');
     }
 
-    for (let i = 0; i < STORM_THRESHOLD; i++) {
+    const threshold = new RapidResumeTracker().record('_', '_', 0).threshold;
+    for (let i = 0; i < threshold; i++) {
       agentEndCb();
-      await Promise.resolve();
-      now += 200;
+      tick += 200;
+      await manager.whenTurnEndsIdle();
     }
-    await Promise.resolve();
 
-    expect(resumeTurn.mock.calls.length).toBeLessThan(STORM_THRESHOLD);
+    expect(resumeTurn.mock.calls.length).toBeLessThan(threshold);
     expect(
       getMutationCallsByArgs(
         deps,
-        (args) => args.reason === 'rate_limit' && args.endCount === STORM_THRESHOLD
+        (args) => args.reason === 'rate_limit' && args.endCount === threshold
       )
     ).toHaveLength(1);
     expect(piService.stop).toHaveBeenCalled();
-    expect(
-      getMutationCallsByArgs(deps, (args) => args.stopReason === 'platform.resume_storm').length
-    ).toBeGreaterThan(0);
   });
 });

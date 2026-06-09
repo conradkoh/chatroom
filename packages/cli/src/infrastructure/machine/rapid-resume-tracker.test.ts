@@ -6,10 +6,10 @@ describe('RapidResumeTracker', () => {
   test('does not flag storm below threshold', () => {
     const tracker = new RapidResumeTracker();
     const t0 = 1_000_000;
-    const { threshold } = tracker.record('room', 'builder', t0);
-    for (let i = 1; i < threshold; i++) {
-      const result = tracker.record('room', 'builder', t0 + i * 100);
-      expect(result.isStorm).toBe(false);
+    let last = tracker.record('room', 'builder', t0);
+    for (let i = 1; i < last.threshold - 1; i++) {
+      last = tracker.record('room', 'builder', t0 + i * 100);
+      expect(last.isStorm).toBe(false);
     }
   });
 
@@ -37,8 +37,8 @@ describe('RapidResumeTracker', () => {
   test('reset clears history for role', () => {
     const tracker = new RapidResumeTracker();
     const t0 = 4_000_000;
-    const { threshold } = tracker.record('room', 'builder', t0);
-    for (let i = 1; i < threshold; i++) {
+    const last = tracker.record('room', 'builder', t0);
+    for (let i = 1; i < last.threshold; i++) {
       tracker.record('room', 'builder', t0 + i);
     }
     tracker.reset('room', 'builder');

@@ -11,4 +11,3 @@ export {
   shouldAutoRestartAfterProcessExit,
   resumePathAfterTurnCompleted,
 } from './policies/decide-resume-path.js';
-export { classifyResumeStormReason } from './policies/classify-resume-storm-reason.js';

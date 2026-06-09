@@ -1,0 +1,153 @@
+import { describe, expect, test, vi } from 'vitest';
+
+import { handleTurnCompleted, type HandleTurnCompletedDeps } from './handle-turn-completed.js';
+import type { TurnEndSlot } from '../entities/turn-end.js';
+import type { ResumeStormTracker } from '../ports/resume-storm-tracker.js';
+
+function createTracker(threshold = 5, windowMs = 30_000): ResumeStormTracker {
+  const history = new Map<string, number[]>();
+  return {
+    record(chatroomId, role, now) {
+      const key = `${chatroomId}:${role.toLowerCase()}`;
+      const recent = (history.get(key) ?? []).filter((ts) => ts >= now - windowMs);
+      recent.push(now);
+      history.set(key, recent);
+      return {
+        isStorm: recent.length >= threshold,
+        endCount: recent.length,
+        windowMs,
+        threshold,
+      };
+    },
+    reset(chatroomId, role) {
+      history.delete(`${chatroomId}:${role.toLowerCase()}`);
+    },
+  };
+}
+
+function createDeps(overrides?: Partial<HandleTurnCompletedDeps>): {
+  deps: HandleTurnCompletedDeps;
+  backend: {
+    emitResumeStormAborted: ReturnType<typeof vi.fn>;
+    emitSessionResumed: ReturnType<typeof vi.fn>;
+    emitSessionResumeFailed: ReturnType<typeof vi.fn>;
+  };
+} {
+  const backend = {
+    emitResumeStormAborted: vi.fn().mockResolvedValue(undefined),
+    emitSessionResumed: vi.fn().mockResolvedValue(undefined),
+    emitSessionResumeFailed: vi.fn().mockResolvedValue(undefined),
+  };
+  const deps: HandleTurnCompletedDeps = {
+    resumeStormTracker: createTracker(),
+    backend,
+    now: () => 1_000_000,
+    composeResumePrompt: () => 'resume-prompt',
+    resumeTurn: vi.fn().mockResolvedValue(undefined),
+    killProcess: vi.fn(),
+    stopAgent: vi.fn().mockResolvedValue({ success: true }),
+    ...overrides,
+  };
+  return { deps, backend };
+}
+
+const baseInput = {
+  chatroomId: 'room-1',
+  role: 'builder',
+  pid: 42,
+  supportsSessionResume: true,
+};
+
+describe('handleTurnCompleted', () => {
+  test('resumes when harness supports in-process resume', async () => {
+    const { deps, backend } = createDeps();
+    const slot: TurnEndSlot = { harnessSessionId: 'sess-1', state: 'running', pid: 42 };
+
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'resumed' });
+    expect(deps.resumeTurn).toHaveBeenCalledWith(42, 'resume-prompt');
+    expect(backend.emitSessionResumed).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      harnessSessionId: 'sess-1',
+    });
+    expect(deps.killProcess).not.toHaveBeenCalled();
+  });
+
+  test('kills when harness does not support resume', async () => {
+    const { deps } = createDeps();
+
+    const result = await handleTurnCompleted(
+      deps,
+      { ...baseInput, supportsSessionResume: false },
+      undefined
+    );
+
+    expect(result).toEqual({ outcome: 'killed' });
+    expect(deps.resumeTurn).not.toHaveBeenCalled();
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+  });
+
+  test('kills after resumeTurn failure', async () => {
+    const { deps, backend } = createDeps({
+      resumeTurn: vi.fn().mockRejectedValue(new Error('session not found')),
+    });
+
+    const result = await handleTurnCompleted(deps, baseInput, { resumeInFlight: false });
+
+    expect(result).toEqual({ outcome: 'killed' });
+    expect(backend.emitSessionResumeFailed).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      reason: 'session not found',
+    });
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+  });
+
+  test('skips duplicate resume when one is already in flight', async () => {
+    const { deps } = createDeps();
+    const slot: TurnEndSlot = { resumeInFlight: true };
+
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'skipped_duplicate' });
+    expect(deps.resumeTurn).not.toHaveBeenCalled();
+    expect(deps.killProcess).not.toHaveBeenCalled();
+  });
+
+  test('aborts storm, classifies reason, emits event, and stops agent', async () => {
+    const tracker = createTracker(3);
+    let tick = 1_000_000;
+    const { deps, backend } = createDeps({
+      resumeStormTracker: tracker,
+      now: () => tick,
+    });
+    const slot: TurnEndSlot = {
+      state: 'running',
+      pid: 42,
+      recentLogLines: ['HTTP 429 rate limit exceeded'],
+    };
+
+    await handleTurnCompleted(deps, baseInput, slot);
+    tick += 100;
+    await handleTurnCompleted(deps, baseInput, slot);
+    tick += 100;
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'storm_aborted' });
+    expect(deps.resumeTurn).toHaveBeenCalledTimes(2);
+    expect(backend.emitResumeStormAborted).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      reason: 'rate_limit',
+      endCount: 3,
+      windowMs: 30_000,
+    });
+    expect(deps.stopAgent).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      reason: 'platform.resume_storm',
+    });
+  });
+});

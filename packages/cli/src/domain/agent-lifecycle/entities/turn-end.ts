@@ -1,0 +1,27 @@
+/**
+ * Minimal slot state for turn-completion handling (domain layer).
+ * Infrastructure maps AgentSlot ↔ TurnEndSlot.
+ */
+
+export type TurnEndSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
+
+export interface TurnEndSlot {
+  resumeInFlight?: boolean;
+  recentLogLines?: string[];
+  harnessSessionId?: string;
+  state?: TurnEndSlotState;
+  pid?: number;
+}
+
+export interface TurnEndInput {
+  chatroomId: string;
+  role: string;
+  pid: number;
+  supportsSessionResume: boolean;
+}
+
+export type TurnEndOutcome = 'storm_aborted' | 'skipped_duplicate' | 'resumed' | 'killed';
+
+export interface TurnEndResult {
+  outcome: TurnEndOutcome;
+}
