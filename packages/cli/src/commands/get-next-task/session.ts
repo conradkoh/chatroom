@@ -36,6 +36,7 @@ export type GetNextTaskResponse =
   | { type: 'no_tasks' }
   | { type: 'grace_period'; taskId: string; remainingMs: number }
   | { type: 'superseded'; newConnectionId: string }
+  | { type: 'connection_closed'; reason: string }
   | { type: 'reconnect'; reason: string }
   | { type: 'error'; code: BackendErrorCode; message: string; fatal: boolean };
 

@@ -85,4 +85,11 @@ crons.interval(
   internal.directHarnessCleanup.purgeFinalizedChunks
 );
 
+// Connection close requests — purge expired rows (every 5 minutes)
+crons.interval(
+  'cleanup connection close requests',
+  { minutes: 5 },
+  internal.connectionCleanup.cleanupExpiredConnectionCloseRequests
+);
+
 export default crons;
