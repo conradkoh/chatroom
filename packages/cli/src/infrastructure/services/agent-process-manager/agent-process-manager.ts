@@ -64,6 +64,8 @@ export interface AgentSlot {
   resumeInFlight?: boolean;
   /** Recent harness log lines for resume-storm reason classification. */
   recentLogLines?: string[];
+  /** User's persisted resume preference for this run; gates turn-resume & crash-recovery resume. */
+  wantResume?: boolean;
 }
 
 export interface OperationResult {
@@ -351,6 +353,7 @@ export class AgentProcessManager {
         role: opts.role,
         pid: opts.pid,
         supportsSessionResume,
+        wantResume: slot?.wantResume ?? true,
       },
       slot
     );
@@ -393,6 +396,7 @@ export class AgentProcessManager {
     const model = slot.model;
     const workingDir = slot.workingDir;
     const harnessSessionId = slot.harnessSessionId;
+    const wantResume = slot.wantResume;
 
     if (
       harness &&
@@ -477,9 +481,11 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
-      // Non-intentional exit: prefer resuming the harness session when supported
-      // so the agent rejoins where it left off rather than cold-restarting.
-      wantResume: true,
+      // Non-intentional exit: honor the user's resume preference captured at
+      // spawn. Enabled → rejoin the harness session; disabled → cold-restart.
+      // Defaults to true when unknown (e.g. slot re-adopted after a daemon
+      // restart) to preserve rejoin-on-crash.
+      wantResume: wantResume ?? true,
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
@@ -1070,6 +1076,7 @@ export class AgentProcessManager {
         });
       }
       slot.model = opts.model;
+      slot.wantResume = wantResume;
       slot.workingDir = opts.workingDir;
       slot.startedAt = this.deps.clock.now();
       slot.pendingOperation = undefined;

@@ -18,6 +18,8 @@ export interface TurnEndInput {
   role: string;
   pid: number;
   supportsSessionResume: boolean;
+  /** User's persisted "resume session" preference, captured at spawn. */
+  wantResume: boolean;
 }
 
 export type TurnEndOutcome = 'storm_aborted' | 'skipped_duplicate' | 'resumed' | 'killed';
