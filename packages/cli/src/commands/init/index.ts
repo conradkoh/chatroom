@@ -48,11 +48,15 @@ This ensures you never forget to pass control back — just copy the command fro
 
 ### Command Reference
 
+**Production (default):** omit \`CHATROOM_CONVEX_URL\` — the CLI connects to chatroom cloud automatically. Do not look up the Convex URL from \`.env\`.
+
 | Action | Command |
 |--------|---------|
-| Fetch next task | \`CHATROOM_CONVEX_URL=<endpoint> chatroom get-next-task --chatroom-id=<id> --role=<role>\` |
-| Pass control | \`CHATROOM_CONVEX_URL=<endpoint> chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>\` |
-| Refresh system prompt (after compaction) | \`CHATROOM_CONVEX_URL=<endpoint> chatroom get-system-prompt --chatroom-id=<id> --role=<role>\` |
+| Fetch next task | \`chatroom get-next-task --chatroom-id=<id> --role=<role>\` |
+| Pass control | \`chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>\` |
+| Refresh system prompt (after compaction) | \`chatroom get-system-prompt --chatroom-id=<id> --role=<role>\` |
+
+**Non-production only** (local dev, preview): prefix commands with \`CHATROOM_CONVEX_URL=<convex-url> \` (e.g. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task ...\`).
 
 ### Context Recovery
 
