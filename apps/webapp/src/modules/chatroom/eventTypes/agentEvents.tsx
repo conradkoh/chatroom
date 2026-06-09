@@ -404,6 +404,17 @@ function renderAgentRestartLimitReachedDetails(
 
 // ─── Agent Resume Storm Aborted ─────────────────────────────────────────────
 
+const RESUME_STORM_REASON_LABELS: Record<AgentResumeStormAbortedEvent['reason'], string> = {
+  unknown: 'Unknown',
+  auth_error: 'Auth error',
+  rate_limit: 'Rate limit',
+  config_error: 'Config error',
+};
+
+function formatResumeStormReason(reason: AgentResumeStormAbortedEvent['reason']): string {
+  return RESUME_STORM_REASON_LABELS[reason] ?? reason;
+}
+
 function renderAgentResumeStormAbortedCell(
   event: AgentResumeStormAbortedEvent,
   isSelected: boolean
@@ -414,7 +425,7 @@ function renderAgentResumeStormAbortedCell(
       badgeText="Resume Storm"
       badgeColor="error"
       primaryInfo={event.role}
-      secondaryInfo={`${event.reason} (${event.endCount} ends / ${event.windowMs / 1000}s)`}
+      secondaryInfo={`${formatResumeStormReason(event.reason)} (${event.endCount} ends / ${event.windowMs / 1000}s)`}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -433,7 +444,7 @@ function renderAgentResumeStormAbortedDetails(
     >
       <DetailRow label="Role" value={event.role} />
       <MachineDetailRow machineId={event.machineId} />
-      <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Reason" value={formatResumeStormReason(event.reason)} />
       <DetailRow label="End Count" value={String(event.endCount)} />
       <DetailRow label="Window" value={`${event.windowMs / 1000}s`} />
       {event.harnessSessionId && (

@@ -29,14 +29,18 @@ export async function tryAbortResumeStorm(
     slot.resumeInFlight = false;
   }
 
-  await deps.backend.emitResumeStormAborted({
-    chatroomId: input.chatroomId,
-    role: input.role,
-    reason: classifyResumeStormReason(slot?.recentLogLines ?? []),
-    endCount: stormCheck.endCount,
-    windowMs: stormCheck.windowMs,
-    ...(slot?.harnessSessionId ? { harnessSessionId: slot.harnessSessionId } : {}),
-  });
+  try {
+    await deps.backend.emitResumeStormAborted({
+      chatroomId: input.chatroomId,
+      role: input.role,
+      reason: classifyResumeStormReason(slot?.recentLogLines ?? []),
+      endCount: stormCheck.endCount,
+      windowMs: stormCheck.windowMs,
+      ...(slot?.harnessSessionId ? { harnessSessionId: slot.harnessSessionId } : {}),
+    });
+  } catch {
+    // Best-effort event emission — still stop the agent below.
+  }
 
   if (slot?.state === 'running' && slot.pid === input.pid) {
     await deps.stopAgent({

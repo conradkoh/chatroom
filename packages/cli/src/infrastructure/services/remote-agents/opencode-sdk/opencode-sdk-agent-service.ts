@@ -17,9 +17,9 @@ import type { ChildProcess } from 'node:child_process';
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnContext } from '../remote-agent-service.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import type {
+  SpawnContext,
   AgentStopOptions,
   DaemonHarnessSessionContext,
   HarnessReconnectMetadata,
@@ -169,6 +169,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     agentName: string;
     model: string | undefined;
     workingDir: string;
+    logLineCallbacks: ((line: string) => void)[];
   }): SpawnResult {
     const {
       childProcess,
@@ -179,8 +180,12 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       baseUrl,
       agentName,
       model,
-      workingDir,
+      logLineCallbacks,
     } = args;
+
+    const emitLogLine = (line: string) => {
+      for (const lineCb of logLineCallbacks) lineCb(line);
+    };
 
     const meta: SessionMetadata = {
       sessionId,
@@ -210,9 +215,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       });
     }
     if (childProcess.stderr) {
-      childProcess.stderr.on('data', () => {
+      childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
+        emitLogLine(chunk.toString());
       });
     }
 
@@ -241,6 +247,22 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       onAgentEnd: (cb) => {
         forwarder?.onAgentEnd(cb);
       },
+      onLogLine: (cb) => {
+        logLineCallbacks.push(cb);
+      },
+    };
+  }
+
+  private createLogLineEmitter(): {
+    logLineCallbacks: ((line: string) => void)[];
+    emitLogLine: (line: string) => void;
+  } {
+    const logLineCallbacks: ((line: string) => void)[] = [];
+    return {
+      logLineCallbacks,
+      emitLogLine: (line: string) => {
+        for (const cb of logLineCallbacks) cb(line);
+      },
     };
   }
 
@@ -255,7 +277,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const workingDir = session.workingDir;
 
     const childProcess = this.spawnServeProcess(workingDir);
-    const pid = childProcess.pid!;
+    const pid = childProcess.pid;
+    if (pid == null) {
+      throw new Error('Failed to spawn opencode serve process');
+    }
 
     const baseUrl = await waitForListeningUrl(childProcess, {
       timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
@@ -267,6 +292,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const client = createOpencodeClient({ baseUrl });
 
     let forwarder: SessionEventForwarderHandle | undefined;
+    const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
     try {
       const sessionInfo = await withTimeout(
         client.session.get({ path: { id: sessionId } }),
@@ -282,6 +308,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
         sessionId,
         role: context.role,
+        onLogLine: emitLogLine,
       });
 
       const agentsResponse = await withTimeout(
@@ -332,6 +359,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       agentName,
       model: modelForSession,
       workingDir,
+      logLineCallbacks,
     });
   }
 
@@ -339,7 +367,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const { prompt, systemPrompt, model, context } = options;
 
     const childProcess = this.spawnServeProcess(options.workingDir);
-    const pid = childProcess.pid!;
+    const pid = childProcess.pid;
+    if (pid == null) {
+      throw new Error('Failed to spawn opencode serve process');
+    }
 
     const baseUrl = await waitForListeningUrl(childProcess, {
       timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
@@ -355,6 +386,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     let sessionId: string | undefined;
     let forwarder: SessionEventForwarderHandle | undefined;
     let agentName: string | undefined;
+    const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
     try {
       const sessionCreateResult = await withTimeout(
         client.session.create({ body: {} }),
@@ -371,6 +403,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
         sessionId,
         role: context.role,
+        onLogLine: emitLogLine,
       });
 
       // Discover what agents this opencode server actually exposes. We compose
@@ -425,6 +458,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       throw err;
     }
 
+    if (!sessionId || !agentName) {
+      throw new Error('OpenCode session was not initialized');
+    }
+
     return this.registerRunningSession({
       childProcess,
       pid,
@@ -432,9 +469,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       context,
       forwarder,
       baseUrl,
-      agentName: agentName!,
+      agentName,
       model,
       workingDir: options.workingDir,
+      logLineCallbacks,
     });
   }
 

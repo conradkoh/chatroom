@@ -23,12 +23,12 @@ export async function handleTurnCompleted(
   input: TurnEndInput,
   slot: TurnEndSlot | undefined
 ): Promise<TurnEndResult> {
-  if (await tryAbortResumeStorm(deps, input, slot)) {
-    return { outcome: 'storm_aborted' };
-  }
-
   if (slot?.resumeInFlight) {
     return { outcome: 'skipped_duplicate' };
+  }
+
+  if (await tryAbortResumeStorm(deps, input, slot)) {
+    return { outcome: 'storm_aborted' };
   }
 
   if (input.supportsSessionResume) {

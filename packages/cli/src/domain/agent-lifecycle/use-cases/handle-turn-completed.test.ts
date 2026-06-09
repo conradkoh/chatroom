@@ -116,6 +116,58 @@ describe('handleTurnCompleted', () => {
     expect(deps.killProcess).not.toHaveBeenCalled();
   });
 
+  test('duplicate agent_end during in-flight resume does not count toward storm', async () => {
+    const tracker = createTracker(3);
+    let tick = 1_000_000;
+    const { deps } = createDeps({
+      resumeStormTracker: tracker,
+      now: () => tick,
+    });
+    const slot: TurnEndSlot = { state: 'running', pid: 42, resumeInFlight: false };
+
+    await handleTurnCompleted(deps, baseInput, slot);
+    tick += 100;
+    await handleTurnCompleted(deps, baseInput, slot);
+    tick += 100;
+
+    slot.resumeInFlight = true;
+    for (let i = 0; i < 10; i++) {
+      const duplicate = await handleTurnCompleted(deps, baseInput, slot);
+      expect(duplicate).toEqual({ outcome: 'skipped_duplicate' });
+      tick += 10;
+    }
+
+    slot.resumeInFlight = false;
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'storm_aborted' });
+    expect(deps.resumeTurn).toHaveBeenCalledTimes(2);
+  });
+
+  test('stops agent when emitResumeStormAborted fails', async () => {
+    const tracker = createTracker(3);
+    let tick = 1_000_000;
+    const { deps, backend } = createDeps({
+      resumeStormTracker: tracker,
+      now: () => tick,
+    });
+    backend.emitResumeStormAborted.mockRejectedValue(new Error('network down'));
+    const slot: TurnEndSlot = { state: 'running', pid: 42 };
+
+    await handleTurnCompleted(deps, baseInput, slot);
+    tick += 100;
+    await handleTurnCompleted(deps, baseInput, slot);
+    tick += 100;
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'storm_aborted' });
+    expect(deps.stopAgent).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      reason: 'platform.resume_storm',
+    });
+  });
+
   test('aborts storm, classifies reason, emits event, and stops agent', async () => {
     const tracker = createTracker(3);
     let tick = 1_000_000;

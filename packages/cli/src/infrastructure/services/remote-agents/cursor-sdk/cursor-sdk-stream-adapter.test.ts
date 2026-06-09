@@ -119,4 +119,12 @@ describe('CursorSdkStreamAdapter', () => {
     expect(count).toBe(0);
     expect(stdoutWriteSpy).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
   });
+
+  it('invokes onLogLine for formatted stdout lines', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleMessage(statusMessage('ERROR'));
+
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} status: ERROR]`);
+  });
 });

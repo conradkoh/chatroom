@@ -21,6 +21,7 @@ const CLASSIFICATION_RULES: readonly {
       /\b401\b/,
       /\b403\b/,
       /unauthorized/i,
+      /unauthenticated/i,
       /authentication failed/i,
       /invalid.{0,24}api.{0,12}key/i,
       /api key.{0,20}(invalid|missing|expired)/i,

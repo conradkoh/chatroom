@@ -87,4 +87,54 @@ describe('emitResumeStormAborted', () => {
     expect(participant?.lastStatus).toBe('agent.resumeStormAborted');
     expect(participant?.lastDesiredState).toBe('stopped');
   });
+
+  test('recordAgentExited with platform.resume_storm keeps resume-storm status', async () => {
+    const { sessionId } = await createTestSession('test-resume-storm-exit');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-resume-storm-exit';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 5150,
+      model: 'test-model',
+      reason: 'user.start',
+    });
+
+    await t.mutation(api.agentResumeStorm.emitResumeStormAborted, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      reason: 'auth_error',
+      endCount: 5,
+      windowMs: 30_000,
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 5150,
+      stopReason: 'platform.resume_storm',
+      agentHarness: 'pi',
+    });
+
+    const participant = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participant?.lastStatus).toBe('agent.resumeStormAborted');
+    expect(participant?.lastDesiredState).toBe('stopped');
+  });
 });

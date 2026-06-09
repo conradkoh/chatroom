@@ -52,6 +52,7 @@ describe('shouldAutoRestartAfterProcessExit', () => {
     expect(shouldAutoRestartAfterProcessExit('user.stop')).toBe(false);
     expect(shouldAutoRestartAfterProcessExit('daemon.shutdown')).toBe(false);
     expect(shouldAutoRestartAfterProcessExit('daemon.respawn')).toBe(false);
+    expect(shouldAutoRestartAfterProcessExit('platform.resume_storm')).toBe(false);
   });
 });
 

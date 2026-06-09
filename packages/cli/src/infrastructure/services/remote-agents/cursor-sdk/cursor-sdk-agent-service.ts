@@ -159,9 +159,14 @@ function resolveModelId(model?: string): string {
   return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
 
-function writeSpawnError(logPrefix: string, err: unknown): void {
-  const reason = formatCursorSdkLoadError(err);
-  process.stderr.write(`${logPrefix} spawn-error] ${reason}\n`);
+function writeSpawnError(
+  logPrefix: string,
+  err: unknown,
+  emitLogLine?: (line: string) => void
+): void {
+  const line = `${logPrefix} spawn-error] ${formatCursorSdkLoadError(err)}`;
+  process.stderr.write(`${line}\n`);
+  emitLogLine?.(line);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
 
@@ -401,6 +406,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     }) => void)[] = [];
     const outputCallbacks: (() => void)[] = [];
     const agentEndCallbacks: (() => void)[] = [];
+    const logLineCallbacks: ((line: string) => void)[] = [];
+    const emitLogLine = (line: string) => {
+      for (const cb of logLineCallbacks) cb(line);
+    };
 
     const finishExit = (code: number | null, signal: string | null) => {
       this.sessions.delete(pid);
@@ -422,6 +431,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       finishExit,
       outputCallbacks,
       agentEndCallbacks,
+      emitLogLine,
     });
 
     return {
@@ -440,6 +450,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       onAgentEnd: (cb) => {
         agentEndCallbacks.push(cb);
       },
+      onLogLine: (cb) => {
+        logLineCallbacks.push(cb);
+      },
     };
   }
 
@@ -455,6 +468,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
+    emitLogLine: (line: string) => void;
   }): void {
     const {
       agent,
@@ -466,6 +480,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       entry,
       outputCallbacks,
       agentEndCallbacks,
+      emitLogLine,
     } = args;
 
     let exited = false;
@@ -490,7 +505,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             session.run = run;
             isFirstTurn = false;
 
-            const adapter = new CursorSdkStreamAdapter(logPrefix);
+            const adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
             adapter.onOutput(() => {
               entry.lastOutputAt = Date.now();
               for (const cb of outputCallbacks) cb();
@@ -506,7 +521,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               }
             } catch (streamErr) {
               exitCode = 1;
-              writeSpawnError(logPrefix, streamErr);
+              writeSpawnError(logPrefix, streamErr, emitLogLine);
               break;
             }
 
@@ -521,7 +536,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
             } catch (waitErr) {
               exitCode = 1;
-              writeSpawnError(logPrefix, waitErr);
+              writeSpawnError(logPrefix, waitErr, emitLogLine);
               break;
             }
 
@@ -529,7 +544,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
             if (result.status === 'error') {
               exitCode = 2;
-              process.stderr.write(`${logPrefix} run-error] run ${result.id} failed\n`);
+              const runErrorLine = `${logPrefix} run-error] run ${result.id} failed`;
+              process.stderr.write(`${runErrorLine}\n`);
+              emitLogLine(runErrorLine);
               break;
             }
 
@@ -554,13 +571,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             nextPrompt = resumePrompt;
           } catch (turnErr) {
             exitCode = 1;
-            writeSpawnError(logPrefix, turnErr);
+            writeSpawnError(logPrefix, turnErr, emitLogLine);
             break;
           }
         }
       } catch (err) {
         exitCode = 1;
-        writeSpawnError(logPrefix, err);
+        writeSpawnError(logPrefix, err, emitLogLine);
       } finally {
         if (exited) return;
         exited = true;
@@ -576,7 +593,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         finishExit(exitCode, exitSignal);
       }
     })().catch((err) => {
-      writeSpawnError(logPrefix, err);
+      writeSpawnError(logPrefix, err, emitLogLine);
       if (exited) return;
       exited = true;
       closeCursorAgentOnFailure(agent, session, 1, true);

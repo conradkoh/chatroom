@@ -10,6 +10,9 @@ describe('classifyResumeStormReason', () => {
   test('detects auth errors', () => {
     expect(classifyResumeStormReason(['HTTP 401 Unauthorized from provider'])).toBe('auth_error');
     expect(classifyResumeStormReason(['Invalid API key for anthropic'])).toBe('auth_error');
+    expect(
+      classifyResumeStormReason(['[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error'])
+    ).toBe('auth_error');
   });
 
   test('detects rate limits', () => {

@@ -274,6 +274,23 @@ describe('SessionEventForwarder', () => {
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder compacted]\n');
   }, 10000);
 
+  it('invokes onLogLine for forwarded log lines', async () => {
+    vi.useFakeTimers();
+    const onLogLine = vi.fn();
+    const fakeClient = createMockClient(errorStream());
+    const handle = startSessionEventForwarder(fakeClient as never, {
+      ...baseOptions,
+      onLogLine,
+    });
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onLogLine).toHaveBeenCalledWith(
+      '[fake-ts] role:builder session] Started] role: builder'
+    );
+    expect(onLogLine).toHaveBeenCalledWith('[fake-ts] role:builder error] UnknownError: oops');
+  }, 10000);
+
   it('session.error -> errorTarget', async () => {
     vi.useFakeTimers();
     const fakeClient = createMockClient(errorStream());
