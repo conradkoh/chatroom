@@ -10,7 +10,9 @@ import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
+import { DaemonContextService } from './daemon-context-service.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -117,3 +119,15 @@ async function fulfillFileTreeRequests(
     }
   }
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for startFileTreeSubscription — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const startFileTreeSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return startFileTreeSubscription(ctx, wsClient);
+  });

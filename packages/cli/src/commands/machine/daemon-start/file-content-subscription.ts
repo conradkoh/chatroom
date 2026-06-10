@@ -11,7 +11,9 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
+import { DaemonContextService } from './daemon-context-service.js';
 import { fulfillFileContentRequests } from './file-content-fulfillment.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -77,3 +79,15 @@ export function startFileContentSubscription(
     },
   };
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for startFileContentSubscription — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const startFileContentSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<FileContentSubscriptionHandle, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return startFileContentSubscription(ctx, wsClient);
+  });

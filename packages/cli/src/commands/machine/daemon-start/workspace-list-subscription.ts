@@ -11,7 +11,9 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
+import { DaemonContextService } from './daemon-context-service.js';
 import type { DaemonContext, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -91,3 +93,15 @@ export function startWorkspaceListSubscription(
     },
   };
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for startWorkspaceListSubscription — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const startWorkspaceListSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<{ stop: () => void }, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return startWorkspaceListSubscription(ctx, wsClient);
+  });

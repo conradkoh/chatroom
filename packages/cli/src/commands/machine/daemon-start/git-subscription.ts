@@ -23,7 +23,9 @@ import { promisify } from 'util';
 
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
+import { DaemonContextService } from './daemon-context-service.js';
 import { pushGitState } from './git-heartbeat.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -542,3 +544,27 @@ export async function processRequests(
     }
   }
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for startGitRequestSubscription — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const startGitRequestSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<GitSubscriptionHandle, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return startGitRequestSubscription(ctx, wsClient);
+  });
+
+/** Effect twin for processRequests — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const processRequestsEffect = (
+  requests: PendingRequest[],
+  processedRequestIds: Map<string, number>,
+  dedupTtlMs: number
+): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => processRequests(ctx, requests, processedRequestIds, dedupTtlMs));
+  });

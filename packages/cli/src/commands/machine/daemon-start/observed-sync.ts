@@ -18,8 +18,10 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
 import { pushSingleWorkspaceCommands } from './command-sync-heartbeat.js';
+import { DaemonContextService } from './daemon-context-service.js';
 import { pushSingleWorkspaceGitSummaryForObserved } from './git-heartbeat.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -271,3 +273,15 @@ export function startObservedSyncSubscription(
     });
   }
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for startObservedSyncSubscription — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const startObservedSyncSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<{ stop: () => void }, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return startObservedSyncSubscription(ctx, wsClient);
+  });
