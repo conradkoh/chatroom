@@ -28,6 +28,7 @@ function makeTestBackend(queryResponse: unknown | Error) {
       return Effect.succeed(queryResponse) as any;
     },
     mutation: () => Effect.die('mutation not implemented in test backend') as any,
+    action: () => Effect.die('action not implemented in test backend') as any,
   });
 }
 

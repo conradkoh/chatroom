@@ -20,12 +20,14 @@ const makeTestBackend = (result: unknown) =>
   Layer.succeed(BackendService, {
     query: () => Effect.succeed(result) as any,
     mutation: () => Effect.die('not called') as any,
+    action: () => Effect.die('not called') as any,
   });
 
 const makeTestBackendThatFails = (error: Error) =>
   Layer.succeed(BackendService, {
     query: () => Effect.fail(error) as any,
     mutation: () => Effect.die('not called') as any,
+    action: () => Effect.die('not called') as any,
   });
 
 const makeTestSession = (sessionId: SessionId | null) =>

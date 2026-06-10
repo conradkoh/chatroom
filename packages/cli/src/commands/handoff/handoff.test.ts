@@ -43,6 +43,7 @@ function makeTestBackend(config: {
       }
       return Effect.succeed(config.mutationResponse) as any;
     }),
+    action: vi.fn(() => Effect.fail(new Error('Action not used in handoff')) as any),
   });
 }
 

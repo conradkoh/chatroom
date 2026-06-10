@@ -33,6 +33,7 @@ function makeTestBackend(queryResponses: (unknown | Error)[]) {
       return Effect.succeed(response) as any;
     },
     mutation: () => Effect.die('mutation not implemented in test backend') as any,
+    action: () => Effect.die('action not implemented in test backend') as any,
   });
 }
 

@@ -18,6 +18,10 @@ export interface BackendServiceShape {
     endpoint: FunctionReference<'query'>,
     args: Record<string, unknown>
   ) => Effect.Effect<T, Error>;
+  action: <T>(
+    endpoint: FunctionReference<'action'>,
+    args: Record<string, unknown>
+  ) => Effect.Effect<T, Error>;
 }
 
 export class BackendService extends Context.Tag('BackendService')<
@@ -36,6 +40,8 @@ export const BackendServiceLive = (ops: {
   mutation: (e: any, a: any) => Promise<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query: (e: any, a: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  action?: (e: any, a: any) => Promise<any>;
 }): Layer.Layer<BackendService> =>
   Layer.succeed(BackendService, {
     mutation: (endpoint, args) =>
@@ -46,6 +52,14 @@ export const BackendServiceLive = (ops: {
     query: (endpoint, args) =>
       Effect.tryPromise({
         try: () => ops.query(endpoint, args),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      }),
+    action: (endpoint, args) =>
+      Effect.tryPromise({
+        try: () =>
+          ops.action
+            ? ops.action(endpoint, args)
+            : Promise.reject(new Error('Action not supported')),
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       }),
   });

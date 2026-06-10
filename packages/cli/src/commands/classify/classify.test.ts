@@ -33,6 +33,7 @@ function makeTestBackend(config: {
       }
       return Effect.succeed(config.mutationResponse) as any;
     }),
+    action: vi.fn(() => Effect.fail(new Error('Action not used in classify')) as any),
   });
 }
 
@@ -208,6 +209,7 @@ describe('classifyEffect', () => {
         return Effect.succeed(task) as any;
       }),
       mutation: vi.fn(() => Effect.succeed({}) as any),
+      action: vi.fn(() => Effect.fail(new Error('Action not used')) as any),
     });
 
     const testLayer = Layer.mergeAll(testBackend, makeTestSession({ sessionId: 'test-session' }));
@@ -249,6 +251,7 @@ describe('classifyEffect', () => {
         return Effect.succeed(null) as any;
       }),
       mutation: vi.fn(() => Effect.succeed({}) as any),
+      action: vi.fn(() => Effect.fail(new Error('Action not used')) as any),
     });
 
     const testLayer = Layer.mergeAll(testBackend, makeTestSession({ sessionId: 'test-session' }));
@@ -288,6 +291,7 @@ describe('classifyEffect', () => {
         return Effect.succeed(task) as any;
       }),
       mutation: vi.fn(() => Effect.fail(new Error('Backend mutation failed')) as any),
+      action: vi.fn(() => Effect.fail(new Error('Action not used')) as any),
     });
 
     const testLayer = Layer.mergeAll(testBackend, makeTestSession({ sessionId: 'test-session' }));
@@ -328,6 +332,7 @@ describe('classifyEffect', () => {
         return Effect.succeed(task) as any;
       }),
       mutation: vi.fn(() => Effect.succeed(mutationResult) as any),
+      action: vi.fn(() => Effect.fail(new Error('Action not used')) as any),
     });
 
     const testLayer = Layer.mergeAll(testBackend, makeTestSession({ sessionId: 'test-session' }));
@@ -357,6 +362,7 @@ describe('classifyEffect', () => {
         return Effect.succeed(task) as any;
       }),
       mutation: vi.fn(() => Effect.succeed(mutationResult) as any),
+      action: vi.fn(() => Effect.fail(new Error('Action not used')) as any),
     });
 
     const testLayer = Layer.mergeAll(testBackend, makeTestSession({ sessionId: 'test-session' }));

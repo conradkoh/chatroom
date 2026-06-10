@@ -1,19 +1,23 @@
 /**
- * Register Agent Effect Pipeline Tests
+ * Skill Effect Pipeline Tests
  *
- * Tests the pure Effect pipelines using test layers.
+ * Tests the pure Effect pipelines (listSkillsEffect, activateSkillEffect) using test layers.
+ * These tests verify typed error handling and business logic without
+ * testing process.exit behavior (which belongs in boundary tests).
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Cause, Effect, Layer } from 'effect';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
-  registerAgentEffect,
-  type RegisterAgentError,
-  type RegisterAgentOptions,
+  listSkillsEffect,
+  activateSkillEffect,
+  type ListSkillsError,
+  type ActivateSkillError,
+  type ListSkillsOptions,
+  type ActivateSkillOptions,
 } from './index.js';
-import { RegisterAgentMachineService } from './machine-service.js';
 import { BackendService, SessionService } from '../../infrastructure/services/index.js';
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
@@ -22,19 +26,9 @@ import { BackendService, SessionService } from '../../infrastructure/services/in
 function makeTestBackend(config: {
   queryResponse?: unknown | Error;
   mutationResponse?: unknown | Error;
-  queryResponses?: (unknown | Error)[];
 }) {
-  let queryCallCount = 0;
   return Layer.succeed(BackendService, {
     query: vi.fn((_endpoint: any, _args: unknown) => {
-      if (config.queryResponses) {
-        const response = config.queryResponses[queryCallCount] ?? null;
-        queryCallCount++;
-        if (response instanceof Error) {
-          return Effect.fail(response) as any;
-        }
-        return Effect.succeed(response) as any;
-      }
       if (config.queryResponse instanceof Error) {
         return Effect.fail(config.queryResponse) as any;
       }
@@ -46,7 +40,7 @@ function makeTestBackend(config: {
       }
       return Effect.succeed(config.mutationResponse) as any;
     }),
-    action: vi.fn(() => Effect.fail(new Error('Action not used in register-agent')) as any),
+    action: vi.fn(() => Effect.fail(new Error('Action not used in skill')) as any),
   });
 }
 
@@ -68,61 +62,54 @@ function makeTestSession(config: {
   });
 }
 
-/** Create a test machine service with configurable responses */
-function makeTestMachine(config: { machineId?: string | null; config?: any }) {
-  return Layer.succeed(RegisterAgentMachineService, {
-    getMachineId: vi.fn(() =>
-      Effect.succeed(config.machineId !== undefined ? config.machineId : 'test-machine-id')
-    ),
-    loadMachineConfig: vi.fn(() => Effect.succeed(config.config ?? { hostname: 'test-host' })),
-  });
-}
-
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
-describe('registerAgentEffect', () => {
+describe('listSkillsEffect', () => {
   const validChatroomId = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2'; // 32 chars - valid
-  const remoteOptions: RegisterAgentOptions = {
+  const validOptions: ListSkillsOptions = {
     role: 'planner',
-    type: 'remote',
-  };
-  const customOptions: RegisterAgentOptions = {
-    role: 'builder',
-    type: 'custom',
   };
 
-  test('succeeds with remote type when machine is registered', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({
-        queryResponse: { _id: 'chatroom-123' },
-        mutationResponse: undefined,
-      }),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({ machineId: 'machine-123', config: { hostname: 'test-machine' } })
-    );
-
-    const exit = await Effect.runPromiseExit(
-      registerAgentEffect(validChatroomId, remoteOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Success');
+  // Mock console.log to avoid test output pollution
+  const originalLog = console.log;
+  beforeEach(() => {
+    console.log = vi.fn();
+  });
+  afterEach(() => {
+    console.log = originalLog;
   });
 
-  test('succeeds with custom type when mutation succeeds', async () => {
+  test('succeeds with valid inputs and skills', async () => {
+    const mockSkills = [
+      { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog items', type: 'system' },
+      { skillId: 'workflow', name: 'Workflow', description: 'Create workflows', type: 'system' },
+    ];
+
     const testLayer = Layer.mergeAll(
-      makeTestBackend({
-        queryResponse: { _id: 'chatroom-123' },
-        mutationResponse: undefined,
-      }),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({})
+      makeTestBackend({ queryResponse: mockSkills }),
+      makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      registerAgentEffect(validChatroomId, customOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Success');
+    expect(console.log).toHaveBeenCalled();
+  });
+
+  test('succeeds with empty skills array', async () => {
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({ queryResponse: [] }),
+      makeTestSession({ sessionId: 'test-session' })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+    );
+
+    expect(exit._tag).toBe('Success');
+    expect(console.log).toHaveBeenCalledWith('No skills available.');
   });
 
   test('fails with NotAuthenticated when session ID is null', async () => {
@@ -132,19 +119,18 @@ describe('registerAgentEffect', () => {
         sessionId: null,
         convexUrl: 'https://test.convex.cloud',
         otherUrls: ['https://prod.convex.cloud'],
-      }),
-      makeTestMachine({})
+      })
     );
 
     const exit = await Effect.runPromiseExit(
-      registerAgentEffect(validChatroomId, remoteOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
       const error = Cause.failureOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
-      ) as RegisterAgentError | null;
+      ) as ListSkillsError | null;
       expect(error).not.toBeNull();
       expect(error?._tag).toBe('NotAuthenticated');
       if (error?._tag === 'NotAuthenticated') {
@@ -158,19 +144,18 @@ describe('registerAgentEffect', () => {
     const shortId = 'short123'; // Less than 20 chars
     const testLayer = Layer.mergeAll(
       makeTestBackend({}),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({})
+      makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      registerAgentEffect(shortId, remoteOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(shortId, validOptions).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
       const error = Cause.failureOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
-      ) as RegisterAgentError | null;
+      ) as ListSkillsError | null;
       expect(error).not.toBeNull();
       expect(error?._tag).toBe('InvalidChatroomId');
       if (error?._tag === 'InvalidChatroomId') {
@@ -179,96 +164,137 @@ describe('registerAgentEffect', () => {
     }
   });
 
-  test('fails with InvalidChatroomIdChars when ID contains invalid characters', async () => {
-    const invalidId = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2-invalid'; // Contains dash
+  test('fails with QueryFailed when backend query throws', async () => {
     const testLayer = Layer.mergeAll(
-      makeTestBackend({}),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({})
+      makeTestBackend({ queryResponse: new Error('Network error') }),
+      makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      registerAgentEffect(invalidId, remoteOptions).pipe(Effect.provide(testLayer))
+      listSkillsEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
       const error = Cause.failureOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
-      ) as RegisterAgentError | null;
+      ) as ListSkillsError | null;
       expect(error).not.toBeNull();
-      expect(error?._tag).toBe('InvalidChatroomIdChars');
-    }
-  });
-
-  test('fails with ChatroomNotFound when query returns null', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ queryResponse: null }),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({})
-    );
-
-    const exit = await Effect.runPromiseExit(
-      registerAgentEffect(validChatroomId, remoteOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as RegisterAgentError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('ChatroomNotFound');
-      if (error?._tag === 'ChatroomNotFound') {
-        expect(error.chatroomId).toBe(validChatroomId);
+      expect(error?._tag).toBe('QueryFailed');
+      if (error?._tag === 'QueryFailed') {
+        expect(error.cause.message).toBe('Network error');
       }
     }
   });
+});
 
-  test('fails with MachineNotRegistered when remote type and machineId is null', async () => {
+describe('activateSkillEffect', () => {
+  const validChatroomId = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2'; // 32 chars - valid
+  const validSkillId = 'backlog';
+  const validOptions: ActivateSkillOptions = {
+    role: 'planner',
+  };
+
+  // Mock console.log to avoid test output pollution
+  const originalLog = console.log;
+  beforeEach(() => {
+    console.log = vi.fn();
+  });
+  afterEach(() => {
+    console.log = originalLog;
+  });
+
+  test('succeeds with valid inputs', async () => {
+    const mockResult = {
+      skill: {
+        skillId: 'backlog',
+        prompt: 'Manage backlog items using the backlog command',
+      },
+    };
+
     const testLayer = Layer.mergeAll(
-      makeTestBackend({ queryResponse: { _id: 'chatroom-123' } }),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({ machineId: null })
+      makeTestBackend({ mutationResponse: mockResult }),
+      makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      registerAgentEffect(validChatroomId, remoteOptions).pipe(Effect.provide(testLayer))
+      activateSkillEffect(validChatroomId, validSkillId, validOptions).pipe(
+        Effect.provide(testLayer)
+      )
+    );
+
+    expect(exit._tag).toBe('Success');
+    expect(console.log).toHaveBeenCalled();
+  });
+
+  test('fails with NotAuthenticated when session ID is null', async () => {
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({}),
+      makeTestSession({
+        sessionId: null,
+        convexUrl: 'https://test.convex.cloud',
+        otherUrls: ['https://prod.convex.cloud'],
+      })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      activateSkillEffect(validChatroomId, validSkillId, validOptions).pipe(
+        Effect.provide(testLayer)
+      )
     );
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
       const error = Cause.failureOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
-      ) as RegisterAgentError | null;
+      ) as ActivateSkillError | null;
       expect(error).not.toBeNull();
-      expect(error?._tag).toBe('MachineNotRegistered');
+      expect(error?._tag).toBe('NotAuthenticated');
     }
   });
 
-  test('fails with RegisterFailed when custom mutation throws', async () => {
+  test('fails with InvalidChatroomId when ID is too short', async () => {
+    const shortId = 'short'; // Less than 20 chars
     const testLayer = Layer.mergeAll(
-      makeTestBackend({
-        queryResponse: { _id: 'chatroom-123' },
-        mutationResponse: new Error('Registration failed'),
-      }),
-      makeTestSession({ sessionId: 'test-session' }),
-      makeTestMachine({})
+      makeTestBackend({}),
+      makeTestSession({ sessionId: 'test-session' })
     );
 
     const exit = await Effect.runPromiseExit(
-      registerAgentEffect(validChatroomId, customOptions).pipe(Effect.provide(testLayer))
+      activateSkillEffect(shortId, validSkillId, validOptions).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag === 'Failure') {
       const error = Cause.failureOption(exit.cause).pipe((option) =>
         option._tag === 'Some' ? option.value : null
-      ) as RegisterAgentError | null;
+      ) as ActivateSkillError | null;
       expect(error).not.toBeNull();
-      expect(error?._tag).toBe('RegisterFailed');
-      if (error?._tag === 'RegisterFailed') {
-        expect(error.cause.message).toBe('Registration failed');
+      expect(error?._tag).toBe('InvalidChatroomId');
+    }
+  });
+
+  test('fails with MutationFailed when backend mutation throws', async () => {
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({ mutationResponse: new Error('Skill not found') }),
+      makeTestSession({ sessionId: 'test-session' })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      activateSkillEffect(validChatroomId, validSkillId, validOptions).pipe(
+        Effect.provide(testLayer)
+      )
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag === 'Failure') {
+      const error = Cause.failureOption(exit.cause).pipe((option) =>
+        option._tag === 'Some' ? option.value : null
+      ) as ActivateSkillError | null;
+      expect(error).not.toBeNull();
+      expect(error?._tag).toBe('MutationFailed');
+      if (error?._tag === 'MutationFailed') {
+        expect(error.cause.message).toBe('Skill not found');
       }
     }
   });

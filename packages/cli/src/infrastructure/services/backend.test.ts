@@ -14,6 +14,7 @@ describe('BackendService', () => {
     const layer = BackendService.of({
       mutation: () => Effect.succeed('ok') as any,
       query: () => Effect.die('not called') as any,
+      action: () => Effect.die('not called') as any,
     });
     const result = await Effect.runPromise(
       BackendService.pipe(
@@ -28,6 +29,7 @@ describe('BackendService', () => {
     const layer = BackendService.of({
       mutation: () => Effect.die('not called') as any,
       query: () => Effect.succeed({ data: 'test' }) as any,
+      action: () => Effect.die('not called') as any,
     });
     const result = await Effect.runPromise(
       BackendService.pipe(
@@ -43,6 +45,7 @@ describe('BackendService', () => {
     const layer = BackendService.of({
       mutation: () => Effect.fail(testError) as any,
       query: () => Effect.die('not called') as any,
+      action: () => Effect.die('not called') as any,
     });
     const program = BackendService.pipe(
       Effect.flatMap((svc) => svc.mutation({} as any, {})),
@@ -56,6 +59,7 @@ describe('BackendService', () => {
     const layer = BackendService.of({
       mutation: () => Effect.die('not called') as any,
       query: () => Effect.fail(testError) as any,
+      action: () => Effect.die('not called') as any,
     });
     const program = BackendService.pipe(
       Effect.flatMap((svc) => svc.query({} as any, {})),
