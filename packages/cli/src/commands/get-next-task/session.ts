@@ -36,6 +36,7 @@ export type GetNextTaskResponse =
   | { type: 'no_tasks' }
   | { type: 'grace_period'; taskId: string; remainingMs: number }
   | { type: 'superseded'; newConnectionId: string }
+  | { type: 'connection_closed'; reason: string }
   | { type: 'reconnect'; reason: string }
   | { type: 'error'; code: BackendErrorCode; message: string; fatal: boolean };
 
@@ -241,6 +242,10 @@ export class GetNextTaskSession {
         this.handleSuperseded();
         return;
 
+      case 'connection_closed':
+        await this.handleConnectionClosed(response);
+        return;
+
       case 'grace_period':
         this.handleGracePeriod(response);
         return;
@@ -270,6 +275,32 @@ export class GetNextTaskSession {
       'Another get-next-task process started for this role.',
       'Impact: This process is being replaced by the newer connection.\n' +
         'Action: This is expected if you started a new get-next-task session.'
+    );
+  }
+
+  /**
+   * A close request exists for THIS connection (superseded or explicitly terminated).
+   * Confirm the termination so the backend emits connection.terminated and clears the
+   * close-request rows, then exit cleanly. Best-effort: if the confirm mutation fails,
+   * the TTL cron still purges the row and the loop still exits.
+   */
+  private async handleConnectionClosed(response: { reason: string }): Promise<never> {
+    try {
+      await this.client.mutation(api.connections.confirmConnectionClosed, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        connectionId: this.connectionId,
+      });
+    } catch {
+      // Best-effort — cron TTL cleanup is the backstop.
+    }
+    this.logAndExit(
+      0,
+      'connection_closed',
+      `This get-next-task connection was closed by request (${response.reason}).`,
+      'Impact: This connection has been terminated (superseded or explicitly closed).\n' +
+        'Action: This is expected. Reconnect only if you intend to resume listening for tasks.'
     );
   }
 

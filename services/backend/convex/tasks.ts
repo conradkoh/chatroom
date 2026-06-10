@@ -967,6 +967,26 @@ export const getPendingTasksForRole = query({
         }
       }
 
+      // Check the connection-close-request LIST for a live request targeting THIS connection.
+      if (args.connectionId) {
+        const connectionId = args.connectionId;
+        const closeRequest = await ctx.db
+          .query('chatroom_connectionCloseRequests')
+          .withIndex('by_chatroom_role_connection', (q) =>
+            q
+              .eq('chatroomId', args.chatroomId)
+              .eq('role', args.role)
+              .eq('connectionId', connectionId)
+          )
+          .first();
+        if (closeRequest && closeRequest.expiresAt > Date.now()) {
+          return {
+            type: 'connection_closed' as const,
+            reason: closeRequest.reason,
+          };
+        }
+      }
+
       // Determine the entry point role for user messages
       const entryPoint = getTeamEntryPoint(chatroom);
       const normalizedRole = args.role.toLowerCase();

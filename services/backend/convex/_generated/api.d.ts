@@ -36,6 +36,8 @@ import type * as commands_process_state from "../commands/process/state.js";
 import type * as commands_process_sync from "../commands/process/sync.js";
 import type * as commands_queries from "../commands/queries.js";
 import type * as commands_types from "../commands/types.js";
+import type * as connectionCleanup from "../connectionCleanup.js";
+import type * as connections from "../connections.js";
 import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
@@ -131,6 +133,8 @@ declare const fullApi: ApiFromModules<{
   "commands/process/sync": typeof commands_process_sync;
   "commands/queries": typeof commands_queries;
   "commands/types": typeof commands_types;
+  connectionCleanup: typeof connectionCleanup;
+  connections: typeof connections;
   contexts: typeof contexts;
   crons: typeof crons;
   crypto: typeof crypto;

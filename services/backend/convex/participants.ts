@@ -6,7 +6,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
+import { PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS, CONNECTION_CLOSE_REQUEST_TTL_MS } from '../config/reliability';
 import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
@@ -26,6 +26,8 @@ export const join = mutation({
     role: v.string(),
     // Unique connection ID to detect concurrent get-next-task processes
     connectionId: v.optional(v.string()),
+    // Machine this connection runs on (from CLI getMachineId())
+    machineId: v.optional(v.string()),
     // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
     // The CLI command/action that triggered this join
@@ -62,6 +64,8 @@ export const join = mutation({
       // that don't supply a connectionId, to avoid breaking superseded-connection detection.
       const connectionIdChanged =
         args.connectionId !== undefined && args.connectionId !== existing.connectionId;
+      const machineIdChanged =
+        args.machineId !== undefined && args.machineId !== existing.machineId;
       const agentTypeChanged =
         args.agentType !== undefined && args.agentType !== existing.agentType;
       const actionChanged =
@@ -70,9 +74,23 @@ export const join = mutation({
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
 
-      if (connectionIdChanged || agentTypeChanged || actionChanged || lastSeenAtStale) {
+      // Append a close request for the connection being superseded (before we overwrite it).
+      if (connectionIdChanged && existing.connectionId) {
+        await ctx.db.insert('chatroom_connectionCloseRequests', {
+          chatroomId: args.chatroomId,
+          role: args.role,
+          connectionId: existing.connectionId,
+          machineId: existing.machineId,
+          reason: 'superseded',
+          createdAt: now,
+          expiresAt: now + CONNECTION_CLOSE_REQUEST_TTL_MS,
+        });
+      }
+
+      if (connectionIdChanged || machineIdChanged || agentTypeChanged || actionChanged || lastSeenAtStale) {
         await ctx.db.patch('chatroom_participants', existing._id, {
           ...(connectionIdChanged ? { connectionId: args.connectionId } : {}),
+          ...(machineIdChanged ? { machineId: args.machineId } : {}),
           ...(lastSeenAtStale ? { lastSeenAt: now } : {}),
           ...(actionChanged ? { lastSeenAction: args.action } : {}),
           ...(agentTypeChanged && args.agentType ? { agentType: args.agentType } : {}),
@@ -86,6 +104,7 @@ export const join = mutation({
         role: args.role,
         connectionId: args.connectionId,
         lastSeenAt: now,
+        ...(args.machineId ? { machineId: args.machineId } : {}),
         ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });

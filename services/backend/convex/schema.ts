@@ -330,6 +330,9 @@ export default defineSchema({
     // When a new get-next-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
+    // Machine this get-next-task connection runs on (from CLI getMachineId()).
+    // Copied onto connection-close-request rows so the daemon can subscribe per machine.
+    machineId: v.optional(v.string()),
     // Agent type - 'custom' or 'remote'
     agentType: v.optional(agentTypeValidator),
     // Timestamp of the last check-in received from this participant.
@@ -357,6 +360,27 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
+
+  /**
+   * Append-only list of connection close requests.
+   * One row per (chatroom, role, connectionId) that should be terminated. Rows are
+   * NEVER overwritten — every superseded/closed connection gets its own row so
+   * intermediate requests can't be lost under flaky connectivity. The owning
+   * get-next-task loop self-terminates when it sees a live row for its connectionId.
+   * Expired rows are purged by a cron (see connectionCleanup.ts).
+   */
+  chatroom_connectionCloseRequests: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    connectionId: v.string(),
+    machineId: v.optional(v.string()),
+    reason: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_chatroom_role_connection', ['chatroomId', 'role', 'connectionId'])
+    .index('by_machineId', ['machineId'])
+    .index('by_expiresAt', ['expiresAt']),
 
   /**
    * Messages in chatrooms.
@@ -1208,6 +1232,16 @@ export default defineSchema({
         machineId: v.string(),
         restartCount: v.number(),
         windowMs: v.number(),
+        timestamp: v.number(),
+      }),
+      // An existing get-next-task connection was terminated (closed by request)
+      v.object({
+        type: v.literal('connection.terminated'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        connectionId: v.string(),
+        machineId: v.optional(v.string()),
+        reason: v.string(),
         timestamp: v.number(),
       }),
       // Workflow started (draft → active)
