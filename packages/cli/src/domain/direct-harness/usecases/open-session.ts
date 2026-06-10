@@ -14,10 +14,12 @@
  * to avoid leaking processes.
  */
 
+import type { BoundHarness } from '../entities/bound-harness.js';
 import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
 } from '../entities/direct-harness-session.js';
+import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Extracted chunk ─────────────────────────────────────────────────────────
 
@@ -35,8 +37,6 @@ export interface ExtractedChunk {
   /** Whether this chunk is reasoning (thinking) or regular text output. */
   readonly partType: 'text' | 'reasoning';
 }
-import type { BoundHarness } from '../entities/bound-harness.js';
-import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 

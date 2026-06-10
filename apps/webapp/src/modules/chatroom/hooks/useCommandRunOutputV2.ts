@@ -7,14 +7,13 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import { decodeOutputBrowser } from '@workspace/backend/src/output-encoding-browser';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { CommandRun } from '../features/run-command/types/run';
 import type { useCommandRunner } from './useCommandRunner';
+import type { CommandRun } from '../features/run-command/types/run';
 
 /** Maximum number of output lines to keep in buffer to prevent memory issues */
 const MAX_OUTPUT_LINES = 1000;
@@ -103,7 +102,7 @@ export function useCommandRunOutputV2(
     if (t) return `tail:${t.updatedAt}`;
     const rc = result.chunks as RawChunk[];
     if (rc.length === 0) return 'empty';
-    const last = rc[rc.length - 1]!;
+    const last = rc[rc.length - 1] as RawChunk;
     const lastContent = typeof last.content === 'string' ? last.content : last.content.content;
     return `chunks:${rc.length}:${lastContent}`;
   }, [result.tail, result.chunks]);

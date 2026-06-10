@@ -6,8 +6,8 @@ import {
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
-import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 import { DEFAULT_TRIGGER_PROMPT } from '../remote-agents/spawn-prompt.js';
