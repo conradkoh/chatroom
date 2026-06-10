@@ -4,7 +4,10 @@
  * Delegates to AgentProcessManager.stop() for the actual kill + cleanup.
  */
 
+import { Effect } from 'effect';
+
 import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
+import { DaemonContextService } from '../daemon-context-service.js';
 import type { CommandResult, DaemonContext, StopAgentCommand, StopAgentReason } from '../types.js';
 
 /**
@@ -42,6 +45,7 @@ export async function executeStopAgent(
 /**
  * Handle a stop-agent command — thin wrapper around executeStopAgent.
  */
+// fallow-ignore-next-line unused-export
 export async function handleStopAgent(
   ctx: DaemonContext,
   command: StopAgentCommand
@@ -52,3 +56,29 @@ export async function handleStopAgent(
     reason: command.reason,
   });
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for executeStopAgent — yields DaemonContextService. */
+// fallow-ignore-next-line unused-export
+export const executeStopAgentEffect = (args: {
+  chatroomId: string;
+  role: string;
+  reason: StopAgentReason;
+  pid?: number;
+}): Effect.Effect<CommandResult, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return yield* Effect.promise(() => executeStopAgent(ctx, args));
+  });
+
+/** Effect twin for handleStopAgent — extracts args from command and delegates. */
+// fallow-ignore-next-line unused-export
+export const handleStopAgentEffect = (
+  command: StopAgentCommand
+): Effect.Effect<CommandResult, never, DaemonContextService> =>
+  executeStopAgentEffect({
+    chatroomId: command.payload.chatroomId,
+    role: command.payload.role,
+    reason: command.reason,
+  });

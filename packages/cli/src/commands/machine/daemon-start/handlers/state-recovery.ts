@@ -3,8 +3,11 @@
  * Delegates to AgentProcessManager.recover() for PID recovery.
  */
 
+import { Effect } from 'effect';
+
 import { api } from '../../../../api.js';
 import type { Id } from '../../../../api.js';
+import { DaemonContextService } from '../daemon-context-service.js';
 import type { DaemonContext } from '../types.js';
 
 /**
@@ -123,3 +126,12 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
     console.warn(`[daemon] ⚠️ Orphan turn cleanup failed: ${(err as Error).message}`);
   }
 }
+
+/** Effect twin — yields DaemonContextService and delegates to recoverAgentState. */
+// fallow-ignore-next-line unused-export
+export const recoverAgentStateEffect: Effect.Effect<void, never, DaemonContextService> = Effect.gen(
+  function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => recoverAgentState(ctx));
+  }
+);

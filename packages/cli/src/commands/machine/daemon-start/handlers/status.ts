@@ -1,7 +1,11 @@
+// fallow-ignore-file unused-file
 /**
  * Status Command Handler — responds with machine info (hostname, OS, harnesses).
  */
 
+import { Effect } from 'effect';
+
+import { DaemonContextService } from '../daemon-context-service.js';
 import type { CommandResult, DaemonContext } from '../types.js';
 
 export function handleStatus(ctx: DaemonContext): CommandResult {
@@ -13,3 +17,10 @@ export function handleStatus(ctx: DaemonContext): CommandResult {
   console.log(`   ↪ Responding with status`);
   return { result, failed: false };
 }
+
+/** Effect twin — yields DaemonContextService and delegates to handleStatus */
+export const handleStatusEffect: Effect.Effect<CommandResult, never, DaemonContextService> =
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return handleStatus(ctx);
+  });
