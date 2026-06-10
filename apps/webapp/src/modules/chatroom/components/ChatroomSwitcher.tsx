@@ -63,8 +63,7 @@ export function ChatroomSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeChatroomId =
-    pathname === '/app/chatroom' ? searchParams.get('id') : null;
+  const activeChatroomId = pathname === '/app/chatroom' ? searchParams.get('id') : null;
   const { chatrooms } = useChatroomListing();
 
   const [searchValue, setSearchValue] = useState('');
@@ -104,7 +103,7 @@ export function ChatroomSwitcher() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={setOpen} modal={false}>
       <DialogPortal>
         {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
         <DialogPrimitive.Content
