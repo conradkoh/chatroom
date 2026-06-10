@@ -357,6 +357,9 @@ export class AgentProcessManager {
         role: opts.role,
         pid: opts.pid,
         supportsSessionResume,
+        // User's resume preference captured at spawn. When enabled → resume
+        // turn in-process (same PID); when disabled → kill and cold-restart.
+        // Defaults to true for backward compatibility when slot is missing.
         wantResume: slot?.wantResume ?? true,
       },
       slot
