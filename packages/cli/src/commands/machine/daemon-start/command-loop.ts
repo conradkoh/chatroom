@@ -29,6 +29,7 @@ import { releaseLock } from '../pid.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { pushCommands } from './command-sync-heartbeat.js';
 import { syncCommitDetails } from './commit-detail-sync.js';
+import { DaemonContextService } from './daemon-context-service.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
@@ -761,3 +762,33 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Keep process alive
   return await new Promise(() => {});
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for refreshModels — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const refreshModelsEffect: Effect.Effect<RefreshModelsOutcome, never, DaemonContextService> =
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    return yield* Effect.promise(() => refreshModels(ctx));
+  });
+
+/** Effect twin for dispatchCommandEvent — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const dispatchCommandEventEffect = (
+  event: Parameters<typeof dispatchCommandEvent>[1],
+  tracker: Parameters<typeof dispatchCommandEvent>[2]
+): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => dispatchCommandEvent(ctx, event, tracker));
+  });
+
+/** Effect twin for startCommandLoop — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const startCommandLoopEffect: Effect.Effect<never, never, DaemonContextService> = Effect.gen(
+  function* () {
+    const ctx = yield* DaemonContextService;
+    return yield* Effect.promise<never>(() => startCommandLoop(ctx));
+  }
+);
