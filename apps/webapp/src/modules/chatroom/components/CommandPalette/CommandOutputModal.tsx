@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useCallback } from 'react';
+
+import { CommandOutputPanel } from './CommandOutputPanel';
 
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
-import { CommandOutputPanel } from './CommandOutputPanel';
 
 interface CommandOutputModalProps {
   inlineCommand: CommandPaletteOutputState;
@@ -55,7 +55,7 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
   }, [inlineCommand]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange} modal={false}>
       <DialogPortal>
         <DialogPrimitive.Content
           forceMount

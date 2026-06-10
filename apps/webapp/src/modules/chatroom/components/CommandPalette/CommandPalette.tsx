@@ -3,6 +3,13 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
+import { CommandOutputModal } from './CommandOutputModal';
+import type { CommandItem } from './types';
+import {
+  COMMAND_DIALOG_CONTENT_CLASSES,
+  COMMAND_GROUP_HEADING_CLASSES,
+} from '../shared/commandDialogStyles';
+
 import {
   Command,
   CommandEmpty,
@@ -14,16 +21,9 @@ import {
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
-
-import {
-  COMMAND_DIALOG_CONTENT_CLASSES,
-  COMMAND_GROUP_HEADING_CLASSES,
-} from '../shared/commandDialogStyles';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
-import type { CommandItem } from './types';
-import { CommandOutputModal } from './CommandOutputModal';
 
 interface CommandPaletteProps {
   commands: CommandItem[];
@@ -205,7 +205,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen} modal={false}>
         <DialogPortal>
           <DialogPrimitive.Content
             forceMount
