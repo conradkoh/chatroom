@@ -56,6 +56,28 @@ type CommandEventsResult = FunctionReturnType<typeof api.machines.getCommandEven
 /** A single event from the command event stream. */
 type CommandEvent = CommandEventsResult['events'][number];
 
+/**
+ * Typed payload for `command.run` events.
+ * These fields may not be reflected in the Convex-generated union until
+ * `npx convex dev` regenerates types, so we define the shape explicitly.
+ */
+type CommandRunPayload = {
+  workingDir: string;
+  commandName: string;
+  script: string;
+  /** Convex Id serialised as a string at the transport layer. */
+  runId: string;
+};
+
+/**
+ * Typed payload for `command.stop` events.
+ * Same codegen caveat as CommandRunPayload.
+ */
+type CommandStopPayload = {
+  /** Convex Id serialised as a string at the transport layer. */
+  runId: string;
+};
+
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
 /** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
@@ -354,11 +376,11 @@ export async function dispatchCommandEvent(
     // is the correct primary defence here.
     if (tracker.commandRunIds.has(eventId)) return;
     tracker.commandRunIds.set(eventId, Date.now());
-    await onCommandRun(ctx, event as any);
+    await onCommandRun(ctx, event as unknown as CommandRunPayload);
   } else if (eventType === 'command.stop') {
     // Session dedup — don't re-process same command stop event twice
     if (tracker.commandStopIds.has(eventId)) return;
-    await onCommandStop(ctx, event as any);
+    await onCommandStop(ctx, event as unknown as CommandStopPayload);
     tracker.commandStopIds.set(eventId, Date.now());
   } else if (event.type === 'daemon.refreshCapabilities') {
     // Session dedup — don't re-process same refresh event twice
