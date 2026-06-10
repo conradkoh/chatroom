@@ -521,40 +521,6 @@ async function _handoffHandler(
     }
   }
 
-  // Validate workflow requirement for planner→builder handoffs (blocking)
-  if (normalizedSenderRole === 'planner' && normalizedTargetRole === 'builder') {
-    const activeWorkflow = await ctx.db
-      .query('chatroom_workflows')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'active')
-      )
-      .first();
-
-    if (!activeWorkflow) {
-      const draftWorkflow = await ctx.db
-        .query('chatroom_workflows')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'draft')
-        )
-        .first();
-
-      if (!draftWorkflow) {
-        return {
-          success: false,
-          error: {
-            code: 'WORKFLOW_REQUIRED',
-            message:
-              'Active workflow required for planner → builder handoff. Create a workflow first.',
-          },
-          messageId: null,
-          completedTaskIds: [],
-          newTaskId: null,
-          promotedTaskId: null,
-        };
-      }
-    }
-  }
-
   // Validate handoff to user is allowed based on classification
   if (isHandoffToUser) {
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -765,21 +731,6 @@ async function _handoffHandler(
     promotedTaskId,
   };
 }
-
-/** Completes the current task and sends a handoff message atomically (deprecated — use handoff instead). */
-export const sendHandoff = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    content: v.string(),
-    targetRole: v.string(),
-    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-  },
-  handler: async (ctx, args) => {
-    return _handoffHandler(ctx, args);
-  },
-});
 
 /** Sends a message to a chatroom without completing the current task. */
 export const sendMessage = mutation({
