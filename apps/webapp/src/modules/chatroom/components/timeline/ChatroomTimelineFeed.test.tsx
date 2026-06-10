@@ -3,21 +3,27 @@
  */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type React from 'react';
-
+import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
+import {
+  TIMELINE_EAGER_MEASURE_MAX_COUNT,
+  TIMELINE_OVERSCAN,
+  TIMELINE_PADDING_END,
+} from './timelineVirtualizerConfig';
+import { AttachmentsProvider } from '../../context/AttachmentsContext';
 import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
 
-const virtualizerOptions: Array<{
+const virtualizerOptions: {
   count: number;
   getItemKey: (index: number) => string;
   scrollMargin?: number;
   paddingEnd?: number;
   overscan?: number;
   measureElement?: (el: HTMLElement) => number;
-}> = [];
+}[] = [];
 
 let lastVirtualizerInstance: Record<string, unknown> | null = null;
 
@@ -49,12 +55,12 @@ vi.mock('@tanstack/react-virtual', () => ({
     const instance = {
       getVirtualItems: () => {
         if (mockFirstVisibleIndex < 0 && mockTailItemIndex === null) return [];
-        const items: Array<{
+        const items: {
           index: number;
           start: number;
           size: number;
           key: string;
-        }> = [];
+        }[] = [];
         if (mockFirstVisibleIndex >= 0) {
           items.push({
             index: mockFirstVisibleIndex,
@@ -63,10 +69,7 @@ vi.mock('@tanstack/react-virtual', () => ({
             key: `row-${mockFirstVisibleIndex}`,
           });
         }
-        if (
-          mockTailItemIndex !== null &&
-          !items.some((row) => row.index === mockTailItemIndex)
-        ) {
+        if (mockTailItemIndex !== null && !items.some((row) => row.index === mockTailItemIndex)) {
           items.push({
             index: mockTailItemIndex,
             start: mockTailItemIndex * 100,
@@ -162,16 +165,6 @@ vi.mock('../../hooks/useChatroomTimeline', () => ({
   }),
 }));
 
-import {
-  TIMELINE_EAGER_MEASURE_MAX_COUNT,
-  TIMELINE_OVERSCAN,
-  TIMELINE_PADDING_END,
-} from './timelineVirtualizerConfig';
-
-import { AttachmentsProvider } from '../../context/AttachmentsContext';
-
-import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
-
 function TimelineFeedWithProviders(props: React.ComponentProps<typeof ChatroomTimelineFeed>) {
   return (
     <AttachmentsProvider>
@@ -209,9 +202,7 @@ function setScrollPinned(pinned: boolean) {
 
 function renderFeed(initialPinned = true) {
   const coordinator = createCoordinatorRef(initialPinned);
-  const view = render(
-    <TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />
-  );
+  const view = render(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
   return { ...view, coordinator };
 }
 
@@ -377,14 +368,18 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
 
     expect(virtualizerOptions.at(-1)?.overscan).toBe(20);
     const shouldAdjust = lastVirtualizerInstance?.shouldAdjustScrollPositionOnItemSizeChange as
-      | ((item: { start: number }, delta: number, instance: { scrollOffset: number | null; scrollDirection: string | null }) => boolean)
+      | ((
+          item: { start: number },
+          delta: number,
+          instance: { scrollOffset: number | null; scrollDirection: string | null }
+        ) => boolean)
       | undefined;
-    expect(
-      shouldAdjust?.({ start: 0 }, 0, { scrollOffset: 500, scrollDirection: null })
-    ).toBe(false);
-    expect(
-      shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })
-    ).toBe(false);
+    expect(shouldAdjust?.({ start: 0 }, 0, { scrollOffset: 500, scrollDirection: null })).toBe(
+      false
+    );
+    expect(shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })).toBe(
+      false
+    );
   });
 
   it('uses default overscan for large feeds', () => {
@@ -404,7 +399,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     });
     rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
 
-    const pinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
+    const pinnedOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0] & {
       anchorTo?: string;
       followOnAppend?: boolean | 'auto';
     };
@@ -415,7 +410,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     render(
       <TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef(false)} />
     );
-    const unpinnedOptions = virtualizerOptions.at(-1)! as (typeof virtualizerOptions)[0] & {
+    const unpinnedOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0] & {
       followOnAppend?: boolean | 'auto';
     };
     expect(unpinnedOptions.followOnAppend).toBe(false);
@@ -425,19 +420,19 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     const { rerender, coordinator } = renderFeed();
     expect(virtualizerOptions.length).toBeGreaterThan(0);
 
-    const firstOptions = virtualizerOptions.at(-1)!;
+    const firstOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     const keyBeforeRerender = firstOptions.getItemKey(0);
 
     rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
 
-    const secondOptions = virtualizerOptions.at(-1)!;
+    const secondOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     expect(secondOptions.getItemKey(0)).toBe(keyBeforeRerender);
     expect(keyBeforeRerender).toBe('evt-1');
   });
 
   it('configures virtualizer count from timeline events', () => {
     renderFeed();
-    const options = virtualizerOptions.at(-1)!;
+    const options = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     expect(options.count).toBe(timelineEvents.length);
   });
 });
@@ -456,6 +451,13 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
   it('follows tail when a new message is sent (same event count after subscription slide-off)', async () => {
     const { rerender, coordinator } = renderFeed();
     await flushRaf();
+
+    // Settle the initial programmatic tail-scroll. In JSDOM, scrollHeight/clientHeight
+    // are 0 by default so computeIsAtBottom() never returns true, causing the
+    // programmatic-scroll flag to stay set for the full 30-frame cap. Setting
+    // scroll dimensions here lets the targetCheck resolve on the next rAF.
+    scrollElProps(screen.getByTestId('chatroom-timeline-scroll'), 800, 1200);
+
     await waitFor(() => {
       expect(coordinator.current.getAllowLoadOlder()).toBe(true);
     });
@@ -743,6 +745,9 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     const maxScrollTop = 2500 - 400;
     const partialScrollTop = maxScrollTop - 80;
 
+    // Settle the initial programmatic tail-scroll (same JSDOM reason as above).
+    scrollElProps(el, maxScrollTop, 2500);
+
     await waitFor(() => {
       expect(coordinator.current.getAllowLoadOlder()).toBe(true);
     });
@@ -768,7 +773,6 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     expect(el.scrollTop).toBe(maxScrollTop);
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
   });
-
 });
 
 describe('ChatroomTimelineFeed load-more scroll preservation', () => {
@@ -836,12 +840,16 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     await flushRaf();
 
     const shouldAdjust = lastVirtualizerInstance?.shouldAdjustScrollPositionOnItemSizeChange as
-      | ((item: { start: number }, delta: number, instance: { scrollOffset: number | null; scrollDirection: string | null }) => boolean)
+      | ((
+          item: { start: number },
+          delta: number,
+          instance: { scrollOffset: number | null; scrollDirection: string | null }
+        ) => boolean)
       | undefined;
 
-    expect(
-      shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })
-    ).toBe(false);
+    expect(shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })).toBe(
+      false
+    );
 
     coordinator.current.setLoadOlderIntent('preserve_position', {
       key: 'evt-2',
@@ -852,9 +860,9 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     });
 
     expect(coordinator.current.isPrependScrollPreservationActive()).toBe(true);
-    expect(
-      shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })
-    ).toBe(true);
+    expect(shouldAdjust?.({ start: 100 }, 0, { scrollOffset: 500, scrollDirection: null })).toBe(
+      true
+    );
     expect(
       shouldAdjust?.({ start: 600 }, 0, { scrollOffset: 500, scrollDirection: 'backward' })
     ).toBe(false);
@@ -923,7 +931,10 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     notifyTopChromeDelta.mockClear();
     Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
     timelineIsLoadingOlder = false;
-    timelineEvents = [...buildEvents(10).map((e, i) => ({ ...e, id: `older-${i}` })), ...buildEvents(25)];
+    timelineEvents = [
+      ...buildEvents(10).map((e, i) => ({ ...e, id: `older-${i}` })),
+      ...buildEvents(25),
+    ];
 
     act(() => {
       rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
@@ -946,6 +957,6 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
       value: () => ({ height: 64.7 }),
     });
 
-    expect(measureElement!(row)).toBe(65);
+    expect((measureElement as (el: HTMLElement) => number)(row)).toBe(65);
   });
 });
