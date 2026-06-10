@@ -732,21 +732,6 @@ async function _handoffHandler(
   };
 }
 
-/** Completes the current task and sends a handoff message atomically (deprecated — use handoff instead). */
-export const sendHandoff = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    content: v.string(),
-    targetRole: v.string(),
-    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-  },
-  handler: async (ctx, args) => {
-    return _handoffHandler(ctx, args);
-  },
-});
-
 /** Sends a message to a chatroom without completing the current task. */
 export const sendMessage = mutation({
   args: {

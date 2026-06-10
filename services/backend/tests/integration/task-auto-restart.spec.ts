@@ -103,7 +103,7 @@ describe('Fix A: User message tasks pre-assigned to entry point', () => {
     const { sessionId } = await createTestSession('test-ar-preassign-3');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
-    await t.mutation(api.messages.sendHandoff, {
+    await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       content: 'Implement feature X',
@@ -129,7 +129,7 @@ describe('Handoff target role validation', () => {
     const { sessionId } = await createTestSession('test-invalid-target-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
-    const result = await t.mutation(api.messages.sendHandoff, {
+    const result = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       content: 'Handing off to reviewer',
@@ -149,7 +149,7 @@ describe('Handoff target role validation', () => {
     const { sessionId } = await createTestSession('test-valid-target-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
-    const result = await t.mutation(api.messages.sendHandoff, {
+    const result = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       content: 'Implement this feature',
@@ -164,7 +164,7 @@ describe('Handoff target role validation', () => {
     const { sessionId } = await createTestSession('test-user-target-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
-    const result = await t.mutation(api.messages.sendHandoff, {
+    const result = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       content: 'Done with the task',

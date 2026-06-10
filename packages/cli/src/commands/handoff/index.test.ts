@@ -110,13 +110,13 @@ describe('handoff', () => {
   });
 
   describe('successful handoff', () => {
-    it('calls sendHandoff mutation and logs success', async () => {
+    it('calls handoff mutation and logs success', async () => {
       const deps = createMockDeps();
 
       await handoff(TEST_CHATROOM_ID, defaultOptions(), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // sendHandoff only (heartbeat now fired by preAction hook, not handler)
+      // handoff only (heartbeat now fired by preAction hook, not handler)
       expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
@@ -174,7 +174,7 @@ describe('handoff', () => {
   });
 
   describe('mutation failure', () => {
-    it('exits with code 1 when sendHandoff throws', async () => {
+    it('exits with code 1 when handoff throws', async () => {
       const deps = createMockDeps();
       (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Network timeout')
