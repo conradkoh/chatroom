@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
 
-import { classifyResumeStormReason } from './classify-resume-storm-reason.js';
+import {
+  classifyResumeStormReason,
+  formatPermanentHarnessFailureMessage,
+  isPermanentHarnessFailure,
+} from './classify-resume-storm-reason.js';
 
 describe('classifyResumeStormReason', () => {
   test('returns unknown for empty logs', () => {
@@ -23,6 +27,24 @@ describe('classifyResumeStormReason', () => {
   test('detects config errors', () => {
     expect(classifyResumeStormReason(['model not found: foo/bar'])).toBe('config_error');
     expect(classifyResumeStormReason(['configuration error: missing model'])).toBe('config_error');
+    expect(
+      classifyResumeStormReason([
+        'Error: 400 {"error":{"message":"The requested model is not supported.","code":"model_not_supported","param":"model","type":"invalid_request_error"}}',
+      ])
+    ).toBe('config_error');
+  });
+
+  test('isPermanentHarnessFailure treats auth and config as permanent', () => {
+    expect(isPermanentHarnessFailure(['Invalid API key for anthropic'])).toBe(true);
+    expect(isPermanentHarnessFailure(['model_not_supported'])).toBe(true);
+    expect(isPermanentHarnessFailure(['Error 429: rate limit exceeded'])).toBe(false);
+    expect(isPermanentHarnessFailure(['agent_end'])).toBe(false);
+  });
+
+  test('formatPermanentHarnessFailureMessage includes reason and log excerpt', () => {
+    const message = formatPermanentHarnessFailureMessage(['model not found: foo/bar']);
+    expect(message).toContain('config_error');
+    expect(message).toContain('model not found');
   });
 
   test('returns unknown for unrelated logs', () => {

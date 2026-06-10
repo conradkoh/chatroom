@@ -1346,6 +1346,39 @@ describe('AgentProcessManager', () => {
       });
     });
 
+    test('crash with permanent harness error does not restart', async () => {
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        'Error: 400 {"error":{"message":"The requested model is not supported.","code":"model_not_supported","param":"model","type":"invalid_request_error"}}',
+      ];
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+      expect(service.spawn).not.toHaveBeenCalled();
+
+      const startFailedCall = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call: unknown[]) =>
+          call[1] &&
+          typeof call[1] === 'object' &&
+          (call[1] as Record<string, unknown>).error !== undefined &&
+          String((call[1] as Record<string, unknown>).error).includes('config_error')
+      );
+      expect(startFailedCall).toBeDefined();
+    });
+
     test('exited_clean retains daemon memory and reconnects cursor-sdk via resumeFromDaemonMemory', async () => {
       const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
         pid: 100,

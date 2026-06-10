@@ -28,6 +28,10 @@ import {
   shouldRetainHarnessSessionForReconnect,
 } from '../../../domain/agent-lifecycle/index.js';
 import { appendRecentLogLine } from '../../../domain/agent-lifecycle/policies/append-recent-log-line.js';
+import {
+  formatPermanentHarnessFailureMessage,
+  isPermanentHarnessFailure,
+} from '../../../domain/agent-lifecycle/policies/classify-resume-storm-reason.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
 import { isProcessAlive } from '../../deps/process.js';
@@ -397,6 +401,7 @@ export class AgentProcessManager {
     const workingDir = slot.workingDir;
     const harnessSessionId = slot.harnessSessionId;
     const wantResume = slot.wantResume;
+    const recentLogLines = slot.recentLogLines;
 
     if (
       harness &&
@@ -471,6 +476,25 @@ export class AgentProcessManager {
         `[AgentProcessManager] ⚠️  Cannot restart — missing harness or workingDir ` +
           `(role: ${opts.role}, harness: ${harness ?? 'none'}, workingDir: ${workingDir ?? 'none'})`
       );
+      return;
+    }
+
+    if (isPermanentHarnessFailure(recentLogLines ?? [])) {
+      const error = formatPermanentHarnessFailureMessage(recentLogLines ?? []);
+      console.log(`[AgentProcessManager] ⛔ Skipping restart — ${error}`);
+      this.deps.crashLoop.clear(opts.chatroomId, opts.role);
+      this.clearLastHarnessSession(key);
+      this.deps.backend
+        .mutation(api.machines.emitAgentStartFailed, {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          error,
+        })
+        .catch((emitErr: Error) => {
+          console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
+        });
       return;
     }
 

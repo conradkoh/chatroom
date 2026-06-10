@@ -31,6 +31,10 @@ const CLASSIFICATION_RULES: readonly {
     reason: 'config_error',
     patterns: [
       /model not found/i,
+      /model_not_supported/i,
+      /model is not supported/i,
+      /requested model is not supported/i,
+      /unsupported model/i,
       /invalid model/i,
       /missing model/i,
       /config(uration)? error/i,
@@ -39,6 +43,11 @@ const CLASSIFICATION_RULES: readonly {
     ],
   },
 ];
+
+const PERMANENT_FAILURE_REASONS: ReadonlySet<ResumeStormReason> = new Set([
+  'auth_error',
+  'config_error',
+]);
 
 /**
  * Infer why rapid resume failed from recent harness log lines.
@@ -57,4 +66,21 @@ export function classifyResumeStormReason(logLines: readonly string[]): ResumeSt
   }
 
   return 'unknown';
+}
+
+/**
+ * Whether recent harness logs indicate a failure that will not resolve on retry
+ * (e.g. invalid API key, unsupported model). Rate limits are excluded — they
+ * may clear after a backoff window.
+ */
+export function isPermanentHarnessFailure(logLines: readonly string[]): boolean {
+  return PERMANENT_FAILURE_REASONS.has(classifyResumeStormReason(logLines));
+}
+
+export function formatPermanentHarnessFailureMessage(logLines: readonly string[]): string {
+  const reason = classifyResumeStormReason(logLines);
+  const blob = logLines.join('\n').trim();
+  return blob
+    ? `Permanent harness error (${reason}): ${blob.slice(-500)}`
+    : `Permanent harness error (${reason})`;
 }
