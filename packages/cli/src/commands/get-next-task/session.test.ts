@@ -180,6 +180,35 @@ describe('GetNextTaskSession', () => {
   });
 
   // -----------------------------------------------------------------------
+  // connection_closed
+  // -----------------------------------------------------------------------
+  describe('connection_closed response', () => {
+    it('calls confirmConnectionClosed, exits with code 0, and logs the event', async () => {
+      const { callbacks, params } = await startSession();
+
+      callbacks.onUpdate({
+        type: 'connection_closed',
+        reason: 'superseded',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(exitSpy).toHaveBeenCalledWith(0);
+
+      const output = getAllLogOutput();
+      expect(output).toContain('[EVENT: connection_closed]');
+      expect(output).toContain('superseded');
+      expect(output).toContain('To reconnect, run:');
+      expect(output).toContain('chatroom get-next-task');
+
+      // Verify confirmConnectionClosed mutation was called.
+      // The subscribe() call accounts for 1 mutation (participants.join:started).
+      // handleConnectionClosed adds at least 1 more (confirmConnectionClosed).
+      // Total must be > 1.
+      expect(params.client.mutation.mock.calls.length).toBeGreaterThan(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // grace_period
   // -----------------------------------------------------------------------
   describe('grace_period response', () => {

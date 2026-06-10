@@ -103,3 +103,10 @@ export const CIRCUIT_WINDOW_MS = 300_000; // 5 minutes
 
 /** Cool-down period after circuit trips (OPEN state) before allowing HALF-OPEN attempt. */
 export const CIRCUIT_COOLDOWN_MS = 60_000; // 1 minute
+
+// ─── Connection Close Requests ───────────────────────────────────────────────
+
+/** TTL for a connection close request (ms). After this, the cron removes the row.
+ *  Long enough that a temporarily-offline loop still sees its close request when it
+ *  reconnects, short enough to keep the table small. */
+export const CONNECTION_CLOSE_REQUEST_TTL_MS = 10 * 60_000; // 10 min
