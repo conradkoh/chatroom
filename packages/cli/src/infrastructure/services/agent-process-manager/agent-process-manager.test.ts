@@ -277,7 +277,7 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 
-    test('onAgentEnd always calls resumeTurn for resumable harness regardless of wantResume', async () => {
+    test('onAgentEnd kills (no resume) for resumable harness when wantResume is false', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const onAgentEndRegistrar = vi.fn();
       const resumableService = {
@@ -305,8 +305,8 @@ describe('AgentProcessManager', () => {
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(manager, agentEndCb);
 
-      expect(resumeTurn).toHaveBeenCalledOnce();
-      expect(deps.processes.kill).not.toHaveBeenCalled();
+      expect(resumeTurn).not.toHaveBeenCalled();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
     });
 
     test('onAgentEnd kills process for non-resumable harness', async () => {
@@ -1346,6 +1346,39 @@ describe('AgentProcessManager', () => {
       });
     });
 
+    test('crash with permanent harness error does not restart', async () => {
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        'Error: 400 {"error":{"message":"The requested model is not supported.","code":"model_not_supported","param":"model","type":"invalid_request_error"}}',
+      ];
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+      expect(service.spawn).not.toHaveBeenCalled();
+
+      const startFailedCall = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call: unknown[]) =>
+          call[1] &&
+          typeof call[1] === 'object' &&
+          (call[1] as Record<string, unknown>).error !== undefined &&
+          String((call[1] as Record<string, unknown>).error).includes('config_error')
+      );
+      expect(startFailedCall).toBeDefined();
+    });
+
     test('exited_clean retains daemon memory and reconnects cursor-sdk via resumeFromDaemonMemory', async () => {
       const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
         pid: 100,
@@ -1405,6 +1438,138 @@ describe('AgentProcessManager', () => {
         model: 'gpt-4',
       });
       expect(localManager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('cursor-agent-1');
+    });
+
+    test('crash-recovery does not resume when wantResume is false', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: 100,
+        harnessSessionId: 'sess-opencode-2',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn: vi.fn(),
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
+      };
+      const localDeps = {
+        ...createDeps(),
+        agentServices: new Map([['opencode-sdk', opencodeSdkService]]),
+      };
+      const localManager = new AgentProcessManager(localDeps);
+
+      // Spawn with wantResume: false
+      await localManager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'opencode-sdk',
+        wantResume: false,
+      });
+
+      // Simulate a crash (SIGKILL — non-intentional exit)
+      localManager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: null,
+        signal: 'SIGKILL',
+      });
+
+      // Restart should happen (crash recovery triggers ensureRunning)
+      await vi.waitFor(() => {
+        expect(opencodeSdkService.spawn).toHaveBeenCalledTimes(2);
+      });
+
+      // But since wantResume was false, daemon-memory resume must NOT be used
+      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
+    });
+
+    test('end-to-end: wantResume=false prevents both turn-resume and crash-recovery resume', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: 200,
+        harnessSessionId: 'sess-resumed',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const onAgentEndRegistrar = vi.fn();
+      const opencodeSdkService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: onAgentEndRegistrar,
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'test' }),
+      };
+      const localDeps = {
+        ...createDeps(),
+        agentServices: new Map([['opencode-sdk', opencodeSdkService]]),
+      };
+      const localManager = new AgentProcessManager(localDeps);
+
+      // 1. Spawn with wantResume=false
+      await localManager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'opencode-sdk',
+        wantResume: false,
+      });
+
+      const slot = localManager.getSlot(CHATROOM_ID, ROLE)!;
+      expect(slot.wantResume).toBe(false);
+
+      // 2. Trigger agent_end (turn completion)
+      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+      await triggerAgentEnd(localManager, agentEndCb);
+
+      // 3. Verify: resumeTurn was NOT called (turn-resume path disabled)
+      expect(resumeTurn).not.toHaveBeenCalled();
+      expect(localDeps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+
+      // 4. Clear kill mock for next phase
+      (localDeps.processes.kill as ReturnType<typeof vi.fn>).mockClear();
+      (opencodeSdkService.spawn as ReturnType<typeof vi.fn>).mockClear();
+
+      // 5. Simulate crash (non-intentional exit)
+      localManager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      // 6. Wait for restart
+      await vi.waitFor(() => {
+        expect(opencodeSdkService.spawn).toHaveBeenCalledTimes(1);
+      });
+
+      // 7. Verify: daemon-memory resume was NOT used (crash-recovery respects wantResume=false)
+      expect(resumeFromDaemonMemory).not.toHaveBeenCalled();
+
+      // 8. Verify: fresh spawn happened instead (cold-start)
+      expect(opencodeSdkService.spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({ role: ROLE }),
+          model: expect.any(String),
+          workingDir: expect.any(String),
+        })
+      );
     });
   });
 
