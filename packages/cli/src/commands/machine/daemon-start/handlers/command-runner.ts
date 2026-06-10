@@ -7,8 +7,11 @@
 
 import { access } from 'node:fs/promises';
 
+import { Effect } from 'effect';
+
 import { api } from '../../../../api.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
+import { DaemonContextService } from '../daemon-context-service.js';
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids } from './orphan-tracker.js';
@@ -279,3 +282,34 @@ export function forceKillAllCommands(): void {
     killProcess(tracked.process, 'SIGKILL');
   }
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for onCommandRun — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const onCommandRunEffect = (event: {
+  workingDir: string;
+  commandName: string;
+  script: string;
+  runId: any;
+}): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => onCommandRun(ctx, event));
+  });
+
+/** Effect twin for onCommandStop — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const onCommandStopEffect = (event: {
+  runId: any;
+}): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => onCommandStop(ctx, event));
+  });
+
+/** Effect twin for forceKillAllCommands — synchronous, no service deps needed. */
+// fallow-ignore-next-line unused-export
+export const forceKillAllCommandsEffect: Effect.Effect<void> = Effect.sync(() =>
+  forceKillAllCommands()
+);

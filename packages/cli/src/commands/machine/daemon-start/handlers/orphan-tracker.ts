@@ -29,6 +29,8 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { Effect } from 'effect';
+
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 
 // ─── File Paths ──────────────────────────────────────────────────────────────
@@ -215,3 +217,20 @@ export async function reapOrphanedProcessGroups(): Promise<{
   clearTrackedPids();
   return { reaped, checked };
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin — wraps reapOrphanedProcessGroups (no service deps needed). */
+// fallow-ignore-next-line unused-export
+export const reapOrphanedProcessGroupsEffect: Effect.Effect<{ reaped: number; checked: number }> =
+  Effect.promise(() => reapOrphanedProcessGroups());
+
+/** Effect twin — wraps forceKillAllTrackedProcessGroups (no service deps needed). */
+// fallow-ignore-next-line unused-export
+export const forceKillAllTrackedProcessGroupsEffect: Effect.Effect<number> = Effect.sync(() =>
+  forceKillAllTrackedProcessGroups()
+);
+
+/** Effect twin — wraps clearTrackedPids (no service deps needed). */
+// fallow-ignore-next-line unused-export
+export const clearTrackedPidsEffect: Effect.Effect<void> = Effect.sync(() => clearTrackedPids());
