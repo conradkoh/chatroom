@@ -12,7 +12,9 @@
 import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import { DaemonContextService } from '../daemon-context-service.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
@@ -47,7 +49,7 @@ vi.mock('../../../../api.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — DaemonContextService (used by recoverAgentStateEffect, handlePingEffect)
 // ---------------------------------------------------------------------------
 
 function makeLayer(overrides?: Partial<DaemonContext>) {
@@ -59,6 +61,28 @@ async function run<A>(
   overrides?: Partial<DaemonContext>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — DaemonSessionService (used by handleStatusEffect)
+// ---------------------------------------------------------------------------
+
+function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<DaemonSessionService> {
+  return Layer.succeed(DaemonSessionService, {
+    sessionId: 'test-session-id',
+    machineId: 'test-machine-id',
+    client: {},
+    config,
+    agentServices: new Map(),
+    events: new DaemonEventBus(),
+  });
+}
+
+async function runWithSession<A>(
+  effect: Effect.Effect<A, never, DaemonSessionService>,
+  config: MachineConfig | null = null
+) {
+  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(config))));
 }
 
 // ---------------------------------------------------------------------------
@@ -91,14 +115,14 @@ describe('handlePingEffect', () => {
 // ---------------------------------------------------------------------------
 
 describe('handleStatusEffect', () => {
-  it('returns JSON with hostname/os/availableHarnesses from ctx.config', async () => {
+  it('returns JSON with hostname/os/availableHarnesses from config', async () => {
     const config = {
       hostname: 'my-host',
       os: 'darwin',
       availableHarnesses: ['opencode'],
     } as unknown as MachineConfig;
 
-    const result = await run(handleStatusEffect, { config });
+    const result = await runWithSession(handleStatusEffect, config);
     const parsed = JSON.parse(result.result);
 
     expect(parsed.hostname).toBe('my-host');
@@ -107,8 +131,8 @@ describe('handleStatusEffect', () => {
     expect(result.failed).toBe(false);
   });
 
-  it('returns nulls when ctx.config is null', async () => {
-    const result = await run(handleStatusEffect, { config: null });
+  it('returns nulls when config is null', async () => {
+    const result = await runWithSession(handleStatusEffect, null);
     const parsed = JSON.parse(result.result);
 
     expect(parsed.hostname).toBeUndefined();
@@ -124,8 +148,15 @@ describe('handleStatusEffect', () => {
 
 describe('executeStopAgentEffect', () => {
   it('succeeds when agentProcessManager.stop returns { success: true }', async () => {
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.agentProcessManager.stop).mockResolvedValue({ success: true });
+    const stopMock = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
+    const agentMgrLayer = Layer.succeed(DaemonAgentProcessManagerService, {
+      stop: stopMock,
+      ensureRunning: vi.fn(),
+      handleExit: vi.fn(),
+      recover: vi.fn(),
+      getSlot: vi.fn().mockReturnValue(undefined),
+      listActive: vi.fn().mockReturnValue([]),
+    });
 
     const effect = executeStopAgentEffect({
       chatroomId: 'room-abc',
@@ -133,15 +164,22 @@ describe('executeStopAgentEffect', () => {
       reason: 'user.stop',
     });
 
-    const result = await run(effect, { deps });
+    const result = await Effect.runPromise(effect.pipe(Effect.provide(agentMgrLayer)));
 
     expect(result.failed).toBe(false);
     expect(result.result).toContain('builder');
   });
 
   it('returns { failed: true } when agentProcessManager.stop returns { success: false }', async () => {
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.agentProcessManager.stop).mockResolvedValue({ success: false });
+    const stopMock = vi.fn().mockReturnValue(Effect.succeed({ success: false }));
+    const agentMgrLayer = Layer.succeed(DaemonAgentProcessManagerService, {
+      stop: stopMock,
+      ensureRunning: vi.fn(),
+      handleExit: vi.fn(),
+      recover: vi.fn(),
+      getSlot: vi.fn().mockReturnValue(undefined),
+      listActive: vi.fn().mockReturnValue([]),
+    });
 
     const effect = executeStopAgentEffect({
       chatroomId: 'room-abc',
@@ -149,7 +187,7 @@ describe('executeStopAgentEffect', () => {
       reason: 'user.stop',
     });
 
-    const result = await run(effect, { deps });
+    const result = await Effect.runPromise(effect.pipe(Effect.provide(agentMgrLayer)));
 
     expect(result.failed).toBe(true);
     expect(result.result).toContain('planner');
@@ -162,8 +200,15 @@ describe('executeStopAgentEffect', () => {
 
 describe('handleStopAgentEffect', () => {
   it('correctly extracts chatroomId/role/reason from StopAgentCommand', async () => {
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.agentProcessManager.stop).mockResolvedValue({ success: true });
+    const stopMock = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
+    const agentMgrLayer = Layer.succeed(DaemonAgentProcessManagerService, {
+      stop: stopMock,
+      ensureRunning: vi.fn(),
+      handleExit: vi.fn(),
+      recover: vi.fn(),
+      getSlot: vi.fn().mockReturnValue(undefined),
+      listActive: vi.fn().mockReturnValue([]),
+    });
 
     const command = {
       type: 'stop-agent' as const,
@@ -174,9 +219,11 @@ describe('handleStopAgentEffect', () => {
       },
     };
 
-    const result = await run(handleStopAgentEffect(command), { deps });
+    const result = await Effect.runPromise(
+      handleStopAgentEffect(command).pipe(Effect.provide(agentMgrLayer))
+    );
 
-    expect(deps.agentProcessManager.stop).toHaveBeenCalledWith(
+    expect(stopMock).toHaveBeenCalledWith(
       expect.objectContaining({
         chatroomId: 'room-xyz',
         role: 'reviewer',

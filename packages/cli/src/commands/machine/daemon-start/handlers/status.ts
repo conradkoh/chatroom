@@ -5,7 +5,7 @@
 
 import { Effect } from 'effect';
 
-import { DaemonContextService } from '../daemon-context-service.js';
+import { DaemonSessionService } from '../daemon-services.js';
 import type { CommandResult, DaemonContext } from '../types.js';
 
 export function handleStatus(ctx: DaemonContext): CommandResult {
@@ -18,9 +18,15 @@ export function handleStatus(ctx: DaemonContext): CommandResult {
   return { result, failed: false };
 }
 
-/** Effect twin — yields DaemonContextService and delegates to handleStatus */
-export const handleStatusEffect: Effect.Effect<CommandResult, never, DaemonContextService> =
+/** Effect twin — yields DaemonSessionService; inline logic, no DaemonContextService. */
+export const handleStatusEffect: Effect.Effect<CommandResult, never, DaemonSessionService> =
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    return handleStatus(ctx);
+    const { config } = yield* DaemonSessionService;
+    const result = JSON.stringify({
+      hostname: config?.hostname,
+      os: config?.os,
+      availableHarnesses: config?.availableHarnesses,
+    });
+    console.log(`   ↪ Responding with status`);
+    return { result, failed: false };
   });
