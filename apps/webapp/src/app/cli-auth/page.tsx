@@ -160,7 +160,40 @@ function CliAuthContent() {
     );
   }
 
-  // Already processed
+  // 1) Local result wins (success or error from THIS session's action)
+  if (result) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
+        <div className="w-full max-w-md">
+          <div className="bg-card border border-border rounded-lg p-8 shadow-sm text-center space-y-4">
+            {result.success ? (
+              <Check className="mx-auto h-12 w-12 text-green-500" />
+            ) : (
+              <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+            )}
+            <h1 className="text-xl font-semibold">{result.success ? 'Done!' : 'Error'}</h1>
+            <p className="text-muted-foreground">{result.message}</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 2) Currently driving an action — don't fall through to "Already Approved"
+  if (actionState === 'approving' || actionState === 'denying') {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">
+            {actionState === 'approving' ? 'Approving...' : 'Denying...'}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  // 3) Stale URL — request was already processed in a PRIOR session
   if (requestDetails.status !== 'pending') {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
@@ -181,25 +214,6 @@ function CliAuthContent() {
                 <p className="text-muted-foreground">This authorization request was denied.</p>
               </>
             )}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Show result
-  if (result) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
-        <div className="w-full max-w-md">
-          <div className="bg-card border border-border rounded-lg p-8 shadow-sm text-center space-y-4">
-            {result.success ? (
-              <Check className="mx-auto h-12 w-12 text-green-500" />
-            ) : (
-              <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
-            )}
-            <h1 className="text-xl font-semibold">{result.success ? 'Done!' : 'Error'}</h1>
-            <p className="text-muted-foreground">{result.message}</p>
           </div>
         </div>
       </main>
@@ -254,19 +268,11 @@ function CliAuthContent() {
               onClick={handleDeny}
               disabled={actionState !== 'idle'}
             >
-              {actionState === 'denying' ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <X className="h-4 w-4 mr-2" />
-              )}
+              <X className="h-4 w-4 mr-2" />
               Deny
             </Button>
             <Button className="flex-1" onClick={handleApprove} disabled={actionState !== 'idle'}>
-              {actionState === 'approving' ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Check className="h-4 w-4 mr-2" />
-              )}
+              <Check className="h-4 w-4 mr-2" />
               Approve
             </Button>
           </div>
