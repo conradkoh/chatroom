@@ -31,7 +31,7 @@ export async function handleTurnCompleted(
     return { outcome: 'storm_aborted' };
   }
 
-  if (input.supportsSessionResume) {
+  if (input.supportsSessionResume && input.wantResume) {
     if (slot) {
       slot.resumeInFlight = true;
     }

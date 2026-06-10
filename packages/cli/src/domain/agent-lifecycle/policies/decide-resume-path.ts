@@ -36,6 +36,9 @@ export function shouldAutoRestartAfterProcessExit(stopReason: StopReason): boole
 /**
  * In-process turn resume (resumeTurn) — same PID, lifecycle.turn.completed.
  */
-export function resumePathAfterTurnCompleted(supportsSessionResume: boolean): ResumePath {
-  return supportsSessionResume ? 'in_process' : 'none';
+export function resumePathAfterTurnCompleted(
+  supportsSessionResume: boolean,
+  wantResume: boolean
+): ResumePath {
+  return supportsSessionResume && wantResume ? 'in_process' : 'none';
 }

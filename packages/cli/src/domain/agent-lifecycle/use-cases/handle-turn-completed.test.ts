@@ -56,6 +56,7 @@ const baseInput = {
   role: 'builder',
   pid: 42,
   supportsSessionResume: true,
+  wantResume: true,
 };
 
 describe('handleTurnCompleted', () => {
@@ -83,6 +84,17 @@ describe('handleTurnCompleted', () => {
       { ...baseInput, supportsSessionResume: false },
       undefined
     );
+
+    expect(result).toEqual({ outcome: 'killed' });
+    expect(deps.resumeTurn).not.toHaveBeenCalled();
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+  });
+
+  test('kills instead of resuming when wantResume is false', async () => {
+    const { deps } = createDeps();
+    const slot: TurnEndSlot = { harnessSessionId: 'sess-1', state: 'running', pid: 42 };
+
+    const result = await handleTurnCompleted(deps, { ...baseInput, wantResume: false }, slot);
 
     expect(result).toEqual({ outcome: 'killed' });
     expect(deps.resumeTurn).not.toHaveBeenCalled();

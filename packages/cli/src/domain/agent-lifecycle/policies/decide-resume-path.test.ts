@@ -57,8 +57,10 @@ describe('shouldAutoRestartAfterProcessExit', () => {
 });
 
 describe('resumePathAfterTurnCompleted', () => {
-  it('returns in_process only for resumable harnesses', () => {
-    expect(resumePathAfterTurnCompleted(true)).toBe('in_process');
-    expect(resumePathAfterTurnCompleted(false)).toBe('none');
+  it('returns in_process only when resumable AND wantResume', () => {
+    expect(resumePathAfterTurnCompleted(true, true)).toBe('in_process');
+    expect(resumePathAfterTurnCompleted(true, false)).toBe('none');
+    expect(resumePathAfterTurnCompleted(false, true)).toBe('none');
+    expect(resumePathAfterTurnCompleted(false, false)).toBe('none');
   });
 });
