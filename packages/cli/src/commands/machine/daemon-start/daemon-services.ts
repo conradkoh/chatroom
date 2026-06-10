@@ -107,7 +107,6 @@ export interface DaemonAgentProcessManagerServiceShape {
   listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
 }
 
-// fallow-ignore-next-line unused-export
 export class DaemonAgentProcessManagerService extends Context.Tag(
   'DaemonAgentProcessManagerService'
 )<DaemonAgentProcessManagerService, DaemonAgentProcessManagerServiceShape>() {}
