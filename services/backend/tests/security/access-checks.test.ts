@@ -137,7 +137,7 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
   // integrations.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'integrations.ts': ['list', 'get'],
   // messages.ts: PRE-EXISTING — chatroom-scoped, agent-facing, no access checks on some endpoints
-  'messages.ts': ['send', 'sendHandoff', 'sendMessage', 'handoff'],
+  'messages.ts': ['send', 'sendMessage', 'handoff'],
   // presentations.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'presentations.ts': [
     'getPresentationState',
@@ -231,7 +231,7 @@ function getConvexFiles(): string[] {
     .filter((f) => !SKIP_DIRS.some((dir) => f.startsWith(dir)))
     .map((f) => ({ name: f, path: path.join(convexDir, f) }))
     .filter(({ path: p }) => fs.statSync(p).isFile())
-    .map(({ name, path: p }) => name);
+    .map(({ name }) => name);
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────

@@ -191,21 +191,6 @@ export async function handoff(
       console.error(
         `\n💡 Check your team's workflow in the system prompt for valid handoff paths.`
       );
-    } else if (result.error.code === 'WORKFLOW_REQUIRED') {
-      console.error('');
-      console.error('All tasks delegated to builder must use a workflow.');
-      console.error('Create one before handing off:');
-      console.error('');
-      console.error('  1. Activate the workflow skill:');
-      console.error(
-        `     ${cliEnvPrefix}chatroom skill activate workflow --chatroom-id=${chatroomId} --role=${role}`
-      );
-      console.error('');
-      console.error('  2. Create a workflow:');
-      console.error(
-        `     ${cliEnvPrefix}chatroom workflow create --chatroom-id=${chatroomId} --role=${role} ...`
-      );
-      console.error('');
     } else if (result.error.suggestedTarget) {
       console.error(`\n💡 Try this instead:`);
       console.error('```');

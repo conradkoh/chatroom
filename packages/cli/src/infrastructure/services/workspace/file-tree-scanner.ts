@@ -11,6 +11,8 @@
  */
 
 import { exec } from 'node:child_process';
+import { promises as fsPromises, type Dirent } from 'node:fs';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
@@ -36,6 +38,9 @@ export type ScanOptions = {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const DEFAULT_MAX_ENTRIES = 10_000;
+
+/** Per-subtree size cap when falling back to FS walk (non-git folders). */
+const FS_FALLBACK_MAX_SUBTREE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 /** Directories to always exclude (even outside git repos or if git misbehaves). */
 const ALWAYS_EXCLUDE = new Set([
@@ -87,7 +92,9 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
   const maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const scannedAt = Date.now();
 
-  const filePaths = await getGitFiles(rootDir);
+  const filePaths = (await isGitRepo(rootDir))
+    ? await getGitFiles(rootDir)
+    : await walkFsFallback(rootDir, maxEntries, FS_FALLBACK_MAX_SUBTREE_BYTES);
 
   // Filter out always-excluded directories and patterns
   const filteredPaths = filePaths.filter((p) => !isExcluded(p) && !matchesExcludePattern(p));
@@ -103,6 +110,117 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
 }
 
 // ─── Internal Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Check if a directory is a git repository.
+ */
+// fallow-ignore-next-line unused-export
+export async function isGitRepo(rootDir: string): Promise<boolean> {
+  try {
+    const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', {
+      cwd: rootDir,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
+      maxBuffer: 1024 * 1024,
+    });
+    return stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Walks `rootDir` depth-first as a fallback when git is unavailable.
+ * Skips any subtree whose accumulated file size exceeds `maxSubtreeBytes`
+ * (that subtree contributes nothing; siblings still scanned).
+ * Honors ALWAYS_EXCLUDE on directory names.
+ * Stops collecting once `maxEntries` files are gathered.
+ */
+// fallow-ignore-next-line unused-export
+export async function walkFsFallback(
+  rootDir: string,
+  maxEntries: number,
+  maxSubtreeBytes: number
+): Promise<string[]> {
+  const collected: string[] = [];
+  await walkSubtree(rootDir, '', collected, maxEntries, maxSubtreeBytes);
+  return collected;
+}
+
+/**
+ * Returns the size contributed by this subtree if kept, or `null` if the
+ * subtree was skipped due to size. Mutates `collected` only for kept files.
+ */
+// fallow-ignore-next-line complexity unit-size
+async function walkSubtree(
+  absRoot: string,
+  relDir: string,
+  collected: string[],
+  maxEntries: number,
+  maxSubtreeBytes: number
+): Promise<number | null> {
+  if (collected.length >= maxEntries) return 0;
+
+  const absDir = relDir ? path.join(absRoot, relDir) : absRoot;
+  let dirents: Dirent[];
+  try {
+    dirents = await fsPromises.readdir(absDir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  // Stage this subtree's files separately so we can discard them
+  // wholesale if the subtree exceeds the size cap.
+  const staged: string[] = [];
+  let subtreeBytes = 0;
+
+  for (const ent of dirents) {
+    if (collected.length + staged.length >= maxEntries) break;
+    if (ALWAYS_EXCLUDE.has(ent.name)) continue;
+
+    const childRel = relDir ? `${relDir}/${ent.name}` : ent.name;
+
+    if (ent.isDirectory()) {
+      // Recurse into a temp buffer so we can decide to keep or skip
+      const subCollected: string[] = [];
+      const subSize = await walkSubtree(
+        absRoot,
+        childRel,
+        subCollected,
+        maxEntries - collected.length - staged.length,
+        maxSubtreeBytes
+      );
+      if (subSize === null) {
+        // Sub-subtree was skipped (too large) — propagate skip ONLY for that branch
+        continue;
+      }
+      subtreeBytes += subSize;
+      if (subtreeBytes > maxSubtreeBytes) {
+        // This whole subtree busts the cap — discard staged AND already-accepted children
+        return null;
+      }
+      staged.push(...subCollected);
+    } else if (ent.isFile()) {
+      try {
+        const st = await fsPromises.stat(path.join(absRoot, childRel));
+        subtreeBytes += st.size;
+        if (subtreeBytes > maxSubtreeBytes) {
+          return null;
+        }
+        staged.push(childRel);
+      } catch {
+        // Unreadable file — ignore
+      }
+    }
+    // Skip symlinks and other special entries silently
+  }
+
+  // Subtree survived — commit staged paths
+  for (const p of staged) {
+    if (collected.length >= maxEntries) break;
+    collected.push(p);
+  }
+  return subtreeBytes;
+}
 
 /**
  * Gets all files using git ls-files (tracked + untracked).
@@ -152,12 +270,14 @@ function parseLines(output: string): string[] {
 }
 
 /** Check if a path contains an always-excluded directory segment. */
+// fallow-ignore-next-line unused-export
 export function isExcluded(filePath: string): boolean {
   const segments = filePath.split('/');
   return segments.some((segment) => ALWAYS_EXCLUDE.has(segment));
 }
 
 /** Check if a path matches any exclude pattern (case-insensitive). */
+// fallow-ignore-next-line unused-export
 export function matchesExcludePattern(filePath: string): boolean {
   return EXCLUDE_PATTERNS.some((pattern) => pattern.test(filePath));
 }
@@ -167,6 +287,7 @@ export function matchesExcludePattern(filePath: string): boolean {
  * Derives directory entries from the file paths.
  * Caps at maxEntries total (files + directories).
  */
+// fallow-ignore-next-line unused-export
 export function buildEntries(
   filePaths: string[],
   rootDir: string,
