@@ -29,9 +29,6 @@ export interface SubWorkspacePackage {
   scripts: Record<string, string>;
 }
 
-/** @deprecated Use SubWorkspacePackage instead */
-export type WorkspacePackage = SubWorkspacePackage;
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**

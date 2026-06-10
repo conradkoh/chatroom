@@ -36,7 +36,6 @@ export interface ExtractedChunk {
   readonly partType: 'text' | 'reasoning';
 }
 import type { BoundHarness } from '../entities/bound-harness.js';
-import type { HarnessSessionId } from '../entities/harness-session.js';
 import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
@@ -107,14 +106,4 @@ export interface SessionHandle {
   currentTurn: { turnId: string; messageId: string | null } | null;
   /** Flush remaining chunks and close the harness session. Idempotent. */
   close(): Promise<void>;
-}
-
-// ─── Use case function ────────────────────────────────────────────────────────
-
-/** @deprecated Use daemon subscribers instead. */
-export async function openSession(
-  _deps: OpenSessionDeps,
-  _input: OpenSessionInput
-): Promise<SessionHandle> {
-  throw new Error('openSession is deprecated');
 }

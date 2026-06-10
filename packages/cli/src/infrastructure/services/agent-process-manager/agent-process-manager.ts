@@ -48,9 +48,6 @@ import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** @deprecated Use HarnessSessionSnapshot — kept for tests and external imports. */
-export type LastHarnessSessionContext = HarnessSessionSnapshot;
-
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
 export interface AgentSlot {

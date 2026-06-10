@@ -56,9 +56,6 @@ export interface CommandPaletteOutputState {
   fullOutputPending: boolean;
 }
 
-/** @deprecated Use CommandPaletteOutputState */
-export type InlineCommandState = CommandPaletteOutputState;
-
 export interface UseCommandRunOutputV2Options {
   /** Subscribe when processes panel or terminal output is visible */
   panelOutputVisible: boolean;
@@ -94,9 +91,7 @@ export function useCommandRunOutputV2(
   const raw = useSessionQuery(
     api.commands.getRunOutputV2,
     subscribeRunId ? { runId: subscribeRunId as any, loadFull } : 'skip'
-  ) as
-    | { run: any; tail: any; chunks: any[]; fullOutputPending: boolean }
-    | undefined;
+  ) as { run: any; tail: any; chunks: any[]; fullOutputPending: boolean } | undefined;
 
   const result = raw ?? { run: null, tail: null, chunks: [], fullOutputPending: false };
 
@@ -159,8 +154,7 @@ export function useCommandRunOutputV2(
     }
   }, [commandName]);
 
-  const isActive =
-    result.run?.status === 'running' || result.run?.status === 'pending';
+  const isActive = result.run?.status === 'running' || result.run?.status === 'pending';
 
   const canLoadMore =
     isActive &&
