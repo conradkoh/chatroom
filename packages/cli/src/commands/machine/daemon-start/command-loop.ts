@@ -8,6 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
@@ -133,64 +134,84 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
   if (!ctx.config) {
     return { kind: 'noop' };
   }
+  // Capture non-null config before entering the Effect.gen closure so TypeScript
+  // doesn't require repeated non-null assertions inside the lambda.
+  const ctxConfig = ctx.config;
 
-  const models = await discoverModels(ctx.agentServices);
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const models = yield* Effect.tryPromise({
+        try: async () => discoverModels(ctx.agentServices),
+        catch: (e) => e,
+      });
 
-  // Re-detect available harnesses so any newly installed tools are reflected immediately.
-  const freshConfig = await ensureMachineRegistered();
-  ctx.config.availableHarnesses = freshConfig.availableHarnesses;
-  ctx.config.harnessVersions = freshConfig.harnessVersions;
+      // Re-detect available harnesses so any newly installed tools are reflected immediately.
+      const freshConfig = yield* Effect.tryPromise({
+        try: async () => ensureMachineRegistered(),
+        catch: (e) => e,
+      });
+      ctxConfig.availableHarnesses = freshConfig.availableHarnesses;
+      ctxConfig.harnessVersions = freshConfig.harnessVersions;
 
-  const modelDiff = diffModels(ctx.lastPushedModels, models);
-  const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
-    ctx.config.availableHarnesses,
-    ctx.config.harnessVersions as Record<string, unknown>
+      const modelDiff = diffModels(ctx.lastPushedModels, models);
+      const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
+        ctxConfig.availableHarnesses,
+        ctxConfig.harnessVersions as Record<string, unknown>
+      );
+      const harnessFingerprintChanged =
+        ctx.lastPushedHarnessFingerprint !== null &&
+        nextHarnessFingerprint !== ctx.lastPushedHarnessFingerprint;
+
+      if (!modelDiff.hasChanges && !harnessFingerprintChanged) {
+        // Models and harness metadata match last successful push — skip Convex.
+        return { kind: 'skipped_no_changes' } satisfies RefreshModelsOutcome;
+      }
+
+      const totalCount = Object.values(models).flat().length;
+
+      yield* Effect.tryPromise({
+        try: async () =>
+          ctx.deps.backend.mutation(api.machines.refreshCapabilities, {
+            sessionId: ctx.sessionId,
+            machineId: ctx.machineId,
+            availableHarnesses: ctxConfig.availableHarnesses,
+            harnessVersions: ctxConfig.harnessVersions,
+            availableModels: models,
+          }),
+        catch: (e) => e,
+      });
+
+      // Snapshot only after the backend successfully accepts the update — on
+      // failure we want the next tick to retry with the same diff.
+      ctx.lastPushedModels = models;
+      ctx.lastPushedHarnessFingerprint = nextHarnessFingerprint;
+
+      // Log only after a successful sync so transient failures do not re-print
+      // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
+      if (Object.keys(modelDiff.added).length > 0) {
+        console.log(
+          `[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`
+        );
+      }
+      if (Object.keys(modelDiff.removed).length > 0) {
+        console.log(
+          `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(modelDiff.removed)}`
+        );
+      }
+      console.log(
+        `[${formatTimestamp()}] 🔄 Model refresh pushed: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
+      );
+      return { kind: 'pushed' } satisfies RefreshModelsOutcome;
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          const message = getErrorMessage(error);
+          console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
+          return { kind: 'failed', message } satisfies RefreshModelsOutcome;
+        })
+      )
+    )
   );
-  const harnessFingerprintChanged =
-    ctx.lastPushedHarnessFingerprint !== null &&
-    nextHarnessFingerprint !== ctx.lastPushedHarnessFingerprint;
-
-  if (!modelDiff.hasChanges && !harnessFingerprintChanged) {
-    // Models and harness metadata match last successful push — skip Convex.
-    return { kind: 'skipped_no_changes' };
-  }
-
-  const totalCount = Object.values(models).flat().length;
-
-  try {
-    await ctx.deps.backend.mutation(api.machines.refreshCapabilities, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      availableHarnesses: ctx.config.availableHarnesses,
-      harnessVersions: ctx.config.harnessVersions,
-      availableModels: models,
-    });
-    // Snapshot only after the backend successfully accepts the update — on
-    // failure we want the next tick to retry with the same diff.
-    ctx.lastPushedModels = models;
-    ctx.lastPushedHarnessFingerprint = nextHarnessFingerprint;
-
-    // Log only after a successful sync so transient failures do not re-print
-    // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
-    if (Object.keys(modelDiff.added).length > 0) {
-      console.log(
-        `[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`
-      );
-    }
-    if (Object.keys(modelDiff.removed).length > 0) {
-      console.log(
-        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(modelDiff.removed)}`
-      );
-    }
-    console.log(
-      `[${formatTimestamp()}] 🔄 Model refresh pushed: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
-    );
-    return { kind: 'pushed' };
-  } catch (error) {
-    const message = getErrorMessage(error);
-    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
-    return { kind: 'failed', message };
-  }
 }
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
