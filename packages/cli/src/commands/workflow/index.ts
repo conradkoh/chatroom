@@ -1,12 +1,21 @@
 /**
  * Workflow commands for managing structured DAG-based workflows.
+ *
+ * Phase 9: Migrated to Effect-TS services with typed error handling.
  */
+
+import { Effect, Layer } from 'effect';
 
 import type { WorkflowDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { getErrorMessage } from '../../utils/convex-error.js';
+import {
+  BackendService,
+  BackendServiceLive,
+  SessionService,
+  SessionServiceLive,
+} from '../../infrastructure/services/index.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
@@ -20,6 +29,21 @@ const VALID_CHATROOM_SKILLS = ['backlog', 'software-engineering', 'code-review',
 
 type WorkflowStatus = 'draft' | 'active' | 'completed' | 'cancelled';
 type StepStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
+type StepInput = {
+  stepKey: string;
+  description: string;
+  dependsOn: string[];
+  order: number;
+  [key: string]: unknown;
+};
+
+type StepSpec = {
+  goal?: string;
+  requirements?: string;
+  warnings?: string;
+  skills?: string;
+};
 
 export interface CreateWorkflowOptions {
   role: string;
@@ -63,6 +87,16 @@ export interface ViewStepOptions {
   stepKey: string;
 }
 
+// ─── Domain errors ─────────────────────────────────────────────────────────
+
+export type WorkflowError =
+  | { readonly _tag: 'NotAuthenticated'; readonly convexUrl: string; readonly otherUrls: string[] }
+  | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
+  | { readonly _tag: 'InvalidInput'; readonly message: string }
+  | { readonly _tag: 'WorkflowNotFound'; readonly workflowKey: string }
+  | { readonly _tag: 'MutationFailed'; readonly cause: Error }
+  | { readonly _tag: 'QueryFailed'; readonly cause: Error };
+
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<WorkflowDeps> {
@@ -80,29 +114,21 @@ async function createDefaultDeps(): Promise<WorkflowDeps> {
   };
 }
 
-// ─── Auth Helper ───────────────────────────────────────────────────────────
-
-async function requireAuth(d: WorkflowDeps): Promise<string> {
-  const sessionId = await d.session.getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-  return sessionId as string;
-}
-
-function validateChatroomId(chatroomId: string): void {
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+/**
+ * Build Effect Layer from WorkflowDeps (for backward-compat with tests)
+ */
+function layerFromDeps(deps: WorkflowDeps): Layer.Layer<BackendService | SessionService> {
+  return Layer.mergeAll(
+    BackendServiceLive({
+      query: deps.backend.query,
+      mutation: deps.backend.mutation,
+    }),
+    SessionServiceLive({
+      getSessionId: deps.session.getSessionId,
+      getConvexUrl: deps.session.getConvexUrl,
+      getOtherSessionUrls: deps.session.getOtherSessionUrls,
+    })
+  );
 }
 
 // ─── Section Parser ────────────────────────────────────────────────────────
@@ -110,6 +136,7 @@ function validateChatroomId(chatroomId: string): void {
 /**
  * Parse multi-section stdin content with markers like ---GOAL---, ---REQUIREMENTS---, ---WARNINGS---
  */
+// fallow-ignore-next-line unused-export complexity
 export function parseSections(
   input: string,
   requiredSections: string[],
@@ -126,7 +153,7 @@ export function parseSections(
   const markers: { section: string; index: number; matchStart: number }[] = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(input)) !== null) {
-    const sectionName = match[1]!.replace(/^---/, '').replace(/---$/, '');
+    const sectionName = (match[1] ?? '').replace(/^---/, '').replace(/---$/, '');
     markers.push({
       section: sectionName,
       index: match.index + match[0].length,
@@ -136,10 +163,13 @@ export function parseSections(
 
   // Extract content between markers
   for (let i = 0; i < markers.length; i++) {
-    const start = markers[i]!.index;
-    const end = i + 1 < markers.length ? markers[i + 1]!.matchStart : input.length;
+    const marker = markers[i];
+    if (!marker) continue;
+    const nextMarker = markers[i + 1];
+    const start = marker.index;
+    const end = nextMarker ? nextMarker.matchStart : input.length;
     const content = input.substring(start, end).trim();
-    result.set(markers[i]!.section, content);
+    result.set(marker.section, content);
   }
 
   // Validate required sections
@@ -194,7 +224,702 @@ function getWorkflowStatusEmoji(status: WorkflowStatus): string {
   }
 }
 
-// ─── Commands ──────────────────────────────────────────────────────────────
+// ─── Validation Helpers ────────────────────────────────────────────────────
+
+function validateChatroomIdEffect(chatroomId: string): Effect.Effect<void, WorkflowError> {
+  if (
+    !chatroomId ||
+    typeof chatroomId !== 'string' ||
+    chatroomId.length < 20 ||
+    chatroomId.length > 40
+  ) {
+    return Effect.fail<WorkflowError>({ _tag: 'InvalidChatroomId', id: chatroomId });
+  }
+  return Effect.succeed(undefined);
+}
+
+/** Validate a single step object — returns a WorkflowError or null if valid */
+function validateStepInput(step: StepInput, index: number): WorkflowError | null {
+  const stepLabel = step.stepKey ? `"${step.stepKey}"` : `at index ${index}`;
+
+  if (!step.stepKey || typeof step.stepKey !== 'string') {
+    return {
+      _tag: 'InvalidInput',
+      message: `Step ${stepLabel} must have a "stepKey" (string). All steps require: stepKey, description, dependsOn, order`,
+    };
+  }
+  if (!step.description || typeof step.description !== 'string') {
+    return {
+      _tag: 'InvalidInput',
+      message: `Step ${stepLabel} must have a "description" (string). All steps require: stepKey, description, dependsOn, order`,
+    };
+  }
+  if (!Array.isArray(step.dependsOn)) {
+    return {
+      _tag: 'InvalidInput',
+      message: `Step ${stepLabel} must have a "dependsOn" (array of strings). All steps require: stepKey, description, dependsOn, order`,
+    };
+  }
+  if (typeof step.order !== 'number') {
+    return {
+      _tag: 'InvalidInput',
+      message: `Step ${stepLabel} must have an "order" (number). All steps require: stepKey, description, dependsOn, order`,
+    };
+  }
+  return null;
+}
+
+// ─── Rendering Helpers ─────────────────────────────────────────────────────
+
+function formatLocaleDate(ts: number): string {
+  return new Date(ts).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function renderWorkflowHeader(wf: {
+  workflowKey: string;
+  status: string;
+  createdBy: string;
+  createdAt: number;
+  completedAt?: number | null;
+  cancelledAt?: number | null;
+  cancelReason?: string | null;
+}): void {
+  console.log('');
+  console.log('══════════════════════════════════════════════════');
+  console.log(`${getWorkflowStatusEmoji(wf.status as WorkflowStatus)} WORKFLOW: ${wf.workflowKey}`);
+  console.log('══════════════════════════════════════════════════');
+  console.log(`Status: ${wf.status.toUpperCase()}`);
+  console.log(`Created by: ${wf.createdBy}`);
+  console.log(`Created: ${formatLocaleDate(wf.createdAt)}`);
+
+  if (wf.completedAt) {
+    console.log(`Completed: ${formatLocaleDate(wf.completedAt)}`);
+  }
+  if (wf.cancelledAt) {
+    console.log(`Cancelled: ${formatLocaleDate(wf.cancelledAt)}`);
+    if (wf.cancelReason) {
+      console.log(`Reason: ${wf.cancelReason}`);
+    }
+  }
+}
+
+// fallow-ignore-next-line complexity
+function renderWorkflowSteps(
+  steps: {
+    stepKey: string;
+    description: string;
+    status: string;
+    assigneeRole?: string | null;
+    dependsOn: string[];
+    order: number;
+    specification?: unknown;
+    cancelReason?: string | null;
+  }[]
+): void {
+  console.log('');
+  console.log('──────────────────────────────────────────────────');
+  console.log('📋 STEPS');
+  console.log('──────────────────────────────────────────────────');
+
+  if (steps.length === 0) {
+    console.log('No steps.');
+    return;
+  }
+
+  for (const step of steps) {
+    const emoji = getStepStatusEmoji(step.status as StepStatus);
+    console.log(`${emoji} [${step.status.toUpperCase()}] ${step.stepKey}: ${step.description}`);
+
+    const details: string[] = [];
+    if (step.assigneeRole) details.push(`assignee=${step.assigneeRole}`);
+    if (step.dependsOn.length > 0) details.push(`depends_on=[${step.dependsOn.join(', ')}]`);
+    details.push(`order=${step.order}`);
+    console.log(`   ${details.join(' | ')}`);
+
+    if (step.specification) {
+      const spec = step.specification as StepSpec;
+      if (spec.goal) console.log(`   📎 Goal: ${spec.goal}`);
+      if (spec.skills) console.log(`   🔧 Skills: ${spec.skills}`);
+      if (spec.requirements) console.log(`   📎 Requirements: ${spec.requirements}`);
+      if (spec.warnings) console.log(`   ⚠️  Warnings: ${spec.warnings}`);
+    }
+
+    if (step.cancelReason) {
+      console.log(`   Cancel reason: ${step.cancelReason}`);
+    }
+
+    console.log('');
+  }
+}
+
+function renderAvailableNextSteps(
+  steps: { stepKey: string; description: string }[],
+  availableNextSteps: string[]
+): void {
+  if (availableNextSteps.length === 0) return;
+
+  console.log('──────────────────────────────────────────────────');
+  console.log('🔜 AVAILABLE NEXT STEPS');
+  console.log('──────────────────────────────────────────────────');
+  for (const stepKey of availableNextSteps) {
+    const step = steps.find((s) => s.stepKey === stepKey);
+    if (step) {
+      console.log(`   → ${stepKey}: ${step.description}`);
+    }
+  }
+  console.log('');
+}
+
+// fallow-ignore-next-line complexity
+function renderStepDetails(
+  step: {
+    stepKey: string;
+    description: string;
+    status: string;
+    assigneeRole?: string | null;
+    dependsOn: string[];
+    order: number;
+    completedAt?: number | null;
+    cancelledAt?: number | null;
+    cancelReason?: string | null;
+    specification?: unknown;
+  },
+  result: { workflowKey: string; workflowStatus: string }
+): void {
+  const emoji = getStepStatusEmoji(step.status as StepStatus);
+
+  console.log('');
+  console.log('══════════════════════════════════════════════════');
+  console.log(`${emoji} STEP: ${step.stepKey}`);
+  console.log('══════════════════════════════════════════════════');
+  console.log(`Workflow: ${result.workflowKey} (${result.workflowStatus})`);
+  console.log(`Description: ${step.description}`);
+  console.log(`Status: ${step.status.toUpperCase()}`);
+
+  if (step.assigneeRole) console.log(`Assignee: ${step.assigneeRole}`);
+  if (step.dependsOn.length > 0) console.log(`Dependencies: ${step.dependsOn.join(', ')}`);
+  console.log(`Order: ${step.order}`);
+
+  if (step.completedAt) console.log(`Completed: ${formatLocaleDate(step.completedAt)}`);
+  if (step.cancelledAt) {
+    console.log(`Cancelled: ${formatLocaleDate(step.cancelledAt)}`);
+    if (step.cancelReason) console.log(`Cancel reason: ${step.cancelReason}`);
+  }
+
+  if (step.specification) {
+    const spec = step.specification as StepSpec;
+    console.log('');
+    console.log('──────────────────────────────────────────────────');
+    console.log('📋 SPECIFICATION');
+    console.log('──────────────────────────────────────────────────');
+    if (spec.goal) {
+      console.log('');
+      console.log('Goal:');
+      console.log(spec.goal);
+    }
+    if (spec.skills) {
+      console.log('');
+      console.log('Skills (activate before starting):');
+      console.log(spec.skills);
+    }
+    if (spec.requirements) {
+      console.log('');
+      console.log('Requirements:');
+      console.log(spec.requirements);
+    }
+    if (spec.warnings) {
+      console.log('');
+      console.log('⚠️  Warnings:');
+      console.log(spec.warnings);
+    }
+  } else {
+    console.log('');
+    console.log('⚠️  No specification set. Run `workflow specify` to add one.');
+  }
+
+  console.log('');
+  console.log('══════════════════════════════════════════════════');
+  console.log('');
+}
+
+// ─── Effect Programs ───────────────────────────────────────────────────────
+
+/**
+ * Pure Effect program — create a new workflow with steps from JSON stdin.
+ */
+// fallow-ignore-next-line unused-export complexity
+export const createWorkflowEffect = (
+  chatroomId: string,
+  options: CreateWorkflowOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  // fallow-ignore-next-line complexity
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    // Parse JSON from stdin
+    const stepsData = yield* Effect.try({
+      try: () => JSON.parse(options.stdinContent) as { steps: StepInput[] },
+      catch: (): WorkflowError => ({
+        _tag: 'InvalidInput',
+        message:
+          'Invalid JSON input. Expected format: { "steps": [{ "stepKey": "...", "description": "...", "dependsOn": [...], "order": N }] }',
+      }),
+    });
+
+    // Validate structure
+    if (!stepsData.steps || !Array.isArray(stepsData.steps)) {
+      return yield* Effect.fail<WorkflowError>({
+        _tag: 'InvalidInput',
+        message: 'JSON must contain a "steps" array',
+      });
+    }
+
+    if (stepsData.steps.length === 0) {
+      return yield* Effect.fail<WorkflowError>({
+        _tag: 'InvalidInput',
+        message: 'Workflow must have at least one step',
+      });
+    }
+
+    const ALLOWED_STEP_FIELDS = new Set(['stepKey', 'description', 'dependsOn', 'order']);
+
+    // Validate each step
+    for (let i = 0; i < stepsData.steps.length; i++) {
+      const step = stepsData.steps[i];
+      if (!step) continue;
+      const validationError = validateStepInput(step, i);
+      if (validationError) {
+        return yield* Effect.fail<WorkflowError>(validationError);
+      }
+
+      // Warn about extra fields (they will be stripped)
+      const extraFields = Object.keys(step).filter((k) => !ALLOWED_STEP_FIELDS.has(k));
+      if (extraFields.length > 0) {
+        yield* Effect.sync(() => {
+          console.error(
+            `⚠️  Stripped unknown fields from step "${step.stepKey}": ${extraFields.join(', ')}`
+          );
+        });
+      }
+    }
+
+    // Strip to only allowed fields
+    const cleanSteps = stepsData.steps.map((step) => ({
+      stepKey: step.stepKey,
+      description: step.description,
+      dependsOn: step.dependsOn,
+      order: step.order,
+    }));
+
+    const result = yield* backend
+      .mutation<{ workflowId: string }>(api.workflows.createWorkflow, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+        steps: cleanSteps,
+        createdBy: options.role,
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'MutationFailed', cause })));
+
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('✅ Workflow created');
+      console.log(`   Key: ${options.workflowKey}`);
+      console.log(`   Workflow ID: ${result.workflowId}`);
+      console.log(`   Steps: ${cleanSteps.length}`);
+      console.log(`   Status: draft`);
+      console.log('');
+    });
+  });
+
+/**
+ * Pure Effect program — specify a workflow step with goal, requirements, and optional warnings.
+ */
+// fallow-ignore-next-line unused-export
+export const specifyWorkflowStepEffect = (
+  chatroomId: string,
+  options: SpecifyStepOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    // Parse sections from stdin (parseSections calls process.exit on error)
+    const sections = yield* Effect.try({
+      try: () =>
+        parseSections(options.stdinContent, ['GOAL', 'REQUIREMENTS'], ['WARNINGS', 'SKILLS']),
+      catch: (e): WorkflowError => ({
+        _tag: 'InvalidInput',
+        message: e instanceof Error ? e.message : String(e),
+      }),
+    });
+
+    const goal = sections.get('GOAL') ?? '';
+    const requirements = sections.get('REQUIREMENTS') ?? '';
+    const warnings = sections.get('WARNINGS') || undefined;
+    const skills = sections.get('SKILLS') || undefined;
+
+    // Soft validation: warn on unrecognized skill names
+    if (skills) {
+      const skillList = skills
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const invalid = skillList.filter((s) => !VALID_CHATROOM_SKILLS.includes(s));
+      if (invalid.length > 0) {
+        yield* Effect.sync(() => {
+          console.warn(
+            `⚠️  Unknown skills: ${invalid.join(', ')}. Valid skills: ${VALID_CHATROOM_SKILLS.join(', ')}`
+          );
+        });
+      }
+    }
+
+    yield* backend
+      .mutation<void>(api.workflows.specifyStep, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+        assigneeRole: options.assigneeRole,
+        goal,
+        requirements,
+        warnings,
+        skills,
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'MutationFailed', cause })));
+
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('✅ Step specified');
+      console.log(`   Workflow: ${options.workflowKey}`);
+      console.log(`   Step: ${options.stepKey}`);
+      console.log(`   Assignee: ${options.assigneeRole}`);
+      console.log('');
+    });
+  });
+
+/**
+ * Pure Effect program — execute (activate) a draft workflow.
+ */
+// fallow-ignore-next-line unused-export
+export const executeWorkflowEffect = (
+  chatroomId: string,
+  options: ExecuteWorkflowOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    yield* backend
+      .mutation<void>(api.workflows.executeWorkflow, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'MutationFailed', cause })));
+
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('✅ Workflow activated');
+      console.log(`   Key: ${options.workflowKey}`);
+      console.log(`   Status: active`);
+      console.log('');
+      console.log('💡 Root steps (no dependencies) are now in_progress.');
+      console.log('');
+    });
+  });
+
+/**
+ * Pure Effect program — get and display the full status of a workflow.
+ */
+// fallow-ignore-next-line unused-export
+export const getWorkflowStatusEffect = (
+  chatroomId: string,
+  options: WorkflowStatusOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    const result = yield* backend
+      .query<{
+        workflow: {
+          workflowKey: string;
+          status: string;
+          createdBy: string;
+          createdAt: number;
+          completedAt?: number | null;
+          cancelledAt?: number | null;
+          cancelReason?: string | null;
+        } | null;
+        steps: {
+          stepKey: string;
+          description: string;
+          status: string;
+          assigneeRole?: string | null;
+          dependsOn: string[];
+          order: number;
+          specification?: unknown;
+          cancelReason?: string | null;
+        }[];
+        availableNextSteps: string[];
+      }>(api.workflows.getWorkflowStatus, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'QueryFailed', cause })));
+
+    if (!result.workflow) {
+      return yield* Effect.fail<WorkflowError>({
+        _tag: 'WorkflowNotFound',
+        workflowKey: options.workflowKey,
+      });
+    }
+
+    const workflow = result.workflow;
+    yield* Effect.sync(() => {
+      renderWorkflowHeader(workflow);
+      renderWorkflowSteps(result.steps);
+      renderAvailableNextSteps(result.steps, result.availableNextSteps);
+      console.log('══════════════════════════════════════════════════');
+      console.log('');
+    });
+  });
+
+/**
+ * Pure Effect program — mark a workflow step as completed.
+ */
+// fallow-ignore-next-line unused-export
+export const completeStepEffect = (
+  chatroomId: string,
+  options: StepCompleteOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    yield* backend
+      .mutation<void>(api.workflows.completeStep, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'MutationFailed', cause })));
+
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('✅ Step completed');
+      console.log(`   Workflow: ${options.workflowKey}`);
+      console.log(`   Step: ${options.stepKey}`);
+      console.log('');
+    });
+  });
+
+/**
+ * Pure Effect program — exit (cancel) an entire workflow with a required reason.
+ */
+// fallow-ignore-next-line unused-export
+export const exitWorkflowEffect = (
+  chatroomId: string,
+  options: ExitWorkflowOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    if (!options.reason || options.reason.trim().length === 0) {
+      return yield* Effect.fail<WorkflowError>({
+        _tag: 'InvalidInput',
+        message: 'Reason is required when exiting a workflow',
+      });
+    }
+
+    yield* backend
+      .mutation<void>(api.workflows.exitWorkflow, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+        reason: options.reason.trim(),
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'MutationFailed', cause })));
+
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('❌ Workflow exited (cancelled)');
+      console.log(`   Key: ${options.workflowKey}`);
+      console.log(`   Reason: ${options.reason.trim()}`);
+      console.log('');
+    });
+  });
+
+/**
+ * Pure Effect program — view the full details of a single workflow step.
+ */
+// fallow-ignore-next-line unused-export
+export const viewStepEffect = (
+  chatroomId: string,
+  options: ViewStepOptions
+): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+
+    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
+    }
+
+    yield* validateChatroomIdEffect(chatroomId);
+
+    const result = yield* backend
+      .query<{
+        workflowKey: string;
+        workflowStatus: string;
+        step: {
+          stepKey: string;
+          description: string;
+          status: string;
+          assigneeRole?: string | null;
+          dependsOn: string[];
+          order: number;
+          completedAt?: number | null;
+          cancelledAt?: number | null;
+          cancelReason?: string | null;
+          specification?: unknown;
+        } | null;
+      }>(api.workflows.getStepView, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+      })
+      .pipe(Effect.mapError((cause): WorkflowError => ({ _tag: 'QueryFailed', cause })));
+
+    if (!result.step) {
+      return yield* Effect.fail<WorkflowError>({
+        _tag: 'WorkflowNotFound',
+        workflowKey: `${options.workflowKey}/${options.stepKey}`,
+      });
+    }
+
+    const step = result.step;
+    yield* Effect.sync(() => {
+      renderStepDetails(step, result);
+    });
+  });
+
+// ─── Error Handlers ────────────────────────────────────────────────────────
+
+/**
+ * Maps typed errors to console.error + process.exit(1) effects.
+ * This is the ONLY place process.exit is called in the Effect pipeline.
+ */
+// fallow-ignore-next-line complexity
+function handleWorkflowError(err: WorkflowError): Effect.Effect<void> {
+  return Effect.sync(() => {
+    if (err._tag === 'NotAuthenticated') {
+      console.error(`❌ Not authenticated for: ${err.convexUrl}`);
+
+      if (err.otherUrls.length > 0) {
+        console.error(`\n💡 You have sessions for other environments:`);
+        for (const url of err.otherUrls) {
+          console.error(`   • ${url}`);
+        }
+        console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+        console.error(`   CHATROOM_CONVEX_URL=${err.otherUrls[0]} chatroom workflow ...`);
+        console.error(`\n   Or to authenticate for the current environment:`);
+      }
+
+      console.error(`   chatroom auth login`);
+      process.exit(1);
+    } else if (err._tag === 'InvalidChatroomId') {
+      console.error(
+        `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
+      );
+      process.exit(1);
+    } else if (err._tag === 'InvalidInput') {
+      console.error(`❌ ${err.message}`);
+      process.exit(1);
+    } else if (err._tag === 'WorkflowNotFound') {
+      console.error(`❌ Workflow not found: ${err.workflowKey}`);
+      process.exit(1);
+    } else if (err._tag === 'MutationFailed') {
+      console.error(`❌ Operation failed: ${err.cause.message}`);
+      process.exit(1);
+    } else if (err._tag === 'QueryFailed') {
+      console.error(`❌ Operation failed: ${err.cause.message}`);
+      process.exit(1);
+    }
+  });
+}
+
+// ─── Entry Points (public API — unchanged signatures) ─────────────────────
 
 /**
  * Create a new workflow with steps from JSON stdin.
@@ -205,113 +930,14 @@ export async function createWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  // Parse JSON from stdin
-  let stepsData: {
-    steps: {
-      stepKey: string;
-      description: string;
-      dependsOn: string[];
-      order: number;
-    }[];
-  };
-
-  try {
-    stepsData = JSON.parse(options.stdinContent);
-  } catch {
-    console.error('❌ Invalid JSON input. Expected format:');
-    console.error(
-      '   { "steps": [{ "stepKey": "...", "description": "...", "dependsOn": [...], "order": N }] }'
-    );
-    process.exit(1);
-    return;
-  }
-
-  // Validate structure
-  if (!stepsData.steps || !Array.isArray(stepsData.steps)) {
-    console.error('❌ JSON must contain a "steps" array');
-    process.exit(1);
-    return;
-  }
-
-  if (stepsData.steps.length === 0) {
-    console.error('❌ Workflow must have at least one step');
-    process.exit(1);
-    return;
-  }
-
-  // Validate each step has required fields
-  const ALLOWED_STEP_FIELDS = new Set(['stepKey', 'description', 'dependsOn', 'order']);
-
-  for (let i = 0; i < stepsData.steps.length; i++) {
-    const step = stepsData.steps[i]!;
-    const stepLabel = step.stepKey ? `"${step.stepKey}"` : `at index ${i}`;
-
-    if (!step.stepKey || typeof step.stepKey !== 'string') {
-      console.error(`❌ Step ${stepLabel} must have a "stepKey" (string)`);
-      console.error('   All steps require: stepKey, description, dependsOn, order');
-      process.exit(1);
-      return;
-    }
-    if (!step.description || typeof step.description !== 'string') {
-      console.error(`❌ Step ${stepLabel} must have a "description" (string)`);
-      console.error('   All steps require: stepKey, description, dependsOn, order');
-      process.exit(1);
-      return;
-    }
-    if (!Array.isArray(step.dependsOn)) {
-      console.error(`❌ Step ${stepLabel} must have a "dependsOn" (array of strings)`);
-      console.error('   All steps require: stepKey, description, dependsOn, order');
-      process.exit(1);
-      return;
-    }
-    if (typeof step.order !== 'number') {
-      console.error(`❌ Step ${stepLabel} must have an "order" (number)`);
-      console.error('   All steps require: stepKey, description, dependsOn, order');
-      process.exit(1);
-      return;
-    }
-
-    // Warn about extra fields (they will be stripped)
-    const extraFields = Object.keys(step).filter((k) => !ALLOWED_STEP_FIELDS.has(k));
-    if (extraFields.length > 0) {
-      console.error(
-        `⚠️  Stripped unknown fields from step "${step.stepKey}": ${extraFields.join(', ')}`
-      );
-    }
-  }
-
-  // Strip to only allowed fields (defense-in-depth: prevents backend rejection for extra fields)
-  const cleanSteps = stepsData.steps.map((step) => ({
-    stepKey: step.stepKey,
-    description: step.description,
-    dependsOn: step.dependsOn,
-    order: step.order,
-  }));
-
-  try {
-    const result = await d.backend.mutation(api.workflows.createWorkflow, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      steps: cleanSteps,
-      createdBy: options.role,
-    });
-
-    console.log('');
-    console.log('✅ Workflow created');
-    console.log(`   Key: ${options.workflowKey}`);
-    console.log(`   Workflow ID: ${result.workflowId}`);
-    console.log(`   Steps: ${cleanSteps.length}`);
-    console.log(`   Status: draft`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to create workflow: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
+  await Effect.runPromise(
+    createWorkflowEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
+  );
 }
 
 /**
@@ -323,59 +949,14 @@ export async function specifyWorkflowStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  // Parse sections from stdin
-  const sections = parseSections(
-    options.stdinContent,
-    ['GOAL', 'REQUIREMENTS'],
-    ['WARNINGS', 'SKILLS']
+  await Effect.runPromise(
+    specifyWorkflowStepEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
   );
-
-  const goal = sections.get('GOAL')!;
-  const requirements = sections.get('REQUIREMENTS')!;
-  const warnings = sections.get('WARNINGS') || undefined;
-  const skills = sections.get('SKILLS') || undefined;
-
-  // Soft validation: warn on unrecognized skill names
-  if (skills) {
-    const skillList = skills
-      .split(/[,\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const invalid = skillList.filter((s) => !VALID_CHATROOM_SKILLS.includes(s));
-    if (invalid.length > 0) {
-      console.warn(
-        `⚠️  Unknown skills: ${invalid.join(', ')}. Valid skills: ${VALID_CHATROOM_SKILLS.join(', ')}`
-      );
-    }
-  }
-
-  try {
-    await d.backend.mutation(api.workflows.specifyStep, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      stepKey: options.stepKey,
-      assigneeRole: options.assigneeRole,
-      goal,
-      requirements,
-      warnings,
-      skills,
-    });
-
-    console.log('');
-    console.log('✅ Step specified');
-    console.log(`   Workflow: ${options.workflowKey}`);
-    console.log(`   Step: ${options.stepKey}`);
-    console.log(`   Assignee: ${options.assigneeRole}`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to specify step: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
 }
 
 /**
@@ -387,28 +968,14 @@ export async function executeWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  try {
-    await d.backend.mutation(api.workflows.executeWorkflow, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-    });
-
-    console.log('');
-    console.log('✅ Workflow activated');
-    console.log(`   Key: ${options.workflowKey}`);
-    console.log(`   Status: active`);
-    console.log('');
-    console.log('💡 Root steps (no dependencies) are now in_progress.');
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to execute workflow: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
+  await Effect.runPromise(
+    executeWorkflowEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
+  );
 }
 
 /**
@@ -420,133 +987,14 @@ export async function getWorkflowStatus(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  try {
-    const result = await d.backend.query(api.workflows.getWorkflowStatus, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-    });
-
-    const wf = result.workflow;
-
-    console.log('');
-    console.log('══════════════════════════════════════════════════');
-    console.log(
-      `${getWorkflowStatusEmoji(wf.status as WorkflowStatus)} WORKFLOW: ${wf.workflowKey}`
-    );
-    console.log('══════════════════════════════════════════════════');
-    console.log(`Status: ${wf.status.toUpperCase()}`);
-    console.log(`Created by: ${wf.createdBy}`);
-
-    const createdDate = new Date(wf.createdAt).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-    console.log(`Created: ${createdDate}`);
-
-    if (wf.completedAt) {
-      const completedDate = new Date(wf.completedAt).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-      console.log(`Completed: ${completedDate}`);
-    }
-
-    if (wf.cancelledAt) {
-      const cancelledDate = new Date(wf.cancelledAt).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-      console.log(`Cancelled: ${cancelledDate}`);
-      if (wf.cancelReason) {
-        console.log(`Reason: ${wf.cancelReason}`);
-      }
-    }
-
-    console.log('');
-    console.log('──────────────────────────────────────────────────');
-    console.log('📋 STEPS');
-    console.log('──────────────────────────────────────────────────');
-
-    if (result.steps.length === 0) {
-      console.log('No steps.');
-    } else {
-      for (const step of result.steps) {
-        const emoji = getStepStatusEmoji(step.status as StepStatus);
-        console.log(`${emoji} [${step.status.toUpperCase()}] ${step.stepKey}: ${step.description}`);
-
-        const details: string[] = [];
-        if (step.assigneeRole) details.push(`assignee=${step.assigneeRole}`);
-        if (step.dependsOn.length > 0) details.push(`depends_on=[${step.dependsOn.join(', ')}]`);
-        details.push(`order=${step.order}`);
-
-        console.log(`   ${details.join(' | ')}`);
-
-        // Show specification details if present
-        if (step.specification) {
-          const spec = step.specification as {
-            goal?: string;
-            requirements?: string;
-            warnings?: string;
-            skills?: string;
-          };
-          if (spec.goal) {
-            console.log(`   📎 Goal: ${spec.goal}`);
-          }
-          if (spec.skills) {
-            console.log(`   🔧 Skills: ${spec.skills}`);
-          }
-          if (spec.requirements) {
-            console.log(`   📎 Requirements: ${spec.requirements}`);
-          }
-          if (spec.warnings) {
-            console.log(`   ⚠️  Warnings: ${spec.warnings}`);
-          }
-        }
-
-        if (step.cancelReason) {
-          console.log(`   Cancel reason: ${step.cancelReason}`);
-        }
-
-        console.log('');
-      }
-    }
-
-    // Available next steps
-    if (result.availableNextSteps.length > 0) {
-      console.log('──────────────────────────────────────────────────');
-      console.log('🔜 AVAILABLE NEXT STEPS');
-      console.log('──────────────────────────────────────────────────');
-      for (const stepKey of result.availableNextSteps) {
-        const step = result.steps.find(
-          (s: { stepKey: string; description: string }) => s.stepKey === stepKey
-        );
-        if (step) {
-          console.log(`   → ${stepKey}: ${step.description}`);
-        }
-      }
-      console.log('');
-    }
-
-    console.log('══════════════════════════════════════════════════');
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to get workflow status: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
+  await Effect.runPromise(
+    getWorkflowStatusEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
+  );
 }
 
 /**
@@ -558,27 +1006,14 @@ export async function completeStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  try {
-    await d.backend.mutation(api.workflows.completeStep, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      stepKey: options.stepKey,
-    });
-
-    console.log('');
-    console.log('✅ Step completed');
-    console.log(`   Workflow: ${options.workflowKey}`);
-    console.log(`   Step: ${options.stepKey}`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to complete step: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
+  await Effect.runPromise(
+    completeStepEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
+  );
 }
 
 /**
@@ -590,34 +1025,14 @@ export async function exitWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  // Validate reason is non-empty
-  if (!options.reason || options.reason.trim().length === 0) {
-    console.error('❌ Reason is required when exiting a workflow');
-    process.exit(1);
-    return;
-  }
-
-  try {
-    await d.backend.mutation(api.workflows.exitWorkflow, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      reason: options.reason.trim(),
-    });
-
-    console.log('');
-    console.log('❌ Workflow exited (cancelled)');
-    console.log(`   Key: ${options.workflowKey}`);
-    console.log(`   Reason: ${options.reason.trim()}`);
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to exit workflow: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
+  await Effect.runPromise(
+    exitWorkflowEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
+  );
 }
 
 /**
@@ -629,103 +1044,12 @@ export async function viewStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const sessionId = await requireAuth(d);
-  validateChatroomId(chatroomId);
+  const layer = layerFromDeps(d);
 
-  try {
-    const result = await d.backend.query(api.workflows.getStepView, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      workflowKey: options.workflowKey,
-      stepKey: options.stepKey,
-    });
-
-    const step = result.step;
-    const emoji = getStepStatusEmoji(step.status as StepStatus);
-
-    console.log('');
-    console.log('══════════════════════════════════════════════════');
-    console.log(`${emoji} STEP: ${step.stepKey}`);
-    console.log('══════════════════════════════════════════════════');
-    console.log(`Workflow: ${result.workflowKey} (${result.workflowStatus})`);
-    console.log(`Description: ${step.description}`);
-    console.log(`Status: ${step.status.toUpperCase()}`);
-    if (step.assigneeRole) {
-      console.log(`Assignee: ${step.assigneeRole}`);
-    }
-    if (step.dependsOn.length > 0) {
-      console.log(`Dependencies: ${step.dependsOn.join(', ')}`);
-    }
-    console.log(`Order: ${step.order}`);
-
-    if (step.completedAt) {
-      const completedDate = new Date(step.completedAt).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-      console.log(`Completed: ${completedDate}`);
-    }
-
-    if (step.cancelledAt) {
-      const cancelledDate = new Date(step.cancelledAt).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-      console.log(`Cancelled: ${cancelledDate}`);
-      if (step.cancelReason) {
-        console.log(`Cancel reason: ${step.cancelReason}`);
-      }
-    }
-
-    // Show specification
-    if (step.specification) {
-      const spec = step.specification as {
-        goal?: string;
-        requirements?: string;
-        warnings?: string;
-        skills?: string;
-      };
-      console.log('');
-      console.log('──────────────────────────────────────────────────');
-      console.log('📋 SPECIFICATION');
-      console.log('──────────────────────────────────────────────────');
-      if (spec.goal) {
-        console.log('');
-        console.log('Goal:');
-        console.log(spec.goal);
-      }
-      if (spec.skills) {
-        console.log('');
-        console.log('Skills (activate before starting):');
-        console.log(spec.skills);
-      }
-      if (spec.requirements) {
-        console.log('');
-        console.log('Requirements:');
-        console.log(spec.requirements);
-      }
-      if (spec.warnings) {
-        console.log('');
-        console.log('⚠️  Warnings:');
-        console.log(spec.warnings);
-      }
-    } else {
-      console.log('');
-      console.log('⚠️  No specification set. Run `workflow specify` to add one.');
-    }
-
-    console.log('');
-    console.log('══════════════════════════════════════════════════');
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to view step: ${getErrorMessage(error)}`);
-    process.exit(1);
-    return;
-  }
+  await Effect.runPromise(
+    viewStepEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleWorkflowError(err)),
+      Effect.provide(layer)
+    )
+  );
 }
