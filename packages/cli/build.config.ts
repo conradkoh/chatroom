@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 /**
  * Bun build configuration for chatroom-cli.
  *
@@ -7,8 +8,9 @@
  * Run via: bun run build.config.ts
  */
 
-import type { BuildConfig } from 'bun';
 import { rmSync } from 'node:fs';
+
+import type { BuildConfig } from 'bun';
 
 const config: BuildConfig = {
   entrypoints: ['src/index.ts'],

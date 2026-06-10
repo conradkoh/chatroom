@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 /**
  * Shared test mock factory for DaemonDeps.
  *
@@ -23,7 +24,7 @@ import type { DaemonDeps } from '../deps.js';
  * All methods are vi.fn() mocks with sensible defaults.
  *
  * @param overrides - Partial DaemonDeps to shallow-merge over the defaults.
- *   Use this to override entire sub-objects (e.g., `backend`).
+ *   Use this to shallow-merge over the defaults (e.g., `backend`).
  *   Individual method overrides should be done by mutating the returned object.
  */
 export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
