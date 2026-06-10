@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ArtifactDeps } from './deps.js';
 import { createArtifact, viewArtifact, viewManyArtifacts } from './index.js';
+// Import mock after vi.mock
+import { readFileContent } from '../../utils/file-content.js';
 
 // ---------------------------------------------------------------------------
 // Mock modules
@@ -17,6 +19,8 @@ import { createArtifact, viewArtifact, viewManyArtifacts } from './index.js';
 vi.mock('../../utils/file-content.js', () => ({
   readFileContent: vi.fn().mockReturnValue('# Test content\n\nSome markdown.'),
 }));
+
+const mockReadFileContent = readFileContent as ReturnType<typeof vi.fn>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,6 +65,7 @@ beforeEach(() => {
   exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  mockReadFileContent.mockReturnValue('# Test content\n\nSome markdown.');
 });
 
 afterEach(() => {
@@ -101,6 +106,37 @@ describe('createArtifact', () => {
     });
   });
 
+  describe('validation', () => {
+    it('exits with code 1 when file extension is invalid', async () => {
+      const deps = createMockDeps();
+
+      await createArtifact(
+        TEST_CHATROOM_ID,
+        { role: 'builder', fromFile: 'test.txt', filename: 'test.txt' },
+        deps
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(getAllErrorOutput()).toContain('Invalid file extension');
+    });
+
+    it('exits with code 1 when file read fails', async () => {
+      const deps = createMockDeps();
+      mockReadFileContent.mockImplementation(() => {
+        throw new Error('file not found');
+      });
+
+      await createArtifact(
+        TEST_CHATROOM_ID,
+        { role: 'builder', fromFile: 'test.md', filename: 'test.md' },
+        deps
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(getAllErrorOutput()).toContain('Failed to read file');
+    });
+  });
+
   describe('successful create', () => {
     it('calls artifacts.create mutation and logs success', async () => {
       const deps = createMockDeps();
@@ -135,7 +171,7 @@ describe('createArtifact', () => {
       );
 
       expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(getAllErrorOutput()).toContain('Failed to create artifact');
+      expect(getAllErrorOutput()).toContain('Failed to perform artifact operation');
       expect(getAllErrorOutput()).toContain('Network timeout');
     });
   });
@@ -174,6 +210,18 @@ describe('viewArtifact', () => {
     });
   });
 
+  describe('artifact not found', () => {
+    it('exits with code 1 when artifact is not found', async () => {
+      const deps = createMockDeps();
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await viewArtifact(TEST_CHATROOM_ID, { role: 'builder', artifactId: TEST_ARTIFACT_ID }, deps);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(getAllErrorOutput()).toContain('Artifact not found');
+    });
+  });
+
   describe('query failure', () => {
     it('exits with code 1 when get query throws', async () => {
       const deps = createMockDeps();
@@ -184,7 +232,7 @@ describe('viewArtifact', () => {
       await viewArtifact(TEST_CHATROOM_ID, { role: 'builder', artifactId: TEST_ARTIFACT_ID }, deps);
 
       expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(getAllErrorOutput()).toContain('Failed to view artifact');
+      expect(getAllErrorOutput()).toContain('Failed to perform artifact operation');
       expect(getAllErrorOutput()).toContain('Backend unavailable');
     });
   });
@@ -209,6 +257,17 @@ describe('viewManyArtifacts', () => {
 
       expect(exitSpy).toHaveBeenCalledWith(1);
       expect(getAllErrorOutput()).toContain('Not authenticated');
+    });
+  });
+
+  describe('validation', () => {
+    it('exits with code 1 when no artifact IDs are provided', async () => {
+      const deps = createMockDeps();
+
+      await viewManyArtifacts(TEST_CHATROOM_ID, { role: 'builder', artifactIds: [] }, deps);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(getAllErrorOutput()).toContain('No artifact IDs provided');
     });
   });
 
@@ -241,6 +300,22 @@ describe('viewManyArtifacts', () => {
     });
   });
 
+  describe('no artifacts found', () => {
+    it('exits with code 1 when no artifacts are found', async () => {
+      const deps = createMockDeps();
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await viewManyArtifacts(
+        TEST_CHATROOM_ID,
+        { role: 'builder', artifactIds: [TEST_ARTIFACT_ID] },
+        deps
+      );
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(getAllErrorOutput()).toContain('No artifacts found');
+    });
+  });
+
   describe('query failure', () => {
     it('exits with code 1 when getMany query throws', async () => {
       const deps = createMockDeps();
@@ -255,7 +330,7 @@ describe('viewManyArtifacts', () => {
       );
 
       expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(getAllErrorOutput()).toContain('Failed to view artifacts');
+      expect(getAllErrorOutput()).toContain('Failed to perform artifact operation');
       expect(getAllErrorOutput()).toContain('Database error');
     });
   });

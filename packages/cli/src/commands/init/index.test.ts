@@ -203,4 +203,52 @@ describe('init', () => {
       expect(finalContent).toContain('Context Recovery');
     });
   });
+
+  describe('InitFsService', () => {
+    it('access returns true when file exists', async () => {
+      const dir = '/fake/project';
+      const { deps } = createFakeFs({
+        [`${dir}/AGENTS.md`]: '# Existing',
+      });
+
+      const result = await init({ dir }, deps);
+
+      // File existed and was modified
+      expect(result.filesModified).toContain('AGENTS.md');
+    });
+
+    it('access returns false when file missing', async () => {
+      const dir = '/fake/project';
+      const { deps } = createFakeFs();
+
+      const result = await init({ dir }, deps);
+
+      // File didn't exist and was created
+      expect(result.filesCreated).toContain('AGENTS.md');
+    });
+
+    it('init continues when readFile fails for one file (logs error, processes others)', async () => {
+      const dir = '/fake/project';
+      const { deps } = createFakeFs({
+        [`${dir}/AGENTS.md`]: '# Existing',
+        [`${dir}/CLAUDE.md`]: '# Existing',
+      });
+
+      // Make readFile fail for AGENTS.md only by clearing it from the store after access check
+      const originalReadFile = deps.fs.readFile;
+      deps.fs.readFile = async (p: string, enc: BufferEncoding) => {
+        if (p === `${dir}/AGENTS.md`) {
+          throw new Error('Read failed');
+        }
+        return originalReadFile(p, enc);
+      };
+
+      const result = await init({ dir }, deps);
+
+      // AGENTS.md failed to read, so it's not modified
+      expect(result.filesModified).not.toContain('AGENTS.md');
+      // CLAUDE.md was processed successfully
+      expect(result.filesModified).toContain('CLAUDE.md');
+    });
+  });
 });
