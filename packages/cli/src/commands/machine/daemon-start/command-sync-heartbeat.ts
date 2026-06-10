@@ -7,12 +7,15 @@
 
 import { createHash } from 'node:crypto';
 
+import { Effect } from 'effect';
+
+import { DaemonContextService } from './daemon-context-service.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
 import { discoverCommands } from '../../../infrastructure/services/workspace/command-discovery.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { getWorkspacesForMachine } from './workspace-cache.js';
 
 /**
  * Discover and sync commands for all tracked workspaces.
@@ -59,3 +62,24 @@ export async function pushSingleWorkspaceCommands(
   ctx.lastPushedGitState.set(stateKey, commandsHash);
   console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for pushCommands — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const pushCommandsEffect: Effect.Effect<void, never, DaemonContextService> = Effect.gen(
+  function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => pushCommands(ctx));
+  }
+);
+
+/** Effect twin for pushSingleWorkspaceCommands — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const pushSingleWorkspaceCommandsEffect = (
+  workingDir: string
+): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => pushSingleWorkspaceCommands(ctx, workingDir));
+  });

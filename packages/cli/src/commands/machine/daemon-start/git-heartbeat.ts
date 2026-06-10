@@ -1,8 +1,11 @@
 import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
+import { Effect } from 'effect';
+
+import { DaemonContextService } from './daemon-context-service.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { api } from '../../../api.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
+import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
@@ -333,3 +336,35 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
     `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
   );
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for pushGitState — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const pushGitStateEffect: Effect.Effect<void, never, DaemonContextService> = Effect.gen(
+  function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => pushGitState(ctx));
+  }
+);
+
+/** Effect twin for pushSingleWorkspaceGitState — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const pushSingleWorkspaceGitStateEffect = (
+  workingDir: string
+): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => pushSingleWorkspaceGitState(ctx, workingDir));
+  });
+
+/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const pushSingleWorkspaceGitSummaryForObservedEffect = (
+  workingDir: string,
+  reason?: 'safety-poll' | 'refresh'
+): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => pushSingleWorkspaceGitSummaryForObserved(ctx, workingDir, reason));
+  });

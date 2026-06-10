@@ -6,9 +6,12 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
+import { Effect } from 'effect';
+
+import { DaemonContextService } from './daemon-context-service.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -75,7 +78,7 @@ export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<vo
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
     });
-  } catch (err) {
+  } catch (_err) {
     // Silently skip — will retry on next poll
     return;
   }
@@ -148,7 +151,7 @@ async function fulfillSingleRequest(
     } else {
       content = buffer.toString('utf8');
     }
-  } catch (err) {
+  } catch (_err) {
     // File not found or permission denied — upload generic error content
     content = '[Error reading file]';
     truncated = false;
@@ -173,3 +176,13 @@ async function fulfillSingleRequest(
     `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`
   );
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for fulfillFileContentRequests — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, DaemonContextService> =
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => fulfillFileContentRequests(ctx));
+  });

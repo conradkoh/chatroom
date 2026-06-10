@@ -1,12 +1,15 @@
+import { Effect } from 'effect';
+
+import { DaemonContextService } from './daemon-context-service.js';
 import { extractDiffStatFromShowOutput } from './git-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { getWorkspacesForMachine } from './workspace-cache.js';
 
 /**
  * Tracks which commit SHAs have already been fetched (or confirmed not-found / error)
@@ -181,3 +184,15 @@ async function prefetchSingleCommit(
 
   console.log(`[${formatTimestamp()}] ✅ Pre-fetched: ${sha.slice(0, 7)} in ${workingDir}`);
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for syncCommitDetails — yields DaemonContextService and delegates. */
+// fallow-ignore-next-line unused-export
+export const syncCommitDetailsEffect = (
+  seenShasMap?: Map<string, Set<string>>
+): Effect.Effect<void, never, DaemonContextService> =>
+  Effect.gen(function* () {
+    const ctx = yield* DaemonContextService;
+    yield* Effect.promise(() => syncCommitDetails(ctx, seenShasMap));
+  });
