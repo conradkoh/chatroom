@@ -57,7 +57,7 @@ import { handlePing } from './handlers/ping.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
 import { discoverModels } from './init.js';
-import { startObservedSyncSubscription } from './observed-sync.js';
+import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
@@ -562,8 +562,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
 
   // ── Observed Sync Subscription ─────────────────────────────────────────
-  let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
-    null;
+  let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
@@ -734,7 +733,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // When observedSyncEnabled is true, start the event-driven observed-sync subscription
   // to push state only for chatrooms the frontend is actively watching.
   if (ctx.observedSyncEnabled) {
-    observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
+    observedSyncSubscriptionHandle = await Effect.runPromise(
+      startObservedSyncSubscriptionEffect(wsClient).pipe(Effect.provide(daemonContextToLayers(ctx)))
+    );
   }
 
   logObserverSubscriptionHandle = startLogObserverSubscription(ctx, wsClient);

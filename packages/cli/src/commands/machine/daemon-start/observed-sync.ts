@@ -295,6 +295,7 @@ function startObservedSyncSubscriptionCore(
  * Start the observed sync subscription.
  * @deprecated Use startObservedSyncSubscriptionEffect for new Effect-based code.
  */
+// fallow-ignore-next-line unused-export
 export function startObservedSyncSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient
@@ -314,7 +315,6 @@ export function startObservedSyncSubscription(
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
 /** Effect twin for startObservedSyncSubscription — yields DaemonSessionService; DaemonSessionServiceShape satisfies ObservedSyncDeps. */
-// fallow-ignore-next-line unused-export
 export const startObservedSyncSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>

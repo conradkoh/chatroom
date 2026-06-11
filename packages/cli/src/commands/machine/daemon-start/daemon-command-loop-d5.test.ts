@@ -157,9 +157,12 @@ vi.mock('./workspace-list-subscription.js', async () => {
   };
 });
 
-vi.mock('./observed-sync.js', () => ({
-  startObservedSyncSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
-}));
+vi.mock('./observed-sync.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    startObservedSyncSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
+  };
+});
 
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
