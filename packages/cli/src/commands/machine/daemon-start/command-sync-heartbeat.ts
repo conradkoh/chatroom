@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import type { DaemonContext, SessionId, WorkspaceForSync } from './types.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
@@ -76,23 +76,6 @@ export async function pushSingleWorkspaceCommandsCore(
 
   ctx.lastPushedGitState.set(stateKey, commandsHash);
   console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
-}
-
-// ── Public wrappers (backward-compat — old call sites in command-loop.ts) ─────
-
-/**
- * Discover and sync commands for all tracked workspaces.
- * @deprecated Use pushCommandsCore or pushCommandsEffect.
- */
-// fallow-ignore-next-line unused-export
-export async function pushCommands(ctx: DaemonContext): Promise<void> {
-  return pushCommandsCore({
-    machineId: ctx.machineId,
-    sessionId: ctx.sessionId,
-    backend: ctx.deps.backend,
-    lastPushedGitState: ctx.lastPushedGitState,
-    workspaceListStore: ctx.workspaceListStore,
-  });
 }
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
