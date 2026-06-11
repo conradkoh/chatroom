@@ -52,7 +52,6 @@ export async function onRequestStopAgent(
  * Effect twin for onRequestStopAgent — uses DaemonAgentProcessManagerService.
  * Delegates to executeStopAgentEffect after deadline check.
  */
-// fallow-ignore-next-line unused-export
 export const onRequestStopAgentEffect = (
   event: AgentRequestStopEventPayload
 ): Effect.Effect<void, never, DaemonAgentProcessManagerService> =>

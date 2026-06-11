@@ -137,7 +137,6 @@ export async function onRequestStartAgent(
  * Effect twin for onRequestStartAgent — uses DaemonAgentProcessManagerService
  * and DaemonSessionService instead of DaemonContext.
  */
-// fallow-ignore-next-line unused-export
 export const onRequestStartAgentEffect = (
   event: AgentRequestStartEventPayload
 ): Effect.Effect<void, never, DaemonAgentProcessManagerService | DaemonSessionService> =>
