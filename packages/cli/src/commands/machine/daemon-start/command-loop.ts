@@ -43,7 +43,7 @@ import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { pushGitStateEffect, pushSingleWorkspaceGitState } from './git-heartbeat.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { forceKillAllCommands, onCommandRun, onCommandStop } from './handlers/command-runner.js';
-import { forceKillAllTrackedProcessGroups } from './handlers/orphan-tracker.js';
+import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
@@ -603,7 +603,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     }
     try {
       // Catches detached process groups even if in-memory state is gone.
-      forceKillAllTrackedProcessGroups();
+      Effect.runSync(forceKillAllTrackedProcessGroupsEffect);
     } catch {
       // best-effort
     }

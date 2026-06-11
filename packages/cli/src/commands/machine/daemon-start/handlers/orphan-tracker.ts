@@ -136,6 +136,7 @@ export function clearTrackedPids(): void {
  *
  * Never throws. Returns the number of groups we attempted to kill.
  */
+// fallow-ignore-next-line unused-export
 export function forceKillAllTrackedProcessGroups(): number {
   if (process.platform === 'win32') return 0;
   let killed = 0;
@@ -227,7 +228,6 @@ export const reapOrphanedProcessGroupsEffect: Effect.Effect<{ reaped: number; ch
   Effect.promise(() => reapOrphanedProcessGroups());
 
 /** Effect twin — wraps forceKillAllTrackedProcessGroups (no service deps needed). */
-// fallow-ignore-next-line unused-export
 export const forceKillAllTrackedProcessGroupsEffect: Effect.Effect<number> = Effect.sync(() =>
   forceKillAllTrackedProcessGroups()
 );
