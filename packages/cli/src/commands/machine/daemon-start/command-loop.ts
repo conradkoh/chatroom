@@ -60,7 +60,7 @@ import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { startWorkspaceListSubscription } from './workspace-list-subscription.js';
+import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -559,8 +559,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
 
   // ── Workspace List Subscription ────────────────────────────────────────
-  let workspaceListSubscriptionHandle: ReturnType<typeof startWorkspaceListSubscription> | null =
-    null;
+  let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
 
   // ── Observed Sync Subscription ─────────────────────────────────────────
   let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
@@ -727,7 +726,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     startFileTreeSubscriptionEffect(wsClient).pipe(Effect.provide(daemonContextToLayers(ctx)))
   );
 
-  workspaceListSubscriptionHandle = startWorkspaceListSubscription(ctx, wsClient);
+  workspaceListSubscriptionHandle = await Effect.runPromise(
+    startWorkspaceListSubscriptionEffect(wsClient).pipe(Effect.provide(daemonContextToLayers(ctx)))
+  );
 
   // ── Observed Sync Subscription ─────────────────────────────────────────
   // When observedSyncEnabled is true, start the event-driven observed-sync subscription

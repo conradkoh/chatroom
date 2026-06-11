@@ -128,6 +128,7 @@ function startWorkspaceListSubscriptionCore(
  * Subscribe to recently observed workspaces; returns stop handle.
  * @deprecated Use startWorkspaceListSubscriptionEffect for new Effect-based code.
  */
+// fallow-ignore-next-line unused-export
 export function startWorkspaceListSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient
@@ -153,7 +154,6 @@ export function startWorkspaceListSubscription(
  * Core mutates session.workspaceListStore in place; Layer.succeed provides the SAME
  * object instance on every yield, so downstream heartbeat Effect twins see the update.
  */
-// fallow-ignore-next-line unused-export
 export const startWorkspaceListSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
