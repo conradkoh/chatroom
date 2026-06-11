@@ -16,7 +16,7 @@ import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
+import { registerEventListenersCore } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
@@ -561,7 +561,10 @@ export async function initDaemon(): Promise<DaemonContext> {
     logger: console,
   };
 
-  registerEventListeners(ctx);
+  registerEventListenersCore({
+    events,
+    handleExit: (opts) => deps.agentProcessManager.handleExit(opts),
+  });
 
   logStartup(ctx, availableModels);
   await recoverState(ctx);

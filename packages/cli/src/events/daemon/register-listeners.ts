@@ -27,7 +27,6 @@ export interface RegisterEventListenersDeps {
  * Core — wires agent lifecycle events to handler cores.
  * Returns unsubscribe function.
  */
-// fallow-ignore-next-line unused-export
 export function registerEventListenersCore(deps: RegisterEventListenersDeps): () => void {
   const unsubs: (() => void)[] = [];
 
@@ -64,9 +63,10 @@ export const registerEventListenersEffect = (): Effect.Effect<
   });
 
 /**
- * Legacy wrapper — delegates to core. Removed in W5-5 when init.ts migrates.
+ * Legacy wrapper — delegates to core. Removed in W5-6 when test updates complete.
  * @deprecated Use registerEventListenersCore or registerEventListenersEffect.
  */
+// fallow-ignore-next-line unused-export
 export function registerEventListeners(ctx: DaemonContext): () => void {
   return registerEventListenersCore({
     events: ctx.events,
