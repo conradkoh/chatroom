@@ -54,81 +54,6 @@ export type GitSubscriptionDeps = GitStateDeps & {
   logger?: Pick<Console, 'log' | 'warn'>;
 };
 
-// ── Core implementation (flat deps, no ctx.deps.xxx) ─────────────────────────
-
-function startGitRequestSubscriptionCore(
-  deps: GitSubscriptionDeps,
-  wsClient: ConvexClient
-): GitSubscriptionHandle {
-  // Session-scoped dedup — prevents re-processing the same request within a single daemon run.
-  const processedRequestIds = new Map<string, number>();
-  const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-  let processing = false;
-
-  // Reset any orphaned 'processing' requests left behind by a previous daemon crash.
-  deps.backend
-    .mutation(api.workspaces.resetProcessingRequests, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-    })
-    .then((resetCount: number) => {
-      if (resetCount > 0) {
-        console.log(
-          `[${formatTimestamp()}] 🔀 Reset ${resetCount} orphaned processing request(s) to pending`
-        );
-      }
-    })
-    .catch((err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Failed to reset orphaned processing requests: ${getErrorMessage(err)}`
-      );
-    });
-
-  const unsubscribe = wsClient.onUpdate(
-    api.workspaces.getPendingRequests,
-    {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-    },
-    (requests) => {
-      if (!requests || requests.length === 0) return;
-
-      const logger = deps.logger ?? console;
-      logger.log(
-        `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
-      );
-
-      if (processing) return;
-
-      processing = true;
-      processRequestsCore(deps, requests, processedRequestIds, DEDUP_TTL_MS)
-        .catch((err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
-          );
-        })
-        .finally(() => {
-          processing = false;
-        });
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Git request subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
-
-  console.log(`[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`);
-
-  return {
-    stop: () => {
-      unsubscribe();
-      console.log(`[${formatTimestamp()}] 🔀 Git request subscription stopped`);
-    },
-  };
-}
-
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
 /**
@@ -545,15 +470,80 @@ export async function processRequestsCore(
   }
 }
 
-// ── Effect twins ──────────────────────────────────────────────────────────────
-
-/** Effect twin for startGitRequestSubscription — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitSubscriptionDeps. */
+/** Starts the git request subscription — yields DaemonSessionService. */
 export const startGitRequestSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<GitSubscriptionHandle, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    return startGitRequestSubscriptionCore(session, wsClient);
+
+    // Session-scoped dedup — prevents re-processing the same request within a single daemon run.
+    const processedRequestIds = new Map<string, number>();
+    const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    let processing = false;
+
+    // Reset any orphaned 'processing' requests left behind by a previous daemon crash.
+    session.backend
+      .mutation(api.workspaces.resetProcessingRequests, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      })
+      .then((resetCount: number) => {
+        if (resetCount > 0) {
+          console.log(
+            `[${formatTimestamp()}] 🔀 Reset ${resetCount} orphaned processing request(s) to pending`
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Failed to reset orphaned processing requests: ${getErrorMessage(err)}`
+        );
+      });
+
+    const unsubscribe = wsClient.onUpdate(
+      api.workspaces.getPendingRequests,
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      },
+      (requests) => {
+        if (!requests || requests.length === 0) return;
+
+        const logger = session.logger ?? console;
+        logger.log(
+          `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
+        );
+
+        if (processing) return;
+
+        processing = true;
+        processRequestsCore(session, requests, processedRequestIds, DEDUP_TTL_MS)
+          .catch((err: unknown) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
+            );
+          })
+          .finally(() => {
+            processing = false;
+          });
+      },
+      (err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Git request subscription error: ${getErrorMessage(err)}`
+        );
+      }
+    );
+
+    console.log(`[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`);
+
+    return {
+      stop: () => {
+        unsubscribe();
+        console.log(`[${formatTimestamp()}] 🔀 Git request subscription stopped`);
+      },
+    };
   });
 
 /** Effect twin for processRequests — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitSubscriptionDeps. */
