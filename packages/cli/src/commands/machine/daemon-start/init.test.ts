@@ -564,24 +564,25 @@ describe('initDaemon', () => {
     expect(ctx.machineId).toBe('machine-abc');
   });
 
-  it('returns a valid DaemonContext on successful initialization', async () => {
+  it('returns a valid DaemonSessionInit on successful initialization', async () => {
     const ctx = await initDaemon();
 
     expect(ctx.sessionId).toBe('session-123');
     expect(ctx.machineId).toBe('machine-abc');
     expect(ctx.config).toBeDefined();
     expect(ctx.config?.hostname).toBe('test-host');
-    expect(ctx.deps).toBeDefined();
-    expect(ctx.deps.backend).toBeDefined();
+    expect(ctx.backend).toBeDefined();
+    expect(ctx.fs).toBeDefined();
+    expect(ctx.machine).toBeDefined();
   });
 
-  it('binds the Convex client mutation/query to deps.backend', async () => {
+  it('binds the Convex client mutation/query to init.backend', async () => {
     const ctx = await initDaemon();
 
-    // The deps.backend.mutation should be wired to the client
+    // The backend.mutation should be wired to the client
     // Calling it should delegate to the client
-    expect(ctx.deps.backend.mutation).toBeDefined();
-    expect(ctx.deps.backend.query).toBeDefined();
+    expect(ctx.backend.mutation).toBeDefined();
+    expect(ctx.backend.query).toBeDefined();
   });
 
   it('logs startup info including version, machine ID, hostname', async () => {
