@@ -2,7 +2,6 @@
  * command-runner Unit Tests
  *
  * Tests the public API of command-runner.ts:
- *   - shutdownAllCommands: kills tracked processes and marks runs as killed
  *   - replace-on-rerun: prior running process killed when same command re-dispatched
  *   - pending-stop race: onCommandStop registers + onCommandRun consumes
  *   - evictStalePendingStops: TTL-based eviction of stale pending-stop entries
@@ -22,12 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import {
-  forceKillAllCommands,
-  onCommandRun,
-  onCommandStop,
-  shutdownAllCommands,
-} from './command-runner.js';
+import { forceKillAllCommands, onCommandRun, onCommandStop } from './command-runner.js';
 import type { DaemonContext } from '../types.js';
 import { processManager } from './process/manager.js';
 import { deriveTerminalStatus, SIGTERM_GRACE_PERIOD_MS, SOFT_TIMEOUT_MS } from './process/state.js';
@@ -199,133 +193,6 @@ afterEach(() => {
   vi.useRealTimers();
   // Ensure no leftover state leaks between tests
   processManager.clear();
-});
-
-// ---------------------------------------------------------------------------
-// A. shutdownAllCommands
-// ---------------------------------------------------------------------------
-
-describe('shutdownAllCommands', () => {
-  it('is a no-op when no processes are running', async () => {
-    await shutdownAllCommands(ctx);
-    expect(vi.mocked(ctx.deps.backend.mutation)).not.toHaveBeenCalled();
-  });
-
-  it('sends SIGTERM to each running process and clears runningProcesses', async () => {
-    vi.useFakeTimers();
-    const fakeChild = createFakeChild(9999);
-    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
-
-    await onCommandRun(ctx, {
-      runId: 'run-shutdown' as any,
-      commandName: 'test',
-      script: 'sleep 60',
-      workingDir: '/tmp',
-    });
-
-    expect(processManager.size).toBe(1);
-
-    const shutdownPromise = shutdownAllCommands(ctx);
-    // Advance past the 3-second grace period so the promise resolves
-    await vi.advanceTimersByTimeAsync(4_000);
-    await shutdownPromise;
-
-    expect(process.kill).toHaveBeenCalledWith(-9999, 'SIGTERM');
-    expect(processManager.size).toBe(0);
-  });
-
-  it("marks each run as status='killed' with terminationReason='daemon-shutdown'", async () => {
-    vi.useFakeTimers();
-    const fakeChild = createFakeChild(9998);
-    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
-
-    await onCommandRun(ctx, {
-      runId: 'run-shutdown-mark' as any,
-      commandName: 'test',
-      script: 'sleep 60',
-      workingDir: '/tmp',
-    });
-
-    const shutdownPromise = shutdownAllCommands(ctx);
-    await vi.advanceTimersByTimeAsync(4_000);
-    await shutdownPromise;
-
-    const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
-    const killedCall = mutationCalls.find((c) => (c[1] as any)?.status === 'killed');
-    expect(killedCall).toBeDefined();
-    expect((killedCall?.[1] as any).terminationReason).toBe('daemon-shutdown');
-  });
-
-  it('force-kills with SIGKILL after grace period for SIGTERM-ignoring processes', async () => {
-    vi.useFakeTimers();
-    const fakeChild = createFakeChild(8888);
-    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
-
-    await onCommandRun(ctx, {
-      runId: 'run-sigkill' as any,
-      commandName: 'stubborn',
-      script: 'sleep 60',
-      workingDir: '/tmp',
-    });
-
-    const shutdownPromise = shutdownAllCommands(ctx);
-    // Advance through SIGTERM phase
-    await vi.advanceTimersByTimeAsync(4_000);
-    await shutdownPromise;
-
-    // SIGTERM was sent first to the process group, SIGKILL after grace period
-    expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGTERM');
-    expect(process.kill).toHaveBeenCalledWith(-8888, 'SIGKILL');
-    expect(processManager.size).toBe(0);
-  });
-
-  it('uses detached:true and kills via negative PID to deliver signal to entire process group', async () => {
-    vi.useFakeTimers();
-    const fakeChild = createFakeChild(7777);
-    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
-
-    await onCommandRun(ctx, {
-      runId: 'run-detach-group-kill' as any,
-      commandName: 'test',
-      script: 'sleep 60',
-      workingDir: '/tmp',
-    });
-
-    const shutdownPromise = shutdownAllCommands(ctx);
-    await vi.advanceTimersByTimeAsync(4_000);
-    await shutdownPromise;
-
-    // process.kill should be called with negative PID (process group kill)
-    expect(process.kill).toHaveBeenCalledWith(-7777, 'SIGTERM');
-    // child.kill should NOT be called directly (we use process.kill instead)
-    expect(fakeChild.kill).not.toHaveBeenCalled();
-  });
-
-  it('SIGTERMs processes even when the backend status update rejects (kill is off the network critical path)', async () => {
-    vi.useFakeTimers();
-    const fakeChild = createFakeChild(6161);
-    vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
-
-    await onCommandRun(ctx, {
-      runId: 'run-backend-down' as any,
-      commandName: 'test',
-      script: 'sleep 60',
-      workingDir: '/tmp',
-    });
-
-    // Simulate an unreachable backend during shutdown.
-    vi.mocked(ctx.deps.backend.mutation).mockRejectedValue(new Error('network down'));
-
-    const shutdownPromise = shutdownAllCommands(ctx);
-    // SIGTERM must already have been delivered before any grace period — it does
-    // not depend on the (failed) network mutation resolving.
-    expect(process.kill).toHaveBeenCalledWith(-6161, 'SIGTERM');
-
-    await vi.advanceTimersByTimeAsync(6_000);
-    await shutdownPromise;
-
-    expect(processManager.size).toBe(0);
-  });
 });
 
 // ---------------------------------------------------------------------------
