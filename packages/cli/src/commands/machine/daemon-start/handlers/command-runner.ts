@@ -149,14 +149,14 @@ export async function onCommandRunCore(
   }
 
   // Delegate spawning, output streaming, event handler attachment to spawner.
-  // Pass a structural SpawnCtx (plain object, no cast) that satisfies spawner's
-  // minimal { sessionId, machineId, deps: { backend } } requirement.
-  const spawnCtx = {
+  // Pass flat SpawnDeps (plain object, no cast) that satisfies spawner's
+  // { sessionId, machineId, backend } requirement.
+  const spawnDeps = {
     sessionId: deps.sessionId,
     machineId: deps.machineId,
-    deps: { backend: deps.backend },
+    backend: deps.backend,
   };
-  const tracked = await spawnCommandProcess(spawnCtx, event, commandKey);
+  const tracked = await spawnCommandProcess(spawnDeps, event, commandKey);
 
   // Update status to running with PID
   try {

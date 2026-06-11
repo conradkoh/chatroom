@@ -24,17 +24,18 @@ import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
 let tempDirReady = false;
 
 /**
- * Minimal structural type accepted by all ctx-using functions in spawner.ts.
+ * Minimal structural type accepted by all functions in spawner.ts.
  * DaemonContext structurally satisfies this type, so all old call sites continue
  * to work without modification. New Effect-based callers pass a plain object.
  */
-type SpawnCtx = {
+/** Flat deps for spawner — no deps.deps indirection. */
+export type SpawnDeps = {
   sessionId: SessionId;
   machineId: string;
-  deps: { backend: BackendOps };
+  backend: BackendOps;
 };
 
-async function flushTailV2(ctx: SpawnCtx, tracked: RunningProcess, force = false): Promise<void> {
+async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = false): Promise<void> {
   if (!force && !isRunLogObserved(tracked.runId)) return;
 
   const tail = await tracked.store.getLastNLines(MAX_TAIL_LINES_V2);
@@ -42,9 +43,9 @@ async function flushTailV2(ctx: SpawnCtx, tracked: RunningProcess, force = false
 
   const compressed = encodeOutput(tail.content);
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunTailV2, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunTailV2, {
+      sessionId: deps.sessionId as SessionId,
+      machineId: deps.machineId,
       runId: tracked.runId as any,
       tailOutput: {
         compression: compressed.compression,
@@ -63,7 +64,7 @@ async function flushTailV2(ctx: SpawnCtx, tracked: RunningProcess, force = false
 }
 
 async function appendFullOutputChunks(
-  ctx: SpawnCtx,
+  deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
@@ -84,9 +85,9 @@ async function appendFullOutputChunks(
     const slice = fullOutput.slice(i, i + MAX_BUFFER_SIZE);
     const compressed = encodeOutput(slice);
     try {
-      await ctx.deps.backend.mutation(api.commands.appendOutput, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.appendOutput, {
+        sessionId: deps.sessionId as SessionId,
+        machineId: deps.machineId,
         runId,
         content: compressed,
         chunkIndex,
@@ -101,28 +102,32 @@ async function appendFullOutputChunks(
   }
 }
 
-async function flushFinalChunks(ctx: SpawnCtx, tracked: RunningProcess, runId: any): Promise<void> {
-  await flushTailV2(ctx, tracked, true); // final flush: always sync the tail, even if unobserved
+async function flushFinalChunks(
+  deps: SpawnDeps,
+  tracked: RunningProcess,
+  runId: any
+): Promise<void> {
+  await flushTailV2(deps, tracked, true); // final flush: always sync the tail, even if unobserved
   if (consumePendingFullSync(tracked.runId)) {
-    await appendFullOutputChunks(ctx, tracked, runId);
+    await appendFullOutputChunks(deps, tracked, runId);
   }
 }
 
 /** One-shot full log sync when the webapp requests "Load more" on an active run. */
 // fallow-ignore-next-line unused-export
 export async function syncFullOutputOnRequest(
-  ctx: SpawnCtx,
+  deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
   if (!consumePendingFullSync(tracked.runId)) return;
 
-  await appendFullOutputChunks(ctx, tracked, runId);
+  await appendFullOutputChunks(deps, tracked, runId);
 
   try {
-    await ctx.deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
+      sessionId: deps.sessionId as SessionId,
+      machineId: deps.machineId,
       runId,
     });
   } catch (err) {
@@ -133,16 +138,16 @@ export async function syncFullOutputOnRequest(
 }
 
 // fallow-ignore-next-line unused-export
-export async function pollPendingFullOutputSyncs(ctx: SpawnCtx): Promise<void> {
+export async function pollPendingFullOutputSyncs(deps: SpawnDeps): Promise<void> {
   for (const [runId, tracked] of processManager.getAll()) {
     if (consumePendingFullSync(runId)) {
-      await syncFullOutputOnRequest(ctx, tracked, runId as any);
+      await syncFullOutputOnRequest(deps, tracked, runId as any);
     }
   }
 }
 
 export async function spawnCommandProcess(
-  ctx: SpawnCtx,
+  deps: SpawnDeps,
   event: {
     workingDir: string;
     commandName: string;
@@ -175,8 +180,8 @@ export async function spawnCommandProcess(
     store,
     startedAt: Date.now(),
     flushTimer: setInterval(() => {
-      flushTailV2(ctx, tracked).catch(() => {});
-      syncFullOutputOnRequest(ctx, tracked, runId).catch(() => {});
+      flushTailV2(deps, tracked).catch(() => {});
+      syncFullOutputOnRequest(deps, tracked, runId).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
     softTimeoutTimer: null,
     terminationIntent: null,
@@ -199,9 +204,9 @@ export async function spawnCommandProcess(
     currentTracked.terminationIntent = 'killed';
 
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId as SessionId,
+        machineId: deps.machineId,
         runId,
         status: 'killed',
         terminationReason: 'timeout-24h',
@@ -238,16 +243,16 @@ export async function spawnCommandProcess(
       untrackChildPid(tracked.process.pid);
     }
 
-    await flushFinalChunks(ctx, tracked, runId);
+    await flushFinalChunks(deps, tracked, runId);
     await tracked.store.destroy();
     processManager.unregister(runIdStr, commandKey);
 
     const status = deriveTerminalStatus(code, signal, tracked.terminationIntent);
 
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId as SessionId,
+        machineId: deps.machineId,
         runId,
         status,
         exitCode: code ?? undefined,
