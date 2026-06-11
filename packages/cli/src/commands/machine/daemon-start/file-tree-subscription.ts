@@ -131,6 +131,7 @@ function startFileTreeSubscriptionCore(
  * WebSocket client. When new pending requests appear, they are fulfilled immediately.
  * @deprecated Use startFileTreeSubscriptionEffect for new Effect-based code.
  */
+// fallow-ignore-next-line unused-export
 export function startFileTreeSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient
@@ -148,7 +149,6 @@ export function startFileTreeSubscription(
  * Yields DaemonSessionService; DaemonSessionServiceShape satisfies FileTreeSubscriptionDeps
  * (has sessionId, machineId, backend).
  */
-// fallow-ignore-next-line unused-export
 export const startFileTreeSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>

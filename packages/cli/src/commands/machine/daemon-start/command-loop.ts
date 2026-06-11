@@ -42,7 +42,10 @@ import {
   startFileContentSubscriptionEffect,
   type FileContentSubscriptionHandle,
 } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
+import {
+  startFileTreeSubscriptionEffect,
+  type FileTreeSubscriptionHandle,
+} from './file-tree-subscription.js';
 import { pushGitStateEffect, pushSingleWorkspaceGitState } from './git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
@@ -553,7 +556,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── File Tree Subscription ─────────────────────────────────────────
   // Reactive subscription for on-demand file tree requests.
   // Replaces the heartbeat-based push with request/fulfill pattern.
-  let fileTreeSubscriptionHandle: ReturnType<typeof startFileTreeSubscription> | null = null;
+  let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
 
   // ── Workspace List Subscription ────────────────────────────────────────
   let workspaceListSubscriptionHandle: ReturnType<typeof startWorkspaceListSubscription> | null =
@@ -720,7 +723,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   );
 
   // Now that wsClient is ready, start the reactive file tree subscription.
-  fileTreeSubscriptionHandle = startFileTreeSubscription(ctx, wsClient);
+  fileTreeSubscriptionHandle = await Effect.runPromise(
+    startFileTreeSubscriptionEffect(wsClient).pipe(Effect.provide(daemonContextToLayers(ctx)))
+  );
 
   workspaceListSubscriptionHandle = startWorkspaceListSubscription(ctx, wsClient);
 

@@ -143,9 +143,12 @@ vi.mock('./file-content-subscription.js', async () => {
   };
 });
 
-vi.mock('./file-tree-subscription.js', () => ({
-  startFileTreeSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
-}));
+vi.mock('./file-tree-subscription.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    startFileTreeSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
+  };
+});
 
 vi.mock('./workspace-list-subscription.js', () => ({
   startWorkspaceListSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
