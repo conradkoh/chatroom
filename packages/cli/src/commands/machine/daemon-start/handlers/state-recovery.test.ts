@@ -121,6 +121,7 @@ function makeApmLayer(overrides?: {
     stop: (_opts: any) => Effect.succeed({ success: true }),
     handleExit: (_opts: any) => Effect.succeed(undefined as void),
     getSlot: vi.fn().mockReturnValue(undefined),
+    whenTurnEndsIdle: () => Effect.succeed(undefined as void),
   });
 }
 

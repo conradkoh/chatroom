@@ -96,6 +96,7 @@ describe('onRequestStopAgentEffect', () => {
       recover: vi.fn(),
       getSlot: vi.fn(),
       listActive: vi.fn().mockReturnValue([]),
+      whenTurnEndsIdle: vi.fn(),
     });
     const event = createEvent({ deadline: Date.now() - 1000 });
 
@@ -113,6 +114,7 @@ describe('onRequestStopAgentEffect', () => {
       recover: vi.fn(),
       getSlot: vi.fn(),
       listActive: vi.fn().mockReturnValue([]),
+      whenTurnEndsIdle: vi.fn(),
     });
     const event = createEvent();
 
