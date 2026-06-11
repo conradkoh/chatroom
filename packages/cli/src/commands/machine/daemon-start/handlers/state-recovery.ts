@@ -140,7 +140,6 @@ export async function recoverAgentStatePostRecoveryCore(
  * Split at the recover()/listActive() seam: only the first two calls touch
  * AgentProcessManager; everything after is pure backend + session identity.
  */
-// fallow-ignore-next-line unused-export
 export const recoverAgentStateEffect: Effect.Effect<
   void,
   never,
@@ -171,6 +170,7 @@ export const recoverAgentStateEffect: Effect.Effect<
  *
  * @deprecated Use recoverAgentStateEffect directly in Effect pipelines.
  */
+// fallow-ignore-next-line unused-export
 export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
   await ctx.deps.agentProcessManager.recover();
   const activeSlots = ctx.deps.agentProcessManager.listActive();

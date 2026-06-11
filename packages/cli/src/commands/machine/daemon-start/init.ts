@@ -9,8 +9,9 @@ import type { ConvexHttpClient } from 'convex/browser';
 import { Effect, Schedule, Duration } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { daemonContextToLayers } from './daemon-context-service.js';
 import type { DaemonDeps } from './deps.js';
-import { recoverAgentState } from './handlers/state-recovery.js';
+import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -105,7 +106,7 @@ export async function discoverModels(
  * Create production dependency implementations wiring to real infrastructure.
  * This factory uses the module-level imports already available in this file.
  */
-export function createDefaultDeps(): DaemonDeps {
+function createDefaultDeps(): DaemonDeps {
   return {
     backend: {
       // Placeholder — initDaemon() binds the real client after connecting.
@@ -332,7 +333,9 @@ function logStartup(ctx: DaemonContext, availableModels: Record<string, string[]
 async function recoverState(ctx: DaemonContext): Promise<void> {
   console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
   try {
-    await recoverAgentState(ctx);
+    await Effect.runPromise(
+      recoverAgentStateEffect.pipe(Effect.provide(daemonContextToLayers(ctx)))
+    );
   } catch (e) {
     console.log(`   ⚠️  Recovery failed: ${getErrorMessage(e)}`);
     console.log(`   Continuing with fresh state`);
@@ -378,6 +381,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Fixed interval (ms) between connection retry attempts when backend is unreachable. */
+// fallow-ignore-next-line unused-export
 export const CONNECTION_RETRY_INTERVAL_MS = 10_000;
 
 // ─── Tagged error for network retries ───────────────────────────────────────
