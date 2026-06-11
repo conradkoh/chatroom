@@ -31,7 +31,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { pushCommandsEffect } from './command-sync-heartbeat.js';
-import { syncCommitDetails } from './commit-detail-sync.js';
+import { syncCommitDetailsEffect } from './commit-detail-sync.js';
 import { DaemonContextService, daemonContextToLayers } from './daemon-context-service.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
@@ -514,11 +514,13 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
               );
             }
           );
-          syncCommitDetails(ctx).catch((err: unknown) => {
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
-            );
-          });
+          Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(layers))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
         }
         // File content requests are now handled by the reactive subscription
         // (file-content-subscription.ts) for near-instant response times.
@@ -577,7 +579,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   } else {
     Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(layers))).catch(() => {});
     Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(layers))).catch(() => {});
-    syncCommitDetails(ctx).catch(() => {});
+    Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(layers))).catch(() => {});
   }
 
   // ── Shutdown timeouts ───────────────────────────────────────────────────

@@ -202,6 +202,7 @@ async function prefetchSingleCommitCore(
  *   across heartbeat ticks in production.
  * @deprecated Use syncCommitDetailsCore or syncCommitDetailsEffect.
  */
+// fallow-ignore-next-line unused-export
 export async function syncCommitDetails(
   ctx: DaemonContext,
   seenShasMap?: Map<string, Set<string>>
@@ -220,7 +221,6 @@ export async function syncCommitDetails(
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
 /** Effect twin for syncCommitDetails — yields DaemonSessionService; DaemonSessionServiceShape satisfies SyncCommitDetailsDeps. */
-// fallow-ignore-next-line unused-export
 export const syncCommitDetailsEffect = (
   seenShasMap?: Map<string, Set<string>>
 ): Effect.Effect<void, never, DaemonSessionService> =>

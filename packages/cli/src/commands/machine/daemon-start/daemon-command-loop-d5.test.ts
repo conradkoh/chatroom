@@ -119,9 +119,13 @@ vi.mock('./command-sync-heartbeat.js', async () => {
   };
 });
 
-vi.mock('./commit-detail-sync.js', () => ({
-  syncCommitDetails: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('./commit-detail-sync.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    syncCommitDetails: vi.fn().mockResolvedValue(undefined),
+    syncCommitDetailsEffect: () => Effect.void, // factory form — production calls syncCommitDetailsEffect()
+  };
+});
 
 // startCommandLoop subscription starters — each calls wsClient.onUpdate and
 // returns { stop: () => void }. Mocking prevents transitive import issues.
