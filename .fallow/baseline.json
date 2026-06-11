@@ -525,6 +525,7 @@
     "packages/cli/src/commands/machine/daemon-start/index.ts:StopAgentDeps",
     "packages/cli/src/commands/machine/daemon-start/index.ts:StateRecoveryDeps",
     "packages/cli/src/commands/machine/daemon-start/index.ts:MachineStateOps",
+    "packages/cli/src/commands/machine/daemon-start/types.ts:DaemonContext",
     "packages/cli/src/commands/machine/daemon-start/types.ts:MachineCommand",
     "packages/cli/src/domain/agent-lifecycle/index.ts:ResumePath",
     "packages/cli/src/domain/direct-harness/entities/harness-session.ts:HarnessSession",
