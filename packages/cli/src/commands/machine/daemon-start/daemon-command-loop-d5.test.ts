@@ -245,7 +245,7 @@ beforeEach(() => {
 
 describe('refreshModelsEffect', () => {
   it('returns noop when session.config is null (session injected from DaemonSessionService)', async () => {
-    const { refreshModelsEffect } = await import('./command-loop.js');
+    const { refreshModelsEffect } = await import('./models-refresh.js');
     // Default mock context has config: null → refreshModelsCore short-circuits immediately.
     // Verifies the Effect twin extracted session from DaemonSessionService and delegated correctly.
     const result = await runWithSession(refreshModelsEffect);
@@ -254,7 +254,7 @@ describe('refreshModelsEffect', () => {
   });
 
   it('returns pushed when session has a valid config and there is no prior model snapshot', async () => {
-    const { refreshModelsEffect } = await import('./command-loop.js');
+    const { refreshModelsEffect } = await import('./models-refresh.js');
     const deps = createMockDaemonDeps();
     // discoverModels mock returns { opencode: ['opencode/model-a'] }.
     // lastPushedModels: null → prev={}, next has models → hasChanges=true → pushed.
@@ -283,7 +283,7 @@ describe('refreshModelsEffect', () => {
   });
 
   it('returns skipped_no_changes when discovered models match the prior snapshot', async () => {
-    const { refreshModelsEffect } = await import('./command-loop.js');
+    const { refreshModelsEffect } = await import('./models-refresh.js');
     const deps = createMockDaemonDeps();
     // discoverModels mock returns { opencode: ['opencode/model-a'] }.
     // lastPushedModels already has that exact set → diff is empty → skipped.

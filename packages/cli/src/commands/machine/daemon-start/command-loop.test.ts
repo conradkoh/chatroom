@@ -13,10 +13,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { dispatchCommandEvent, refreshModels } from './command-loop.js';
+import { dispatchCommandEvent } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
 import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { handlePing } from './handlers/ping.js';
+import { refreshModels } from './models-refresh.js';
 import type { DaemonContext, AgentHarness } from './types.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
