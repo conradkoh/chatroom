@@ -57,12 +57,23 @@ export function daemonContextToLayers(ctx: DaemonContext) {
     DaemonSpawningServiceLive(ctx.deps.spawning),
     DaemonAgentProcessManagerServiceLive(ctx.deps.agentProcessManager),
     Layer.succeed(DaemonSessionService, {
+      // Identity
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       client: ctx.client,
       config: ctx.config,
+      // Flat deps (remove ctx.deps.xxx indirection)
+      backend: ctx.deps.backend,
+      fs: ctx.deps.fs,
+      // Shared data
       agentServices: ctx.agentServices,
       events: ctx.events,
+      workspaceListStore: ctx.workspaceListStore,
+      logger: ctx.logger,
+      // Mutable state (same references as ctx — intentional shared mutation)
+      lastPushedGitState: ctx.lastPushedGitState,
+      lastPushedModels: ctx.lastPushedModels,
+      lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
     }),
     Layer.succeed(DaemonContextService, ctx)
   );

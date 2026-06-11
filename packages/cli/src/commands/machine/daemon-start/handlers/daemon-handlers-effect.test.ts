@@ -73,8 +73,16 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
     machineId: 'test-machine-id',
     client: {},
     config,
+    backend: {
+      mutation: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+    } as any,
+    fs: { stat: vi.fn() } as any,
     agentServices: new Map(),
     events: new DaemonEventBus(),
+    lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
   });
 }
 

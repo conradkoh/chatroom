@@ -5,28 +5,37 @@
  * falls back to a one-shot query before the subscription delivers its first value.
  */
 
-import { api } from '../../../api.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
-import type { DaemonContext, SessionId, WorkspaceForSync } from './types.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 export type { WorkspaceForSync };
 
+/** Minimal flat deps required by getWorkspacesForMachine. */
+export type WorkspaceCacheDeps = {
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+};
+
 /** Returns workspaces for this machine from the subscription store or a fallback query. */
 export async function getWorkspacesForMachine(
-  ctx: DaemonContext
+  deps: WorkspaceCacheDeps
 ): Promise<WorkspaceForSync[]> {
-  const store = ctx.workspaceListStore;
+  const store = deps.workspaceListStore;
   if (store && store.updatedAt > 0) {
     return store.workspaces;
   }
 
   try {
-    const workspaces = (await ctx.deps.backend.query(
+    const workspaces = (await deps.backend.query(
       api.workspaces.listRecentlyObservedWorkspacesForMachine,
       {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
       }
     )) as { workingDir: string }[];
     const mapped = workspaces.map((ws) => ({ workingDir: ws.workingDir }));
@@ -36,9 +45,7 @@ export async function getWorkspacesForMachine(
     }
     return mapped;
   } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to query workspaces: ${getErrorMessage(err)}`
-    );
+    console.warn(`[${formatTimestamp()}] ⚠️ Failed to query workspaces: ${getErrorMessage(err)}`);
     return [];
   }
 }

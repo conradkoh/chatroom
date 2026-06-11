@@ -1,5 +1,5 @@
 /**
- * Daemon Heartbeat Effect Tests (Phase D3)
+ * Daemon Heartbeat Effect Tests (Phase D3 → updated for E3)
  *
  * Tests for the Effect twins of heartbeat functions:
  *   pushGitStateEffect, pushSingleWorkspaceGitStateEffect,
@@ -8,13 +8,13 @@
  *   pushCommandsEffect, pushSingleWorkspaceCommandsEffect,
  *   fulfillFileContentRequestsEffect.
  *
- * All heartbeat Effect twins require DaemonContextService.
+ * All heartbeat Effect twins now require DaemonSessionService (migrated in E3).
  */
 
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonContextService } from './daemon-context-service.js';
+import { DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonContext } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonContext } from './types.js';
@@ -73,18 +73,33 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — DaemonSessionService layer
 // ---------------------------------------------------------------------------
 
-function makeLayer(overrides?: Partial<DaemonContext>) {
-  return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
+function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
+  const ctx = createMockDaemonContext(overrides);
+  return Layer.succeed(DaemonSessionService, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    client: ctx.client,
+    config: ctx.config,
+    backend: ctx.deps.backend,
+    fs: ctx.deps.fs,
+    agentServices: ctx.agentServices,
+    events: ctx.events,
+    workspaceListStore: ctx.workspaceListStore,
+    logger: ctx.logger,
+    lastPushedGitState: ctx.lastPushedGitState,
+    lastPushedModels: ctx.lastPushedModels,
+    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+  });
 }
 
 async function runWithCtx<A>(
-  effect: Effect.Effect<A, never, DaemonContextService>,
+  effect: Effect.Effect<A, never, DaemonSessionService>,
   overrides?: Partial<DaemonContext>
 ) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
+  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +122,7 @@ describe('pushGitStateEffect', () => {
     await expect(runWithCtx(pushGitStateEffect)).resolves.toBeUndefined();
   });
 
-  it('reads machineId from DaemonContextService', async () => {
+  it('reads machineId from DaemonSessionService', async () => {
     const { getWorkspacesForMachine } = await import('./workspace-cache.js');
     const { pushGitStateEffect } = await import('./git-heartbeat.js');
 
@@ -190,7 +205,7 @@ describe('syncCommitDetailsEffect', () => {
     await expect(runWithCtx(syncCommitDetailsEffect())).resolves.toBeUndefined();
   });
 
-  it('passes machineId from ctx to getWorkspacesForMachine', async () => {
+  it('passes machineId from session to getWorkspacesForMachine', async () => {
     const { getWorkspacesForMachine } = await import('./workspace-cache.js');
     const { syncCommitDetailsEffect } = await import('./commit-detail-sync.js');
 
@@ -220,7 +235,7 @@ describe('pushCommandsEffect', () => {
     await expect(runWithCtx(pushCommandsEffect)).resolves.toBeUndefined();
   });
 
-  it('passes machineId from ctx to getWorkspacesForMachine', async () => {
+  it('passes machineId from session to getWorkspacesForMachine', async () => {
     const { getWorkspacesForMachine } = await import('./workspace-cache.js');
     const { pushCommandsEffect } = await import('./command-sync-heartbeat.js');
 
@@ -245,7 +260,7 @@ describe('pushSingleWorkspaceCommandsEffect', () => {
     expect(discoverCommands).toHaveBeenCalledWith('/tmp/workspace');
   });
 
-  it('calls syncCommands mutation with sessionId and machineId from ctx', async () => {
+  it('calls syncCommands mutation with sessionId and machineId from session', async () => {
     const { pushSingleWorkspaceCommandsEffect } = await import('./command-sync-heartbeat.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
@@ -276,7 +291,7 @@ describe('fulfillFileContentRequestsEffect', () => {
     await expect(runWithCtx(fulfillFileContentRequestsEffect, { deps })).resolves.toBeUndefined();
   });
 
-  it('passes sessionId and machineId from ctx when querying pending requests', async () => {
+  it('passes sessionId and machineId from session when querying pending requests', async () => {
     const { fulfillFileContentRequestsEffect } = await import('./file-content-fulfillment.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);

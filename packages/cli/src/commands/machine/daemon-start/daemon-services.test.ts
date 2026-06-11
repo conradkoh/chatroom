@@ -203,8 +203,13 @@ describe('DaemonSessionService', () => {
       machineId: 'machine-e1',
       client: {},
       config: null,
+      backend: { mutation: vi.fn(), query: vi.fn() } as any,
+      fs: { stat: vi.fn() } as any,
       agentServices: new Map(),
       events: {} as any,
+      lastPushedGitState: new Map(),
+      lastPushedModels: null,
+      lastPushedHarnessFingerprint: null,
     });
 
     const { sessionId, machineId } = Effect.runSync(
@@ -216,6 +221,63 @@ describe('DaemonSessionService', () => {
 
     expect(sessionId).toBe('sess-e1');
     expect(machineId).toBe('machine-e1');
+  });
+
+  it('exposes flat backend and fs deps (no ctx.deps indirection)', () => {
+    const backendMock = { mutation: vi.fn(), query: vi.fn() } as any;
+    const fsMock = { stat: vi.fn() } as any;
+
+    const layer = Layer.succeed(DaemonSessionService, {
+      sessionId: 'sess-e3',
+      machineId: 'machine-e3',
+      client: {},
+      config: null,
+      backend: backendMock,
+      fs: fsMock,
+      agentServices: new Map(),
+      events: {} as any,
+      lastPushedGitState: new Map(),
+      lastPushedModels: null,
+      lastPushedHarnessFingerprint: null,
+    });
+
+    const { backend, fs } = Effect.runSync(
+      Effect.gen(function* () {
+        const svc = yield* DaemonSessionService;
+        return { backend: svc.backend, fs: svc.fs };
+      }).pipe(Effect.provide(layer))
+    );
+
+    expect(backend).toBe(backendMock);
+    expect(fs).toBe(fsMock);
+  });
+
+  it('exposes mutable state maps with shared reference semantics', () => {
+    const lastPushedGitState = new Map<string, string>();
+    lastPushedGitState.set('key', 'value');
+
+    const layer = Layer.succeed(DaemonSessionService, {
+      sessionId: 'sess-e3b',
+      machineId: 'machine-e3b',
+      client: {},
+      config: null,
+      backend: { mutation: vi.fn(), query: vi.fn() } as any,
+      fs: { stat: vi.fn() } as any,
+      agentServices: new Map(),
+      events: {} as any,
+      lastPushedGitState,
+      lastPushedModels: null,
+      lastPushedHarnessFingerprint: null,
+    });
+
+    const result = Effect.runSync(
+      Effect.gen(function* () {
+        const svc = yield* DaemonSessionService;
+        return svc.lastPushedGitState.get('key');
+      }).pipe(Effect.provide(layer))
+    );
+
+    expect(result).toBe('value');
   });
 });
 
@@ -242,6 +304,39 @@ describe('daemonContextToLayers', () => {
 
     expect(sessionId).toBe('sess-from-ctx');
     expect(machineId).toBe('machine-from-ctx');
+  });
+
+  it('populates flat backend/fs from ctx.deps (E3 extension)', async () => {
+    const deps = createMockDaemonDeps();
+    const ctx = createMockDaemonContext({ deps });
+
+    const layer = daemonContextToLayers(ctx);
+    const { backend, fs } = await Effect.runPromise(
+      Effect.gen(function* () {
+        const svc = yield* DaemonSessionService;
+        return { backend: svc.backend, fs: svc.fs };
+      }).pipe(Effect.provide(layer))
+    );
+
+    expect(backend).toBe(deps.backend);
+    expect(fs).toBe(deps.fs);
+  });
+
+  it('populates lastPushedGitState with same reference as ctx (shared mutation)', async () => {
+    const deps = createMockDaemonDeps();
+    const lastPushedGitState = new Map<string, string>([['k', 'v']]);
+    const ctx = createMockDaemonContext({ deps, lastPushedGitState });
+
+    const layer = daemonContextToLayers(ctx);
+    const map = await Effect.runPromise(
+      Effect.gen(function* () {
+        const svc = yield* DaemonSessionService;
+        return svc.lastPushedGitState;
+      }).pipe(Effect.provide(layer))
+    );
+
+    expect(map).toBe(lastPushedGitState);
+    expect(map.get('k')).toBe('v');
   });
 
   it('builds a layer that provides DaemonContextService (backward-compat)', async () => {

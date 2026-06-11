@@ -10,8 +10,9 @@
 import { Context, Effect, Layer } from 'effect';
 
 import type { MachineStateOps, SpawningOps } from './deps.js';
-import type { ConvexClient, SessionId } from './types.js';
+import type { ConvexClient, SessionId, WorkspaceForSync } from './types.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type {
   AgentProcessManager,
@@ -133,12 +134,32 @@ export const DaemonAgentProcessManagerServiceLive = (
  * Migrating them to Effect.Ref is future scope (Phase E5+).
  */
 export interface DaemonSessionServiceShape {
+  // ─── Identity ─────────────────────────────────────────────────────
   sessionId: SessionId;
   machineId: string;
   client: ConvexClient;
   config: MachineConfig | null;
+
+  // ─── Flat deps (no ctx.deps.xxx indirection) ──────────────────────
+  /** Direct access to backend ops — same as ctx.deps.backend but without the .deps. layer. */
+  backend: BackendOps;
+  /** Direct access to filesystem ops — same as ctx.deps.fs but without the .deps. layer. */
+  fs: FsOps;
+
+  // ─── Shared data ──────────────────────────────────────────────────
   agentServices: Map<string, RemoteAgentService>;
   events: DaemonEventBus;
+  /** Populated by workspace-list-subscription; consumed by heartbeats. Mutable reference. */
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+  logger?: Pick<Console, 'log' | 'warn'>;
+
+  // ─── Mutable state (shared reference semantics) ───────────────────
+  /** Change-detection cache for git state, keyed by `machineId::workingDir`. */
+  lastPushedGitState: Map<string, string>;
+  /** Last models snapshot pushed per harness name. null = never pushed. */
+  lastPushedModels: Record<string, string[]> | null;
+  /** Fingerprint of harness list+versions last successfully pushed. */
+  lastPushedHarnessFingerprint: string | null;
 }
 
 export class DaemonSessionService extends Context.Tag('DaemonSessionService')<

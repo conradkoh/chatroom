@@ -1,11 +1,12 @@
 import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 import { Effect } from 'effect';
 
-import { DaemonContextService } from './daemon-context-service.js';
-import type { DaemonContext } from './types.js';
+import { DaemonSessionService } from './daemon-services.js';
+import type { DaemonContext, SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
@@ -134,17 +135,33 @@ function makeBranchDependentFields(
   ];
 }
 
-export async function pushGitState(ctx: DaemonContext): Promise<void> {
-  const workspaces = await getWorkspacesForMachine(ctx);
+// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+
+type GitStateDeps = {
+  machineId: string;
+  sessionId: SessionId;
+  backend: BackendOps;
+  lastPushedGitState: Map<string, string>;
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+};
+
+// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
+
+async function pushGitStateCore(ctx: GitStateDeps): Promise<void> {
+  const workspaces = await getWorkspacesForMachine({
+    workspaceListStore: ctx.workspaceListStore,
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    backend: ctx.backend,
+  });
   if (workspaces.length === 0) return;
 
   const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-
   if (uniqueWorkingDirs.size === 0) return;
 
   for (const workingDir of uniqueWorkingDirs) {
     try {
-      await pushSingleWorkspaceGitState(ctx, workingDir);
+      await pushSingleWorkspaceGitStateCore(ctx, workingDir);
     } catch (err) {
       console.warn(
         `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
@@ -153,8 +170,8 @@ export async function pushGitState(ctx: DaemonContext): Promise<void> {
   }
 }
 
-export async function pushSingleWorkspaceGitState(
-  ctx: DaemonContext,
+async function pushSingleWorkspaceGitStateCore(
+  ctx: GitStateDeps,
   workingDir: string
 ): Promise<void> {
   const stateKey = makeGitStateKey(ctx.machineId, workingDir);
@@ -164,7 +181,7 @@ export async function pushSingleWorkspaceGitState(
     const stateHash = 'not_found';
     if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
 
-    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -180,7 +197,7 @@ export async function pushSingleWorkspaceGitState(
     const stateHash = `error:${branchResult.message}`;
     if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
 
-    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -211,7 +228,7 @@ export async function pushSingleWorkspaceGitState(
   const commitsHash = JSON.stringify(commits.map((c) => c.sha));
 
   if (ctx.lastPushedGitState.get(stateKey) !== stateHash) {
-    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -226,7 +243,7 @@ export async function pushSingleWorkspaceGitState(
 
   if (ctx.lastPushedGitState.get(commitsKey) !== commitsHash) {
     try {
-      await ctx.deps.backend.mutation(api.workspaces.upsertRecentCommits, {
+      await ctx.backend.mutation(api.workspaces.upsertRecentCommits, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
         workingDir,
@@ -242,8 +259,8 @@ export async function pushSingleWorkspaceGitState(
   }
 }
 
-export async function pushSingleWorkspaceGitSummaryForObserved(
-  ctx: DaemonContext,
+async function pushSingleWorkspaceGitSummaryForObservedCore(
+  ctx: GitStateDeps,
   workingDir: string,
   reason: 'safety-poll' | 'refresh' = 'safety-poll'
 ): Promise<void> {
@@ -254,7 +271,7 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
     const stateHash = 'not_found';
     if (reason !== 'refresh' && ctx.lastPushedGitState.get(stateKey) === stateHash) return;
 
-    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -270,7 +287,7 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
     const stateHash = `error:${branchResult.message}`;
     if (reason !== 'refresh' && ctx.lastPushedGitState.get(stateKey) === stateHash) return;
 
-    await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -293,14 +310,14 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
   // On daemon restart the map is empty, so the first observation triggers a
   // full push — that's intentional.
   //
-  // The timer is bumped ONLY on successful push. If pushSingleWorkspaceGitState
+  // The timer is bumped ONLY on successful push. If pushSingleWorkspaceGitStateCore
   // throws, the next observation will re-attempt the full push instead of
   // waiting another OBSERVED_FULL_PUSH_INTERVAL_MS. This keeps non-slim fields
   // self-healing during transient failures.
   const now = Date.now();
   const lastFull = lastFullPushMs.get(stateKey) ?? 0;
   if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-    await pushSingleWorkspaceGitState(ctx, workingDir);
+    await pushSingleWorkspaceGitStateCore(ctx, workingDir);
     lastFullPushMs.set(stateKey, now);
     console.log(
       `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
@@ -323,7 +340,7 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
     return;
   }
 
-  await ctx.deps.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+  await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
@@ -337,34 +354,83 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
   );
 }
 
+// ── Public wrappers (backward-compat — old call sites in command-loop.ts) ─────
+
+/** @deprecated Use pushGitStateCore or pushGitStateEffect. */
+export async function pushGitState(ctx: DaemonContext): Promise<void> {
+  return pushGitStateCore({
+    machineId: ctx.machineId,
+    sessionId: ctx.sessionId,
+    backend: ctx.deps.backend,
+    lastPushedGitState: ctx.lastPushedGitState,
+    workspaceListStore: ctx.workspaceListStore,
+  });
+}
+
+/** @deprecated Use pushSingleWorkspaceGitStateCore or pushSingleWorkspaceGitStateEffect. */
+export async function pushSingleWorkspaceGitState(
+  ctx: DaemonContext,
+  workingDir: string
+): Promise<void> {
+  return pushSingleWorkspaceGitStateCore(
+    {
+      machineId: ctx.machineId,
+      sessionId: ctx.sessionId,
+      backend: ctx.deps.backend,
+      lastPushedGitState: ctx.lastPushedGitState,
+    },
+    workingDir
+  );
+}
+
+/** @deprecated Use pushSingleWorkspaceGitSummaryForObservedCore or the Effect twin. */
+export async function pushSingleWorkspaceGitSummaryForObserved(
+  ctx: DaemonContext,
+  workingDir: string,
+  reason?: 'safety-poll' | 'refresh'
+): Promise<void> {
+  return pushSingleWorkspaceGitSummaryForObservedCore(
+    {
+      machineId: ctx.machineId,
+      sessionId: ctx.sessionId,
+      backend: ctx.deps.backend,
+      lastPushedGitState: ctx.lastPushedGitState,
+    },
+    workingDir,
+    reason
+  );
+}
+
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for pushGitState — yields DaemonContextService and delegates. */
+/** Effect twin for pushGitState — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitStateDeps. */
 // fallow-ignore-next-line unused-export
-export const pushGitStateEffect: Effect.Effect<void, never, DaemonContextService> = Effect.gen(
+export const pushGitStateEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
   function* () {
-    const ctx = yield* DaemonContextService;
-    yield* Effect.promise(() => pushGitState(ctx));
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => pushGitStateCore(session));
   }
 );
 
-/** Effect twin for pushSingleWorkspaceGitState — yields DaemonContextService and delegates. */
+/** Effect twin for pushSingleWorkspaceGitState — yields DaemonSessionService. */
 // fallow-ignore-next-line unused-export
 export const pushSingleWorkspaceGitStateEffect = (
   workingDir: string
-): Effect.Effect<void, never, DaemonContextService> =>
+): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    yield* Effect.promise(() => pushSingleWorkspaceGitState(ctx, workingDir));
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => pushSingleWorkspaceGitStateCore(session, workingDir));
   });
 
-/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonContextService and delegates. */
+/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonSessionService. */
 // fallow-ignore-next-line unused-export
 export const pushSingleWorkspaceGitSummaryForObservedEffect = (
   workingDir: string,
   reason?: 'safety-poll' | 'refresh'
-): Effect.Effect<void, never, DaemonContextService> =>
+): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    yield* Effect.promise(() => pushSingleWorkspaceGitSummaryForObserved(ctx, workingDir, reason));
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() =>
+      pushSingleWorkspaceGitSummaryForObservedCore(session, workingDir, reason)
+    );
   });
