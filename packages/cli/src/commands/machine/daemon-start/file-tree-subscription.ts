@@ -13,10 +13,8 @@ import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -26,18 +24,12 @@ export interface FileTreeSubscriptionHandle {
   stop: () => void;
 }
 
-// ── Minimal dep type used by Core functions + Effect twins ────────────────────
-
-type FileTreeSubscriptionDeps = {
-  sessionId: SessionId;
-  machineId: string;
-  backend: BackendOps;
-};
-
-// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
-
 async function fulfillFileTreeRequestsCore(
-  deps: FileTreeSubscriptionDeps,
+  deps: {
+    sessionId: string;
+    machineId: string;
+    backend: { mutation: (name: any, args: any) => Promise<any> };
+  },
   requests: { _id: string; workingDir: string }[]
 ): Promise<void> {
   for (const request of requests) {
@@ -78,61 +70,48 @@ async function fulfillFileTreeRequestsCore(
   }
 }
 
-function startFileTreeSubscriptionCore(
-  deps: FileTreeSubscriptionDeps,
-  wsClient: ConvexClient
-): FileTreeSubscriptionHandle {
-  let processing = false;
-
-  const unsubscribe = wsClient.onUpdate(
-    api.workspaceFiles.getPendingFileTreeRequests,
-    {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-    },
-    (requests) => {
-      if (!requests || requests.length === 0) return;
-      if (processing) return;
-
-      processing = true;
-      fulfillFileTreeRequestsCore(deps, requests)
-        .catch((err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  File tree subscription processing failed: ${getErrorMessage(err)}`
-          );
-        })
-        .finally(() => {
-          processing = false;
-        });
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  File tree subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
-
-  console.log(`[${formatTimestamp()}] 🌳 File tree subscription started (reactive)`);
-
-  return {
-    stop: () => {
-      unsubscribe();
-      console.log(`[${formatTimestamp()}] 🌳 File tree subscription stopped`);
-    },
-  };
-}
-
-// ── Effect twin ───────────────────────────────────────────────────────────────
-
-/**
- * Effect twin for startFileTreeSubscription.
- * Yields DaemonSessionService; DaemonSessionServiceShape satisfies FileTreeSubscriptionDeps
- * (has sessionId, machineId, backend).
- */
 export const startFileTreeSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    return startFileTreeSubscriptionCore(session, wsClient);
+
+    let processing = false;
+
+    const unsubscribe = wsClient.onUpdate(
+      api.workspaceFiles.getPendingFileTreeRequests,
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      },
+      (requests) => {
+        if (!requests || requests.length === 0) return;
+        if (processing) return;
+
+        processing = true;
+        fulfillFileTreeRequestsCore(session, requests)
+          .catch((err: unknown) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  File tree subscription processing failed: ${getErrorMessage(err)}`
+            );
+          })
+          .finally(() => {
+            processing = false;
+          });
+      },
+      (err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  File tree subscription error: ${getErrorMessage(err)}`
+        );
+      }
+    );
+
+    console.log(`[${formatTimestamp()}] 🌳 File tree subscription started (reactive)`);
+
+    return {
+      stop: () => {
+        unsubscribe();
+        console.log(`[${formatTimestamp()}] 🌳 File tree subscription stopped`);
+      },
+    };
   });
