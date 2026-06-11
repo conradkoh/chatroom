@@ -356,18 +356,6 @@ export async function pushSingleWorkspaceGitSummaryForObservedCore(
 
 // ── Public wrappers (backward-compat — old call sites in command-loop.ts) ─────
 
-/** @deprecated Use pushGitStateCore or pushGitStateEffect. */
-// fallow-ignore-next-line unused-export
-export async function pushGitState(ctx: DaemonContext): Promise<void> {
-  return pushGitStateCore({
-    machineId: ctx.machineId,
-    sessionId: ctx.sessionId,
-    backend: ctx.deps.backend,
-    lastPushedGitState: ctx.lastPushedGitState,
-    workspaceListStore: ctx.workspaceListStore,
-  });
-}
-
 /** @deprecated Use pushSingleWorkspaceGitStateCore or pushSingleWorkspaceGitStateEffect. */
 export async function pushSingleWorkspaceGitState(
   ctx: DaemonContext,
