@@ -147,30 +147,12 @@ export type GitStateDeps = {
 
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
 
-export async function pushGitStateCore(ctx: GitStateDeps): Promise<void> {
-  const workspaces = await getWorkspacesForMachine({
-    workspaceListStore: ctx.workspaceListStore,
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    backend: ctx.backend,
-  });
-  if (workspaces.length === 0) return;
-
-  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-  if (uniqueWorkingDirs.size === 0) return;
-
-  for (const workingDir of uniqueWorkingDirs) {
-    try {
-      await pushSingleWorkspaceGitStateCore(ctx, workingDir);
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
-
-async function pushSingleWorkspaceGitStateCore(
+/**
+ * Per-workspace git state push — shared by both the Effect twin and Core callers.
+ * Takes flat GitStateDeps so the Effect twin can pass session (DaemonSessionServiceShape
+ * satisfies GitStateDeps structurally) and Core callers can pass ctx directly.
+ */
+async function pushSingleWorkspaceGitStateImpl(
   ctx: GitStateDeps,
   workingDir: string
 ): Promise<void> {
@@ -259,6 +241,29 @@ async function pushSingleWorkspaceGitStateCore(
   }
 }
 
+export async function pushGitStateCore(ctx: GitStateDeps): Promise<void> {
+  const workspaces = await getWorkspacesForMachine({
+    workspaceListStore: ctx.workspaceListStore,
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    backend: ctx.backend,
+  });
+  if (workspaces.length === 0) return;
+
+  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+  if (uniqueWorkingDirs.size === 0) return;
+
+  for (const workingDir of uniqueWorkingDirs) {
+    try {
+      await pushSingleWorkspaceGitStateImpl(ctx, workingDir);
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
+      );
+    }
+  }
+}
+
 export async function pushSingleWorkspaceGitSummaryForObservedCore(
   ctx: GitStateDeps,
   workingDir: string,
@@ -310,14 +315,14 @@ export async function pushSingleWorkspaceGitSummaryForObservedCore(
   // On daemon restart the map is empty, so the first observation triggers a
   // full push — that's intentional.
   //
-  // The timer is bumped ONLY on successful push. If pushSingleWorkspaceGitStateCore
+  // The timer is bumped ONLY on successful push. If pushSingleWorkspaceGitStateImpl
   // throws, the next observation will re-attempt the full push instead of
   // waiting another OBSERVED_FULL_PUSH_INTERVAL_MS. This keeps non-slim fields
   // self-healing during transient failures.
   const now = Date.now();
   const lastFull = lastFullPushMs.get(stateKey) ?? 0;
   if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-    await pushSingleWorkspaceGitStateCore(ctx, workingDir);
+    await pushSingleWorkspaceGitStateImpl(ctx, workingDir);
     lastFullPushMs.set(stateKey, now);
     console.log(
       `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
@@ -370,7 +375,7 @@ export const pushSingleWorkspaceGitStateEffect = (
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => pushSingleWorkspaceGitStateCore(session, workingDir));
+    yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
   });
 
 /** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonSessionService. */
