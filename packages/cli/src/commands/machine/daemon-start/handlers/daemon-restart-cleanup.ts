@@ -22,6 +22,7 @@ export interface DaemonRestartCleanupDeps {
  * Core — clear all stale spawnedAgentPid values for this machine.
  * Returns clearedCount from backend mutation.
  */
+// fallow-ignore-next-line unused-export
 export async function clearStaleSpawnedPidsCore(deps: DaemonRestartCleanupDeps): Promise<number> {
   const result = await deps.backend.mutation(api.machines.clearAllSpawnedPids, {
     sessionId: deps.sessionId,
@@ -34,6 +35,7 @@ export async function clearStaleSpawnedPidsCore(deps: DaemonRestartCleanupDeps):
  * Core — reap pending/running command runs orphaned from previous daemon process.
  * Returns reapedCount from backend mutation.
  */
+// fallow-ignore-next-line unused-export
 export async function reapOrphanCommandRunsCore(deps: DaemonRestartCleanupDeps): Promise<number> {
   const runResult = await deps.backend.mutation(api.commands.reapOrphansForDaemonRestart, {
     sessionId: deps.sessionId,
@@ -43,7 +45,6 @@ export async function reapOrphanCommandRunsCore(deps: DaemonRestartCleanupDeps):
 }
 
 /** Effect twin — yields BackendService + DaemonSessionService. */
-// fallow-ignore-next-line unused-export
 export const clearStaleSpawnedPidsEffect = (): Effect.Effect<
   number,
   Error,
@@ -60,7 +61,6 @@ export const clearStaleSpawnedPidsEffect = (): Effect.Effect<
   });
 
 /** Effect twin — yields BackendService + DaemonSessionService. */
-// fallow-ignore-next-line unused-export
 export const reapOrphanCommandRunsEffect = (): Effect.Effect<
   number,
   Error,

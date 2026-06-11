@@ -12,8 +12,8 @@ import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { daemonContextToLayers } from './daemon-context-service.js';
 import type { DaemonDeps } from './deps.js';
 import {
-  clearStaleSpawnedPidsCore,
-  reapOrphanCommandRunsCore,
+  clearStaleSpawnedPidsEffect,
+  reapOrphanCommandRunsEffect,
 } from './handlers/daemon-restart-cleanup.js';
 import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
@@ -350,11 +350,9 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   // backend are stale from before the restart and must be cleared to prevent
   // the UI from showing dead agents as "running" or "starting".
   try {
-    const clearedCount = await clearStaleSpawnedPidsCore({
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      backend: ctx.deps.backend,
-    });
+    const clearedCount = await Effect.runPromise(
+      clearStaleSpawnedPidsEffect().pipe(Effect.provide(daemonContextToLayers(ctx)))
+    );
     if (clearedCount > 0) {
       console.log(`   🧹 Cleared ${clearedCount} stale agent PID(s) from backend`);
     }
@@ -369,11 +367,9 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   // UI correctly labels them rather than showing them as 'replaced' when the user
   // next triggers a run for the same command.
   try {
-    const reapedCount = await reapOrphanCommandRunsCore({
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      backend: ctx.deps.backend,
-    });
+    const reapedCount = await Effect.runPromise(
+      reapOrphanCommandRunsEffect().pipe(Effect.provide(daemonContextToLayers(ctx)))
+    );
     if (reapedCount > 0) {
       console.log(
         `   🧹 Reaped ${reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
