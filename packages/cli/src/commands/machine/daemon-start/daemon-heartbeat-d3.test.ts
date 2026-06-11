@@ -11,13 +11,15 @@
  * All heartbeat Effect twins now require DaemonSessionService (migrated in E3).
  */
 
-import { Effect, Layer } from 'effect';
+import type { Layer } from 'effect';
+import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonSessionService } from './daemon-services.js';
-import { createMockDaemonContext } from './testing/index.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
+import type { DaemonSessionService } from './daemon-services.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
-import type { DaemonContext } from './types.js';
+import type { DaemonSessionInit } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -76,30 +78,33 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
 // Helpers — DaemonSessionService layer
 // ---------------------------------------------------------------------------
 
-function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
-  const ctx = createMockDaemonContext(overrides);
-  return Layer.succeed(DaemonSessionService, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    client: ctx.client,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    agentServices: ctx.agentServices,
-    events: ctx.events,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
+function makeSessionLayer(
+  overrides?: Partial<DaemonSessionInit>
+): Layer.Layer<DaemonSessionService> {
+  const init = createMockDaemonSessionInit(overrides);
+  return daemonSessionToLayers(init);
 }
 
 async function runWithCtx<A>(
   effect: Effect.Effect<A, never, DaemonSessionService>,
-  overrides?: Partial<DaemonContext>
+  overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
+}
+
+/** Spread mock deps into flat DaemonSessionInit overrides. */
+function withDeps(
+  deps: ReturnType<typeof createMockDaemonDeps>,
+  extra?: Partial<DaemonSessionInit>
+): Partial<DaemonSessionInit> {
+  return {
+    backend: deps.backend,
+    fs: deps.fs,
+    machine: deps.machine,
+    spawning: deps.spawning,
+    agentProcessManager: deps.agentProcessManager,
+    ...extra,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +132,7 @@ describe('pushGitStateEffect', () => {
     const { pushGitStateEffect } = await import('./git-heartbeat.js');
 
     const deps = createMockDaemonDeps();
-    await runWithCtx(pushGitStateEffect, { deps, machineId: 'machine-d3-git' });
+    await runWithCtx(pushGitStateEffect, withDeps(deps, { machineId: 'machine-d3-git' }));
 
     expect(getWorkspacesForMachine).toHaveBeenCalledWith(
       expect.objectContaining({ machineId: 'machine-d3-git' })
@@ -141,10 +146,10 @@ describe('pushSingleWorkspaceGitStateEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
-    await runWithCtx(pushSingleWorkspaceGitStateEffect('/tmp/not-a-repo'), {
-      deps,
-      machineId: 'machine-d3',
-    });
+    await runWithCtx(
+      pushSingleWorkspaceGitStateEffect('/tmp/not-a-repo'),
+      withDeps(deps, { machineId: 'machine-d3' })
+    );
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -157,10 +162,10 @@ describe('pushSingleWorkspaceGitStateEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
-    await runWithCtx(pushSingleWorkspaceGitStateEffect('/tmp/repo'), {
-      deps,
-      sessionId: 'session-d3',
-    });
+    await runWithCtx(
+      pushSingleWorkspaceGitStateEffect('/tmp/repo'),
+      withDeps(deps, { sessionId: 'session-d3' })
+    );
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -176,7 +181,7 @@ describe('pushSingleWorkspaceGitSummaryForObservedEffect', () => {
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
     await expect(
-      runWithCtx(pushSingleWorkspaceGitSummaryForObservedEffect('/tmp/not-a-repo'), { deps })
+      runWithCtx(pushSingleWorkspaceGitSummaryForObservedEffect('/tmp/not-a-repo'), withDeps(deps))
     ).resolves.toBeUndefined();
   });
 
@@ -190,7 +195,10 @@ describe('pushSingleWorkspaceGitSummaryForObservedEffect', () => {
 
     // refresh reason forces push even if hash matches — just verify it resolves cleanly
     await expect(
-      runWithCtx(pushSingleWorkspaceGitSummaryForObservedEffect('/tmp/repo', 'refresh'), { deps })
+      runWithCtx(
+        pushSingleWorkspaceGitSummaryForObservedEffect('/tmp/repo', 'refresh'),
+        withDeps(deps)
+      )
     ).resolves.toBeUndefined();
   });
 });
@@ -255,7 +263,7 @@ describe('pushSingleWorkspaceCommandsEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
-    await runWithCtx(pushSingleWorkspaceCommandsEffect('/tmp/workspace'), { deps });
+    await runWithCtx(pushSingleWorkspaceCommandsEffect('/tmp/workspace'), withDeps(deps));
 
     expect(discoverCommands).toHaveBeenCalledWith('/tmp/workspace');
   });
@@ -265,11 +273,10 @@ describe('pushSingleWorkspaceCommandsEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
-    await runWithCtx(pushSingleWorkspaceCommandsEffect('/tmp/ws'), {
-      deps,
-      sessionId: 'session-cmds',
-      machineId: 'machine-cmds',
-    });
+    await runWithCtx(
+      pushSingleWorkspaceCommandsEffect('/tmp/ws'),
+      withDeps(deps, { sessionId: 'session-cmds', machineId: 'machine-cmds' })
+    );
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
@@ -288,7 +295,9 @@ describe('fulfillFileContentRequestsEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
 
-    await expect(runWithCtx(fulfillFileContentRequestsEffect, { deps })).resolves.toBeUndefined();
+    await expect(
+      runWithCtx(fulfillFileContentRequestsEffect, withDeps(deps))
+    ).resolves.toBeUndefined();
   });
 
   it('passes sessionId and machineId from session when querying pending requests', async () => {
@@ -296,11 +305,10 @@ describe('fulfillFileContentRequestsEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
 
-    await runWithCtx(fulfillFileContentRequestsEffect, {
-      deps,
-      sessionId: 'session-file',
-      machineId: 'machine-file',
-    });
+    await runWithCtx(
+      fulfillFileContentRequestsEffect,
+      withDeps(deps, { sessionId: 'session-file', machineId: 'machine-file' })
+    );
 
     expect(deps.backend.query).toHaveBeenCalledWith(
       expect.anything(),
