@@ -13,7 +13,7 @@ import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import type { DaemonContext, SessionId } from './types.js';
+import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -123,24 +123,6 @@ function startFileTreeSubscriptionCore(
 }
 
 // ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-/**
- * Start the reactive file tree subscription.
- *
- * Subscribes to `api.workspaceFiles.getPendingFileTreeRequests` via the Convex
- * WebSocket client. When new pending requests appear, they are fulfilled immediately.
- * @deprecated Use startFileTreeSubscriptionEffect for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export function startFileTreeSubscription(
-  ctx: DaemonContext,
-  wsClient: ConvexClient
-): FileTreeSubscriptionHandle {
-  return startFileTreeSubscriptionCore(
-    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
-    wsClient
-  );
-}
 
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
