@@ -2,7 +2,6 @@
  * Daemon Startup Log — logs version, machine ID, and capabilities on daemon start.
  * Extracted from init.ts for Effect migration.
  */
-// fallow-ignore-file unused-file
 
 import { Effect } from 'effect';
 
@@ -20,6 +19,7 @@ export interface LogStartupDeps {
 /**
  * Core — logs startup information.
  */
+// fallow-ignore-next-line complexity
 export function logStartupCore(
   deps: LogStartupDeps,
   availableModels: Record<string, string[]>
@@ -36,6 +36,7 @@ export function logStartupCore(
 }
 
 /** Effect twin — yields DaemonSessionService. Pure sync log via Effect.sync. */
+// fallow-ignore-next-line unused-export
 export const logStartupEffect = (
   availableModels: Record<string, string[]>
 ): Effect.Effect<void, never, DaemonSessionService> =>

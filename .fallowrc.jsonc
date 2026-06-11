@@ -65,8 +65,6 @@
       "services/backend/application/auth/permissions.ts",
       "services/backend/application/auth/roles.ts",
       "services/backend/application/auth/resolve.ts",
-      // W6-4: daemon-startup-log.ts duplicates init.ts logStartup() temporarily (resolved in W6-5)
-      "packages/cli/src/commands/machine/daemon-start/handlers/daemon-startup-log.ts",
     ],
   },
   "health": {
@@ -76,8 +74,6 @@
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
       "**/tests/**",
-      // W6-4: temporary until W6-5 cleans up init.ts
-      "packages/cli/src/commands/machine/daemon-start/handlers/daemon-startup-log.ts",
     ],
   },
   "audit": {

@@ -46,8 +46,8 @@ import {
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
-import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
+import { logStartupCore } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
 
@@ -316,21 +316,6 @@ async function connectDaemon(
 }
 
 /**
- * Log startup information including version, machine ID, and capabilities.
- */
-function logStartup(ctx: DaemonContext, availableModels: Record<string, string[]>): void {
-  console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
-  console.log(`   CLI version: ${getVersion()}`);
-  console.log(`   Machine ID: ${ctx.machineId}`);
-  console.log(`   Hostname: ${ctx.config?.hostname ?? 'unknown'}`);
-  console.log(`   Available harnesses: ${ctx.config?.availableHarnesses.join(', ') || 'none'}`);
-  console.log(
-    `   Available models: ${Object.keys(availableModels).length > 0 ? `${Object.values(availableModels).flat().length} models across ${Object.keys(availableModels).join(', ')}` : 'none discovered'}`
-  );
-  console.log(`   PID: ${process.pid}`);
-}
-
-/**
  * Recover agent state from previous daemon session.
  * Non-critical: continues with fresh state on failure.
  */
@@ -568,7 +553,7 @@ export async function initDaemon(): Promise<DaemonContext> {
     handleExit: (opts) => deps.agentProcessManager.handleExit(opts),
   });
 
-  logStartup(ctx, availableModels);
+  logStartupCore({ machineId: ctx.machineId, config: ctx.config }, availableModels);
   await recoverState(ctx);
 
   return ctx;
