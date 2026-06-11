@@ -9,6 +9,7 @@ import { Layer } from 'effect';
 import {
   DaemonAgentProcessManagerServiceLive,
   DaemonMachineServiceLive,
+  DaemonMutableStateServiceLive,
   DaemonSessionService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
@@ -29,6 +30,7 @@ import { ProcessServiceLive } from '../../../infrastructure/services/process.js'
  *   - DaemonMachineService wrapping init.machine
  *   - DaemonSpawningService wrapping init.spawning
  *   - DaemonAgentProcessManagerService wrapping init.agentProcessManager
+ *   - DaemonMutableStateService  wrapping mutable state in Effect.Ref
  *   - DaemonSessionService  carrying sessionId, machineId, config, agentServices, events
  */
 export function daemonSessionToLayers(init: DaemonSessionInit) {
@@ -43,6 +45,12 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
     DaemonMachineServiceLive(init.machine),
     DaemonSpawningServiceLive(init.spawning),
     DaemonAgentProcessManagerServiceLive(init.agentProcessManager),
+    DaemonMutableStateServiceLive({
+      lastPushedGitState: init.lastPushedGitState,
+      lastPushedModels: init.lastPushedModels,
+      lastPushedHarnessFingerprint: init.lastPushedHarnessFingerprint,
+      workspaceListStore: init.workspaceListStore,
+    }),
     Layer.succeed(DaemonSessionService, {
       sessionId: init.sessionId,
       machineId: init.machineId,

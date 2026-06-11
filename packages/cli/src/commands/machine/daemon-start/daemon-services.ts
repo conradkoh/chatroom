@@ -189,7 +189,6 @@ export class DaemonMutableStateService extends Context.Tag('DaemonMutableStateSe
 >() {}
 
 /** Build DaemonMutableStateService layer from initial values. */
-// fallow-ignore-next-line unused-export
 export function DaemonMutableStateServiceLive(init: {
   lastPushedGitState: Map<string, string>;
   lastPushedModels: Record<string, string[]> | null;
