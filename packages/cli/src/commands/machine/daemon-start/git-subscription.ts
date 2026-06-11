@@ -552,6 +552,7 @@ export async function processRequestsCore(
  * Start the reactive git request subscription.
  * @deprecated Use startGitRequestSubscriptionEffect for new Effect-based code.
  */
+// fallow-ignore-next-line unused-export
 export function startGitRequestSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient
@@ -598,7 +599,6 @@ export async function processRequests(
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Effect twin for startGitRequestSubscription — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitSubscriptionDeps. */
-// fallow-ignore-next-line unused-export
 export const startGitRequestSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<GitSubscriptionHandle, never, DaemonSessionService> =>

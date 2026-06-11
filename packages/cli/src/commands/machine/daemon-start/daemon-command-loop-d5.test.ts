@@ -129,9 +129,12 @@ vi.mock('./commit-detail-sync.js', async () => {
 
 // startCommandLoop subscription starters — each calls wsClient.onUpdate and
 // returns { stop: () => void }. Mocking prevents transitive import issues.
-vi.mock('./git-subscription.js', () => ({
-  startGitRequestSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
-}));
+vi.mock('./git-subscription.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    startGitRequestSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
+  };
+});
 
 vi.mock('./file-content-subscription.js', () => ({
   startFileContentSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),

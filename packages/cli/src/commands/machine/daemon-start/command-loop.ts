@@ -41,7 +41,10 @@ import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { pushGitStateEffect, pushSingleWorkspaceGitState } from './git-heartbeat.js';
-import { startGitRequestSubscription } from './git-subscription.js';
+import {
+  startGitRequestSubscriptionEffect,
+  type GitSubscriptionHandle,
+} from './git-subscription.js';
 import { forceKillAllCommands, onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
@@ -537,7 +540,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Reactive subscription for on-demand workspace git requests.
   // Uses wsClient.onUpdate to react instantly when pending requests appear.
   // Started after wsClient is initialized (see below).
-  let gitSubscriptionHandle: ReturnType<typeof startGitRequestSubscription> | null = null;
+  let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
 
   // ── File Content Subscription ──────────────────────────────────────
   // Reactive subscription for on-demand file content requests.
@@ -703,7 +706,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // ── Git Request Subscription ──────────────────────────────────────────
   // Now that wsClient is ready, start the reactive git request subscription.
-  gitSubscriptionHandle = startGitRequestSubscription(ctx, wsClient);
+  gitSubscriptionHandle = await Effect.runPromise(
+    startGitRequestSubscriptionEffect(wsClient).pipe(Effect.provide(daemonContextToLayers(ctx)))
+  );
 
   // ── File Content Subscription ──────────────────────────────────────
   // Now that wsClient is ready, start the reactive file content subscription.
