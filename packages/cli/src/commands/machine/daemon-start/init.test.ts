@@ -81,7 +81,6 @@ const { recoverEffectRun } = vi.hoisted(() => ({ recoverEffectRun: vi.fn() }));
 vi.mock('./handlers/state-recovery.js', async () => {
   const { Effect } = await import('effect');
   return {
-    recoverAgentState: vi.fn().mockResolvedValue(undefined),
     recoverAgentStateEffect: Effect.promise(() => recoverEffectRun()),
   };
 });

@@ -24,8 +24,6 @@ export async function daemonStart(): Promise<void> {
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
 
-export { recoverAgentState } from './handlers/state-recovery.js';
-
 export type {
   DaemonContext,
   CommandResult,
