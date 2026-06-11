@@ -573,7 +573,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       journalFactory,
     };
 
-    pendingPromptSubscriptionHandle = startMessageSubscriber(ctx, wsClient, sharedDeps);
+    pendingPromptSubscriptionHandle = startMessageSubscriber(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      wsClient,
+      sharedDeps
+    );
     pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, {
       activeSessions,
       harnesses,
