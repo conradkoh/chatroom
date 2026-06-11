@@ -38,7 +38,10 @@ import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
 import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
+import {
+  startFileContentSubscriptionEffect,
+  type FileContentSubscriptionHandle,
+} from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
 import { pushGitStateEffect, pushSingleWorkspaceGitState } from './git-heartbeat.js';
 import {
@@ -545,7 +548,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── File Content Subscription ──────────────────────────────────────
   // Reactive subscription for on-demand file content requests.
   // Replaces the heartbeat-based polling for near-instant file previews.
-  let fileContentSubscriptionHandle: ReturnType<typeof startFileContentSubscription> | null = null;
+  let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
 
   // ── File Tree Subscription ─────────────────────────────────────────
   // Reactive subscription for on-demand file tree requests.
@@ -712,7 +715,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // ── File Content Subscription ──────────────────────────────────────
   // Now that wsClient is ready, start the reactive file content subscription.
-  fileContentSubscriptionHandle = startFileContentSubscription(ctx, wsClient);
+  fileContentSubscriptionHandle = await Effect.runPromise(
+    startFileContentSubscriptionEffect(wsClient).pipe(Effect.provide(daemonContextToLayers(ctx)))
+  );
 
   // Now that wsClient is ready, start the reactive file tree subscription.
   fileTreeSubscriptionHandle = startFileTreeSubscription(ctx, wsClient);

@@ -91,6 +91,7 @@ function startFileContentSubscriptionCore(
  * @param wsClient - Convex WebSocket client for reactive subscriptions
  * @deprecated Use startFileContentSubscriptionEffect for new Effect-based code.
  */
+// fallow-ignore-next-line unused-export
 export function startFileContentSubscription(
   ctx: DaemonContext,
   wsClient: ConvexClient
@@ -108,7 +109,6 @@ export function startFileContentSubscription(
  * Yields DaemonSessionService; DaemonSessionServiceShape satisfies FileContentSubscriptionDeps
  * (same shape as FulfillFileContentDeps: sessionId, machineId, backend).
  */
-// fallow-ignore-next-line unused-export
 export const startFileContentSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<FileContentSubscriptionHandle, never, DaemonSessionService> =>
