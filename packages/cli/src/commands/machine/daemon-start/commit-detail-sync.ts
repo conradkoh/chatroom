@@ -2,7 +2,7 @@ import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
 import { extractDiffStatFromShowOutput } from './git-subscription.js';
-import type { DaemonContext, SessionId, WorkspaceForSync } from './types.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
@@ -193,30 +193,6 @@ async function prefetchSingleCommitCore(
 }
 
 // ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-/**
- * Sync commit details for all workspaces registered to this machine.
- *
- * @param seenShasMap Optional injection point for tests. When not supplied,
- *   the module-scope `seenShas` map is used so steady-state caching persists
- *   across heartbeat ticks in production.
- * @deprecated Use syncCommitDetailsCore or syncCommitDetailsEffect.
- */
-// fallow-ignore-next-line unused-export
-export async function syncCommitDetails(
-  ctx: DaemonContext,
-  seenShasMap?: Map<string, Set<string>>
-): Promise<void> {
-  return syncCommitDetailsCore(
-    {
-      machineId: ctx.machineId,
-      sessionId: ctx.sessionId,
-      backend: ctx.deps.backend,
-      workspaceListStore: ctx.workspaceListStore,
-    },
-    seenShasMap
-  );
-}
 
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
