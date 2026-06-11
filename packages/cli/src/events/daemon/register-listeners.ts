@@ -6,7 +6,7 @@
  */
 
 import { onAgentExited } from './agent/on-agent-exited.js';
-import { onAgentStarted } from './agent/on-agent-started.js';
+import { onAgentStartedCore } from './agent/on-agent-started.js';
 import { onAgentStopped } from './agent/on-agent-stopped.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 
@@ -14,7 +14,7 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
   const unsubs: (() => void)[] = [];
 
   unsubs.push(ctx.events.on('agent:exited', (payload) => onAgentExited(ctx, payload)));
-  unsubs.push(ctx.events.on('agent:started', (payload) => onAgentStarted(ctx, payload)));
+  unsubs.push(ctx.events.on('agent:started', (payload) => onAgentStartedCore(payload)));
   unsubs.push(ctx.events.on('agent:stopped', (payload) => onAgentStopped(ctx, payload)));
 
   return () => {
