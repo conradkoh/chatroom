@@ -5,7 +5,7 @@
  * Returns an unsubscribe function that removes all listeners (for tests/shutdown).
  */
 
-import { onAgentExited } from './agent/on-agent-exited.js';
+import { onAgentExitedCore } from './agent/on-agent-exited.js';
 import { onAgentStartedCore } from './agent/on-agent-started.js';
 import { onAgentStoppedCore } from './agent/on-agent-stopped.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
@@ -13,7 +13,14 @@ import type { DaemonContext } from '../../commands/machine/daemon-start/types.js
 export function registerEventListeners(ctx: DaemonContext): () => void {
   const unsubs: (() => void)[] = [];
 
-  unsubs.push(ctx.events.on('agent:exited', (payload) => onAgentExited(ctx, payload)));
+  unsubs.push(
+    ctx.events.on('agent:exited', (payload) =>
+      onAgentExitedCore(
+        { handleExit: (opts) => ctx.deps.agentProcessManager.handleExit(opts) },
+        payload
+      )
+    )
+  );
   unsubs.push(ctx.events.on('agent:started', (payload) => onAgentStartedCore(payload)));
   unsubs.push(ctx.events.on('agent:stopped', (payload) => onAgentStoppedCore(payload)));
 
