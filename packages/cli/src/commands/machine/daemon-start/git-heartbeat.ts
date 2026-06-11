@@ -241,29 +241,6 @@ async function pushSingleWorkspaceGitStateImpl(
   }
 }
 
-export async function pushGitStateCore(ctx: GitStateDeps): Promise<void> {
-  const workspaces = await getWorkspacesForMachine({
-    workspaceListStore: ctx.workspaceListStore,
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    backend: ctx.backend,
-  });
-  if (workspaces.length === 0) return;
-
-  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-  if (uniqueWorkingDirs.size === 0) return;
-
-  for (const workingDir of uniqueWorkingDirs) {
-    try {
-      await pushSingleWorkspaceGitStateImpl(ctx, workingDir);
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
-
 export async function pushSingleWorkspaceGitSummaryForObservedCore(
   ctx: GitStateDeps,
   workingDir: string,
@@ -361,11 +338,33 @@ export async function pushSingleWorkspaceGitSummaryForObservedCore(
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for pushGitState — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitStateDeps. */
+/** Effect twin for pushGitState — yields DaemonSessionService. */
 export const pushGitStateEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
   function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => pushGitStateCore(session));
+
+    const workspaces = yield* Effect.promise(() =>
+      getWorkspacesForMachine({
+        workspaceListStore: session.workspaceListStore,
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+      })
+    );
+    if (workspaces.length === 0) return;
+
+    const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+    if (uniqueWorkingDirs.size === 0) return;
+
+    for (const workingDir of uniqueWorkingDirs) {
+      try {
+        yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
+      } catch (err) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
+        );
+      }
+    }
   }
 );
 

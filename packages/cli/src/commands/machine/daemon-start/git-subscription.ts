@@ -25,8 +25,8 @@ import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
-import { DaemonSessionService } from './daemon-services.js';
-import { pushGitStateCore, type GitStateDeps } from './git-heartbeat.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
+import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
@@ -46,8 +46,8 @@ export interface GitSubscriptionHandle {
 
 /**
  * Flat deps required by processor functions (processFullDiff, etc.).
- * Includes lastPushedGitState (for pushGitStateCore after PR actions) and
- * workspaceListStore (for getWorkspacesForMachine inside pushGitStateCore).
+ * Includes lastPushedGitState (for pushGitStateEffect after PR actions) and
+ * workspaceListStore (for getWorkspacesForMachine inside pushGitStateEffect).
  * DaemonSessionServiceShape structurally satisfies this type.
  */
 export type GitSubscriptionDeps = GitStateDeps & {
@@ -210,7 +210,11 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
   );
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
-  await pushGitStateCore(deps).catch((err: unknown) => {
+  await Effect.runPromise(
+    pushGitStateEffect.pipe(
+      Effect.provideService(DaemonSessionService, deps as unknown as DaemonSessionServiceShape)
+    )
+  ).catch((err: unknown) => {
     console.warn(
       `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
     );
