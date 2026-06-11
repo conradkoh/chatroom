@@ -589,13 +589,17 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     );
     lifecycleManager.startMonitoring();
 
-    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient, {
-      lifecycleManager,
-      publisher: new ConvexCapabilitiesPublisher({
-        backend: ctx.deps.backend,
-        sessionId: ctx.sessionId,
-      }),
-    });
+    commandSubscriptionHandle = startCommandSubscriber(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      wsClient,
+      {
+        lifecycleManager,
+        publisher: new ConvexCapabilitiesPublisher({
+          backend: ctx.deps.backend,
+          sessionId: ctx.sessionId,
+        }),
+      }
+    );
   }
 
   console.log(`\nListening for commands...`);
