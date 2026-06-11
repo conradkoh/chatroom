@@ -298,7 +298,7 @@ const commandEventHandlers: Partial<
 
 /**
  * Effect twin for dispatchCommandEvent — uses DaemonSessionService + DaemonAgentProcessManagerService.
- * No DaemonContextService dependency.
+ * No bridge service dependency. (Removed in W8-1)
  */
 // fallow-ignore-next-line unused-export
 export const dispatchCommandEventEffect = (
@@ -309,7 +309,7 @@ export const dispatchCommandEventEffect = (
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 
-/** Effect twin for startCommandLoop — uses granular services instead of DaemonContextService. */
+/** Effect twin for startCommandLoop — uses granular services. */
 export const startCommandLoopEffect: Effect.Effect<
   never,
   never,

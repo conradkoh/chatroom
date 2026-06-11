@@ -1,19 +1,15 @@
 /**
- * Daemon Handler Effect Tests (Phase D1)
+ * Daemon Handler Effect Tests
  *
- * Tests for the Effect twins of four simple daemon handlers:
+ * Tests for the Effect twins of daemon handlers:
  * handlePingEffect, handleStatusEffect, executeStopAgentEffect,
  * handleStopAgentEffect, and recoverAgentStateEffect.
- *
- * Uses DaemonContextService + Layer for pure dependency injection —
- * no process.exit, no real network calls.
  */
 
 import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
-import { DaemonContextService } from '../daemon-context-service.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,
@@ -51,21 +47,6 @@ vi.mock('../../../../api.js', () => ({
     },
   },
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers — DaemonContextService (used by recoverAgentStateEffect, handlePingEffect)
-// ---------------------------------------------------------------------------
-
-function makeLayer(overrides?: Partial<DaemonContext>) {
-  return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
-}
-
-async function run<A>(
-  effect: Effect.Effect<A, never, DaemonContextService>,
-  overrides?: Partial<DaemonContext>
-) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
-}
 
 // ---------------------------------------------------------------------------
 // Helpers — DaemonSessionService (used by handleStatusEffect)
@@ -140,7 +121,7 @@ afterEach(() => {
 
 describe('handlePingEffect', () => {
   it('returns { result: "pong", failed: false }', async () => {
-    const result = await run(handlePingEffect);
+    const result = await Effect.runPromise(handlePingEffect);
     expect(result.result).toBe('pong');
     expect(result.failed).toBe(false);
   });

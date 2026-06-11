@@ -6,7 +6,7 @@
  *
  * refreshModelsEffect and dispatchCommandEventEffect use granular services
  * (DaemonSessionService / DaemonAgentProcessManagerService).
- * startCommandLoopEffect still uses DaemonContextService (pending W2-D).
+ * startCommandLoopEffect uses granular services.
  *
  * Because the Effect twins delegate to same-module functions via closure
  * (not module exports), tests verify behavior through observable side effects
