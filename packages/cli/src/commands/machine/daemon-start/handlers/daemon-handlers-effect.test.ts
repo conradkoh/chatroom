@@ -10,18 +10,15 @@ import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonAgentProcessManagerServiceLive,
-  DaemonSessionService,
-} from '../daemon-services.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
 import { executeStopAgentEffect, handleStopAgentEffect } from './stop-agent.js';
-import { createMockDaemonContext } from '../testing/index.js';
+import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
-import type { DaemonContext, MachineConfig } from '../types.js';
+import type { DaemonSessionInit, MachineConfig } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -79,26 +76,10 @@ async function runWithSession<A>(
 }
 
 // Helper for recoverAgentStateEffect (E5.3) — builds DaemonSessionService + DaemonAgentProcessManagerService
-async function runRecovery(overrides?: Partial<DaemonContext>) {
-  const ctx = createMockDaemonContext(overrides);
-  const sessionLayer = Layer.succeed(DaemonSessionService, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    client: ctx.client,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    agentServices: ctx.agentServices,
-    events: ctx.events,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
-  const apmLayer = DaemonAgentProcessManagerServiceLive(ctx.deps.agentProcessManager);
+async function runRecovery(overrides?: Partial<DaemonSessionInit>) {
+  const init = createMockDaemonSessionInit(overrides);
   return Effect.runPromise(
-    recoverAgentStateEffect.pipe(Effect.provide(Layer.merge(sessionLayer, apmLayer)))
+    recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
   );
 }
 
@@ -279,7 +260,13 @@ describe('recoverAgentStateEffect', () => {
     vi.mocked(deps.agentProcessManager.listActive).mockReturnValue([]);
     vi.mocked(deps.backend.query).mockResolvedValue([]); // getMachineHarnessSessions
 
-    await runRecovery({ deps });
+    await runRecovery({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+    });
 
     expect(deps.agentProcessManager.recover).toHaveBeenCalledOnce();
   });
@@ -290,7 +277,15 @@ describe('recoverAgentStateEffect', () => {
     vi.mocked(deps.backend.query).mockRejectedValue(new Error('Network error'));
 
     // Should resolve without throwing
-    await expect(runRecovery({ deps })).resolves.toBeUndefined();
+    await expect(
+      runRecovery({
+        backend: deps.backend,
+        fs: deps.fs,
+        machine: deps.machine,
+        spawning: deps.spawning,
+        agentProcessManager: deps.agentProcessManager,
+      })
+    ).resolves.toBeUndefined();
   });
 
   it('marks orphan turns when managed sessions have no active slot', async () => {
@@ -312,7 +307,14 @@ describe('recoverAgentStateEffect', () => {
     // markOrphanTurnsFailed returns failedTurns count
     vi.mocked(deps.backend.mutation).mockResolvedValue({ failedTurns: 2 });
 
-    await runRecovery({ deps, machineId: 'test-machine-id' });
+    await runRecovery({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+      machineId: 'test-machine-id',
+    });
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(), // markOrphanTurnsFailed api ref
