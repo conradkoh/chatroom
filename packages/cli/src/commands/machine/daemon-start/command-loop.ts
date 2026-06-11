@@ -550,7 +550,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     );
   }
 
-  logObserverSubscriptionHandle = startLogObserverSubscription(ctx, wsClient);
+  logObserverSubscriptionHandle = startLogObserverSubscription(
+    { sessionId: ctx.sessionId, machineId: ctx.machineId },
+    wsClient
+  );
 
   // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   if (featureFlags.directHarnessWorkers) {
