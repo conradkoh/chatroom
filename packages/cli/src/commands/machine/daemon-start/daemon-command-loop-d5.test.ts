@@ -4,7 +4,9 @@
  * Tests for the Effect twins of command-loop functions:
  *   refreshModelsEffect, dispatchCommandEventEffect, startCommandLoopEffect.
  *
- * All Effect twins require DaemonContextService.
+ * refreshModelsEffect and dispatchCommandEventEffect use granular services
+ * (DaemonSessionService / DaemonAgentProcessManagerService).
+ * startCommandLoopEffect still uses DaemonContextService (pending W2-D).
  *
  * Because the Effect twins delegate to same-module functions via closure
  * (not module exports), tests verify behavior through observable side effects
@@ -15,7 +17,8 @@ import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonContextService } from './daemon-context-service.js';
-import { DaemonSessionService } from './daemon-services.js';
+import type { DaemonAgentProcessManagerService } from './daemon-services.js';
+import { DaemonAgentProcessManagerServiceLive, DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonContext } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonContext } from './types.js';
@@ -108,6 +111,7 @@ vi.mock('./git-heartbeat.js', async () => {
     pushGitState: vi.fn().mockResolvedValue(undefined),
     pushSingleWorkspaceGitState: vi.fn().mockResolvedValue(undefined),
     pushGitStateEffect: Effect.void,
+    pushSingleWorkspaceGitStateEffect: vi.fn().mockReturnValue(Effect.void),
   };
 });
 
@@ -172,20 +176,60 @@ vi.mock('./handlers/ping.js', () => ({
   handlePing: vi.fn().mockReturnValue({ result: 'pong', failed: false }),
 }));
 
+vi.mock('../../../events/daemon/agent/on-request-start-agent.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    onRequestStartAgent: vi.fn().mockResolvedValue(undefined),
+    onRequestStartAgentEffect: vi.fn().mockReturnValue(Effect.void),
+  };
+});
+
+vi.mock('../../../events/daemon/agent/on-request-stop-agent.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    onRequestStopAgent: vi.fn().mockResolvedValue(undefined),
+    onRequestStopAgentEffect: vi.fn().mockReturnValue(Effect.void),
+  };
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** DaemonContextService layer — used by sections B and C (not yet migrated). */
+/** DaemonContextService layer — used by section C (startCommandLoopEffect, not yet migrated). */
 function makeLayer(overrides?: Partial<DaemonContext>) {
   return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
 }
 
-async function runWithCtx<A>(
-  effect: Effect.Effect<A, never, DaemonContextService>,
+/** Combined DaemonSessionService + DaemonAgentProcessManagerService layers — used by dispatchCommandEventEffect. */
+function makeDispatchLayers(
+  overrides?: Partial<DaemonContext>
+): Layer.Layer<DaemonSessionService | DaemonAgentProcessManagerService> {
+  const ctx = createMockDaemonContext(overrides);
+  const sessionLayer = Layer.succeed(DaemonSessionService, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    client: ctx.client,
+    config: ctx.config,
+    backend: ctx.deps.backend,
+    fs: ctx.deps.fs,
+    agentServices: ctx.agentServices,
+    events: ctx.events,
+    workspaceListStore: ctx.workspaceListStore,
+    logger: ctx.logger,
+    lastPushedGitState: ctx.lastPushedGitState,
+    lastPushedModels: ctx.lastPushedModels,
+    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+  });
+  const apmLayer = DaemonAgentProcessManagerServiceLive(ctx.deps.agentProcessManager);
+  return Layer.merge(sessionLayer, apmLayer);
+}
+
+async function runDispatch<A>(
+  effect: Effect.Effect<A, never, DaemonSessionService | DaemonAgentProcessManagerService>,
   overrides?: Partial<DaemonContext>
 ) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
+  return Effect.runPromise(effect.pipe(Effect.provide(makeDispatchLayers(overrides))));
 }
 
 /** DaemonSessionService layer — used by section A (refreshModelsEffect, E5.2). */
@@ -314,13 +358,13 @@ describe('refreshModelsEffect', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchCommandEventEffect', () => {
-  it('processes daemon.ping and calls ackPing mutation with ctx from DaemonContextService', async () => {
+  it('processes daemon.ping and calls ackPing mutation (ctx from DaemonSessionService)', async () => {
     const { dispatchCommandEventEffect } = await import('./command-loop.js');
     const deps = createMockDaemonDeps();
     const event = { _id: 'evt-d5-ping-1', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
-    await runWithCtx(dispatchCommandEventEffect(event, tracker), { deps });
+    await runDispatch(dispatchCommandEventEffect(event, tracker), { deps });
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'mock-ackPing',
@@ -328,13 +372,13 @@ describe('dispatchCommandEventEffect', () => {
     );
   });
 
-  it('passes machineId from DaemonContextService ctx to the ackPing mutation', async () => {
+  it('passes machineId from DaemonSessionService to the ackPing mutation', async () => {
     const { dispatchCommandEventEffect } = await import('./command-loop.js');
     const deps = createMockDaemonDeps();
     const event = { _id: 'evt-d5-ping-2', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
-    await runWithCtx(dispatchCommandEventEffect(event, tracker), {
+    await runDispatch(dispatchCommandEventEffect(event, tracker), {
       deps,
       machineId: 'machine-dispatch',
     });

@@ -13,8 +13,14 @@ import { Effect } from 'effect';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
-import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import {
+  onRequestStartAgent,
+  onRequestStartAgentEffect,
+} from '../../../events/daemon/agent/on-request-start-agent.js';
+import {
+  onRequestStopAgent,
+  onRequestStopAgentEffect,
+} from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
@@ -28,6 +34,8 @@ import { releaseLock } from '../pid.js';
 import { pushCommandsEffect } from './command-sync-heartbeat.js';
 import { syncCommitDetailsEffect } from './commit-detail-sync.js';
 import { DaemonContextService, daemonContextToLayers } from './daemon-context-service.js';
+import type { DaemonAgentProcessManagerService } from './daemon-services.js';
+import { DaemonSessionService } from './daemon-services.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
@@ -40,17 +48,27 @@ import {
   startFileTreeSubscriptionEffect,
   type FileTreeSubscriptionHandle,
 } from './file-tree-subscription.js';
-import { pushGitStateEffect, pushSingleWorkspaceGitState } from './git-heartbeat.js';
+import {
+  pushGitStateEffect,
+  pushSingleWorkspaceGitState,
+  pushSingleWorkspaceGitStateEffect,
+} from './git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
 } from './git-subscription.js';
-import { forceKillAllCommands, onCommandRun, onCommandStop } from './handlers/command-runner.js';
+import {
+  forceKillAllCommands,
+  onCommandRun,
+  onCommandRunEffect,
+  onCommandStop,
+  onCommandStopEffect,
+} from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
-import { refreshModelsEffect } from './models-refresh.js';
+import { refreshModelsEffect, type RefreshModelsOutcome } from './models-refresh.js';
 import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -636,16 +654,200 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for dispatchCommandEvent — yields DaemonContextService and delegates. */
+/** Union of services required to dispatch any command event. */
+type CommandDispatchDeps = DaemonAgentProcessManagerService | DaemonSessionService;
+
+// ── Per-event Effect helpers (private) ────────────────────────────────────────
+
+function handleRequestStartEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.commandIds.has(eventId)) return;
+    yield* onRequestStartAgentEffect(event as Parameters<typeof onRequestStartAgentEffect>[0]);
+    tracker.commandIds.set(eventId, Date.now());
+  });
+}
+
+function handleRequestStopEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonAgentProcessManagerService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.commandIds.has(eventId)) return;
+    yield* onRequestStopAgentEffect(event as Parameters<typeof onRequestStopAgentEffect>[0]);
+    tracker.commandIds.set(eventId, Date.now());
+  });
+}
+
+function handlePingCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.pingIds.has(eventId)) return;
+    handlePing();
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.machines.ackPing, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        pingEventId: event._id,
+      })
+    );
+    tracker.pingIds.set(eventId, Date.now());
+  });
+}
+
+function handleGitRefreshCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.gitRefreshIds.has(eventId)) return;
+    const session = yield* DaemonSessionService;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitRefresh' }>;
+    session.lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
+    console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
+    yield* pushGitStateEffect;
+    tracker.gitRefreshIds.set(eventId, Date.now());
+  });
+}
+
+/** Git action types that should trigger a workspace git-state push after completion. */
+const GIT_PUSH_ACTIONS = new Set(['git-pull', 'git-push', 'git-sync', 'git-discard-all']);
+
+function handleLocalActionCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.localActionIds.has(eventId)) return;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.localAction' }>;
+    console.log(
+      `[${formatTimestamp()}] 🖥️  Local action: ${typedEvent.action} → ${typedEvent.workingDir}`
+    );
+    const result = yield* Effect.promise(() =>
+      executeLocalAction(typedEvent.action, typedEvent.workingDir)
+    );
+    if (!result.success) {
+      console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
+    } else if (GIT_PUSH_ACTIONS.has(typedEvent.action)) {
+      const session = yield* DaemonSessionService;
+      session.lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
+      yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
+    }
+    tracker.localActionIds.set(eventId, Date.now());
+  });
+}
+
+function handleCommandRunEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    // command.run: register dedup BEFORE handler (spawning a process is NOT idempotent)
+    if (tracker.commandRunIds.has(eventId)) return;
+    tracker.commandRunIds.set(eventId, Date.now());
+    yield* onCommandRunEffect(event as unknown as Parameters<typeof onCommandRunEffect>[0]);
+  });
+}
+
+function handleCommandStopEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.commandStopIds.has(eventId)) return;
+    yield* onCommandStopEffect(event as unknown as Parameters<typeof onCommandStopEffect>[0]);
+    tracker.commandStopIds.set(eventId, Date.now());
+  });
+}
+
+/** Map a RefreshModelsOutcome to the status/errorMessage for reportCapabilitiesRefreshResult. */
+function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
+  status: 'completed' | 'skipped_no_changes' | 'failed';
+  errorMessage?: string;
+} {
+  if (outcome.kind === 'pushed') return { status: 'completed' };
+  if (outcome.kind === 'skipped_no_changes') return { status: 'skipped_no_changes' };
+  if (outcome.kind === 'failed') return { status: 'failed', errorMessage: outcome.message };
+  return { status: 'failed', errorMessage: 'Daemon configuration unavailable' };
+}
+
+function handleRefreshCapabilitiesEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.capabilitiesRefreshIds.has(eventId)) return;
+    console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
+    const outcome = yield* refreshModelsEffect;
+    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
+    const batchId = 'batchId' in event ? (event as any).batchId : undefined;
+    if (!batchId) return;
+    const session = yield* DaemonSessionService;
+    const { status, errorMessage } = capabilitiesOutcomeToStatus(outcome);
+    yield* Effect.tryPromise({
+      try: () =>
+        session.backend.mutation(api.machines.reportCapabilitiesRefreshResult, {
+          sessionId: session.sessionId,
+          batchId,
+          machineId: session.machineId,
+          status,
+          errorMessage,
+        }),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Capabilities refresh report failed: ${getErrorMessage(error)}`
+          );
+        })
+      )
+    );
+  });
+}
+
+/** Dispatch table: event type string → per-event Effect handler factory. */
+const commandEventHandlers: Partial<
+  Record<
+    string,
+    (event: CommandEvent, tracker: DedupTracker) => Effect.Effect<void, never, CommandDispatchDeps>
+  >
+> = {
+  'agent.requestStart': handleRequestStartEffect,
+  'agent.requestStop': handleRequestStopEffect,
+  'daemon.ping': handlePingCommandEffect,
+  'daemon.gitRefresh': handleGitRefreshCommandEffect,
+  'daemon.localAction': handleLocalActionCommandEffect,
+  'command.run': handleCommandRunEffect,
+  'command.stop': handleCommandStopEffect,
+  'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
+};
+
+/**
+ * Effect twin for dispatchCommandEvent — uses DaemonSessionService + DaemonAgentProcessManagerService.
+ * No DaemonContextService dependency.
+ */
 // fallow-ignore-next-line unused-export
 export const dispatchCommandEventEffect = (
   event: Parameters<typeof dispatchCommandEvent>[1],
   tracker: Parameters<typeof dispatchCommandEvent>[2]
-): Effect.Effect<void, never, DaemonContextService> =>
-  Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    yield* Effect.promise(() => dispatchCommandEvent(ctx, event, tracker));
-  });
+): Effect.Effect<void, never, CommandDispatchDeps> => {
+  const factory = commandEventHandlers[event.type as string];
+  return factory != null ? factory(event, tracker) : Effect.void;
+};
 
 /** Effect twin for startCommandLoop — yields DaemonContextService and delegates. */
 // fallow-ignore-next-line unused-export
