@@ -13,14 +13,15 @@
  * rather than mock call-count assertions on the wrapped functions.
  */
 
-import { Effect, Layer } from 'effect';
+import type { Layer } from 'effect';
+import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { DaemonAgentProcessManagerService } from './daemon-services.js';
-import { DaemonAgentProcessManagerServiceLive, DaemonSessionService } from './daemon-services.js';
-import { createMockDaemonContext } from './testing/index.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
+import type { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
-import type { DaemonContext } from './types.js';
+import type { DaemonSessionInit } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -197,60 +198,46 @@ vi.mock('../../../events/daemon/agent/on-request-stop-agent.js', async () => {
 
 /** Combined DaemonSessionService + DaemonAgentProcessManagerService layers — used by dispatchCommandEventEffect and startCommandLoopEffect. */
 function makeDispatchLayers(
-  overrides?: Partial<DaemonContext>
+  overrides?: Partial<DaemonSessionInit>
 ): Layer.Layer<DaemonSessionService | DaemonAgentProcessManagerService> {
-  const ctx = createMockDaemonContext(overrides);
-  const sessionLayer = Layer.succeed(DaemonSessionService, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    client: ctx.client,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    agentServices: ctx.agentServices,
-    events: ctx.events,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
-  const apmLayer = DaemonAgentProcessManagerServiceLive(ctx.deps.agentProcessManager);
-  return Layer.merge(sessionLayer, apmLayer);
+  const init = createMockDaemonSessionInit(overrides);
+  return daemonSessionToLayers(init);
 }
 
 async function runDispatch<A>(
   effect: Effect.Effect<A, never, DaemonSessionService | DaemonAgentProcessManagerService>,
-  overrides?: Partial<DaemonContext>
+  overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeDispatchLayers(overrides))));
 }
 
 /** DaemonSessionService layer — used by section A (refreshModelsEffect, E5.2). */
-function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
-  const ctx = createMockDaemonContext(overrides);
-  return Layer.succeed(DaemonSessionService, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    client: ctx.client,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    agentServices: ctx.agentServices,
-    events: ctx.events,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
+function makeSessionLayer(
+  overrides?: Partial<DaemonSessionInit>
+): Layer.Layer<DaemonSessionService> {
+  const init = createMockDaemonSessionInit(overrides);
+  return daemonSessionToLayers(init);
 }
 
 async function runWithSession<A>(
   effect: Effect.Effect<A, never, DaemonSessionService>,
-  overrides?: Partial<DaemonContext>
+  overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
+}
+
+function withDeps(
+  deps: ReturnType<typeof createMockDaemonDeps>,
+  extra?: Partial<DaemonSessionInit>
+): Partial<DaemonSessionInit> {
+  return {
+    backend: deps.backend,
+    fs: deps.fs,
+    machine: deps.machine,
+    spawning: deps.spawning,
+    agentProcessManager: deps.agentProcessManager,
+    ...extra,
+  };
 }
 
 /** Build a fresh DedupTracker with all maps empty. */
@@ -306,12 +293,10 @@ describe('refreshModelsEffect', () => {
       harnessVersions: {},
     } as any;
 
-    const result = await runWithSession(refreshModelsEffect, {
-      deps,
-      config,
-      lastPushedModels: null,
-      lastPushedHarnessFingerprint: null,
-    });
+    const result = await runWithSession(
+      refreshModelsEffect,
+      withDeps(deps, { config, lastPushedModels: null, lastPushedHarnessFingerprint: null })
+    );
 
     expect(result).toEqual({ kind: 'pushed' });
     expect(deps.backend.mutation).toHaveBeenCalledWith(
@@ -335,12 +320,14 @@ describe('refreshModelsEffect', () => {
       harnessVersions: {},
     } as any;
 
-    const result = await runWithSession(refreshModelsEffect, {
-      deps,
-      config,
-      lastPushedModels: { opencode: ['opencode/model-a'] },
-      lastPushedHarnessFingerprint: null, // null → harnessFingerprintChanged=false
-    });
+    const result = await runWithSession(
+      refreshModelsEffect,
+      withDeps(deps, {
+        config,
+        lastPushedModels: { opencode: ['opencode/model-a'] },
+        lastPushedHarnessFingerprint: null,
+      })
+    );
 
     expect(result).toEqual({ kind: 'skipped_no_changes' });
     expect(deps.backend.mutation).not.toHaveBeenCalled();
@@ -358,7 +345,7 @@ describe('dispatchCommandEventEffect', () => {
     const event = { _id: 'evt-d5-ping-1', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker), { deps });
+    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'mock-ackPing',
@@ -372,10 +359,10 @@ describe('dispatchCommandEventEffect', () => {
     const event = { _id: 'evt-d5-ping-2', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker), {
-      deps,
-      machineId: 'machine-dispatch',
-    });
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker),
+      withDeps(deps, { machineId: 'machine-dispatch' })
+    );
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'mock-ackPing',
