@@ -18,7 +18,6 @@ import {
   fulfillFileContentRequestsCore,
   type FulfillFileContentDeps,
 } from './file-content-fulfillment.js';
-import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -80,26 +79,6 @@ function startFileContentSubscriptionCore(
       console.log(`[${formatTimestamp()}] 📂 File content subscription stopped`);
     },
   };
-}
-
-// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-/**
- * Start the reactive file content subscription.
- *
- * @param ctx - Daemon context (session, machineId, deps)
- * @param wsClient - Convex WebSocket client for reactive subscriptions
- * @deprecated Use startFileContentSubscriptionEffect for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export function startFileContentSubscription(
-  ctx: DaemonContext,
-  wsClient: ConvexClient
-): FileContentSubscriptionHandle {
-  return startFileContentSubscriptionCore(
-    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
-    wsClient
-  );
 }
 
 // ── Effect twin ───────────────────────────────────────────────────────────────
