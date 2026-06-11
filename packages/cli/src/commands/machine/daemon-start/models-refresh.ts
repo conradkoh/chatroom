@@ -9,7 +9,7 @@ import { Effect } from 'effect';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { discoverModels } from './init.js';
-import type { DaemonContext, SessionId } from './types.js';
+import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -237,23 +237,6 @@ async function refreshModelsCore(
         })
       )
     )
-  );
-}
-
-/**
- * Re-discover models and update the backend registration when the set has changed.
- * @deprecated Use refreshModelsCore or refreshModelsEffect for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
-  return refreshModelsCore(
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      backend: ctx.deps.backend,
-      agentServices: ctx.agentServices,
-    },
-    ctx
   );
 }
 
