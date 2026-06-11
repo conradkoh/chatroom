@@ -260,6 +260,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
   );
 }
 
+/**
+ * @deprecated Use shutdownAllCommandsEffect for new Effect-based code.
+ */
 export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
   if (processManager.size === 0) return;
 
@@ -370,3 +373,75 @@ export const onCommandStopEffect = (event: {
 export const forceKillAllCommandsEffect: Effect.Effect<void> = Effect.sync(() =>
   forceKillAllCommands()
 );
+
+/** Effect twin for shutdownAllCommands — yields DaemonSessionService. */
+// fallow-ignore-next-line unused-export
+export const shutdownAllCommandsEffect: Effect.Effect<void, never, DaemonSessionService> =
+  Effect.gen(function* () {
+    if (processManager.size === 0) return;
+
+    const session = yield* DaemonSessionService;
+
+    console.log(
+      `[${formatTimestamp()}] Shutting down ${processManager.size} running command(s)...`
+    );
+
+    const trackedEntries = processManager.getAll();
+
+    // Phase 1 — kill first (same logic as legacy)
+    for (const [, tracked] of trackedEntries) {
+      clearInterval(tracked.flushTimer);
+      if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
+      killProcess(tracked.process, 'SIGTERM');
+    }
+
+    // Phase 2 — best-effort backend status updates in parallel
+    const statusUpdates = Promise.allSettled(
+      trackedEntries.map(([, tracked]) =>
+        session.backend
+          .mutation(api.commands.updateRunStatus, {
+            sessionId: session.sessionId as SessionId,
+            machineId: session.machineId,
+            runId: tracked.runId as any,
+            status: 'killed',
+            terminationReason: 'daemon-shutdown',
+          })
+          .catch((err) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️ Failed to mark run as killed on shutdown: ${getErrorMessage(err)}`
+            );
+          })
+      )
+    );
+
+    // Phase 3 — grace period (3s), then SIGKILL survivors
+    yield* Effect.promise(
+      () =>
+        new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, 3_000);
+          t.unref?.();
+        })
+    );
+
+    for (const [, tracked] of trackedEntries) {
+      if (processManager.has(tracked.runId)) {
+        killProcess(tracked.process, 'SIGKILL');
+      }
+    }
+
+    processManager.clear();
+    clearTrackedPids();
+
+    // Cap network wait to 2s
+    yield* Effect.promise(() =>
+      Promise.race([
+        statusUpdates,
+        new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, 2_000);
+          t.unref?.();
+        }),
+      ])
+    );
+
+    console.log(`[${formatTimestamp()}] All commands stopped`);
+  });
