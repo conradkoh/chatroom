@@ -15,7 +15,6 @@ import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../commands/machine/daemon-start/daemon-services.js';
-import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 
 /** Flat deps for core — no DaemonContext. */
 export interface RegisterEventListenersDeps {
@@ -61,15 +60,3 @@ export const registerEventListenersEffect = (): Effect.Effect<
       handleExit: (opts) => Effect.runPromise(apm.handleExit(opts)),
     });
   });
-
-/**
- * Legacy wrapper — delegates to core. Removed in W5-6 when test updates complete.
- * @deprecated Use registerEventListenersCore or registerEventListenersEffect.
- */
-// fallow-ignore-next-line unused-export
-export function registerEventListeners(ctx: DaemonContext): () => void {
-  return registerEventListenersCore({
-    events: ctx.events,
-    handleExit: (opts) => ctx.deps.agentProcessManager.handleExit(opts),
-  });
-}

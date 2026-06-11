@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 import type { DaemonContext } from './types.js';
 import type { Id } from '../../../api.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
+import { registerEventListenersCore } from '../../../events/daemon/register-listeners.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -68,10 +68,17 @@ function createTestContext(): DaemonContext {
   };
 }
 
+function registerListeners(ctx: DaemonContext): () => void {
+  return registerEventListenersCore({
+    events: ctx.events,
+    handleExit: (opts) => ctx.deps.agentProcessManager.handleExit(opts),
+  });
+}
+
 describe('registerEventListeners', () => {
   test('agent:exited delegates to agentProcessManager.handleExit', () => {
     const ctx = createTestContext();
-    registerEventListeners(ctx);
+    registerListeners(ctx);
 
     ctx.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -93,7 +100,7 @@ describe('registerEventListeners', () => {
 
   test('agent:exited passes correct args for intentional stops', () => {
     const ctx = createTestContext();
-    registerEventListeners(ctx);
+    registerListeners(ctx);
 
     ctx.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -115,7 +122,7 @@ describe('registerEventListeners', () => {
 
   test('unsubscribe removes all listeners', () => {
     const ctx = createTestContext();
-    const unsubscribe = registerEventListeners(ctx);
+    const unsubscribe = registerListeners(ctx);
 
     unsubscribe();
 
@@ -133,7 +140,7 @@ describe('registerEventListeners', () => {
 
   test('agent:exited handles natural process exit (code 0)', () => {
     const ctx = createTestContext();
-    registerEventListeners(ctx);
+    registerListeners(ctx);
 
     ctx.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -155,7 +162,7 @@ describe('registerEventListeners', () => {
 
   test('agent:exited passes signal information', () => {
     const ctx = createTestContext();
-    registerEventListeners(ctx);
+    registerListeners(ctx);
 
     ctx.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
