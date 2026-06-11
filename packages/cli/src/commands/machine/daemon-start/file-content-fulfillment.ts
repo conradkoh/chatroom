@@ -78,39 +78,6 @@ export type FulfillFileContentDeps = {
 
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
 
-/**
- * Poll for pending file content requests and fulfill them.
- * Exported so file-content-subscription.ts can call it directly.
- */
-export async function fulfillFileContentRequestsCore(ctx: FulfillFileContentDeps): Promise<void> {
-  let requests: { _id: string; workingDir: string; filePath: string }[];
-  try {
-    requests = await ctx.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    });
-  } catch (_err) {
-    // Silently skip — will retry on next poll
-    return;
-  }
-
-  if (requests.length === 0) return;
-
-  console.log(
-    `[${formatTimestamp()}] 📥 Received ${requests.length} pending file content request(s): ${requests.map((r) => r.filePath).join(', ')}`
-  );
-
-  for (const request of requests) {
-    try {
-      await fulfillSingleRequestCore(ctx, request);
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  File content fulfillment failed for ${request.filePath}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
-
 async function fulfillSingleRequestCore(
   ctx: FulfillFileContentDeps,
   request: { workingDir: string; filePath: string }
@@ -190,10 +157,36 @@ async function fulfillSingleRequestCore(
 
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
-/** Effect twin for fulfillFileContentRequests — yields DaemonSessionService; DaemonSessionServiceShape satisfies FulfillFileContentDeps. */
-// fallow-ignore-next-line unused-export
+/** Effect twin for fulfillFileContentRequests — yields DaemonSessionService. */
 export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, DaemonSessionService> =
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => fulfillFileContentRequestsCore(session));
+
+    let requests: { _id: string; workingDir: string; filePath: string }[];
+    try {
+      requests = yield* Effect.promise(() =>
+        session.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+        })
+      );
+    } catch (_err) {
+      return;
+    }
+
+    if (requests.length === 0) return;
+
+    console.log(
+      `[${formatTimestamp()}] 📥 Received ${requests.length} pending file content request(s): ${requests.map((r) => r.filePath).join(', ')}`
+    );
+
+    for (const request of requests) {
+      try {
+        yield* Effect.promise(() => fulfillSingleRequestCore(session, request));
+      } catch (err) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  File content fulfillment failed for ${request.filePath}: ${getErrorMessage(err)}`
+        );
+      }
+    }
   });

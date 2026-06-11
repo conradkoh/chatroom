@@ -14,7 +14,7 @@ import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import { fulfillFileContentRequestsCore } from './file-content-fulfillment.js';
+import { fulfillFileContentRequestsEffect } from './file-content-fulfillment.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -44,7 +44,11 @@ export const startFileContentSubscriptionEffect = (
         if (processing) return;
 
         processing = true;
-        fulfillFileContentRequestsCore(session)
+        Effect.runPromise(
+          fulfillFileContentRequestsEffect.pipe(
+            Effect.provideService(DaemonSessionService, session)
+          )
+        )
           .catch((err: unknown) => {
             console.warn(
               `[${formatTimestamp()}] ⚠️  File content subscription processing failed: ${getErrorMessage(err)}`
