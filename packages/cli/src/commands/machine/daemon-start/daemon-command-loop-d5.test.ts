@@ -102,10 +102,14 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
 
 // startCommandLoop startup helpers — errors are swallowed with .catch(()=>{})
 // but mocking keeps tests fast and avoids real I/O.
-vi.mock('./git-heartbeat.js', () => ({
-  pushGitState: vi.fn().mockResolvedValue(undefined),
-  pushSingleWorkspaceGitState: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('./git-heartbeat.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    pushGitState: vi.fn().mockResolvedValue(undefined),
+    pushSingleWorkspaceGitState: vi.fn().mockResolvedValue(undefined),
+    pushGitStateEffect: Effect.void,
+  };
+});
 
 vi.mock('./command-sync-heartbeat.js', () => ({
   pushCommands: vi.fn().mockResolvedValue(undefined),

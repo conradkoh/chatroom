@@ -43,7 +43,6 @@ export class DaemonContextService extends Context.Tag('DaemonContextService')<
  *
  * Used to wire the Effect pipeline in production and in tests via Layer.provide.
  */
-// fallow-ignore-next-line unused-export
 export function daemonContextToLayers(ctx: DaemonContext) {
   return Layer.mergeAll(
     BackendServiceLive({

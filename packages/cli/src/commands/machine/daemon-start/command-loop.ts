@@ -32,7 +32,7 @@ import { releaseLock } from '../pid.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { pushCommands } from './command-sync-heartbeat.js';
 import { syncCommitDetails } from './commit-detail-sync.js';
-import { DaemonContextService } from './daemon-context-service.js';
+import { DaemonContextService, daemonContextToLayers } from './daemon-context-service.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
@@ -40,7 +40,7 @@ import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
 import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
 import { startFileContentSubscription } from './file-content-subscription.js';
 import { startFileTreeSubscription } from './file-tree-subscription.js';
-import { pushGitState, pushSingleWorkspaceGitState } from './git-heartbeat.js';
+import { pushGitStateEffect, pushSingleWorkspaceGitState } from './git-heartbeat.js';
 import { startGitRequestSubscription } from './git-subscription.js';
 import { forceKillAllCommands, onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroups } from './handlers/orphan-tracker.js';
@@ -396,7 +396,7 @@ export async function dispatchCommandEvent(
 
     // Push git state immediately (non-blocking from caller perspective)
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${event.workingDir}`);
-    await pushGitState(ctx);
+    await Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(daemonContextToLayers(ctx))));
     tracker.gitRefreshIds.set(eventId, Date.now());
   } else if (event.type === 'daemon.localAction') {
     // Session dedup — don't re-process same local action event twice in one daemon run
@@ -481,6 +481,9 @@ export async function dispatchCommandEvent(
  * enqueue them, and process sequentially.
  */
 export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
+  // Build all Effect service layers once — reused by every twin call in this function.
+  const layers = daemonContextToLayers(ctx);
+
   // ── Daemon Heartbeat ──────────────────────────────────────────────────
   // Periodically update lastSeenAt so the backend can detect daemon crashes.
   // If the daemon is killed with SIGKILL, heartbeats stop and the backend
@@ -497,11 +500,13 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
         // When observedSyncEnabled is true, skip periodic pushes — handled by observed-sync subscription instead
         if (!ctx.observedSyncEnabled) {
-          pushGitState(ctx).catch((err: unknown) => {
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
-            );
-          });
+          Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(layers))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
           pushCommands(ctx).catch((err: unknown) => {
             console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
           });
@@ -566,7 +571,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   if (ctx.observedSyncEnabled) {
     console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
   } else {
-    pushGitState(ctx).catch(() => {});
+    Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(layers))).catch(() => {});
     pushCommands(ctx).catch(() => {});
     syncCommitDetails(ctx).catch(() => {});
   }

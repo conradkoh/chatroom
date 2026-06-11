@@ -357,6 +357,7 @@ export async function pushSingleWorkspaceGitSummaryForObservedCore(
 // ── Public wrappers (backward-compat — old call sites in command-loop.ts) ─────
 
 /** @deprecated Use pushGitStateCore or pushGitStateEffect. */
+// fallow-ignore-next-line unused-export
 export async function pushGitState(ctx: DaemonContext): Promise<void> {
   return pushGitStateCore({
     machineId: ctx.machineId,
@@ -405,7 +406,6 @@ export async function pushSingleWorkspaceGitSummaryForObserved(
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Effect twin for pushGitState — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitStateDeps. */
-// fallow-ignore-next-line unused-export
 export const pushGitStateEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
   function* () {
     const session = yield* DaemonSessionService;

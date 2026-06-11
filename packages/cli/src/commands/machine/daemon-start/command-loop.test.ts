@@ -15,10 +15,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { dispatchCommandEvent, refreshModels } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
-import { pushGitState } from './git-heartbeat.js';
 import { onCommandRun, onCommandStop } from './handlers/command-runner.js';
 import { handlePing } from './handlers/ping.js';
 import type { DaemonContext, AgentHarness } from './types.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
@@ -46,9 +46,17 @@ vi.mock('./handlers/command-runner.js', () => ({
   onCommandStop: vi.fn(),
 }));
 
-vi.mock('./git-heartbeat.js', () => ({
-  pushGitState: vi.fn(),
-  pushSingleWorkspaceGitSummaryForObserved: vi.fn(),
+vi.mock('./git-heartbeat.js', async (importOriginal) => {
+  const mod = await importOriginal();
+  return {
+    ...(mod as Record<string, unknown>),
+    // Keep deprecated wrapper as a vi.fn so other tests can assert on it if needed
+    pushSingleWorkspaceGitSummaryForObserved: vi.fn(),
+  };
+});
+
+vi.mock('./workspace-cache.js', () => ({
+  getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../../infrastructure/local-actions/index.js', () => ({
@@ -75,9 +83,9 @@ const { mockEnsureMachineRegistered } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../infrastructure/machine/index.js', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('../../../infrastructure/machine/index.js')>();
+  const mod = await importOriginal();
   return {
-    ...mod,
+    ...(mod as Record<string, unknown>),
     ensureMachineRegistered: mockEnsureMachineRegistered,
   };
 });
@@ -493,7 +501,7 @@ describe('dispatchCommandEvent', () => {
     vi.mocked(handlePing).mockReset();
     vi.mocked(onCommandRun).mockReset();
     vi.mocked(onCommandStop).mockReset();
-    vi.mocked(pushGitState).mockReset();
+    vi.mocked(getWorkspacesForMachine).mockResolvedValue([]);
     vi.mocked(executeLocalAction).mockReset();
   });
 
@@ -572,7 +580,7 @@ describe('dispatchCommandEvent', () => {
   // ── daemon.gitRefresh ────────────────────────────────────────────────────
 
   it('daemon.gitRefresh: sets dedup ID after successful handler', async () => {
-    vi.mocked(pushGitState).mockResolvedValue(undefined);
+    vi.mocked(getWorkspacesForMachine).mockResolvedValue([]);
     const event = makeEvent('daemon.gitRefresh', 'evt-git-ok', { workingDir: '/tmp' });
 
     await dispatchCommandEvent(ctx, event, tracker);
@@ -580,8 +588,8 @@ describe('dispatchCommandEvent', () => {
     expect(tracker.gitRefreshIds.has('evt-git-ok')).toBe(true);
   });
 
-  it('daemon.gitRefresh: does NOT set dedup ID when pushGitState throws (enables retry)', async () => {
-    vi.mocked(pushGitState).mockRejectedValue(new Error('git error'));
+  it('daemon.gitRefresh: does NOT set dedup ID when git push fails (enables retry)', async () => {
+    vi.mocked(getWorkspacesForMachine).mockRejectedValue(new Error('git error'));
     const event = makeEvent('daemon.gitRefresh', 'evt-git-fail', { workingDir: '/tmp' });
 
     await expect(dispatchCommandEvent(ctx, event, tracker)).rejects.toThrow('git error');
