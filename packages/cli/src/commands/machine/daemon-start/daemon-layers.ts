@@ -1,6 +1,7 @@
 /**
- * daemonContextToLayers — convenience builder that creates granular Effect service
- * layers from a DaemonContext for use in production and tests.
+ * daemon-layers — builds granular Effect service layers from a DaemonContext.
+ *
+ * Provides daemonContextToLayers() for wiring Effect pipelines in production and tests.
  */
 
 import { Layer } from 'effect';
