@@ -14,7 +14,7 @@
 import { Effect, Layer } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { daemonContextToLayers } from './daemon-context-service.js';
+import { daemonContextToLayers } from './daemon-layers.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,

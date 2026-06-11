@@ -9,7 +9,7 @@ import type { ConvexHttpClient } from 'convex/browser';
 import { Effect, Schedule, Duration } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { daemonContextToLayers } from './daemon-context-service.js';
+import { daemonContextToLayers } from './daemon-layers.js';
 import type { DaemonDeps } from './deps.js';
 import {
   clearStaleSpawnedPidsEffect,

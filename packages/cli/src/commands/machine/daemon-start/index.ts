@@ -9,7 +9,7 @@
 import { Effect } from 'effect';
 
 import { startCommandLoopEffect } from './command-loop.js';
-import { daemonContextToLayers } from './daemon-context-service.js';
+import { daemonContextToLayers } from './daemon-layers.js';
 import { initDaemon } from './init.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────

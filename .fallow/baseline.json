@@ -144,7 +144,7 @@
     "apps/webapp/src/modules/password-protection/password-utils.ts:generatePasswordHash",
     "packages/cli/src/commands/auth-login/index.ts:createDefaultDeps",
     "packages/cli/src/commands/auth-login/index.ts:getWebAppUrl",
-    "packages/cli/src/commands/machine/daemon-start/daemon-context-service.ts:DaemonContextService",
+    "packages/cli/src/commands/machine/daemon-start/daemon-layers.ts:DaemonContextService",
     "packages/cli/src/commands/machine/daemon-start/git-heartbeat.ts:pushSingleWorkspaceGitState",
     "packages/cli/src/commands/machine/daemon-start/handlers/process/manager.ts:ProcessManager",
     "packages/cli/src/commands/machine/daemon-start/handlers/process/output-store.ts:TAIL_WINDOW_BYTES",
