@@ -2,7 +2,7 @@ import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliab
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import type { DaemonContext, SessionId, WorkspaceForSync } from './types.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
@@ -351,27 +351,6 @@ export async function pushSingleWorkspaceGitSummaryForObservedCore(
   ctx.lastPushedGitState.set(stateKey, hash);
   console.log(
     `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
-  );
-}
-
-// ── Public wrappers (backward-compat — old call sites in command-loop.ts) ─────
-
-/** @deprecated Use pushSingleWorkspaceGitSummaryForObservedCore or the Effect twin. */
-// fallow-ignore-next-line unused-export
-export async function pushSingleWorkspaceGitSummaryForObserved(
-  ctx: DaemonContext,
-  workingDir: string,
-  reason?: 'safety-poll' | 'refresh'
-): Promise<void> {
-  return pushSingleWorkspaceGitSummaryForObservedCore(
-    {
-      machineId: ctx.machineId,
-      sessionId: ctx.sessionId,
-      backend: ctx.deps.backend,
-      lastPushedGitState: ctx.lastPushedGitState,
-    },
-    workingDir,
-    reason
   );
 }
 
