@@ -27,7 +27,6 @@ import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
 import { pushGitStateCore, type GitStateDeps } from './git-heartbeat.js';
-import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
@@ -544,56 +543,6 @@ export async function processRequestsCore(
         .catch(() => {});
     }
   }
-}
-
-// ── Public wrappers (backward-compat — old call sites and git-subscription.test.ts) ──
-
-/**
- * Start the reactive git request subscription.
- * @deprecated Use startGitRequestSubscriptionEffect for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export function startGitRequestSubscription(
-  ctx: DaemonContext,
-  wsClient: ConvexClient
-): GitSubscriptionHandle {
-  return startGitRequestSubscriptionCore(
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      backend: ctx.deps.backend,
-      lastPushedGitState: ctx.lastPushedGitState,
-      workspaceListStore: ctx.workspaceListStore,
-      logger: ctx.logger,
-    },
-    wsClient
-  );
-}
-
-/**
- * Process a batch of pending git requests.
- * @deprecated Use processRequestsCore for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export async function processRequests(
-  ctx: DaemonContext,
-  requests: PendingRequest[],
-  processedRequestIds: Map<string, number>,
-  dedupTtlMs: number
-): Promise<void> {
-  return processRequestsCore(
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      backend: ctx.deps.backend,
-      lastPushedGitState: ctx.lastPushedGitState,
-      workspaceListStore: ctx.workspaceListStore,
-      logger: ctx.logger,
-    },
-    requests,
-    processedRequestIds,
-    dedupTtlMs
-  );
 }
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
