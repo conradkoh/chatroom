@@ -346,7 +346,6 @@ export function forceKillAllCommands(): void {
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Effect twin for onCommandRun — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
-// fallow-ignore-next-line unused-export
 export const onCommandRunEffect = (event: {
   workingDir: string;
   commandName: string;
@@ -359,7 +358,6 @@ export const onCommandRunEffect = (event: {
   });
 
 /** Effect twin for onCommandStop — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
-// fallow-ignore-next-line unused-export
 export const onCommandStopEffect = (event: {
   runId: any;
 }): Effect.Effect<void, never, DaemonSessionService> =>
