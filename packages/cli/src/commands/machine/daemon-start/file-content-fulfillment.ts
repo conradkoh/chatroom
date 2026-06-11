@@ -12,7 +12,7 @@ import { gzipSync } from 'node:zlib';
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import type { DaemonContext, SessionId } from './types.js';
+import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -69,9 +69,8 @@ function isBinaryFile(path: string): boolean {
   return BINARY_EXTENSIONS.has(path.slice(lastDot).toLowerCase());
 }
 
-// ── Minimal dep type used by Core functions + Effect twins ────────────────────
-
-type FulfillFileContentDeps = {
+/** Minimal dep type used by Core functions + Effect twins (also used by file-content-subscription.ts). */
+export type FulfillFileContentDeps = {
   machineId: string;
   sessionId: SessionId;
   backend: BackendOps;
@@ -81,8 +80,9 @@ type FulfillFileContentDeps = {
 
 /**
  * Poll for pending file content requests and fulfill them.
+ * Exported so file-content-subscription.ts can call it directly.
  */
-async function fulfillFileContentRequestsCore(ctx: FulfillFileContentDeps): Promise<void> {
+export async function fulfillFileContentRequestsCore(ctx: FulfillFileContentDeps): Promise<void> {
   let requests: { _id: string; workingDir: string; filePath: string }[];
   try {
     requests = await ctx.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
@@ -186,20 +186,6 @@ async function fulfillSingleRequestCore(
   console.log(
     `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`
   );
-}
-
-// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-/**
- * Poll for pending file content requests and fulfill them.
- * @deprecated Use fulfillFileContentRequestsCore or fulfillFileContentRequestsEffect.
- */
-export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<void> {
-  return fulfillFileContentRequestsCore({
-    machineId: ctx.machineId,
-    sessionId: ctx.sessionId,
-    backend: ctx.deps.backend,
-  });
 }
 
 // ── Effect twin ───────────────────────────────────────────────────────────────

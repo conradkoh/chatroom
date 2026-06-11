@@ -13,8 +13,11 @@
 import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
-import { DaemonContextService } from './daemon-context-service.js';
-import { fulfillFileContentRequests } from './file-content-fulfillment.js';
+import { DaemonSessionService } from './daemon-services.js';
+import {
+  fulfillFileContentRequestsCore,
+  type FulfillFileContentDeps,
+} from './file-content-fulfillment.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -26,17 +29,16 @@ export interface FileContentSubscriptionHandle {
   stop: () => void;
 }
 
-/**
- * Start the reactive file content subscription.
- *
- * Subscribes to `api.workspaceFiles.getPendingFileContentRequests` via the Convex
- * WebSocket client. When new pending requests appear, they are fulfilled immediately.
- *
- * @param ctx - Daemon context (session, machineId, deps)
- * @param wsClient - Convex WebSocket client for reactive subscriptions
- */
-export function startFileContentSubscription(
-  ctx: DaemonContext,
+// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+
+// FulfillFileContentDeps = { machineId, sessionId: SessionId, backend }
+// Re-exported from file-content-fulfillment — reuse the same shape.
+type FileContentSubscriptionDeps = FulfillFileContentDeps;
+
+// ── Core implementation (flat deps, no ctx.deps.xxx) ─────────────────────────
+
+function startFileContentSubscriptionCore(
+  deps: FileContentSubscriptionDeps,
   wsClient: ConvexClient
 ): FileContentSubscriptionHandle {
   // Track whether we're currently processing to avoid overlapping batches
@@ -45,15 +47,15 @@ export function startFileContentSubscription(
   const unsubscribe = wsClient.onUpdate(
     api.workspaceFiles.getPendingFileContentRequests,
     {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
     },
     (requests) => {
       if (!requests || requests.length === 0) return;
       if (processing) return; // Skip if still processing previous batch
 
       processing = true;
-      fulfillFileContentRequests(ctx)
+      fulfillFileContentRequestsCore(deps)
         .catch((err: unknown) => {
           console.warn(
             `[${formatTimestamp()}] ⚠️  File content subscription processing failed: ${getErrorMessage(err)}`
@@ -80,14 +82,37 @@ export function startFileContentSubscription(
   };
 }
 
-// ── Effect twins ──────────────────────────────────────────────────────────────
+// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
 
-/** Effect twin for startFileContentSubscription — yields DaemonContextService and delegates. */
+/**
+ * Start the reactive file content subscription.
+ *
+ * @param ctx - Daemon context (session, machineId, deps)
+ * @param wsClient - Convex WebSocket client for reactive subscriptions
+ * @deprecated Use startFileContentSubscriptionEffect for new Effect-based code.
+ */
+export function startFileContentSubscription(
+  ctx: DaemonContext,
+  wsClient: ConvexClient
+): FileContentSubscriptionHandle {
+  return startFileContentSubscriptionCore(
+    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+    wsClient
+  );
+}
+
+// ── Effect twin ───────────────────────────────────────────────────────────────
+
+/**
+ * Effect twin for startFileContentSubscription.
+ * Yields DaemonSessionService; DaemonSessionServiceShape satisfies FileContentSubscriptionDeps
+ * (same shape as FulfillFileContentDeps: sessionId, machineId, backend).
+ */
 // fallow-ignore-next-line unused-export
 export const startFileContentSubscriptionEffect = (
   wsClient: ConvexClient
-): Effect.Effect<FileContentSubscriptionHandle, never, DaemonContextService> =>
+): Effect.Effect<FileContentSubscriptionHandle, never, DaemonSessionService> =>
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    return startFileContentSubscription(ctx, wsClient);
+    const session = yield* DaemonSessionService;
+    return startFileContentSubscriptionCore(session, wsClient);
   });

@@ -155,7 +155,7 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// A. file-tree-subscription Effect twin
+// A. file-tree-subscription Effect twin (E4.2 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('startFileTreeSubscriptionEffect', () => {
@@ -163,18 +163,18 @@ describe('startFileTreeSubscriptionEffect', () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startFileTreeSubscriptionEffect(wsClient));
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(wsClient));
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
   });
 
-  it('calls onUpdate with sessionId and machineId from ctx', async () => {
+  it('calls onUpdate with sessionId and machineId from session', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const wsClient = makeMockWsClient();
     const deps = createMockDaemonDeps();
 
-    await runWithCtx(startFileTreeSubscriptionEffect(wsClient), {
+    await runWithSession(startFileTreeSubscriptionEffect(wsClient), {
       deps,
       sessionId: 'session-tree',
       machineId: 'machine-tree',
@@ -190,7 +190,7 @@ describe('startFileTreeSubscriptionEffect', () => {
 });
 
 // ---------------------------------------------------------------------------
-// B. file-content-subscription Effect twin
+// B. file-content-subscription Effect twin (E4.2 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('startFileContentSubscriptionEffect', () => {
@@ -198,17 +198,17 @@ describe('startFileContentSubscriptionEffect', () => {
     const { startFileContentSubscriptionEffect } = await import('./file-content-subscription.js');
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startFileContentSubscriptionEffect(wsClient));
+    const handle = await runWithSession(startFileContentSubscriptionEffect(wsClient));
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
   });
 
-  it('calls onUpdate with sessionId and machineId from ctx', async () => {
+  it('calls onUpdate with sessionId and machineId from session', async () => {
     const { startFileContentSubscriptionEffect } = await import('./file-content-subscription.js');
     const wsClient = makeMockWsClient();
 
-    await runWithCtx(startFileContentSubscriptionEffect(wsClient), {
+    await runWithSession(startFileContentSubscriptionEffect(wsClient), {
       sessionId: 'session-content',
       machineId: 'machine-content',
     });
