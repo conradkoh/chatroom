@@ -122,8 +122,6 @@ function startFileTreeSubscriptionCore(
   };
 }
 
-// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
 /**
