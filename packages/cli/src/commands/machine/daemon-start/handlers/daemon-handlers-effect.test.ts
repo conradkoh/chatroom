@@ -120,10 +120,11 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('handlePingEffect', () => {
-  it('returns { result: "pong", failed: false }', async () => {
+  it('returns { result: "pong", failed: false } and logs response', async () => {
     const result = await Effect.runPromise(handlePingEffect);
     expect(result.result).toBe('pong');
     expect(result.failed).toBe(false);
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('pong'));
   });
 });
 
