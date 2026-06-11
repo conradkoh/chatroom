@@ -30,7 +30,7 @@ import type { RemoteAgentService } from '../../../infrastructure/services/remote
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { pushCommands } from './command-sync-heartbeat.js';
+import { pushCommandsEffect } from './command-sync-heartbeat.js';
 import { syncCommitDetails } from './commit-detail-sync.js';
 import { DaemonContextService, daemonContextToLayers } from './daemon-context-service.js';
 import { DaemonSessionService } from './daemon-services.js';
@@ -507,9 +507,13 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
               );
             }
           );
-          pushCommands(ctx).catch((err: unknown) => {
-            console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
-          });
+          Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(layers))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
           syncCommitDetails(ctx).catch((err: unknown) => {
             console.warn(
               `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
@@ -572,7 +576,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
   } else {
     Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(layers))).catch(() => {});
-    pushCommands(ctx).catch(() => {});
+    Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(layers))).catch(() => {});
     syncCommitDetails(ctx).catch(() => {});
   }
 

@@ -84,6 +84,7 @@ export async function pushSingleWorkspaceCommandsCore(
  * Discover and sync commands for all tracked workspaces.
  * @deprecated Use pushCommandsCore or pushCommandsEffect.
  */
+// fallow-ignore-next-line unused-export
 export async function pushCommands(ctx: DaemonContext): Promise<void> {
   return pushCommandsCore({
     machineId: ctx.machineId,
@@ -97,7 +98,6 @@ export async function pushCommands(ctx: DaemonContext): Promise<void> {
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Effect twin for pushCommands — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandSyncDeps. */
-// fallow-ignore-next-line unused-export
 export const pushCommandsEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
   function* () {
     const session = yield* DaemonSessionService;

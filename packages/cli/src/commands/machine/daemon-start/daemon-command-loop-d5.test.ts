@@ -111,9 +111,13 @@ vi.mock('./git-heartbeat.js', async () => {
   };
 });
 
-vi.mock('./command-sync-heartbeat.js', () => ({
-  pushCommands: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('./command-sync-heartbeat.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    pushCommands: vi.fn().mockResolvedValue(undefined),
+    pushCommandsEffect: Effect.void,
+  };
+});
 
 vi.mock('./commit-detail-sync.js', () => ({
   syncCommitDetails: vi.fn().mockResolvedValue(undefined),
