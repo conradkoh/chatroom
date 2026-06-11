@@ -21,7 +21,10 @@ import {
   onRequestStopAgent,
   onRequestStopAgentEffect,
 } from '../../../events/daemon/agent/on-request-stop-agent.js';
-import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import {
+  onDaemonShutdown,
+  onDaemonShutdownEffect,
+} from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
@@ -33,7 +36,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { pushCommandsEffect } from './command-sync-heartbeat.js';
 import { syncCommitDetailsEffect } from './commit-detail-sync.js';
-import { DaemonContextService, daemonContextToLayers } from './daemon-context-service.js';
+import { daemonContextToLayers } from './daemon-context-service.js';
 import type { DaemonAgentProcessManagerService } from './daemon-services.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
@@ -300,7 +303,10 @@ export async function dispatchCommandEvent(
 /**
  * Start the command processing loop: subscribe to Convex for pending commands,
  * enqueue them, and process sequentially.
+ *
+ * @deprecated Use startCommandLoopEffect (yields DaemonSessionService | DaemonAgentProcessManagerService).
  */
+// fallow-ignore-next-line unused-export
 export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Build all Effect service layers once — reused by every twin call in this function.
   const layers = daemonContextToLayers(ctx);
@@ -864,11 +870,292 @@ export const dispatchCommandEventEffect = (
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 
-/** Effect twin for startCommandLoop — yields DaemonContextService and delegates. */
-// fallow-ignore-next-line unused-export
-export const startCommandLoopEffect: Effect.Effect<never, never, DaemonContextService> = Effect.gen(
-  function* () {
-    const ctx = yield* DaemonContextService;
-    return yield* Effect.promise<never>(() => startCommandLoop(ctx));
+/** Effect twin for startCommandLoop — uses granular services instead of DaemonContextService. */
+export const startCommandLoopEffect: Effect.Effect<
+  never,
+  never,
+  DaemonSessionService | DaemonAgentProcessManagerService
+> = Effect.gen(function* () {
+  const session = yield* DaemonSessionService;
+  const effectContext = yield* Effect.context<
+    DaemonSessionService | DaemonAgentProcessManagerService
+  >();
+
+  const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;
+
+  // ── Daemon Heartbeat ──────────────────────────────────────────────────
+  let heartbeatCount = 0;
+  const heartbeatTimer = setInterval(() => {
+    session.backend
+      .mutation(api.machines.daemonHeartbeat, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      })
+      .then(() => {
+        heartbeatCount++;
+        console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
+        if (!observedSyncEnabled) {
+          Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
+          Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
+          Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
+      });
+  }, DAEMON_HEARTBEAT_INTERVAL_MS);
+
+  heartbeatTimer.unref();
+
+  // ── Subscription handles ──────────────────────────────────────────────
+  let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
+  let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
+  let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
+  let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
+  let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
+  let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
+  let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
+  let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
+  let commandSubscriptionHandle: { stop: () => void } | null = null;
+  let lifecycleManager: HarnessLifecycleManager | null = null;
+  const activeSessions = new Map<string, SessionHandle>();
+  const harnesses = new Map<string, BoundHarness>();
+
+  // Trigger an immediate push on startup
+  if (observedSyncEnabled) {
+    console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
+  } else {
+    Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(() => {});
+    Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(() => {});
+    Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
+      () => {}
+    );
   }
-);
+
+  // ── Shutdown timeouts ──────────────────────────────────────────────────
+  const PROCESS_KILL_TIMEOUT_MS = 6_000;
+  const CLOSE_TIMEOUT_MS = 3_000;
+  const SHUTDOWN_WATCHDOG_MS = 12_000;
+
+  let signalCount = 0;
+  let isShuttingDown = false;
+
+  const forceExit = (code: number): never => {
+    try {
+      forceKillAllCommands();
+    } catch {
+      // best-effort
+    }
+    try {
+      Effect.runSync(forceKillAllTrackedProcessGroupsEffect);
+    } catch {
+      // best-effort
+    }
+    try {
+      releaseLock();
+    } catch {
+      // best-effort
+    }
+    process.exit(code);
+  };
+
+  const withTimeout = async (p: Promise<unknown>, ms: number): Promise<void> => {
+    await Promise.race([
+      Promise.resolve(p).catch(() => {}),
+      new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, ms);
+        t.unref?.();
+      }),
+    ]);
+  };
+
+  const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n[${formatTimestamp()}] Shutting down... (press Ctrl+C again to force)`);
+
+    const watchdog = setTimeout(() => {
+      console.error(`[${formatTimestamp()}] Shutdown timed out — forcing exit.`);
+      forceExit(1);
+    }, SHUTDOWN_WATCHDOG_MS);
+    watchdog.unref?.();
+
+    clearInterval(heartbeatTimer);
+
+    if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
+    if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
+    if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
+    if (workspaceListSubscriptionHandle) workspaceListSubscriptionHandle.stop();
+    if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
+    if (logObserverSubscriptionHandle) logObserverSubscriptionHandle.stop();
+    if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
+    if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
+    if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
+    if (lifecycleManager) lifecycleManager.stopMonitoring();
+
+    await withTimeout(
+      Effect.runPromise(onDaemonShutdownEffect.pipe(Effect.provide(effectContext))),
+      PROCESS_KILL_TIMEOUT_MS
+    );
+
+    for (const handle of activeSessions.values()) {
+      await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
+    }
+    for (const harness of harnesses.values()) {
+      await withTimeout(harness.close(), CLOSE_TIMEOUT_MS);
+    }
+
+    clearTimeout(watchdog);
+    releaseLock();
+    process.exit(0);
+  };
+
+  const handleSignal = (signal: NodeJS.Signals) => {
+    signalCount += 1;
+    if (signalCount >= 2) {
+      console.error(`\n[${formatTimestamp()}] Received ${signal} again — forcing immediate exit.`);
+      forceExit(1);
+      return;
+    }
+    shutdown().catch((err) => {
+      console.error(`[${formatTimestamp()}] Shutdown failed: ${getErrorMessage(err)}`);
+      forceExit(1);
+    });
+  };
+
+  process.on('SIGINT', () => handleSignal('SIGINT'));
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+  process.on('SIGHUP', () => handleSignal('SIGHUP'));
+
+  const wsClient = yield* Effect.promise(() => getConvexWsClient());
+
+  gitSubscriptionHandle = yield* startGitRequestSubscriptionEffect(wsClient);
+  fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
+  fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
+  workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
+
+  if (observedSyncEnabled) {
+    observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
+  }
+
+  logObserverSubscriptionHandle = startLogObserverSubscription(
+    { sessionId: session.sessionId, machineId: session.machineId },
+    wsClient
+  );
+
+  if (featureFlags.directHarnessWorkers) {
+    const sessionRepository = new ConvexSessionRepository({
+      backend: session.backend,
+      sessionId: session.sessionId,
+    });
+    const outputRepository = new ConvexOutputRepository({
+      backend: session.backend,
+      sessionId: session.sessionId,
+    });
+    const journalFactory = new BufferedJournalFactory({ outputRepository });
+
+    const sharedDeps = {
+      activeSessions,
+      harnesses,
+      sessionRepository,
+      journalFactory,
+    };
+
+    pendingPromptSubscriptionHandle = startMessageSubscriber(
+      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
+      wsClient,
+      sharedDeps
+    );
+    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
+      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
+      wsClient,
+      {
+        activeSessions,
+        harnesses,
+        sessionRepository,
+        journalFactory,
+      }
+    );
+
+    lifecycleManager = new HarnessLifecycleManager(harnesses, activeSessions, async (workspaceId) =>
+      session.backend.query(api.workspaces.getWorkspaceById, {
+        sessionId: session.sessionId,
+        workspaceId,
+      })
+    );
+    lifecycleManager.startMonitoring();
+
+    commandSubscriptionHandle = startCommandSubscriber(
+      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
+      wsClient,
+      {
+        lifecycleManager,
+        publisher: new ConvexCapabilitiesPublisher({
+          backend: session.backend,
+          sessionId: session.sessionId,
+        }),
+      }
+    );
+  }
+
+  console.log(`\nListening for commands...`);
+  console.log(`Press Ctrl+C to stop\n`);
+
+  const dedupTracker: DedupTracker = {
+    commandIds: new Map<string, number>(),
+    pingIds: new Map<string, number>(),
+    gitRefreshIds: new Map<string, number>(),
+    capabilitiesRefreshIds: new Map<string, number>(),
+    localActionIds: new Map<string, number>(),
+    commandRunIds: new Map<string, number>(),
+    commandStopIds: new Map<string, number>(),
+  };
+
+  wsClient.onUpdate(
+    api.machines.getCommandEvents,
+    {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    },
+    async (result) => {
+      if (!result.events || result.events.length === 0) return;
+
+      evictStaleDedupEntries(dedupTracker);
+
+      for (const event of result.events) {
+        try {
+          console.log(
+            `[${formatTimestamp()}] 📡 Stream command event: ${event.type} (id: ${event._id})`
+          );
+          await Effect.runPromise(
+            dispatchCommandEventEffect(event, dedupTracker).pipe(Effect.provide(effectContext))
+          );
+        } catch (err) {
+          console.error(
+            `[${formatTimestamp()}] ❌ Stream command event failed: ${getErrorMessage(err)}`
+          );
+        }
+      }
+    }
+  );
+
+  return yield* Effect.promise<never>(() => new Promise(() => {}));
+});
