@@ -4,13 +4,21 @@
  * Deadline check is kept at the caller level (transport concern).
  */
 
+import { Effect } from 'effect';
+
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
+import {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+  type DaemonSessionServiceShape,
+} from '../../../commands/machine/daemon-start/daemon-services.js';
 import type {
   AgentHarness,
   DaemonContext,
   StartAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 
 export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_eventStream'>;
@@ -24,6 +32,76 @@ export interface AgentRequestStartEventPayload {
   wantResume?: boolean;
 }
 
+// ── Private helpers ───────────────────────────────────────────────────────────
+
+/** Notify backend of failed agent start (fire-and-forget). */
+function notifyAgentStartFailed(
+  backend: BackendOps,
+  opts: {
+    sessionId: string;
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    error: string;
+  }
+): void {
+  backend.mutation(api.machines.emitAgentStartFailed, opts).catch((err: Error) => {
+    console.log(`   ⚠️  Failed to emit startFailed event: ${err.message}`);
+  });
+}
+
+/** Register workspace with backend (fire-and-forget). */
+function notifyWorkspaceRegistered(
+  backend: BackendOps,
+  opts: {
+    sessionId: string;
+    machineId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    workingDir: string;
+    hostname: string;
+    registeredBy: string;
+  }
+): void {
+  backend.mutation(api.workspaces.registerWorkspace, opts).catch((err: Error) => {
+    console.warn(`[daemon] ⚠️ Failed to register workspace: ${err.message}`);
+  });
+}
+
+/** Dispatch post-ensureRunning notifications (fire-and-forget). */
+function dispatchStartNotifications(
+  backend: BackendOps,
+  session: { sessionId: string; machineId: string; config: DaemonSessionServiceShape['config'] },
+  event: AgentRequestStartEventPayload,
+  result: { success: boolean; error?: string }
+): void {
+  if (!result.success) {
+    console.log(
+      `[daemon] Agent start rejected for role=${event.role}: ${result.error ?? 'unknown'}`
+    );
+    notifyAgentStartFailed(backend, {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      chatroomId: event.chatroomId,
+      role: event.role,
+      error: result.error ?? 'unknown',
+    });
+  } else {
+    notifyWorkspaceRegistered(backend, {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      chatroomId: event.chatroomId,
+      workingDir: event.workingDir,
+      hostname: session.config?.hostname ?? 'unknown',
+      registeredBy: event.role,
+    });
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * @deprecated Use onRequestStartAgentEffect for new Effect-based code.
+ */
 export async function onRequestStartAgent(
   ctx: DaemonContext,
   event: AgentRequestStartEventPayload
@@ -50,37 +128,43 @@ export async function onRequestStartAgent(
     wantResume: event.wantResume ?? true,
   });
 
-  if (!result.success) {
-    console.log(
-      `[daemon] Agent start rejected for role=${event.role}: ${result.error ?? 'unknown'}`
-    );
-
-    // Notify the backend so participant status and desiredState are updated.
-    // Without this, the agent stays stuck in "STARTING" state in the UI.
-    ctx.deps.backend
-      .mutation(api.machines.emitAgentStartFailed, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        chatroomId: event.chatroomId,
-        role: event.role,
-        error: result.error ?? 'unknown',
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to emit startFailed event: ${err.message}`);
-      });
-  } else {
-    // Register workspace (fire-and-forget — don't block agent start)
-    ctx.deps.backend
-      .mutation(api.workspaces.registerWorkspace, {
-        sessionId: ctx.sessionId,
-        chatroomId: event.chatroomId,
-        machineId: ctx.machineId,
-        workingDir: event.workingDir,
-        hostname: ctx.config?.hostname ?? 'unknown',
-        registeredBy: event.role,
-      })
-      .catch((err: Error) => {
-        console.warn(`[daemon] ⚠️ Failed to register workspace: ${err.message}`);
-      });
-  }
+  dispatchStartNotifications(ctx.deps.backend, ctx, event, result);
 }
+
+// ── Effect twin ──────────────────────────────────────────────────────────────
+
+/**
+ * Effect twin for onRequestStartAgent — uses DaemonAgentProcessManagerService
+ * and DaemonSessionService instead of DaemonContext.
+ */
+// fallow-ignore-next-line unused-export
+export const onRequestStartAgentEffect = (
+  event: AgentRequestStartEventPayload
+): Effect.Effect<void, never, DaemonAgentProcessManagerService | DaemonSessionService> =>
+  Effect.gen(function* () {
+    const eventId = event._id.toString();
+
+    if (Date.now() > event.deadline) {
+      console.log(
+        `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (id: ${eventId}, deadline passed)`
+      );
+      return;
+    }
+
+    console.log(`[daemon] Processing agent.requestStart (id: ${eventId})`);
+
+    const agentPm = yield* DaemonAgentProcessManagerService;
+    const session = yield* DaemonSessionService;
+
+    const result = yield* agentPm.ensureRunning({
+      chatroomId: event.chatroomId,
+      role: event.role,
+      agentHarness: event.agentHarness,
+      model: event.model,
+      workingDir: event.workingDir,
+      reason: event.reason as StartAgentReason,
+      wantResume: event.wantResume ?? true,
+    });
+
+    dispatchStartNotifications(session.backend, session, event, result);
+  });
