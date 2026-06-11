@@ -25,7 +25,6 @@ export async function daemonStart(): Promise<void> {
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
 
 export type {
-  DaemonContext,
   CommandResult,
   StartAgentCommand,
   StopAgentCommand,

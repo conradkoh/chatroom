@@ -7,7 +7,7 @@ import type {
   AgentStopReason,
 } from '@workspace/backend/src/domain/entities/agent';
 
-import type { DaemonDeps, MachineStateOps, SpawningOps } from './deps.js';
+import type { MachineStateOps, SpawningOps } from './deps.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
@@ -87,73 +87,18 @@ export interface WorkspaceForSync {
   workingDir: string;
 }
 
-// ─── Daemon Context ─────────────────────────────────────────────────────────
-
 /** Convex client type used throughout the daemon. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ConvexClient = any;
-
-/** Shared context passed to all command handlers. */
-export interface DaemonContext {
-  client: ConvexClient;
-  sessionId: SessionId;
-  machineId: string;
-  config: MachineConfig | null;
-  deps: DaemonDeps;
-  events: DaemonEventBus;
-  agentServices: Map<string, RemoteAgentService>;
-  /**
-   * Whether observed-sync feature is enabled.
-   * When true, daemon subscribes to observed chatrooms instead of periodic git/command sync.
-   * Toggle requires daemon restart.
-   */
-  observedSyncEnabled?: boolean;
-  /**
-   * Recently observed workspaces for this machine (fed by workspace-list subscription).
-   */
-  workspaceListStore?: {
-    workspaces: WorkspaceForSync[];
-    updatedAt: number;
-  };
-  /**
-   * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
-   * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
-   * Only push to backend when this hash changes.
-   */
-  lastPushedGitState: Map<string, string>;
-  /**
-   * Tracks the last available-models snapshot pushed to the backend.
-   * Map key is the harness name (e.g. `opencode`, `pi`); value is the list of
-   * model IDs reported for that harness on the most recent successful push.
-   *
-   * Used by `refreshModels` to diff locally each tick — the daemon is the
-   * source of truth for "what changed since last sync", so no backend query
-   * is needed. The mutation is only invoked when the snapshot differs from
-   * the freshly discovered set.
-   *
-   * `null` means no snapshot has been recorded yet (e.g. before the first
-   * push); in that case `refreshModels` always pushes.
-   */
-  lastPushedModels: Record<string, string[]> | null;
-  /**
-   * Fingerprint of harness list + versions last successfully pushed via
-   * `refreshCapabilities`. When non-null and unchanged, harness-only discovery
-   * does not require another push unless models also changed.
-   */
-  lastPushedHarnessFingerprint: string | null;
-  /** Logger for daemon output. Defaults to console if not provided. */
-  logger?: Pick<Console, 'log' | 'warn'>;
-}
 
 // ─── Daemon Session Init (W10 — flat bootstrap shape) ───────────────────────
 
 /**
  * Flat bootstrap data for building Effect service layers.
- * Replaces DaemonContext at the init → layer boundary (W10 migration).
+ * Used at the init → layer boundary (W10 migration complete).
  *
- * Key difference from DaemonContext: deps are flattened — `backend` and `fs`
- * are top-level fields, not nested under `deps`. Machine/spawning/apm are also
- * top-level for layer construction.
+ * Key difference from the old nested shape: deps are flattened — `backend` and `fs`
+ * are top-level fields, not nested under `deps`.
  */
 export interface DaemonSessionInit {
   // ─── Identity ─────────────────────────────────────────────────────
