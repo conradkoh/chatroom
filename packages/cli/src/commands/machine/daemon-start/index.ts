@@ -6,7 +6,10 @@
  * - Handler functions and types for testing
  */
 
-import { startCommandLoop } from './command-loop.js';
+import { Effect } from 'effect';
+
+import { startCommandLoopEffect } from './command-loop.js';
+import { daemonContextToLayers } from './daemon-context-service.js';
 import { initDaemon } from './init.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
@@ -16,7 +19,7 @@ import { initDaemon } from './init.js';
  */
 export async function daemonStart(): Promise<void> {
   const ctx = await initDaemon();
-  await startCommandLoop(ctx);
+  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(daemonContextToLayers(ctx))));
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
