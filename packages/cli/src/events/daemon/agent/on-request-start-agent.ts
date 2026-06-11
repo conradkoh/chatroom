@@ -15,7 +15,6 @@ import {
 } from '../../../commands/machine/daemon-start/daemon-services.js';
 import type {
   AgentHarness,
-  DaemonContext,
   StartAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -95,40 +94,6 @@ function dispatchStartNotifications(
       registeredBy: event.role,
     });
   }
-}
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * @deprecated Use onRequestStartAgentEffect for new Effect-based code.
- */
-export async function onRequestStartAgent(
-  ctx: DaemonContext,
-  event: AgentRequestStartEventPayload
-): Promise<void> {
-  const eventId = event._id.toString();
-
-  // Deadline check — transport-level concern, not lifecycle
-  if (Date.now() > event.deadline) {
-    console.log(
-      `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (id: ${eventId}, deadline passed)`
-    );
-    return;
-  }
-
-  console.log(`[daemon] Processing agent.requestStart (id: ${eventId})`);
-
-  const result = await ctx.deps.agentProcessManager.ensureRunning({
-    chatroomId: event.chatroomId,
-    role: event.role,
-    agentHarness: event.agentHarness,
-    model: event.model,
-    workingDir: event.workingDir,
-    reason: event.reason as StartAgentReason,
-    wantResume: event.wantResume ?? true,
-  });
-
-  dispatchStartNotifications(ctx.deps.backend, ctx, event, result);
 }
 
 // ── Effect twin ──────────────────────────────────────────────────────────────
