@@ -137,7 +137,7 @@ function makeBranchDependentFields(
 
 // ── Minimal dep type used by Core functions + Effect twins ────────────────────
 
-type GitStateDeps = {
+export type GitStateDeps = {
   machineId: string;
   sessionId: SessionId;
   backend: BackendOps;
@@ -147,7 +147,7 @@ type GitStateDeps = {
 
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
 
-async function pushGitStateCore(ctx: GitStateDeps): Promise<void> {
+export async function pushGitStateCore(ctx: GitStateDeps): Promise<void> {
   const workspaces = await getWorkspacesForMachine({
     workspaceListStore: ctx.workspaceListStore,
     sessionId: ctx.sessionId,
@@ -259,7 +259,8 @@ async function pushSingleWorkspaceGitStateCore(
   }
 }
 
-async function pushSingleWorkspaceGitSummaryForObservedCore(
+// fallow-ignore-next-line unused-export
+export async function pushSingleWorkspaceGitSummaryForObservedCore(
   ctx: GitStateDeps,
   workingDir: string,
   reason: 'safety-poll' | 'refresh' = 'safety-poll'

@@ -303,7 +303,7 @@ describe('startWorkspaceListSubscriptionEffect', () => {
 });
 
 // ---------------------------------------------------------------------------
-// D. git-subscription Effect twins
+// D. git-subscription Effect twins (E4.3 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('startGitRequestSubscriptionEffect', () => {
@@ -313,19 +313,19 @@ describe('startGitRequestSubscriptionEffect', () => {
     vi.mocked(deps.backend.mutation).mockResolvedValue(0 as any);
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startGitRequestSubscriptionEffect(wsClient), { deps });
+    const handle = await runWithSession(startGitRequestSubscriptionEffect(wsClient), { deps });
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
   });
 
-  it('calls onUpdate with sessionId and machineId from ctx', async () => {
+  it('calls onUpdate with sessionId and machineId from session', async () => {
     const { startGitRequestSubscriptionEffect } = await import('./git-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(0 as any);
     const wsClient = makeMockWsClient();
 
-    await runWithCtx(startGitRequestSubscriptionEffect(wsClient), {
+    await runWithSession(startGitRequestSubscriptionEffect(wsClient), {
       deps,
       sessionId: 'session-git',
       machineId: 'machine-git',
@@ -345,11 +345,11 @@ describe('processRequestsEffect', () => {
     const { processRequestsEffect } = await import('./git-subscription.js');
 
     await expect(
-      runWithCtx(processRequestsEffect([], new Map(), 300_000))
+      runWithSession(processRequestsEffect([], new Map(), 300_000))
     ).resolves.toBeUndefined();
   });
 
-  it('passes machineId from ctx to backend when processing requests', async () => {
+  it('passes machineId from session to backend when processing requests', async () => {
     const { processRequestsEffect } = await import('./git-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
@@ -366,7 +366,7 @@ describe('processRequestsEffect', () => {
     const gitReader = await import('../../../infrastructure/git/git-reader.js');
     vi.mocked(gitReader as any).getFullDiff = vi.fn().mockResolvedValue({ status: 'not_found' });
 
-    await runWithCtx(processRequestsEffect([req as any], new Map(), 300_000), {
+    await runWithSession(processRequestsEffect([req as any], new Map(), 300_000), {
       deps,
       machineId: 'machine-process',
       sessionId: 'session-process',
