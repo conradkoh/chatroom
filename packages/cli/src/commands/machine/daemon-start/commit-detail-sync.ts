@@ -33,39 +33,6 @@ type SyncCommitDetailsDeps = {
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
 
 /**
- * Sync commit details for all workspaces registered to this machine.
- *
- * @param seenShasMap Optional injection point for tests. When not supplied,
- *   the module-scope `seenShas` map is used so steady-state caching persists
- *   across heartbeat ticks in production.
- */
-async function syncCommitDetailsCore(
-  ctx: SyncCommitDetailsDeps,
-  seenShasMap?: Map<string, Set<string>>
-): Promise<void> {
-  const workspaces = await getWorkspacesForMachine({
-    workspaceListStore: ctx.workspaceListStore,
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    backend: ctx.backend,
-  });
-  if (workspaces.length === 0) return;
-
-  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-  if (uniqueWorkingDirs.size === 0) return;
-
-  for (const workingDir of uniqueWorkingDirs) {
-    try {
-      await syncSingleWorkspaceCommitDetailsCore(ctx, workingDir, seenShasMap ?? seenShas);
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Commit-detail sync failed for ${workingDir}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
-
-/**
  * Per-workspace commit-detail sync.
  */
 async function syncSingleWorkspaceCommitDetailsCore(
@@ -192,15 +159,39 @@ async function prefetchSingleCommitCore(
   console.log(`[${formatTimestamp()}] ✅ Pre-fetched: ${sha.slice(0, 7)} in ${workingDir}`);
 }
 
-// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-// ── Effect twin ───────────────────────────────────────────────────────────────
-
-/** Effect twin for syncCommitDetails — yields DaemonSessionService; DaemonSessionServiceShape satisfies SyncCommitDetailsDeps. */
+/** Sync commit details for all workspaces registered to this machine. */
 export const syncCommitDetailsEffect = (
   seenShasMap?: Map<string, Set<string>>
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => syncCommitDetailsCore(session, seenShasMap));
+
+    const workspaces = yield* Effect.promise(() =>
+      getWorkspacesForMachine({
+        workspaceListStore: session.workspaceListStore,
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+      })
+    );
+    if (workspaces.length === 0) return;
+
+    const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+    if (uniqueWorkingDirs.size === 0) return;
+
+    const shasMap = seenShasMap ?? seenShas;
+
+    for (const workingDir of uniqueWorkingDirs) {
+      yield* Effect.promise(() =>
+        syncSingleWorkspaceCommitDetailsCore(session, workingDir, shasMap)
+      ).pipe(
+        Effect.catchAll((err) =>
+          Effect.sync(() => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Commit-detail sync failed for ${workingDir}: ${getErrorMessage(err)}`
+            );
+          })
+        )
+      );
+    }
   });
