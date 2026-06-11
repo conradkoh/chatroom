@@ -373,7 +373,6 @@ export const forceKillAllCommandsEffect: Effect.Effect<void> = Effect.sync(() =>
 );
 
 /** Effect twin for shutdownAllCommands — yields DaemonSessionService. */
-// fallow-ignore-next-line unused-export
 export const shutdownAllCommandsEffect: Effect.Effect<void, never, DaemonSessionService> =
   Effect.gen(function* () {
     if (processManager.size === 0) return;
