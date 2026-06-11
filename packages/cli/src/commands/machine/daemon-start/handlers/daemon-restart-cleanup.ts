@@ -2,7 +2,6 @@
  * Daemon Restart Cleanup — clears stale PIDs and reaps orphan command runs on daemon startup.
  * Extracted from init.ts recoverState() for Effect migration.
  */
-// fallow-ignore-file unused-file
 
 import { Effect } from 'effect';
 
@@ -44,6 +43,7 @@ export async function reapOrphanCommandRunsCore(deps: DaemonRestartCleanupDeps):
 }
 
 /** Effect twin — yields BackendService + DaemonSessionService. */
+// fallow-ignore-next-line unused-export
 export const clearStaleSpawnedPidsEffect = (): Effect.Effect<
   number,
   Error,
@@ -60,6 +60,7 @@ export const clearStaleSpawnedPidsEffect = (): Effect.Effect<
   });
 
 /** Effect twin — yields BackendService + DaemonSessionService. */
+// fallow-ignore-next-line unused-export
 export const reapOrphanCommandRunsEffect = (): Effect.Effect<
   number,
   Error,

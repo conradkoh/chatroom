@@ -11,6 +11,10 @@ import { Effect, Schedule, Duration } from 'effect';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { daemonContextToLayers } from './daemon-context-service.js';
 import type { DaemonDeps } from './deps.js';
+import {
+  clearStaleSpawnedPidsCore,
+  reapOrphanCommandRunsCore,
+} from './handlers/daemon-restart-cleanup.js';
 import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -346,12 +350,13 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   // backend are stale from before the restart and must be cleared to prevent
   // the UI from showing dead agents as "running" or "starting".
   try {
-    const result = await ctx.deps.backend.mutation(api.machines.clearAllSpawnedPids, {
+    const clearedCount = await clearStaleSpawnedPidsCore({
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
+      backend: ctx.deps.backend,
     });
-    if (result.clearedCount > 0) {
-      console.log(`   🧹 Cleared ${result.clearedCount} stale agent PID(s) from backend`);
+    if (clearedCount > 0) {
+      console.log(`   🧹 Cleared ${clearedCount} stale agent PID(s) from backend`);
     }
   } catch (e) {
     console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
@@ -364,13 +369,14 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   // UI correctly labels them rather than showing them as 'replaced' when the user
   // next triggers a run for the same command.
   try {
-    const runResult = await ctx.deps.backend.mutation(api.commands.reapOrphansForDaemonRestart, {
+    const reapedCount = await reapOrphanCommandRunsCore({
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
+      backend: ctx.deps.backend,
     });
-    if (runResult.reapedCount > 0) {
+    if (reapedCount > 0) {
       console.log(
-        `   🧹 Reaped ${runResult.reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
+        `   🧹 Reaped ${reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
       );
     }
   } catch (e) {
