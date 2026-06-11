@@ -365,7 +365,6 @@ export const pushGitStateEffect: Effect.Effect<void, never, DaemonSessionService
 );
 
 /** Effect twin for pushSingleWorkspaceGitState — yields DaemonSessionService. */
-// fallow-ignore-next-line unused-export
 export const pushSingleWorkspaceGitStateEffect = (
   workingDir: string
 ): Effect.Effect<void, never, DaemonSessionService> =>
