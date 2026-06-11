@@ -1,9 +1,7 @@
 /**
  * daemon-layers — builds granular Effect service layers from daemon bootstrap data.
  *
- * Provides:
- *   - daemonSessionToLayers(init) — flat-deps layer builder (W10 target API)
- *   - daemonContextToLayers(ctx)  — legacy adapter (removed in W10-final)
+ * Provides daemonSessionToLayers(init) — flat-deps layer builder.
  */
 
 import { Layer } from 'effect';
@@ -14,7 +12,7 @@ import {
   DaemonSessionService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
-import type { DaemonContext, DaemonSessionInit } from './types.js';
+import type { DaemonSessionInit } from './types.js';
 import { BackendServiceLive } from '../../../infrastructure/services/backend.js';
 import { ClockServiceLive } from '../../../infrastructure/services/clock.js';
 import { FsServiceLive } from '../../../infrastructure/services/fs.js';
@@ -61,29 +59,4 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
       lastPushedHarnessFingerprint: init.lastPushedHarnessFingerprint,
     })
   );
-}
-
-/**
- * Legacy adapter — maps DaemonContext to DaemonSessionInit and delegates.
- * Removed in W10-final when initDaemon returns DaemonSessionInit directly.
- */
-export function daemonContextToLayers(ctx: DaemonContext) {
-  return daemonSessionToLayers({
-    client: ctx.client,
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    machine: ctx.deps.machine,
-    spawning: ctx.deps.spawning,
-    agentProcessManager: ctx.deps.agentProcessManager,
-    events: ctx.events,
-    agentServices: ctx.agentServices,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
 }
