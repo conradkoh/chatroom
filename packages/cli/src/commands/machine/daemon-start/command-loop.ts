@@ -578,12 +578,16 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       wsClient,
       sharedDeps
     );
-    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, {
-      activeSessions,
-      harnesses,
-      sessionRepository,
-      journalFactory,
-    });
+    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      wsClient,
+      {
+        activeSessions,
+        harnesses,
+        sessionRepository,
+        journalFactory,
+      }
+    );
 
     lifecycleManager = new HarnessLifecycleManager(harnesses, activeSessions, async (workspaceId) =>
       ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
