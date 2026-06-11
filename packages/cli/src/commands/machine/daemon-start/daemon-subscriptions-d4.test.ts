@@ -1,23 +1,19 @@
 /**
  * Daemon Subscription Effect Tests (Phase D4)
  *
- * Tests for the Effect twins of subscription starter functions:
- *   startFileTreeSubscriptionEffect,
- *   startFileContentSubscriptionEffect,
- *   startWorkspaceListSubscriptionEffect,
- *   startGitRequestSubscriptionEffect,
- *   processRequestsEffect,
- *   startObservedSyncSubscriptionEffect.
- *
- * startWorkspaceListSubscriptionEffect was migrated in E4.1 to require
- * DaemonSessionService. All other subscription Effect twins still require
- * DaemonContextService (migrated in later phases).
+ * Tests for the Effect twins of subscription starter functions, all migrated
+ * to DaemonSessionService (E4.1–E4.4):
+ *   startWorkspaceListSubscriptionEffect  (E4.1)
+ *   startFileTreeSubscriptionEffect       (E4.2)
+ *   startFileContentSubscriptionEffect    (E4.2)
+ *   startGitRequestSubscriptionEffect     (E4.3)
+ *   processRequestsEffect                 (E4.3)
+ *   startObservedSyncSubscriptionEffect   (E4.4)
  */
 
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonContextService } from './daemon-context-service.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonContext } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
@@ -100,22 +96,7 @@ function makeMockWsClient(): any {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers — DaemonContextService (for subscriptions still on old service)
-// ---------------------------------------------------------------------------
-
-function makeLayer(overrides?: Partial<DaemonContext>) {
-  return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
-}
-
-async function runWithCtx<A>(
-  effect: Effect.Effect<A, never, DaemonContextService>,
-  overrides?: Partial<DaemonContext>
-) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
-}
-
-// ---------------------------------------------------------------------------
-// Helpers — DaemonSessionService (for workspace-list-subscription E4.1)
+// Helpers — DaemonSessionService (for all subscriptions migrated to E4.x)
 // ---------------------------------------------------------------------------
 
 function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
@@ -378,7 +359,7 @@ describe('processRequestsEffect', () => {
 });
 
 // ---------------------------------------------------------------------------
-// E. observed-sync Effect twin
+// E. observed-sync Effect twin (E4.4 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('startObservedSyncSubscriptionEffect', () => {
@@ -387,18 +368,18 @@ describe('startObservedSyncSubscriptionEffect', () => {
     const deps = createMockDaemonDeps();
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startObservedSyncSubscriptionEffect(wsClient), { deps });
+    const handle = await runWithSession(startObservedSyncSubscriptionEffect(wsClient), { deps });
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
     handle.stop();
   });
 
-  it('calls onUpdate with sessionId and machineId from ctx', async () => {
+  it('calls onUpdate with sessionId and machineId from session', async () => {
     const { startObservedSyncSubscriptionEffect } = await import('./observed-sync.js');
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startObservedSyncSubscriptionEffect(wsClient), {
+    const handle = await runWithSession(startObservedSyncSubscriptionEffect(wsClient), {
       sessionId: 'session-observed',
       machineId: 'machine-observed',
     });

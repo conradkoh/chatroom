@@ -1,7 +1,6 @@
 import { OBSERVED_SAFETY_POLL_MS } from '@workspace/backend/config/reliability.js';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-
 import { startObservedSyncSubscription } from './observed-sync.js';
 import type { DaemonContext } from './types.js';
 
@@ -12,11 +11,11 @@ type ObservedPayload = {
 }[];
 
 vi.mock('./git-heartbeat.js', () => ({
-  pushSingleWorkspaceGitSummaryForObserved: vi.fn().mockResolvedValue(undefined),
+  pushSingleWorkspaceGitSummaryForObservedCore: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./command-sync-heartbeat.js', () => ({
-  pushSingleWorkspaceCommands: vi.fn().mockResolvedValue(undefined),
+  pushSingleWorkspaceCommandsCore: vi.fn().mockResolvedValue(undefined),
 }));
 
 function makeMockContext(): DaemonContext {
@@ -82,26 +81,26 @@ describe('startObservedSyncSubscription', () => {
   }
 
   test('does not poll git or commands when no chatrooms are observed', async () => {
-    const { pushSingleWorkspaceGitSummaryForObserved } = await import('./git-heartbeat.js');
-    const { pushSingleWorkspaceCommands } = await import('./command-sync-heartbeat.js');
+    const { pushSingleWorkspaceGitSummaryForObservedCore } = await import('./git-heartbeat.js');
+    const { pushSingleWorkspaceCommandsCore } = await import('./command-sync-heartbeat.js');
 
     startSubscription();
     observedCallback([]);
 
     await vi.advanceTimersByTimeAsync(OBSERVED_SAFETY_POLL_MS * 3);
 
-    expect(pushSingleWorkspaceGitSummaryForObserved).not.toHaveBeenCalled();
-    expect(pushSingleWorkspaceCommands).not.toHaveBeenCalled();
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).not.toHaveBeenCalled();
+    expect(pushSingleWorkspaceCommandsCore).not.toHaveBeenCalled();
   });
 
   test('safety poll skips overlapping pushes for the same working directory', async () => {
-    const { pushSingleWorkspaceGitSummaryForObserved } = await import('./git-heartbeat.js');
+    const { pushSingleWorkspaceGitSummaryForObservedCore } = await import('./git-heartbeat.js');
     const observed = makeObserved(['/test/repo']);
     const query = ctx.deps.backend.query as ReturnType<typeof vi.fn>;
     query.mockResolvedValue(observed);
 
     let resolvePush: () => void = () => undefined;
-    vi.mocked(pushSingleWorkspaceGitSummaryForObserved).mockReturnValue(
+    vi.mocked(pushSingleWorkspaceGitSummaryForObservedCore).mockReturnValue(
       new Promise<void>((resolve) => {
         resolvePush = resolve;
       })
@@ -110,22 +109,22 @@ describe('startObservedSyncSubscription', () => {
     startSubscription();
     observedCallback(observed);
 
-    expect(pushSingleWorkspaceGitSummaryForObserved).toHaveBeenCalledTimes(1);
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(OBSERVED_SAFETY_POLL_MS);
-    expect(pushSingleWorkspaceGitSummaryForObserved).toHaveBeenCalledTimes(1);
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).toHaveBeenCalledTimes(1);
 
     resolvePush();
     await flushPromises();
 
-    vi.mocked(pushSingleWorkspaceGitSummaryForObserved).mockResolvedValue(undefined);
+    vi.mocked(pushSingleWorkspaceGitSummaryForObservedCore).mockResolvedValue(undefined);
     await vi.advanceTimersByTimeAsync(OBSERVED_SAFETY_POLL_MS);
 
-    expect(pushSingleWorkspaceGitSummaryForObserved).toHaveBeenCalledTimes(2);
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).toHaveBeenCalledTimes(2);
   });
 
   test('reconcile cleanup stops safety polling for no-longer-observed directories', async () => {
-    const { pushSingleWorkspaceGitSummaryForObserved } = await import('./git-heartbeat.js');
+    const { pushSingleWorkspaceGitSummaryForObservedCore } = await import('./git-heartbeat.js');
     const query = ctx.deps.backend.query as ReturnType<typeof vi.fn>;
     query.mockResolvedValue([]);
 
@@ -133,7 +132,7 @@ describe('startObservedSyncSubscription', () => {
     observedCallback(makeObserved(['/test/repo']));
     await flushPromises();
 
-    expect(pushSingleWorkspaceGitSummaryForObserved).toHaveBeenCalledTimes(1);
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(OBSERVED_SAFETY_POLL_MS);
     await flushPromises();
@@ -143,11 +142,11 @@ describe('startObservedSyncSubscription', () => {
     await vi.advanceTimersByTimeAsync(OBSERVED_SAFETY_POLL_MS);
     await flushPromises();
 
-    expect(pushSingleWorkspaceGitSummaryForObserved).toHaveBeenCalledTimes(1);
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).toHaveBeenCalledTimes(1);
   });
 
   test('stop unsubscribes and clears safety timers', async () => {
-    const { pushSingleWorkspaceGitSummaryForObserved } = await import('./git-heartbeat.js');
+    const { pushSingleWorkspaceGitSummaryForObservedCore } = await import('./git-heartbeat.js');
 
     const subscription = startSubscription();
     observedCallback(makeObserved(['/test/repo']));
@@ -157,6 +156,6 @@ describe('startObservedSyncSubscription', () => {
     await vi.advanceTimersByTimeAsync(OBSERVED_SAFETY_POLL_MS);
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
-    expect(pushSingleWorkspaceGitSummaryForObserved).toHaveBeenCalledTimes(1);
+    expect(pushSingleWorkspaceGitSummaryForObservedCore).toHaveBeenCalledTimes(1);
   });
 });

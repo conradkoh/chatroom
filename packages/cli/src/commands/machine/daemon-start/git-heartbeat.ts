@@ -259,7 +259,6 @@ async function pushSingleWorkspaceGitStateCore(
   }
 }
 
-// fallow-ignore-next-line unused-export
 export async function pushSingleWorkspaceGitSummaryForObservedCore(
   ctx: GitStateDeps,
   workingDir: string,
@@ -385,6 +384,7 @@ export async function pushSingleWorkspaceGitState(
 }
 
 /** @deprecated Use pushSingleWorkspaceGitSummaryForObservedCore or the Effect twin. */
+// fallow-ignore-next-line unused-export
 export async function pushSingleWorkspaceGitSummaryForObserved(
   ctx: DaemonContext,
   workingDir: string,

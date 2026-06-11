@@ -20,7 +20,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 // ── Minimal dep type used by Core functions + Effect twins ────────────────────
 
-type CommandSyncDeps = {
+export type CommandSyncDeps = {
   machineId: string;
   sessionId: SessionId;
   backend: BackendOps;
@@ -53,7 +53,7 @@ async function pushCommandsCore(ctx: CommandSyncDeps): Promise<void> {
   }
 }
 
-async function pushSingleWorkspaceCommandsCore(
+export async function pushSingleWorkspaceCommandsCore(
   ctx: CommandSyncDeps,
   workingDir: string
 ): Promise<void> {
@@ -92,22 +92,6 @@ export async function pushCommands(ctx: DaemonContext): Promise<void> {
     lastPushedGitState: ctx.lastPushedGitState,
     workspaceListStore: ctx.workspaceListStore,
   });
-}
-
-/** @deprecated Use pushSingleWorkspaceCommandsCore or pushSingleWorkspaceCommandsEffect. */
-export async function pushSingleWorkspaceCommands(
-  ctx: DaemonContext,
-  workingDir: string
-): Promise<void> {
-  return pushSingleWorkspaceCommandsCore(
-    {
-      machineId: ctx.machineId,
-      sessionId: ctx.sessionId,
-      backend: ctx.deps.backend,
-      lastPushedGitState: ctx.lastPushedGitState,
-    },
-    workingDir
-  );
 }
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
