@@ -13,7 +13,7 @@ import { api } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
 import { DaemonSessionService } from '../daemon-services.js';
-import type { DaemonContext, SessionId } from '../types.js';
+import type { SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids } from './orphan-tracker.js';
 import { killProcess, killTrackedProcess } from './process/killer.js';
@@ -226,38 +226,6 @@ export async function onCommandStopCore(
       `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped in backend: ${getErrorMessage(err)}`
     );
   }
-}
-
-// ─── Public wrappers (backward-compat — command-loop.ts dispatches via these) ─
-
-/**
- * Handle a command.run event from the daemon event stream.
- * @deprecated Use onCommandRunCore or onCommandRunEffect for new Effect-based code.
- */
-export async function onCommandRun(
-  ctx: DaemonContext,
-  event: {
-    workingDir: string;
-    commandName: string;
-    script: string;
-    runId: any;
-  }
-): Promise<void> {
-  return onCommandRunCore(
-    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
-    event
-  );
-}
-
-/**
- * Handle a command.stop event from the daemon event stream.
- * @deprecated Use onCommandStopCore or onCommandStopEffect for new Effect-based code.
- */
-export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
-  return onCommandStopCore(
-    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
-    event
-  );
 }
 
 /**

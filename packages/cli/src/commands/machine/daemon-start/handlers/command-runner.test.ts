@@ -3,7 +3,7 @@
  *
  * Tests the public API of command-runner.ts:
  *   - replace-on-rerun: prior running process killed when same command re-dispatched
- *   - pending-stop race: onCommandStop registers + onCommandRun consumes
+ *   - pending-stop race: onCommandStopCore registers + onCommandRunCore consumes
  *   - evictStalePendingStops: TTL-based eviction of stale pending-stop entries
  *   - 24h soft timeout: process killed after 24-hour soft timeout
  *
@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { forceKillAllCommands, onCommandRun, onCommandStop } from './command-runner.js';
+import { forceKillAllCommands, onCommandRunCore, onCommandStopCore } from './command-runner.js';
 import type { DaemonContext } from '../types.js';
 import { processManager } from './process/manager.js';
 import { deriveTerminalStatus, SIGTERM_GRACE_PERIOD_MS, SOFT_TIMEOUT_MS } from './process/state.js';
@@ -210,12 +210,15 @@ describe('forceKillAllCommands', () => {
     const fakeChild = createFakeChild(5151);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRun(ctx, {
-      runId: 'run-force' as any,
-      commandName: 'test',
-      script: 'sleep 60',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-force' as any,
+        commandName: 'test',
+        script: 'sleep 60',
+        workingDir: '/tmp',
+      }
+    );
     expect(processManager.size).toBe(1);
 
     forceKillAllCommands();
@@ -239,22 +242,28 @@ describe('replace-on-rerun', () => {
       .mockReturnValueOnce(secondChild as any);
 
     // First run
-    await onCommandRun(ctx, {
-      runId: 'run-first' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp/project',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-first' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp/project',
+      }
+    );
     expect(processManager.has('run-first')).toBe(true);
     expect(processManager.getByCommand('test-machine|/tmp/project|dev')?.runId).toBe('run-first');
 
     // Second run — should kill first
-    const secondRunPromise = onCommandRun(ctx, {
-      runId: 'run-second' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp/project',
-    });
+    const secondRunPromise = onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-second' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp/project',
+      }
+    );
 
     // Advance past SIGTERM grace period
     await vi.advanceTimersByTimeAsync(6_000);
@@ -276,19 +285,25 @@ describe('replace-on-rerun', () => {
       .mockReturnValueOnce(devChild as any)
       .mockReturnValueOnce(buildChild as any);
 
-    await onCommandRun(ctx, {
-      runId: 'run-dev' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp/project',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-dev' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp/project',
+      }
+    );
 
-    await onCommandRun(ctx, {
-      runId: 'run-build' as any,
-      commandName: 'build',
-      script: 'pnpm build',
-      workingDir: '/tmp/project',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-build' as any,
+        commandName: 'build',
+        script: 'pnpm build',
+        workingDir: '/tmp/project',
+      }
+    );
 
     // 'dev' process should NOT have been killed
     expect(process.kill).not.toHaveBeenCalledWith(-3333, expect.anything());
@@ -300,12 +315,15 @@ describe('replace-on-rerun', () => {
     const fakeChild = createFakeChild(5555);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRun(ctx, {
-      runId: 'run-spawn-opts' as any,
-      commandName: 'test',
-      script: 'echo hi',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-spawn-opts' as any,
+        commandName: 'test',
+        script: 'echo hi',
+        workingDir: '/tmp',
+      }
+    );
 
     expect(spawn).toHaveBeenCalledTimes(1);
     const spawnOpts = vi.mocked(spawn).mock.calls[0][2] as any;
@@ -319,28 +337,37 @@ describe('replace-on-rerun', () => {
 
 describe('pending-stop race (stop-before-run)', () => {
   it('registers a pending stop when no process is found for the runId', async () => {
-    await onCommandStop(ctx, { runId: 'run-orphan' as any });
+    await onCommandStopCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      { runId: 'run-orphan' as any }
+    );
     expect(processManager.hasPendingStop('run-orphan')).toBe(true);
   });
 
   it('skips spawning when a pending stop exists for the runId', async () => {
     // Simulate stop arriving before run
-    await onCommandStop(ctx, { runId: 'run-race' as any });
+    await onCommandStopCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      { runId: 'run-race' as any }
+    );
     expect(processManager.hasPendingStop('run-race')).toBe(true);
 
     // Now the run event arrives — should be skipped
-    await onCommandRun(ctx, {
-      runId: 'run-race' as any,
-      commandName: 'should-not-spawn',
-      script: 'echo hi',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-race' as any,
+        commandName: 'should-not-spawn',
+        script: 'echo hi',
+        workingDir: '/tmp',
+      }
+    );
 
     // spawn must NOT have been called
     expect(spawn).not.toHaveBeenCalled();
     // Pending stop entry consumed
     expect(processManager.hasPendingStop('run-race')).toBe(false);
-    // Backend should have been called with 'stopped' (both from onCommandStop AND onCommandRun skip)
+    // Backend should have been called with 'stopped' (both from onCommandStopCore AND onCommandRunCore skip)
     const mutationCalls = vi.mocked(ctx.deps.backend.mutation).mock.calls;
     const statusArgs = mutationCalls.map((c) => (c[1] as any)?.status);
     expect(statusArgs.filter((s) => s === 'stopped').length).toBeGreaterThanOrEqual(2);
@@ -350,12 +377,15 @@ describe('pending-stop race (stop-before-run)', () => {
     const fakeChild = createFakeChild(7777);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRun(ctx, {
-      runId: 'run-normal' as any,
-      commandName: 'normal',
-      script: 'sleep 1',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-normal' as any,
+        commandName: 'normal',
+        script: 'sleep 1',
+        workingDir: '/tmp',
+      }
+    );
 
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(processManager.has('run-normal')).toBe(true);
@@ -364,9 +394,12 @@ describe('pending-stop race (stop-before-run)', () => {
   it('throws when backend mutation fails so dispatchCommandEvent can retry', async () => {
     vi.mocked(ctx.deps.backend.mutation).mockRejectedValueOnce(new Error('Convex disconnect'));
 
-    await expect(onCommandStop(ctx, { runId: 'run-orphan-fail' as any })).rejects.toThrow(
-      'Convex disconnect'
-    );
+    await expect(
+      onCommandStopCore(
+        { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+        { runId: 'run-orphan-fail' as any }
+      )
+    ).rejects.toThrow('Convex disconnect');
 
     expect(processManager.hasPendingStop('run-orphan-fail')).toBe(true);
   });
@@ -381,12 +414,15 @@ describe('pre-spawn DB status check', () => {
     // Mock getRunStatus to return 'stopped'
     vi.mocked(ctx.deps.backend.query).mockResolvedValue({ status: 'stopped' });
 
-    await onCommandRun(ctx, {
-      runId: 'run-already-stopped' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-already-stopped' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp',
+      }
+    );
 
     // spawn must NOT have been called
     expect(spawn).not.toHaveBeenCalled();
@@ -400,12 +436,15 @@ describe('pre-spawn DB status check', () => {
     for (const status of ['killed', 'completed', 'failed']) {
       vi.mocked(ctx.deps.backend.query).mockResolvedValue({ status });
 
-      await onCommandRun(ctx, {
-        runId: `run-${status}` as any,
-        commandName: 'test',
-        script: 'echo hi',
-        workingDir: '/tmp',
-      });
+      await onCommandRunCore(
+        { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+        {
+          runId: `run-${status}` as any,
+          commandName: 'test',
+          script: 'echo hi',
+          workingDir: '/tmp',
+        }
+      );
 
       expect(spawn).not.toHaveBeenCalled();
       // Reset for next iteration
@@ -418,12 +457,15 @@ describe('pre-spawn DB status check', () => {
     const fakeChild = createFakeChild(6666);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRun(ctx, {
-      runId: 'run-pending-ok' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-pending-ok' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp',
+      }
+    );
 
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(processManager.has('run-pending-ok')).toBe(true);
@@ -434,12 +476,15 @@ describe('pre-spawn DB status check', () => {
     const fakeChild = createFakeChild(7777);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRun(ctx, {
-      runId: 'run-running-replace' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-running-replace' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp',
+      }
+    );
 
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(processManager.has('run-running-replace')).toBe(true);
@@ -451,12 +496,15 @@ describe('pre-spawn DB status check', () => {
     // Backend query throws
     vi.mocked(ctx.deps.backend.query).mockRejectedValueOnce(new Error('Convex disconnect'));
 
-    await onCommandRun(ctx, {
-      runId: 'run-query-fail' as any,
-      commandName: 'dev',
-      script: 'pnpm dev',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: 'run-query-fail' as any,
+        commandName: 'dev',
+        script: 'pnpm dev',
+        workingDir: '/tmp',
+      }
+    );
 
     // Should still spawn (error is non-fatal)
     expect(spawn).toHaveBeenCalledTimes(1);
@@ -506,12 +554,15 @@ describe('24-hour soft timeout', () => {
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     const runId = 'run-timeout-24h';
-    await onCommandRun(ctx, {
-      runId: runId as any,
-      commandName: 'long-runner',
-      script: 'sleep 9999',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: runId as any,
+        commandName: 'long-runner',
+        script: 'sleep 9999',
+        workingDir: '/tmp',
+      }
+    );
 
     stopOutputFlushTimer(runId);
     await vi.advanceTimersByTimeAsync(SOFT_TIMEOUT_MS + 1_000);
@@ -532,12 +583,15 @@ describe('24-hour soft timeout', () => {
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     const runId = 'run-forcekill-24h';
-    await onCommandRun(ctx, {
-      runId: runId as any,
-      commandName: 'unkillable',
-      script: 'sleep 9999',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: runId as any,
+        commandName: 'unkillable',
+        script: 'sleep 9999',
+        workingDir: '/tmp',
+      }
+    );
 
     stopOutputFlushTimer(runId);
     await vi.advanceTimersByTimeAsync(SOFT_TIMEOUT_MS + 1_000);
@@ -557,12 +611,15 @@ describe('24-hour soft timeout', () => {
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     const runId = 'run-exits-early';
-    await onCommandRun(ctx, {
-      runId: runId as any,
-      commandName: 'short',
-      script: 'echo done',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId: runId as any,
+        commandName: 'short',
+        script: 'echo done',
+        workingDir: '/tmp',
+      }
+    );
 
     // Simulate process exit (triggers the 'exit' handler which clears timers)
     (fakeChild as any)._emitter.emit('exit', 0, null);
@@ -587,13 +644,13 @@ describe('24-hour soft timeout', () => {
 // ---------------------------------------------------------------------------
 // G. Real-process-tree regression test (integration)
 //
-// Routes through onCommandRun → onCommandStop with a real spawned process tree.
+// Routes through onCommandRunCore → onCommandStopCore with a real spawned process tree.
 // Verifies that the process-group kill (detached:true + negative PID) terminates
 // not just the sh leader but ALL grandchildren (the bug this fix addresses).
 // ---------------------------------------------------------------------------
 
 describe('process-group kill (real process tree)', () => {
-  it('kills all grandchildren when onCommandStop is called — not just the sh leader', async () => {
+  it('kills all grandchildren when onCommandStopCore is called — not just the sh leader', async () => {
     if (process.platform === 'win32') {
       // process groups behave differently on Windows — skip
       return;
@@ -604,7 +661,7 @@ describe('process-group kill (real process tree)', () => {
     processKillSpy.mockRestore();
 
     // Wire the module-level spawn mock to delegate to the real child_process.spawn.
-    // This means onCommandRun's internal spawn() call uses a real process.
+    // This means onCommandRunCore's internal spawn() call uses a real process.
     const actual = (await vi.importActual('node:child_process')) as {
       spawn: typeof spawn;
       execSync: (command: string) => Buffer;
@@ -614,12 +671,15 @@ describe('process-group kill (real process tree)', () => {
 
     // Run the command through the real handler (exercises the detached:true spawn path)
     const runId = 'run-real-tree' as any;
-    await onCommandRun(ctx, {
-      runId,
-      commandName: 'test',
-      script: 'sleep 30 & sleep 30 & sleep 30 & wait',
-      workingDir: '/tmp',
-    });
+    await onCommandRunCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      {
+        runId,
+        commandName: 'test',
+        script: 'sleep 30 & sleep 30 & sleep 30 & wait',
+        workingDir: '/tmp',
+      }
+    );
 
     // Wait for sh + its three sleep children to start
     await new Promise<void>((r) => setTimeout(r, 400));
@@ -645,7 +705,10 @@ describe('process-group kill (real process tree)', () => {
     }
 
     // Stop via the actual handler — exercises killProcess() → process.kill(-pid, signal)
-    await onCommandStop(ctx, { runId });
+    await onCommandStopCore(
+      { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+      { runId }
+    );
 
     // Brief additional wait for all OS-level cleanup
     await new Promise<void>((r) => setTimeout(r, 300));
