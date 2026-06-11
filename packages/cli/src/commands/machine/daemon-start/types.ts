@@ -7,9 +7,11 @@ import type {
   AgentStopReason,
 } from '@workspace/backend/src/domain/entities/agent';
 
-import type { DaemonDeps } from './deps.js';
+import type { DaemonDeps, MachineStateOps, SpawningOps } from './deps.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
+import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
@@ -141,4 +143,43 @@ export interface DaemonContext {
   lastPushedHarnessFingerprint: string | null;
   /** Logger for daemon output. Defaults to console if not provided. */
   logger?: Pick<Console, 'log' | 'warn'>;
+}
+
+// ─── Daemon Session Init (W10 — flat bootstrap shape) ───────────────────────
+
+/**
+ * Flat bootstrap data for building Effect service layers.
+ * Replaces DaemonContext at the init → layer boundary (W10 migration).
+ *
+ * Key difference from DaemonContext: deps are flattened — `backend` and `fs`
+ * are top-level fields, not nested under `deps`. Machine/spawning/apm are also
+ * top-level for layer construction.
+ */
+export interface DaemonSessionInit {
+  // ─── Identity ─────────────────────────────────────────────────────
+  client: ConvexClient;
+  sessionId: SessionId;
+  machineId: string;
+  config: MachineConfig | null;
+
+  // ─── Flat deps (no .deps. indirection) ────────────────────────────
+  backend: BackendOps;
+  fs: FsOps;
+  machine: MachineStateOps;
+  spawning: SpawningOps;
+  agentProcessManager: AgentProcessManager;
+
+  // ─── Shared data ──────────────────────────────────────────────────
+  events: DaemonEventBus;
+  agentServices: Map<string, RemoteAgentService>;
+  workspaceListStore?: {
+    workspaces: WorkspaceForSync[];
+    updatedAt: number;
+  };
+  logger?: Pick<Console, 'log' | 'warn'>;
+
+  // ─── Mutable state (shared reference semantics) ───────────────────
+  lastPushedGitState: Map<string, string>;
+  lastPushedModels: Record<string, string[]> | null;
+  lastPushedHarnessFingerprint: string | null;
 }
