@@ -14,7 +14,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import { DaemonContextService } from '../daemon-context-service.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import {
+  DaemonAgentProcessManagerService,
+  DaemonAgentProcessManagerServiceLive,
+  DaemonSessionService,
+} from '../daemon-services.js';
 import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
@@ -91,6 +95,30 @@ async function runWithSession<A>(
   config: MachineConfig | null = null
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(config))));
+}
+
+// Helper for recoverAgentStateEffect (E5.3) — builds DaemonSessionService + DaemonAgentProcessManagerService
+async function runRecovery(overrides?: Partial<DaemonContext>) {
+  const ctx = createMockDaemonContext(overrides);
+  const sessionLayer = Layer.succeed(DaemonSessionService, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    client: ctx.client,
+    config: ctx.config,
+    backend: ctx.deps.backend,
+    fs: ctx.deps.fs,
+    agentServices: ctx.agentServices,
+    events: ctx.events,
+    workspaceListStore: ctx.workspaceListStore,
+    logger: ctx.logger,
+    lastPushedGitState: ctx.lastPushedGitState,
+    lastPushedModels: ctx.lastPushedModels,
+    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+  });
+  const apmLayer = DaemonAgentProcessManagerServiceLive(ctx.deps.agentProcessManager);
+  return Effect.runPromise(
+    recoverAgentStateEffect.pipe(Effect.provide(Layer.merge(sessionLayer, apmLayer)))
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +280,7 @@ describe('recoverAgentStateEffect', () => {
     vi.mocked(deps.agentProcessManager.listActive).mockReturnValue([]);
     vi.mocked(deps.backend.query).mockResolvedValue([]); // getMachineHarnessSessions
 
-    await run(recoverAgentStateEffect, { deps });
+    await runRecovery({ deps });
 
     expect(deps.agentProcessManager.recover).toHaveBeenCalledOnce();
   });
@@ -263,7 +291,7 @@ describe('recoverAgentStateEffect', () => {
     vi.mocked(deps.backend.query).mockRejectedValue(new Error('Network error'));
 
     // Should resolve without throwing
-    await expect(run(recoverAgentStateEffect, { deps })).resolves.toBeUndefined();
+    await expect(runRecovery({ deps })).resolves.toBeUndefined();
   });
 
   it('marks orphan turns when managed sessions have no active slot', async () => {
@@ -285,7 +313,7 @@ describe('recoverAgentStateEffect', () => {
     // markOrphanTurnsFailed returns failedTurns count
     vi.mocked(deps.backend.mutation).mockResolvedValue({ failedTurns: 2 });
 
-    await run(recoverAgentStateEffect, { deps, machineId: 'test-machine-id' });
+    await runRecovery({ deps, machineId: 'test-machine-id' });
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(), // markOrphanTurnsFailed api ref
