@@ -10,8 +10,9 @@ import { access } from 'node:fs/promises';
 import { Effect } from 'effect';
 
 import { api } from '../../../../api.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
-import { DaemonContextService } from '../daemon-context-service.js';
+import { DaemonSessionService } from '../daemon-services.js';
 import type { DaemonContext, SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids } from './orphan-tracker.js';
@@ -20,17 +21,29 @@ import { processManager } from './process/manager.js';
 import { spawnCommandProcess } from './process/spawner.js';
 import { TERMINAL_STATES } from './process/state.js';
 
+// ─── Flat deps type ──────────────────────────────────────────────────────────
+
+/**
+ * Flat deps required by onCommandRunCore and onCommandStopCore.
+ * DaemonSessionServiceShape structurally satisfies this type.
+ */
+export type CommandRunnerDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function buildCommandKey(machineId: string, workingDir: string, commandName: string): string {
   return `${machineId}|${workingDir}|${commandName}`;
 }
 
-async function reportRunFailed(ctx: DaemonContext, runId: any, reason: string): Promise<void> {
+async function reportRunFailed(deps: CommandRunnerDeps, runId: any, reason: string): Promise<void> {
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId,
       status: 'failed',
     });
@@ -41,10 +54,11 @@ async function reportRunFailed(ctx: DaemonContext, runId: any, reason: string): 
   }
 }
 
-// ─── Event Handlers ─────────────────────────────────────────────────────────
+// ─── Core Event Handlers (flat deps, no ctx.deps.xxx) ───────────────────────
 
-export async function onCommandRun(
-  ctx: DaemonContext,
+// fallow-ignore-next-line unused-export
+export async function onCommandRunCore(
+  deps: CommandRunnerDeps,
   event: {
     workingDir: string;
     commandName: string;
@@ -54,7 +68,7 @@ export async function onCommandRun(
 ): Promise<void> {
   const { workingDir, commandName, script, runId } = event;
   const runIdStr = runId.toString();
-  const commandKey = buildCommandKey(ctx.machineId, workingDir, commandName);
+  const commandKey = buildCommandKey(deps.machineId, workingDir, commandName);
 
   // Prevent double-spawning
   if (processManager.has(runIdStr)) {
@@ -68,9 +82,9 @@ export async function onCommandRun(
       `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
     );
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
         runId,
         status: 'stopped',
       });
@@ -84,9 +98,9 @@ export async function onCommandRun(
 
   // ── Pre-spawn DB status check ──────────────────────────────────────────────
   try {
-    const currentRun = (await ctx.deps.backend.query(api.commands.getRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    const currentRun = (await deps.backend.query(api.commands.getRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId,
     })) as { status: string } | null;
     if (currentRun && TERMINAL_STATES.has(currentRun.status)) {
@@ -121,7 +135,7 @@ export async function onCommandRun(
     console.error(
       `[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`
     );
-    await reportRunFailed(ctx, runId, 'Working directory is not an absolute path');
+    await reportRunFailed(deps, runId, 'Working directory is not an absolute path');
     return;
   }
   try {
@@ -130,18 +144,25 @@ export async function onCommandRun(
     console.error(
       `[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`
     );
-    await reportRunFailed(ctx, runId, 'Working directory not found');
+    await reportRunFailed(deps, runId, 'Working directory not found');
     return;
   }
 
-  // Delegate spawning, output streaming, event handler attachment to spawner
-  const tracked = await spawnCommandProcess(ctx, event, commandKey);
+  // Delegate spawning, output streaming, event handler attachment to spawner.
+  // Pass a structural SpawnCtx (plain object, no cast) that satisfies spawner's
+  // minimal { sessionId, machineId, deps: { backend } } requirement.
+  const spawnCtx = {
+    sessionId: deps.sessionId,
+    machineId: deps.machineId,
+    deps: { backend: deps.backend },
+  };
+  const tracked = await spawnCommandProcess(spawnCtx, event, commandKey);
 
   // Update status to running with PID
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId,
       status: 'running',
       pid: tracked.process.pid,
@@ -153,7 +174,11 @@ export async function onCommandRun(
   }
 }
 
-export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
+// fallow-ignore-next-line unused-export
+export async function onCommandStopCore(
+  deps: CommandRunnerDeps,
+  event: { runId: any }
+): Promise<void> {
   const runIdStr = event.runId.toString();
   const tracked = processManager.get(runIdStr);
 
@@ -164,9 +189,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     );
     processManager.markPendingStop(runIdStr);
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
         runId: event.runId,
         status: 'stopped',
       });
@@ -190,9 +215,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
   await killTrackedProcess(tracked);
 
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId: event.runId,
       status: 'stopped',
     });
@@ -201,6 +226,38 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
       `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped in backend: ${getErrorMessage(err)}`
     );
   }
+}
+
+// ─── Public wrappers (backward-compat — command-loop.ts dispatches via these) ─
+
+/**
+ * Handle a command.run event from the daemon event stream.
+ * @deprecated Use onCommandRunCore or onCommandRunEffect for new Effect-based code.
+ */
+export async function onCommandRun(
+  ctx: DaemonContext,
+  event: {
+    workingDir: string;
+    commandName: string;
+    script: string;
+    runId: any;
+  }
+): Promise<void> {
+  return onCommandRunCore(
+    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+    event
+  );
+}
+
+/**
+ * Handle a command.stop event from the daemon event stream.
+ * @deprecated Use onCommandStopCore or onCommandStopEffect for new Effect-based code.
+ */
+export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
+  return onCommandStopCore(
+    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
+    event
+  );
 }
 
 export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
@@ -285,27 +342,27 @@ export function forceKillAllCommands(): void {
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for onCommandRun — yields DaemonContextService and delegates. */
+/** Effect twin for onCommandRun — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
 // fallow-ignore-next-line unused-export
 export const onCommandRunEffect = (event: {
   workingDir: string;
   commandName: string;
   script: string;
   runId: any;
-}): Effect.Effect<void, never, DaemonContextService> =>
+}): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    yield* Effect.promise(() => onCommandRun(ctx, event));
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => onCommandRunCore(session, event));
   });
 
-/** Effect twin for onCommandStop — yields DaemonContextService and delegates. */
+/** Effect twin for onCommandStop — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
 // fallow-ignore-next-line unused-export
 export const onCommandStopEffect = (event: {
   runId: any;
-}): Effect.Effect<void, never, DaemonContextService> =>
+}): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    yield* Effect.promise(() => onCommandStop(ctx, event));
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => onCommandStopCore(session, event));
   });
 
 /** Effect twin for forceKillAllCommands — synchronous, no service deps needed. */

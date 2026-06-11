@@ -7,13 +7,13 @@
  *   forceKillAllCommandsEffect.
  *
  * Orphan-tracker effects have no service dependencies.
- * Command-runner effects require DaemonContextService.
+ * Command-runner effects (E5.1) now yield DaemonSessionService.
  */
 
 import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonContextService } from '../daemon-context-service.js';
+import { DaemonSessionService } from '../daemon-services.js';
 import { createMockDaemonContext } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 import type { DaemonContext } from '../types.js';
@@ -76,18 +76,33 @@ vi.mock('../../../../infrastructure/convex/client.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — DaemonSessionService (for command-runner Effect twins, E5.1)
 // ---------------------------------------------------------------------------
 
-function makeLayer(overrides?: Partial<DaemonContext>) {
-  return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
+function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
+  const ctx = createMockDaemonContext(overrides);
+  return Layer.succeed(DaemonSessionService, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    client: ctx.client,
+    config: ctx.config,
+    backend: ctx.deps.backend,
+    fs: ctx.deps.fs,
+    agentServices: ctx.agentServices,
+    events: ctx.events,
+    workspaceListStore: ctx.workspaceListStore,
+    logger: ctx.logger,
+    lastPushedGitState: ctx.lastPushedGitState,
+    lastPushedModels: ctx.lastPushedModels,
+    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+  });
 }
 
-async function runWithCtx<A>(
-  effect: Effect.Effect<A, never, DaemonContextService>,
+async function runWithSession<A>(
+  effect: Effect.Effect<A, never, DaemonSessionService>,
   overrides?: Partial<DaemonContext>
 ) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
+  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +124,7 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// A. orphan-tracker Effect twins (no DaemonContextService required)
+// A. orphan-tracker Effect twins (no service dependencies required)
 // ---------------------------------------------------------------------------
 
 describe('reapOrphanedProcessGroupsEffect', () => {
@@ -139,7 +154,7 @@ describe('clearTrackedPidsEffect', () => {
 });
 
 // ---------------------------------------------------------------------------
-// B. command-runner Effect twins (require DaemonContextService)
+// B. command-runner Effect twins (E5.1 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('forceKillAllCommandsEffect', () => {
@@ -153,7 +168,7 @@ describe('onCommandStopEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
-    await runWithCtx(onCommandStopEffect({ runId: 'd2-stop-test-1' as any }), {
+    await runWithSession(onCommandStopEffect({ runId: 'd2-stop-test-1' as any }), {
       deps,
       machineId: 'test-machine-d2',
     });
@@ -169,9 +184,9 @@ describe('onCommandStopEffect', () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
-    await runWithCtx(onCommandStopEffect({ runId: 'd2-stop-test-2' as any }), {
+    await runWithSession(onCommandStopEffect({ runId: 'd2-stop-test-2' as any }), {
       deps,
-      sessionId: 'custom-session-id',
+      sessionId: 'custom-session-id' as any,
     });
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
@@ -190,7 +205,7 @@ describe('onCommandRunEffect', () => {
     // Pre-register a pending stop so onCommandRun takes the early-exit path (no spawn)
     processManager.markPendingStop('d2-run-test-1');
 
-    await runWithCtx(
+    await runWithSession(
       onCommandRunEffect({
         workingDir: '/tmp',
         commandName: 'test-cmd',
@@ -216,7 +231,7 @@ describe('onCommandRunEffect', () => {
 
     processManager.markPendingStop('d2-run-test-2');
 
-    await runWithCtx(
+    await runWithSession(
       onCommandRunEffect({
         workingDir: '/tmp',
         commandName: 'check-machine-id',
