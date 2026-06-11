@@ -9,14 +9,16 @@
  *   processRequestsEffect,
  *   startObservedSyncSubscriptionEffect.
  *
- * All subscription Effect twins require DaemonContextService and accept a wsClient parameter.
- * Tests verify ctx is threaded through from DaemonContextService and the handle is returned.
+ * startWorkspaceListSubscriptionEffect was migrated in E4.1 to require
+ * DaemonSessionService. All other subscription Effect twins still require
+ * DaemonContextService (migrated in later phases).
  */
 
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonContextService } from './daemon-context-service.js';
+import { DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonContext } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonContext } from './types.js';
@@ -98,7 +100,7 @@ function makeMockWsClient(): any {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — DaemonContextService (for subscriptions still on old service)
 // ---------------------------------------------------------------------------
 
 function makeLayer(overrides?: Partial<DaemonContext>) {
@@ -110,6 +112,36 @@ async function runWithCtx<A>(
   overrides?: Partial<DaemonContext>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — DaemonSessionService (for workspace-list-subscription E4.1)
+// ---------------------------------------------------------------------------
+
+function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
+  const ctx = createMockDaemonContext(overrides);
+  return Layer.succeed(DaemonSessionService, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    client: ctx.client,
+    config: ctx.config,
+    backend: ctx.deps.backend,
+    fs: ctx.deps.fs,
+    agentServices: ctx.agentServices,
+    events: ctx.events,
+    workspaceListStore: ctx.workspaceListStore,
+    logger: ctx.logger,
+    lastPushedGitState: ctx.lastPushedGitState,
+    lastPushedModels: ctx.lastPushedModels,
+    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+  });
+}
+
+async function runWithSession<A>(
+  effect: Effect.Effect<A, never, DaemonSessionService>,
+  overrides?: Partial<DaemonContext>
+) {
+  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +223,7 @@ describe('startFileContentSubscriptionEffect', () => {
 });
 
 // ---------------------------------------------------------------------------
-// C. workspace-list-subscription Effect twin
+// C. workspace-list-subscription Effect twin (E4.1 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('startWorkspaceListSubscriptionEffect', () => {
@@ -200,7 +232,7 @@ describe('startWorkspaceListSubscriptionEffect', () => {
       await import('./workspace-list-subscription.js');
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startWorkspaceListSubscriptionEffect(wsClient));
+    const handle = await runWithSession(startWorkspaceListSubscriptionEffect(wsClient));
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
@@ -208,12 +240,12 @@ describe('startWorkspaceListSubscriptionEffect', () => {
     handle.stop();
   });
 
-  it('calls onUpdate with sessionId and machineId from ctx', async () => {
+  it('calls onUpdate with sessionId and machineId from session', async () => {
     const { startWorkspaceListSubscriptionEffect } =
       await import('./workspace-list-subscription.js');
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithCtx(startWorkspaceListSubscriptionEffect(wsClient), {
+    const handle = await runWithSession(startWorkspaceListSubscriptionEffect(wsClient), {
       sessionId: 'session-ws-list',
       machineId: 'machine-ws-list',
     });
@@ -225,6 +257,48 @@ describe('startWorkspaceListSubscriptionEffect', () => {
       expect.any(Function)
     );
     handle.stop();
+  });
+
+  it('initializes workspaceListStore on the session object (start)', async () => {
+    const { startWorkspaceListSubscriptionEffect } =
+      await import('./workspace-list-subscription.js');
+    const wsClient = makeMockWsClient();
+
+    // Capture the session object to inspect workspaceListStore after start
+    let capturedSession: any;
+    const layer = Layer.effect(
+      DaemonSessionService,
+      Effect.gen(function* () {
+        const ctx = createMockDaemonContext();
+        capturedSession = {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+          client: ctx.client,
+          config: ctx.config,
+          backend: ctx.deps.backend,
+          fs: ctx.deps.fs,
+          agentServices: ctx.agentServices,
+          events: ctx.events,
+          workspaceListStore: ctx.workspaceListStore,
+          logger: ctx.logger,
+          lastPushedGitState: ctx.lastPushedGitState,
+          lastPushedModels: ctx.lastPushedModels,
+          lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+        };
+        return capturedSession as any;
+      })
+    );
+
+    const handle = await Effect.runPromise(
+      startWorkspaceListSubscriptionEffect(wsClient).pipe(Effect.provide(layer))
+    );
+
+    // Store should be initialized
+    expect(capturedSession.workspaceListStore).toEqual({ workspaces: [], updatedAt: 0 });
+
+    // After stop, store should be cleared (undefined)
+    handle.stop();
+    expect(capturedSession.workspaceListStore).toBeUndefined();
   });
 });
 
