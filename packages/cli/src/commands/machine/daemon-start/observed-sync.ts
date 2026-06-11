@@ -26,7 +26,6 @@ import {
   pushSingleWorkspaceGitSummaryForObservedCore,
   type GitStateDeps,
 } from './git-heartbeat.js';
-import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -287,29 +286,6 @@ function startObservedSyncSubscriptionCore(
       );
     });
   }
-}
-
-// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-/**
- * Start the observed sync subscription.
- * @deprecated Use startObservedSyncSubscriptionEffect for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export function startObservedSyncSubscription(
-  ctx: DaemonContext,
-  wsClient: ConvexClient
-): { stop: () => void } {
-  return startObservedSyncSubscriptionCore(
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      backend: ctx.deps.backend,
-      lastPushedGitState: ctx.lastPushedGitState,
-      workspaceListStore: ctx.workspaceListStore,
-    },
-    wsClient
-  );
 }
 
 // ── Effect twin ───────────────────────────────────────────────────────────────
