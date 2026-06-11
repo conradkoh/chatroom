@@ -1,7 +1,6 @@
 /**
  * Model Refresh — re-discovers harness models and pushes capability updates to
- * the backend when the set has changed. Extracted from command-loop.ts so the
- * Effect twin (refreshModelsEffect) has a cross-module production consumer.
+ * the backend when the set has changed.
  */
 
 import { Effect, Ref } from 'effect';
@@ -9,13 +8,9 @@ import { Effect, Ref } from 'effect';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
 import { discoverModels } from './init.js';
-import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
-import type { MachineConfig } from '../../../infrastructure/machine/types.js';
-import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
@@ -30,28 +25,6 @@ export type RefreshModelsOutcome =
       };
     }
   | { kind: 'failed'; message: string };
-
-/**
- * Flat identity + ops required by refreshModelsCore.
- * DaemonSessionServiceShape structurally satisfies this type.
- */
-type RefreshModelsDeps = {
-  sessionId: SessionId;
-  machineId: string;
-  backend: BackendOps;
-  agentServices: Map<string, RemoteAgentService>;
-};
-
-/**
- * Mutable state holder required by refreshModelsCore (passed by reference).
- * DaemonSessionServiceShape structurally satisfies this type, so the Effect
- * twin can pass `session` as both deps and stateHolder.
- */
-type RefreshModelsStateHolder = {
-  config: MachineConfig | null;
-  lastPushedModels: Record<string, string[]> | null;
-  lastPushedHarnessFingerprint: string | null;
-};
 
 /** Per-harness diff between two model snapshots. */
 interface ModelDiff {
@@ -156,98 +129,7 @@ function logRefreshOutcome(diff: ModelDiff, totalCount: number): void {
   console.log(`[${formatTimestamp()}] 🔄 Model refresh pushed: ${summary}`);
 }
 
-/**
- * Re-discover models and update the backend registration when the set has
- * changed since the last push.
- *
- * The daemon is the source of truth for "what changed since last sync" — the
- * previously pushed model snapshot lives on `stateHolder.lastPushedModels` and
- * is diffed locally each tick, and harness list + versions are compared via a
- * stable fingerprint. The mutation is only invoked when either snapshot differs.
- *
- * On a successful push, `stateHolder.lastPushedModels` and
- * `stateHolder.lastPushedHarnessFingerprint` are updated to the freshly
- * discovered state. On failure, both snapshots are left unchanged so the next
- * tick retries.
- */
-async function refreshModelsCore(
-  deps: RefreshModelsDeps,
-  stateHolder: RefreshModelsStateHolder
-): Promise<RefreshModelsOutcome> {
-  if (!stateHolder.config) {
-    return { kind: 'noop' };
-  }
-  // Capture non-null config before entering the Effect.gen closure so TypeScript
-  // doesn't require repeated non-null assertions inside the lambda.
-  const ctxConfig = stateHolder.config;
-
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      const models = yield* Effect.tryPromise({
-        try: async () => discoverModels(deps.agentServices),
-        catch: (e) => e,
-      });
-
-      // Re-detect available harnesses so any newly installed tools are reflected immediately.
-      const freshConfig = yield* Effect.tryPromise({
-        try: async () => ensureMachineRegistered(),
-        catch: (e) => e,
-      });
-      ctxConfig.availableHarnesses = freshConfig.availableHarnesses;
-      ctxConfig.harnessVersions = freshConfig.harnessVersions;
-
-      const modelDiff = diffModels(stateHolder.lastPushedModels, models);
-      const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
-        ctxConfig.availableHarnesses,
-        ctxConfig.harnessVersions as Record<string, unknown>
-      );
-      const fingerprintChanged = harnessFingerprintChanged(
-        stateHolder.lastPushedHarnessFingerprint,
-        nextHarnessFingerprint
-      );
-
-      if (!modelDiff.hasChanges && !fingerprintChanged) {
-        // Models and harness metadata match last successful push — skip Convex.
-        return { kind: 'skipped_no_changes' } satisfies RefreshModelsOutcome;
-      }
-
-      const totalCount = Object.values(models).flat().length;
-
-      yield* Effect.tryPromise({
-        try: async () =>
-          deps.backend.mutation(api.machines.refreshCapabilities, {
-            sessionId: deps.sessionId,
-            machineId: deps.machineId,
-            availableHarnesses: ctxConfig.availableHarnesses,
-            harnessVersions: ctxConfig.harnessVersions,
-            availableModels: models,
-          }),
-        catch: (e) => e,
-      });
-
-      // Log only after a successful sync so transient failures do not re-print
-      // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
-      logRefreshOutcome(modelDiff, totalCount);
-      return {
-        kind: 'pushed',
-        snapshot: {
-          lastPushedModels: models,
-          lastPushedHarnessFingerprint: nextHarnessFingerprint,
-        },
-      } satisfies RefreshModelsOutcome;
-    }).pipe(
-      Effect.catchAll((error) =>
-        Effect.sync(() => {
-          const message = getErrorMessage(error);
-          console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
-          return { kind: 'failed', message } satisfies RefreshModelsOutcome;
-        })
-      )
-    )
-  );
-}
-
-/** Effect twin for refreshModels — yields DaemonSessionService and DaemonMutableStateService. */
+/** Re-discover models and push capability updates when the set has changed. */
 export const refreshModelsEffect: Effect.Effect<
   RefreshModelsOutcome,
   never,
@@ -256,15 +138,71 @@ export const refreshModelsEffect: Effect.Effect<
   const session = yield* DaemonSessionService;
   const mutable = yield* DaemonMutableStateService;
 
+  if (!session.config) {
+    return { kind: 'noop' } satisfies RefreshModelsOutcome;
+  }
+  const ctxConfig = session.config;
+
   const lastPushedModels = yield* Ref.get(mutable.lastPushedModels);
   const lastPushedHarnessFingerprint = yield* Ref.get(mutable.lastPushedHarnessFingerprint);
 
-  const outcome = yield* Effect.promise(() =>
-    refreshModelsCore(session, {
-      config: session.config,
-      lastPushedModels,
+  const outcome = yield* Effect.gen(function* () {
+    const models = yield* Effect.tryPromise({
+      try: async () => discoverModels(session.agentServices),
+      catch: (e) => e,
+    });
+
+    const freshConfig = yield* Effect.tryPromise({
+      try: async () => ensureMachineRegistered(),
+      catch: (e) => e,
+    });
+    ctxConfig.availableHarnesses = freshConfig.availableHarnesses;
+    ctxConfig.harnessVersions = freshConfig.harnessVersions;
+
+    const modelDiff = diffModels(lastPushedModels, models);
+    const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
+      ctxConfig.availableHarnesses,
+      ctxConfig.harnessVersions as Record<string, unknown>
+    );
+    const fingerprintChanged = harnessFingerprintChanged(
       lastPushedHarnessFingerprint,
-    })
+      nextHarnessFingerprint
+    );
+
+    if (!modelDiff.hasChanges && !fingerprintChanged) {
+      return { kind: 'skipped_no_changes' } satisfies RefreshModelsOutcome;
+    }
+
+    const totalCount = Object.values(models).flat().length;
+
+    yield* Effect.tryPromise({
+      try: async () =>
+        session.backend.mutation(api.machines.refreshCapabilities, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          availableHarnesses: ctxConfig.availableHarnesses,
+          harnessVersions: ctxConfig.harnessVersions,
+          availableModels: models,
+        }),
+      catch: (e) => e,
+    });
+
+    logRefreshOutcome(modelDiff, totalCount);
+    return {
+      kind: 'pushed',
+      snapshot: {
+        lastPushedModels: models,
+        lastPushedHarnessFingerprint: nextHarnessFingerprint,
+      },
+    } satisfies RefreshModelsOutcome;
+  }).pipe(
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        const message = getErrorMessage(error);
+        console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
+        return { kind: 'failed', message } satisfies RefreshModelsOutcome;
+      })
+    )
   );
 
   if (outcome.kind === 'pushed') {

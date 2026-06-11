@@ -281,8 +281,8 @@ beforeEach(() => {
 describe('refreshModelsEffect', () => {
   it('returns noop when session.config is null (session injected from DaemonSessionService)', async () => {
     const { refreshModelsEffect } = await import('./models-refresh.js');
-    // Default mock context has config: null → refreshModelsCore short-circuits immediately.
-    // Verifies the Effect twin extracted session from DaemonSessionService and delegated correctly.
+    // Default mock context has config: null → refreshModelsEffect short-circuits immediately.
+    // Verifies the Effect extracted session from DaemonSessionService and executed correctly.
     const result = await runWithSession(refreshModelsEffect);
 
     expect(result).toEqual({ kind: 'noop' });
