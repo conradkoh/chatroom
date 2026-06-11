@@ -41,6 +41,7 @@ function getUrlHash(): string {
 }
 
 /** Exported for tests to override via HOME env manipulation. */
+// fallow-ignore-next-line unused-export
 export function getChildPidsFilePath(): string {
   const dir = join(homedir(), '.chatroom');
   return join(dir, `daemon-children-${getUrlHash()}.pids`);
@@ -162,6 +163,7 @@ export function forceKillAllTrackedProcessGroups(): number {
  * Clears the pids file when done.
  * Returns `{ reaped, checked }` for logging at the call site.
  */
+// fallow-ignore-next-line unused-export
 export async function reapOrphanedProcessGroups(): Promise<{
   reaped: number;
   checked: number;
@@ -221,7 +223,6 @@ export async function reapOrphanedProcessGroups(): Promise<{
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Effect twin — wraps reapOrphanedProcessGroups (no service deps needed). */
-// fallow-ignore-next-line unused-export
 export const reapOrphanedProcessGroupsEffect: Effect.Effect<{ reaped: number; checked: number }> =
   Effect.promise(() => reapOrphanedProcessGroups());
 

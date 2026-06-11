@@ -86,11 +86,15 @@ vi.mock('./handlers/state-recovery.js', async () => {
   };
 });
 
-vi.mock('./handlers/orphan-tracker.js', () => ({
-  reapOrphanedProcessGroups: vi.fn().mockResolvedValue({ reaped: 0, checked: 0 }),
-  trackChildPid: vi.fn(),
-  untrackChildPid: vi.fn(),
-}));
+vi.mock('./handlers/orphan-tracker.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    reapOrphanedProcessGroups: vi.fn().mockResolvedValue({ reaped: 0, checked: 0 }), // keep — harmless
+    reapOrphanedProcessGroupsEffect: Effect.succeed({ reaped: 0, checked: 0 }),
+    trackChildPid: vi.fn(),
+    untrackChildPid: vi.fn(),
+  };
+});
 
 vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () => {
   return {
