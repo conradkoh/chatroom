@@ -176,6 +176,20 @@ describe('handleStatusEffect', () => {
     expect(parsed.availableHarnesses).toBeUndefined();
     expect(result.failed).toBe(false);
   });
+
+  it('returns empty array when config has no harnesses', async () => {
+    const config = {
+      hostname: 'test',
+      os: 'linux',
+      availableHarnesses: [],
+    } as unknown as MachineConfig;
+
+    const result = await runWithSession(handleStatusEffect, config);
+    const parsed = JSON.parse(result.result);
+
+    expect(parsed.availableHarnesses).toEqual([]);
+    expect(result.failed).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
