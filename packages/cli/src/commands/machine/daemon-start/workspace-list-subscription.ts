@@ -14,7 +14,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
 import { DaemonSessionService } from './daemon-services.js';
-import type { DaemonContext, SessionId, WorkspaceForSync } from './types.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -123,24 +123,6 @@ function startWorkspaceListSubscriptionCore(
 }
 
 // ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
-
-/**
- * Subscribe to recently observed workspaces; returns stop handle.
- * @deprecated Use startWorkspaceListSubscriptionEffect for new Effect-based code.
- */
-// fallow-ignore-next-line unused-export
-export function startWorkspaceListSubscription(
-  ctx: DaemonContext,
-  wsClient: ConvexClient
-): { stop: () => void } {
-  // Pass ctx as the store holder so Core mutates ctx.workspaceListStore directly —
-  // the same reference used by non-Effect heartbeat call sites.
-  return startWorkspaceListSubscriptionCore(
-    { sessionId: ctx.sessionId, machineId: ctx.machineId, backend: ctx.deps.backend },
-    ctx,
-    wsClient
-  );
-}
 
 // ── Effect twin ───────────────────────────────────────────────────────────────
 
