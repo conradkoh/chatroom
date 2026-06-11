@@ -182,7 +182,6 @@ export interface DaemonMutableStateServiceShape {
   workspaceListStore: Ref.Ref<{ workspaces: WorkspaceForSync[]; updatedAt: number } | undefined>;
 }
 
-// fallow-ignore-next-line unused-export
 export class DaemonMutableStateService extends Context.Tag('DaemonMutableStateService')<
   DaemonMutableStateService,
   DaemonMutableStateServiceShape

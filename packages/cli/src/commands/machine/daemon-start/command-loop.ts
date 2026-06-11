@@ -27,7 +27,10 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { pushCommandsEffect } from './command-sync-heartbeat.js';
 import { syncCommitDetailsEffect } from './commit-detail-sync.js';
-import type { DaemonAgentProcessManagerService } from './daemon-services.js';
+import type {
+  DaemonAgentProcessManagerService,
+  DaemonMutableStateService,
+} from './daemon-services.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
@@ -115,7 +118,10 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Union of services required to dispatch any command event. */
-type CommandDispatchDeps = DaemonAgentProcessManagerService | DaemonSessionService;
+type CommandDispatchDeps =
+  | DaemonAgentProcessManagerService
+  | DaemonMutableStateService
+  | DaemonSessionService;
 
 // ── Per-event Effect helpers (private) ────────────────────────────────────────
 
@@ -246,7 +252,7 @@ function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
+): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.capabilitiesRefreshIds.has(eventId)) return;
@@ -313,11 +319,11 @@ export const dispatchCommandEventEffect = (
 export const startCommandLoopEffect: Effect.Effect<
   never,
   never,
-  DaemonSessionService | DaemonAgentProcessManagerService
+  DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
 > = Effect.gen(function* () {
   const session = yield* DaemonSessionService;
   const effectContext = yield* Effect.context<
-    DaemonSessionService | DaemonAgentProcessManagerService
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
   >();
 
   const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;

@@ -18,7 +18,11 @@ import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
-import type { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
+import type {
+  DaemonAgentProcessManagerService,
+  DaemonMutableStateService,
+  DaemonSessionService,
+} from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from './types.js';
@@ -196,31 +200,37 @@ vi.mock('../../../events/daemon/agent/on-request-stop-agent.js', async () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Combined DaemonSessionService + DaemonAgentProcessManagerService layers — used by dispatchCommandEventEffect and startCommandLoopEffect. */
+/** Combined DaemonSessionService + DaemonAgentProcessManagerService + DaemonMutableStateService layers — used by dispatchCommandEventEffect and startCommandLoopEffect. */
 function makeDispatchLayers(
   overrides?: Partial<DaemonSessionInit>
-): Layer.Layer<DaemonSessionService | DaemonAgentProcessManagerService> {
+): Layer.Layer<
+  DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+> {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
 }
 
 async function runDispatch<A>(
-  effect: Effect.Effect<A, never, DaemonSessionService | DaemonAgentProcessManagerService>,
+  effect: Effect.Effect<
+    A,
+    never,
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+  >,
   overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeDispatchLayers(overrides))));
 }
 
-/** DaemonSessionService layer — used by section A (refreshModelsEffect, E5.2). */
+/** DaemonSessionService layer — used by section A (refreshModelsEffect, E5+). */
 function makeSessionLayer(
   overrides?: Partial<DaemonSessionInit>
-): Layer.Layer<DaemonSessionService> {
+): Layer.Layer<DaemonSessionService | DaemonMutableStateService> {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
 }
 
 async function runWithSession<A>(
-  effect: Effect.Effect<A, never, DaemonSessionService>,
+  effect: Effect.Effect<A, never, DaemonSessionService | DaemonMutableStateService>,
   overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
@@ -298,7 +308,7 @@ describe('refreshModelsEffect', () => {
       withDeps(deps, { config, lastPushedModels: null, lastPushedHarnessFingerprint: null })
     );
 
-    expect(result).toEqual({ kind: 'pushed' });
+    expect(result.kind).toBe('pushed');
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'mock-refreshCapabilities',
       expect.objectContaining({ machineId: 'test-machine-id' })
