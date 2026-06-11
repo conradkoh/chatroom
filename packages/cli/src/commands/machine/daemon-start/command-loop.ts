@@ -17,19 +17,23 @@ import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-sta
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
+import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
 import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
 import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
+import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { pushCommands } from './command-sync-heartbeat.js';
 import { syncCommitDetails } from './commit-detail-sync.js';
 import { DaemonContextService } from './daemon-context-service.js';
+import { DaemonSessionService } from './daemon-services.js';
 import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
 import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
@@ -45,7 +49,7 @@ import { startLogObserverSubscription } from './handlers/process/log-observer-sy
 import { processManager } from './handlers/process/manager.js';
 import { discoverModels } from './init.js';
 import { startObservedSyncSubscription } from './observed-sync.js';
-import type { DaemonContext } from './types.js';
+import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscription } from './workspace-list-subscription.js';
 
@@ -87,6 +91,28 @@ export type RefreshModelsOutcome =
   | { kind: 'skipped_no_changes' }
   | { kind: 'pushed' }
   | { kind: 'failed'; message: string };
+
+/**
+ * Flat identity + ops required by refreshModelsCore.
+ * DaemonSessionServiceShape structurally satisfies this type.
+ */
+type RefreshModelsDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+  agentServices: Map<string, RemoteAgentService>;
+};
+
+/**
+ * Mutable state holder required by refreshModelsCore (passed by reference).
+ * DaemonSessionServiceShape structurally satisfies this type, so the Effect
+ * twin can pass `session` as both deps and stateHolder.
+ */
+type RefreshModelsStateHolder = {
+  config: MachineConfig | null;
+  lastPushedModels: Record<string, string[]> | null;
+  lastPushedHarnessFingerprint: string | null;
+};
 
 /** Per-harness diff between two model snapshots. */
 interface ModelDiff {
@@ -145,26 +171,31 @@ function formatModelMap(map: Record<string, string[]>): string {
  * changed since the last push.
  *
  * The daemon is the source of truth for "what changed since last sync" — the
- * previously pushed model snapshot lives on `ctx.lastPushedModels` and is diffed
- * locally each tick, and harness list + versions are compared via a stable
- * fingerprint. The mutation is only invoked when either snapshot differs.
+ * previously pushed model snapshot lives on `stateHolder.lastPushedModels` and
+ * is diffed locally each tick, and harness list + versions are compared via a
+ * stable fingerprint. The mutation is only invoked when either snapshot differs.
  *
- * On a successful push, `ctx.lastPushedModels` and
- * `ctx.lastPushedHarnessFingerprint` are updated to the freshly discovered
- * state. On failure, both snapshots are left unchanged so the next tick retries.
+ * On a successful push, `stateHolder.lastPushedModels` and
+ * `stateHolder.lastPushedHarnessFingerprint` are updated to the freshly
+ * discovered state. On failure, both snapshots are left unchanged so the next
+ * tick retries.
  */
-export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
-  if (!ctx.config) {
+// fallow-ignore-next-line unused-export
+export async function refreshModelsCore(
+  deps: RefreshModelsDeps,
+  stateHolder: RefreshModelsStateHolder
+): Promise<RefreshModelsOutcome> {
+  if (!stateHolder.config) {
     return { kind: 'noop' };
   }
   // Capture non-null config before entering the Effect.gen closure so TypeScript
   // doesn't require repeated non-null assertions inside the lambda.
-  const ctxConfig = ctx.config;
+  const ctxConfig = stateHolder.config;
 
   return Effect.runPromise(
     Effect.gen(function* () {
       const models = yield* Effect.tryPromise({
-        try: async () => discoverModels(ctx.agentServices),
+        try: async () => discoverModels(deps.agentServices),
         catch: (e) => e,
       });
 
@@ -176,14 +207,14 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
       ctxConfig.availableHarnesses = freshConfig.availableHarnesses;
       ctxConfig.harnessVersions = freshConfig.harnessVersions;
 
-      const modelDiff = diffModels(ctx.lastPushedModels, models);
+      const modelDiff = diffModels(stateHolder.lastPushedModels, models);
       const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
         ctxConfig.availableHarnesses,
         ctxConfig.harnessVersions as Record<string, unknown>
       );
       const harnessFingerprintChanged =
-        ctx.lastPushedHarnessFingerprint !== null &&
-        nextHarnessFingerprint !== ctx.lastPushedHarnessFingerprint;
+        stateHolder.lastPushedHarnessFingerprint !== null &&
+        nextHarnessFingerprint !== stateHolder.lastPushedHarnessFingerprint;
 
       if (!modelDiff.hasChanges && !harnessFingerprintChanged) {
         // Models and harness metadata match last successful push — skip Convex.
@@ -194,9 +225,9 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
 
       yield* Effect.tryPromise({
         try: async () =>
-          ctx.deps.backend.mutation(api.machines.refreshCapabilities, {
-            sessionId: ctx.sessionId,
-            machineId: ctx.machineId,
+          deps.backend.mutation(api.machines.refreshCapabilities, {
+            sessionId: deps.sessionId,
+            machineId: deps.machineId,
             availableHarnesses: ctxConfig.availableHarnesses,
             harnessVersions: ctxConfig.harnessVersions,
             availableModels: models,
@@ -206,8 +237,8 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
 
       // Snapshot only after the backend successfully accepts the update — on
       // failure we want the next tick to retry with the same diff.
-      ctx.lastPushedModels = models;
-      ctx.lastPushedHarnessFingerprint = nextHarnessFingerprint;
+      stateHolder.lastPushedModels = models;
+      stateHolder.lastPushedHarnessFingerprint = nextHarnessFingerprint;
 
       // Log only after a successful sync so transient failures do not re-print
       // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
@@ -234,6 +265,23 @@ export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOu
         })
       )
     )
+  );
+}
+
+/**
+ * Re-discover models and update the backend registration when the set has changed.
+ * @deprecated Use refreshModelsCore or refreshModelsEffect for new Effect-based code.
+ */
+// fallow-ignore-next-line unused-export
+export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
+  return refreshModelsCore(
+    {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      backend: ctx.deps.backend,
+      agentServices: ctx.agentServices,
+    },
+    ctx
   );
 }
 
@@ -305,6 +353,7 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
  *   command.stop               — killing an already-dead process is harmless; retry-safe
  *   daemon.refreshCapabilities — model refresh is idempotent; retry-safe
  */
+// fallow-ignore-next-line unused-export
 export async function dispatchCommandEvent(
   ctx: DaemonContext,
   event: CommandEvent,
@@ -765,12 +814,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for refreshModels — yields DaemonContextService and delegates. */
+/** Effect twin for refreshModels — yields DaemonSessionService; DaemonSessionServiceShape satisfies both RefreshModelsDeps and RefreshModelsStateHolder. */
 // fallow-ignore-next-line unused-export
-export const refreshModelsEffect: Effect.Effect<RefreshModelsOutcome, never, DaemonContextService> =
+export const refreshModelsEffect: Effect.Effect<RefreshModelsOutcome, never, DaemonSessionService> =
   Effect.gen(function* () {
-    const ctx = yield* DaemonContextService;
-    return yield* Effect.promise(() => refreshModels(ctx));
+    const session = yield* DaemonSessionService;
+    return yield* Effect.promise(() => refreshModelsCore(session, session));
   });
 
 /** Effect twin for dispatchCommandEvent — yields DaemonContextService and delegates. */

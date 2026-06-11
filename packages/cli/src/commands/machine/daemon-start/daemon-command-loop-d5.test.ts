@@ -15,6 +15,7 @@ import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonContextService } from './daemon-context-service.js';
+import { DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonContext } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonContext } from './types.js';
@@ -148,6 +149,7 @@ vi.mock('./handlers/ping.js', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** DaemonContextService layer — used by sections B and C (not yet migrated). */
 function makeLayer(overrides?: Partial<DaemonContext>) {
   return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
 }
@@ -157,6 +159,33 @@ async function runWithCtx<A>(
   overrides?: Partial<DaemonContext>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeLayer(overrides))));
+}
+
+/** DaemonSessionService layer — used by section A (refreshModelsEffect, E5.2). */
+function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
+  const ctx = createMockDaemonContext(overrides);
+  return Layer.succeed(DaemonSessionService, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    client: ctx.client,
+    config: ctx.config,
+    backend: ctx.deps.backend,
+    fs: ctx.deps.fs,
+    agentServices: ctx.agentServices,
+    events: ctx.events,
+    workspaceListStore: ctx.workspaceListStore,
+    logger: ctx.logger,
+    lastPushedGitState: ctx.lastPushedGitState,
+    lastPushedModels: ctx.lastPushedModels,
+    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
+  });
+}
+
+async function runWithSession<A>(
+  effect: Effect.Effect<A, never, DaemonSessionService>,
+  overrides?: Partial<DaemonContext>
+) {
+  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
 }
 
 /** Build a fresh DedupTracker with all maps empty. */
@@ -184,20 +213,20 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// A. refreshModelsEffect
+// A. refreshModelsEffect (E5.2 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('refreshModelsEffect', () => {
-  it('returns noop when ctx.config is null (ctx injected from DaemonContextService)', async () => {
+  it('returns noop when session.config is null (session injected from DaemonSessionService)', async () => {
     const { refreshModelsEffect } = await import('./command-loop.js');
-    // Default mock context has config: null → refreshModels short-circuits immediately.
-    // Verifies the Effect twin extracted ctx from DaemonContextService and delegated correctly.
-    const result = await runWithCtx(refreshModelsEffect);
+    // Default mock context has config: null → refreshModelsCore short-circuits immediately.
+    // Verifies the Effect twin extracted session from DaemonSessionService and delegated correctly.
+    const result = await runWithSession(refreshModelsEffect);
 
     expect(result).toEqual({ kind: 'noop' });
   });
 
-  it('returns pushed when ctx has a valid config and there is no prior model snapshot', async () => {
+  it('returns pushed when session has a valid config and there is no prior model snapshot', async () => {
     const { refreshModelsEffect } = await import('./command-loop.js');
     const deps = createMockDaemonDeps();
     // discoverModels mock returns { opencode: ['opencode/model-a'] }.
@@ -212,7 +241,7 @@ describe('refreshModelsEffect', () => {
       harnessVersions: {},
     } as any;
 
-    const result = await runWithCtx(refreshModelsEffect, {
+    const result = await runWithSession(refreshModelsEffect, {
       deps,
       config,
       lastPushedModels: null,
@@ -241,7 +270,7 @@ describe('refreshModelsEffect', () => {
       harnessVersions: {},
     } as any;
 
-    const result = await runWithCtx(refreshModelsEffect, {
+    const result = await runWithSession(refreshModelsEffect, {
       deps,
       config,
       lastPushedModels: { opencode: ['opencode/model-a'] },
