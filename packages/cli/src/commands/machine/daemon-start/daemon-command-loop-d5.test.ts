@@ -16,7 +16,6 @@
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonContextService } from './daemon-context-service.js';
 import type { DaemonAgentProcessManagerService } from './daemon-services.js';
 import { DaemonAgentProcessManagerServiceLive, DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonContext } from './testing/index.js';
@@ -196,12 +195,7 @@ vi.mock('../../../events/daemon/agent/on-request-stop-agent.js', async () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** DaemonContextService layer — used by section C (startCommandLoopEffect, not yet migrated). */
-function makeLayer(overrides?: Partial<DaemonContext>) {
-  return Layer.succeed(DaemonContextService, createMockDaemonContext(overrides));
-}
-
-/** Combined DaemonSessionService + DaemonAgentProcessManagerService layers — used by dispatchCommandEventEffect. */
+/** Combined DaemonSessionService + DaemonAgentProcessManagerService layers — used by dispatchCommandEventEffect and startCommandLoopEffect. */
 function makeDispatchLayers(
   overrides?: Partial<DaemonContext>
 ): Layer.Layer<DaemonSessionService | DaemonAgentProcessManagerService> {
@@ -395,18 +389,14 @@ describe('dispatchCommandEventEffect', () => {
 // ---------------------------------------------------------------------------
 
 describe('startCommandLoopEffect', () => {
-  it('connects to Convex and starts the command loop (ctx injected from DaemonContextService)', async () => {
+  it('connects to Convex and starts the command loop (granular services)', async () => {
     const { startCommandLoopEffect } = await import('./command-loop.js');
     const { getConvexWsClient } = await import('../../../infrastructure/convex/client.js');
 
     // startCommandLoop returns Promise<never> — race against a timer so the test
     // can assert that setup ran without waiting forever.
     await Promise.race([
-      Effect.runPromise(
-        (startCommandLoopEffect as Effect.Effect<any, never, DaemonContextService>).pipe(
-          Effect.provide(makeLayer())
-        )
-      ),
+      Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(makeDispatchLayers()))),
       new Promise<void>((resolve) => {
         const t = setTimeout(resolve, 200);
         t.unref?.();
