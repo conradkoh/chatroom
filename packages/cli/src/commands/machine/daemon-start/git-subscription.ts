@@ -45,7 +45,7 @@ export interface GitSubscriptionHandle {
 // ── Minimal dep type used by Core functions + Effect twins ────────────────────
 
 /**
- * Flat deps required by startGitRequestSubscriptionCore and processRequestsCore.
+ * Flat deps required by processor functions (processFullDiff, etc.).
  * Includes lastPushedGitState (for pushGitStateCore after PR actions) and
  * workspaceListStore (for getWorkspacesForMachine inside pushGitStateCore).
  * DaemonSessionServiceShape structurally satisfies this type.
@@ -378,98 +378,6 @@ async function processRecentCommits(deps: GitSubscriptionDeps, req: PendingReque
   );
 }
 
-// ─── Request Processing (Core) ────────────────────────────────────────────────
-
-/**
- * Process a batch of pending requests from a subscription update.
- * Core version — takes flat deps, no DaemonContext.
- *
- * Handles deduplication and transitions each request through
- * `pending` → `processing` → `done` | `error`.
- */
-// fallow-ignore-next-line unused-export
-export async function processRequestsCore(
-  deps: GitSubscriptionDeps,
-  requests: PendingRequest[],
-  processedRequestIds: Map<string, number>,
-  dedupTtlMs: number
-): Promise<void> {
-  // Evict stale dedup entries
-  const evictBefore = Date.now() - dedupTtlMs;
-  for (const [id, ts] of processedRequestIds) {
-    if (ts < evictBefore) processedRequestIds.delete(id);
-  }
-
-  // Process each request sequentially
-  for (const req of requests) {
-    const requestId = req._id.toString();
-
-    // Skip already-processed requests (dedup within this daemon session)
-    if (processedRequestIds.has(requestId)) continue;
-    processedRequestIds.set(requestId, Date.now());
-
-    try {
-      // Mark as processing
-      await deps.backend.mutation(api.workspaces.updateRequestStatus, {
-        sessionId: deps.sessionId,
-        requestId: req._id,
-        status: 'processing',
-      });
-
-      const logger = deps.logger ?? console;
-      logger.log(
-        `[${formatTimestamp()}] ⚙️  Processing git request: type=${req.requestType}, id=${requestId}`
-      );
-
-      switch (req.requestType) {
-        case 'full_diff':
-          await processFullDiff(deps, req);
-          break;
-        case 'commit_detail':
-          await processCommitDetail(deps, req);
-          break;
-        case 'more_commits':
-          await processMoreCommits(deps, req);
-          break;
-        case 'pr_diff':
-          await processPRDiff(deps, req);
-          break;
-        case 'pr_action':
-          await processPRAction(deps, req);
-          break;
-        case 'pr_commits':
-          await processPRCommits(deps, req);
-          break;
-        case 'all_pull_requests':
-          await processAllPullRequests(deps, req);
-          break;
-        case 'recent_commits':
-          await processRecentCommits(deps, req);
-          break;
-      }
-
-      // Mark as done
-      await deps.backend.mutation(api.workspaces.updateRequestStatus, {
-        sessionId: deps.sessionId,
-        requestId: req._id,
-        status: 'done',
-      });
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Failed to process ${req.requestType} request: ${getErrorMessage(err)}`
-      );
-      // Best-effort: mark as error (don't abort the loop on mutation failure)
-      await deps.backend
-        .mutation(api.workspaces.updateRequestStatus, {
-          sessionId: deps.sessionId,
-          requestId: req._id,
-          status: 'error',
-        })
-        .catch(() => {});
-    }
-  }
-}
-
 /** Starts the git request subscription — yields DaemonSessionService. */
 export const startGitRequestSubscriptionEffect = (
   wsClient: ConvexClient
@@ -519,7 +427,11 @@ export const startGitRequestSubscriptionEffect = (
         if (processing) return;
 
         processing = true;
-        processRequestsCore(session, requests, processedRequestIds, DEDUP_TTL_MS)
+        Effect.runPromise(
+          processRequestsEffect(requests, processedRequestIds, DEDUP_TTL_MS).pipe(
+            Effect.provideService(DaemonSessionService, session)
+          )
+        )
           .catch((err: unknown) => {
             console.warn(
               `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
@@ -546,7 +458,7 @@ export const startGitRequestSubscriptionEffect = (
     };
   });
 
-/** Effect twin for processRequests — yields DaemonSessionService; DaemonSessionServiceShape satisfies GitSubscriptionDeps. */
+/** Processes pending git requests — yields DaemonSessionService. */
 // fallow-ignore-next-line unused-export
 export const processRequestsEffect = (
   requests: PendingRequest[],
@@ -555,7 +467,85 @@ export const processRequestsEffect = (
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() =>
-      processRequestsCore(session, requests, processedRequestIds, dedupTtlMs)
-    );
+
+    // Evict stale dedup entries
+    const evictBefore = Date.now() - dedupTtlMs;
+    for (const [id, ts] of processedRequestIds) {
+      if (ts < evictBefore) processedRequestIds.delete(id);
+    }
+
+    // Process each request sequentially
+    for (const req of requests) {
+      const requestId = req._id.toString();
+
+      // Skip already-processed requests (dedup within this daemon session)
+      if (processedRequestIds.has(requestId)) continue;
+      processedRequestIds.set(requestId, Date.now());
+
+      try {
+        // Mark as processing
+        yield* Effect.promise(() =>
+          session.backend.mutation(api.workspaces.updateRequestStatus, {
+            sessionId: session.sessionId,
+            requestId: req._id,
+            status: 'processing',
+          })
+        );
+
+        const logger = session.logger ?? console;
+        logger.log(
+          `[${formatTimestamp()}] ⚙️  Processing git request: type=${req.requestType}, id=${requestId}`
+        );
+
+        switch (req.requestType) {
+          case 'full_diff':
+            yield* Effect.promise(() => processFullDiff(session, req));
+            break;
+          case 'commit_detail':
+            yield* Effect.promise(() => processCommitDetail(session, req));
+            break;
+          case 'more_commits':
+            yield* Effect.promise(() => processMoreCommits(session, req));
+            break;
+          case 'pr_diff':
+            yield* Effect.promise(() => processPRDiff(session, req));
+            break;
+          case 'pr_action':
+            yield* Effect.promise(() => processPRAction(session, req));
+            break;
+          case 'pr_commits':
+            yield* Effect.promise(() => processPRCommits(session, req));
+            break;
+          case 'all_pull_requests':
+            yield* Effect.promise(() => processAllPullRequests(session, req));
+            break;
+          case 'recent_commits':
+            yield* Effect.promise(() => processRecentCommits(session, req));
+            break;
+        }
+
+        // Mark as done
+        yield* Effect.promise(() =>
+          session.backend.mutation(api.workspaces.updateRequestStatus, {
+            sessionId: session.sessionId,
+            requestId: req._id,
+            status: 'done',
+          })
+        );
+      } catch (err) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Failed to process ${req.requestType} request: ${getErrorMessage(err)}`
+        );
+        // Best-effort: mark as error (don't abort the loop on mutation failure)
+        yield* Effect.promise(() =>
+          session.backend
+            .mutation(api.workspaces.updateRequestStatus, {
+              sessionId: session.sessionId,
+              requestId: req._id,
+              status: 'error',
+            })
+            .catch(() => {})
+        );
+      }
+    }
   });
