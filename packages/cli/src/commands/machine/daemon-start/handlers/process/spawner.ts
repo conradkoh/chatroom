@@ -85,6 +85,7 @@ const flushTailV2Effect = (
     );
   });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = false): Promise<void> {
   return Effect.runPromise(flushTailV2Effect(deps, tracked, force));
 }
@@ -165,6 +166,7 @@ const flushFinalChunksEffect = (
     }
   });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function flushFinalChunks(
   deps: SpawnDeps,
   tracked: RunningProcess,
@@ -232,6 +234,54 @@ export async function pollPendingFullOutputSyncs(deps: SpawnDeps): Promise<void>
   return Effect.runPromise(pollPendingFullOutputSyncsEffect(deps));
 }
 
+/** Effect twin — cleanup and status update when a spawned process exits. */
+const finalizeRunEffect = (
+  deps: SpawnDeps,
+  tracked: RunningProcess,
+  runId: any,
+  runIdStr: string,
+  commandKey: string,
+  code: number | null,
+  signal: NodeJS.Signals | null
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    clearInterval(tracked.flushTimer);
+    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
+
+    if (tracked.process.pid != null) {
+      untrackChildPid(tracked.process.pid);
+    }
+
+    yield* flushFinalChunksEffect(deps, tracked, runId);
+    yield* Effect.tryPromise({
+      try: () => tracked.store.destroy(),
+      catch: (e) => e,
+    }).pipe(Effect.catchAll(() => Effect.void));
+    processManager.unregister(runIdStr, commandKey);
+
+    const status = deriveTerminalStatus(code, signal, tracked.terminationIntent);
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.commands.updateRunStatus, {
+          sessionId: deps.sessionId as SessionId,
+          machineId: deps.machineId,
+          runId,
+          status,
+          exitCode: code ?? undefined,
+        }),
+      catch: (e) => e,
+    }).pipe(
+      Effect.catchAll((err) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Failed to update run status on exit:`,
+            err instanceof Error ? err.message : String(err)
+          );
+        })
+      )
+    );
+  });
+
 export async function spawnCommandProcess(
   deps: SpawnDeps,
   event: {
@@ -266,8 +316,8 @@ export async function spawnCommandProcess(
     store,
     startedAt: Date.now(),
     flushTimer: setInterval(() => {
-      flushTailV2(deps, tracked).catch(() => {});
-      syncFullOutputOnRequest(deps, tracked, runId).catch(() => {});
+      Effect.runPromise(flushTailV2Effect(deps, tracked)).catch(() => {});
+      Effect.runPromise(syncFullOutputOnRequestEffect(deps, tracked, runId)).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
     softTimeoutTimer: null,
     terminationIntent: null,
@@ -321,34 +371,8 @@ export async function spawnCommandProcess(
     tracked.store.append(data.toString()).catch(() => {});
   });
 
-  const finalize = async (code: number | null, signal: NodeJS.Signals | null) => {
-    clearInterval(tracked.flushTimer);
-    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
-
-    if (tracked.process.pid != null) {
-      untrackChildPid(tracked.process.pid);
-    }
-
-    await flushFinalChunks(deps, tracked, runId);
-    await tracked.store.destroy();
-    processManager.unregister(runIdStr, commandKey);
-
-    const status = deriveTerminalStatus(code, signal, tracked.terminationIntent);
-
-    try {
-      await deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: deps.sessionId as SessionId,
-        machineId: deps.machineId,
-        runId,
-        status,
-        exitCode: code ?? undefined,
-      });
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to update run status on exit: ${getErrorMessage(err)}`
-      );
-    }
-  };
+  const finalize = (code: number | null, signal: NodeJS.Signals | null) =>
+    Effect.runPromise(finalizeRunEffect(deps, tracked, runId, runIdStr, commandKey, code, signal));
 
   child.on('exit', (code, signal) => {
     console.log(
