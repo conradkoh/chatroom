@@ -66,7 +66,7 @@ const LOCKFILE_MAP: { file: string; manager: PackageManager }[] = [
  * Detect the package manager for a workspace by checking for lockfiles.
  * Returns 'npm' as the default if no lockfile is found.
  */
-export async function detectPackageManager(workingDir: string): Promise<PackageManager> {
+async function detectPackageManager(workingDir: string): Promise<PackageManager> {
   for (const { file, manager } of LOCKFILE_MAP) {
     try {
       await access(join(workingDir, file));
@@ -84,7 +84,7 @@ export async function detectPackageManager(workingDir: string): Promise<PackageM
  * Get the command prefix for running package.json scripts.
  * e.g. "pnpm run", "yarn run", "bun run", "npm run"
  */
-export function getScriptRunPrefix(pm: PackageManager): string {
+function getScriptRunPrefix(pm: PackageManager): string {
   return `${pm} run`;
 }
 
@@ -92,7 +92,7 @@ export function getScriptRunPrefix(pm: PackageManager): string {
  * Get the command prefix for running turbo tasks.
  * Uses the package manager to invoke turbo (avoids requiring global install).
  */
-export function getTurboRunPrefix(pm: PackageManager): string {
+function getTurboRunPrefix(pm: PackageManager): string {
   switch (pm) {
     case 'pnpm':
       return 'pnpm turbo run';
@@ -110,7 +110,7 @@ export function getTurboRunPrefix(pm: PackageManager): string {
  * Get the command for running a script in a specific workspace package.
  * Uses the package manager's filter/workspace syntax.
  */
-export function getFilteredScriptCommand(
+function getFilteredScriptCommand(
   pm: PackageManager,
   packageName: string,
   scriptName: string
@@ -131,7 +131,7 @@ export function getFilteredScriptCommand(
 /**
  * Get the command for running a turbo task filtered to a specific package.
  */
-export function getFilteredTurboCommand(
+function getFilteredTurboCommand(
   pm: PackageManager,
   packageName: string,
   taskName: string
