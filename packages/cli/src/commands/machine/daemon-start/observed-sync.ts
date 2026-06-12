@@ -18,10 +18,10 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect } from 'effect';
+import { Effect, Layer } from 'effect';
 
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonMutableStateServiceLive, DaemonSessionService } from './daemon-services.js';
 import { pushSingleWorkspaceGitSummaryForObservedEffect } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -251,7 +251,17 @@ export const startObservedSyncSubscriptionEffect = (
     ): Promise<void> {
       await Effect.runPromise(
         pushSingleWorkspaceGitSummaryForObservedEffect(workingDir, reason).pipe(
-          Effect.provideService(DaemonSessionService, session)
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.succeed(DaemonSessionService, session),
+              DaemonMutableStateServiceLive({
+                lastPushedGitState: session.lastPushedGitState,
+                lastPushedModels: session.lastPushedModels,
+                lastPushedHarnessFingerprint: session.lastPushedHarnessFingerprint,
+                workspaceListStore: session.workspaceListStore,
+              })
+            )
+          )
         )
       ).catch((err: unknown) => {
         console.warn(
