@@ -1,9 +1,11 @@
+import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
+import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import type { DaemonSessionInit } from './types.js';
 import type { Id } from '../../../api.js';
-import { registerEventListenersCore } from '../../../events/daemon/register-listeners.js';
+import { registerEventListenersEffect } from '../../../events/daemon/register-listeners.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -12,7 +14,7 @@ function createTestInit() {
   const agentProcessManager = {
     ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
     stop: vi.fn().mockResolvedValue({ success: true }),
-    handleExit: vi.fn(),
+    handleExit: vi.fn().mockResolvedValue(undefined),
     recover: vi.fn().mockResolvedValue(undefined),
     getSlot: vi.fn().mockReturnValue(undefined),
     listActive: vi.fn().mockReturnValue([]),
@@ -34,10 +36,32 @@ function createTestInit() {
 function registerListeners(
   init: Pick<DaemonSessionInit, 'events' | 'agentProcessManager'>
 ): () => void {
-  return registerEventListenersCore({
-    events: init.events,
-    handleExit: (opts) => init.agentProcessManager.handleExit(opts),
-  });
+  return Effect.runSync(
+    registerEventListenersEffect().pipe(
+      Effect.provideService(DaemonSessionService, {
+        sessionId: 'test',
+        machineId: 'test',
+        client: {},
+        config: null,
+        backend: {} as any,
+        fs: {} as any,
+        agentServices: new Map(),
+        events: init.events,
+        lastPushedGitState: new Map(),
+        lastPushedModels: null,
+        lastPushedHarnessFingerprint: null,
+      }),
+      Effect.provideService(DaemonAgentProcessManagerService, {
+        handleExit: (opts) => Effect.promise(() => init.agentProcessManager.handleExit(opts)),
+        ensureRunning: (opts) => Effect.promise(() => init.agentProcessManager.ensureRunning(opts)),
+        stop: (opts) => Effect.promise(() => init.agentProcessManager.stop(opts)),
+        recover: () => Effect.promise(() => init.agentProcessManager.recover()),
+        getSlot: (chatroomId, role) => init.agentProcessManager.getSlot(chatroomId, role),
+        listActive: () => init.agentProcessManager.listActive(),
+        whenTurnEndsIdle: () => Effect.promise(() => init.agentProcessManager.whenTurnEndsIdle()),
+      })
+    )
+  );
 }
 
 describe('registerEventListeners', () => {
