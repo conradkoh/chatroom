@@ -166,7 +166,7 @@ function handlePingCommandEffect(
 function handleGitRefreshCommandEffect(
   event: CommandEvent,
   tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
+): Effect.Effect<void, never, CommandDispatchDeps> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.gitRefreshIds.has(eventId)) return;
@@ -185,7 +185,7 @@ const GIT_PUSH_ACTIONS = new Set(['git-pull', 'git-push', 'git-sync', 'git-disca
 function handleLocalActionCommandEffect(
   event: CommandEvent,
   tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
+): Effect.Effect<void, never, CommandDispatchDeps> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.localActionIds.has(eventId)) return;
