@@ -9,63 +9,107 @@
  * isGenerating server-side.
  */
 
+import { Effect } from 'effect';
+
+import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type {
   SessionHandle,
   SessionJournal,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 
 export interface IdleHandlerConfig {
   agent: string;
   model?: { providerID: string; modelID: string };
 }
 
+/** Effect twin — canonical implementation. */
+// fallow-ignore-next-line unused-export
+export const handleSessionIdleEffect = (
+  handle: SessionHandle,
+  journal: SessionJournal,
+  config: IdleHandlerConfig,
+  sessionRepository: SessionRepository
+): Effect.Effect<void, never, never> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      const rowId = handle.harnessSessionId;
+
+      if (handle.currentTurn) {
+        const { turnId } = handle.currentTurn;
+        handle.currentTurn = null;
+        yield* Effect.tryPromise({ try: () => journal.flush(), catch: (e) => e }).pipe(
+          Effect.flatMap(() =>
+            Effect.tryPromise({
+              try: () => sessionRepository.finalizeAssistantTurn(turnId),
+              catch: (e) => e,
+            })
+          ),
+          Effect.catchAll((err) =>
+            Effect.sync(() => {
+              console.warn(
+                `[direct-harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
+                err instanceof Error ? err.message : String(err)
+              );
+            })
+          )
+        );
+      }
+
+      const next = yield* Effect.tryPromise({
+        try: () => sessionRepository.dequeueNext(rowId),
+        catch: (e) => e,
+      });
+      if (!next) return;
+
+      yield* Effect.tryPromise({
+        try: () => sessionRepository.beginAssistantTurn(rowId),
+        catch: (e) => e,
+      }).pipe(
+        Effect.flatMap(({ turnId }) => {
+          handle.currentTurn = { turnId, messageId: null };
+          return Effect.tryPromise({
+            try: () =>
+              handle.session.prompt({
+                parts: [{ type: 'text', text: next.content }],
+                agent: config.agent,
+                ...(config.model ? { model: config.model } : {}),
+              }),
+            catch: (e) => e,
+          });
+        }),
+        Effect.flatMap(() =>
+          Effect.tryPromise({
+            try: () => sessionRepository.markTurnProcessed(rowId, next.seq),
+            catch: (e) => e,
+          })
+        ),
+        Effect.catchAll((err) =>
+          Effect.gen(function* () {
+            console.warn(
+              `[direct-harness] Failed to prompt queued message for session ${rowId}:`,
+              err instanceof Error ? err.message : String(err)
+            );
+            yield* Effect.promise(() => sessionRepository.setGenerating(rowId, false));
+            handle.currentTurn = null;
+          })
+        )
+      );
+    }),
+    (err) =>
+      Effect.sync(() => {
+        console.warn(
+          `[direct-harness] Unexpected error in handleSessionIdleEffect:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      })
+  );
+
+/** Async wrapper — delegates to the Effect twin. */
 export async function handleSessionIdle(
   handle: SessionHandle,
   journal: SessionJournal,
   config: IdleHandlerConfig,
   sessionRepository: SessionRepository
 ): Promise<void> {
-  const rowId = handle.harnessSessionId;
-
-  // Finalize the just-completed assistant turn (if any)
-  if (handle.currentTurn) {
-    const { turnId } = handle.currentTurn;
-    handle.currentTurn = null;
-    try {
-      // Flush journal first to ensure all chunks are persisted before aggregating
-      await journal.flush();
-      await sessionRepository.finalizeAssistantTurn(turnId);
-    } catch (err) {
-      console.warn(
-        `[direct-harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
-        err instanceof Error ? err.message : String(err)
-      );
-      // Continue — we don't want a finalization error to block dequeue
-    }
-  }
-
-  const next = await sessionRepository.dequeueNext(rowId);
-  if (!next) return; // queue empty — isGenerating cleared server-side
-
-  try {
-    // Begin a new assistant turn for the next prompt
-    const { turnId } = await sessionRepository.beginAssistantTurn(rowId);
-    handle.currentTurn = { turnId, messageId: null };
-
-    await handle.session.prompt({
-      parts: [{ type: 'text', text: next.content }],
-      agent: config.agent,
-      ...(config.model ? { model: config.model } : {}),
-    });
-    await sessionRepository.markTurnProcessed(rowId, next.seq);
-  } catch (err) {
-    console.warn(
-      `[direct-harness] Failed to prompt queued message for session ${rowId}:`,
-      err instanceof Error ? err.message : String(err)
-    );
-    // Clear the flag so the session doesn't get stuck in a generating state.
-    await sessionRepository.setGenerating(rowId, false).catch(() => {});
-    handle.currentTurn = null;
-  }
+  await Effect.runPromise(handleSessionIdleEffect(handle, journal, config, sessionRepository));
 }
