@@ -140,10 +140,7 @@ export const drainCommandsEffect = (
               console.log(
                 `[direct-harness] Discarding stale command ${cmd._id} (type=${cmd.type}, age=${now - cmd.createdAt}ms)`
               );
-              yield* Effect.tryPromise({
-                try: () => markFailed(session, cmd._id, 'Command expired (TTL)'),
-                catch: (e) => e,
-              });
+              yield* markFailedEffect(session, cmd._id, 'Command expired (TTL)');
               return;
             }
 
@@ -161,20 +158,14 @@ export const drainCommandsEffect = (
                 });
                 break;
               default:
-                yield* Effect.tryPromise({
-                  try: () => markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`),
-                  catch: (e) => e,
-                });
+                yield* markFailedEffect(session, cmd._id, `Unknown command type: ${cmd.type}`);
             }
           }),
           (err) =>
             Effect.gen(function* () {
               const message = err instanceof Error ? err.message : String(err);
               console.warn(`[direct-harness] Command ${cmd._id} failed: ${message}`);
-              yield* Effect.tryPromise({
-                try: () => markFailed(session, cmd._id, message),
-                catch: () => undefined,
-              }).pipe(Effect.catchAll(() => Effect.void));
+              yield* markFailedEffect(session, cmd._id, message);
             })
         );
       }
@@ -281,16 +272,37 @@ async function handleRefreshSessionTitle(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Mark a command as failed with an error message. */
+/** Effect twin — mark a command as failed. */
+const markFailedEffect = (
+  session: DirectHarnessSession,
+  commandId: string,
+  errorMessage: string
+): Effect.Effect<void, never, never> =>
+  Effect.tryPromise({
+    try: () =>
+      session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+        sessionId: session.sessionId,
+        commandId,
+        status: 'failed',
+        errorMessage,
+      }),
+    catch: (e) => e,
+  }).pipe(
+    Effect.catchAll((err) =>
+      Effect.sync(() => {
+        console.warn(
+          `[direct-harness] markFailed mutation error for ${commandId}:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      })
+    )
+  );
+
+/** Thin wrapper — command handlers still call this. */
 async function markFailed(
   session: DirectHarnessSession,
   commandId: string,
   errorMessage: string
 ): Promise<void> {
-  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
-    sessionId: session.sessionId,
-    commandId,
-    status: 'failed',
-    errorMessage,
-  });
+  return Effect.runPromise(markFailedEffect(session, commandId, errorMessage));
 }
