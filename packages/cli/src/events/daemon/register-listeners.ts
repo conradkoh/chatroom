@@ -5,21 +5,41 @@
  * Returns an unsubscribe function that removes all listeners (for tests/shutdown).
  */
 
-import { onAgentExited } from './agent/on-agent-exited.js';
-import { onAgentStarted } from './agent/on-agent-started.js';
-import { onAgentStopped } from './agent/on-agent-stopped.js';
-import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
+import { Effect } from 'effect';
 
-export function registerEventListeners(ctx: DaemonContext): () => void {
-  const unsubs: (() => void)[] = [];
+import { handleAgentExited } from './agent/on-agent-exited.js';
+import { logAgentStarted } from './agent/on-agent-started.js';
+import { logAgentStopped } from './agent/on-agent-stopped.js';
+import {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+} from '../../commands/machine/daemon-start/daemon-services.js';
 
-  unsubs.push(ctx.events.on('agent:exited', (payload) => onAgentExited(ctx, payload)));
-  unsubs.push(ctx.events.on('agent:started', (payload) => onAgentStarted(ctx, payload)));
-  unsubs.push(ctx.events.on('agent:stopped', (payload) => onAgentStopped(ctx, payload)));
+export const registerEventListenersEffect = (): Effect.Effect<
+  () => void,
+  never,
+  DaemonSessionService | DaemonAgentProcessManagerService
+> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    const apm = yield* DaemonAgentProcessManagerService;
 
-  return () => {
-    for (const unsub of unsubs) {
-      unsub();
-    }
-  };
-}
+    const unsubs: (() => void)[] = [];
+
+    unsubs.push(
+      session.events.on('agent:exited', (payload) =>
+        handleAgentExited(
+          { handleExit: (opts) => Effect.runPromise(apm.handleExit(opts)) },
+          payload
+        )
+      )
+    );
+    unsubs.push(session.events.on('agent:started', (payload) => logAgentStarted(payload)));
+    unsubs.push(session.events.on('agent:stopped', (payload) => logAgentStopped(payload)));
+
+    return () => {
+      for (const unsub of unsubs) {
+        unsub();
+      }
+    };
+  });

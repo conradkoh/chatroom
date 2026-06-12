@@ -1,5 +1,6 @@
+import { Effect } from 'effect';
+
 import type { Id } from '../../../api.js';
-import type { DaemonContext } from '../../../commands/machine/daemon-start/types.js';
 import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 
 export interface AgentStartedPayload {
@@ -11,13 +12,16 @@ export interface AgentStartedPayload {
 }
 
 /**
- * Handles the `agent:started` DaemonEvent.
- *
- * Logs a startup message when an agent process is successfully spawned.
+ * Logs agent start. No service deps.
  */
-export function onAgentStarted(ctx: DaemonContext, payload: AgentStartedPayload): void {
+export function logAgentStarted(payload: AgentStartedPayload): void {
   const ts = formatTimestamp();
   console.log(
     `[${ts}] 🟢 Agent started: ${payload.role} (PID: ${payload.pid}, harness: ${payload.harness})`
   );
 }
+
+/** Effect variant — pure, no service deps. */
+// fallow-ignore-next-line unused-export
+export const onAgentStartedEffect = (payload: AgentStartedPayload): Effect.Effect<void> =>
+  Effect.sync(() => logAgentStarted(payload));

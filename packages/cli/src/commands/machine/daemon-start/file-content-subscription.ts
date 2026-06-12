@@ -11,9 +11,10 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
-import { fulfillFileContentRequests } from './file-content-fulfillment.js';
-import type { DaemonContext } from './types.js';
+import { DaemonSessionService } from './daemon-services.js';
+import { fulfillFileContentRequestsEffect } from './file-content-fulfillment.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -24,56 +25,52 @@ export interface FileContentSubscriptionHandle {
   stop: () => void;
 }
 
-/**
- * Start the reactive file content subscription.
- *
- * Subscribes to `api.workspaceFiles.getPendingFileContentRequests` via the Convex
- * WebSocket client. When new pending requests appear, they are fulfilled immediately.
- *
- * @param ctx - Daemon context (session, machineId, deps)
- * @param wsClient - Convex WebSocket client for reactive subscriptions
- */
-export function startFileContentSubscription(
-  ctx: DaemonContext,
+export const startFileContentSubscriptionEffect = (
   wsClient: ConvexClient
-): FileContentSubscriptionHandle {
-  // Track whether we're currently processing to avoid overlapping batches
-  let processing = false;
+): Effect.Effect<FileContentSubscriptionHandle, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
 
-  const unsubscribe = wsClient.onUpdate(
-    api.workspaceFiles.getPendingFileContentRequests,
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    },
-    (requests) => {
-      if (!requests || requests.length === 0) return;
-      if (processing) return; // Skip if still processing previous batch
+    let processing = false;
 
-      processing = true;
-      fulfillFileContentRequests(ctx)
-        .catch((err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  File content subscription processing failed: ${getErrorMessage(err)}`
-          );
-        })
-        .finally(() => {
-          processing = false;
-        });
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  File content subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
+    const unsubscribe = wsClient.onUpdate(
+      api.workspaceFiles.getPendingFileContentRequests,
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      },
+      (requests) => {
+        if (!requests || requests.length === 0) return;
+        if (processing) return;
 
-  console.log(`[${formatTimestamp()}] 📂 File content subscription started (reactive)`);
+        processing = true;
+        Effect.runPromise(
+          fulfillFileContentRequestsEffect.pipe(
+            Effect.provideService(DaemonSessionService, session)
+          )
+        )
+          .catch((err: unknown) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  File content subscription processing failed: ${getErrorMessage(err)}`
+            );
+          })
+          .finally(() => {
+            processing = false;
+          });
+      },
+      (err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  File content subscription error: ${getErrorMessage(err)}`
+        );
+      }
+    );
 
-  return {
-    stop: () => {
-      unsubscribe();
-      console.log(`[${formatTimestamp()}] 📂 File content subscription stopped`);
-    },
-  };
-}
+    console.log(`[${formatTimestamp()}] 📂 File content subscription started (reactive)`);
+
+    return {
+      stop: () => {
+        unsubscribe();
+        console.log(`[${formatTimestamp()}] 📂 File content subscription stopped`);
+      },
+    };
+  });

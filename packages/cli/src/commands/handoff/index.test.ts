@@ -211,6 +211,10 @@ describe('handoff', () => {
           if (args && 'workflowKey' in args) {
             return Promise.resolve({ workflowId: mockWorkflowId });
           }
+          // getWorkflowDetail query (non-fatal, returns null to skip display)
+          if (args && 'workflowId' in args) {
+            return Promise.resolve(null);
+          }
           // validateArtifactIds or other queries
           return Promise.resolve(true);
         }

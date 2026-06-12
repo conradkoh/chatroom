@@ -4,14 +4,24 @@
  * Must be called as the agent's first action before get-next-task.
  * Registers the agent as either "remote" (daemon-managed) or "custom" (manually started)
  * in the team agent config on the backend.
+ * Phase 6: Migrated to Effect-TS services with typed error handling.
  */
 
+import { Effect, Layer } from 'effect';
+
 import type { RegisterAgentDeps } from './deps.js';
+import { RegisterAgentMachineService } from './machine-service.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
+import {
+  BackendService,
+  BackendServiceLive,
+  SessionService,
+  SessionServiceLive,
+} from '../../infrastructure/services/index.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -31,6 +41,16 @@ export interface RegisterAgentOptions {
   allowTypeChange?: boolean;
 }
 
+// ─── Domain errors ─────────────────────────────────────────────────────────
+
+export type RegisterAgentError =
+  | { readonly _tag: 'NotAuthenticated'; readonly convexUrl: string; readonly otherUrls: string[] }
+  | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
+  | { readonly _tag: 'InvalidChatroomIdChars' }
+  | { readonly _tag: 'ChatroomNotFound'; readonly chatroomId: string }
+  | { readonly _tag: 'MachineNotRegistered' }
+  | { readonly _tag: 'RegisterFailed'; readonly cause: Error };
+
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<RegisterAgentDeps> {
@@ -48,7 +68,193 @@ async function createDefaultDeps(): Promise<RegisterAgentDeps> {
   };
 }
 
-// ─── Entry Point ───────────────────────────────────────────────────────────
+/**
+ * Build Effect Layer from RegisterAgentDeps (for backward-compat with tests)
+ */
+function layerFromDeps(
+  deps: RegisterAgentDeps
+): Layer.Layer<BackendService | SessionService | RegisterAgentMachineService> {
+  return Layer.mergeAll(
+    BackendServiceLive({
+      query: deps.backend.query,
+      mutation: deps.backend.mutation,
+    }),
+    SessionServiceLive({
+      getSessionId: deps.session.getSessionId,
+      getConvexUrl: deps.session.getConvexUrl,
+      getOtherSessionUrls: deps.session.getOtherSessionUrls,
+    }),
+    Layer.succeed(RegisterAgentMachineService, {
+      getMachineId: () => Effect.promise(() => getMachineId()),
+      loadMachineConfig: () => Effect.promise(() => loadMachineConfig()),
+    })
+  );
+}
+
+// ─── Effect Programs ───────────────────────────────────────────────────────
+
+/**
+ * Pure Effect program — no process.exit, no console.error inside.
+ */
+// fallow-ignore-next-line unused-export complexity
+export const registerAgentEffect = (
+  chatroomId: string,
+  options: RegisterAgentOptions
+): Effect.Effect<
+  void,
+  RegisterAgentError,
+  BackendService | SessionService | RegisterAgentMachineService
+> =>
+  // fallow-ignore-next-line complexity
+  Effect.gen(function* () {
+    const session = yield* SessionService;
+    const backend = yield* BackendService;
+    const machine = yield* RegisterAgentMachineService;
+    const { role, type, allowTypeChange } = options;
+
+    // Get session ID for authentication
+    const sessionId = yield* session.getSessionId();
+    if (!sessionId) {
+      const otherUrls = yield* session.getOtherSessionUrls();
+      const convexUrl = yield* session.getConvexUrl();
+      return yield* Effect.fail<RegisterAgentError>({
+        _tag: 'NotAuthenticated',
+        convexUrl,
+        otherUrls,
+      });
+    }
+
+    // Validate chatroom ID format
+    if (
+      !chatroomId ||
+      typeof chatroomId !== 'string' ||
+      chatroomId.length < 20 ||
+      chatroomId.length > 40
+    ) {
+      return yield* Effect.fail<RegisterAgentError>({
+        _tag: 'InvalidChatroomId',
+        id: chatroomId,
+      });
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(chatroomId)) {
+      return yield* Effect.fail<RegisterAgentError>({ _tag: 'InvalidChatroomIdChars' });
+    }
+
+    // Validate chatroom exists and user has access
+    const chatroom = yield* backend
+      .query<{ _id: string } | null>(api.chatrooms.get, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      })
+      .pipe(
+        Effect.mapError(
+          (cause): RegisterAgentError => ({ _tag: 'RegisterFailed', cause: cause as Error })
+        )
+      );
+
+    if (!chatroom) {
+      return yield* Effect.fail<RegisterAgentError>({
+        _tag: 'ChatroomNotFound',
+        chatroomId,
+      });
+    }
+
+    if (type === 'remote') {
+      // Remote type: emit agent.registered event so the frontend shows the agent as online.
+      const machineId = yield* machine.getMachineId();
+      if (!machineId) {
+        return yield* Effect.fail<RegisterAgentError>({ _tag: 'MachineNotRegistered' });
+      }
+
+      const config = yield* machine.loadMachineConfig();
+
+      // Try to record registration (non-critical)
+      yield* backend
+        .mutation<void>(api.machines.recordRemoteAgentRegistered, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          machineId,
+        })
+        .pipe(Effect.catchAll(() => Effect.succeed(undefined))); // Non-critical
+
+      // Print success
+      yield* Effect.sync(() => {
+        console.log(`✅ Registered as remote agent for role "${role}"`);
+        console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${machineId})`);
+        console.log(`   Working directory: ${process.cwd()}`);
+      });
+    } else {
+      // Custom type: team config + agent.registered (via dedicated mutation)
+      yield* backend
+        .mutation<void>(api.machines.recordCustomAgentRegistered, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          allowTypeChange,
+        })
+        .pipe(
+          Effect.mapError(
+            (cause): RegisterAgentError => ({ _tag: 'RegisterFailed', cause: cause as Error })
+          )
+        );
+
+      // Print success
+      yield* Effect.sync(() => {
+        console.log(`✅ Registered as custom agent for role "${role}"`);
+      });
+    }
+  });
+
+// ─── Error Handlers ────────────────────────────────────────────────────────
+
+/**
+ * Maps typed errors to console.error + process.exit(1) effects.
+ */
+// fallow-ignore-next-line complexity
+function handleRegisterAgentError(err: RegisterAgentError): Effect.Effect<void> {
+  // fallow-ignore-next-line complexity
+  return Effect.sync(() => {
+    if (err._tag === 'NotAuthenticated') {
+      console.error(`❌ Not authenticated for: ${err.convexUrl}`);
+
+      if (err.otherUrls.length > 0) {
+        console.error(`\n💡 You have sessions for other environments:`);
+        for (const url of err.otherUrls) {
+          console.error(`   • ${url}`);
+        }
+        console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+        console.error(`   CHATROOM_CONVEX_URL=${err.otherUrls[0]} chatroom register-agent ...`);
+        console.error(`\n   Or to authenticate for the current environment:`);
+      }
+
+      console.error(`   chatroom auth login`);
+      process.exit(1);
+    } else if (err._tag === 'InvalidChatroomId') {
+      console.error(
+        `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
+      );
+      process.exit(1);
+    } else if (err._tag === 'InvalidChatroomIdChars') {
+      console.error(
+        `❌ Invalid chatroom ID format: ID must contain only alphanumeric characters and underscores`
+      );
+      process.exit(1);
+    } else if (err._tag === 'ChatroomNotFound') {
+      console.error(`❌ Chatroom ${err.chatroomId} not found or access denied`);
+      process.exit(1);
+    } else if (err._tag === 'MachineNotRegistered') {
+      console.error(`❌ Machine not registered. Run \`chatroom machine start\` first.`);
+      process.exit(1);
+    } else if (err._tag === 'RegisterFailed') {
+      console.error(`❌ Registration failed: ${getErrorMessage(err.cause)}`);
+      process.exit(1);
+    }
+  });
+}
+
+// ─── Entry Point (public API — unchanged signature) ──────────────────────
 
 export async function registerAgent(
   chatroomId: string,
@@ -56,104 +262,12 @@ export async function registerAgent(
   deps?: RegisterAgentDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const { role, type, allowTypeChange } = options;
+  const layer = layerFromDeps(d);
 
-  // Get session ID for authentication
-  const sessionId = await d.session.getSessionId();
-  if (!sessionId) {
-    const otherUrls = await d.session.getOtherSessionUrls();
-    const currentUrl = d.session.getConvexUrl();
-
-    console.error(`❌ Not authenticated for: ${currentUrl}`);
-
-    if (otherUrls.length > 0) {
-      console.error(`\n💡 You have sessions for other environments:`);
-      for (const url of otherUrls) {
-        console.error(`   • ${url}`);
-      }
-      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-      console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom register-agent ...`);
-      console.error(`\n   Or to authenticate for the current environment:`);
-    }
-
-    console.error(`   chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
-
-  if (!/^[a-zA-Z0-9_]+$/.test(chatroomId)) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must contain only alphanumeric characters and underscores`
-    );
-    process.exit(1);
-  }
-
-  // Validate chatroom exists and user has access
-  const chatroom = await d.backend.query(api.chatrooms.get, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  });
-
-  if (!chatroom) {
-    console.error(`❌ Chatroom ${chatroomId} not found or access denied`);
-    process.exit(1);
-  }
-
-  if (type === 'remote') {
-    // Remote type: emit agent.registered event so the frontend shows the agent as online.
-    // NOTE: saveTeamAgentConfig is intentionally NOT called here.
-    // The team agent config (harness, model, workingDir) is owned exclusively
-    // by start-agent (the UI "Start Agent" button).
-    //
-    // Machine registration + model discovery is owned by the daemon (`machine start`).
-    // We only read the machineId from local config here.
-    const machineId = await getMachineId();
-    if (!machineId) {
-      console.error(`❌ Machine not registered. Run \`chatroom machine start\` first.`);
-      process.exit(1);
-    }
-    const config = await loadMachineConfig();
-
-    try {
-      await d.backend.mutation(api.machines.recordRemoteAgentRegistered, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        machineId,
-      });
-    } catch {
-      // Non-critical — agent will still show as online once get-next-task starts
-    }
-
-    console.log(`✅ Registered as remote agent for role "${role}"`);
-    console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${machineId})`);
-    console.log(`   Working directory: ${process.cwd()}`);
-  } else {
-    // Custom type: team config + agent.registered (via dedicated mutation)
-    try {
-      await d.backend.mutation(api.machines.recordCustomAgentRegistered, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        allowTypeChange,
-      });
-
-      console.log(`✅ Registered as custom agent for role "${role}"`);
-    } catch (error) {
-      console.error(`❌ Registration failed: ${getErrorMessage(error)}`);
-      process.exit(1);
-    }
-  }
+  await Effect.runPromise(
+    registerAgentEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => handleRegisterAgentError(err)),
+      Effect.provide(layer)
+    )
+  );
 }

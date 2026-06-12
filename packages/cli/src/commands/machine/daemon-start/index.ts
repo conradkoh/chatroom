@@ -6,7 +6,10 @@
  * - Handler functions and types for testing
  */
 
-import { startCommandLoop } from './command-loop.js';
+import { Effect } from 'effect';
+
+import { startCommandLoopEffect } from './command-loop.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
 import { initDaemon } from './init.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
@@ -15,17 +18,13 @@ import { initDaemon } from './init.js';
  * Start the daemon: initialize, then enter the command processing loop.
  */
 export async function daemonStart(): Promise<void> {
-  const ctx = await initDaemon();
-  await startCommandLoop(ctx);
+  const init = await initDaemon();
+  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(daemonSessionToLayers(init))));
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
 
-export { handleStopAgent } from './handlers/stop-agent.js';
-export { recoverAgentState } from './handlers/state-recovery.js';
-
 export type {
-  DaemonContext,
   CommandResult,
   StartAgentCommand,
   StopAgentCommand,
