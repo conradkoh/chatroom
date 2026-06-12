@@ -16,7 +16,6 @@ import type {
   SessionHandle,
   SessionJournal,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
-import { getErrorMessage } from '../../../../utils/convex-error.js';
 
 export interface IdleHandlerConfig {
   agent: string;
@@ -31,77 +30,79 @@ export const handleSessionIdleEffect = (
   config: IdleHandlerConfig,
   sessionRepository: SessionRepository
 ): Effect.Effect<void, never, never> =>
-  Effect.gen(function* () {
-    const rowId = handle.harnessSessionId;
+  Effect.catchAll(
+    Effect.gen(function* () {
+      const rowId = handle.harnessSessionId;
 
-    // Finalize the just-completed assistant turn (if any)
-    if (handle.currentTurn) {
-      const { turnId } = handle.currentTurn;
-      handle.currentTurn = null;
-      const finalized = yield* Effect.promise(() =>
-        tryFinalize(journal, sessionRepository, turnId, rowId)
-      );
-      if (!finalized) {
-        // Continue — we don't want a finalization error to block dequeue
+      if (handle.currentTurn) {
+        const { turnId } = handle.currentTurn;
+        handle.currentTurn = null;
+        yield* Effect.tryPromise({ try: () => journal.flush(), catch: (e) => e }).pipe(
+          Effect.flatMap(() =>
+            Effect.tryPromise({
+              try: () => sessionRepository.finalizeAssistantTurn(turnId),
+              catch: (e) => e,
+            })
+          ),
+          Effect.catchAll((err) =>
+            Effect.sync(() => {
+              console.warn(
+                `[direct-harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
+                err instanceof Error ? err.message : String(err)
+              );
+            })
+          )
+        );
       }
-    }
 
-    const next = yield* Effect.promise(() => sessionRepository.dequeueNext(rowId));
-    if (!next) return; // queue empty — isGenerating cleared server-side
+      const next = yield* Effect.tryPromise({
+        try: () => sessionRepository.dequeueNext(rowId),
+        catch: (e) => e,
+      });
+      if (!next) return;
 
-    const prompted = yield* Effect.promise(() =>
-      tryPrompt(handle, sessionRepository, config, next, rowId)
-    );
-    if (!prompted) {
-      yield* Effect.promise(() => sessionRepository.setGenerating(rowId, false).catch(() => {}));
-      handle.currentTurn = null;
-    }
-  });
-
-async function tryFinalize(
-  journal: SessionJournal,
-  sessionRepository: SessionRepository,
-  turnId: string,
-  rowId: string
-): Promise<boolean> {
-  try {
-    await journal.flush();
-    await sessionRepository.finalizeAssistantTurn(turnId);
-    return true;
-  } catch (err) {
-    console.warn(
-      `[direct-harness] Failed to finalize turn ${turnId} for session ${rowId}:`,
-      getErrorMessage(err)
-    );
-    return false;
-  }
-}
-
-async function tryPrompt(
-  handle: SessionHandle,
-  sessionRepository: SessionRepository,
-  config: IdleHandlerConfig,
-  next: { content: string; seq: number },
-  rowId: string
-): Promise<boolean> {
-  try {
-    const { turnId } = await sessionRepository.beginAssistantTurn(rowId);
-    handle.currentTurn = { turnId, messageId: null };
-    await handle.session.prompt({
-      parts: [{ type: 'text', text: next.content }],
-      agent: config.agent,
-      ...(config.model ? { model: config.model } : {}),
-    });
-    await sessionRepository.markTurnProcessed(rowId, next.seq);
-    return true;
-  } catch (err) {
-    console.warn(
-      `[direct-harness] Failed to prompt queued message for session ${rowId}:`,
-      getErrorMessage(err)
-    );
-    return false;
-  }
-}
+      yield* Effect.tryPromise({
+        try: () => sessionRepository.beginAssistantTurn(rowId),
+        catch: (e) => e,
+      }).pipe(
+        Effect.flatMap(({ turnId }) => {
+          handle.currentTurn = { turnId, messageId: null };
+          return Effect.tryPromise({
+            try: () =>
+              handle.session.prompt({
+                parts: [{ type: 'text', text: next.content }],
+                agent: config.agent,
+                ...(config.model ? { model: config.model } : {}),
+              }),
+            catch: (e) => e,
+          });
+        }),
+        Effect.flatMap(() =>
+          Effect.tryPromise({
+            try: () => sessionRepository.markTurnProcessed(rowId, next.seq),
+            catch: (e) => e,
+          })
+        ),
+        Effect.catchAll((err) =>
+          Effect.gen(function* () {
+            console.warn(
+              `[direct-harness] Failed to prompt queued message for session ${rowId}:`,
+              err instanceof Error ? err.message : String(err)
+            );
+            yield* Effect.promise(() => sessionRepository.setGenerating(rowId, false));
+            handle.currentTurn = null;
+          })
+        )
+      );
+    }),
+    (err) =>
+      Effect.sync(() => {
+        console.warn(
+          `[direct-harness] Unexpected error in handleSessionIdleEffect:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      })
+  );
 
 /** Async wrapper — delegates to the Effect twin. */
 export async function handleSessionIdle(
