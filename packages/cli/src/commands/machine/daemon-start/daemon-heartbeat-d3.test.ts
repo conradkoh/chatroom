@@ -16,7 +16,7 @@ import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
-import type { DaemonSessionService } from './daemon-services.js';
+import type { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from './types.js';
@@ -80,13 +80,13 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
 
 function makeSessionLayer(
   overrides?: Partial<DaemonSessionInit>
-): Layer.Layer<DaemonSessionService> {
+): Layer.Layer<DaemonSessionService | DaemonMutableStateService> {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
 }
 
 async function runWithCtx<A>(
-  effect: Effect.Effect<A, never, DaemonSessionService>,
+  effect: Effect.Effect<A, never, DaemonSessionService | DaemonMutableStateService>,
   overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));

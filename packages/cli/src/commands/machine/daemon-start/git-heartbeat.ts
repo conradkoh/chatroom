@@ -1,7 +1,7 @@
 import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
-import { Effect } from 'effect';
+import { Effect, Ref } from 'effect';
 
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
 import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
@@ -241,20 +241,28 @@ async function pushSingleWorkspaceGitStateImpl(
   }
 }
 
+/** Key for the observed-push dedup cache. */
+const getPushObservedKey = (machineId: string, workingDir: string): string =>
+  makeGitStateKey(machineId, workingDir);
+
 /** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonSessionService. */
 export const pushSingleWorkspaceGitSummaryForObservedEffect = (
   workingDir: string,
   reason: 'safety-poll' | 'refresh' = 'safety-poll'
-): Effect.Effect<void, never, DaemonSessionService> =>
+): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
+    const mutable = yield* DaemonMutableStateService;
 
-    const stateKey = makeGitStateKey(session.machineId, workingDir);
+    const stateKey = getPushObservedKey(session.machineId, workingDir);
 
     const isRepo = yield* Effect.promise(() => gitReader.isGitRepo(workingDir));
     if (!isRepo) {
       const stateHash = 'not_found';
-      if (reason !== 'refresh' && session.lastPushedGitState.get(stateKey) === stateHash) return;
+      const prevHash = yield* Ref.get(mutable.lastPushedGitState).pipe(
+        Effect.map((m) => m.get(stateKey))
+      );
+      if (reason !== 'refresh' && prevHash === stateHash) return;
 
       yield* Effect.promise(() =>
         session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
@@ -264,7 +272,10 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
           status: 'not_found',
         })
       );
-      session.lastPushedGitState.set(stateKey, stateHash);
+      yield* Ref.update(mutable.lastPushedGitState, (m) => {
+        m.set(stateKey, stateHash);
+        return m;
+      });
       return;
     }
 
@@ -272,7 +283,10 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
 
     if (branchResult.status === 'error') {
       const stateHash = `error:${branchResult.message}`;
-      if (reason !== 'refresh' && session.lastPushedGitState.get(stateKey) === stateHash) return;
+      const prevHash = yield* Ref.get(mutable.lastPushedGitState).pipe(
+        Effect.map((m) => m.get(stateKey))
+      );
+      if (reason !== 'refresh' && prevHash === stateHash) return;
 
       yield* Effect.promise(() =>
         session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
@@ -283,7 +297,10 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
           errorMessage: branchResult.message,
         })
       );
-      session.lastPushedGitState.set(stateKey, stateHash);
+      yield* Ref.update(mutable.lastPushedGitState, (m) => {
+        m.set(stateKey, stateHash);
+        return m;
+      });
       return;
     }
 
@@ -314,7 +331,10 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     const values = yield* Effect.promise(() => pipeline.collect(workingDir, preCollected));
 
     const hash = pipeline.computeHash(values, true);
-    if (reason !== 'refresh' && session.lastPushedGitState.get(stateKey) === hash) {
+    const currentHash = yield* Ref.get(mutable.lastPushedGitState).pipe(
+      Effect.map((m) => m.get(stateKey))
+    );
+    if (reason !== 'refresh' && currentHash === hash) {
       return;
     }
 
@@ -328,7 +348,10 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
       })
     );
 
-    session.lastPushedGitState.set(stateKey, hash);
+    yield* Ref.update(mutable.lastPushedGitState, (m) => {
+      m.set(stateKey, hash);
+      return m;
+    });
     console.log(
       `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
     );
