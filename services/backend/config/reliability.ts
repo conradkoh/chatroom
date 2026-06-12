@@ -35,8 +35,9 @@ export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
 
 /** How long before a daemon is considered offline if no heartbeat received (ms).
- *  Set to 3× the heartbeat interval (90s). */
-export const DAEMON_HEARTBEAT_TTL_MS = 90_000; // 90s
+ *  Must exceed DAEMON_LIVENESS_WRITE_INTERVAL_MS + DAEMON_HEARTBEAT_INTERVAL_MS
+ *  so throttled lastSeenAt writes never expire between heartbeats. Set to 180s (6× heartbeat). */
+export const DAEMON_HEARTBEAT_TTL_MS = 180_000; // 180s
 
 // ─── Agent Request Deadline ──────────────────────────────────────────────────
 
@@ -87,10 +88,10 @@ export const PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS = 30_000;
  *  Daemon heartbeats every 30s but only writes liveness when this interval elapses,
  *  reducing getDaemonStatus subscription invalidations. Must be < DAEMON_HEARTBEAT_TTL_MS.
  *
- *  Set to 60s (TTL is 90s): each liveness write invalidates the getDaemonStatus
+ *  Set to 60s (TTL is 180s): each liveness write invalidates the getDaemonStatus
  *  subscription for every machine and every subscribed webapp tab, so a longer
- *  interval cuts those re-runs ~2.4x. The only cost is "last seen" display
- *  freshness, which still refreshes well within the 90s liveness TTL. */
+ *  interval cuts those re-runs ~3x. The only cost is "last seen" display
+ *  freshness, which still refreshes well within the 180s liveness TTL. */
 export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 60_000;
 
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────

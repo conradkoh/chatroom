@@ -648,7 +648,7 @@ export const getDaemonStatus = query({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
-    // Read lastSeenAt from liveness table (still updated on every heartbeat)
+    // Read lastSeenAt from liveness table (updated at most every DAEMON_LIVENESS_WRITE_INTERVAL_MS)
     const liveness = await ctx.db
       .query('chatroom_machineLiveness')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
