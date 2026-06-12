@@ -2,6 +2,7 @@ import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliab
 import { Effect, Ref } from 'effect';
 
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
+import type { DaemonSessionServiceShape } from './daemon-services.js';
 import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
@@ -144,6 +145,21 @@ export type GitStateDeps = {
   lastPushedGitState: Map<string, string>;
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
 };
+
+/** Build a GitStateDeps from session + Ref-based map. */
+const toGitStateDeps = (
+  session: Pick<
+    DaemonSessionServiceShape,
+    'machineId' | 'sessionId' | 'backend' | 'workspaceListStore'
+  >,
+  gitStateMap: Map<string, string>
+): GitStateDeps => ({
+  machineId: session.machineId,
+  sessionId: session.sessionId,
+  backend: session.backend,
+  lastPushedGitState: gitStateMap,
+  workspaceListStore: session.workspaceListStore,
+});
 
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
 
@@ -359,41 +375,49 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for pushGitState — yields DaemonSessionService. */
-export const pushGitStateEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
-  function* () {
-    const session = yield* DaemonSessionService;
+/** Effect twin for pushGitState — yields DaemonSessionService | DaemonMutableStateService. */
+export const pushGitStateEffect: Effect.Effect<
+  void,
+  never,
+  DaemonSessionService | DaemonMutableStateService
+> = Effect.gen(function* () {
+  const session = yield* DaemonSessionService;
+  const mutable = yield* DaemonMutableStateService;
+  const gitState = yield* Ref.get(mutable.lastPushedGitState);
+  const ctx = toGitStateDeps(session, gitState);
 
-    const workspaces = yield* Effect.promise(() =>
-      getWorkspacesForMachine({
-        workspaceListStore: session.workspaceListStore,
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-        backend: session.backend,
-      })
-    );
-    if (workspaces.length === 0) return;
+  const workspaces = yield* Effect.promise(() =>
+    getWorkspacesForMachine({
+      workspaceListStore: session.workspaceListStore,
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      backend: session.backend,
+    })
+  );
+  if (workspaces.length === 0) return;
 
-    const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-    if (uniqueWorkingDirs.size === 0) return;
+  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+  if (uniqueWorkingDirs.size === 0) return;
 
-    for (const workingDir of uniqueWorkingDirs) {
-      try {
-        yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
-      } catch (err) {
-        console.warn(
-          `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
-        );
-      }
+  for (const workingDir of uniqueWorkingDirs) {
+    try {
+      yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(ctx, workingDir));
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
+      );
     }
   }
-);
+});
 
-/** Effect twin for pushSingleWorkspaceGitState — yields DaemonSessionService. */
+/** Effect twin for pushSingleWorkspaceGitState — yields DaemonSessionService | DaemonMutableStateService. */
 export const pushSingleWorkspaceGitStateEffect = (
   workingDir: string
-): Effect.Effect<void, never, DaemonSessionService> =>
+): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
+    const mutable = yield* DaemonMutableStateService;
+    const gitState = yield* Ref.get(mutable.lastPushedGitState);
+    const ctx = toGitStateDeps(session, gitState);
+    yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(ctx, workingDir));
   });
