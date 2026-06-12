@@ -24,7 +24,7 @@ import { TERMINAL_STATES } from './process/state.js';
 // ─── Flat deps type ──────────────────────────────────────────────────────────
 
 /**
- * Flat deps required by onCommandRunCore and onCommandStopCore.
+ * Flat deps required by runOnCommandRun / runOnCommandStop test helpers.
  * DaemonSessionServiceShape structurally satisfies this type.
  */
 export type CommandRunnerDeps = {
@@ -244,8 +244,9 @@ export const onCommandStopEffect = (event: {
     );
   });
 
+/** Test helper — run onCommandRunEffect with flat deps (not a Core twin). */
 // fallow-ignore-next-line unused-export
-export async function onCommandRunCore(
+export const runOnCommandRun = (
   deps: CommandRunnerDeps,
   event: {
     workingDir: string;
@@ -253,25 +254,21 @@ export async function onCommandRunCore(
     script: string;
     runId: any;
   }
-): Promise<void> {
-  return Effect.runPromise(
+): Promise<void> =>
+  Effect.runPromise(
     onCommandRunEffect(event).pipe(
       Effect.provideService(DaemonSessionService, deps as DaemonSessionServiceShape)
     )
   );
-}
 
+/** Test helper — run onCommandStopEffect with flat deps (not a Core twin). */
 // fallow-ignore-next-line unused-export
-export async function onCommandStopCore(
-  deps: CommandRunnerDeps,
-  event: { runId: any }
-): Promise<void> {
-  return Effect.runPromise(
+export const runOnCommandStop = (deps: CommandRunnerDeps, event: { runId: any }): Promise<void> =>
+  Effect.runPromise(
     onCommandStopEffect(event).pipe(
       Effect.provideService(DaemonSessionService, deps as DaemonSessionServiceShape)
     )
   );
-}
 
 /**
  * Synchronously SIGKILL every in-memory tracked command process group.
