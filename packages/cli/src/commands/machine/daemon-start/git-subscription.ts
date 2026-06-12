@@ -23,9 +23,13 @@ import { promisify } from 'util';
 
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect } from 'effect';
+import { Effect, Layer } from 'effect';
 
-import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
+import {
+  DaemonMutableStateServiceLive,
+  DaemonSessionService,
+  type DaemonSessionServiceShape,
+} from './daemon-services.js';
 import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -212,7 +216,17 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
   // Refresh git state so the UI updates (PR list, branch, etc.)
   await Effect.runPromise(
     pushGitStateEffect.pipe(
-      Effect.provideService(DaemonSessionService, deps as unknown as DaemonSessionServiceShape)
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
+          DaemonMutableStateServiceLive({
+            lastPushedGitState: deps.lastPushedGitState,
+            lastPushedModels: null,
+            lastPushedHarnessFingerprint: null,
+            workspaceListStore: deps.workspaceListStore,
+          })
+        )
+      )
     )
   ).catch((err: unknown) => {
     console.warn(
