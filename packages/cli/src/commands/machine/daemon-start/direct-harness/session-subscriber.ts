@@ -9,6 +9,7 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
 import type { DirectHarnessSession } from './command-subscriber.js';
 import { handleSessionIdle } from './idle-handler.js';
@@ -96,162 +97,191 @@ export function startSessionSubscriber(
 
 // ─── Per-session orchestration ───────────────────────────────────────────────
 
+/** Effect twin — open one pending harness session. */
+// fallow-ignore-next-line unused-export
+export const processOneSessionEffect = (
+  daemonSession: DirectHarnessSession,
+  deps: SessionSubscriberDeps,
+  session: PendingSession
+): Effect.Effect<void, never, never> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      const rowId = session._id;
+
+      // 1. Look up workspace to get workingDir
+      const workspace = yield* Effect.tryPromise({
+        try: () =>
+          daemonSession.backend.query(api.workspaces.getWorkspaceById, {
+            sessionId: daemonSession.sessionId,
+            workspaceId: session.workspaceId,
+          }) as Promise<WorkspaceInfo | null>,
+        catch: (e) => e,
+      });
+
+      if (!workspace) {
+        console.warn(
+          `[direct-harness] Cannot open session ${rowId}: workspace ${session.workspaceId} not found`
+        );
+        yield* Effect.tryPromise({
+          try: () => deps.sessionRepository.markFailed(rowId),
+          catch: (e) => e,
+        });
+        return;
+      }
+
+      // 2. Get or create BoundHarness for this workspace
+      let harness = deps.harnesses.get(session.workspaceId);
+      if (harness && !harness.isAlive()) {
+        const oldHarness = harness;
+        console.warn(
+          `[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`
+        );
+        yield* Effect.tryPromise({
+          try: () => oldHarness.close(),
+          catch: () => undefined,
+        }).pipe(Effect.catchAll(() => Effect.void));
+        deps.harnesses.delete(session.workspaceId);
+        harness = undefined;
+      }
+      if (!harness) {
+        harness = yield* Effect.tryPromise({
+          try: () =>
+            startOpencodeSdkHarness({
+              type: 'opencode',
+              workingDir: workspace.workingDir,
+              workspaceId: session.workspaceId,
+            }),
+          catch: (e) => e,
+        });
+        deps.harnesses.set(session.workspaceId, harness);
+      }
+
+      // 3. Open a session on the harness
+      const liveSession = yield* Effect.tryPromise({
+        try: () =>
+          harness.newSession({
+            agent: session.opencode?.lastUsedConfig.agent ?? 'build',
+            harnessSessionId: rowId as unknown as HarnessSessionId,
+          }),
+        catch: (e) => e,
+      });
+
+      // 5. Create journal + wire session events → journal
+      const journal = deps.journalFactory.create(rowId);
+      const extractChunk = createOpencodeSdkChunkExtractor();
+      const idleConfig = {
+        agent: session.opencode?.lastUsedConfig.agent ?? 'build',
+        model: session.opencode?.lastUsedConfig.model,
+      };
+
+      let unsubscribeEvents: () => void = () => {};
+
+      let closed = false;
+      const close = async () => {
+        if (closed) return;
+        closed = true;
+        unsubscribeEvents();
+        await journal.commit();
+        await liveSession.close();
+        await deps.sessionRepository.markClosed(rowId);
+      };
+
+      const handle: SessionHandle = {
+        harnessSessionId: rowId,
+        opencodeSessionId: liveSession.opencodeSessionId as string,
+        workspaceId: session.workspaceId,
+        session: liveSession,
+        journal,
+        currentTurn: null,
+        close,
+      };
+
+      yield* Effect.sync(() => {
+        unsubscribeEvents = liveSession.onEvent((event) => {
+          const chunk = extractChunk(event);
+          if (chunk !== null) {
+            journal.record({
+              content: chunk.content,
+              timestamp: Date.now(),
+              messageId: chunk.messageId,
+              partType: chunk.partType,
+            });
+            if (handle.currentTurn && handle.currentTurn.messageId === null) {
+              handle.currentTurn.messageId = chunk.messageId;
+              deps.sessionRepository
+                .bindTurnMessageId(handle.currentTurn.turnId, chunk.messageId)
+                .catch((err: unknown) =>
+                  console.warn('[direct-harness] bindTurnMessageId error:', err)
+                );
+            }
+          }
+          if (event.type === 'session.idle') {
+            void handleSessionIdle(handle, journal, idleConfig, deps.sessionRepository).catch(
+              (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
+            );
+          }
+          if (event.type === 'session.updated') {
+            const info = (event.payload as { info?: { title?: string } }).info;
+            const newTitle = info?.title;
+            if (newTitle && newTitle !== liveSession.sessionTitle) {
+              liveSession.setTitle?.(newTitle);
+              void deps.sessionRepository
+                .updateSessionTitle(rowId as string, newTitle)
+                .catch((err: unknown) =>
+                  console.warn('[direct-harness] updateSessionTitle error:', err)
+                );
+            }
+          }
+        });
+      });
+
+      deps.activeSessions.set(rowId, handle);
+
+      // 8. Associate the harness-issued session ID with the existing backend row.
+      yield* Effect.tapError(
+        Effect.tryPromise({
+          try: () =>
+            deps.sessionRepository.associateOpenCodeSessionId(
+              rowId,
+              liveSession.opencodeSessionId as string,
+              liveSession.sessionTitle
+            ),
+          catch: (e) => e,
+        }),
+        () =>
+          Effect.gen(function* () {
+            deps.activeSessions.delete(rowId);
+            yield* Effect.tryPromise({
+              try: () => liveSession.close(),
+              catch: () => undefined,
+            }).pipe(Effect.catchAll(() => Effect.void));
+          })
+      );
+
+      yield* Effect.sync(() =>
+        console.log(
+          `[direct-harness] Session opened: rowId=${rowId} agent=${session.opencode?.lastUsedConfig.agent ?? 'build'} workspace=${session.workspaceId}`
+        )
+      );
+    }),
+    (err) =>
+      Effect.gen(function* () {
+        const rowId = session._id;
+        console.warn(
+          `[direct-harness] Failed to open session ${rowId}:`,
+          err instanceof Error ? err.message : String(err)
+        );
+        yield* Effect.tryPromise({
+          try: () => deps.sessionRepository.markFailed(rowId),
+          catch: () => undefined,
+        }).pipe(Effect.catchAll(() => Effect.void));
+      })
+  );
+
 async function processOne(
   daemonSession: DirectHarnessSession,
   deps: SessionSubscriberDeps,
   session: PendingSession
 ): Promise<void> {
-  const rowId = session._id;
-
-  try {
-    // 1. Look up workspace to get workingDir
-    const workspace = (await daemonSession.backend.query(api.workspaces.getWorkspaceById, {
-      sessionId: daemonSession.sessionId,
-      workspaceId: session.workspaceId,
-    })) as WorkspaceInfo | null;
-
-    if (!workspace) {
-      console.warn(
-        `[direct-harness] Cannot open session ${rowId}: workspace ${session.workspaceId} not found`
-      );
-      await deps.sessionRepository.markFailed(rowId);
-      return;
-    }
-
-    // 2. Get or create BoundHarness for this workspace
-    let harness = deps.harnesses.get(session.workspaceId);
-    if (harness && !harness.isAlive()) {
-      // Process died since it was last used — evict so we start fresh
-      console.warn(
-        `[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`
-      );
-      harness.close().catch(() => {});
-      deps.harnesses.delete(session.workspaceId);
-      harness = undefined;
-    }
-    if (!harness) {
-      harness = await startOpencodeSdkHarness({
-        type: 'opencode',
-        workingDir: workspace.workingDir,
-        workspaceId: session.workspaceId,
-      });
-      deps.harnesses.set(session.workspaceId, harness);
-    }
-
-    // 3. Open a session on the harness
-    const liveSession = await harness.newSession({
-      agent: session.opencode?.lastUsedConfig.agent ?? 'build',
-      harnessSessionId: rowId as unknown as HarnessSessionId,
-    });
-
-    // 5. Create journal + wire session events → journal
-    const journal = deps.journalFactory.create(rowId);
-    const extractChunk = createOpencodeSdkChunkExtractor(); // one stateful instance per session
-    const idleConfig = {
-      agent: session.opencode?.lastUsedConfig.agent ?? 'build',
-      model: session.opencode?.lastUsedConfig.model,
-    };
-
-    // Declare handle early so event listener closure can reference it.
-    // We use a mutable ref-wrapper so close() can also call unsubscribeEvents
-    // which is assigned after handle.
-    let unsubscribeEvents: () => void = () => {};
-
-    // 6. Build idempotent close function
-    let closed = false;
-    const close = async () => {
-      if (closed) return;
-      closed = true;
-      unsubscribeEvents();
-      await journal.commit();
-      await liveSession.close();
-      await deps.sessionRepository.markClosed(rowId);
-    };
-
-    // 7. Store in shared registry BEFORE patching the DB so that
-    //    prompt-subscriber can never observe the opencodeSessionId without
-    //    also finding the handle (prevents a second competing connection).
-    //    Declare handle early so the event listener closure can reference it.
-    const handle: SessionHandle = {
-      harnessSessionId: rowId,
-      opencodeSessionId: liveSession.opencodeSessionId as string,
-      workspaceId: session.workspaceId,
-      session: liveSession,
-      journal,
-      currentTurn: null,
-      close,
-    };
-
-    unsubscribeEvents = liveSession.onEvent((event) => {
-      const chunk = extractChunk(event);
-      if (chunk !== null) {
-        journal.record({
-          content: chunk.content,
-          timestamp: Date.now(),
-          messageId: chunk.messageId,
-          partType: chunk.partType,
-        });
-        // Bind the messageId on first chunk for the current pending turn
-        if (handle.currentTurn && handle.currentTurn.messageId === null) {
-          handle.currentTurn.messageId = chunk.messageId;
-          deps.sessionRepository
-            .bindTurnMessageId(handle.currentTurn.turnId, chunk.messageId)
-            .catch((err: unknown) =>
-              console.warn('[direct-harness] bindTurnMessageId error:', err)
-            );
-        }
-      }
-      if (event.type === 'session.idle') {
-        void handleSessionIdle(handle, journal, idleConfig, deps.sessionRepository).catch(
-          (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
-        );
-      }
-      if (event.type === 'session.updated') {
-        const info = (event.payload as { info?: { title?: string } }).info;
-        const newTitle = info?.title;
-        if (newTitle && newTitle !== liveSession.sessionTitle) {
-          liveSession.setTitle?.(newTitle);
-          void deps.sessionRepository
-            .updateSessionTitle(rowId as string, newTitle)
-            .catch((err: unknown) =>
-              console.warn('[direct-harness] updateSessionTitle error:', err)
-            );
-        }
-      }
-    });
-
-    deps.activeSessions.set(rowId, handle);
-
-    // 8. Associate the harness-issued session ID with the existing backend row.
-    //    This DB patch triggers pendingForMachine to re-fire — by this point
-    //    activeSessions already has the handle so prompt-subscriber finds it
-    //    directly without lazy-resuming.
-    try {
-      await deps.sessionRepository.associateOpenCodeSessionId(
-        rowId,
-        liveSession.opencodeSessionId as string,
-        liveSession.sessionTitle
-      );
-    } catch (err) {
-      deps.activeSessions.delete(rowId);
-      await liveSession.close().catch(() => {});
-      throw err;
-    }
-
-    console.log(
-      `[direct-harness] Session opened: rowId=${rowId} agent=${session.opencode?.lastUsedConfig.agent ?? 'build'} workspace=${session.workspaceId}`
-    );
-  } catch (err) {
-    console.warn(
-      `[direct-harness] Failed to open session ${rowId}:`,
-      err instanceof Error ? err.message : String(err)
-    );
-    // No opencodeSessionId was established, so there is nothing on disk to
-    // resume. Mark as failed (permanent).
-    try {
-      await deps.sessionRepository.markFailed(rowId);
-    } catch {
-      // Best-effort
-    }
-  }
+  return Effect.runPromise(processOneSessionEffect(daemonSession, deps, session));
 }
