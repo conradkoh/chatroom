@@ -12,6 +12,7 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
 import type { DirectHarnessSession } from './command-subscriber.js';
 import { handleSessionIdle } from './idle-handler.js';
@@ -88,46 +89,72 @@ export function startMessageSubscriber(
 
 // ─── Drain loop ──────────────────────────────────────────────────────────────
 
+/** Effect twin — canonical drain loop for pending user messages. */
+// fallow-ignore-next-line unused-export
+export const drainMessagesEffect = (
+  session: DirectHarnessSession,
+  deps: MessageSubscriberDeps
+): Effect.Effect<void, never, never> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      const pending = yield* Effect.tryPromise({
+        try: () =>
+          session.backend.query(api.daemon.directHarness.messages.pendingForMachine, {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+          }) as Promise<{
+            sessions: PendingSessionInfo[];
+            messages: PendingMessage[];
+          } | null>,
+        catch: (e) => e,
+      });
+
+      if (!pending || pending.messages.length === 0) return;
+
+      const bySession = new Map<string, PendingMessage[]>();
+      for (const msg of pending.messages) {
+        const list = bySession.get(msg.harnessSessionId);
+        if (list) {
+          list.push(msg);
+        } else {
+          bySession.set(msg.harnessSessionId, [msg]);
+        }
+      }
+
+      const sessionInfo = new Map<string, PendingSessionInfo>();
+      for (const s of pending.sessions) {
+        sessionInfo.set(s._id, s);
+      }
+
+      for (const [rowId, messages] of bySession) {
+        yield* Effect.catchAll(
+          Effect.tryPromise({
+            try: () =>
+              processSessionMessages(session, deps, rowId, messages, sessionInfo.get(rowId)),
+            catch: (e) => e,
+          }),
+          (err) =>
+            Effect.sync(() => {
+              console.warn(
+                `[direct-harness] Failed to process messages for session ${rowId}:`,
+                err instanceof Error ? err.message : String(err)
+              );
+            })
+        );
+      }
+    }),
+    (err) =>
+      Effect.sync(() => {
+        console.warn(
+          `[direct-harness] Unexpected error in drainMessagesEffect:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      })
+  );
+
+/** Thin wrapper — startMessageSubscriber still calls this. */
 async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps): Promise<void> {
-  // Fetch all pending user messages grouped by session
-  const pending = (await session.backend.query(
-    api.daemon.directHarness.messages.pendingForMachine,
-    { sessionId: session.sessionId, machineId: session.machineId }
-  )) as {
-    sessions: PendingSessionInfo[];
-    messages: PendingMessage[];
-  } | null;
-
-  if (!pending || pending.messages.length === 0) return;
-
-  // Group messages by session for batch processing
-  const bySession = new Map<string, PendingMessage[]>();
-  for (const msg of pending.messages) {
-    const list = bySession.get(msg.harnessSessionId);
-    if (list) {
-      list.push(msg);
-    } else {
-      bySession.set(msg.harnessSessionId, [msg]);
-    }
-  }
-
-  // Build a session-info lookup
-  const sessionInfo = new Map<string, PendingSessionInfo>();
-  for (const s of pending.sessions) {
-    sessionInfo.set(s._id, s);
-  }
-
-  // Process each session's messages
-  for (const [rowId, messages] of bySession) {
-    try {
-      await processSessionMessages(session, deps, rowId, messages, sessionInfo.get(rowId));
-    } catch (err) {
-      console.warn(
-        `[direct-harness] Failed to process messages for session ${rowId}:`,
-        err instanceof Error ? err.message : String(err)
-      );
-    }
-  }
+  return Effect.runPromise(drainMessagesEffect(session, deps));
 }
 
 // ─── Process messages for a single session ───────────────────────────────────
