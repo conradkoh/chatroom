@@ -255,41 +255,38 @@ async function setupMachine(): Promise<MachineConfig> {
   return config;
 }
 
-/**
- * Register machine capabilities (harnesses and models) with the backend.
- * Returns the discovered models for startup logging.
- * Non-critical: warns on failure but does not exit.
- */
-async function registerCapabilities(
+/** Register capabilities with the backend — non-critical, warns on failure. */
+const registerCapabilitiesEffect = (
   client: ConvexHttpClient,
   sessionId: SessionId,
   config: MachineConfig,
   agentServices: Map<string, RemoteAgentService>
-): Promise<Record<string, string[]>> {
-  const { machineId } = config;
+): Effect.Effect<Record<string, string[]>, never, never> =>
+  Effect.gen(function* () {
+    const { machineId } = config;
 
-  // Discover available models from all installed harnesses (dynamic)
-  const availableModels = await discoverModels(agentServices);
+    const availableModels = yield* discoverModelsEffect(agentServices);
 
-  // Register/update machine info in backend (includes harnesses and models)
-  // This ensures the web UI has current machine capabilities
-  try {
-    await client.mutation(api.machines.register, {
-      sessionId,
-      machineId,
-      hostname: config.hostname,
-      os: config.os,
-      availableHarnesses: config.availableHarnesses,
-      harnessVersions: config.harnessVersions,
-      availableModels,
-    });
-  } catch (error) {
-    // Registration failure is non-critical — daemon can still work
-    console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
-  }
+    yield* Effect.catchAll(
+      Effect.tryPromise(() =>
+        client.mutation(api.machines.register, {
+          sessionId,
+          machineId,
+          hostname: config.hostname,
+          os: config.os,
+          availableHarnesses: config.availableHarnesses,
+          harnessVersions: config.harnessVersions,
+          availableModels,
+        })
+      ),
+      (error) =>
+        Effect.sync(() => {
+          console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
+        })
+    );
 
-  return availableModels;
-}
+    return availableModels;
+  });
 
 /**
  * Connect the daemon to the backend by updating daemon status.
@@ -458,10 +455,12 @@ export async function initDaemon(): Promise<DaemonSessionInit> {
       getAllHarnesses().map((s) => [s.id, s])
     );
 
-    const availableModels = yield* Effect.tryPromise({
-      try: () => registerCapabilities(client, typedSessionId, config, agentServices),
-      catch: (e) => e,
-    });
+    const availableModels = yield* registerCapabilitiesEffect(
+      client,
+      typedSessionId,
+      config,
+      agentServices
+    );
 
     yield* Effect.tryPromise({
       try: () => connectDaemon(client, typedSessionId, machineId, convexUrl),
