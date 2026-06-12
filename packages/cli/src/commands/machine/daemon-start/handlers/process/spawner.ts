@@ -143,6 +143,7 @@ const appendFullOutputChunksEffect = (
     }
   });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function appendFullOutputChunks(
   deps: SpawnDeps,
   tracked: RunningProcess,
@@ -172,28 +173,45 @@ async function flushFinalChunks(
   return Effect.runPromise(flushFinalChunksEffect(deps, tracked, runId));
 }
 
-/** One-shot full log sync when the webapp requests "Load more" on an active run. */
+/** Effect twin — one-shot full log sync on webapp request. */
+// fallow-ignore-next-line unused-export
+export const syncFullOutputOnRequestEffect = (
+  deps: SpawnDeps,
+  tracked: RunningProcess,
+  runId: any
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    if (!consumePendingFullSync(tracked.runId)) return;
+
+    yield* appendFullOutputChunksEffect(deps, tracked, runId);
+
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
+          sessionId: deps.sessionId as SessionId,
+          machineId: deps.machineId,
+          runId,
+        }),
+      catch: (e) => e,
+    }).pipe(
+      Effect.catchAll((err) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Failed to clear pending full sync for ${tracked.runId}:`,
+            err instanceof Error ? err.message : String(err)
+          );
+        })
+      )
+    );
+  });
+
 // fallow-ignore-next-line unused-export
 export async function syncFullOutputOnRequest(
   deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
-  if (!consumePendingFullSync(tracked.runId)) return;
-
-  await appendFullOutputChunks(deps, tracked, runId);
-
-  try {
-    await deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
-      sessionId: deps.sessionId as SessionId,
-      machineId: deps.machineId,
-      runId,
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to clear pending full sync for ${tracked.runId}: ${getErrorMessage(err)}`
-    );
-  }
+  return Effect.runPromise(syncFullOutputOnRequestEffect(deps, tracked, runId));
 }
 
 // fallow-ignore-next-line unused-export
