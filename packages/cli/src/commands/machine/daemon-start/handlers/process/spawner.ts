@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 
 import { encodeOutput } from '@workspace/backend/src/output-encoding.js';
+import { Effect } from 'effect';
 
 import { killProcess } from './killer.js';
 import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js';
@@ -35,32 +36,57 @@ export type SpawnDeps = {
   backend: BackendOps;
 };
 
-async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = false): Promise<void> {
-  if (!force && !isRunLogObserved(tracked.runId)) return;
+/** Effect twin — flush tail output to backend. */
+const flushTailV2Effect = (
+  deps: SpawnDeps,
+  tracked: RunningProcess,
+  force = false
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    if (!force && !isRunLogObserved(tracked.runId)) return;
 
-  const tail = await tracked.store.getLastNLines(MAX_TAIL_LINES_V2);
-  if (tail.content.length === 0) return;
-
-  const compressed = encodeOutput(tail.content);
-  try {
-    await deps.backend.mutation(api.commands.updateRunTailV2, {
-      sessionId: deps.sessionId as SessionId,
-      machineId: deps.machineId,
-      runId: tracked.runId as any,
-      tailOutput: {
-        compression: compressed.compression,
-        content: compressed.content,
-        byteLength: tail.totalBytes,
-        totalBytesWritten: tail.totalBytes,
-        updatedAt: Date.now(),
-        lineCount: tail.lineCount,
-      },
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to flush tail for run ${tracked.runId}: ${getErrorMessage(err)}`
+    const tail = yield* Effect.tryPromise({
+      try: () => tracked.store.getLastNLines(MAX_TAIL_LINES_V2),
+      catch: (e) => e,
+    }).pipe(
+      Effect.catchAll(
+        (): Effect.Effect<{ content: string; totalBytes: number; lineCount: number }, never> =>
+          Effect.succeed({ content: '', totalBytes: 0, lineCount: 0 })
+      )
     );
-  }
+    if (tail.content.length === 0) return;
+
+    const compressed = encodeOutput(tail.content);
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.commands.updateRunTailV2, {
+          sessionId: deps.sessionId as SessionId,
+          machineId: deps.machineId,
+          runId: tracked.runId as any,
+          tailOutput: {
+            compression: compressed.compression,
+            content: compressed.content,
+            byteLength: tail.totalBytes,
+            totalBytesWritten: tail.totalBytes,
+            updatedAt: Date.now(),
+            lineCount: tail.lineCount,
+          },
+        }),
+      catch: (e) => e,
+    }).pipe(
+      Effect.catchAll((err) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Failed to flush tail for run ${tracked.runId}:`,
+            err instanceof Error ? err.message : String(err)
+          );
+        })
+      )
+    );
+  });
+
+async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = false): Promise<void> {
+  return Effect.runPromise(flushTailV2Effect(deps, tracked, force));
 }
 
 async function appendFullOutputChunks(
