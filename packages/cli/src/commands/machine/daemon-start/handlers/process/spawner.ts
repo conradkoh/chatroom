@@ -214,13 +214,22 @@ export async function syncFullOutputOnRequest(
   return Effect.runPromise(syncFullOutputOnRequestEffect(deps, tracked, runId));
 }
 
+/** Effect twin — poll all running processes for pending full output syncs. */
+// fallow-ignore-next-line unused-export
+export const pollPendingFullOutputSyncsEffect = (
+  deps: SpawnDeps
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    for (const [runId, tracked] of processManager.getAll()) {
+      if (consumePendingFullSync(runId)) {
+        yield* syncFullOutputOnRequestEffect(deps, tracked, runId as any);
+      }
+    }
+  });
+
 // fallow-ignore-next-line unused-export
 export async function pollPendingFullOutputSyncs(deps: SpawnDeps): Promise<void> {
-  for (const [runId, tracked] of processManager.getAll()) {
-    if (consumePendingFullSync(runId)) {
-      await syncFullOutputOnRequest(deps, tracked, runId as any);
-    }
-  }
+  return Effect.runPromise(pollPendingFullOutputSyncsEffect(deps));
 }
 
 export async function spawnCommandProcess(
