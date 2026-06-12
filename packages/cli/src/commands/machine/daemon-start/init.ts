@@ -5,7 +5,7 @@
 import { stat } from 'node:fs/promises';
 
 import type { ConvexHttpClient } from 'convex/browser';
-import { Cause, Effect, Schedule, Duration } from 'effect';
+import { Cause, Effect, Ref, Schedule, Duration } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
@@ -391,6 +391,93 @@ class NetworkRetryError {
   ) {}
 }
 
+// ─── Connection Retry ────────────────────────────────────────────────────────
+
+type ConnectResult = {
+  typedSessionId: SessionId;
+  config: MachineConfig;
+  machineId: string;
+  agentServices: Map<string, RemoteAgentService>;
+  availableModels: Record<string, string[]>;
+  attempt: number;
+};
+
+const connectWithRetryEffect = (
+  client: ConvexHttpClient,
+  sessionId: string,
+  convexUrl: string
+): Effect.Effect<ConnectResult, never, never> =>
+  Effect.gen(function* () {
+    const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
+    const attemptRef = yield* Ref.make(0);
+
+    const connectOnce = Effect.gen(function* () {
+      yield* Ref.update(attemptRef, (n) => n + 1);
+      const typedSessionId = yield* validateSessionEffect(
+        client,
+        sessionId as SessionId,
+        convexUrl
+      );
+
+      const config = yield* setupMachineEffect();
+      const { machineId } = config;
+
+      initHarnessRegistry();
+      const agentServices = new Map<string, RemoteAgentService>(
+        getAllHarnesses().map((s) => [s.id, s])
+      );
+
+      const availableModels = yield* registerCapabilitiesEffect(
+        client,
+        typedSessionId,
+        config,
+        agentServices
+      );
+
+      yield* connectDaemonEffect(client, typedSessionId, machineId);
+
+      return { typedSessionId, config, machineId, agentServices, availableModels };
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.flatMap(Ref.get(attemptRef), (currentAttempt) =>
+          isNetworkError(error)
+            ? Effect.fail(new NetworkRetryError(error, currentAttempt))
+            : Effect.die(error)
+        )
+      )
+    );
+
+    const retrySchedule = Schedule.fixed(Duration.millis(CONNECTION_RETRY_INTERVAL_MS));
+
+    const connectWithRetry = connectOnce.pipe(
+      Effect.tapError((retryErr) =>
+        Effect.gen(function* () {
+          const { cause, attempt: failedAttempt } = retryErr;
+          if (failedAttempt === 1) {
+            formatConnectivityError(cause, convexUrl);
+            console.log(
+              `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying every ${retrySec}s...`
+            );
+          } else {
+            console.log(
+              `[${formatTimestamp()}] ❌ Backend still unreachable (attempt ${failedAttempt}, retrying in ${retrySec}s)`
+            );
+          }
+        })
+      ),
+      Effect.retry(retrySchedule)
+    );
+
+    const result = yield* connectWithRetry.pipe(Effect.catchAll((e) => Effect.die(e)));
+    const attempt = yield* Ref.get(attemptRef);
+
+    if (attempt > 1) {
+      console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
+    }
+
+    return { ...result, attempt };
+  });
+
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 /**
@@ -425,85 +512,8 @@ export async function initDaemon(): Promise<DaemonSessionInit> {
   const sessionId = await Effect.runPromise(validateAuthenticationEffect(convexUrl));
   const client = await getConvexClient();
 
-  // SessionId is validated above as non-null. Cast once at the boundary
-  // between our storage format and Convex's branded type system.
-  // ─── Connection retry loop ──────────────────────────────────────────────────
-  //
-  // Uses Effect.retry + Schedule to handle transient network failures.
-  // Only NetworkRetryError instances trigger retries — non-network errors are
-  // re-thrown immediately and crash the daemon (fatal path).
-  //
-  // Schedule: fixed 10-second gap between attempts, retries forever until the
-  // backend is reachable. The attempt counter inside each NetworkRetryError
-  // drives log-dedup (verbose block on attempt 1, concise line thereafter).
-  const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
-
-  let attempt = 0;
-
-  const connectOnce = Effect.gen(function* () {
-    attempt++;
-    const typedSessionId = yield* validateSessionEffect(client, sessionId as SessionId, convexUrl);
-
-    const config = yield* setupMachineEffect();
-    const { machineId } = config;
-
-    // Populate harness registry and build service map from it
-    initHarnessRegistry();
-    const agentServices = new Map<string, RemoteAgentService>(
-      getAllHarnesses().map((s) => [s.id, s])
-    );
-
-    const availableModels = yield* registerCapabilitiesEffect(
-      client,
-      typedSessionId,
-      config,
-      agentServices
-    );
-
-    yield* connectDaemonEffect(client, typedSessionId, machineId);
-
-    return { typedSessionId, config, machineId, agentServices, availableModels };
-  }).pipe(
-    // Classify failures: network errors → retryable; others → fatal (re-throw)
-    Effect.catchAll((error) => {
-      if (isNetworkError(error)) {
-        return Effect.fail(new NetworkRetryError(error, attempt));
-      }
-      // Non-network error — propagate as a defect (crashes the daemon)
-      return Effect.die(error);
-    })
-  );
-
-  const retrySchedule = Schedule.fixed(Duration.millis(CONNECTION_RETRY_INTERVAL_MS));
-
-  const connectWithRetry = connectOnce.pipe(
-    Effect.tapError((retryErr) =>
-      Effect.sync(() => {
-        const { cause, attempt: failedAttempt } = retryErr;
-        if (failedAttempt === 1) {
-          // First failure — emit the full guidance block so the user knows what to check.
-          formatConnectivityError(cause, convexUrl);
-          console.log(
-            `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying every ${retrySec}s...`
-          );
-        } else {
-          // Subsequent failures — a single concise line to avoid log spam.
-          console.log(
-            `[${formatTimestamp()}] ❌ Backend still unreachable (attempt ${failedAttempt}, retrying in ${retrySec}s)`
-          );
-        }
-      })
-    ),
-    Effect.retry(retrySchedule)
-  );
-
   const { typedSessionId, config, machineId, agentServices, availableModels } =
-    await Effect.runPromise(connectWithRetry);
-
-  // Log recovery if the backend was previously unreachable.
-  if (attempt > 1) {
-    console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
-  }
+    await Effect.runPromise(connectWithRetryEffect(client, sessionId, convexUrl));
 
   // Create default dependencies and bind the real Convex client
   const deps = createDefaultDeps();
