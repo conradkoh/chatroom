@@ -17,7 +17,6 @@ import {
 } from './state.js';
 import { api } from '../../../../../api.js';
 import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
-import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { SessionId } from '../../types.js';
 import { formatTimestamp } from '../../utils.js';
 import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
@@ -282,6 +281,136 @@ const finalizeRunEffect = (
     );
   });
 
+/** Effect twin — spawn a command process and wire output/status lifecycle. */
+// fallow-ignore-next-line unused-export
+export const spawnCommandProcessEffect = (
+  deps: SpawnDeps,
+  event: {
+    workingDir: string;
+    commandName: string;
+    script: string;
+    runId: any;
+  },
+  commandKey: string
+): Effect.Effect<RunningProcess, never, never> =>
+  Effect.gen(function* () {
+    const { workingDir, commandName, script, runId } = event;
+    const runIdStr = runId.toString();
+
+    if (!tempDirReady) {
+      yield* Effect.tryPromise({
+        try: () => ensureTempDir(),
+        catch: (e) => e,
+      }).pipe(Effect.catchAll(() => Effect.void));
+      tempDirReady = true;
+    }
+
+    const store = createOutputStore(runIdStr);
+
+    return yield* Effect.sync(() => {
+      const child = spawn('sh', ['-c', script], {
+        cwd: workingDir,
+        env: { ...process.env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: true,
+      });
+
+      const tracked: RunningProcess = {
+        process: child,
+        runId: runIdStr,
+        commandKey,
+        store,
+        startedAt: Date.now(),
+        flushTimer: setInterval(() => {
+          Effect.runPromise(flushTailV2Effect(deps, tracked)).catch(() => {});
+          Effect.runPromise(syncFullOutputOnRequestEffect(deps, tracked, runId)).catch(() => {});
+        }, OUTPUT_FLUSH_INTERVAL_MS),
+        softTimeoutTimer: null,
+        terminationIntent: null,
+      };
+      tracked.flushTimer.unref?.();
+
+      processManager.register(runIdStr, commandKey, tracked);
+
+      if (child.pid != null) {
+        trackChildPid(child.pid);
+      }
+
+      const softTimeoutTimer = setTimeout(() => {
+        console.log(
+          `[${formatTimestamp()}] ⏰ Command soft timeout (24h): ${commandName} (runId: ${runIdStr})`
+        );
+        const currentTracked = processManager.get(runIdStr);
+        if (!currentTracked) return;
+
+        currentTracked.terminationIntent = 'killed';
+
+        void Effect.runPromise(
+          Effect.gen(function* () {
+            yield* Effect.tryPromise({
+              try: () =>
+                deps.backend.mutation(api.commands.updateRunStatus, {
+                  sessionId: deps.sessionId as SessionId,
+                  machineId: deps.machineId,
+                  runId,
+                  status: 'killed',
+                  terminationReason: 'timeout-24h',
+                }),
+              catch: (e) => e,
+            }).pipe(
+              Effect.catchAll((err) =>
+                Effect.sync(() => {
+                  console.warn(
+                    `[${formatTimestamp()}] ⚠️ Failed to mark run as killed (timeout):`,
+                    err instanceof Error ? err.message : String(err)
+                  );
+                })
+              )
+            );
+          })
+        );
+
+        killProcess(child, 'SIGTERM');
+        setTimeout(() => {
+          if (!processManager.has(runIdStr)) return;
+          console.log(`[${formatTimestamp()}] 🔪 Force-killing timed-out process: ${runIdStr}`);
+          killProcess(child, 'SIGKILL');
+        }, SIGTERM_GRACE_PERIOD_MS);
+      }, SOFT_TIMEOUT_MS);
+      softTimeoutTimer.unref?.();
+      tracked.softTimeoutTimer = softTimeoutTimer;
+
+      child.stdout?.on('data', (data: Buffer) => {
+        tracked.store.append(data.toString()).catch(() => {});
+      });
+
+      child.stderr?.on('data', (data: Buffer) => {
+        tracked.store.append(data.toString()).catch(() => {});
+      });
+
+      const finalize = (code: number | null, signal: NodeJS.Signals | null) =>
+        Effect.runPromise(
+          finalizeRunEffect(deps, tracked, runId, runIdStr, commandKey, code, signal)
+        );
+
+      child.on('exit', (code, signal) => {
+        console.log(
+          `[${formatTimestamp()}] 📋 Command exited: ${commandName} (code=${code}, signal=${signal})`
+        );
+        finalize(code, signal as NodeJS.Signals | null).catch(() => {});
+      });
+
+      child.on('error', (err) => {
+        console.error(
+          `[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`
+        );
+        finalize(null, null).catch(() => {});
+      });
+
+      return tracked;
+    });
+  });
+
 export async function spawnCommandProcess(
   deps: SpawnDeps,
   event: {
@@ -292,99 +421,5 @@ export async function spawnCommandProcess(
   },
   commandKey: string
 ): Promise<RunningProcess> {
-  const { workingDir, commandName, script, runId } = event;
-  const runIdStr = runId.toString();
-
-  if (!tempDirReady) {
-    await ensureTempDir();
-    tempDirReady = true;
-  }
-
-  const store = createOutputStore(runIdStr);
-
-  const child = spawn('sh', ['-c', script], {
-    cwd: workingDir,
-    env: { ...process.env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-  });
-
-  const tracked: RunningProcess = {
-    process: child,
-    runId: runIdStr,
-    commandKey,
-    store,
-    startedAt: Date.now(),
-    flushTimer: setInterval(() => {
-      Effect.runPromise(flushTailV2Effect(deps, tracked)).catch(() => {});
-      Effect.runPromise(syncFullOutputOnRequestEffect(deps, tracked, runId)).catch(() => {});
-    }, OUTPUT_FLUSH_INTERVAL_MS),
-    softTimeoutTimer: null,
-    terminationIntent: null,
-  };
-  tracked.flushTimer.unref?.();
-
-  processManager.register(runIdStr, commandKey, tracked);
-
-  if (child.pid != null) {
-    trackChildPid(child.pid);
-  }
-
-  const softTimeoutTimer = setTimeout(async () => {
-    console.log(
-      `[${formatTimestamp()}] ⏰ Command soft timeout (24h): ${commandName} (runId: ${runIdStr})`
-    );
-    const currentTracked = processManager.get(runIdStr);
-    if (!currentTracked) return;
-
-    currentTracked.terminationIntent = 'killed';
-
-    try {
-      await deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: deps.sessionId as SessionId,
-        machineId: deps.machineId,
-        runId,
-        status: 'killed',
-        terminationReason: 'timeout-24h',
-      });
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to mark run as killed (timeout): ${getErrorMessage(err)}`
-      );
-    }
-
-    killProcess(child, 'SIGTERM');
-    setTimeout(() => {
-      if (!processManager.has(runIdStr)) return;
-      console.log(`[${formatTimestamp()}] 🔪 Force-killing timed-out process: ${runIdStr}`);
-      killProcess(child, 'SIGKILL');
-    }, SIGTERM_GRACE_PERIOD_MS);
-  }, SOFT_TIMEOUT_MS);
-  softTimeoutTimer.unref?.();
-  tracked.softTimeoutTimer = softTimeoutTimer;
-
-  child.stdout?.on('data', (data: Buffer) => {
-    tracked.store.append(data.toString()).catch(() => {});
-  });
-
-  child.stderr?.on('data', (data: Buffer) => {
-    tracked.store.append(data.toString()).catch(() => {});
-  });
-
-  const finalize = (code: number | null, signal: NodeJS.Signals | null) =>
-    Effect.runPromise(finalizeRunEffect(deps, tracked, runId, runIdStr, commandKey, code, signal));
-
-  child.on('exit', (code, signal) => {
-    console.log(
-      `[${formatTimestamp()}] 📋 Command exited: ${commandName} (code=${code}, signal=${signal})`
-    );
-    finalize(code, signal as NodeJS.Signals | null).catch(() => {});
-  });
-
-  child.on('error', async (err) => {
-    console.error(`[${formatTimestamp()}] ❌ Command spawn failed: ${commandName}: ${err.message}`);
-    finalize(null, null).catch(() => {});
-  });
-
-  return tracked;
+  return Effect.runPromise(spawnCommandProcessEffect(deps, event, commandKey));
 }
