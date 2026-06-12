@@ -52,7 +52,13 @@
     "**/playwright.config.{ts,js}",
     "**/eslint.config.{ts,js,mjs}",
   ],
-  "ignoreExports": [{ "file": "**/components/ui/**", "exports": ["*"] }],
+  "ignoreExports": [
+    { "file": "**/components/ui/**", "exports": ["*"] },
+    {
+      "file": "**/commands/machine/daemon-start/init.ts",
+      "exports": ["discoverModels", "initDaemonEffect"],
+    },
+  ],
   "duplicates": {
     "ignore": [
       "**/_generated/**",
