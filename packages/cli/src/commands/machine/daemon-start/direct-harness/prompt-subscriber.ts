@@ -128,11 +128,7 @@ export const drainMessagesEffect = (
 
       for (const [rowId, messages] of bySession) {
         yield* Effect.catchAll(
-          Effect.tryPromise({
-            try: () =>
-              processSessionMessages(session, deps, rowId, messages, sessionInfo.get(rowId)),
-            catch: (e) => e,
-          }),
+          processSessionMessagesEffect(session, deps, rowId, messages, sessionInfo.get(rowId)),
           (err) =>
             Effect.sync(() => {
               console.warn(
@@ -334,6 +330,26 @@ const lazyResumeSessionEffect = (
     return handle;
   });
 
+/** Effect twin — resolve handle and dispatch pending messages for one session. */
+// fallow-ignore-next-line unused-export
+export const processSessionMessagesEffect = (
+  session: DirectHarnessSession,
+  deps: MessageSubscriberDeps,
+  rowId: string,
+  messages: PendingMessage[],
+  info: PendingSessionInfo | undefined
+) =>
+  Effect.gen(function* () {
+    let handle = deps.activeSessions.get(rowId);
+    if (!handle) {
+      handle = (yield* lazyResumeSessionEffect(session, deps, rowId, info)) ?? undefined;
+      if (!handle) return;
+    }
+    yield* dispatchPendingMessagesEffect(handle, deps, rowId, messages, info);
+  });
+
+/** Thin wrapper — kept for any external/test callers. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function processSessionMessages(
   session: DirectHarnessSession,
   deps: MessageSubscriberDeps,
@@ -341,13 +357,5 @@ async function processSessionMessages(
   messages: PendingMessage[],
   info: PendingSessionInfo | undefined
 ): Promise<void> {
-  let handle = deps.activeSessions.get(rowId);
-
-  if (!handle) {
-    handle =
-      (await Effect.runPromise(lazyResumeSessionEffect(session, deps, rowId, info))) ?? undefined;
-    if (!handle) return;
-  }
-
-  await Effect.runPromise(dispatchPendingMessagesEffect(handle, deps, rowId, messages, info));
+  return Effect.runPromise(processSessionMessagesEffect(session, deps, rowId, messages, info));
 }
