@@ -133,7 +133,8 @@ export const DaemonAgentProcessManagerServiceLive = (
  * Effect service carrying daemon identity fields.
  *
  * Note: mutable ctx state (lastPushedGitState, lastPushedModels, etc.)
- * is intentionally excluded — those fields are accessed via DaemonContextService.
+ * is intentionally excluded — these mutable fields
+ * use the same shared-reference pattern as the original DaemonContext.
  * Migrating them to Effect.Ref is future scope (Phase E5+).
  */
 export interface DaemonSessionServiceShape {

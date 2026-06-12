@@ -14,7 +14,7 @@
 import { Effect, Layer } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DaemonContextService, daemonContextToLayers } from './daemon-context-service.js';
+import { daemonContextToLayers } from './daemon-layers.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,
@@ -337,20 +337,5 @@ describe('daemonContextToLayers', () => {
 
     expect(map).toBe(lastPushedGitState);
     expect(map.get('k')).toBe('v');
-  });
-
-  it('builds a layer that provides DaemonContextService (backward-compat)', async () => {
-    const deps = createMockDaemonDeps();
-    const ctx = createMockDaemonContext({ deps, machineId: 'machine-compat' });
-
-    const layer = daemonContextToLayers(ctx);
-    const resolvedCtx = await Effect.runPromise(
-      Effect.gen(function* () {
-        return yield* DaemonContextService;
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(resolvedCtx.machineId).toBe('machine-compat');
-    expect(resolvedCtx.deps).toBe(deps);
   });
 });

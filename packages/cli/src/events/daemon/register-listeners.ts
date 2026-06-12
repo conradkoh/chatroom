@@ -5,17 +5,37 @@
  * Returns an unsubscribe function that removes all listeners (for tests/shutdown).
  */
 
-import { onAgentExited } from './agent/on-agent-exited.js';
-import { onAgentStarted } from './agent/on-agent-started.js';
-import { onAgentStopped } from './agent/on-agent-stopped.js';
-import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
+import { Effect } from 'effect';
 
-export function registerEventListeners(ctx: DaemonContext): () => void {
+import { onAgentExitedCore, type AgentExitedDeps } from './agent/on-agent-exited.js';
+import { onAgentStartedCore } from './agent/on-agent-started.js';
+import { onAgentStoppedCore } from './agent/on-agent-stopped.js';
+import type { DaemonEventBus } from './event-bus.js';
+import {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+} from '../../commands/machine/daemon-start/daemon-services.js';
+
+/** Flat deps for core — no DaemonContext. */
+export interface RegisterEventListenersDeps {
+  events: DaemonEventBus;
+  handleExit: AgentExitedDeps['handleExit'];
+}
+
+/**
+ * Core — wires agent lifecycle events to handler cores.
+ * Returns unsubscribe function.
+ */
+export function registerEventListenersCore(deps: RegisterEventListenersDeps): () => void {
   const unsubs: (() => void)[] = [];
 
-  unsubs.push(ctx.events.on('agent:exited', (payload) => onAgentExited(ctx, payload)));
-  unsubs.push(ctx.events.on('agent:started', (payload) => onAgentStarted(ctx, payload)));
-  unsubs.push(ctx.events.on('agent:stopped', (payload) => onAgentStopped(ctx, payload)));
+  unsubs.push(
+    deps.events.on('agent:exited', (payload) =>
+      onAgentExitedCore({ handleExit: deps.handleExit }, payload)
+    )
+  );
+  unsubs.push(deps.events.on('agent:started', (payload) => onAgentStartedCore(payload)));
+  unsubs.push(deps.events.on('agent:stopped', (payload) => onAgentStoppedCore(payload)));
 
   return () => {
     for (const unsub of unsubs) {
@@ -23,3 +43,20 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
     }
   };
 }
+
+/** Effect twin — yields DaemonSessionService + DaemonAgentProcessManagerService. */
+// fallow-ignore-next-line unused-export
+export const registerEventListenersEffect = (): Effect.Effect<
+  () => void,
+  never,
+  DaemonSessionService | DaemonAgentProcessManagerService
+> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    const apm = yield* DaemonAgentProcessManagerService;
+
+    return registerEventListenersCore({
+      events: session.events,
+      handleExit: (opts) => Effect.runPromise(apm.handleExit(opts)),
+    });
+  });
