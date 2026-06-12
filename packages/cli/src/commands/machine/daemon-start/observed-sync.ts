@@ -270,7 +270,17 @@ export const startObservedSyncSubscriptionEffect = (
       });
       await Effect.runPromise(
         pushSingleWorkspaceCommandsEffect(workingDir).pipe(
-          Effect.provideService(DaemonSessionService, session)
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.succeed(DaemonSessionService, session),
+              DaemonMutableStateServiceLive({
+                lastPushedGitState: session.lastPushedGitState,
+                lastPushedModels: session.lastPushedModels,
+                lastPushedHarnessFingerprint: session.lastPushedHarnessFingerprint,
+                workspaceListStore: session.workspaceListStore,
+              })
+            )
+          )
         )
       ).catch((err: unknown) => {
         console.warn(
