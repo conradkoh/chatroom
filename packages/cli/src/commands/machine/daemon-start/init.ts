@@ -200,40 +200,46 @@ async function validateAuthentication(convexUrl: string): Promise<string> {
   return waitForAuthentication(convexUrl);
 }
 
-/**
- * Validate the session with the backend to catch expired/revoked tokens early.
- * If the session is invalid, waits for the user to re-authenticate.
- */
-async function validateSession(
+const validateSessionEffect = (
   client: ConvexHttpClient,
   sessionId: SessionId,
   convexUrl: string
-): Promise<SessionId> {
-  const validation = await client.query(api.cliAuth.validateSession, { sessionId });
-  if (validation.valid) {
-    return sessionId;
-  }
+): Effect.Effect<SessionId, unknown, never> =>
+  Effect.gen(function* () {
+    const validation = yield* Effect.tryPromise({
+      try: () => client.query(api.cliAuth.validateSession, { sessionId }),
+      catch: (e) => e,
+    });
 
-  console.error(`❌ Session invalid: ${validation.reason}`);
-  console.error(`\nRun: chatroom auth login`);
-  console.log(`\n⏳ Waiting for re-authentication (timeout: 5 minutes)...`);
+    if (validation.valid) {
+      return sessionId;
+    }
 
-  // Wait for new auth credentials, then re-validate
-  const newSessionId = await waitForAuthentication(convexUrl);
-  const typedNewSession: SessionId = newSessionId;
+    console.error(`❌ Session invalid: ${validation.reason}`);
+    console.error(`\nRun: chatroom auth login`);
+    console.log(`\n⏳ Waiting for re-authentication (timeout: 5 minutes)...`);
 
-  // Validate the new session
-  const revalidation = await client.query(api.cliAuth.validateSession, {
-    sessionId: typedNewSession,
+    const newSessionId = yield* Effect.tryPromise({
+      try: () => waitForAuthentication(convexUrl),
+      catch: (e) => e,
+    });
+    const typedNewSession = newSessionId as SessionId;
+
+    const revalidation = yield* Effect.tryPromise({
+      try: () => client.query(api.cliAuth.validateSession, { sessionId: typedNewSession }),
+      catch: (e) => e,
+    });
+
+    if (!revalidation.valid) {
+      return yield* Effect.sync(() => {
+        console.error(`❌ New session is also invalid: ${revalidation.reason}`);
+        releaseLock();
+        process.exit(1);
+      });
+    }
+
+    return typedNewSession;
   });
-  if (!revalidation.valid) {
-    console.error(`❌ New session is also invalid: ${revalidation.reason}`);
-    releaseLock();
-    process.exit(1);
-  }
-
-  return typedNewSession;
-}
 
 /**
  * Register machine (or refresh harness detection if already registered).
@@ -437,10 +443,7 @@ export async function initDaemon(): Promise<DaemonSessionInit> {
 
   const connectOnce = Effect.gen(function* () {
     attempt++;
-    const typedSessionId = yield* Effect.tryPromise({
-      try: () => validateSession(client, sessionId as SessionId, convexUrl),
-      catch: (e) => e,
-    });
+    const typedSessionId = yield* validateSessionEffect(client, sessionId as SessionId, convexUrl);
 
     const config = yield* Effect.tryPromise({
       try: () => setupMachine(),
