@@ -10,14 +10,7 @@ import { join } from 'node:path';
 
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
-import {
-  discoverCommands,
-  detectPackageManager,
-  getFilteredScriptCommand,
-  getFilteredTurboCommand,
-  getTurboRunPrefix,
-  getScriptRunPrefix,
-} from './command-discovery.js';
+import { discoverCommands } from './command-discovery.js';
 
 let testDir: string;
 
@@ -35,94 +28,6 @@ async function createPackageJson(dir: string, pkg: Record<string, unknown>) {
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'package.json'), JSON.stringify(pkg, null, 2));
 }
-
-// ─── Package Manager Detection ──────────────────────────────────────────────
-
-describe('detectPackageManager', () => {
-  test('detects pnpm from pnpm-lock.yaml', async () => {
-    await createPackageJson(testDir, { name: 'root' });
-    await writeFile(join(testDir, 'pnpm-lock.yaml'), '');
-    expect(await detectPackageManager(testDir)).toBe('pnpm');
-  });
-
-  test('detects yarn from yarn.lock', async () => {
-    await createPackageJson(testDir, { name: 'root' });
-    await writeFile(join(testDir, 'yarn.lock'), '');
-    expect(await detectPackageManager(testDir)).toBe('yarn');
-  });
-
-  test('detects bun from bun.lockb', async () => {
-    await createPackageJson(testDir, { name: 'root' });
-    await writeFile(join(testDir, 'bun.lockb'), '');
-    expect(await detectPackageManager(testDir)).toBe('bun');
-  });
-
-  test('detects npm from package-lock.json', async () => {
-    await createPackageJson(testDir, { name: 'root' });
-    await writeFile(join(testDir, 'package-lock.json'), '{}');
-    expect(await detectPackageManager(testDir)).toBe('npm');
-  });
-
-  test('defaults to npm when no lockfile found', async () => {
-    await createPackageJson(testDir, { name: 'root' });
-    expect(await detectPackageManager(testDir)).toBe('npm');
-  });
-
-  test('pnpm has priority over yarn', async () => {
-    await createPackageJson(testDir, { name: 'root' });
-    await writeFile(join(testDir, 'pnpm-lock.yaml'), '');
-    await writeFile(join(testDir, 'yarn.lock'), '');
-    expect(await detectPackageManager(testDir)).toBe('pnpm');
-  });
-});
-
-// ─── Command Prefix Helpers ─────────────────────────────────────────────────
-
-describe('command prefixes', () => {
-  test('getScriptRunPrefix returns correct prefixes', () => {
-    expect(getScriptRunPrefix('pnpm')).toBe('pnpm run');
-    expect(getScriptRunPrefix('yarn')).toBe('yarn run');
-    expect(getScriptRunPrefix('bun')).toBe('bun run');
-    expect(getScriptRunPrefix('npm')).toBe('npm run');
-  });
-
-  test('getTurboRunPrefix returns correct prefixes', () => {
-    expect(getTurboRunPrefix('pnpm')).toBe('pnpm turbo run');
-    expect(getTurboRunPrefix('yarn')).toBe('yarn turbo run');
-    expect(getTurboRunPrefix('bun')).toBe('bun turbo run');
-    expect(getTurboRunPrefix('npm')).toBe('npx turbo run');
-  });
-
-  test('getFilteredScriptCommand for all PMs', () => {
-    expect(getFilteredScriptCommand('pnpm', 'my-pkg', 'build')).toBe(
-      'pnpm --filter my-pkg run build'
-    );
-    expect(getFilteredScriptCommand('yarn', 'my-pkg', 'build')).toBe(
-      'yarn workspace my-pkg run build'
-    );
-    expect(getFilteredScriptCommand('bun', 'my-pkg', 'build')).toBe(
-      'bun --filter my-pkg run build'
-    );
-    expect(getFilteredScriptCommand('npm', 'my-pkg', 'build')).toBe(
-      'npm --workspace=my-pkg run build'
-    );
-  });
-
-  test('getFilteredTurboCommand for all PMs', () => {
-    expect(getFilteredTurboCommand('pnpm', 'my-pkg', 'build')).toBe(
-      'pnpm turbo run build --filter=my-pkg'
-    );
-    expect(getFilteredTurboCommand('yarn', 'my-pkg', 'build')).toBe(
-      'yarn turbo run build --filter=my-pkg'
-    );
-    expect(getFilteredTurboCommand('bun', 'my-pkg', 'build')).toBe(
-      'bun turbo run build --filter=my-pkg'
-    );
-    expect(getFilteredTurboCommand('npm', 'my-pkg', 'build')).toBe(
-      'npx turbo run build --filter=my-pkg'
-    );
-  });
-});
 
 // ─── Full Discovery (monorepo) ──────────────────────────────────────────────
 

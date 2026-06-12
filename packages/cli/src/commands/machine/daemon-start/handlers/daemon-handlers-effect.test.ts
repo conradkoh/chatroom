@@ -62,6 +62,9 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
     fs: { stat: vi.fn() } as any,
     agentServices: new Map(),
     events: new DaemonEventBus(),
+    lastPushedGitState: new Map(),
+    lastPushedModels: null,
+    lastPushedHarnessFingerprint: null,
   });
 }
 

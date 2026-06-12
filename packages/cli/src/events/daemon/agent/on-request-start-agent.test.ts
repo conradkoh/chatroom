@@ -41,6 +41,9 @@ describe('onRequestStartAgentEffect', () => {
       fs: { stat: vi.fn() } as any,
       agentServices: new Map(),
       events: new DaemonEventBus(),
+      lastPushedGitState: new Map(),
+      lastPushedModels: null,
+      lastPushedHarnessFingerprint: null,
     });
   }
 

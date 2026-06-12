@@ -58,8 +58,7 @@ import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
  * Discover available models from all installed remote agent services.
  * Non-critical: returns empty record on failure per harness.
  */
-// fallow-ignore-next-line unused-export — canonical export for external consumers
-export const discoverModelsEffect = (
+const discoverModelsEffect = (
   agentServices: Map<string, RemoteAgentService>
 ): Effect.Effect<Record<string, string[]>, never, never> =>
   Effect.gen(function* () {
@@ -485,7 +484,6 @@ const connectWithRetryEffect = (
  * Retries with a fixed 1-second interval on network errors.
  * Returns the DaemonSessionInit if successful, or exits the process on fatal failure.
  */
-// fallow-ignore-next-line unused-export — canonical export for external consumers
 export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> = Effect.gen(
   function* () {
     if (!acquireLock()) {

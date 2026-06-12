@@ -1,4 +1,3 @@
-// fallow-ignore-next-line unused-file
 /**
  * ClockService — Effect-TS service definition for time and delays.
  *

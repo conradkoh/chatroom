@@ -1,4 +1,3 @@
-// fallow-ignore-next-line unused-file
 /**
  * SessionService — Effect-TS service definition for authentication.
  *

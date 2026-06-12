@@ -12,7 +12,6 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
-import { Effect } from 'effect';
 
 import type { DirectHarnessSession } from './command-subscriber.js';
 import { handleSessionIdle } from './idle-handler.js';
@@ -89,152 +88,83 @@ export function startMessageSubscriber(
 
 // ─── Drain loop ──────────────────────────────────────────────────────────────
 
-/** Effect twin — canonical drain loop for pending user messages. */
-// fallow-ignore-next-line unused-export
-export const drainMessagesEffect = (
-  session: DirectHarnessSession,
-  deps: MessageSubscriberDeps
-): Effect.Effect<void, never, never> =>
-  Effect.catchAll(
-    Effect.gen(function* () {
-      const pending = yield* Effect.tryPromise({
-        try: () =>
-          session.backend.query(api.daemon.directHarness.messages.pendingForMachine, {
-            sessionId: session.sessionId,
-            machineId: session.machineId,
-          }) as Promise<{
-            sessions: PendingSessionInfo[];
-            messages: PendingMessage[];
-          } | null>,
-        catch: (e) => e,
-      });
-
-      if (!pending || pending.messages.length === 0) return;
-
-      const bySession = new Map<string, PendingMessage[]>();
-      for (const msg of pending.messages) {
-        const list = bySession.get(msg.harnessSessionId);
-        if (list) {
-          list.push(msg);
-        } else {
-          bySession.set(msg.harnessSessionId, [msg]);
-        }
-      }
-
-      const sessionInfo = new Map<string, PendingSessionInfo>();
-      for (const s of pending.sessions) {
-        sessionInfo.set(s._id, s);
-      }
-
-      for (const [rowId, messages] of bySession) {
-        yield* Effect.catchAll(
-          processSessionMessagesEffect(session, deps, rowId, messages, sessionInfo.get(rowId)),
-          (err) =>
-            Effect.sync(() => {
-              console.warn(
-                `[direct-harness] Failed to process messages for session ${rowId}:`,
-                err instanceof Error ? err.message : String(err)
-              );
-            })
-        );
-      }
-    }),
-    (err) =>
-      Effect.sync(() => {
-        console.warn(
-          `[direct-harness] Unexpected error in drainMessagesEffect:`,
-          err instanceof Error ? err.message : String(err)
-        );
-      })
-  );
-
-/** Thin wrapper — startMessageSubscriber still calls this. */
 async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps): Promise<void> {
-  return Effect.runPromise(drainMessagesEffect(session, deps));
+  // Fetch all pending user messages grouped by session
+  const pending = (await session.backend.query(
+    api.daemon.directHarness.messages.pendingForMachine,
+    { sessionId: session.sessionId, machineId: session.machineId }
+  )) as {
+    sessions: PendingSessionInfo[];
+    messages: PendingMessage[];
+  } | null;
+
+  if (!pending || pending.messages.length === 0) return;
+
+  // Group messages by session for batch processing
+  const bySession = new Map<string, PendingMessage[]>();
+  for (const msg of pending.messages) {
+    const list = bySession.get(msg.harnessSessionId);
+    if (list) {
+      list.push(msg);
+    } else {
+      bySession.set(msg.harnessSessionId, [msg]);
+    }
+  }
+
+  // Build a session-info lookup
+  const sessionInfo = new Map<string, PendingSessionInfo>();
+  for (const s of pending.sessions) {
+    sessionInfo.set(s._id, s);
+  }
+
+  // Process each session's messages
+  for (const [rowId, messages] of bySession) {
+    try {
+      await processSessionMessages(session, deps, rowId, messages, sessionInfo.get(rowId));
+    } catch (err) {
+      console.warn(
+        `[direct-harness] Failed to process messages for session ${rowId}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
 }
 
 // ─── Process messages for a single session ───────────────────────────────────
 
-/** Effect twin — send pending user messages as prompts for a resolved handle. */
-const dispatchPendingMessagesEffect = (
-  handle: ActiveSession,
+async function processSessionMessages(
+  session: DirectHarnessSession,
   deps: MessageSubscriberDeps,
   rowId: string,
   messages: PendingMessage[],
   info: PendingSessionInfo | undefined
-): Effect.Effect<void, never, never> =>
-  Effect.gen(function* () {
-    for (const msg of messages) {
-      const override = info?.lastUsedConfig ?? { agent: 'build' };
+): Promise<void> {
+  // 1. Resolve the session handle
+  let handle = deps.activeSessions.get(rowId);
 
-      const dispatched = yield* Effect.catchAll(
-        Effect.gen(function* () {
-          yield* Effect.tryPromise({
-            try: () => deps.sessionRepository.setGenerating(rowId, true),
-            catch: (e) => e,
-          });
-
-          const { turnId } = yield* Effect.tryPromise({
-            try: () => deps.sessionRepository.beginAssistantTurn(rowId),
-            catch: (e) => e,
-          });
-          handle.currentTurn = { turnId, messageId: null };
-
-          yield* Effect.tryPromise({
-            try: () =>
-              handle.session.prompt({
-                parts: [{ type: 'text', text: msg.content }],
-                agent: override.agent,
-                ...(override.model ? { model: override.model } : {}),
-              }),
-            catch: (e) => e,
-          });
-
-          yield* Effect.tryPromise({
-            try: () => deps.sessionRepository.markTurnProcessed(rowId, msg.seq),
-            catch: (e) => e,
-          });
-        }),
-        (err) =>
-          Effect.gen(function* () {
-            const message = err instanceof Error ? err.message : String(err);
-            console.warn(
-              `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`
-            );
-            yield* Effect.tryPromise({
-              try: () => deps.sessionRepository.markIdle(rowId),
-              catch: () => undefined,
-            }).pipe(Effect.catchAll(() => Effect.void));
-            deps.activeSessions.delete(rowId);
-            if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
-            return false as const;
-          })
-      );
-
-      if (dispatched === false) return;
-    }
-  });
-
-/** Effect twin — lazy-resume a session after daemon restart. Returns null to early-exit. */
-const lazyResumeSessionEffect = (
-  session: DirectHarnessSession,
-  deps: MessageSubscriberDeps,
-  rowId: string,
-  info: PendingSessionInfo | undefined
-) =>
-  Effect.gen(function* () {
+  if (!handle) {
+    // No in-memory handle. Two sub-cases:
+    //   a) Session just opened by session-subscriber but opencodeSessionId not
+    //      yet in DB (genuine pending) — info.opencodeSessionId is undefined.
+    //      We skip and wait for the subscription to re-fire once the ID is set.
+    //   b) Daemon restarted — session is active, opencodeSessionId is in DB.
+    //      We lazy-resume.
     const opencodeSessionId = info?.opencodeSessionId;
+
     if (!opencodeSessionId) {
+      // Case (a): session not yet opened — subscription will re-fire when
+      // pendingForMachine's opencodeSessionId field changes undefined → string.
       console.warn(
         `[direct-harness] Session ${rowId} not yet open — waiting for session-subscriber`
       );
-      return null;
+      return;
     }
 
+    // Case (b): lazy-resume after daemon restart
     const workspaceId = info?.workspaceId;
     if (!workspaceId) {
       console.warn(`[direct-harness] Cannot resume session ${rowId}: no workspace info`);
-      return null;
+      return;
     }
 
     let harness = deps.harnesses.get(workspaceId);
@@ -244,118 +174,107 @@ const lazyResumeSessionEffect = (
       harness = undefined;
     }
     if (!harness) {
-      const workspace = yield* Effect.tryPromise({
-        try: () =>
-          session.backend.query(api.workspaces.getWorkspaceById, {
-            sessionId: session.sessionId,
-            workspaceId,
-          }) as Promise<WorkspaceInfo | null>,
-        catch: (e) => e,
-      });
+      const workspace = (await session.backend.query(api.workspaces.getWorkspaceById, {
+        sessionId: session.sessionId,
+        workspaceId,
+      })) as WorkspaceInfo | null;
+
       if (!workspace) {
         console.warn(`[direct-harness] Cannot resume session ${rowId}: workspace not found`);
-        return null;
+        return;
       }
-      harness = yield* Effect.tryPromise({
-        try: () =>
-          startOpencodeSdkHarness({
-            type: 'opencode',
-            workingDir: workspace.workingDir,
-            workspaceId,
-          }),
-        catch: (e) => e,
+
+      harness = await startOpencodeSdkHarness({
+        type: 'opencode',
+        workingDir: workspace.workingDir,
+        workspaceId,
       });
       deps.harnesses.set(workspaceId, harness);
     }
 
-    const handle = yield* Effect.catchAll(
-      Effect.tryPromise({
-        try: () =>
-          resumeSession(
-            {
-              harness,
-              journalFactory: deps.journalFactory,
-              chunkExtractor: createOpencodeSdkChunkExtractor(),
-            },
-            { harnessSessionId: rowId, opencodeSessionId, workspaceId }
-          ),
-        catch: (e) => e,
-      }),
-      (err) =>
-        Effect.gen(function* () {
-          const message = err instanceof Error ? err.message : String(err);
-          console.warn(`[direct-harness] Cannot resume session ${rowId}: ${message}`);
-          yield* Effect.tryPromise({
-            try: () => deps.sessionRepository.markFailed(rowId),
-            catch: () => undefined,
-          }).pipe(Effect.catchAll(() => Effect.void));
-          return null;
-        })
-    );
-    if (!handle) return null;
+    try {
+      handle = await resumeSession(
+        {
+          harness,
+          journalFactory: deps.journalFactory,
+          chunkExtractor: createOpencodeSdkChunkExtractor(),
+        },
+        { harnessSessionId: rowId, opencodeSessionId, workspaceId }
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[direct-harness] Cannot resume session ${rowId}: ${message}`);
+      // opencode confirmed the session does not exist on disk.
+      await deps.sessionRepository.markFailed(rowId).catch(() => {});
+      return;
+    }
 
     deps.activeSessions.set(rowId, handle);
-    yield* Effect.tryPromise({
-      try: () => deps.sessionRepository.markActive(rowId),
-      catch: () => undefined,
-    }).pipe(Effect.catchAll(() => Effect.void));
+    // Session reconnected — update status so the UI reflects it.
+    await deps.sessionRepository.markActive(rowId).catch(() => {});
 
+    // Wire session.idle so queued messages are drained after a daemon restart.
+    // Wire first-chunk → bindTurnMessageId for the resumed session.
     const idleConfig = {
       agent: info?.lastUsedConfig.agent ?? 'build',
       model: info?.lastUsedConfig.model,
     };
+    // Track which (turnId, messageId) pair we've already dispatched a bind for
     let lastBoundKey: string | null = null;
-    yield* Effect.sync(() => {
-      handle.session.onEvent((event) => {
-        const turn = handle.currentTurn;
-        if (turn?.messageId !== null && turn?.messageId !== undefined) {
-          const key = `${turn.turnId}:${turn.messageId}`;
-          if (key !== lastBoundKey) {
-            lastBoundKey = key;
-            deps.sessionRepository
-              .bindTurnMessageId(turn.turnId, turn.messageId)
-              .catch((err: unknown) =>
-                console.warn('[direct-harness] bindTurnMessageId error (resume):', err)
-              );
-          }
+    handle.session.onEvent((event) => {
+      // First-chunk bind: resumeSession sets currentTurn.messageId on chunk events.
+      // We watch for when it becomes non-null and call bind (idempotent on backend).
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const turn = handle!.currentTurn;
+      if (turn?.messageId !== null && turn?.messageId !== undefined) {
+        const key = `${turn.turnId}:${turn.messageId}`;
+        if (key !== lastBoundKey) {
+          lastBoundKey = key;
+          deps.sessionRepository
+            .bindTurnMessageId(turn.turnId, turn.messageId)
+            .catch((err: unknown) =>
+              console.warn('[direct-harness] bindTurnMessageId error (resume):', err)
+            );
         }
-        if (event.type === 'session.idle') {
-          void handleSessionIdle(handle, handle.journal, idleConfig, deps.sessionRepository).catch(
-            (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
-          );
-        }
-      });
+      }
+      if (event.type === 'session.idle') {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        void handleSessionIdle(handle!, handle!.journal, idleConfig, deps.sessionRepository).catch(
+          (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
+        );
+      }
     });
+  }
 
-    return handle;
-  });
+  // 2. Send each pending user message as a prompt
+  for (const msg of messages) {
+    const override = info?.lastUsedConfig ?? { agent: 'build' };
 
-/** Effect twin — resolve handle and dispatch pending messages for one session. */
-// fallow-ignore-next-line unused-export
-export const processSessionMessagesEffect = (
-  session: DirectHarnessSession,
-  deps: MessageSubscriberDeps,
-  rowId: string,
-  messages: PendingMessage[],
-  info: PendingSessionInfo | undefined
-) =>
-  Effect.gen(function* () {
-    let handle = deps.activeSessions.get(rowId);
-    if (!handle) {
-      handle = (yield* lazyResumeSessionEffect(session, deps, rowId, info)) ?? undefined;
-      if (!handle) return;
+    try {
+      await deps.sessionRepository.setGenerating(rowId, true);
+
+      // Begin assistant turn eagerly before sending the prompt
+      const { turnId } = await deps.sessionRepository.beginAssistantTurn(rowId);
+      handle.currentTurn = { turnId, messageId: null };
+
+      await handle.session.prompt({
+        parts: [{ type: 'text', text: msg.content }],
+        agent: override.agent,
+        ...(override.model ? { model: override.model } : {}),
+      });
+
+      await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`
+      );
+      // The prompt failed — likely the harness process crashed. The opencode
+      // session is still on disk, so mark idle (resumable) rather than closed.
+      await deps.sessionRepository.markIdle(rowId).catch(() => {});
+      deps.activeSessions.delete(rowId);
+      if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
+      return;
     }
-    yield* dispatchPendingMessagesEffect(handle, deps, rowId, messages, info);
-  });
-
-/** Thin wrapper — kept for any external/test callers. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function processSessionMessages(
-  session: DirectHarnessSession,
-  deps: MessageSubscriberDeps,
-  rowId: string,
-  messages: PendingMessage[],
-  info: PendingSessionInfo | undefined
-): Promise<void> {
-  return Effect.runPromise(processSessionMessagesEffect(session, deps, rowId, messages, info));
+  }
 }
