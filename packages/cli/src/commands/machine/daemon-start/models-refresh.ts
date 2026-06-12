@@ -211,9 +211,6 @@ export const refreshModelsEffect: Effect.Effect<
       mutable.lastPushedHarnessFingerprint,
       outcome.snapshot.lastPushedHarnessFingerprint
     );
-    // Keep session plain fields in sync until E5-final
-    session.lastPushedModels = outcome.snapshot.lastPushedModels;
-    session.lastPushedHarnessFingerprint = outcome.snapshot.lastPushedHarnessFingerprint;
   }
 
   return outcome;
