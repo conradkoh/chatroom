@@ -1,4 +1,3 @@
-// fallow-ignore-next-line unused-file
 /**
  * FsService — Effect-TS service definition for filesystem operations.
  *

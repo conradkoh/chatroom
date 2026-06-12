@@ -87,24 +87,6 @@ export async function discardAllChanges(workingDir: string): Promise<GitDiscardR
 }
 
 /**
- * Discard staged changes (unstage all).
- *
- * Uses `git reset HEAD` to unstage all staged changes.
- *
- * Returns `{ status: 'available' }` on success.
- * Returns `{ status: 'error', message }` on failure.
- */
-export async function discardStaged(workingDir: string): Promise<GitDiscardResult> {
-  const result = await runGit('reset HEAD', workingDir);
-
-  if ('error' in result) {
-    return classifyError(result.error.message);
-  }
-
-  return { status: 'available' };
-}
-
-/**
  * Perform a git pull from the default remote.
  *
  * Uses `git pull` to fetch and merge from the tracking branch.

@@ -15,8 +15,6 @@ export type {
   GitPullResult,
 } from './types.js';
 
-export { FULL_DIFF_MAX_BYTES, makeGitStateKey } from './types.js';
-
 export {
   isGitRepo,
   getBranch,
@@ -28,4 +26,4 @@ export {
   parseDiffStatLine,
 } from './git-reader.js';
 
-export { discardFile, discardAllChanges, discardStaged, gitPull, gitPush, gitSync } from './git-writer.js';
+export { discardFile, discardAllChanges, gitPull, gitPush, gitSync } from './git-writer.js';

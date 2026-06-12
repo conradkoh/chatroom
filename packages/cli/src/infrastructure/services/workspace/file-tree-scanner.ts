@@ -150,7 +150,7 @@ export async function walkFsFallback(
  * Returns the size contributed by this subtree if kept, or `null` if the
  * subtree was skipped due to size. Mutates `collected` only for kept files.
  */
-// fallow-ignore-next-line complexity unit-size
+// fallow-ignore-next-line complexity
 async function walkSubtree(
   absRoot: string,
   relDir: string,
