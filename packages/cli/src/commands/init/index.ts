@@ -4,11 +4,16 @@
  * Detects AGENTS.md and CLAUDE.md in the target directory and updates the
  * Chatroom Integration section (Section 6) in any it finds. If neither file
  * exists, creates AGENTS.md with the section as its sole content.
+ *
+ * Phase 6b: Migrated to Effect-TS services with typed error handling.
  */
 
 import path from 'path';
 
+import { Effect, Layer } from 'effect';
+
 import type { InitDeps } from './deps.js';
+import { InitFsService } from './init-fs-service.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -98,16 +103,33 @@ async function createDefaultDeps(): Promise<InitDeps> {
   };
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-async function fileExists(fsOps: InitDeps['fs'], filePath: string): Promise<boolean> {
-  try {
-    await fsOps.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
+/**
+ * Build Effect Layer from InitDeps (for backward-compat with tests)
+ */
+function layerFromDeps(deps: InitDeps): Layer.Layer<InitFsService> {
+  return Layer.succeed(InitFsService, {
+    access: (p) =>
+      Effect.tryPromise({
+        try: () => deps.fs.access(p),
+        catch: () => new Error(''),
+      }).pipe(
+        Effect.map(() => true),
+        Effect.catchAll(() => Effect.succeed(false))
+      ),
+    readFile: (p, enc) =>
+      Effect.tryPromise({
+        try: () => deps.fs.readFile(p, enc as BufferEncoding),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      }),
+    writeFile: (p, content, enc) =>
+      Effect.tryPromise({
+        try: () => deps.fs.writeFile(p, content, enc as BufferEncoding),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      }),
+  });
 }
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function hasIntegrationSection(content: string): boolean {
   return content.includes('<chatroom>');
@@ -124,93 +146,144 @@ function replaceIntegrationSection(content: string, newSection: string): string 
   return before + '\n\n' + newSection;
 }
 
-// ─── Entry Point ───────────────────────────────────────────────────────────
+// ─── Effect Programs ───────────────────────────────────────────────────────
+
+/**
+ * Pure Effect program for initializing chatroom integration.
+ * Errors are logged and caught internally — never fails externally.
+ */
+// fallow-ignore-next-line unused-export
+export const initEffect = (
+  options: InitOptions = {}
+): Effect.Effect<InitResult, never, InitFsService> =>
+  Effect.gen(function* () {
+    const fsService = yield* InitFsService;
+    const targetDir = options.dir ?? process.cwd();
+
+    const result: InitResult = {
+      filesModified: [],
+      filesSkipped: [],
+      filesCreated: [],
+    };
+
+    // Scan for supported files
+    const foundFiles: string[] = [];
+    for (const filename of SUPPORTED_FILES) {
+      const filePath = path.join(targetDir, filename);
+      const exists = yield* fsService.access(filePath);
+      if (exists) {
+        foundFiles.push(filename);
+      }
+    }
+
+    if (foundFiles.length === 0) {
+      // No supported files found — create AGENTS.md
+      const agentsPath = path.join(targetDir, 'AGENTS.md');
+      yield* fsService.writeFile(agentsPath, SECTION_6_TEXT, 'utf-8').pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            result.filesCreated.push('AGENTS.md');
+            console.log('✅ Created AGENTS.md with CHATROOM INTEGRATION section');
+          })
+        ),
+        Effect.catchAll((err) =>
+          Effect.sync(() => {
+            console.error(`❌ Failed to create AGENTS.md: ${err}`);
+          })
+        )
+      );
+    } else {
+      // Process each found file
+      for (const filename of foundFiles) {
+        const filePath = path.join(targetDir, filename);
+
+        // Read file — log error and continue if failed
+        const contentResult = yield* fsService.readFile(filePath, 'utf-8').pipe(
+          Effect.map((content) => ({ success: true as const, content })),
+          Effect.catchAll((err) =>
+            Effect.sync(() => {
+              console.error(`❌ Failed to read ${filename}: ${err}`);
+              return { success: false as const };
+            })
+          )
+        );
+
+        if (!contentResult.success) {
+          continue;
+        }
+
+        const content = contentResult.content;
+
+        if (hasIntegrationSection(content)) {
+          // Replace existing section
+          const updatedContent = replaceIntegrationSection(content, SECTION_6_TEXT);
+          yield* fsService.writeFile(filePath, updatedContent, 'utf-8').pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                result.filesModified.push(filename);
+                console.log(`✅ Updated CHATROOM INTEGRATION section in ${filename}`);
+              })
+            ),
+            Effect.catchAll((err) =>
+              Effect.sync(() => {
+                console.error(`❌ Failed to update ${filename}: ${err}`);
+              })
+            )
+          );
+        } else {
+          // Append section
+          const appendText = '\n\n---\n\n' + SECTION_6_TEXT;
+          yield* fsService.writeFile(filePath, content + appendText, 'utf-8').pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                result.filesModified.push(filename);
+                console.log(`✅ Added CHATROOM INTEGRATION section to ${filename}`);
+              })
+            ),
+            Effect.catchAll((err) =>
+              Effect.sync(() => {
+                console.error(`❌ Failed to update ${filename}: ${err}`);
+              })
+            )
+          );
+        }
+      }
+    }
+
+    // Print summary
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('Summary:');
+      if (result.filesCreated.length > 0) {
+        console.log(`  Created : ${result.filesCreated.join(', ')}`);
+      }
+      if (result.filesModified.length > 0) {
+        console.log(`  Updated : ${result.filesModified.join(', ')}`);
+      }
+      if (result.filesSkipped.length > 0) {
+        console.log(
+          `  Skipped : ${result.filesSkipped.join(', ')} (already has integration section)`
+        );
+      }
+
+      const totalActions =
+        result.filesCreated.length + result.filesModified.length + result.filesSkipped.length;
+      if (totalActions === 0) {
+        console.log('  Nothing to do.');
+      }
+    });
+
+    return result;
+  });
+
+// ─── Entry Point (public API — unchanged signature) ──────────────────────
 
 /**
  * Initialize chatroom integration in a project directory.
  */
 export async function init(options: InitOptions = {}, deps?: InitDeps): Promise<InitResult> {
   const d = deps ?? (await createDefaultDeps());
-  const targetDir = options.dir ?? process.cwd();
+  const layer = layerFromDeps(d);
 
-  const result: InitResult = {
-    filesModified: [],
-    filesSkipped: [],
-    filesCreated: [],
-  };
-
-  // Scan for supported files
-  const foundFiles: string[] = [];
-  for (const filename of SUPPORTED_FILES) {
-    const filePath = path.join(targetDir, filename);
-    if (await fileExists(d.fs, filePath)) {
-      foundFiles.push(filename);
-    }
-  }
-
-  if (foundFiles.length === 0) {
-    // No supported files found — create AGENTS.md
-    const agentsPath = path.join(targetDir, 'AGENTS.md');
-    try {
-      await d.fs.writeFile(agentsPath, SECTION_6_TEXT, 'utf-8');
-      result.filesCreated.push('AGENTS.md');
-      console.log('✅ Created AGENTS.md with CHATROOM INTEGRATION section');
-    } catch (err) {
-      console.error(`❌ Failed to create AGENTS.md: ${err}`);
-    }
-  } else {
-    // Process each found file
-    for (const filename of foundFiles) {
-      const filePath = path.join(targetDir, filename);
-
-      let content: string;
-      try {
-        content = await d.fs.readFile(filePath, 'utf-8');
-      } catch (err) {
-        console.error(`❌ Failed to read ${filename}: ${err}`);
-        continue;
-      }
-
-      if (hasIntegrationSection(content)) {
-        try {
-          const updatedContent = replaceIntegrationSection(content, SECTION_6_TEXT);
-          await d.fs.writeFile(filePath, updatedContent, 'utf-8');
-          result.filesModified.push(filename);
-          console.log(`✅ Updated CHATROOM INTEGRATION section in ${filename}`);
-        } catch (err) {
-          console.error(`❌ Failed to update ${filename}: ${err}`);
-        }
-      } else {
-        try {
-          const appendText = '\n\n---\n\n' + SECTION_6_TEXT;
-          await d.fs.writeFile(filePath, content + appendText, 'utf-8');
-          result.filesModified.push(filename);
-          console.log(`✅ Added CHATROOM INTEGRATION section to ${filename}`);
-        } catch (err) {
-          console.error(`❌ Failed to update ${filename}: ${err}`);
-        }
-      }
-    }
-  }
-
-  // Print summary
-  console.log('');
-  console.log('Summary:');
-  if (result.filesCreated.length > 0) {
-    console.log(`  Created : ${result.filesCreated.join(', ')}`);
-  }
-  if (result.filesModified.length > 0) {
-    console.log(`  Updated : ${result.filesModified.join(', ')}`);
-  }
-  if (result.filesSkipped.length > 0) {
-    console.log(`  Skipped : ${result.filesSkipped.join(', ')} (already has integration section)`);
-  }
-
-  const totalActions =
-    result.filesCreated.length + result.filesModified.length + result.filesSkipped.length;
-  if (totalActions === 0) {
-    console.log('  Nothing to do.');
-  }
-
-  return result;
+  return Effect.runPromise(initEffect(options).pipe(Effect.provide(layer)));
 }

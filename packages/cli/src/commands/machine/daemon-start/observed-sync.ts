@@ -18,10 +18,14 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
-import { pushSingleWorkspaceCommands } from './command-sync-heartbeat.js';
-import { pushSingleWorkspaceGitSummaryForObserved } from './git-heartbeat.js';
-import type { DaemonContext } from './types.js';
+import { pushSingleWorkspaceCommandsCore, type CommandSyncDeps } from './command-sync-heartbeat.js';
+import { DaemonSessionService } from './daemon-services.js';
+import {
+  pushSingleWorkspaceGitSummaryForObservedCore,
+  type GitStateDeps,
+} from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -39,8 +43,20 @@ interface ChatroomRefreshState {
   lastRefreshedAt: number | null;
 }
 
-export function startObservedSyncSubscription(
-  ctx: DaemonContext,
+// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+
+/**
+ * Flat deps required by startObservedSyncSubscriptionCore.
+ * Covers GitStateDeps (for pushSingleWorkspaceGitSummaryForObservedCore) and
+ * CommandSyncDeps (for pushSingleWorkspaceCommandsCore).
+ * DaemonSessionServiceShape structurally satisfies this type.
+ */
+export type ObservedSyncDeps = GitStateDeps & CommandSyncDeps;
+
+// ── Core implementation (flat deps, no ctx.deps.xxx) ─────────────────────────
+
+function startObservedSyncSubscriptionCore(
+  deps: ObservedSyncDeps,
   wsClient: ConvexClient
 ): { stop: () => void } {
   console.log(`[${formatTimestamp()}] 👁️ Starting observed-sync subscription (reactive)`);
@@ -61,8 +77,8 @@ export function startObservedSyncSubscription(
   const unsubscribe = wsClient.onUpdate(
     api.machines.getObservedChatroomsForMachine,
     {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
     },
     (observed) => {
       if (stopped) return;
@@ -84,10 +100,10 @@ export function startObservedSyncSubscription(
   const reconcileTimer = setInterval(() => {
     if (stopped || reconcileInFlight) return;
     reconcileInFlight = true;
-    ctx.deps.backend
+    deps.backend
       .query(api.machines.getObservedChatroomsForMachine, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
       })
       .then((observed) => {
         if (!stopped) handleObservedChange(observed ?? []);
@@ -257,17 +273,28 @@ export function startObservedSyncSubscription(
     workingDir: string,
     reason: 'safety-poll' | 'refresh' = 'safety-poll'
   ): Promise<void> {
-    await pushSingleWorkspaceGitSummaryForObserved(ctx, workingDir, reason).catch(
+    await pushSingleWorkspaceGitSummaryForObservedCore(deps, workingDir, reason).catch(
       (err: unknown) => {
         console.warn(
           `[${formatTimestamp()}] ⚠️ Observed git summary push failed for ${workingDir}: ${getErrorMessage(err)}`
         );
       }
     );
-    await pushSingleWorkspaceCommands(ctx, workingDir).catch((err: unknown) => {
+    await pushSingleWorkspaceCommandsCore(deps, workingDir).catch((err: unknown) => {
       console.warn(
         `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`
       );
     });
   }
 }
+
+// ── Effect twin ───────────────────────────────────────────────────────────────
+
+/** Effect twin for startObservedSyncSubscription — yields DaemonSessionService; DaemonSessionServiceShape satisfies ObservedSyncDeps. */
+export const startObservedSyncSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    return startObservedSyncSubscriptionCore(session, wsClient);
+  });

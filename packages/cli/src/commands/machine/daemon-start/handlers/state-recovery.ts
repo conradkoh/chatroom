@@ -3,31 +3,39 @@
  * Delegates to AgentProcessManager.recover() for PID recovery.
  */
 
+import { Effect } from 'effect';
+
 import { api } from '../../../../api.js';
 import type { Id } from '../../../../api.js';
-import type { DaemonContext } from '../types.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import type { MachineConfig, SessionId } from '../types.js';
 
 /**
- * Recover agent state on daemon restart.
- *
- * Delegates to AgentProcessManager.recover() which:
- * - Reads locally persisted PIDs from disk
- * - Verifies each is still alive (kill(pid, 0))
- * - Creates running slots for alive agents
- * - Clears dead agent PIDs from disk
- *
- * After recovery, registers workspaces for alive agents via the backend
- * workspace registry (fire-and-forget mutations).
- *
- * Finally, performs orphan turn cleanup: any harness sessions owned by
- * this machine that are NOT represented in the recovered active slots
- * get their in-flight turns (streaming/pending) marked as 'failed'.
+ * Minimal deps consumed by recoverAgentStatePostRecoveryCore.
+ * DaemonSessionServiceShape satisfies this type structurally — no casts needed.
  */
-export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
-  await ctx.deps.agentProcessManager.recover();
+type RecoverAgentStateDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  config: MachineConfig | null;
+  backend: BackendOps;
+};
 
-  const activeSlots = ctx.deps.agentProcessManager.listActive();
-
+/**
+ * Post-recovery async core — workspace registration and orphan turn cleanup.
+ *
+ * Plain async function so native try/catch error-isolation is preserved
+ * byte-for-byte. Called by recoverAgentStateEffect.
+ *
+ * @param deps  - Session identity + backend ops (DaemonSessionServiceShape satisfies this)
+ * @param activeSlots - Slots from agentMgr.listActive(); body only reads .chatroomId
+ */
+// fallow-ignore-next-line unused-export
+export async function recoverAgentStatePostRecoveryCore(
+  deps: RecoverAgentStateDeps,
+  activeSlots: { chatroomId: string }[]
+): Promise<void> {
   if (activeSlots.length === 0) {
     console.log(`   No active agents after recovery`);
   } else {
@@ -37,22 +45,22 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
 
     for (const chatroomId of chatroomIds) {
       try {
-        const configsResult = await ctx.deps.backend.query(api.machines.getMachineAgentConfigs, {
-          sessionId: ctx.sessionId,
+        const configsResult = await deps.backend.query(api.machines.getMachineAgentConfigs, {
+          sessionId: deps.sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
         });
         for (const config of configsResult.configs) {
-          if (config.machineId === ctx.machineId && config.workingDir) {
+          if (config.machineId === deps.machineId && config.workingDir) {
             registeredCount++;
 
             // Register workspace (fire-and-forget — don't block recovery)
-            ctx.deps.backend
+            deps.backend
               .mutation(api.workspaces.registerWorkspace, {
-                sessionId: ctx.sessionId,
+                sessionId: deps.sessionId,
                 chatroomId: chatroomId as Id<'chatroom_rooms'>,
-                machineId: ctx.machineId,
+                machineId: deps.machineId,
                 workingDir: config.workingDir,
-                hostname: ctx.config?.hostname ?? 'unknown',
+                hostname: deps.config?.hostname ?? 'unknown',
                 registeredBy: config.role,
               })
               .catch((err: Error) => {
@@ -77,11 +85,11 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
   // Any session NOT in the recovered active slots gets its in-flight turns
   // (streaming/pending) marked as 'failed'.
   try {
-    const managedSessions = await ctx.deps.backend.query(
+    const managedSessions = await deps.backend.query(
       api.daemon.directHarness.turns.getMachineHarnessSessions,
       {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
       }
     );
 
@@ -95,11 +103,11 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
 
       // This session is an orphan — mark its in-flight turns as failed
       try {
-        const result = await ctx.deps.backend.mutation(
+        const result = await deps.backend.mutation(
           api.daemon.directHarness.turns.markOrphanTurnsFailed,
           {
-            sessionId: ctx.sessionId,
-            machineId: ctx.machineId,
+            sessionId: deps.sessionId,
+            machineId: deps.machineId,
             harnessSessionId: session.harnessSessionId,
           }
         );
@@ -123,3 +131,22 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
     console.warn(`[daemon] ⚠️ Orphan turn cleanup failed: ${(err as Error).message}`);
   }
 }
+
+/**
+ * Effect twin — recover + listActive via the granular services, then delegate
+ * the post-recovery async work to recoverAgentStatePostRecoveryCore.
+ *
+ * Split at the recover()/listActive() seam: only the first two calls touch
+ * AgentProcessManager; everything after is pure backend + session identity.
+ */
+export const recoverAgentStateEffect: Effect.Effect<
+  void,
+  never,
+  DaemonSessionService | DaemonAgentProcessManagerService
+> = Effect.gen(function* () {
+  const session = yield* DaemonSessionService;
+  const agentMgr = yield* DaemonAgentProcessManagerService;
+  yield* agentMgr.recover(); // Effect.Effect<void, never, never> — idiomatic
+  const activeSlots = agentMgr.listActive(); // synchronous
+  yield* Effect.promise(() => recoverAgentStatePostRecoveryCore(session, activeSlots));
+});

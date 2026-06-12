@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process';
 
-import { api } from '../../../../../api.js';
-import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import { encodeOutput } from '@workspace/backend/src/output-encoding.js';
-import type { DaemonContext, SessionId } from '../../types.js';
-import { formatTimestamp } from '../../utils.js';
-import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
+
+import { killProcess } from './killer.js';
+import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js';
+import { processManager } from './manager.js';
+import { createOutputStore, ensureTempDir, MAX_TAIL_LINES_V2 } from './output-store.js';
 import {
   OUTPUT_FLUSH_INTERVAL_MS,
   MAX_BUFFER_SIZE,
@@ -14,18 +14,27 @@ import {
   deriveTerminalStatus,
   type RunningProcess,
 } from './state.js';
-import { processManager } from './manager.js';
-import { killProcess } from './killer.js';
-import { createOutputStore, ensureTempDir, MAX_TAIL_LINES_V2 } from './output-store.js';
-import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js';
+import { api } from '../../../../../api.js';
+import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
+import { getErrorMessage } from '../../../../../utils/convex-error.js';
+import type { SessionId } from '../../types.js';
+import { formatTimestamp } from '../../utils.js';
+import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
 
 let tempDirReady = false;
 
-async function flushTailV2(
-  ctx: DaemonContext,
-  tracked: RunningProcess,
-  force = false
-): Promise<void> {
+/**
+ * Minimal structural type accepted by all ctx-using functions in spawner.ts.
+ * DaemonContext structurally satisfies this type, so all old call sites continue
+ * to work without modification. New Effect-based callers pass a plain object.
+ */
+type SpawnCtx = {
+  sessionId: SessionId;
+  machineId: string;
+  deps: { backend: BackendOps };
+};
+
+async function flushTailV2(ctx: SpawnCtx, tracked: RunningProcess, force = false): Promise<void> {
   if (!force && !isRunLogObserved(tracked.runId)) return;
 
   const tail = await tracked.store.getLastNLines(MAX_TAIL_LINES_V2);
@@ -54,7 +63,7 @@ async function flushTailV2(
 }
 
 async function appendFullOutputChunks(
-  ctx: DaemonContext,
+  ctx: SpawnCtx,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
@@ -92,11 +101,7 @@ async function appendFullOutputChunks(
   }
 }
 
-async function flushFinalChunks(
-  ctx: DaemonContext,
-  tracked: RunningProcess,
-  runId: any
-): Promise<void> {
+async function flushFinalChunks(ctx: SpawnCtx, tracked: RunningProcess, runId: any): Promise<void> {
   await flushTailV2(ctx, tracked, true); // final flush: always sync the tail, even if unobserved
   if (consumePendingFullSync(tracked.runId)) {
     await appendFullOutputChunks(ctx, tracked, runId);
@@ -104,8 +109,9 @@ async function flushFinalChunks(
 }
 
 /** One-shot full log sync when the webapp requests "Load more" on an active run. */
+// fallow-ignore-next-line unused-export
 export async function syncFullOutputOnRequest(
-  ctx: DaemonContext,
+  ctx: SpawnCtx,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
@@ -126,7 +132,8 @@ export async function syncFullOutputOnRequest(
   }
 }
 
-export async function pollPendingFullOutputSyncs(ctx: DaemonContext): Promise<void> {
+// fallow-ignore-next-line unused-export
+export async function pollPendingFullOutputSyncs(ctx: SpawnCtx): Promise<void> {
   for (const [runId, tracked] of processManager.getAll()) {
     if (consumePendingFullSync(runId)) {
       await syncFullOutputOnRequest(ctx, tracked, runId as any);
@@ -135,7 +142,7 @@ export async function pollPendingFullOutputSyncs(ctx: DaemonContext): Promise<vo
 }
 
 export async function spawnCommandProcess(
-  ctx: DaemonContext,
+  ctx: SpawnCtx,
   event: {
     workingDir: string;
     commandName: string;

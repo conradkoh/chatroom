@@ -10,12 +10,10 @@ import type { FunctionReturnType } from 'convex/server';
 
 import { api } from '../../../../../api.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
-import type { DaemonContext } from '../../types.js';
+import type { SessionId } from '../../types.js';
 import { formatTimestamp } from '../../utils.js';
 
-type ObservedRuns = FunctionReturnType<
-  typeof api.daemon.commands.listRunsWithLogObservers
->;
+type ObservedRuns = FunctionReturnType<typeof api.daemon.commands.listRunsWithLogObservers>;
 
 const observedRunIds = new Set<string>();
 const pendingFullSyncRunIds = new Set<string>();
@@ -42,10 +40,7 @@ function logObserverSetChangeIfNeeded(runs: ObservedRuns): void {
     }
   }
 
-  if (
-    setsEqual(observedRunIds, nextObserved) &&
-    setsEqual(pendingFullSyncRunIds, nextPending)
-  ) {
+  if (setsEqual(observedRunIds, nextObserved) && setsEqual(pendingFullSyncRunIds, nextPending)) {
     return;
   }
 
@@ -77,14 +72,20 @@ export function consumePendingFullSync(runId: string): boolean {
   return true;
 }
 
+/** Minimal session identity needed by startLogObserverSubscription. */
+export interface LogObserverSession {
+  readonly sessionId: SessionId;
+  readonly machineId: string;
+}
+
 /** Subscribe to runs needing log tail sync; returns stop handle. */
 export function startLogObserverSubscription(
-  ctx: DaemonContext,
+  session: LogObserverSession,
   wsClient: ConvexClient
 ): { stop: () => void } {
   const queryArgs = {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
+    sessionId: session.sessionId,
+    machineId: session.machineId,
   };
 
   let stopped = false;

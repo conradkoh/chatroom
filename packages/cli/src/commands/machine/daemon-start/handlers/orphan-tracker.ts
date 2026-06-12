@@ -29,6 +29,8 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { Effect } from 'effect';
+
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 
 // ─── File Paths ──────────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ function getUrlHash(): string {
 }
 
 /** Exported for tests to override via HOME env manipulation. */
+// fallow-ignore-next-line unused-export
 export function getChildPidsFilePath(): string {
   const dir = join(homedir(), '.chatroom');
   return join(dir, `daemon-children-${getUrlHash()}.pids`);
@@ -133,6 +136,7 @@ export function clearTrackedPids(): void {
  *
  * Never throws. Returns the number of groups we attempted to kill.
  */
+// fallow-ignore-next-line unused-export
 export function forceKillAllTrackedProcessGroups(): number {
   if (process.platform === 'win32') return 0;
   let killed = 0;
@@ -160,6 +164,7 @@ export function forceKillAllTrackedProcessGroups(): number {
  * Clears the pids file when done.
  * Returns `{ reaped, checked }` for logging at the call site.
  */
+// fallow-ignore-next-line unused-export
 export async function reapOrphanedProcessGroups(): Promise<{
   reaped: number;
   checked: number;
@@ -215,3 +220,18 @@ export async function reapOrphanedProcessGroups(): Promise<{
   clearTrackedPids();
   return { reaped, checked };
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin — wraps reapOrphanedProcessGroups (no service deps needed). */
+export const reapOrphanedProcessGroupsEffect: Effect.Effect<{ reaped: number; checked: number }> =
+  Effect.promise(() => reapOrphanedProcessGroups());
+
+/** Effect twin — wraps forceKillAllTrackedProcessGroups (no service deps needed). */
+export const forceKillAllTrackedProcessGroupsEffect: Effect.Effect<number> = Effect.sync(() =>
+  forceKillAllTrackedProcessGroups()
+);
+
+/** Effect twin — wraps clearTrackedPids (no service deps needed). */
+// fallow-ignore-next-line unused-export
+export const clearTrackedPidsEffect: Effect.Effect<void> = Effect.sync(() => clearTrackedPids());

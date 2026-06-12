@@ -11,10 +11,13 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
-import type { DaemonContext, WorkspaceForSync } from './types.js';
+import { DaemonSessionService } from './daemon-services.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type RecentlyObservedWorkspaces = FunctionReturnType<
@@ -25,34 +28,60 @@ function toSyncWorkspaces(workspaces: RecentlyObservedWorkspaces): WorkspaceForS
   return workspaces.map((ws) => ({ workingDir: ws.workingDir }));
 }
 
-function applyWorkspaceList(ctx: DaemonContext, workspaces: RecentlyObservedWorkspaces): void {
-  if (!ctx.workspaceListStore) return;
-  ctx.workspaceListStore.workspaces = toSyncWorkspaces(workspaces);
-  ctx.workspaceListStore.updatedAt = Date.now();
-}
+// ── Minimal dep type used by Core functions + Effect twins ────────────────────
 
-/** Subscribe to recently observed workspaces; returns stop handle. */
-export function startWorkspaceListSubscription(
-  ctx: DaemonContext,
+/**
+ * Flat deps for the workspace-list subscription Core function.
+ * DaemonSessionServiceShape structurally satisfies this type.
+ */
+export type WorkspaceListSubscriptionDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+};
+
+/**
+ * Mutable holder for the workspace-list store.
+ *
+ * The Core function reads/writes `storeHolder.workspaceListStore` directly so that
+ * mutations are visible to the real ctx (wrapper) or the real session service (Effect twin).
+ * Both DaemonContext and DaemonSessionServiceShape have this optional field.
+ */
+export type WorkspaceListStoreHolder = {
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+};
+
+// ── Core implementation (flat deps, no ctx.deps.xxx) ─────────────────────────
+
+function startWorkspaceListSubscriptionCore(
+  deps: WorkspaceListSubscriptionDeps,
+  storeHolder: WorkspaceListStoreHolder,
   wsClient: ConvexClient
 ): { stop: () => void } {
-  ctx.workspaceListStore = { workspaces: [], updatedAt: 0 };
+  // Initialize the store on the holder so downstream consumers see it
+  storeHolder.workspaceListStore = { workspaces: [], updatedAt: 0 };
 
   const queryArgs = {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
+    sessionId: deps.sessionId,
+    machineId: deps.machineId,
     recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
   };
 
   let stopped = false;
   let reconcileInFlight = false;
 
+  const applyList = (workspaces: RecentlyObservedWorkspaces): void => {
+    if (!storeHolder.workspaceListStore) return;
+    storeHolder.workspaceListStore.workspaces = toSyncWorkspaces(workspaces);
+    storeHolder.workspaceListStore.updatedAt = Date.now();
+  };
+
   const unsubscribe = wsClient.onUpdate(
     api.workspaces.listRecentlyObservedWorkspacesForMachine,
     queryArgs,
     (workspaces) => {
       if (stopped) return;
-      applyWorkspaceList(ctx, workspaces ?? []);
+      applyList(workspaces ?? []);
     },
     (err: unknown) => {
       console.warn(
@@ -64,10 +93,10 @@ export function startWorkspaceListSubscription(
   const reconcileTimer = setInterval(() => {
     if (stopped || reconcileInFlight) return;
     reconcileInFlight = true;
-    ctx.deps.backend
+    deps.backend
       .query(api.workspaces.listRecentlyObservedWorkspacesForMachine, queryArgs)
       .then((workspaces) => {
-        if (!stopped) applyWorkspaceList(ctx, workspaces ?? []);
+        if (!stopped) applyList(workspaces ?? []);
       })
       .catch((err: unknown) => {
         console.warn(
@@ -86,8 +115,31 @@ export function startWorkspaceListSubscription(
       stopped = true;
       unsubscribe();
       clearInterval(reconcileTimer);
-      delete ctx.workspaceListStore;
+      // Clear the store so workspace-cache.ts falls back to a query (same semantics as delete)
+      storeHolder.workspaceListStore = undefined;
       console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription stopped`);
     },
   };
 }
+
+// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
+
+// ── Effect twin ───────────────────────────────────────────────────────────────
+
+/**
+ * Effect twin for startWorkspaceListSubscription.
+ * Yields DaemonSessionService; the session object is passed as BOTH deps and storeHolder:
+ *   - deps:        DaemonSessionServiceShape satisfies WorkspaceListSubscriptionDeps
+ *                  (has sessionId, machineId, backend)
+ *   - storeHolder: DaemonSessionServiceShape satisfies WorkspaceListStoreHolder
+ *                  (has workspaceListStore?)
+ * Core mutates session.workspaceListStore in place; Layer.succeed provides the SAME
+ * object instance on every yield, so downstream heartbeat Effect twins see the update.
+ */
+export const startWorkspaceListSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    return startWorkspaceListSubscriptionCore(session, session, wsClient);
+  });

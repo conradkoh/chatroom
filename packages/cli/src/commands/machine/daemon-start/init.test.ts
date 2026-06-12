@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { recoverAgentState } from './handlers/state-recovery.js';
 import { CONNECTION_RETRY_INTERVAL_MS, initDaemon, discoverModels } from './init.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
@@ -77,15 +76,24 @@ vi.mock('../../../version.js', () => ({
   getVersion: vi.fn().mockReturnValue('1.0.0-test'),
 }));
 
-vi.mock('./handlers/state-recovery.js', () => ({
-  recoverAgentState: vi.fn().mockResolvedValue(undefined),
-}));
+const { recoverEffectRun } = vi.hoisted(() => ({ recoverEffectRun: vi.fn() }));
 
-vi.mock('./handlers/orphan-tracker.js', () => ({
-  reapOrphanedProcessGroups: vi.fn().mockResolvedValue({ reaped: 0, checked: 0 }),
-  trackChildPid: vi.fn(),
-  untrackChildPid: vi.fn(),
-}));
+vi.mock('./handlers/state-recovery.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    recoverAgentStateEffect: Effect.promise(() => recoverEffectRun()),
+  };
+});
+
+vi.mock('./handlers/orphan-tracker.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    reapOrphanedProcessGroups: vi.fn().mockResolvedValue({ reaped: 0, checked: 0 }), // keep — harmless
+    reapOrphanedProcessGroupsEffect: Effect.succeed({ reaped: 0, checked: 0 }),
+    trackChildPid: vi.fn(),
+    untrackChildPid: vi.fn(),
+  };
+});
 
 vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () => {
   return {
@@ -168,7 +176,7 @@ beforeEach(() => {
     availableHarnesses: ['opencode'],
     harnessVersions: {},
   } as never);
-  vi.mocked(recoverAgentState).mockResolvedValue(undefined);
+  recoverEffectRun.mockResolvedValue(undefined);
   vi.mocked(isNetworkError).mockReturnValue(false);
 
   exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
@@ -315,7 +323,7 @@ describe('discoverModels', () => {
   });
 
   it('runs harnesses in parallel', async () => {
-    const startedAt: Array<[string, number]> = [];
+    const startedAt: [string, number][] = [];
 
     const createService = (name: string, delayMs: number) => ({
       isInstalled: vi.fn().mockResolvedValue(true),
@@ -419,79 +427,63 @@ describe('discoverModels', () => {
 // ---------------------------------------------------------------------------
 
 describe('initDaemon', () => {
-  it(
-    'exits when lock cannot be acquired',
-    async () => {
-      vi.mocked(acquireLock).mockReturnValue(false);
+  it('exits when lock cannot be acquired', async () => {
+    vi.mocked(acquireLock).mockReturnValue(false);
 
-      await initDaemon();
+    await initDaemon();
 
-      expect(exitSpy).toHaveBeenCalledWith(1);
-    },
-    10_000
-  );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  }, 10_000);
 
-  it(
-    'waits for auth and resumes when session ID is initially missing',
-    async () => {
-      // First call returns null (unauthenticated), subsequent calls return valid session
-      vi.mocked(getSessionId)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValue('session-123' as never);
+  it('waits for auth and resumes when session ID is initially missing', async () => {
+    // First call returns null (unauthenticated), subsequent calls return valid session
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
 
-      const ctx = await initDaemon();
+    const ctx = await initDaemon();
 
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
-      expect(ctx).toBeDefined();
-      expect(ctx.sessionId).toBe('session-123');
-      expect(exitSpy).not.toHaveBeenCalled();
-    },
-    15_000
-  );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
+    expect(ctx).toBeDefined();
+    expect(ctx.sessionId).toBe('session-123');
+    expect(exitSpy).not.toHaveBeenCalled();
+  }, 15_000);
 
-  it(
-    'shows other session URLs when waiting for auth',
-    async () => {
-      vi.mocked(getSessionId)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValue('session-123' as never);
-      vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
+  it('shows other session URLs when waiting for auth', async () => {
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
+    vi.mocked(getOtherSessionUrls).mockResolvedValue(['http://other:3210']);
 
-      const ctx = await initDaemon();
+    const ctx = await initDaemon();
 
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
-      expect(ctx).toBeDefined();
-    },
-    10_000
-  );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
+    expect(ctx).toBeDefined();
+  }, 10_000);
 
-  it(
-    'waits for re-auth when backend session validation fails',
-    async () => {
-      const mockClient = await getMockClient();
-      // First validation fails, then succeeds after re-auth
-      mockClient.query
-        .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
-        .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
+  it('waits for re-auth when backend session validation fails', async () => {
+    const mockClient = await getMockClient();
+    // First validation fails, then succeeds after re-auth
+    mockClient.query
+      .mockResolvedValueOnce({ valid: false, reason: 'Session expired' })
+      .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' });
 
-      // getSessionId returns valid on initial check, then new session after re-auth poll
-      vi.mocked(getSessionId)
-        .mockResolvedValueOnce('session-123' as never)
-        .mockResolvedValue('session-456' as never);
+    // getSessionId returns valid on initial check, then new session after re-auth poll
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce('session-123' as never)
+      .mockResolvedValue('session-456' as never);
 
-      const ctx = await initDaemon();
+    const ctx = await initDaemon();
 
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Session invalid: Session expired')
-      );
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
-      expect(ctx).toBeDefined();
-      expect(ctx.sessionId).toBe('session-456');
-      expect(exitSpy).not.toHaveBeenCalled();
-    },
-    15_000
-  );
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Session invalid: Session expired')
+    );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
+    expect(ctx).toBeDefined();
+    expect(ctx.sessionId).toBe('session-456');
+    expect(exitSpy).not.toHaveBeenCalled();
+  }, 15_000);
 
   it('continues when backend session validation succeeds (valid session)', async () => {
     const mockClient = await getMockClient();
@@ -525,9 +517,7 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it(
-    'retries with delay on network failure for updateDaemonStatus',
-    async () => {
+  it('retries with delay on network failure for updateDaemonStatus', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
@@ -555,9 +545,7 @@ describe('initDaemon', () => {
     expect(exitSpy).not.toHaveBeenCalled();
     expect(ctx).toBeDefined();
     expect(ctx.machineId).toBe('machine-abc');
-  },
-    20_000
-  );
+  }, 20_000);
 
   it('warns but continues when machine registration fails', async () => {
     const mockClient = await getMockClient();
@@ -606,17 +594,14 @@ describe('initDaemon', () => {
     expect(allLogs).toContain('test-host');
   });
 
-  it('calls recoverAgentState during initialization', async () => {
+  it('calls recoverAgentStateEffect during initialization', async () => {
     await initDaemon();
 
-    expect(recoverAgentState).toHaveBeenCalledTimes(1);
-    expect(recoverAgentState).toHaveBeenCalledWith(
-      expect.objectContaining({ machineId: 'machine-abc' })
-    );
+    expect(recoverEffectRun).toHaveBeenCalledTimes(1);
   });
 
-  it('continues with fresh state when recoverAgentState throws', async () => {
-    vi.mocked(recoverAgentState).mockRejectedValueOnce(new Error('Recovery failed'));
+  it('continues with fresh state when recoverAgentStateEffect throws', async () => {
+    recoverEffectRun.mockRejectedValueOnce(new Error('Recovery failed'));
 
     const ctx = await initDaemon();
 
@@ -711,9 +696,7 @@ describe('initDaemon — backend-availability retry backoff', () => {
     vi.useRealTimers();
   });
 
-  it(
-    'logs verbose error block exactly once across N consecutive failures',
-    async () => {
+  it('logs verbose error block exactly once across N consecutive failures', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
@@ -741,13 +724,9 @@ describe('initDaemon — backend-availability retry backoff', () => {
     const logLines = logSpy.mock.calls.map((c: string[]) => c.join(' ')).join('\n');
     expect(logLines).toContain('Backend reachable again');
     expect(logLines).not.toMatch(/Backend still unreachable/);
-    },
-    20_000
-  );
+  }, 20_000);
 
-  it(
-    'uses a 10-second retry interval between connection attempts',
-    async () => {
+  it('uses a 10-second retry interval between connection attempts', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
     const mockClient = await getMockClient();
@@ -766,20 +745,14 @@ describe('initDaemon — backend-availability retry backoff', () => {
     await advanceConnectionRetries(1);
     await initPromise;
 
-    expect(
-      setTimeoutSpy.mock.calls.some(
-        (call) => call[1] === CONNECTION_RETRY_INTERVAL_MS
-      )
-    ).toBe(true);
+    expect(setTimeoutSpy.mock.calls.some((call) => call[1] === CONNECTION_RETRY_INTERVAL_MS)).toBe(
+      true
+    );
     expect(exitSpy).not.toHaveBeenCalled();
     setTimeoutSpy.mockRestore();
-  },
-    20_000
-  );
+  }, 20_000);
 
-  it(
-    'logs a single recovery line when backend becomes reachable again',
-    async () => {
+  it('logs a single recovery line when backend becomes reachable again', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
@@ -802,7 +775,5 @@ describe('initDaemon — backend-availability retry backoff', () => {
     const recoveryCount = (logLines.match(/Backend reachable again/g) ?? []).length;
     expect(recoveryCount).toBe(1);
     expect(logLines).toContain('http://localhost:3210');
-  },
-    20_000
-  );
+  }, 20_000);
 });

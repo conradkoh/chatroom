@@ -10,10 +10,13 @@ import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
-import type { DaemonContext } from './types.js';
+import { DaemonSessionService } from './daemon-services.js';
+import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -23,14 +26,60 @@ export interface FileTreeSubscriptionHandle {
   stop: () => void;
 }
 
-/**
- * Start the reactive file tree subscription.
- *
- * Subscribes to `api.workspaceFiles.getPendingFileTreeRequests` via the Convex
- * WebSocket client. When new pending requests appear, they are fulfilled immediately.
- */
-export function startFileTreeSubscription(
-  ctx: DaemonContext,
+// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+
+type FileTreeSubscriptionDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+};
+
+// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
+
+async function fulfillFileTreeRequestsCore(
+  deps: FileTreeSubscriptionDeps,
+  requests: { _id: string; workingDir: string }[]
+): Promise<void> {
+  for (const request of requests) {
+    try {
+      const tree = await scanFileTree(request.workingDir);
+      const treeJson = JSON.stringify(tree);
+      const treeHash = createHash('md5').update(treeJson).digest('hex');
+
+      // Compress the tree JSON for efficient transport
+      const compressed = gzipSync(Buffer.from(treeJson));
+      const treeJsonCompressed = compressed.toString('base64');
+
+      // Upload the tree (v2: compressed only)
+      await deps.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        workingDir: request.workingDir,
+        data: { compression: 'gzip' as const, content: treeJsonCompressed },
+        dataHash: treeHash,
+        scannedAt: tree.scannedAt,
+      });
+
+      // Mark request as fulfilled
+      await deps.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        workingDir: request.workingDir,
+      });
+
+      console.log(
+        `[${formatTimestamp()}] 🌳 File tree fulfilled: ${request.workingDir} (${tree.entries.length} entries, ${(Buffer.byteLength(treeJson) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
+      );
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  File tree fulfillment failed for ${request.workingDir}: ${getErrorMessage(err)}`
+      );
+    }
+  }
+}
+
+function startFileTreeSubscriptionCore(
+  deps: FileTreeSubscriptionDeps,
   wsClient: ConvexClient
 ): FileTreeSubscriptionHandle {
   let processing = false;
@@ -38,15 +87,15 @@ export function startFileTreeSubscription(
   const unsubscribe = wsClient.onUpdate(
     api.workspaceFiles.getPendingFileTreeRequests,
     {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
     },
     (requests) => {
       if (!requests || requests.length === 0) return;
       if (processing) return;
 
       processing = true;
-      fulfillFileTreeRequests(ctx, requests)
+      fulfillFileTreeRequestsCore(deps, requests)
         .catch((err: unknown) => {
           console.warn(
             `[${formatTimestamp()}] ⚠️  File tree subscription processing failed: ${getErrorMessage(err)}`
@@ -73,47 +122,17 @@ export function startFileTreeSubscription(
   };
 }
 
+// ── Effect twin ───────────────────────────────────────────────────────────────
+
 /**
- * Fulfill pending file tree requests by scanning and uploading.
+ * Effect twin for startFileTreeSubscription.
+ * Yields DaemonSessionService; DaemonSessionServiceShape satisfies FileTreeSubscriptionDeps
+ * (has sessionId, machineId, backend).
  */
-async function fulfillFileTreeRequests(
-  ctx: DaemonContext,
-  requests: { _id: string; workingDir: string }[]
-): Promise<void> {
-  for (const request of requests) {
-    try {
-      const tree = await scanFileTree(request.workingDir);
-      const treeJson = JSON.stringify(tree);
-      const treeHash = createHash('md5').update(treeJson).digest('hex');
-
-      // Compress the tree JSON for efficient transport
-      const compressed = gzipSync(Buffer.from(treeJson));
-      const treeJsonCompressed = compressed.toString('base64');
-
-      // Upload the tree (v2: compressed only)
-      await ctx.deps.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        workingDir: request.workingDir,
-        data: { compression: 'gzip' as const, content: treeJsonCompressed },
-        dataHash: treeHash,
-        scannedAt: tree.scannedAt,
-      });
-
-      // Mark request as fulfilled
-      await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        workingDir: request.workingDir,
-      });
-
-      console.log(
-        `[${formatTimestamp()}] 🌳 File tree fulfilled: ${request.workingDir} (${tree.entries.length} entries, ${(Buffer.byteLength(treeJson) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
-      );
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  File tree fulfillment failed for ${request.workingDir}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
+export const startFileTreeSubscriptionEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    return startFileTreeSubscriptionCore(session, wsClient);
+  });

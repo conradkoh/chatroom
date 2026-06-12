@@ -13,18 +13,18 @@
 
 import type { ConvexClient } from 'convex/browser';
 
+import type { DirectHarnessSession } from './command-subscriber.js';
+import { handleSessionIdle } from './idle-handler.js';
+import type { ActiveSession } from './session-subscriber.js';
+import { api } from '../../../../api.js';
+import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
+import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
+import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
+import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
 import {
   startOpencodeSdkHarness,
   createOpencodeSdkChunkExtractor,
 } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
-import { handleSessionIdle } from './idle-handler.js';
-import type { ActiveSession } from './session-subscriber.js';
-import type { DaemonContext } from '../types.js';
-import { api } from '../../../../api.js';
-import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
-import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ export interface MessageSubscriberDeps {
 // ─── Subscriber ──────────────────────────────────────────────────────────────
 
 export function startMessageSubscriber(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   wsClient: ConvexClient,
   deps: MessageSubscriberDeps
 ): { stop: () => void } {
@@ -67,11 +67,11 @@ export function startMessageSubscriber(
 
   const unsub = wsClient.onUpdate(
     api.daemon.directHarness.messages.pendingForMachine,
-    { sessionId: ctx.sessionId, machineId: ctx.machineId },
+    { sessionId: session.sessionId, machineId: session.machineId },
     () => {
       if (processing) return;
       processing = true;
-      void drain(ctx, deps).finally(() => {
+      void drain(session, deps).finally(() => {
         processing = false;
       });
     },
@@ -88,11 +88,11 @@ export function startMessageSubscriber(
 
 // ─── Drain loop ──────────────────────────────────────────────────────────────
 
-async function drain(ctx: DaemonContext, deps: MessageSubscriberDeps): Promise<void> {
+async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps): Promise<void> {
   // Fetch all pending user messages grouped by session
-  const pending = (await ctx.deps.backend.query(
+  const pending = (await session.backend.query(
     api.daemon.directHarness.messages.pendingForMachine,
-    { sessionId: ctx.sessionId, machineId: ctx.machineId }
+    { sessionId: session.sessionId, machineId: session.machineId }
   )) as {
     sessions: PendingSessionInfo[];
     messages: PendingMessage[];
@@ -120,7 +120,7 @@ async function drain(ctx: DaemonContext, deps: MessageSubscriberDeps): Promise<v
   // Process each session's messages
   for (const [rowId, messages] of bySession) {
     try {
-      await processSessionMessages(ctx, deps, rowId, messages, sessionInfo.get(rowId));
+      await processSessionMessages(session, deps, rowId, messages, sessionInfo.get(rowId));
     } catch (err) {
       console.warn(
         `[direct-harness] Failed to process messages for session ${rowId}:`,
@@ -133,7 +133,7 @@ async function drain(ctx: DaemonContext, deps: MessageSubscriberDeps): Promise<v
 // ─── Process messages for a single session ───────────────────────────────────
 
 async function processSessionMessages(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   deps: MessageSubscriberDeps,
   rowId: string,
   messages: PendingMessage[],
@@ -174,8 +174,8 @@ async function processSessionMessages(
       harness = undefined;
     }
     if (!harness) {
-      const workspace = (await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
-        sessionId: ctx.sessionId,
+      const workspace = (await session.backend.query(api.workspaces.getWorkspaceById, {
+        sessionId: session.sessionId,
         workspaceId,
       })) as WorkspaceInfo | null;
 
@@ -224,6 +224,7 @@ async function processSessionMessages(
     handle.session.onEvent((event) => {
       // First-chunk bind: resumeSession sets currentTurn.messageId on chunk events.
       // We watch for when it becomes non-null and call bind (idempotent on backend).
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const turn = handle!.currentTurn;
       if (turn?.messageId !== null && turn?.messageId !== undefined) {
         const key = `${turn.turnId}:${turn.messageId}`;
@@ -237,6 +238,7 @@ async function processSessionMessages(
         }
       }
       if (event.type === 'session.idle') {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         void handleSessionIdle(handle!, handle!.journal, idleConfig, deps.sessionRepository).catch(
           (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
         );

@@ -13,9 +13,17 @@
  *
  * These parameters allow agents to connect to local development servers instead of
  * production when testing or developing.
+ *
+ * Phase 8: Migrated to Effect-TS services with typed error handling.
  */
 
+import * as os from 'os';
+import * as path from 'path';
+
+import { Effect, Layer } from 'effect';
+
 import type { OpenCodeInstallDeps } from './deps.js';
+import { OpenCodeInstallFsService } from './opencode-install-fs-service.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
@@ -34,6 +42,13 @@ export interface ToolInstallResult {
   toolPath?: string;
   message: string;
 }
+
+// ─── Domain errors ─────────────────────────────────────────────────────────
+
+export type InstallToolError =
+  | { readonly _tag: 'ToolsAlreadyExist'; readonly paths: string[] }
+  | { readonly _tag: 'ChatroomNotInstalled' }
+  | { readonly _tag: 'FsError'; readonly cause: Error };
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
@@ -75,27 +90,37 @@ async function createDefaultDeps(): Promise<OpenCodeInstallDeps> {
   };
 }
 
-// ─── Entry Point ───────────────────────────────────────────────────────────
-
 /**
- * Install chatroom as an OpenCode tool
+ * Build Effect Layer from OpenCodeInstallDeps (for backward-compat with tests)
  */
-export async function installTool(
-  options: ToolInstallOptions = {},
-  deps?: OpenCodeInstallDeps
-): Promise<ToolInstallResult> {
-  const d = deps ?? (await createDefaultDeps());
-  const { checkExisting = true } = options;
-  const os = await import('os');
-  const path = await import('path');
+function layerFromDeps(deps: OpenCodeInstallDeps): Layer.Layer<OpenCodeInstallFsService> {
+  return Layer.succeed(OpenCodeInstallFsService, {
+    access: (p) =>
+      Effect.tryPromise({
+        try: () => deps.fs.access(p),
+        catch: () => new Error(''),
+      }).pipe(
+        Effect.map(() => true),
+        Effect.catchAll(() => Effect.succeed(false))
+      ),
+    mkdir: (p, options) =>
+      Effect.tryPromise({
+        try: () => deps.fs.mkdir(p, options),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      }),
+    writeFile: (p, content, enc) =>
+      Effect.tryPromise({
+        try: () => deps.fs.writeFile(p, content, enc as BufferEncoding),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      }),
+    isChatroomInstalled: () => Effect.promise(() => deps.isChatroomInstalled()),
+  });
+}
 
-  const homeDir = os.homedir();
-  const toolDir = path.join(homeDir, '.config', 'opencode', 'tool');
-  const toolPath = path.join(toolDir, 'chatroom.ts');
-  const handoffToolPath = path.join(toolDir, 'chatroom-handoff.ts');
+// ─── Tool Content ──────────────────────────────────────────────────────────
 
-  // Generate the get-next-task tool content
-  const toolContent = `import { tool } from "@opencode-ai/plugin";
+// Generate the get-next-task tool content
+const TOOL_CONTENT = `import { tool } from "@opencode-ai/plugin";
 
 /**
  * Check if chatroom CLI is installed and authenticated
@@ -230,8 +255,8 @@ After logging in, try this command again.\`;
 });
 `;
 
-  // Generate the handoff tool content
-  const handoffToolContent = `import { tool } from "@opencode-ai/plugin";
+// Generate the handoff tool content
+const HANDOFF_TOOL_CONTENT = `import { tool } from "@opencode-ai/plugin";
 
 /**
  * Chatroom Handoff Tool
@@ -377,61 +402,63 @@ After logging in, try this command again.\`;
 });
 `;
 
-  try {
+// ─── Effect Programs ───────────────────────────────────────────────────────
+
+/**
+ * Pure Effect program for installing the chatroom OpenCode tool.
+ * No process.exit inside — typed errors only; caller decides how to handle them.
+ */
+// fallow-ignore-next-line unused-export complexity
+export const installToolEffect = (
+  options: ToolInstallOptions = {}
+): Effect.Effect<ToolInstallResult, InstallToolError, OpenCodeInstallFsService> =>
+  Effect.gen(function* () {
+    const fsService = yield* OpenCodeInstallFsService;
+    const { checkExisting = true } = options;
+
+    const homeDir = os.homedir();
+    const toolDir = path.join(homeDir, '.config', 'opencode', 'tool');
+    const toolPath = path.join(toolDir, 'chatroom.ts');
+    const handoffToolPath = path.join(toolDir, 'chatroom-handoff.ts');
+
     // Check if tools already exist
     if (checkExisting) {
       const existingFiles: string[] = [];
-      try {
-        await d.fs.access(toolPath);
+      const toolExists = yield* fsService.access(toolPath);
+      if (toolExists) {
         existingFiles.push(toolPath);
-      } catch {
-        // Tool doesn't exist
       }
-      try {
-        await d.fs.access(handoffToolPath);
+      const handoffExists = yield* fsService.access(handoffToolPath);
+      if (handoffExists) {
         existingFiles.push(handoffToolPath);
-      } catch {
-        // Tool doesn't exist
       }
 
       if (existingFiles.length > 0) {
-        const message = `Tools already exist at:
-${existingFiles.map((f) => `  • ${f}`).join('\n')}
-
-To reinstall, delete the existing files first:
-${existingFiles.map((f) => `  rm ${f}`).join('\n')}
-
-Then run this command again, or use --force to overwrite.`;
-        console.log(message);
-        return {
-          success: false,
-          message,
-        };
+        return yield* Effect.fail<InstallToolError>({
+          _tag: 'ToolsAlreadyExist',
+          paths: existingFiles,
+        });
       }
     }
 
     // Check if chatroom CLI is installed
-    const installed = await d.isChatroomInstalled();
+    const installed = yield* fsService.isChatroomInstalled();
     if (!installed) {
-      const message = `⚠️  Chatroom CLI is not installed.
-
-Please install the chatroom CLI globally first:
-  npm install -g @chatroom/cli@latest
-
-After installation, run this command again.`;
-      console.log(message);
-      return {
-        success: false,
-        message,
-      };
+      return yield* Effect.fail<InstallToolError>({ _tag: 'ChatroomNotInstalled' });
     }
 
     // Create directory if it doesn't exist
-    await d.fs.mkdir(toolDir, { recursive: true });
+    yield* fsService
+      .mkdir(toolDir, { recursive: true })
+      .pipe(Effect.mapError((cause): InstallToolError => ({ _tag: 'FsError', cause })));
 
     // Write both tool files
-    await d.fs.writeFile(toolPath, toolContent, 'utf-8');
-    await d.fs.writeFile(handoffToolPath, handoffToolContent, 'utf-8');
+    yield* fsService
+      .writeFile(toolPath, TOOL_CONTENT, 'utf-8')
+      .pipe(Effect.mapError((cause): InstallToolError => ({ _tag: 'FsError', cause })));
+    yield* fsService
+      .writeFile(handoffToolPath, HANDOFF_TOOL_CONTENT, 'utf-8')
+      .pipe(Effect.mapError((cause): InstallToolError => ({ _tag: 'FsError', cause })));
 
     const message = `✅ Installed chatroom OpenCode tools successfully!
 
@@ -454,20 +481,68 @@ For local development, you can pass custom URLs to any tool:
 If you're not authenticated, run:
   chatroom auth login`;
 
-    console.log(message);
+    yield* Effect.sync(() => {
+      console.log(message);
+    });
 
     return {
-      success: true,
+      success: true as const,
       toolPath,
       message,
     };
-  } catch (error) {
-    const message = `❌ Error installing OpenCode tool: ${error}`;
-    console.error(message);
+  });
 
-    return {
-      success: false,
-      message,
-    };
-  }
+// ─── Error Handlers ────────────────────────────────────────────────────────
+
+/**
+ * Maps typed errors to console output + ToolInstallResult { success: false }.
+ */
+function handleInstallError(err: InstallToolError): Effect.Effect<ToolInstallResult, never> {
+  return Effect.sync(() => {
+    if (err._tag === 'ToolsAlreadyExist') {
+      const message = `Tools already exist at:
+${err.paths.map((f) => `  • ${f}`).join('\n')}
+
+To reinstall, delete the existing files first:
+${err.paths.map((f) => `  rm ${f}`).join('\n')}
+
+Then run this command again, or use --force to overwrite.`;
+      console.log(message);
+      return { success: false as const, message };
+    }
+    if (err._tag === 'ChatroomNotInstalled') {
+      const message = `⚠️  Chatroom CLI is not installed.
+
+Please install the chatroom CLI globally first:
+  npm install -g @chatroom/cli@latest
+
+After installation, run this command again.`;
+      console.log(message);
+      return { success: false as const, message };
+    }
+    // FsError
+    const message = `❌ Error installing OpenCode tool: ${err.cause}`;
+    console.error(message);
+    return { success: false as const, message };
+  });
+}
+
+// ─── Entry Point (public API — unchanged signature) ────────────────────────
+
+/**
+ * Install chatroom as an OpenCode tool
+ */
+export async function installTool(
+  options: ToolInstallOptions = {},
+  deps?: OpenCodeInstallDeps
+): Promise<ToolInstallResult> {
+  const d = deps ?? (await createDefaultDeps());
+  const layer = layerFromDeps(d);
+
+  return Effect.runPromise(
+    installToolEffect(options).pipe(
+      Effect.catchAll((err) => handleInstallError(err)),
+      Effect.provide(layer)
+    )
+  );
 }

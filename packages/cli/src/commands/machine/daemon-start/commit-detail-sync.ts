@@ -1,12 +1,16 @@
+import { Effect } from 'effect';
+
+import { DaemonSessionService } from './daemon-services.js';
 import { extractDiffStatFromShowOutput } from './git-subscription.js';
-import type { DaemonContext } from './types.js';
+import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { getWorkspacesForMachine } from './workspace-cache.js';
 
 /**
  * Tracks which commit SHAs have already been fetched (or confirmed not-found / error)
@@ -17,31 +21,42 @@ import { getWorkspacesForMachine } from './workspace-cache.js';
  */
 const seenShas = new Map<string, Set<string>>();
 
+// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+
+type SyncCommitDetailsDeps = {
+  machineId: string;
+  sessionId: SessionId;
+  backend: BackendOps;
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+};
+
+// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
+
 /**
  * Sync commit details for all workspaces registered to this machine.
- *
- * For each workspace, fetches recent commits, queries the backend for any
- * that are missing, and pre-fetches their details (including compressed diffs).
- * Already-seen SHAs are skipped to keep bandwidth low in steady state.
  *
  * @param seenShasMap Optional injection point for tests. When not supplied,
  *   the module-scope `seenShas` map is used so steady-state caching persists
  *   across heartbeat ticks in production.
  */
-export async function syncCommitDetails(
-  ctx: DaemonContext,
+async function syncCommitDetailsCore(
+  ctx: SyncCommitDetailsDeps,
   seenShasMap?: Map<string, Set<string>>
 ): Promise<void> {
-  const workspaces = await getWorkspacesForMachine(ctx);
+  const workspaces = await getWorkspacesForMachine({
+    workspaceListStore: ctx.workspaceListStore,
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    backend: ctx.backend,
+  });
   if (workspaces.length === 0) return;
 
   const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-
   if (uniqueWorkingDirs.size === 0) return;
 
   for (const workingDir of uniqueWorkingDirs) {
     try {
-      await syncSingleWorkspaceCommitDetails(ctx, workingDir, seenShasMap ?? seenShas);
+      await syncSingleWorkspaceCommitDetailsCore(ctx, workingDir, seenShasMap ?? seenShas);
     } catch (err) {
       console.warn(
         `[${formatTimestamp()}] ⚠️  Commit-detail sync failed for ${workingDir}: ${getErrorMessage(err)}`
@@ -53,8 +68,8 @@ export async function syncCommitDetails(
 /**
  * Per-workspace commit-detail sync.
  */
-async function syncSingleWorkspaceCommitDetails(
-  ctx: DaemonContext,
+async function syncSingleWorkspaceCommitDetailsCore(
+  ctx: SyncCommitDetailsDeps,
   workingDir: string,
   seenShasMap: Map<string, Set<string>>
 ): Promise<void> {
@@ -75,7 +90,7 @@ async function syncSingleWorkspaceCommitDetails(
   if (candidateShas.length === 0) return;
 
   // (d) Ask backend which of these are missing.
-  const missingShas = await ctx.deps.backend.query(api.workspaces.getMissingCommitShasV2, {
+  const missingShas = await ctx.backend.query(api.workspaces.getMissingCommitShasV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
@@ -99,7 +114,7 @@ async function syncSingleWorkspaceCommitDetails(
 
   for (const sha of missingShas) {
     try {
-      await prefetchSingleCommit(ctx, workingDir, sha, commits);
+      await prefetchSingleCommitCore(ctx, workingDir, sha, commits);
       // (g) After successful upsert (any terminal status), memoize.
       seen.add(sha);
     } catch (err) {
@@ -112,14 +127,9 @@ async function syncSingleWorkspaceCommitDetails(
 
 /**
  * Fetch and upsert a single commit's details.
- *
- * This is moved from git-heartbeat.ts and preserves the original semantics:
- * - `not_found`: upserts with status 'not_found' + metadata from recent-commits list
- * - `error`   : upserts with status 'error' + errorMessage + metadata
- * - `available`: compresses the diff with gzip, computes diffStat, and upserts
  */
-async function prefetchSingleCommit(
-  ctx: DaemonContext,
+async function prefetchSingleCommitCore(
+  ctx: SyncCommitDetailsDeps,
   workingDir: string,
   sha: string,
   commits: GitCommit[]
@@ -128,7 +138,7 @@ async function prefetchSingleCommit(
   const result = await gitReader.getCommitDetail(workingDir, sha);
 
   if (result.status === 'not_found') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
+    await ctx.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -143,7 +153,7 @@ async function prefetchSingleCommit(
   }
 
   if (result.status === 'error') {
-    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
+    await ctx.backend.mutation(api.workspaces.upsertCommitDetailV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -164,7 +174,7 @@ async function prefetchSingleCommit(
   const compressed = gzipSync(Buffer.from(result.content));
   const diffContentCompressed = compressed.toString('base64');
 
-  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
+  await ctx.backend.mutation(api.workspaces.upsertCommitDetailV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
@@ -181,3 +191,16 @@ async function prefetchSingleCommit(
 
   console.log(`[${formatTimestamp()}] ✅ Pre-fetched: ${sha.slice(0, 7)} in ${workingDir}`);
 }
+
+// ── Public wrapper (backward-compat — old call sites in command-loop.ts) ──────
+
+// ── Effect twin ───────────────────────────────────────────────────────────────
+
+/** Effect twin for syncCommitDetails — yields DaemonSessionService; DaemonSessionServiceShape satisfies SyncCommitDetailsDeps. */
+export const syncCommitDetailsEffect = (
+  seenShasMap?: Map<string, Set<string>>
+): Effect.Effect<void, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => syncCommitDetailsCore(session, seenShasMap));
+  });

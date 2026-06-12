@@ -4,13 +4,14 @@
 
 import { stat } from 'node:fs/promises';
 
-import { Effect } from 'effect';
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexHttpClient } from 'convex/browser';
+import { Effect, Schedule, Duration } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import { daemonContextToLayers } from './daemon-context-service.js';
 import type { DaemonDeps } from './deps.js';
-import { recoverAgentState } from './handlers/state-recovery.js';
+import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -18,7 +19,6 @@ import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
@@ -44,7 +44,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
-import { reapOrphanedProcessGroups } from './handlers/orphan-tracker.js';
+import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ export async function discoverModels(
  * Create production dependency implementations wiring to real infrastructure.
  * This factory uses the module-level imports already available in this file.
  */
-export function createDefaultDeps(): DaemonDeps {
+function createDefaultDeps(): DaemonDeps {
   return {
     backend: {
       // Placeholder — initDaemon() binds the real client after connecting.
@@ -150,7 +150,7 @@ const AUTH_WAIT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
  * Polls the auth file every 2 seconds until a valid session ID is found
  * or the timeout (5 minutes) is reached.
  */
-async function waitForAuthentication(convexUrl: string): Promise<string> {
+async function waitForAuthentication(_convexUrl: string): Promise<string> {
   const startTime = Date.now();
   while (Date.now() - startTime < AUTH_WAIT_TIMEOUT_MS) {
     await new Promise((resolve) => setTimeout(resolve, AUTH_POLL_INTERVAL_MS));
@@ -237,7 +237,12 @@ async function setupMachine(): Promise<MachineConfig> {
   await ensureMachineRegistered({ allowCreate: true });
 
   // Load the full machine config (guaranteed non-null after ensureMachineRegistered)
-  const config = (await loadMachineConfig())!;
+  const config = await loadMachineConfig();
+  if (!config) {
+    throw new Error(
+      'Machine config missing after ensureMachineRegistered — this should not happen'
+    );
+  }
   return config;
 }
 
@@ -285,7 +290,7 @@ async function connectDaemon(
   client: ConvexHttpClient,
   sessionId: SessionId,
   machineId: string,
-  convexUrl: string
+  _convexUrl: string
 ): Promise<void> {
   try {
     await client.mutation(api.machines.updateDaemonStatus, {
@@ -328,7 +333,9 @@ function logStartup(ctx: DaemonContext, availableModels: Record<string, string[]
 async function recoverState(ctx: DaemonContext): Promise<void> {
   console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
   try {
-    await recoverAgentState(ctx);
+    await Effect.runPromise(
+      recoverAgentStateEffect.pipe(Effect.provide(daemonContextToLayers(ctx)))
+    );
   } catch (e) {
     console.log(`   ⚠️  Recovery failed: ${getErrorMessage(e)}`);
     console.log(`   Continuing with fresh state`);
@@ -374,7 +381,22 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Fixed interval (ms) between connection retry attempts when backend is unreachable. */
+// fallow-ignore-next-line unused-export
 export const CONNECTION_RETRY_INTERVAL_MS = 10_000;
+
+// ─── Tagged error for network retries ───────────────────────────────────────
+
+/**
+ * Wraps a network error so Effect.retry can distinguish it from fatal errors.
+ * Only instances of this type trigger the retry loop in initDaemon.
+ */
+class NetworkRetryError {
+  readonly _tag = 'NetworkRetryError' as const;
+  constructor(
+    readonly cause: unknown,
+    readonly attempt: number
+  ) {}
+}
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
@@ -391,7 +413,7 @@ export async function initDaemon(): Promise<DaemonContext> {
 
   // Reap any process groups left over from a previous ungraceful exit (SIGKILL/crash).
   // Must run after acquireLock (single daemon guarantee) but before starting subscriptions.
-  const { reaped } = await reapOrphanedProcessGroups();
+  const { reaped } = await Effect.runPromise(reapOrphanedProcessGroupsEffect);
   if (reaped > 0) {
     console.log(
       `[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`
@@ -412,110 +434,137 @@ export async function initDaemon(): Promise<DaemonContext> {
 
   // SessionId is validated above as non-null. Cast once at the boundary
   // between our storage format and Convex's branded type system.
-  let typedSessionId: SessionId = sessionId;
+  // ─── Connection retry loop ──────────────────────────────────────────────────
+  //
+  // Uses Effect.retry + Schedule to handle transient network failures.
+  // Only NetworkRetryError instances trigger retries — non-network errors are
+  // re-thrown immediately and crash the daemon (fatal path).
+  //
+  // Schedule: fixed 10-second gap between attempts, retries forever until the
+  // backend is reachable. The attempt counter inside each NetworkRetryError
+  // drives log-dedup (verbose block on attempt 1, concise line thereafter).
+  const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
 
-  // Counts consecutive backend-availability failures for log-dedup logic.
-  // Reset to 0 on every successful connectDaemon call.
-  let consecutiveFailures = 0;
+  let attempt = 0;
 
-  // Retry loop for network errors — waits 10s between attempts
-  while (true) {
-    try {
-      typedSessionId = await validateSession(client, typedSessionId, convexUrl);
+  const connectOnce = Effect.gen(function* () {
+    attempt++;
+    const typedSessionId = yield* Effect.tryPromise({
+      try: () => validateSession(client, sessionId as SessionId, convexUrl),
+      catch: (e) => e,
+    });
 
-      const config = await setupMachine();
-      const { machineId } = config;
+    const config = yield* Effect.tryPromise({
+      try: () => setupMachine(),
+      catch: (e) => e,
+    });
+    const { machineId } = config;
 
-      // Populate harness registry and build service map from it
-      initHarnessRegistry();
-      const agentServices = new Map<string, RemoteAgentService>(
-        getAllHarnesses().map((s) => [s.id, s])
-      );
+    // Populate harness registry and build service map from it
+    initHarnessRegistry();
+    const agentServices = new Map<string, RemoteAgentService>(
+      getAllHarnesses().map((s) => [s.id, s])
+    );
 
-      const availableModels = await registerCapabilities(
-        client,
-        typedSessionId,
-        config,
-        agentServices
-      );
-      await connectDaemon(client, typedSessionId, machineId, convexUrl);
+    const availableModels = yield* Effect.tryPromise({
+      try: () => registerCapabilities(client, typedSessionId, config, agentServices),
+      catch: (e) => e,
+    });
 
-      // Log recovery if the backend was previously unreachable.
-      if (consecutiveFailures > 0) {
-        console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
-        consecutiveFailures = 0;
-      }
+    yield* Effect.tryPromise({
+      try: () => connectDaemon(client, typedSessionId, machineId, convexUrl),
+      catch: (e) => e,
+    });
 
-      // Create default dependencies and bind the real Convex client
-      const deps = createDefaultDeps();
-      deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
-      deps.backend.query = (endpoint, args) => client.query(endpoint, args);
-
-      // Create the AgentProcessManager with all required dependencies
-      deps.agentProcessManager = new AgentProcessManager({
-        agentServices,
-        backend: deps.backend,
-        sessionId: typedSessionId,
-        machineId,
-        processes: deps.processes,
-        clock: deps.clock,
-        fs: deps.fs,
-        persistence: deps.machine,
-        spawning: deps.spawning,
-        crashLoop: new CrashLoopTracker(),
-        convexUrl,
-      });
-
-      const events = new DaemonEventBus();
-      const ctx: DaemonContext = {
-        client,
-        sessionId: typedSessionId,
-        machineId,
-        config,
-        deps,
-        events,
-        agentServices,
-        lastPushedGitState: new Map(),
-        // Seed with the snapshot pushed by registerCapabilities() during startup
-        // so the first refreshModels tick correctly detects "no change" instead
-        // of always re-pushing the same set on the first run.
-        lastPushedModels: availableModels,
-        lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
-          config.availableHarnesses,
-          config.harnessVersions as Record<string, unknown>
-        ),
-        observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
-        logger: console,
-      };
-
-      registerEventListeners(ctx);
-
-      logStartup(ctx, availableModels);
-      await recoverState(ctx);
-
-      return ctx;
-    } catch (error) {
+    return { typedSessionId, config, machineId, agentServices, availableModels };
+  }).pipe(
+    // Classify failures: network errors → retryable; others → fatal (re-throw)
+    Effect.catchAll((error) => {
       if (isNetworkError(error)) {
-        consecutiveFailures++;
-        const retrySec = CONNECTION_RETRY_INTERVAL_MS / 1000;
-        if (consecutiveFailures === 1) {
+        return Effect.fail(new NetworkRetryError(error, attempt));
+      }
+      // Non-network error — propagate as a defect (crashes the daemon)
+      return Effect.die(error);
+    })
+  );
+
+  const retrySchedule = Schedule.fixed(Duration.millis(CONNECTION_RETRY_INTERVAL_MS));
+
+  const connectWithRetry = connectOnce.pipe(
+    Effect.tapError((retryErr) =>
+      Effect.sync(() => {
+        const { cause, attempt: failedAttempt } = retryErr;
+        if (failedAttempt === 1) {
           // First failure — emit the full guidance block so the user knows what to check.
-          formatConnectivityError(error, convexUrl);
+          formatConnectivityError(cause, convexUrl);
           console.log(
             `[${formatTimestamp()}] ⏳ Backend not reachable. Retrying every ${retrySec}s...`
           );
         } else {
           // Subsequent failures — a single concise line to avoid log spam.
           console.log(
-            `[${formatTimestamp()}] ❌ Backend still unreachable (attempt ${consecutiveFailures}, retrying in ${retrySec}s)`
+            `[${formatTimestamp()}] ❌ Backend still unreachable (attempt ${failedAttempt}, retrying in ${retrySec}s)`
           );
         }
-        await new Promise((resolve) => setTimeout(resolve, CONNECTION_RETRY_INTERVAL_MS));
-        // Continue the loop to retry
-      } else {
-        // Non-network error — propagate (will crash the process)
-        throw error;
-      }
-    }
+      })
+    ),
+    Effect.retry(retrySchedule)
+  );
+
+  const { typedSessionId, config, machineId, agentServices, availableModels } =
+    await Effect.runPromise(connectWithRetry);
+
+  // Log recovery if the backend was previously unreachable.
+  if (attempt > 1) {
+    console.log(`[${formatTimestamp()}] ✅ Backend reachable again at ${convexUrl}`);
   }
+
+  // Create default dependencies and bind the real Convex client
+  const deps = createDefaultDeps();
+  deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
+  deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+
+  // Create the AgentProcessManager with all required dependencies
+  deps.agentProcessManager = new AgentProcessManager({
+    agentServices,
+    backend: deps.backend,
+    sessionId: typedSessionId,
+    machineId,
+    processes: deps.processes,
+    clock: deps.clock,
+    fs: deps.fs,
+    persistence: deps.machine,
+    spawning: deps.spawning,
+    crashLoop: new CrashLoopTracker(),
+    convexUrl,
+  });
+
+  const events = new DaemonEventBus();
+  const ctx: DaemonContext = {
+    client,
+    sessionId: typedSessionId,
+    machineId,
+    config,
+    deps,
+    events,
+    agentServices,
+    lastPushedGitState: new Map(),
+    // Seed with the snapshot pushed by registerCapabilities() during startup
+    // so the first refreshModels tick correctly detects "no change" instead
+    // of always re-pushing the same set on the first run.
+    lastPushedModels: availableModels,
+    lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
+      config.availableHarnesses,
+      config.harnessVersions as Record<string, unknown>
+    ),
+    observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
+    logger: console,
+  };
+
+  registerEventListeners(ctx);
+
+  logStartup(ctx, availableModels);
+  await recoverState(ctx);
+
+  return ctx;
 }

@@ -6,12 +6,16 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-import type { DaemonContext } from './types.js';
+import { Effect } from 'effect';
+
+import { DaemonSessionService } from './daemon-services.js';
+import type { SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 /** Max file content size (500KB). */
@@ -65,17 +69,27 @@ function isBinaryFile(path: string): boolean {
   return BINARY_EXTENSIONS.has(path.slice(lastDot).toLowerCase());
 }
 
+/** Minimal dep type used by Core functions + Effect twins (also used by file-content-subscription.ts). */
+export type FulfillFileContentDeps = {
+  machineId: string;
+  sessionId: SessionId;
+  backend: BackendOps;
+};
+
+// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
+
 /**
  * Poll for pending file content requests and fulfill them.
+ * Exported so file-content-subscription.ts can call it directly.
  */
-export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<void> {
+export async function fulfillFileContentRequestsCore(ctx: FulfillFileContentDeps): Promise<void> {
   let requests: { _id: string; workingDir: string; filePath: string }[];
   try {
-    requests = await ctx.deps.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
+    requests = await ctx.backend.query(api.workspaceFiles.getPendingFileContentRequests, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
     });
-  } catch (err) {
+  } catch (_err) {
     // Silently skip — will retry on next poll
     return;
   }
@@ -88,7 +102,7 @@ export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<vo
 
   for (const request of requests) {
     try {
-      await fulfillSingleRequest(ctx, request);
+      await fulfillSingleRequestCore(ctx, request);
     } catch (err) {
       console.warn(
         `[${formatTimestamp()}] ⚠️  File content fulfillment failed for ${request.filePath}: ${getErrorMessage(err)}`
@@ -97,8 +111,8 @@ export async function fulfillFileContentRequests(ctx: DaemonContext): Promise<vo
   }
 }
 
-async function fulfillSingleRequest(
-  ctx: DaemonContext,
+async function fulfillSingleRequestCore(
+  ctx: FulfillFileContentDeps,
   request: { workingDir: string; filePath: string }
 ): Promise<void> {
   const startTime = Date.now();
@@ -119,7 +133,7 @@ async function fulfillSingleRequest(
   // Binary file: upload compressed placeholder
   if (isBinaryFile(filePath)) {
     const binaryCompressed = gzipSync(Buffer.from('[Binary file]')).toString('base64');
-    await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
+    await ctx.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       workingDir,
@@ -148,7 +162,7 @@ async function fulfillSingleRequest(
     } else {
       content = buffer.toString('utf8');
     }
-  } catch (err) {
+  } catch (_err) {
     // File not found or permission denied — upload generic error content
     content = '[Error reading file]';
     truncated = false;
@@ -158,7 +172,7 @@ async function fulfillSingleRequest(
   const compressed = gzipSync(Buffer.from(content));
   const contentCompressed = compressed.toString('base64');
 
-  await ctx.deps.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
+  await ctx.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
     sessionId: ctx.sessionId,
     machineId: ctx.machineId,
     workingDir,
@@ -173,3 +187,13 @@ async function fulfillSingleRequest(
     `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} (${(Buffer.byteLength(content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip, ${elapsed}ms)`
   );
 }
+
+// ── Effect twin ───────────────────────────────────────────────────────────────
+
+/** Effect twin for fulfillFileContentRequests — yields DaemonSessionService; DaemonSessionServiceShape satisfies FulfillFileContentDeps. */
+// fallow-ignore-next-line unused-export
+export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, DaemonSessionService> =
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => fulfillFileContentRequestsCore(session));
+  });

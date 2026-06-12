@@ -70,11 +70,14 @@ let logSpy: any;
 
 let errorSpy: any;
 
+let exitSpy: any;
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
 });
 
 afterEach(() => {
@@ -290,7 +293,7 @@ describe('authLogin', () => {
 
     await authLogin({}, deps);
 
-    expect(deps.process.exit).toHaveBeenCalledWith(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllLogOutput()).toContain('Authorization denied');
     expect(deps.auth.saveAuthData).not.toHaveBeenCalled();
   });
@@ -301,7 +304,7 @@ describe('authLogin', () => {
 
     await authLogin({}, deps);
 
-    expect(deps.process.exit).toHaveBeenCalledWith(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllLogOutput()).toContain('Authorization request expired');
     expect(deps.auth.saveAuthData).not.toHaveBeenCalled();
   });
@@ -312,7 +315,7 @@ describe('authLogin', () => {
 
     await authLogin({}, deps);
 
-    expect(deps.process.exit).toHaveBeenCalledWith(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllLogOutput()).toContain('Authorization request expired');
   });
 
@@ -330,7 +333,7 @@ describe('authLogin', () => {
 
     await authLogin({}, deps);
 
-    expect(deps.process.exit).toHaveBeenCalledWith(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllLogOutput()).toContain('Authorization request expired');
   });
 

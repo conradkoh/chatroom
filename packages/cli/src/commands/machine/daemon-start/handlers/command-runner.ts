@@ -7,9 +7,13 @@
 
 import { access } from 'node:fs/promises';
 
+import { Effect } from 'effect';
+
 import { api } from '../../../../api.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
-import type { DaemonContext, SessionId } from '../types.js';
+import { DaemonSessionService } from '../daemon-services.js';
+import type { SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids } from './orphan-tracker.js';
 import { killProcess, killTrackedProcess } from './process/killer.js';
@@ -17,17 +21,29 @@ import { processManager } from './process/manager.js';
 import { spawnCommandProcess } from './process/spawner.js';
 import { TERMINAL_STATES } from './process/state.js';
 
+// ─── Flat deps type ──────────────────────────────────────────────────────────
+
+/**
+ * Flat deps required by onCommandRunCore and onCommandStopCore.
+ * DaemonSessionServiceShape structurally satisfies this type.
+ */
+export type CommandRunnerDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function buildCommandKey(machineId: string, workingDir: string, commandName: string): string {
   return `${machineId}|${workingDir}|${commandName}`;
 }
 
-async function reportRunFailed(ctx: DaemonContext, runId: any, reason: string): Promise<void> {
+async function reportRunFailed(deps: CommandRunnerDeps, runId: any, reason: string): Promise<void> {
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId,
       status: 'failed',
     });
@@ -38,10 +54,11 @@ async function reportRunFailed(ctx: DaemonContext, runId: any, reason: string): 
   }
 }
 
-// ─── Event Handlers ─────────────────────────────────────────────────────────
+// ─── Core Event Handlers (flat deps, no ctx.deps.xxx) ───────────────────────
 
-export async function onCommandRun(
-  ctx: DaemonContext,
+// fallow-ignore-next-line unused-export
+export async function onCommandRunCore(
+  deps: CommandRunnerDeps,
   event: {
     workingDir: string;
     commandName: string;
@@ -51,7 +68,7 @@ export async function onCommandRun(
 ): Promise<void> {
   const { workingDir, commandName, script, runId } = event;
   const runIdStr = runId.toString();
-  const commandKey = buildCommandKey(ctx.machineId, workingDir, commandName);
+  const commandKey = buildCommandKey(deps.machineId, workingDir, commandName);
 
   // Prevent double-spawning
   if (processManager.has(runIdStr)) {
@@ -65,9 +82,9 @@ export async function onCommandRun(
       `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
     );
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
         runId,
         status: 'stopped',
       });
@@ -81,9 +98,9 @@ export async function onCommandRun(
 
   // ── Pre-spawn DB status check ──────────────────────────────────────────────
   try {
-    const currentRun = (await ctx.deps.backend.query(api.commands.getRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    const currentRun = (await deps.backend.query(api.commands.getRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId,
     })) as { status: string } | null;
     if (currentRun && TERMINAL_STATES.has(currentRun.status)) {
@@ -118,7 +135,7 @@ export async function onCommandRun(
     console.error(
       `[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`
     );
-    await reportRunFailed(ctx, runId, 'Working directory is not an absolute path');
+    await reportRunFailed(deps, runId, 'Working directory is not an absolute path');
     return;
   }
   try {
@@ -127,18 +144,25 @@ export async function onCommandRun(
     console.error(
       `[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`
     );
-    await reportRunFailed(ctx, runId, 'Working directory not found');
+    await reportRunFailed(deps, runId, 'Working directory not found');
     return;
   }
 
-  // Delegate spawning, output streaming, event handler attachment to spawner
-  const tracked = await spawnCommandProcess(ctx, event, commandKey);
+  // Delegate spawning, output streaming, event handler attachment to spawner.
+  // Pass a structural SpawnCtx (plain object, no cast) that satisfies spawner's
+  // minimal { sessionId, machineId, deps: { backend } } requirement.
+  const spawnCtx = {
+    sessionId: deps.sessionId,
+    machineId: deps.machineId,
+    deps: { backend: deps.backend },
+  };
+  const tracked = await spawnCommandProcess(spawnCtx, event, commandKey);
 
   // Update status to running with PID
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId,
       status: 'running',
       pid: tracked.process.pid,
@@ -150,7 +174,11 @@ export async function onCommandRun(
   }
 }
 
-export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): Promise<void> {
+// fallow-ignore-next-line unused-export
+export async function onCommandStopCore(
+  deps: CommandRunnerDeps,
+  event: { runId: any }
+): Promise<void> {
   const runIdStr = event.runId.toString();
   const tracked = processManager.get(runIdStr);
 
@@ -161,9 +189,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
     );
     processManager.markPendingStop(runIdStr);
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
         runId: event.runId,
         status: 'stopped',
       });
@@ -187,9 +215,9 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
   await killTrackedProcess(tracked);
 
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunStatus, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
       runId: event.runId,
       status: 'stopped',
     });
@@ -198,72 +226,6 @@ export async function onCommandStop(ctx: DaemonContext, event: { runId: any }): 
       `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped in backend: ${getErrorMessage(err)}`
     );
   }
-}
-
-export async function shutdownAllCommands(ctx: DaemonContext): Promise<void> {
-  if (processManager.size === 0) return;
-
-  console.log(`[${formatTimestamp()}] Shutting down ${processManager.size} running command(s)...`);
-
-  const trackedEntries = processManager.getAll();
-
-  // Phase 1 — kill first. Clearing the backend run status is best-effort and
-  // must NOT sit on the critical path: when the daemon is quitting the backend
-  // is often unreachable, and a stalled network mutation would delay (or with a
-  // hung connection, prevent) signalling the OS processes. So we SIGTERM every
-  // tracked process group up front before touching the network.
-  for (const [, tracked] of trackedEntries) {
-    clearInterval(tracked.flushTimer);
-    if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
-    killProcess(tracked.process, 'SIGTERM');
-  }
-
-  // Phase 2 — best-effort backend status updates, fired in parallel so they
-  // overlap the grace period instead of serializing in front of the kills.
-  const statusUpdates = Promise.allSettled(
-    trackedEntries.map(([, tracked]) =>
-      ctx.deps.backend
-        .mutation(api.commands.updateRunStatus, {
-          sessionId: ctx.sessionId as SessionId,
-          machineId: ctx.machineId,
-          runId: tracked.runId as any,
-          status: 'killed',
-          terminationReason: 'daemon-shutdown',
-        })
-        .catch((err) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️ Failed to mark run as killed on shutdown: ${getErrorMessage(err)}`
-          );
-        })
-    )
-  );
-
-  // Phase 3 — grace period, then SIGKILL any survivors.
-  await new Promise<void>((resolve) => {
-    const t = setTimeout(resolve, 3_000);
-    t.unref?.();
-  });
-
-  for (const [, tracked] of trackedEntries) {
-    if (processManager.has(tracked.runId)) {
-      killProcess(tracked.process, 'SIGKILL');
-    }
-  }
-
-  processManager.clear();
-  clearTrackedPids();
-
-  // Wait for the best-effort status updates, but never let the network hang
-  // shutdown — cap the wait so a dead backend connection can't block exit.
-  await Promise.race([
-    statusUpdates,
-    new Promise<void>((resolve) => {
-      const t = setTimeout(resolve, 2_000);
-      t.unref?.();
-    }),
-  ]);
-
-  console.log(`[${formatTimestamp()}] All commands stopped`);
 }
 
 /**
@@ -279,3 +241,103 @@ export function forceKillAllCommands(): void {
     killProcess(tracked.process, 'SIGKILL');
   }
 }
+
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Effect twin for onCommandRun — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
+export const onCommandRunEffect = (event: {
+  workingDir: string;
+  commandName: string;
+  script: string;
+  runId: any;
+}): Effect.Effect<void, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => onCommandRunCore(session, event));
+  });
+
+/** Effect twin for onCommandStop — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
+export const onCommandStopEffect = (event: {
+  runId: any;
+}): Effect.Effect<void, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => onCommandStopCore(session, event));
+  });
+
+/** Effect twin for forceKillAllCommands — synchronous, no service deps needed. */
+// fallow-ignore-next-line unused-export
+export const forceKillAllCommandsEffect: Effect.Effect<void> = Effect.sync(() =>
+  forceKillAllCommands()
+);
+
+/** Effect twin for shutdownAllCommands — yields DaemonSessionService. */
+export const shutdownAllCommandsEffect: Effect.Effect<void, never, DaemonSessionService> =
+  Effect.gen(function* () {
+    if (processManager.size === 0) return;
+
+    const session = yield* DaemonSessionService;
+
+    console.log(
+      `[${formatTimestamp()}] Shutting down ${processManager.size} running command(s)...`
+    );
+
+    const trackedEntries = processManager.getAll();
+
+    // Phase 1 — kill first (same logic as legacy)
+    for (const [, tracked] of trackedEntries) {
+      clearInterval(tracked.flushTimer);
+      if (tracked.softTimeoutTimer) clearTimeout(tracked.softTimeoutTimer);
+      killProcess(tracked.process, 'SIGTERM');
+    }
+
+    // Phase 2 — best-effort backend status updates in parallel
+    const statusUpdates = Promise.allSettled(
+      trackedEntries.map(([, tracked]) =>
+        session.backend
+          .mutation(api.commands.updateRunStatus, {
+            sessionId: session.sessionId as SessionId,
+            machineId: session.machineId,
+            runId: tracked.runId as any,
+            status: 'killed',
+            terminationReason: 'daemon-shutdown',
+          })
+          .catch((err) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️ Failed to mark run as killed on shutdown: ${getErrorMessage(err)}`
+            );
+          })
+      )
+    );
+
+    // Phase 3 — grace period (3s), then SIGKILL survivors
+    yield* Effect.promise(
+      () =>
+        new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, 3_000);
+          t.unref?.();
+        })
+    );
+
+    for (const [, tracked] of trackedEntries) {
+      if (processManager.has(tracked.runId)) {
+        killProcess(tracked.process, 'SIGKILL');
+      }
+    }
+
+    processManager.clear();
+    clearTrackedPids();
+
+    // Cap network wait to 2s
+    yield* Effect.promise(() =>
+      Promise.race([
+        statusUpdates,
+        new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, 2_000);
+          t.unref?.();
+        }),
+      ])
+    );
+
+    console.log(`[${formatTimestamp()}] All commands stopped`);
+  });

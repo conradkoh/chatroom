@@ -10,17 +10,20 @@
 
 import type { ConvexClient } from 'convex/browser';
 
+import type { DirectHarnessSession } from './command-subscriber.js';
+import { handleSessionIdle } from './idle-handler.js';
+import { api } from '../../../../api.js';
+import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
+import type { HarnessSessionId } from '../../../../domain/direct-harness/entities/harness-session.js';
+import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
+import type {
+  JournalFactory,
+  SessionHandle,
+} from '../../../../domain/direct-harness/usecases/open-session.js';
 import {
   startOpencodeSdkHarness,
   createOpencodeSdkChunkExtractor,
 } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
-import { handleSessionIdle } from './idle-handler.js';
-import type { DaemonContext } from '../types.js';
-import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
-import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
-import type { HarnessSessionId } from '../../../../domain/direct-harness/entities/harness-session.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
@@ -42,8 +45,6 @@ interface WorkspaceInfo {
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
-
 export type ActiveSession = SessionHandle;
 
 export interface SessionSubscriberDeps {
@@ -60,7 +61,7 @@ export interface SessionSubscriberHandle {
 // ─── Subscriber ──────────────────────────────────────────────────────────────
 
 export function startSessionSubscriber(
-  ctx: DaemonContext,
+  daemonSession: DirectHarnessSession,
   wsClient: ConvexClient,
   deps: SessionSubscriberDeps
 ): SessionSubscriberHandle {
@@ -69,8 +70,8 @@ export function startSessionSubscriber(
   const unsub = wsClient.onUpdate(
     api.daemon.directHarness.sessions.listPendingSessionsForMachine,
     {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
+      sessionId: daemonSession.sessionId,
+      machineId: daemonSession.machineId,
     },
     (pendingSessions: PendingSession[] | null) => {
       if (!pendingSessions || pendingSessions.length === 0) return;
@@ -79,7 +80,7 @@ export function startSessionSubscriber(
         const rowId = session._id;
         if (inFlight.has(rowId)) continue;
         inFlight.add(rowId);
-        void processOne(ctx, deps, session).finally(() => inFlight.delete(rowId));
+        void processOne(daemonSession, deps, session).finally(() => inFlight.delete(rowId));
       }
     },
     (err: unknown) => {
@@ -96,7 +97,7 @@ export function startSessionSubscriber(
 // ─── Per-session orchestration ───────────────────────────────────────────────
 
 async function processOne(
-  ctx: DaemonContext,
+  daemonSession: DirectHarnessSession,
   deps: SessionSubscriberDeps,
   session: PendingSession
 ): Promise<void> {
@@ -104,8 +105,8 @@ async function processOne(
 
   try {
     // 1. Look up workspace to get workingDir
-    const workspace = (await ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
-      sessionId: ctx.sessionId,
+    const workspace = (await daemonSession.backend.query(api.workspaces.getWorkspaceById, {
+      sessionId: daemonSession.sessionId,
       workspaceId: session.workspaceId,
     })) as WorkspaceInfo | null;
 
