@@ -12,6 +12,7 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
+import { Effect } from 'effect';
 
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import { api } from '../../../../api.js';
@@ -107,57 +108,93 @@ export function startCommandSubscriber(
 
 // ─── Drain loop ──────────────────────────────────────────────────────────────
 
-/**
- * Fetch all pending commands and process each one sequentially.
- * Commands are processed one at a time to avoid race conditions on shared
- * state (e.g., two capabilities refreshes in flight).
- */
+/** Effect twin — canonical drain loop for pending commands. */
+// fallow-ignore-next-line unused-export
+export const drainCommandsEffect = (
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  processed: Set<string>
+): Effect.Effect<void, never, never> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      const pending = yield* Effect.tryPromise({
+        try: () =>
+          session.backend.query(api.daemon.directHarness.commands.listPendingCommands, {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+          }) as Promise<PendingCommand[] | null>,
+        catch: (e) => e,
+      });
+
+      if (!pending || pending.length === 0) return;
+
+      const now = Date.now();
+
+      for (const cmd of pending) {
+        if (processed.has(cmd._id)) continue;
+        processed.add(cmd._id);
+
+        yield* Effect.catchAll(
+          Effect.gen(function* () {
+            if (now - cmd.createdAt > DIRECT_HARNESS_COMMAND_TTL_MS) {
+              console.log(
+                `[direct-harness] Discarding stale command ${cmd._id} (type=${cmd.type}, age=${now - cmd.createdAt}ms)`
+              );
+              yield* Effect.tryPromise({
+                try: () => markFailed(session, cmd._id, 'Command expired (TTL)'),
+                catch: (e) => e,
+              });
+              return;
+            }
+
+            switch (cmd.type) {
+              case 'refreshCapabilities':
+                yield* Effect.tryPromise({
+                  try: () => handleRefreshCapabilities(session, deps, cmd),
+                  catch: (e) => e,
+                });
+                break;
+              case 'refreshSessionTitle':
+                yield* Effect.tryPromise({
+                  try: () => handleRefreshSessionTitle(session, deps, cmd),
+                  catch: (e) => e,
+                });
+                break;
+              default:
+                yield* Effect.tryPromise({
+                  try: () => markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`),
+                  catch: (e) => e,
+                });
+            }
+          }),
+          (err) =>
+            Effect.gen(function* () {
+              const message = err instanceof Error ? err.message : String(err);
+              console.warn(`[direct-harness] Command ${cmd._id} failed: ${message}`);
+              yield* Effect.tryPromise({
+                try: () => markFailed(session, cmd._id, message),
+                catch: () => undefined,
+              }).pipe(Effect.catchAll(() => Effect.void));
+            })
+        );
+      }
+    }),
+    (err) =>
+      Effect.sync(() => {
+        console.warn(
+          `[direct-harness] Unexpected error in drainCommandsEffect:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      })
+  );
+
+/** Thin wrapper — startCommandSubscriber still calls this. */
 async function drain(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
   processed: Set<string>
 ): Promise<void> {
-  const pending = (await session.backend.query(
-    api.daemon.directHarness.commands.listPendingCommands,
-    { sessionId: session.sessionId, machineId: session.machineId }
-  )) as PendingCommand[] | null;
-
-  if (!pending || pending.length === 0) return;
-
-  const now = Date.now();
-
-  for (const cmd of pending) {
-    // Skip already-processed (idempotency key = _id)
-    if (processed.has(cmd._id)) continue;
-    processed.add(cmd._id);
-
-    try {
-      // TTL check: discard stale commands
-      if (now - cmd.createdAt > DIRECT_HARNESS_COMMAND_TTL_MS) {
-        console.log(
-          `[direct-harness] Discarding stale command ${cmd._id} (type=${cmd.type}, age=${now - cmd.createdAt}ms)`
-        );
-        await markFailed(session, cmd._id, 'Command expired (TTL)');
-        continue;
-      }
-
-      // Process based on type
-      switch (cmd.type) {
-        case 'refreshCapabilities':
-          await handleRefreshCapabilities(session, deps, cmd);
-          break;
-        case 'refreshSessionTitle':
-          await handleRefreshSessionTitle(session, deps, cmd);
-          break;
-        default:
-          await markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[direct-harness] Command ${cmd._id} failed: ${message}`);
-      await markFailed(session, cmd._id, message).catch(() => {});
-    }
-  }
+  return Effect.runPromise(drainCommandsEffect(session, deps, processed));
 }
 
 // ─── Command handlers ─────────────────────────────────────────────────────────
