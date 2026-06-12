@@ -485,86 +485,86 @@ const connectWithRetryEffect = (
  * Retries with a fixed 1-second interval on network errors.
  * Returns the DaemonSessionInit if successful, or exits the process on fatal failure.
  */
+// fallow-ignore-next-line unused-export — canonical export for external consumers
+export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> = Effect.gen(
+  function* () {
+    if (!acquireLock()) {
+      return yield* Effect.sync(() => {
+        process.exit(1);
+      });
+    }
+
+    const { reaped } = yield* reapOrphanedProcessGroupsEffect;
+    if (reaped > 0) {
+      console.log(
+        `[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`
+      );
+    }
+
+    yield* Effect.tryPromise({
+      try: () => cleanOrphanTempFiles(),
+      catch: (e) => e,
+    });
+
+    const convexUrl = getConvexUrl();
+    const sessionId = yield* validateAuthenticationEffect(convexUrl);
+    const client = yield* Effect.tryPromise({
+      try: () => getConvexClient(),
+      catch: (e) => e,
+    });
+
+    const { typedSessionId, config, machineId, agentServices, availableModels } =
+      yield* connectWithRetryEffect(client, sessionId, convexUrl);
+
+    const deps = createDefaultDeps();
+    deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
+    deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+
+    deps.agentProcessManager = new AgentProcessManager({
+      agentServices,
+      backend: deps.backend,
+      sessionId: typedSessionId,
+      machineId,
+      processes: deps.processes,
+      clock: deps.clock,
+      fs: deps.fs,
+      persistence: deps.machine,
+      spawning: deps.spawning,
+      crashLoop: new CrashLoopTracker(),
+      convexUrl,
+    });
+
+    const events = new DaemonEventBus();
+    const init: DaemonSessionInit = {
+      client,
+      sessionId: typedSessionId,
+      machineId,
+      config,
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+      events,
+      agentServices,
+      lastPushedGitState: new Map(),
+      lastPushedModels: availableModels,
+      lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
+        config.availableHarnesses,
+        config.harnessVersions as Record<string, unknown>
+      ),
+      logger: console,
+    };
+
+    yield* registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
+    yield* logStartupEffect(availableModels).pipe(Effect.provide(daemonSessionToLayers(init)));
+    yield* recoverStateEffect(init);
+
+    return init;
+  }
+);
+
+/** Thin wrapper — daemon-start/index.ts and tests still import this. */
 export async function initDaemon(): Promise<DaemonSessionInit> {
-  // Acquire lock (prevents multiple daemons)
-  if (!acquireLock()) {
-    process.exit(1);
-  }
-
-  // Reap any process groups left over from a previous ungraceful exit (SIGKILL/crash).
-  // Must run after acquireLock (single daemon guarantee) but before starting subscriptions.
-  const { reaped } = await Effect.runPromise(reapOrphanedProcessGroupsEffect);
-  if (reaped > 0) {
-    console.log(
-      `[${formatTimestamp()}] Reaped ${reaped} orphaned process group(s) from previous daemon run`
-    );
-  }
-
-  // Clean up orphaned temp files from previous daemon runs.
-  // Daemon writes command output to os.tmpdir()/chatroom-cli/runs/<runId>.log
-  // during execution; on crash/kill, the files aren't cleaned up. Stale temp
-  // files are unrecoverable (the process is gone) — acceptable.
-  await cleanOrphanTempFiles();
-
-  // Single source of truth for backend URL at daemon boot — same value is passed to
-  // AgentProcessManager as convexUrl and forwarded to spawned agents as CHATROOM_CONVEX_URL.
-  const convexUrl = getConvexUrl();
-  const sessionId = await Effect.runPromise(validateAuthenticationEffect(convexUrl));
-  const client = await getConvexClient();
-
-  const { typedSessionId, config, machineId, agentServices, availableModels } =
-    await Effect.runPromise(connectWithRetryEffect(client, sessionId, convexUrl));
-
-  // Create default dependencies and bind the real Convex client
-  const deps = createDefaultDeps();
-  deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
-  deps.backend.query = (endpoint, args) => client.query(endpoint, args);
-
-  // Create the AgentProcessManager with all required dependencies
-  deps.agentProcessManager = new AgentProcessManager({
-    agentServices,
-    backend: deps.backend,
-    sessionId: typedSessionId,
-    machineId,
-    processes: deps.processes,
-    clock: deps.clock,
-    fs: deps.fs,
-    persistence: deps.machine,
-    spawning: deps.spawning,
-    crashLoop: new CrashLoopTracker(),
-    convexUrl,
-  });
-
-  const events = new DaemonEventBus();
-  const init: DaemonSessionInit = {
-    client,
-    sessionId: typedSessionId,
-    machineId,
-    config,
-    backend: deps.backend,
-    fs: deps.fs,
-    machine: deps.machine,
-    spawning: deps.spawning,
-    agentProcessManager: deps.agentProcessManager,
-    events,
-    agentServices,
-    lastPushedGitState: new Map(),
-    lastPushedModels: availableModels,
-    lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
-      config.availableHarnesses,
-      config.harnessVersions as Record<string, unknown>
-    ),
-    logger: console,
-  };
-
-  await Effect.runPromise(
-    registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)))
-  );
-
-  await Effect.runPromise(
-    logStartupEffect(availableModels).pipe(Effect.provide(daemonSessionToLayers(init)))
-  );
-  await Effect.runPromise(recoverStateEffect(init));
-
-  return init;
+  return Effect.runPromise(initDaemonEffect);
 }
