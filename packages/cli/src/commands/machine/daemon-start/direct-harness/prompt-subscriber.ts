@@ -159,6 +159,67 @@ async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps)
 
 // ─── Process messages for a single session ───────────────────────────────────
 
+/** Effect twin — send pending user messages as prompts for a resolved handle. */
+const dispatchPendingMessagesEffect = (
+  handle: ActiveSession,
+  deps: MessageSubscriberDeps,
+  rowId: string,
+  messages: PendingMessage[],
+  info: PendingSessionInfo | undefined
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    for (const msg of messages) {
+      const override = info?.lastUsedConfig ?? { agent: 'build' };
+
+      const dispatched = yield* Effect.catchAll(
+        Effect.gen(function* () {
+          yield* Effect.tryPromise({
+            try: () => deps.sessionRepository.setGenerating(rowId, true),
+            catch: (e) => e,
+          });
+
+          const { turnId } = yield* Effect.tryPromise({
+            try: () => deps.sessionRepository.beginAssistantTurn(rowId),
+            catch: (e) => e,
+          });
+          handle.currentTurn = { turnId, messageId: null };
+
+          yield* Effect.tryPromise({
+            try: () =>
+              handle.session.prompt({
+                parts: [{ type: 'text', text: msg.content }],
+                agent: override.agent,
+                ...(override.model ? { model: override.model } : {}),
+              }),
+            catch: (e) => e,
+          });
+
+          yield* Effect.tryPromise({
+            try: () => deps.sessionRepository.markTurnProcessed(rowId, msg.seq),
+            catch: (e) => e,
+          });
+        }),
+        (err) =>
+          Effect.gen(function* () {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(
+              `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`
+            );
+            yield* Effect.tryPromise({
+              try: () => deps.sessionRepository.markIdle(rowId),
+              catch: () => undefined,
+            }).pipe(Effect.catchAll(() => Effect.void));
+            deps.activeSessions.delete(rowId);
+            if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
+            return false as const;
+          })
+      );
+
+      if (dispatched === false) return;
+    }
+  });
+
+// fallow-ignore-next-line complexity
 async function processSessionMessages(
   session: DirectHarnessSession,
   deps: MessageSubscriberDeps,
@@ -274,34 +335,5 @@ async function processSessionMessages(
   }
 
   // 2. Send each pending user message as a prompt
-  for (const msg of messages) {
-    const override = info?.lastUsedConfig ?? { agent: 'build' };
-
-    try {
-      await deps.sessionRepository.setGenerating(rowId, true);
-
-      // Begin assistant turn eagerly before sending the prompt
-      const { turnId } = await deps.sessionRepository.beginAssistantTurn(rowId);
-      handle.currentTurn = { turnId, messageId: null };
-
-      await handle.session.prompt({
-        parts: [{ type: 'text', text: msg.content }],
-        agent: override.agent,
-        ...(override.model ? { model: override.model } : {}),
-      });
-
-      await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`
-      );
-      // The prompt failed — likely the harness process crashed. The opencode
-      // session is still on disk, so mark idle (resumable) rather than closed.
-      await deps.sessionRepository.markIdle(rowId).catch(() => {});
-      deps.activeSessions.delete(rowId);
-      if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
-      return;
-    }
-  }
+  await Effect.runPromise(dispatchPendingMessagesEffect(handle, deps, rowId, messages, info));
 }
