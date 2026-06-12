@@ -12,16 +12,16 @@ export interface AgentStartedPayload {
 }
 
 /**
- * Core — logs agent start. No service deps.
+ * Logs agent start. No service deps.
  */
-export function onAgentStartedCore(payload: AgentStartedPayload): void {
+export function logAgentStarted(payload: AgentStartedPayload): void {
   const ts = formatTimestamp();
   console.log(
     `[${ts}] 🟢 Agent started: ${payload.role} (PID: ${payload.pid}, harness: ${payload.harness})`
   );
 }
 
-/** Effect twin — pure, no service deps. */
+/** Effect variant — pure, no service deps. */
 // fallow-ignore-next-line unused-export
 export const onAgentStartedEffect = (payload: AgentStartedPayload): Effect.Effect<void> =>
-  Effect.sync(() => onAgentStartedCore(payload));
+  Effect.sync(() => logAgentStarted(payload));

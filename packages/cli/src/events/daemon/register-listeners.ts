@@ -8,7 +8,7 @@
 import { Effect } from 'effect';
 
 import { onAgentExitedCore, type AgentExitedDeps } from './agent/on-agent-exited.js';
-import { onAgentStartedCore } from './agent/on-agent-started.js';
+import { logAgentStarted } from './agent/on-agent-started.js';
 import { onAgentStoppedCore } from './agent/on-agent-stopped.js';
 import type { DaemonEventBus } from './event-bus.js';
 import {
@@ -34,7 +34,7 @@ export function registerEventListenersCore(deps: RegisterEventListenersDeps): ()
       onAgentExitedCore({ handleExit: deps.handleExit }, payload)
     )
   );
-  unsubs.push(deps.events.on('agent:started', (payload) => onAgentStartedCore(payload)));
+  unsubs.push(deps.events.on('agent:started', (payload) => logAgentStarted(payload)));
   unsubs.push(deps.events.on('agent:stopped', (payload) => onAgentStoppedCore(payload)));
 
   return () => {
