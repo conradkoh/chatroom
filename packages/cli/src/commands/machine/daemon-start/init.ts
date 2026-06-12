@@ -288,34 +288,33 @@ const registerCapabilitiesEffect = (
     return availableModels;
   });
 
-/**
- * Connect the daemon to the backend by updating daemon status.
- * Throws on failure (caller handles retry).
- */
-async function connectDaemon(
+/** Connect the daemon to the backend by updating daemon status. */
+const connectDaemonEffect = (
   client: ConvexHttpClient,
   sessionId: SessionId,
-  machineId: string,
-  _convexUrl: string
-): Promise<void> {
-  try {
-    await client.mutation(api.machines.updateDaemonStatus, {
-      sessionId,
-      machineId,
-      connected: true,
-    });
-  } catch (error) {
-    if (isNetworkError(error)) {
-      // Do NOT log here — the caller (initDaemon retry loop) owns failure logging
-      // so it can suppress the verbose block after the first occurrence.
-      throw error; // Re-throw for caller retry logic
-    } else {
-      console.error(`❌ Failed to update daemon status: ${getErrorMessage(error)}`);
-      releaseLock();
-      process.exit(1);
-    }
-  }
-}
+  machineId: string
+): Effect.Effect<void, unknown, never> =>
+  Effect.tryPromise({
+    try: () =>
+      client.mutation(api.machines.updateDaemonStatus, {
+        sessionId,
+        machineId,
+        connected: true,
+      }),
+    catch: (e) => e,
+  }).pipe(
+    Effect.catchAll((error) => {
+      if (isNetworkError(error)) {
+        // Do NOT log — connectOnce retry loop owns failure logging
+        return Effect.fail(error);
+      }
+      return Effect.sync(() => {
+        console.error(`❌ Failed to update daemon status: ${getErrorMessage(error)}`);
+        releaseLock();
+        process.exit(1);
+      });
+    })
+  );
 
 /**
  * Recover agent state from previous daemon session.
@@ -462,10 +461,7 @@ export async function initDaemon(): Promise<DaemonSessionInit> {
       agentServices
     );
 
-    yield* Effect.tryPromise({
-      try: () => connectDaemon(client, typedSessionId, machineId, convexUrl),
-      catch: (e) => e,
-    });
+    yield* connectDaemonEffect(client, typedSessionId, machineId);
 
     return { typedSessionId, config, machineId, agentServices, availableModels };
   }).pipe(
