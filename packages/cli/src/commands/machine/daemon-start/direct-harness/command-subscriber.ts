@@ -149,10 +149,7 @@ export const drainCommandsEffect = (
                 yield* handleRefreshCapabilitiesEffect(session, deps, cmd);
                 break;
               case 'refreshSessionTitle':
-                yield* Effect.tryPromise({
-                  try: () => handleRefreshSessionTitle(session, deps, cmd),
-                  catch: (e) => e,
-                });
+                yield* handleRefreshSessionTitleEffect(session, deps, cmd);
                 break;
               default:
                 yield* markFailedEffect(session, cmd._id, `Unknown command type: ${cmd.type}`);
@@ -244,50 +241,84 @@ async function handleRefreshCapabilities(
   return Effect.runPromise(handleRefreshCapabilitiesEffect(session, deps, cmd));
 }
 
+/** Effect twin — process refreshSessionTitle command. */
+const handleRefreshSessionTitleEffect = (
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  cmd: PendingCommand
+) =>
+  Effect.gen(function* () {
+    const { harnessSessionId } = (cmd.refreshSessionTitle ?? {}) as { harnessSessionId?: string };
+    if (!harnessSessionId) {
+      yield* markFailedEffect(session, cmd._id, 'refreshSessionTitle: missing harnessSessionId');
+      return;
+    }
+
+    const sessionRow = yield* Effect.tryPromise({
+      try: () =>
+        session.backend.query(api.daemon.directHarness.sessions.getSession, {
+          harnessSessionId,
+        }) as Promise<{ opencodeSessionId?: string } | null>,
+      catch: (e) => e,
+    });
+
+    if (!sessionRow?.opencodeSessionId) {
+      yield* Effect.tryPromise({
+        try: () =>
+          session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+            sessionId: session.sessionId,
+            commandId: cmd._id,
+            status: 'done',
+          }),
+        catch: (e) => e,
+      });
+      return;
+    }
+
+    const harness = yield* Effect.tryPromise({
+      try: () => deps.lifecycleManager.getOrStart(cmd.workspaceId),
+      catch: (e) => e,
+    });
+
+    const newTitle = yield* Effect.tryPromise({
+      try: () => harness.fetchSessionTitle(sessionRow.opencodeSessionId as string),
+      catch: (e) => e,
+    });
+
+    if (newTitle) {
+      yield* Effect.tryPromise({
+        try: () =>
+          session.backend.mutation(api.daemon.directHarness.sessions.updateSessionTitle, {
+            sessionId: session.sessionId,
+            harnessSessionId,
+            sessionTitle: newTitle,
+          }),
+        catch: (e) => e,
+      });
+      console.log(
+        `[direct-harness] Refreshed title for session ${harnessSessionId}: "${newTitle}"`
+      );
+    }
+
+    yield* Effect.tryPromise({
+      try: () =>
+        session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+          sessionId: session.sessionId,
+          commandId: cmd._id,
+          status: 'done',
+        }),
+      catch: (e) => e,
+    });
+  });
+
+/** Thin wrapper — kept for any external/test callers. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handleRefreshSessionTitle(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
   cmd: PendingCommand
 ): Promise<void> {
-  const { harnessSessionId } = (cmd.refreshSessionTitle ?? {}) as { harnessSessionId?: string };
-  if (!harnessSessionId) {
-    await markFailed(session, cmd._id, 'refreshSessionTitle: missing harnessSessionId');
-    return;
-  }
-
-  // Look up the opencodeSessionId from the backend
-  const sessionRow = (await session.backend.query(api.daemon.directHarness.sessions.getSession, {
-    harnessSessionId,
-  })) as { opencodeSessionId?: string } | null;
-
-  if (!sessionRow?.opencodeSessionId) {
-    // Session not yet associated — nothing to fetch
-    await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
-      sessionId: session.sessionId,
-      commandId: cmd._id,
-      status: 'done',
-    });
-    return;
-  }
-
-  // Use the running harness to fetch the title from OpenCode
-  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
-  const newTitle = await harness.fetchSessionTitle(sessionRow.opencodeSessionId);
-
-  if (newTitle) {
-    await session.backend.mutation(api.daemon.directHarness.sessions.updateSessionTitle, {
-      sessionId: session.sessionId,
-      harnessSessionId,
-      sessionTitle: newTitle,
-    });
-    console.log(`[direct-harness] Refreshed title for session ${harnessSessionId}: "${newTitle}"`);
-  }
-
-  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
-    sessionId: session.sessionId,
-    commandId: cmd._id,
-    status: 'done',
-  });
+  return Effect.runPromise(handleRefreshSessionTitleEffect(session, deps, cmd));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -319,6 +350,7 @@ const markFailedEffect = (
   );
 
 /** Thin wrapper — command handlers still call this. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function markFailed(
   session: DirectHarnessSession,
   commandId: string,
