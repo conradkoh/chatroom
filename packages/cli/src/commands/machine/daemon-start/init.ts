@@ -58,49 +58,55 @@ import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
  * Discover available models from all installed remote agent services.
  * Non-critical: returns empty record on failure per harness.
  */
+// fallow-ignore-next-line unused-export — canonical export for external consumers
+export const discoverModelsEffect = (
+  agentServices: Map<string, RemoteAgentService>
+): Effect.Effect<Record<string, string[]>, never, never> =>
+  Effect.gen(function* () {
+    const discoverOne = ([harness, service]: [string, RemoteAgentService]) =>
+      Effect.promise(() => service.isInstalled()).pipe(
+        Effect.flatMap((installed) => {
+          if (!installed) {
+            return Effect.succeed(undefined);
+          }
+
+          return Effect.tryPromise({
+            try: () => service.listModels(),
+            catch: (reason) => reason,
+          }).pipe(
+            Effect.map((models) => ({ harness, models })),
+            Effect.catchAll((reason) => {
+              console.warn(
+                JSON.stringify({
+                  event: 'discover-models-error',
+                  harness,
+                  reason: getErrorMessage(reason),
+                })
+              );
+              return Effect.succeed({ harness, models: [] as string[] });
+            })
+          );
+        })
+      );
+
+    const results = yield* Effect.forEach(Array.from(agentServices.entries()), discoverOne, {
+      concurrency: 'unbounded',
+    });
+
+    const discovered: Record<string, string[]> = {};
+    for (const result of results) {
+      if (result) {
+        discovered[result.harness] = result.models;
+      }
+    }
+    return discovered;
+  });
+
+/** Thin wrapper — tests and models-refresh.ts still import this. */
 export async function discoverModels(
   agentServices: Map<string, RemoteAgentService>
 ): Promise<Record<string, string[]>> {
-  const discoverOne = ([harness, service]: [string, RemoteAgentService]) =>
-    Effect.promise(() => service.isInstalled()).pipe(
-      Effect.flatMap((installed) => {
-        if (!installed) {
-          return Effect.succeed(undefined);
-        }
-
-        return Effect.tryPromise({
-          try: () => service.listModels(),
-          catch: (reason) => reason,
-        }).pipe(
-          Effect.map((models) => ({ harness, models })),
-          Effect.catchAll((reason) => {
-            console.warn(
-              JSON.stringify({
-                event: 'discover-models-error',
-                harness,
-                reason: getErrorMessage(reason),
-              })
-            );
-            return Effect.succeed({ harness, models: [] as string[] });
-          })
-        );
-      })
-    );
-
-  const results = await Effect.runPromise(
-    Effect.forEach(Array.from(agentServices.entries()), discoverOne, {
-      concurrency: 'unbounded',
-    })
-  );
-
-  const discovered: Record<string, string[]> = {};
-  for (const result of results) {
-    if (result) {
-      discovered[result.harness] = result.models;
-    }
-  }
-
-  return discovered;
+  return Effect.runPromise(discoverModelsEffect(agentServices));
 }
 
 // ─── Default Dependencies ───────────────────────────────────────────────────
