@@ -241,25 +241,26 @@ const validateSessionEffect = (
     return typedNewSession;
   });
 
-/**
- * Register machine (or refresh harness detection if already registered).
- * Returns the full machine config (guaranteed non-null).
- */
-async function setupMachine(): Promise<MachineConfig> {
-  // Daemon bootstrap is the only path that may mint a new machine ID for this endpoint.
-  // Mid-session callers use ensureMachineRegistered() without allowCreate so a missing
-  // ~/.chatroom config surfaces as an explicit error instead of a silent UUID.
-  await ensureMachineRegistered({ allowCreate: true });
+const setupMachineEffect = (): Effect.Effect<MachineConfig, unknown, never> =>
+  Effect.gen(function* () {
+    yield* Effect.tryPromise({
+      try: () => ensureMachineRegistered({ allowCreate: true }),
+      catch: (e) => e,
+    });
 
-  // Load the full machine config (guaranteed non-null after ensureMachineRegistered)
-  const config = await loadMachineConfig();
-  if (!config) {
-    throw new Error(
-      'Machine config missing after ensureMachineRegistered — this should not happen'
-    );
-  }
-  return config;
-}
+    const config = yield* Effect.tryPromise({
+      try: () => loadMachineConfig(),
+      catch: (e) => e,
+    });
+
+    if (!config) {
+      return yield* Effect.die(
+        new Error('Machine config missing after ensureMachineRegistered — this should not happen')
+      );
+    }
+
+    return config;
+  });
 
 /** Register capabilities with the backend — non-critical, warns on failure. */
 const registerCapabilitiesEffect = (
@@ -445,10 +446,7 @@ export async function initDaemon(): Promise<DaemonSessionInit> {
     attempt++;
     const typedSessionId = yield* validateSessionEffect(client, sessionId as SessionId, convexUrl);
 
-    const config = yield* Effect.tryPromise({
-      try: () => setupMachine(),
-      catch: (e) => e,
-    });
+    const config = yield* setupMachineEffect();
     const { machineId } = config;
 
     // Populate harness registry and build service map from it
