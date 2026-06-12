@@ -1,12 +1,16 @@
 /**
  * Update command
  * Updates the chatroom CLI to the latest version
+ * Phase 7: Migrated to Effect-TS services with typed error handling.
  */
 
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { Effect, type Layer } from 'effect';
+
 import type { UpdateDeps } from './deps.js';
+import { UpdateService, UpdateServiceLive } from './update-service.js';
 import { getVersion } from '../../version.js';
 
 const execAsync = promisify(exec);
@@ -14,6 +18,13 @@ const execAsync = promisify(exec);
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
 export type { UpdateDeps } from './deps.js';
+
+// ─── Domain errors ─────────────────────────────────────────────────────────
+
+export type UpdateError =
+  | { readonly _tag: 'NpmNotAvailable' }
+  | { readonly _tag: 'VersionCheckFailed' }
+  | { readonly _tag: 'UpdateFailed'; readonly cause: Error };
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
@@ -25,66 +36,126 @@ function createDefaultDeps(): UpdateDeps {
   };
 }
 
-// ─── Entry Point ───────────────────────────────────────────────────────────
+/**
+ * Build Effect Layer from UpdateDeps (for backward-compat with tests)
+ */
+function layerFromDeps(deps: UpdateDeps): Layer.Layer<UpdateService> {
+  return UpdateServiceLive({
+    getVersion: deps.getVersion,
+    exec: deps.exec,
+  });
+}
 
-export async function update(deps?: UpdateDeps): Promise<void> {
-  const d = deps ?? createDefaultDeps();
-  const log = console.log.bind(console);
+// ─── Effect Programs ───────────────────────────────────────────────────────
 
-  log('\n🔄 Checking for updates...\n');
+/**
+ * Pure Effect program — no process.exit, no console.error inside.
+ * All errors are typed; caller decides how to handle them.
+ */
+// fallow-ignore-next-line unused-export
+export const updateEffect = (): Effect.Effect<void, UpdateError, UpdateService> =>
+  Effect.gen(function* () {
+    const updateService = yield* UpdateService;
+    const log = console.log.bind(console);
 
-  // Check if npm is available
-  try {
-    await d.exec('npm --version');
-  } catch {
-    console.error('❌ npm is not available. Please install npm to update.');
-    process.exit(1);
-    return;
-  }
+    log('\n🔄 Checking for updates...\n');
 
-  const currentVersion = d.getVersion();
-  log(`   Current version: ${currentVersion}`);
+    // Check if npm is available
+    const npmCheckResult = yield* updateService.exec('npm --version').pipe(
+      Effect.catchAll(() =>
+        Effect.fail<UpdateError>({
+          _tag: 'NpmNotAvailable',
+        })
+      )
+    );
 
-  // Check latest version
-  let latestVersion: string | null = null;
-  try {
-    const { stdout } = await d.exec('npm view chatroom-cli version');
-    latestVersion = stdout.trim() || null;
-  } catch {
-    latestVersion = null;
-  }
+    if (!npmCheckResult) {
+      return yield* Effect.fail<UpdateError>({ _tag: 'NpmNotAvailable' });
+    }
 
-  if (!latestVersion) {
-    console.error('❌ Could not check for latest version.');
-    console.error('   You can manually update with: npm install -g chatroom-cli@latest');
-    process.exit(1);
-    return;
-  }
+    const currentVersion = yield* updateService.getVersion();
+    log(`   Current version: ${currentVersion}`);
 
-  log(`   Latest version:  ${latestVersion}`);
+    // Check latest version
+    const latestVersionResult = yield* updateService.exec('npm view chatroom-cli version').pipe(
+      Effect.catchAll(() =>
+        Effect.fail<UpdateError>({
+          _tag: 'VersionCheckFailed',
+        })
+      )
+    );
 
-  if (currentVersion === latestVersion) {
-    log('\n✅ You already have the latest version!');
-    return;
-  }
+    const latestVersion = latestVersionResult.stdout.trim() || null;
 
-  log('\n📦 Updating to latest version...\n');
+    if (!latestVersion) {
+      return yield* Effect.fail<UpdateError>({ _tag: 'VersionCheckFailed' });
+    }
 
-  try {
-    const { stdout } = await d.exec('npm install -g chatroom-cli@latest');
+    log(`   Latest version:  ${latestVersion}`);
 
-    if (stdout) {
-      log(stdout);
+    if (currentVersion === latestVersion) {
+      log('\n✅ You already have the latest version!');
+      return;
+    }
+
+    log('\n📦 Updating to latest version...\n');
+
+    // Install latest version
+    const installResult = yield* updateService.exec('npm install -g chatroom-cli@latest').pipe(
+      Effect.mapError(
+        (cause): UpdateError => ({
+          _tag: 'UpdateFailed',
+          cause,
+        })
+      )
+    );
+
+    if (installResult.stdout) {
+      log(installResult.stdout);
     }
 
     log('\n✅ Successfully updated chatroom-cli!');
     log(`   ${currentVersion} → ${latestVersion}`);
-  } catch (error) {
-    const err = error as Error;
-    console.error(`\n❌ Update failed: ${err.message}`);
-    console.error('\n   Try running manually with sudo:');
-    console.error('   sudo npm install -g chatroom-cli@latest');
-    process.exit(1);
-    return;
-  }
+  });
+
+// ─── Error Handlers ────────────────────────────────────────────────────────
+
+/**
+ * Maps typed errors to console.error + process.exit(1) effects.
+ * This is the ONLY place process.exit is called in the Effect pipeline.
+ */
+function handleUpdateError(err: UpdateError): Effect.Effect<void> {
+  return Effect.sync(() => {
+    if (err._tag === 'NpmNotAvailable') {
+      console.error('❌ npm is not available. Please install npm to update.');
+      process.exit(1);
+    } else if (err._tag === 'VersionCheckFailed') {
+      console.error('❌ Could not check for latest version.');
+      console.error('   You can manually update with: npm install -g chatroom-cli@latest');
+      process.exit(1);
+    } else if (err._tag === 'UpdateFailed') {
+      console.error(`\n❌ Update failed: ${err.cause.message}`);
+      console.error('\n   Try running manually with sudo:');
+      console.error('   sudo npm install -g chatroom-cli@latest');
+      process.exit(1);
+    }
+  });
+}
+
+// ─── Entry Point (public API — unchanged signature) ────────────────────────
+
+/**
+ * Update the CLI to the latest version
+ * Runs the Effect and converts typed errors to process.exit + console.error.
+ */
+export async function update(deps?: UpdateDeps): Promise<void> {
+  const d = deps ?? createDefaultDeps();
+  const layer = layerFromDeps(d);
+
+  await Effect.runPromise(
+    updateEffect().pipe(
+      Effect.catchAll((err) => handleUpdateError(err)),
+      Effect.provide(layer)
+    )
+  );
 }

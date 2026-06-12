@@ -13,16 +13,26 @@
 
 import type { ConvexClient } from 'convex/browser';
 
-import { updateCapabilities } from '../../../../domain/direct-harness/usecases/update-capabilities.js';
-import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
-import type { DaemonContext } from '../types.js';
 import { api } from '../../../../api.js';
+import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
+import { updateCapabilities } from '../../../../domain/direct-harness/usecases/update-capabilities.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
+import type { SessionId } from '../types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Commands pending longer than this TTL are discarded as stale. */
 const DIRECT_HARNESS_COMMAND_TTL_MS = 60_000;
+
+// ─── Session ───────────────────────────────────────────────────────────────────
+
+/** Minimal session info extracted from DaemonContext — avoids the full ctx dependency. */
+export interface DirectHarnessSession {
+  readonly sessionId: SessionId;
+  readonly machineId: string;
+  readonly backend: BackendOps;
+}
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
@@ -58,7 +68,7 @@ export interface CommandSubscriberDeps {
 // ─── Subscriber ──────────────────────────────────────────────────────────────
 
 export function startCommandSubscriber(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   wsClient: ConvexClient,
   deps: CommandSubscriberDeps
 ): { stop: () => void } {
@@ -74,7 +84,7 @@ export function startCommandSubscriber(
     }
     processing = true;
     pendingDrain = false;
-    void drain(ctx, deps, processed).finally(() => {
+    void drain(session, deps, processed).finally(() => {
       processing = false;
       if (pendingDrain) runDrain();
     });
@@ -82,7 +92,7 @@ export function startCommandSubscriber(
 
   const unsub = wsClient.onUpdate(
     api.daemon.directHarness.commands.listPendingCommands,
-    { sessionId: ctx.sessionId, machineId: ctx.machineId },
+    { sessionId: session.sessionId, machineId: session.machineId },
     () => runDrain(),
     (err: unknown) => {
       console.warn(
@@ -103,13 +113,13 @@ export function startCommandSubscriber(
  * state (e.g., two capabilities refreshes in flight).
  */
 async function drain(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
   processed: Set<string>
 ): Promise<void> {
-  const pending = (await ctx.deps.backend.query(
+  const pending = (await session.backend.query(
     api.daemon.directHarness.commands.listPendingCommands,
-    { sessionId: ctx.sessionId, machineId: ctx.machineId }
+    { sessionId: session.sessionId, machineId: session.machineId }
   )) as PendingCommand[] | null;
 
   if (!pending || pending.length === 0) return;
@@ -127,25 +137,25 @@ async function drain(
         console.log(
           `[direct-harness] Discarding stale command ${cmd._id} (type=${cmd.type}, age=${now - cmd.createdAt}ms)`
         );
-        await markFailed(ctx, cmd._id, 'Command expired (TTL)');
+        await markFailed(session, cmd._id, 'Command expired (TTL)');
         continue;
       }
 
       // Process based on type
       switch (cmd.type) {
         case 'refreshCapabilities':
-          await handleRefreshCapabilities(ctx, deps, cmd);
+          await handleRefreshCapabilities(session, deps, cmd);
           break;
         case 'refreshSessionTitle':
-          await handleRefreshSessionTitle(ctx, deps, cmd);
+          await handleRefreshSessionTitle(session, deps, cmd);
           break;
         default:
-          await markFailed(ctx, cmd._id, `Unknown command type: ${cmd.type}`);
+          await markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[direct-harness] Command ${cmd._id} failed: ${message}`);
-      await markFailed(ctx, cmd._id, message).catch(() => {});
+      await markFailed(session, cmd._id, message).catch(() => {});
     }
   }
 }
@@ -153,7 +163,7 @@ async function drain(
 // ─── Command handlers ─────────────────────────────────────────────────────────
 
 async function handleRefreshCapabilities(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
   cmd: PendingCommand
 ): Promise<void> {
@@ -166,7 +176,7 @@ async function handleRefreshCapabilities(
   const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
 
   await updateCapabilities(
-    { publisher: deps.publisher, machineId: ctx.machineId },
+    { publisher: deps.publisher, machineId: session.machineId },
     {
       harness,
       workspace: {
@@ -177,37 +187,38 @@ async function handleRefreshCapabilities(
     }
   );
 
-  await ctx.deps.backend.mutation(
-    api.daemon.directHarness.commands.updateCommandStatus,
-    { sessionId: ctx.sessionId, commandId: cmd._id, status: 'done' }
-  );
+  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+    sessionId: session.sessionId,
+    commandId: cmd._id,
+    status: 'done',
+  });
 
   console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
 }
 
 async function handleRefreshSessionTitle(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
   cmd: PendingCommand
 ): Promise<void> {
   const { harnessSessionId } = (cmd.refreshSessionTitle ?? {}) as { harnessSessionId?: string };
   if (!harnessSessionId) {
-    await markFailed(ctx, cmd._id, 'refreshSessionTitle: missing harnessSessionId');
+    await markFailed(session, cmd._id, 'refreshSessionTitle: missing harnessSessionId');
     return;
   }
 
   // Look up the opencodeSessionId from the backend
-  const sessionRow = (await ctx.deps.backend.query(
-    api.daemon.directHarness.sessions.getSession,
-    { harnessSessionId }
-  )) as { opencodeSessionId?: string } | null;
+  const sessionRow = (await session.backend.query(api.daemon.directHarness.sessions.getSession, {
+    harnessSessionId,
+  })) as { opencodeSessionId?: string } | null;
 
   if (!sessionRow?.opencodeSessionId) {
     // Session not yet associated — nothing to fetch
-    await ctx.deps.backend.mutation(
-      api.daemon.directHarness.commands.updateCommandStatus,
-      { sessionId: ctx.sessionId, commandId: cmd._id, status: 'done' }
-    );
+    await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+      sessionId: session.sessionId,
+      commandId: cmd._id,
+      status: 'done',
+    });
     return;
   }
 
@@ -216,36 +227,33 @@ async function handleRefreshSessionTitle(
   const newTitle = await harness.fetchSessionTitle(sessionRow.opencodeSessionId);
 
   if (newTitle) {
-    await ctx.deps.backend.mutation(
-      api.daemon.directHarness.sessions.updateSessionTitle,
-      { sessionId: ctx.sessionId, harnessSessionId, sessionTitle: newTitle }
-    );
-    console.log(
-      `[direct-harness] Refreshed title for session ${harnessSessionId}: "${newTitle}"`
-    );
+    await session.backend.mutation(api.daemon.directHarness.sessions.updateSessionTitle, {
+      sessionId: session.sessionId,
+      harnessSessionId,
+      sessionTitle: newTitle,
+    });
+    console.log(`[direct-harness] Refreshed title for session ${harnessSessionId}: "${newTitle}"`);
   }
 
-  await ctx.deps.backend.mutation(
-    api.daemon.directHarness.commands.updateCommandStatus,
-    { sessionId: ctx.sessionId, commandId: cmd._id, status: 'done' }
-  );
+  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+    sessionId: session.sessionId,
+    commandId: cmd._id,
+    status: 'done',
+  });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Mark a command as failed with an error message. */
 async function markFailed(
-  ctx: DaemonContext,
+  session: DirectHarnessSession,
   commandId: string,
   errorMessage: string
 ): Promise<void> {
-  await ctx.deps.backend.mutation(
-    api.daemon.directHarness.commands.updateCommandStatus,
-    {
-      sessionId: ctx.sessionId,
-      commandId,
-      status: 'failed',
-      errorMessage,
-    }
-  );
+  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+    sessionId: session.sessionId,
+    commandId,
+    status: 'failed',
+    errorMessage,
+  });
 }

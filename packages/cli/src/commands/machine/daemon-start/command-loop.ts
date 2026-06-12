@@ -8,44 +8,54 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect, Ref } from 'effect';
 
+import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
-import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
-import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
-import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
-import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
-import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
-import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
-import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { pushCommands } from './command-sync-heartbeat.js';
-import { syncCommitDetails } from './commit-detail-sync.js';
-import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
-import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
-import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
-import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
-import { startFileContentSubscription } from './file-content-subscription.js';
-import { startFileTreeSubscription } from './file-tree-subscription.js';
-import { pushGitState, pushSingleWorkspaceGitState } from './git-heartbeat.js';
-import { startGitRequestSubscription } from './git-subscription.js';
-import { forceKillAllCommands, onCommandRun, onCommandStop } from './handlers/command-runner.js';
-import { forceKillAllTrackedProcessGroups } from './handlers/orphan-tracker.js';
+import { pushCommandsEffect } from './command-sync-heartbeat.js';
+import { syncCommitDetailsEffect } from './commit-detail-sync.js';
+import {
+  DaemonMutableStateService,
+  DaemonSessionService,
+  type DaemonAgentProcessManagerService,
+} from './daemon-services.js';
+import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
+import {
+  startFileContentSubscriptionEffect,
+  type FileContentSubscriptionHandle,
+} from './file-content-subscription.js';
+import {
+  startFileTreeSubscriptionEffect,
+  type FileTreeSubscriptionHandle,
+} from './file-tree-subscription.js';
+import { pushGitStateEffect, pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
+import {
+  startGitRequestSubscriptionEffect,
+  type GitSubscriptionHandle,
+} from './git-subscription.js';
+import {
+  forceKillAllCommands,
+  onCommandRunEffect,
+  onCommandStopEffect,
+} from './handlers/command-runner.js';
+import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
-import { discoverModels } from './init.js';
-import { startObservedSyncSubscription } from './observed-sync.js';
-import type { DaemonContext } from './types.js';
+import { refreshModelsEffect, type RefreshModelsOutcome } from './models-refresh.js';
+import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
 import { formatTimestamp } from './utils.js';
-import { startWorkspaceListSubscription } from './workspace-list-subscription.js';
+import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -54,144 +64,6 @@ type CommandEventsResult = FunctionReturnType<typeof api.machines.getCommandEven
 
 /** A single event from the command event stream. */
 type CommandEvent = CommandEventsResult['events'][number];
-
-// ─── Model Refresh ──────────────────────────────────────────────────────────
-
-/** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
-export type RefreshModelsOutcome =
-  | { kind: 'noop' }
-  | { kind: 'skipped_no_changes' }
-  | { kind: 'pushed' }
-  | { kind: 'failed'; message: string };
-
-/** Per-harness diff between two model snapshots. */
-interface ModelDiff {
-  /** Models present in `next` but not in `previous`, grouped by harness. */
-  added: Record<string, string[]>;
-  /** Models present in `previous` but not in `next`, grouped by harness. */
-  removed: Record<string, string[]>;
-  /** True when at least one harness has a non-empty added or removed list. */
-  hasChanges: boolean;
-}
-
-/**
- * Compute the per-harness diff between the previously pushed model snapshot
- * and the freshly discovered set. A `null` previous snapshot is treated as
- * an empty record (everything is "added"), which forces an initial push.
- */
-function diffModels(
-  previous: Record<string, string[]> | null,
-  next: Record<string, string[]>
-): ModelDiff {
-  const prev = previous ?? {};
-  const added: Record<string, string[]> = {};
-  const removed: Record<string, string[]> = {};
-  const harnesses = new Set([...Object.keys(prev), ...Object.keys(next)]);
-
-  for (const harness of harnesses) {
-    const prevSet = new Set(prev[harness] ?? []);
-    const nextSet = new Set(next[harness] ?? []);
-
-    const addedForHarness = [...nextSet].filter((m) => !prevSet.has(m));
-    const removedForHarness = [...prevSet].filter((m) => !nextSet.has(m));
-
-    if (addedForHarness.length > 0) added[harness] = addedForHarness;
-    if (removedForHarness.length > 0) removed[harness] = removedForHarness;
-  }
-
-  return {
-    added,
-    removed,
-    hasChanges: Object.keys(added).length > 0 || Object.keys(removed).length > 0,
-  };
-}
-
-/**
- * Format a per-harness model map as a human-readable list for log output.
- * Returns e.g. `opencode: model-a, model-b; pi: model-c`.
- */
-function formatModelMap(map: Record<string, string[]>): string {
-  return Object.entries(map)
-    .map(([harness, models]) => `${harness}: ${models.join(', ')}`)
-    .join('; ');
-}
-
-/**
- * Re-discover models and update the backend registration when the set has
- * changed since the last push.
- *
- * The daemon is the source of truth for "what changed since last sync" — the
- * previously pushed model snapshot lives on `ctx.lastPushedModels` and is diffed
- * locally each tick, and harness list + versions are compared via a stable
- * fingerprint. The mutation is only invoked when either snapshot differs.
- *
- * On a successful push, `ctx.lastPushedModels` and
- * `ctx.lastPushedHarnessFingerprint` are updated to the freshly discovered
- * state. On failure, both snapshots are left unchanged so the next tick retries.
- */
-export async function refreshModels(ctx: DaemonContext): Promise<RefreshModelsOutcome> {
-  if (!ctx.config) {
-    return { kind: 'noop' };
-  }
-
-  const models = await discoverModels(ctx.agentServices);
-
-  // Re-detect available harnesses so any newly installed tools are reflected immediately.
-  const freshConfig = await ensureMachineRegistered();
-  ctx.config.availableHarnesses = freshConfig.availableHarnesses;
-  ctx.config.harnessVersions = freshConfig.harnessVersions;
-
-  const modelDiff = diffModels(ctx.lastPushedModels, models);
-  const nextHarnessFingerprint = harnessCapabilitiesFingerprint(
-    ctx.config.availableHarnesses,
-    ctx.config.harnessVersions as Record<string, unknown>
-  );
-  const harnessFingerprintChanged =
-    ctx.lastPushedHarnessFingerprint !== null &&
-    nextHarnessFingerprint !== ctx.lastPushedHarnessFingerprint;
-
-  if (!modelDiff.hasChanges && !harnessFingerprintChanged) {
-    // Models and harness metadata match last successful push — skip Convex.
-    return { kind: 'skipped_no_changes' };
-  }
-
-  const totalCount = Object.values(models).flat().length;
-
-  try {
-    await ctx.deps.backend.mutation(api.machines.refreshCapabilities, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      availableHarnesses: ctx.config.availableHarnesses,
-      harnessVersions: ctx.config.harnessVersions,
-      availableModels: models,
-    });
-    // Snapshot only after the backend successfully accepts the update — on
-    // failure we want the next tick to retry with the same diff.
-    ctx.lastPushedModels = models;
-    ctx.lastPushedHarnessFingerprint = nextHarnessFingerprint;
-
-    // Log only after a successful sync so transient failures do not re-print
-    // the same diff every MODEL_REFRESH_INTERVAL_MS while retrying.
-    if (Object.keys(modelDiff.added).length > 0) {
-      console.log(
-        `[${formatTimestamp()}] ➕ New models detected — ${formatModelMap(modelDiff.added)}`
-      );
-    }
-    if (Object.keys(modelDiff.removed).length > 0) {
-      console.log(
-        `[${formatTimestamp()}] ➖ Models no longer available — ${formatModelMap(modelDiff.removed)}`
-      );
-    }
-    console.log(
-      `[${formatTimestamp()}] 🔄 Model refresh pushed: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
-    );
-    return { kind: 'pushed' };
-  } catch (error) {
-    const message = getErrorMessage(error);
-    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${message}`);
-    return { kind: 'failed', message };
-  }
-}
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -237,260 +109,298 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   processManager.evictStalePendingStops();
 }
 
-/**
- * Dispatch a single command event to the appropriate handler.
- * Handles deduplication and error boundaries per event.
- *
- * DEDUP SEMANTICS (dedup-after-handler for most event types):
- * Event IDs are registered AFTER handler completion so that failed handlers
- * can be retried on the next subscription update, rather than being permanently
- * skipped when a transient error occurs (e.g. a backend mutation fails).
- *
- * Trade-off: a handler that throws on every invocation will be retried on every
- * subscription update until the event ages out of the deadline/TTL filter.
- * There is no retry-count cap or backoff — callers must ensure handlers are
- * either idempotent, or only throw on transient/recoverable failures.
- *
- * Per-handler retry-safety analysis:
- *   agent.requestStart         — ensureRunning() is idempotent; retry-safe
- *   agent.requestStop          — stopping an already-stopped agent is harmless; retry-safe
- *   daemon.ping                — ackPing is idempotent; ponging twice is harmless; retry-safe
- *   daemon.gitRefresh          — state-hash clear + push is idempotent; retry-safe
- *   daemon.localAction         — executeLocalAction never throws (returns error obj); retry-safe
- *   command.run                — spawns a process; NOT retry-safe → dedup ID registered BEFORE handler
- *   command.stop               — killing an already-dead process is harmless; retry-safe
- *   daemon.refreshCapabilities — model refresh is idempotent; retry-safe
- */
-export async function dispatchCommandEvent(
-  ctx: DaemonContext,
+// ── Effect twins ──────────────────────────────────────────────────────────────
+
+/** Union of services required to dispatch any command event. */
+type CommandDispatchDeps =
+  | DaemonAgentProcessManagerService
+  | DaemonMutableStateService
+  | DaemonSessionService;
+
+// ── Per-event Effect helpers (private) ────────────────────────────────────────
+
+function handleRequestStartEffect(
   event: CommandEvent,
   tracker: DedupTracker
-): Promise<void> {
-  const eventId = event._id.toString();
-  // Cast to string for comparison — new event types (command.run, command.stop) may not
-  // be reflected in the inferred union until `npx convex dev` regenerates types.
-  const eventType = event.type as string;
-
-  if (event.type === 'agent.requestStart') {
-    // Deadline-filtered — use commandIds for session dedup
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
     if (tracker.commandIds.has(eventId)) return;
-    await onRequestStartAgent(ctx, event);
+    yield* onRequestStartAgentEffect(event as Parameters<typeof onRequestStartAgentEffect>[0]);
     tracker.commandIds.set(eventId, Date.now());
-  } else if (event.type === 'agent.requestStop') {
-    // Deadline-filtered — use commandIds for session dedup
-    if (tracker.commandIds.has(eventId)) return;
-    await onRequestStopAgent(ctx, event);
-    tracker.commandIds.set(eventId, Date.now());
-  } else if (event.type === 'daemon.ping') {
-    // Session dedup — prevents re-ponging the same ping twice in one daemon run
-    if (tracker.pingIds.has(eventId)) return;
-
-    // Respond to ping with a pong via mutation
-    handlePing();
-    await ctx.deps.backend.mutation(api.machines.ackPing, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      pingEventId: event._id,
-    });
-    tracker.pingIds.set(eventId, Date.now());
-  } else if (event.type === 'daemon.gitRefresh') {
-    // Session dedup — don't re-process same refresh event twice in one daemon run
-    if (tracker.gitRefreshIds.has(eventId)) return;
-
-    // Clear in-memory state hash to bypass change detection on next push
-    const stateKey = makeGitStateKey(ctx.machineId, event.workingDir);
-    ctx.lastPushedGitState.delete(stateKey);
-
-    // Push git state immediately (non-blocking from caller perspective)
-    console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${event.workingDir}`);
-    await pushGitState(ctx);
-    tracker.gitRefreshIds.set(eventId, Date.now());
-  } else if (event.type === 'daemon.localAction') {
-    // Session dedup — don't re-process same local action event twice in one daemon run
-    if (tracker.localActionIds.has(eventId)) return;
-
-    console.log(`[${formatTimestamp()}] 🖥️  Local action: ${event.action} → ${event.workingDir}`);
-    const result = await executeLocalAction(event.action, event.workingDir);
-    if (!result.success) {
-      console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
-    } else if (
-      event.action === 'git-pull' ||
-      event.action === 'git-push' ||
-      event.action === 'git-sync' ||
-      event.action === 'git-discard-all'
-    ) {
-      ctx.lastPushedGitState.delete(makeGitStateKey(ctx.machineId, event.workingDir));
-      await pushSingleWorkspaceGitState(ctx, event.workingDir);
-    }
-    tracker.localActionIds.set(eventId, Date.now());
-  } else if (eventType === 'command.run') {
-    // command.run spawns an OS process — NOT idempotent.
-    // Register the dedup ID BEFORE the handler so that a retry on the next
-    // subscription update cannot spawn a duplicate process. The double-spawn
-    // guard inside onCommandRun provides a secondary safety net for the case
-    // where the process is still alive in runningProcesses, but it cannot
-    // protect against re-spawn after a fast process exit. Dedup-before-handler
-    // is the correct primary defence here.
-    if (tracker.commandRunIds.has(eventId)) return;
-    tracker.commandRunIds.set(eventId, Date.now());
-    await onCommandRun(ctx, event as any);
-  } else if (eventType === 'command.stop') {
-    // Session dedup — don't re-process same command stop event twice
-    if (tracker.commandStopIds.has(eventId)) return;
-    await onCommandStop(ctx, event as any);
-    tracker.commandStopIds.set(eventId, Date.now());
-  } else if (event.type === 'daemon.refreshCapabilities') {
-    // Session dedup — don't re-process same refresh event twice
-    if (tracker.capabilitiesRefreshIds.has(eventId)) return;
-    console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
-    const outcome = await refreshModels(ctx);
-    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
-
-    const batchId = 'batchId' in event && event.batchId !== undefined ? event.batchId : undefined;
-    if (!batchId) {
-      return;
-    }
-
-    let status: 'completed' | 'skipped_no_changes' | 'failed';
-    let errorMessage: string | undefined;
-    if (outcome.kind === 'pushed') {
-      status = 'completed';
-    } else if (outcome.kind === 'skipped_no_changes') {
-      status = 'skipped_no_changes';
-    } else if (outcome.kind === 'failed') {
-      status = 'failed';
-      errorMessage = outcome.message;
-    } else {
-      status = 'failed';
-      errorMessage = 'Daemon configuration unavailable';
-    }
-
-    try {
-      await ctx.deps.backend.mutation(api.machines.reportCapabilitiesRefreshResult, {
-        sessionId: ctx.sessionId,
-        batchId,
-        machineId: ctx.machineId,
-        status,
-        errorMessage,
-      });
-    } catch (error) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Capabilities refresh report failed: ${getErrorMessage(error)}`
-      );
-    }
-  }
+  });
 }
 
-// ─── Command Loop ───────────────────────────────────────────────────────────
+function handleRequestStopEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonAgentProcessManagerService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.commandIds.has(eventId)) return;
+    yield* onRequestStopAgentEffect(event as Parameters<typeof onRequestStopAgentEffect>[0]);
+    tracker.commandIds.set(eventId, Date.now());
+  });
+}
+
+function handlePingCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.pingIds.has(eventId)) return;
+    handlePing();
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.machines.ackPing, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        pingEventId: event._id,
+      })
+    );
+    tracker.pingIds.set(eventId, Date.now());
+  });
+}
+
+function handleGitRefreshCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.gitRefreshIds.has(eventId)) return;
+    const session = yield* DaemonSessionService;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitRefresh' }>;
+    const mutable = yield* DaemonMutableStateService;
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
+    lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
+    console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
+    yield* pushGitStateEffect;
+    tracker.gitRefreshIds.set(eventId, Date.now());
+  });
+}
+
+/** Git action types that should trigger a workspace git-state push after completion. */
+const GIT_PUSH_ACTIONS = new Set(['git-pull', 'git-push', 'git-sync', 'git-discard-all']);
+
+function handleLocalActionCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.localActionIds.has(eventId)) return;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.localAction' }>;
+    console.log(
+      `[${formatTimestamp()}] 🖥️  Local action: ${typedEvent.action} → ${typedEvent.workingDir}`
+    );
+    const result = yield* Effect.promise(() =>
+      executeLocalAction(typedEvent.action, typedEvent.workingDir)
+    );
+    if (!result.success) {
+      console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
+    } else if (GIT_PUSH_ACTIONS.has(typedEvent.action)) {
+      const session = yield* DaemonSessionService;
+      const mutable = yield* DaemonMutableStateService;
+      const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
+      lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
+      yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
+    }
+    tracker.localActionIds.set(eventId, Date.now());
+  });
+}
+
+function handleCommandRunEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    // command.run: register dedup BEFORE handler (spawning a process is NOT idempotent)
+    if (tracker.commandRunIds.has(eventId)) return;
+    tracker.commandRunIds.set(eventId, Date.now());
+    yield* onCommandRunEffect(event as unknown as Parameters<typeof onCommandRunEffect>[0]);
+  });
+}
+
+function handleCommandStopEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.commandStopIds.has(eventId)) return;
+    yield* onCommandStopEffect(event as unknown as Parameters<typeof onCommandStopEffect>[0]);
+    tracker.commandStopIds.set(eventId, Date.now());
+  });
+}
+
+/** Map a RefreshModelsOutcome to the status/errorMessage for reportCapabilitiesRefreshResult. */
+function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
+  status: 'completed' | 'skipped_no_changes' | 'failed';
+  errorMessage?: string;
+} {
+  if (outcome.kind === 'pushed') return { status: 'completed' };
+  if (outcome.kind === 'skipped_no_changes') return { status: 'skipped_no_changes' };
+  if (outcome.kind === 'failed') return { status: 'failed', errorMessage: outcome.message };
+  return { status: 'failed', errorMessage: 'Daemon configuration unavailable' };
+}
+
+function handleRefreshCapabilitiesEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.capabilitiesRefreshIds.has(eventId)) return;
+    console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
+    const outcome = yield* refreshModelsEffect;
+    tracker.capabilitiesRefreshIds.set(eventId, Date.now());
+    const batchId = 'batchId' in event ? (event as any).batchId : undefined;
+    if (!batchId) return;
+    const session = yield* DaemonSessionService;
+    const { status, errorMessage } = capabilitiesOutcomeToStatus(outcome);
+    yield* Effect.tryPromise({
+      try: () =>
+        session.backend.mutation(api.machines.reportCapabilitiesRefreshResult, {
+          sessionId: session.sessionId,
+          batchId,
+          machineId: session.machineId,
+          status,
+          errorMessage,
+        }),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Capabilities refresh report failed: ${getErrorMessage(error)}`
+          );
+        })
+      )
+    );
+  });
+}
+
+/** Dispatch table: event type string → per-event Effect handler factory. */
+const commandEventHandlers: Partial<
+  Record<
+    string,
+    (event: CommandEvent, tracker: DedupTracker) => Effect.Effect<void, never, CommandDispatchDeps>
+  >
+> = {
+  'agent.requestStart': handleRequestStartEffect,
+  'agent.requestStop': handleRequestStopEffect,
+  'daemon.ping': handlePingCommandEffect,
+  'daemon.gitRefresh': handleGitRefreshCommandEffect,
+  'daemon.localAction': handleLocalActionCommandEffect,
+  'command.run': handleCommandRunEffect,
+  'command.stop': handleCommandStopEffect,
+  'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
+};
 
 /**
- * Start the command processing loop: subscribe to Convex for pending commands,
- * enqueue them, and process sequentially.
+ * Effect twin for dispatchCommandEvent — uses DaemonSessionService + DaemonAgentProcessManagerService.
+ * No bridge service dependency. (Removed in W8-1)
  */
-export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
+// fallow-ignore-next-line unused-export
+export const dispatchCommandEventEffect = (
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, CommandDispatchDeps> => {
+  const factory = commandEventHandlers[event.type as string];
+  return factory != null ? factory(event, tracker) : Effect.void;
+};
+
+/** Effect twin for startCommandLoop — uses granular services. */
+export const startCommandLoopEffect: Effect.Effect<
+  never,
+  never,
+  DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+> = Effect.gen(function* () {
+  const session = yield* DaemonSessionService;
+  const effectContext = yield* Effect.context<
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+  >();
+
+  const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;
+
   // ── Daemon Heartbeat ──────────────────────────────────────────────────
-  // Periodically update lastSeenAt so the backend can detect daemon crashes.
-  // If the daemon is killed with SIGKILL, heartbeats stop and the backend
-  // will mark the daemon as disconnected after DAEMON_HEARTBEAT_TTL_MS.
   let heartbeatCount = 0;
   const heartbeatTimer = setInterval(() => {
-    ctx.deps.backend
+    session.backend
       .mutation(api.machines.daemonHeartbeat, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
+        sessionId: session.sessionId,
+        machineId: session.machineId,
       })
       .then(() => {
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
-        // When observedSyncEnabled is true, skip periodic pushes — handled by observed-sync subscription instead
-        if (!ctx.observedSyncEnabled) {
-          pushGitState(ctx).catch((err: unknown) => {
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
-            );
-          });
-          pushCommands(ctx).catch((err: unknown) => {
-            console.warn(`[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`);
-          });
-          syncCommitDetails(ctx).catch((err: unknown) => {
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
-            );
-          });
+        if (!observedSyncEnabled) {
+          Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
+          Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
+          Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
+            (err: unknown) => {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
+              );
+            }
+          );
         }
-        // File content requests are now handled by the reactive subscription
-        // (file-content-subscription.ts) for near-instant response times.
       })
       .catch((err: unknown) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
       });
   }, DAEMON_HEARTBEAT_INTERVAL_MS);
 
-  // Don't let the heartbeat timer keep the process alive during shutdown
   heartbeatTimer.unref();
 
-  // ── Git Request Subscription ──────────────────────────────────────
-  // Reactive subscription for on-demand workspace git requests.
-  // Uses wsClient.onUpdate to react instantly when pending requests appear.
-  // Started after wsClient is initialized (see below).
-  let gitSubscriptionHandle: ReturnType<typeof startGitRequestSubscription> | null = null;
-
-  // ── File Content Subscription ──────────────────────────────────────
-  // Reactive subscription for on-demand file content requests.
-  // Replaces the heartbeat-based polling for near-instant file previews.
-  let fileContentSubscriptionHandle: ReturnType<typeof startFileContentSubscription> | null = null;
-
-  // ── File Tree Subscription ─────────────────────────────────────────
-  // Reactive subscription for on-demand file tree requests.
-  // Replaces the heartbeat-based push with request/fulfill pattern.
-  let fileTreeSubscriptionHandle: ReturnType<typeof startFileTreeSubscription> | null = null;
-
-  // ── Workspace List Subscription ────────────────────────────────────────
-  let workspaceListSubscriptionHandle: ReturnType<typeof startWorkspaceListSubscription> | null =
-    null;
-
-  // ── Observed Sync Subscription ─────────────────────────────────────────
-  let observedSyncSubscriptionHandle: ReturnType<typeof startObservedSyncSubscription> | null =
-    null;
+  // ── Subscription handles ──────────────────────────────────────────────
+  let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
+  let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
+  let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
+  let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
+  let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
-
-  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
-  // Gated by directHarnessWorkers flag. All return { stop: () => void }.
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let commandSubscriptionHandle: { stop: () => void } | null = null;
   let lifecycleManager: HarnessLifecycleManager | null = null;
-  // Shared state for v2 direct-harness subscribers.
-  // activeSessions: opened/resumed sessions shared by session-subscriber
-  //   and prompt-subscriber so they reuse the same DirectHarnessSession.
-  // harnesses: running BoundHarness instances per workspace, lazily spawned
-  //   on first use and killed on shutdown.
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
-  // Trigger an immediate git state push on startup so the frontend gets
-  // data right away without waiting 30s for the first heartbeat.
-  if (ctx.observedSyncEnabled) {
+  // Trigger an immediate push on startup
+  if (observedSyncEnabled) {
     console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
   } else {
-    pushGitState(ctx).catch(() => {});
-    pushCommands(ctx).catch(() => {});
-    syncCommitDetails(ctx).catch(() => {});
+    Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(() => {});
+    Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(() => {});
+    Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
+      () => {}
+    );
   }
 
-  // ── Shutdown timeouts ───────────────────────────────────────────────────
-  // Every awaited step in the graceful path is bounded so a single hung
-  // session/harness close (or a dead backend connection) can never wedge the
-  // daemon with orphaned children. The watchdog is the final backstop: if the
-  // whole sequence exceeds it, we force-kill everything and exit.
-  const PROCESS_KILL_TIMEOUT_MS = 6_000; // commands SIGTERM(3s)→SIGKILL + agents
-  const CLOSE_TIMEOUT_MS = 3_000; // per session/harness close()
-  const SHUTDOWN_WATCHDOG_MS = 12_000; // overall hard deadline
+  // ── Shutdown timeouts ──────────────────────────────────────────────────
+  const PROCESS_KILL_TIMEOUT_MS = 6_000;
+  const CLOSE_TIMEOUT_MS = 3_000;
+  const SHUTDOWN_WATCHDOG_MS = 12_000;
 
   let signalCount = 0;
   let isShuttingDown = false;
 
-  /** Best-effort, fully synchronous teardown used by the force-exit path. */
   const forceExit = (code: number): never => {
     try {
       forceKillAllCommands();
@@ -498,8 +408,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       // best-effort
     }
     try {
-      // Catches detached process groups even if in-memory state is gone.
-      forceKillAllTrackedProcessGroups();
+      Effect.runSync(forceKillAllTrackedProcessGroupsEffect);
     } catch {
       // best-effort
     }
@@ -511,7 +420,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     process.exit(code);
   };
 
-  /** Await a promise but never wait longer than `ms`; swallows rejections. */
   const withTimeout = async (p: Promise<unknown>, ms: number): Promise<void> => {
     await Promise.race([
       Promise.resolve(p).catch(() => {}),
@@ -527,20 +435,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     isShuttingDown = true;
     console.log(`\n[${formatTimestamp()}] Shutting down... (press Ctrl+C again to force)`);
 
-    // Hard deadline: regardless of what hangs below, the daemon WILL exit.
     const watchdog = setTimeout(() => {
       console.error(`[${formatTimestamp()}] Shutdown timed out — forcing exit.`);
       forceExit(1);
     }, SHUTDOWN_WATCHDOG_MS);
     watchdog.unref?.();
 
-    // Stop heartbeat timers
     clearInterval(heartbeatTimer);
 
-    // Stop git request subscription
     if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
-
-    // Stop file tree subscription
     if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
     if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
     if (workspaceListSubscriptionHandle) workspaceListSubscriptionHandle.stop();
@@ -551,16 +454,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
     if (lifecycleManager) lifecycleManager.stopMonitoring();
 
-    // Kill child processes FIRST (commands + agents). These hold ports and are
-    // the things users actually need dead. A slow/hung direct-harness close
-    // must never come before — or block — reaping them.
-    await withTimeout(onDaemonShutdown(ctx), PROCESS_KILL_TIMEOUT_MS);
+    await withTimeout(
+      Effect.runPromise(onDaemonShutdownEffect.pipe(Effect.provide(effectContext))),
+      PROCESS_KILL_TIMEOUT_MS
+    );
 
-    // Then close all active direct-harness sessions, each guarded by a timeout.
     for (const handle of activeSessions.values()) {
       await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
     }
-    // Kill all running harness processes, each guarded by a timeout.
     for (const harness of harnesses.values()) {
       await withTimeout(harness.close(), CLOSE_TIMEOUT_MS);
     }
@@ -570,13 +471,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     process.exit(0);
   };
 
-  /**
-   * Signal handler. Registering a SIGINT listener disables Node's default
-   * Ctrl+C termination, so we must own the escalation ourselves: the first
-   * signal starts a graceful shutdown; a second signal forces an immediate
-   * SIGKILL of all children and exits. If the graceful path itself throws, we
-   * also force-exit so the daemon never lingers.
-   */
   const handleSignal = (signal: NodeJS.Signals) => {
     signalCount += 1;
     if (signalCount >= 2) {
@@ -594,106 +488,53 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   process.on('SIGTERM', () => handleSignal('SIGTERM'));
   process.on('SIGHUP', () => handleSignal('SIGHUP'));
 
-  // Open WebSocket connection for event stream subscription
-  const wsClient = await getConvexWsClient();
+  const wsClient = yield* Effect.promise(() => getConvexWsClient());
 
-  // ── Git Request Subscription ──────────────────────────────────────────
-  // Now that wsClient is ready, start the reactive git request subscription.
-  gitSubscriptionHandle = startGitRequestSubscription(ctx, wsClient);
+  gitSubscriptionHandle = yield* startGitRequestSubscriptionEffect(wsClient);
+  fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
+  fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
+  workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
 
-  // ── File Content Subscription ──────────────────────────────────────
-  // Now that wsClient is ready, start the reactive file content subscription.
-  fileContentSubscriptionHandle = startFileContentSubscription(ctx, wsClient);
-
-  // Now that wsClient is ready, start the reactive file tree subscription.
-  fileTreeSubscriptionHandle = startFileTreeSubscription(ctx, wsClient);
-
-  workspaceListSubscriptionHandle = startWorkspaceListSubscription(ctx, wsClient);
-
-  // ── Observed Sync Subscription ─────────────────────────────────────────
-  // When observedSyncEnabled is true, start the event-driven observed-sync subscription
-  // to push state only for chatrooms the frontend is actively watching.
-  if (ctx.observedSyncEnabled) {
-    observedSyncSubscriptionHandle = startObservedSyncSubscription(ctx, wsClient);
+  if (observedSyncEnabled) {
+    observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
   }
 
-  logObserverSubscriptionHandle = startLogObserverSubscription(ctx, wsClient);
+  logObserverSubscriptionHandle = startLogObserverSubscription(
+    { sessionId: session.sessionId, machineId: session.machineId },
+    wsClient
+  );
 
-  // ── V2 Direct-Harness Subscriptions ──────────────────────────────────
   if (featureFlags.directHarnessWorkers) {
-    const sessionRepository = new ConvexSessionRepository({
-      backend: ctx.deps.backend,
-      sessionId: ctx.sessionId,
-    });
-    const outputRepository = new ConvexOutputRepository({
-      backend: ctx.deps.backend,
-      sessionId: ctx.sessionId,
-    });
-    const journalFactory = new BufferedJournalFactory({
-      outputRepository,
-    });
-
-    const sharedDeps = {
+    const handles = startDirectHarnessSubscriptions(
+      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
+      wsClient,
       activeSessions,
-      harnesses,
-      sessionRepository,
-      journalFactory,
-    };
-
-    pendingPromptSubscriptionHandle = startMessageSubscriber(ctx, wsClient, sharedDeps);
-    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(ctx, wsClient, {
-      activeSessions,
-      harnesses,
-      sessionRepository,
-      journalFactory,
-    });
-
-    lifecycleManager = new HarnessLifecycleManager(harnesses, activeSessions, async (workspaceId) =>
-      ctx.deps.backend.query(api.workspaces.getWorkspaceById, {
-        sessionId: ctx.sessionId,
-        workspaceId,
-      })
+      harnesses
     );
-    lifecycleManager.startMonitoring();
-
-    commandSubscriptionHandle = startCommandSubscriber(ctx, wsClient, {
-      lifecycleManager,
-      publisher: new ConvexCapabilitiesPublisher({
-        backend: ctx.deps.backend,
-        sessionId: ctx.sessionId,
-      }),
-    });
+    pendingPromptSubscriptionHandle = handles.pendingPromptSubscriptionHandle;
+    pendingHarnessSessionSubscriptionHandle = handles.pendingHarnessSessionSubscriptionHandle;
+    commandSubscriptionHandle = handles.commandSubscriptionHandle;
+    lifecycleManager = handles.lifecycleManager;
   }
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
 
-  // ── Stream command subscription ──────────────────────────────────────────
-  // Subscribes to chatroom_eventStream for command events directed at this machine.
-  //
-  // No cursor is needed — event types use their own filtering:
-  // - agent.requestStart / agent.requestStop: deadline-filtered on backend (no cursor)
-  // - daemon.ping: all ping events are delivered; re-ponging on restart is harmless
-  //   because the UI's getDaemonPongEvent looks for a pong AFTER a specific ping ID
-  //
-  // Session-scoped dedup maps — prevent double-processing within a single daemon run.
-  // Map<eventId, processedAt timestamp>. Entries older than AGENT_REQUEST_DEADLINE_MS
-  // are evicted at the start of each batch to bound memory growth.
   const dedupTracker: DedupTracker = {
-    commandIds: new Map<string, number>(), // agent.requestStart / agent.requestStop
-    pingIds: new Map<string, number>(), // daemon.ping
-    gitRefreshIds: new Map<string, number>(), // daemon.gitRefresh
-    capabilitiesRefreshIds: new Map<string, number>(), // daemon.refreshCapabilities
-    localActionIds: new Map<string, number>(), // daemon.localAction
-    commandRunIds: new Map<string, number>(), // command.run
-    commandStopIds: new Map<string, number>(), // command.stop
+    commandIds: new Map<string, number>(),
+    pingIds: new Map<string, number>(),
+    gitRefreshIds: new Map<string, number>(),
+    capabilitiesRefreshIds: new Map<string, number>(),
+    localActionIds: new Map<string, number>(),
+    commandRunIds: new Map<string, number>(),
+    commandStopIds: new Map<string, number>(),
   };
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,
     {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
+      sessionId: session.sessionId,
+      machineId: session.machineId,
     },
     async (result) => {
       if (!result.events || result.events.length === 0) return;
@@ -705,7 +546,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
           console.log(
             `[${formatTimestamp()}] 📡 Stream command event: ${event.type} (id: ${event._id})`
           );
-          await dispatchCommandEvent(ctx, event, dedupTracker);
+          await Effect.runPromise(
+            dispatchCommandEventEffect(event, dedupTracker).pipe(Effect.provide(effectContext))
+          );
         } catch (err) {
           console.error(
             `[${formatTimestamp()}] ❌ Stream command event failed: ${getErrorMessage(err)}`
@@ -715,6 +558,5 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     }
   );
 
-  // Keep process alive
-  return await new Promise(() => {});
-}
+  return yield* Effect.promise<never>(() => new Promise(() => {}));
+});

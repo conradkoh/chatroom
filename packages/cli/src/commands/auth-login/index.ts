@@ -1,10 +1,13 @@
 /**
  * Auth login command
- * Implements device authorization flow for CLI authentication
+ * Implements device authorization flow for CLI authentication.
+ * Phase 10: Migrated to Effect-TS services with typed error handling.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { Effect, Layer } from 'effect';
 
+import { AuthLoginEnvService } from './auth-login-service.js';
 import type { AuthLoginDeps } from './deps.js';
 import { api } from '../../api.js';
 import {
@@ -16,6 +19,19 @@ import {
   getSessionId,
 } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { BackendService, BackendServiceLive } from '../../infrastructure/services/index.js';
+
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { AuthLoginDeps } from './deps.js';
+
+// ─── Domain errors ─────────────────────────────────────────────────────────
+
+export type AuthLoginError =
+  | { readonly _tag: 'AlreadyAuthenticated' }
+  | { readonly _tag: 'DeviceSessionCreateFailed'; readonly cause: Error }
+  | { readonly _tag: 'LoginTimeout' }
+  | { readonly _tag: 'SaveFailed'; readonly cause: Error };
 
 // Poll interval for checking auth status
 const AUTH_POLL_INTERVAL_MS = 2000;
@@ -130,164 +146,284 @@ export function getWebAppUrl(d: AuthLoginDeps): string {
   return ''; // unreachable in production, needed for type safety in tests
 }
 
-export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps): Promise<void> {
-  const d = deps ?? createDefaultDeps();
+// ─── Layer Factory ─────────────────────────────────────────────────────────
 
-  // Check if already authenticated locally
-  if (await d.auth.isAuthenticated() && !options.force) {
-    // Validate the session against the backend — local file may be stale
-    const sessionId = await d.auth.getSessionId();
-    if (sessionId) {
-      try {
-        const validation = await d.backend.query(api.cliAuth.validateSession, { sessionId });
-        if (validation.valid) {
-          console.log(`✅ Already authenticated.`);
-          console.log(`   Auth file: ${d.auth.getAuthFilePath()}`);
-          console.log(`\n   Use --force to re-authenticate.`);
-          return;
+/**
+ * Build Effect layers from AuthLoginDeps (backward-compat bridge for existing entry point).
+ */
+function layerFromDeps(deps: AuthLoginDeps): Layer.Layer<BackendService | AuthLoginEnvService> {
+  return Layer.mergeAll(
+    BackendServiceLive({
+      mutation: deps.backend.mutation,
+      query: deps.backend.query,
+    }),
+    Layer.succeed(AuthLoginEnvService, {
+      isAuthenticated: () => Effect.promise(() => deps.auth.isAuthenticated()),
+      getAuthFilePath: () => Effect.sync(() => deps.auth.getAuthFilePath()),
+      saveAuthData: (data) =>
+        Effect.tryPromise({
+          try: () => deps.auth.saveAuthData(data),
+          catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+        }),
+      getDeviceName: () => Effect.promise(() => deps.auth.getDeviceName()),
+      getCliVersion: () => Effect.sync(() => deps.auth.getCliVersion()),
+      getSessionId: () => Effect.promise(() => deps.auth.getSessionId()),
+      openBrowser: (url) => Effect.promise(() => deps.browser.open(url)),
+      now: () => Effect.sync(() => deps.clock.now()),
+      delay: (ms) => Effect.promise(() => deps.clock.delay(ms)),
+      env: () => Effect.sync(() => deps.process.env),
+      stdoutWrite: (text) =>
+        Effect.sync(() => {
+          deps.process.stdoutWrite(text);
+        }),
+    })
+  );
+}
+
+// ─── Effect Program ────────────────────────────────────────────────────────
+
+/**
+ * Pure Effect program — no process.exit inside.
+ * All errors are typed; caller (handleAuthLoginError) decides how to handle them.
+ */
+// fallow-ignore-next-line unused-export
+export const authLoginEffect = (
+  options: AuthLoginOptions
+): Effect.Effect<void, AuthLoginError, BackendService | AuthLoginEnvService> =>
+  Effect.gen(function* () {
+    const envService = yield* AuthLoginEnvService;
+    const backend = yield* BackendService;
+
+    // 1. Check if already authenticated (skip if force)
+    const authenticated = yield* envService.isAuthenticated();
+    if (authenticated && !options.force) {
+      const sessionId = yield* envService.getSessionId();
+      if (sessionId) {
+        const authFilePath = yield* envService.getAuthFilePath();
+
+        // Validate session against backend; trust local file on network failure
+        const keepAuthenticated = yield* backend
+          .query<{ valid: boolean; reason?: string }>(api.cliAuth.validateSession, { sessionId })
+          .pipe(
+            Effect.match({
+              onFailure: (_e) => {
+                console.log(`✅ Already authenticated (could not verify with backend).`);
+                console.log(`   Auth file: ${authFilePath}`);
+                console.log(`\n   Use --force to re-authenticate.`);
+                return true;
+              },
+              onSuccess: (v) => {
+                if (v.valid) {
+                  console.log(`✅ Already authenticated.`);
+                  console.log(`   Auth file: ${authFilePath}`);
+                  console.log(`\n   Use --force to re-authenticate.`);
+                  return true;
+                }
+                // Session invalid on backend — fall through to re-authenticate
+                if (v.reason === 'Session expired') {
+                  console.log(`\n⚠️  Your session has expired. Re-authenticating automatically...`);
+                } else {
+                  console.log(
+                    `\n⚠️  Session is no longer valid (${v.reason}). Re-authenticating...`
+                  );
+                }
+                return false;
+              },
+            })
+          );
+
+        if (keepAuthenticated) {
+          return yield* Effect.fail<AuthLoginError>({ _tag: 'AlreadyAuthenticated' });
         }
-        // Session invalid on backend — fall through to re-authenticate
-        const reason = validation.reason;
-        if (reason === 'Session expired') {
-          console.log(`\n⚠️  Your session has expired. Re-authenticating automatically...`);
-        } else {
-          console.log(`\n⚠️  Session is no longer valid (${reason}). Re-authenticating...`);
-        }
-      } catch {
-        // Network error or backend down — trust local file and bail
-        console.log(`✅ Already authenticated (could not verify with backend).`);
-        console.log(`   Auth file: ${d.auth.getAuthFilePath()}`);
-        console.log(`\n   Use --force to re-authenticate.`);
-        return;
       }
     }
-  }
 
-  // Get device info
-  const deviceName = await d.auth.getDeviceName();
-  const cliVersion = d.auth.getCliVersion();
+    // 2. Get device info
+    const deviceName = yield* envService.getDeviceName();
+    const cliVersion = yield* envService.getCliVersion();
+    const convexUrl = getConvexUrl();
 
-  // Get the Convex URL being used
-  const convexUrl = getConvexUrl();
+    yield* Effect.sync(() => {
+      console.log(`\n${'═'.repeat(50)}`);
+      console.log(`🔐 CHATROOM CLI AUTHENTICATION`);
+      console.log(`${'═'.repeat(50)}`);
+      console.log(`\nDevice: ${deviceName}`);
+      console.log(`CLI Version: ${cliVersion}`);
+      if (convexUrl !== PRODUCTION_CONVEX_URL) {
+        console.log(`\n📍 Environment: Custom`);
+        console.log(`   Convex URL: ${convexUrl}`);
+      }
+      console.log(`\n⏳ Creating authentication request...`);
+    });
 
-  console.log(`\n${'═'.repeat(50)}`);
-  console.log(`🔐 CHATROOM CLI AUTHENTICATION`);
-  console.log(`${'═'.repeat(50)}`);
-  console.log(`\nDevice: ${deviceName}`);
-  console.log(`CLI Version: ${cliVersion}`);
+    // 3. Create auth request
+    const authRequest = yield* backend
+      .mutation<{ requestId: string; expiresAt: number }>(api.cliAuth.createAuthRequest, {
+        deviceName,
+        cliVersion,
+      })
+      .pipe(
+        Effect.mapError((cause): AuthLoginError => ({ _tag: 'DeviceSessionCreateFailed', cause }))
+      );
 
-  // Show environment info for non-production
-  if (convexUrl !== PRODUCTION_CONVEX_URL) {
-    console.log(`\n📍 Environment: Custom`);
-    console.log(`   Convex URL: ${convexUrl}`);
-  }
+    const { requestId, expiresAt } = authRequest;
 
-  // Create auth request
-  console.log(`\n⏳ Creating authentication request...`);
+    // 4. Compute web app URL from env
+    const envData = yield* envService.env();
+    const webAppUrl = (() => {
+      if (convexUrl === PRODUCTION_CONVEX_URL) {
+        return PRODUCTION_WEBAPP_URL;
+      }
+      const override = envData.CHATROOM_WEB_URL;
+      if (override) return override;
+      // Configuration defect — non-production backend without CHATROOM_WEB_URL
+      throw new Error('CHATROOM_WEB_URL is required for non-production backends');
+    })();
 
-  const result = await d.backend.mutation(api.cliAuth.createAuthRequest, {
-    deviceName,
-    cliVersion,
-  });
+    const nowMs = yield* envService.now();
+    yield* Effect.sync(() => {
+      const expiresInSeconds = Math.round((expiresAt - nowMs) / 1000);
+      console.log(`\n✅ Auth request created`);
+      console.log(`   Request ID: ${requestId.substring(0, 8)}...`);
+      console.log(`   Expires in: ${expiresInSeconds} seconds`);
+    });
 
-  const { requestId, expiresAt } = result;
-  const expiresInSeconds = Math.round((expiresAt - d.clock.now()) / 1000);
+    const authUrl = `${webAppUrl}/cli-auth?request=${requestId}`;
+    yield* Effect.sync(() => {
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`📱 AUTHORIZATION REQUIRED`);
+      console.log(`${'─'.repeat(50)}`);
+      console.log(`\nOpening browser for authorization...`);
+      console.log(`\nIf the browser doesn't open, visit this URL:`);
+      console.log(`\n  ${authUrl}`);
+      console.log(`\n${'─'.repeat(50)}`);
+    });
 
-  console.log(`\n✅ Auth request created`);
-  console.log(`   Request ID: ${requestId.substring(0, 8)}...`);
-  console.log(`   Expires in: ${expiresInSeconds} seconds`);
+    // 5. Open browser
+    yield* envService.openBrowser(authUrl);
 
-  // Get the webapp URL (reads from .env.local PORT or uses defaults)
-  const webAppUrl = getWebAppUrl(d);
+    yield* Effect.sync(() => {
+      console.log(`\n⏳ Waiting for authorization...`);
+      console.log(`   (Press Ctrl+C to cancel)\n`);
+    });
 
-  // The auth page should be at /cli-auth
-  const authUrl = `${webAppUrl}/cli-auth?request=${requestId}`;
+    // 6. Poll for approval
+    const nowForPolls = yield* envService.now();
+    const maxPolls = Math.ceil((expiresAt - nowForPolls) / AUTH_POLL_INTERVAL_MS);
 
-  console.log(`\n${'─'.repeat(50)}`);
-  console.log(`📱 AUTHORIZATION REQUIRED`);
-  console.log(`${'─'.repeat(50)}`);
-  console.log(`\nOpening browser for authorization...`);
-  console.log(`\nIf the browser doesn't open, visit this URL:`);
-  console.log(`\n  ${authUrl}`);
-  console.log(`\n${'─'.repeat(50)}`);
+    let pollCount = 0;
+    let pollingDone = false;
 
-  // Open browser
-  await d.browser.open(authUrl);
+    while (!pollingDone) {
+      pollCount++;
 
-  // Poll for approval
-  console.log(`\n⏳ Waiting for authorization...`);
-  console.log(`   (Press Ctrl+C to cancel)\n`);
+      type StatusResponse = { status: string; sessionId?: string };
 
-  let pollCount = 0;
-  const maxPolls = Math.ceil((expiresAt - d.clock.now()) / AUTH_POLL_INTERVAL_MS);
+      const statusResult = yield* backend
+        .query<StatusResponse>(api.cliAuth.getAuthRequestStatus, { requestId })
+        .pipe(
+          Effect.catchAll((e) => {
+            const err = e instanceof Error ? e : new Error(String(e));
+            console.error(`\n⚠️  Error polling for authorization: ${err.message}`);
+            return Effect.succeed({ status: 'error', sessionId: undefined } as StatusResponse);
+          })
+        );
 
-  // Poll result: 'continue' to keep polling, 'done' to stop successfully,
-  // 'exit' to stop due to denial/expiry/error-exit.
-  type PollResult = 'continue' | 'done' | 'exit';
+      if (statusResult.status === 'approved' && statusResult.sessionId) {
+        // Save auth data
+        const authFilePath = yield* envService.getAuthFilePath();
+        yield* envService
+          .saveAuthData({
+            sessionId: statusResult.sessionId as unknown as SessionId,
+            createdAt: new Date().toISOString(),
+            deviceName,
+            cliVersion,
+          })
+          .pipe(Effect.mapError((cause): AuthLoginError => ({ _tag: 'SaveFailed', cause })));
 
-  const poll = async (): Promise<PollResult> => {
-    pollCount++;
-
-    try {
-      const status = await d.backend.query(api.cliAuth.getAuthRequestStatus, {
-        requestId,
-      });
-
-      if (status.status === 'approved' && status.sessionId) {
-        // Success! Save the session
-        await d.auth.saveAuthData({
-          sessionId: status.sessionId as SessionId,
-          createdAt: new Date().toISOString(),
-          deviceName,
-          cliVersion,
+        yield* Effect.sync(() => {
+          console.log(`\n${'═'.repeat(50)}`);
+          console.log(`✅ AUTHENTICATION SUCCESSFUL`);
+          console.log(`${'═'.repeat(50)}`);
+          console.log(`\nSession stored at: ${authFilePath}`);
+          console.log(`\nYou can now use chatroom commands.`);
         });
 
-        console.log(`\n${'═'.repeat(50)}`);
-        console.log(`✅ AUTHENTICATION SUCCESSFUL`);
-        console.log(`${'═'.repeat(50)}`);
-        console.log(`\nSession stored at: ${d.auth.getAuthFilePath()}`);
-        console.log(`\nYou can now use chatroom commands.`);
-        return 'done';
+        pollingDone = true;
+        break;
       }
 
-      if (status.status === 'denied') {
-        console.log(`\n❌ Authorization denied by user.`);
-        d.process.exit(1);
-        return 'exit';
+      if (statusResult.status === 'denied') {
+        yield* Effect.sync(() => {
+          console.log(`\n❌ Authorization denied by user.`);
+        });
+        return yield* Effect.fail<AuthLoginError>({ _tag: 'LoginTimeout' });
       }
 
-      if (status.status === 'expired' || status.status === 'not_found') {
-        console.log(`\n❌ Authorization request expired.`);
-        console.log(`   Please try again: chatroom auth login`);
-        d.process.exit(1);
-        return 'exit';
+      if (statusResult.status === 'expired' || statusResult.status === 'not_found') {
+        yield* Effect.sync(() => {
+          console.log(`\n❌ Authorization request expired.`);
+          console.log(`   Please try again: chatroom auth login`);
+        });
+        return yield* Effect.fail<AuthLoginError>({ _tag: 'LoginTimeout' });
       }
 
-      // Still pending
+      // Still pending — periodic progress update
       if (pollCount % 5 === 0) {
-        const remainingSeconds = Math.round((expiresAt - d.clock.now()) / 1000);
-        d.process.stdoutWrite(`\r   Waiting... (${remainingSeconds}s remaining)   `);
+        const remainingMs = yield* envService.now();
+        const remainingSeconds = Math.round((expiresAt - remainingMs) / 1000);
+        yield* envService.stdoutWrite(`\r   Waiting... (${remainingSeconds}s remaining)   `);
       }
 
       if (pollCount >= maxPolls) {
-        console.log(`\n❌ Authorization request expired.`);
-        console.log(`   Please try again: chatroom auth login`);
-        d.process.exit(1);
-        return 'exit';
+        yield* Effect.sync(() => {
+          console.log(`\n❌ Authorization request expired.`);
+          console.log(`   Please try again: chatroom auth login`);
+        });
+        return yield* Effect.fail<AuthLoginError>({ _tag: 'LoginTimeout' });
       }
 
-      return 'continue';
-    } catch (error) {
-      const err = error as Error;
-      console.error(`\n⚠️  Error polling for authorization: ${err.message}`);
-      return 'continue';
+      yield* envService.delay(AUTH_POLL_INTERVAL_MS);
     }
-  };
+  });
 
-  // Start polling loop
-  while (true) {
-    const result = await poll();
-    if (result === 'done' || result === 'exit') break;
-    await d.clock.delay(AUTH_POLL_INTERVAL_MS);
-  }
+// ─── Error Handler ─────────────────────────────────────────────────────────
+
+/**
+ * Maps typed errors to console output + process.exit(1).
+ * This is the ONLY place process.exit is called in the Effect pipeline.
+ */
+function handleAuthLoginError(err: AuthLoginError): Effect.Effect<void> {
+  return Effect.sync(() => {
+    if (err._tag === 'AlreadyAuthenticated') {
+      // Message already printed in authLoginEffect — just return
+      return;
+    }
+    if (err._tag === 'DeviceSessionCreateFailed') {
+      console.error(`\n❌ Failed to create authentication request: ${err.cause.message}`);
+      process.exit(1);
+    }
+    if (err._tag === 'LoginTimeout') {
+      // Message already printed in authLoginEffect — just exit
+      process.exit(1);
+    }
+    if (err._tag === 'SaveFailed') {
+      console.error(`\n❌ Failed to save authentication data: ${err.cause.message}`);
+      process.exit(1);
+    }
+  });
+}
+
+// ─── Entry Point (public API — unchanged signature) ──────────────────────
+
+export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps): Promise<void> {
+  const d = deps ?? createDefaultDeps();
+  const layer = layerFromDeps(d);
+
+  await Effect.runPromise(
+    authLoginEffect(options).pipe(
+      Effect.catchAll((err) => handleAuthLoginError(err)),
+      Effect.provide(layer)
+    )
+  );
 }

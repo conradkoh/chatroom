@@ -11,8 +11,10 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
+import { Effect } from 'effect';
 
-import type { DaemonContext, WorkspaceForSync } from './types.js';
+import { DaemonSessionService } from './daemon-services.js';
+import type { WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -25,69 +27,70 @@ function toSyncWorkspaces(workspaces: RecentlyObservedWorkspaces): WorkspaceForS
   return workspaces.map((ws) => ({ workingDir: ws.workingDir }));
 }
 
-function applyWorkspaceList(ctx: DaemonContext, workspaces: RecentlyObservedWorkspaces): void {
-  if (!ctx.workspaceListStore) return;
-  ctx.workspaceListStore.workspaces = toSyncWorkspaces(workspaces);
-  ctx.workspaceListStore.updatedAt = Date.now();
-}
-
-/** Subscribe to recently observed workspaces; returns stop handle. */
-export function startWorkspaceListSubscription(
-  ctx: DaemonContext,
+export const startWorkspaceListSubscriptionEffect = (
   wsClient: ConvexClient
-): { stop: () => void } {
-  ctx.workspaceListStore = { workspaces: [], updatedAt: 0 };
+): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
 
-  const queryArgs = {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
-  };
+    session.workspaceListStore = { workspaces: [], updatedAt: 0 };
 
-  let stopped = false;
-  let reconcileInFlight = false;
+    const queryArgs = {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
+    };
 
-  const unsubscribe = wsClient.onUpdate(
-    api.workspaces.listRecentlyObservedWorkspacesForMachine,
-    queryArgs,
-    (workspaces) => {
-      if (stopped) return;
-      applyWorkspaceList(ctx, workspaces ?? []);
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Workspace-list subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
+    let stopped = false;
+    let reconcileInFlight = false;
 
-  const reconcileTimer = setInterval(() => {
-    if (stopped || reconcileInFlight) return;
-    reconcileInFlight = true;
-    ctx.deps.backend
-      .query(api.workspaces.listRecentlyObservedWorkspacesForMachine, queryArgs)
-      .then((workspaces) => {
-        if (!stopped) applyWorkspaceList(ctx, workspaces ?? []);
-      })
-      .catch((err: unknown) => {
+    const applyList = (workspaces: RecentlyObservedWorkspaces): void => {
+      if (!session.workspaceListStore) return;
+      session.workspaceListStore.workspaces = toSyncWorkspaces(workspaces);
+      session.workspaceListStore.updatedAt = Date.now();
+    };
+
+    const unsubscribe = wsClient.onUpdate(
+      api.workspaces.listRecentlyObservedWorkspacesForMachine,
+      queryArgs,
+      (workspaces) => {
+        if (stopped) return;
+        applyList(workspaces ?? []);
+      },
+      (err: unknown) => {
         console.warn(
-          `[${formatTimestamp()}] ⚠️ Workspace-list reconcile failed: ${getErrorMessage(err)}`
+          `[${formatTimestamp()}] ⚠️ Workspace-list subscription error: ${getErrorMessage(err)}`
         );
-      })
-      .finally(() => {
-        reconcileInFlight = false;
-      });
-  }, WORKSPACE_LIST_RECONCILE_MS);
+      }
+    );
 
-  console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription started`);
+    const reconcileTimer = setInterval(() => {
+      if (stopped || reconcileInFlight) return;
+      reconcileInFlight = true;
+      session.backend
+        .query(api.workspaces.listRecentlyObservedWorkspacesForMachine, queryArgs)
+        .then((workspaces) => {
+          if (!stopped) applyList(workspaces ?? []);
+        })
+        .catch((err: unknown) => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Workspace-list reconcile failed: ${getErrorMessage(err)}`
+          );
+        })
+        .finally(() => {
+          reconcileInFlight = false;
+        });
+    }, WORKSPACE_LIST_RECONCILE_MS);
 
-  return {
-    stop: () => {
-      stopped = true;
-      unsubscribe();
-      clearInterval(reconcileTimer);
-      delete ctx.workspaceListStore;
-      console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription stopped`);
-    },
-  };
-}
+    console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription started`);
+
+    return {
+      stop: () => {
+        stopped = true;
+        unsubscribe();
+        clearInterval(reconcileTimer);
+        session.workspaceListStore = undefined;
+        console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription stopped`);
+      },
+    };
+  });

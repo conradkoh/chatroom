@@ -7,9 +7,11 @@
  * that has been continuously idle for longer than INACTIVITY_TTL_MS.
  */
 
-import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
+import { Effect } from 'effect';
+
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
+import { startOpencodeSdkHarness } from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
 import { formatTimestamp } from '../utils.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -28,9 +30,7 @@ interface WorkspaceInfo {
 }
 
 /** Resolves workspace info from the backend. */
-export type WorkspaceResolver = (
-  workspaceId: string
-) => Promise<WorkspaceInfo | null>;
+export type WorkspaceResolver = (workspaceId: string) => Promise<WorkspaceInfo | null>;
 
 // ─── HarnessLifecycleManager ──────────────────────────────────────────────────
 
@@ -53,34 +53,48 @@ export class HarnessLifecycleManager {
 
   // ─── Public API ─────────────────────────────────────────────────────────────
 
+  /** Effect twin — return running harness, auto-starting if needed. */
+  private getOrStartHarnessEffect(workspaceId: string): Effect.Effect<BoundHarness, Error, never> {
+    const existing = this.harnesses.get(workspaceId);
+    if (existing) return Effect.succeed(existing);
+
+    return Effect.gen(this, function* () {
+      const workspace = yield* Effect.tryPromise({
+        try: () => this.resolveWorkspace(workspaceId),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      });
+      if (!workspace) {
+        return yield* Effect.fail(
+          new Error(`Workspace ${workspaceId} not found — cannot start harness`)
+        );
+      }
+
+      console.log(
+        `[${formatTimestamp()}] 🔧 Auto-starting harness for workspace=${workspaceId} (${workspace.workingDir})`
+      );
+
+      const harness = yield* Effect.tryPromise({
+        try: () =>
+          startOpencodeSdkHarness({
+            type: 'opencode',
+            workingDir: workspace.workingDir,
+            workspaceId,
+          }),
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      });
+
+      this.harnesses.set(workspaceId, harness);
+      this.idleSince.set(workspaceId, Date.now());
+      return harness;
+    });
+  }
+
   /**
    * Return the running harness for a workspace, starting one if needed.
    * After auto-starting, the inactivity clock begins immediately.
    */
   async getOrStart(workspaceId: string): Promise<BoundHarness> {
-    const existing = this.harnesses.get(workspaceId);
-    if (existing) return existing;
-
-    const workspace = await this.resolveWorkspace(workspaceId);
-    if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found — cannot start harness`);
-    }
-
-    console.log(
-      `[${formatTimestamp()}] 🔧 Auto-starting harness for workspace=${workspaceId} (${workspace.workingDir})`
-    );
-
-    const harness = await startOpencodeSdkHarness({
-      type: 'opencode',
-      workingDir: workspace.workingDir,
-      workspaceId,
-    });
-
-    this.harnesses.set(workspaceId, harness);
-    // Start the idle clock immediately — no sessions yet
-    this.idleSince.set(workspaceId, Date.now());
-
-    return harness;
+    return Effect.runPromise(this.getOrStartHarnessEffect(workspaceId));
   }
 
   /** Start the periodic inactivity monitor. Safe to call multiple times. */
@@ -121,7 +135,10 @@ export class HarnessLifecycleManager {
           console.log(
             `[${formatTimestamp()}] 🔪 Killing idle harness for workspace=${workspaceId} (idle ${idleMinutes}min)`
           );
-          this.harnesses.get(workspaceId)?.close().catch(() => {});
+          this.harnesses
+            .get(workspaceId)
+            ?.close()
+            .catch(() => {});
           this.harnesses.delete(workspaceId);
           this.idleSince.delete(workspaceId);
         }

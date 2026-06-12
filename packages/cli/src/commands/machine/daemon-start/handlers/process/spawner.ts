@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process';
 
-import { api } from '../../../../../api.js';
-import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import { encodeOutput } from '@workspace/backend/src/output-encoding.js';
-import type { DaemonContext, SessionId } from '../../types.js';
-import { formatTimestamp } from '../../utils.js';
-import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
+
+import { killProcess } from './killer.js';
+import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js';
+import { processManager } from './manager.js';
+import { createOutputStore, ensureTempDir, MAX_TAIL_LINES_V2 } from './output-store.js';
 import {
   OUTPUT_FLUSH_INTERVAL_MS,
   MAX_BUFFER_SIZE,
@@ -14,18 +14,28 @@ import {
   deriveTerminalStatus,
   type RunningProcess,
 } from './state.js';
-import { processManager } from './manager.js';
-import { killProcess } from './killer.js';
-import { createOutputStore, ensureTempDir, MAX_TAIL_LINES_V2 } from './output-store.js';
-import { consumePendingFullSync, isRunLogObserved } from './log-observer-sync.js';
+import { api } from '../../../../../api.js';
+import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
+import { getErrorMessage } from '../../../../../utils/convex-error.js';
+import type { SessionId } from '../../types.js';
+import { formatTimestamp } from '../../utils.js';
+import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
 
 let tempDirReady = false;
 
-async function flushTailV2(
-  ctx: DaemonContext,
-  tracked: RunningProcess,
-  force = false
-): Promise<void> {
+/**
+ * Minimal structural type accepted by all functions in spawner.ts.
+ * DaemonContext structurally satisfies this type, so all old call sites continue
+ * to work without modification. New Effect-based callers pass a plain object.
+ */
+/** Flat deps for spawner — no deps.deps indirection. */
+export type SpawnDeps = {
+  sessionId: SessionId;
+  machineId: string;
+  backend: BackendOps;
+};
+
+async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = false): Promise<void> {
   if (!force && !isRunLogObserved(tracked.runId)) return;
 
   const tail = await tracked.store.getLastNLines(MAX_TAIL_LINES_V2);
@@ -33,9 +43,9 @@ async function flushTailV2(
 
   const compressed = encodeOutput(tail.content);
   try {
-    await ctx.deps.backend.mutation(api.commands.updateRunTailV2, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.updateRunTailV2, {
+      sessionId: deps.sessionId as SessionId,
+      machineId: deps.machineId,
       runId: tracked.runId as any,
       tailOutput: {
         compression: compressed.compression,
@@ -54,7 +64,7 @@ async function flushTailV2(
 }
 
 async function appendFullOutputChunks(
-  ctx: DaemonContext,
+  deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
@@ -75,9 +85,9 @@ async function appendFullOutputChunks(
     const slice = fullOutput.slice(i, i + MAX_BUFFER_SIZE);
     const compressed = encodeOutput(slice);
     try {
-      await ctx.deps.backend.mutation(api.commands.appendOutput, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.appendOutput, {
+        sessionId: deps.sessionId as SessionId,
+        machineId: deps.machineId,
         runId,
         content: compressed,
         chunkIndex,
@@ -93,30 +103,31 @@ async function appendFullOutputChunks(
 }
 
 async function flushFinalChunks(
-  ctx: DaemonContext,
+  deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
-  await flushTailV2(ctx, tracked, true); // final flush: always sync the tail, even if unobserved
+  await flushTailV2(deps, tracked, true); // final flush: always sync the tail, even if unobserved
   if (consumePendingFullSync(tracked.runId)) {
-    await appendFullOutputChunks(ctx, tracked, runId);
+    await appendFullOutputChunks(deps, tracked, runId);
   }
 }
 
 /** One-shot full log sync when the webapp requests "Load more" on an active run. */
+// fallow-ignore-next-line unused-export
 export async function syncFullOutputOnRequest(
-  ctx: DaemonContext,
+  deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
   if (!consumePendingFullSync(tracked.runId)) return;
 
-  await appendFullOutputChunks(ctx, tracked, runId);
+  await appendFullOutputChunks(deps, tracked, runId);
 
   try {
-    await ctx.deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
-      sessionId: ctx.sessionId as SessionId,
-      machineId: ctx.machineId,
+    await deps.backend.mutation(api.commands.clearPendingFullOutputSync, {
+      sessionId: deps.sessionId as SessionId,
+      machineId: deps.machineId,
       runId,
     });
   } catch (err) {
@@ -126,16 +137,17 @@ export async function syncFullOutputOnRequest(
   }
 }
 
-export async function pollPendingFullOutputSyncs(ctx: DaemonContext): Promise<void> {
+// fallow-ignore-next-line unused-export
+export async function pollPendingFullOutputSyncs(deps: SpawnDeps): Promise<void> {
   for (const [runId, tracked] of processManager.getAll()) {
     if (consumePendingFullSync(runId)) {
-      await syncFullOutputOnRequest(ctx, tracked, runId as any);
+      await syncFullOutputOnRequest(deps, tracked, runId as any);
     }
   }
 }
 
 export async function spawnCommandProcess(
-  ctx: DaemonContext,
+  deps: SpawnDeps,
   event: {
     workingDir: string;
     commandName: string;
@@ -168,8 +180,8 @@ export async function spawnCommandProcess(
     store,
     startedAt: Date.now(),
     flushTimer: setInterval(() => {
-      flushTailV2(ctx, tracked).catch(() => {});
-      syncFullOutputOnRequest(ctx, tracked, runId).catch(() => {});
+      flushTailV2(deps, tracked).catch(() => {});
+      syncFullOutputOnRequest(deps, tracked, runId).catch(() => {});
     }, OUTPUT_FLUSH_INTERVAL_MS),
     softTimeoutTimer: null,
     terminationIntent: null,
@@ -192,9 +204,9 @@ export async function spawnCommandProcess(
     currentTracked.terminationIntent = 'killed';
 
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId as SessionId,
+        machineId: deps.machineId,
         runId,
         status: 'killed',
         terminationReason: 'timeout-24h',
@@ -231,16 +243,16 @@ export async function spawnCommandProcess(
       untrackChildPid(tracked.process.pid);
     }
 
-    await flushFinalChunks(ctx, tracked, runId);
+    await flushFinalChunks(deps, tracked, runId);
     await tracked.store.destroy();
     processManager.unregister(runIdStr, commandKey);
 
     const status = deriveTerminalStatus(code, signal, tracked.terminationIntent);
 
     try {
-      await ctx.deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: ctx.sessionId as SessionId,
-        machineId: ctx.machineId,
+      await deps.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: deps.sessionId as SessionId,
+        machineId: deps.machineId,
         runId,
         status,
         exitCode: code ?? undefined,

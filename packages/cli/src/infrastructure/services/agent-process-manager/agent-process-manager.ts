@@ -210,7 +210,6 @@ export class AgentProcessManager {
     };
   }
 
-  // fallow-ignore-next-line unused-class-member
   async whenTurnEndsIdle(): Promise<void> {
     await this.turnEndQueue.whenIdle();
   }
