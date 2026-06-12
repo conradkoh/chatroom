@@ -89,43 +89,66 @@ async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = fal
   return Effect.runPromise(flushTailV2Effect(deps, tracked, force));
 }
 
+/** Effect twin — append full output in chunks to backend. */
+const appendFullOutputChunksEffect = (
+  deps: SpawnDeps,
+  tracked: RunningProcess,
+  runId: any
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    const fullOutput = yield* Effect.catchAll(
+      Effect.tryPromise({
+        try: () => tracked.store.getFullOutput(),
+        catch: (e) => e,
+      }),
+      (err) =>
+        Effect.sync(() => {
+          console.error(
+            `[${formatTimestamp()}] ❌ Failed to read temp file for run ${tracked.runId}:`,
+            err instanceof Error ? err.message : String(err)
+          );
+          return tracked.store.getTail().content;
+        })
+    );
+
+    if (fullOutput.length === 0) return;
+
+    let chunkIndex = 0;
+    for (let i = 0; i < fullOutput.length; i += MAX_BUFFER_SIZE) {
+      const slice = fullOutput.slice(i, i + MAX_BUFFER_SIZE);
+      const compressed = encodeOutput(slice);
+      const flushed = yield* Effect.catchAll(
+        Effect.tryPromise({
+          try: () =>
+            deps.backend.mutation(api.commands.appendOutput, {
+              sessionId: deps.sessionId as SessionId,
+              machineId: deps.machineId,
+              runId,
+              content: compressed,
+              chunkIndex,
+            }),
+          catch: (e) => e,
+        }),
+        (err) =>
+          Effect.sync(() => {
+            console.error(
+              `[${formatTimestamp()}] ❌ Failed to flush chunk ${chunkIndex} for run ${tracked.runId}:`,
+              err instanceof Error ? err.message : String(err)
+            );
+            return false as const;
+          })
+      );
+      if (flushed === false) return;
+      chunkIndex++;
+    }
+  });
+
 async function appendFullOutputChunks(
   deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
-  let fullOutput: string;
-  try {
-    fullOutput = await tracked.store.getFullOutput();
-  } catch (err) {
-    console.error(
-      `[${formatTimestamp()}] ❌ Failed to read temp file for run ${tracked.runId}: ${getErrorMessage(err)}`
-    );
-    fullOutput = tracked.store.getTail().content;
-  }
-
-  if (fullOutput.length === 0) return;
-
-  let chunkIndex = 0;
-  for (let i = 0; i < fullOutput.length; i += MAX_BUFFER_SIZE) {
-    const slice = fullOutput.slice(i, i + MAX_BUFFER_SIZE);
-    const compressed = encodeOutput(slice);
-    try {
-      await deps.backend.mutation(api.commands.appendOutput, {
-        sessionId: deps.sessionId as SessionId,
-        machineId: deps.machineId,
-        runId,
-        content: compressed,
-        chunkIndex,
-      });
-      chunkIndex++;
-    } catch (err) {
-      console.error(
-        `[${formatTimestamp()}] ❌ Failed to flush chunk ${chunkIndex} for run ${tracked.runId}: ${getErrorMessage(err)}`
-      );
-      return;
-    }
-  }
+  return Effect.runPromise(appendFullOutputChunksEffect(deps, tracked, runId));
 }
 
 async function flushFinalChunks(
