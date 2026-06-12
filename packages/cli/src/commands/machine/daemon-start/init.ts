@@ -5,7 +5,7 @@
 import { stat } from 'node:fs/promises';
 
 import type { ConvexHttpClient } from 'convex/browser';
-import { Effect, Schedule, Duration } from 'effect';
+import { Cause, Effect, Schedule, Duration } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
@@ -323,55 +323,53 @@ const connectDaemonEffect = (
     })
   );
 
-/**
- * Recover agent state from previous daemon session.
- * Non-critical: continues with fresh state on failure.
- */
-async function recoverState(init: DaemonSessionInit): Promise<void> {
-  console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
-  try {
-    await Effect.runPromise(
-      recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
-    );
-  } catch (e) {
-    console.log(`   ⚠️  Recovery failed: ${getErrorMessage(e)}`);
-    console.log(`   Continuing with fresh state`);
-  }
+const recoverStateEffect = (init: DaemonSessionInit): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
 
-  // Clear all stale spawnedAgentPid values for this machine.
-  // Since the daemon just started, no agents are running yet — any PIDs in the
-  // backend are stale from before the restart and must be cleared to prevent
-  // the UI from showing dead agents as "running" or "starting".
-  try {
-    const clearedCount = await Effect.runPromise(
-      clearStaleSpawnedPidsEffect().pipe(Effect.provide(daemonSessionToLayers(init)))
+    yield* Effect.catchAllCause(
+      recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init))),
+      (cause) =>
+        Effect.sync(() => {
+          console.log(`   ⚠️  Recovery failed: ${getErrorMessage(Cause.squash(cause))}`);
+          console.log(`   Continuing with fresh state`);
+        })
     );
-    if (clearedCount > 0) {
-      console.log(`   🧹 Cleared ${clearedCount} stale agent PID(s) from backend`);
-    }
-  } catch (e) {
-    console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(e)}`);
-  }
 
-  // Reap any pending/running command runs left from before the restart.
-  // Since the daemon just started, no command processes are running — any run
-  // in 'pending' or 'running' state is an orphan from the previous daemon process
-  // and must be marked as 'killed' with terminationReason='daemon-restart' so the
-  // UI correctly labels them rather than showing them as 'replaced' when the user
-  // next triggers a run for the same command.
-  try {
-    const reapedCount = await Effect.runPromise(
-      reapOrphanCommandRunsEffect().pipe(Effect.provide(daemonSessionToLayers(init)))
+    yield* Effect.catchAllCause(
+      Effect.gen(function* () {
+        const clearedCount = yield* clearStaleSpawnedPidsEffect().pipe(
+          Effect.provide(daemonSessionToLayers(init))
+        );
+        if (clearedCount > 0) {
+          console.log(`   🧹 Cleared ${clearedCount} stale agent PID(s) from backend`);
+        }
+      }),
+      (cause) =>
+        Effect.sync(() => {
+          console.log(`   ⚠️  Failed to clear stale PIDs: ${getErrorMessage(Cause.squash(cause))}`);
+        })
     );
-    if (reapedCount > 0) {
-      console.log(
-        `   🧹 Reaped ${reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
-      );
-    }
-  } catch (e) {
-    console.warn(`   ⚠️  Failed to reap orphan command runs: ${getErrorMessage(e)}`);
-  }
-}
+
+    yield* Effect.catchAllCause(
+      Effect.gen(function* () {
+        const reapedCount = yield* reapOrphanCommandRunsEffect().pipe(
+          Effect.provide(daemonSessionToLayers(init))
+        );
+        if (reapedCount > 0) {
+          console.log(
+            `   🧹 Reaped ${reapedCount} command run(s) from previous daemon run (marked as daemon-restart)`
+          );
+        }
+      }),
+      (cause) =>
+        Effect.sync(() => {
+          console.warn(
+            `   ⚠️  Failed to reap orphan command runs: ${getErrorMessage(Cause.squash(cause))}`
+          );
+        })
+    );
+  });
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -556,7 +554,7 @@ export async function initDaemon(): Promise<DaemonSessionInit> {
   await Effect.runPromise(
     logStartupEffect(availableModels).pipe(Effect.provide(daemonSessionToLayers(init)))
   );
-  await recoverState(init);
+  await Effect.runPromise(recoverStateEffect(init));
 
   return init;
 }
