@@ -268,7 +268,8 @@ export const startObservedSyncSubscriptionEffect = (
       });
       await Effect.runPromise(
         pushSingleWorkspaceCommandsEffect(workingDir).pipe(
-          Effect.provideService(DaemonSessionService, session)
+          Effect.provideService(DaemonSessionService, session),
+          Effect.provideService(DaemonMutableStateService, mutableStateService)
         )
       ).catch((err: unknown) => {
         console.warn(
