@@ -15,6 +15,7 @@ import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
+import type { DaemonMutableStateService } from './daemon-services.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
@@ -100,15 +101,13 @@ function makeMockWsClient(): any {
 // Helpers — DaemonSessionService (for all subscriptions migrated to E4.x)
 // ---------------------------------------------------------------------------
 
-function makeSessionLayer(
-  overrides?: Partial<DaemonSessionInit>
-): Layer.Layer<DaemonSessionService> {
+function makeSessionLayer(overrides?: Partial<DaemonSessionInit>) {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
 }
 
 async function runWithSession<A>(
-  effect: Effect.Effect<A, never, DaemonSessionService>,
+  effect: Effect.Effect<A, never, DaemonSessionService | DaemonMutableStateService>,
   overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
