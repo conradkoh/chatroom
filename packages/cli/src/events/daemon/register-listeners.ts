@@ -9,7 +9,7 @@ import { Effect } from 'effect';
 
 import { onAgentExitedCore, type AgentExitedDeps } from './agent/on-agent-exited.js';
 import { logAgentStarted } from './agent/on-agent-started.js';
-import { onAgentStoppedCore } from './agent/on-agent-stopped.js';
+import { logAgentStopped } from './agent/on-agent-stopped.js';
 import type { DaemonEventBus } from './event-bus.js';
 import {
   DaemonAgentProcessManagerService,
@@ -35,7 +35,7 @@ export function registerEventListenersCore(deps: RegisterEventListenersDeps): ()
     )
   );
   unsubs.push(deps.events.on('agent:started', (payload) => logAgentStarted(payload)));
-  unsubs.push(deps.events.on('agent:stopped', (payload) => onAgentStoppedCore(payload)));
+  unsubs.push(deps.events.on('agent:stopped', (payload) => logAgentStopped(payload)));
 
   return () => {
     for (const unsub of unsubs) {

@@ -10,14 +10,14 @@ export interface AgentStoppedPayload {
 }
 
 /**
- * Core — logs agent stop. No service deps.
+ * Logs agent stop. No service deps.
  */
-export function onAgentStoppedCore(payload: AgentStoppedPayload): void {
+export function logAgentStopped(payload: AgentStoppedPayload): void {
   const ts = formatTimestamp();
   console.log(`[${ts}] 🔴 Agent stopped: ${payload.role} (PID: ${payload.pid})`);
 }
 
-/** Effect twin — pure, no service deps. */
+/** Effect variant — pure, no service deps. */
 // fallow-ignore-next-line unused-export
 export const onAgentStoppedEffect = (payload: AgentStoppedPayload): Effect.Effect<void> =>
-  Effect.sync(() => onAgentStoppedCore(payload));
+  Effect.sync(() => logAgentStopped(payload));
