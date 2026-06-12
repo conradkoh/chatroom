@@ -132,7 +132,8 @@ export const DaemonAgentProcessManagerServiceLive = (
 /**
  * Effect service carrying daemon identity fields.
  *
- * Mutable state lives in DaemonMutableStateService (Ref-backed).
+ * Mutable state (lastPushedGitState, lastPushedModels, etc.) is migrating to
+ * DaemonMutableStateService (E5). Fields remain on this shape until E5-final.
  */
 export interface DaemonSessionServiceShape {
   // ─── Identity ─────────────────────────────────────────────────────
@@ -153,6 +154,14 @@ export interface DaemonSessionServiceShape {
   /** Populated by workspace-list-subscription; consumed by heartbeats. Mutable reference. */
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
   logger?: Pick<Console, 'log' | 'warn'>;
+
+  // ─── Mutable state (shared reference semantics) ───────────────────
+  /** Change-detection cache for git state, keyed by `machineId::workingDir`. */
+  lastPushedGitState: Map<string, string>;
+  /** Last models snapshot pushed per harness name. null = never pushed. */
+  lastPushedModels: Record<string, string[]> | null;
+  /** Fingerprint of harness list+versions last successfully pushed. */
+  lastPushedHarnessFingerprint: string | null;
 }
 
 export class DaemonSessionService extends Context.Tag('DaemonSessionService')<

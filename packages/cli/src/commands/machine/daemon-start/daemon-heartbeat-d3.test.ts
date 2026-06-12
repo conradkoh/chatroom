@@ -78,15 +78,17 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
 // Helpers — DaemonSessionService layer
 // ---------------------------------------------------------------------------
 
+type HeartbeatEffectRequirements = DaemonSessionService | DaemonMutableStateService;
+
 function makeSessionLayer(
   overrides?: Partial<DaemonSessionInit>
-): Layer.Layer<DaemonSessionService | DaemonMutableStateService> {
+): Layer.Layer<HeartbeatEffectRequirements> {
   const init = createMockDaemonSessionInit(overrides);
   return daemonSessionToLayers(init);
 }
 
 async function runWithCtx<A>(
-  effect: Effect.Effect<A, never, DaemonSessionService | DaemonMutableStateService>,
+  effect: Effect.Effect<A, never, HeartbeatEffectRequirements>,
   overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));

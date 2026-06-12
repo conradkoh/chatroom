@@ -1,8 +1,11 @@
 import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 import { Effect, Ref } from 'effect';
 
-import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
-import type { DaemonSessionServiceShape } from './daemon-services.js';
+import {
+  DaemonMutableStateService,
+  DaemonSessionService,
+  type DaemonSessionServiceShape,
+} from './daemon-services.js';
 import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
@@ -136,7 +139,22 @@ function makeBranchDependentFields(
   ];
 }
 
-// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+// ── Minimal dep type used by Effect twins ────────────────────
+
+type GitHeartbeatRequirements = DaemonSessionService | DaemonMutableStateService;
+
+function buildGitStateDeps(
+  session: DaemonSessionServiceShape,
+  lastPushedGitState: Map<string, string>
+): GitStateDeps {
+  return {
+    machineId: session.machineId,
+    sessionId: session.sessionId,
+    backend: session.backend,
+    lastPushedGitState,
+    workspaceListStore: session.workspaceListStore,
+  };
+}
 
 export type GitStateDeps = {
   machineId: string;
@@ -145,21 +163,6 @@ export type GitStateDeps = {
   lastPushedGitState: Map<string, string>;
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
 };
-
-/** Build a GitStateDeps from session + Ref-based map. */
-const toGitStateDeps = (
-  session: Pick<
-    DaemonSessionServiceShape,
-    'machineId' | 'sessionId' | 'backend' | 'workspaceListStore'
-  >,
-  gitStateMap: Map<string, string>
-): GitStateDeps => ({
-  machineId: session.machineId,
-  sessionId: session.sessionId,
-  backend: session.backend,
-  lastPushedGitState: gitStateMap,
-  workspaceListStore: session.workspaceListStore,
-});
 
 // ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
 
@@ -257,28 +260,22 @@ async function pushSingleWorkspaceGitStateImpl(
   }
 }
 
-/** Key for the observed-push dedup cache. */
-const getPushObservedKey = (machineId: string, workingDir: string): string =>
-  makeGitStateKey(machineId, workingDir);
-
-/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonSessionService. */
+/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields GitHeartbeatRequirements. */
 export const pushSingleWorkspaceGitSummaryForObservedEffect = (
   workingDir: string,
   reason: 'safety-poll' | 'refresh' = 'safety-poll'
-): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> =>
+): Effect.Effect<void, never, GitHeartbeatRequirements> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const mutable = yield* DaemonMutableStateService;
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
 
-    const stateKey = getPushObservedKey(session.machineId, workingDir);
+    const stateKey = makeGitStateKey(session.machineId, workingDir);
 
     const isRepo = yield* Effect.promise(() => gitReader.isGitRepo(workingDir));
     if (!isRepo) {
       const stateHash = 'not_found';
-      const prevHash = yield* Ref.get(mutable.lastPushedGitState).pipe(
-        Effect.map((m) => m.get(stateKey))
-      );
-      if (reason !== 'refresh' && prevHash === stateHash) return;
+      if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === stateHash) return;
 
       yield* Effect.promise(() =>
         session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
@@ -288,10 +285,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
           status: 'not_found',
         })
       );
-      yield* Ref.update(mutable.lastPushedGitState, (m) => {
-        m.set(stateKey, stateHash);
-        return m;
-      });
+      lastPushedGitState.set(stateKey, stateHash);
       return;
     }
 
@@ -299,10 +293,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
 
     if (branchResult.status === 'error') {
       const stateHash = `error:${branchResult.message}`;
-      const prevHash = yield* Ref.get(mutable.lastPushedGitState).pipe(
-        Effect.map((m) => m.get(stateKey))
-      );
-      if (reason !== 'refresh' && prevHash === stateHash) return;
+      if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === stateHash) return;
 
       yield* Effect.promise(() =>
         session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
@@ -313,10 +304,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
           errorMessage: branchResult.message,
         })
       );
-      yield* Ref.update(mutable.lastPushedGitState, (m) => {
-        m.set(stateKey, stateHash);
-        return m;
-      });
+      lastPushedGitState.set(stateKey, stateHash);
       return;
     }
 
@@ -329,9 +317,8 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     const now = Date.now();
     const lastFull = lastFullPushMs.get(stateKey) ?? 0;
     if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-      const gs = yield* Ref.get(mutable.lastPushedGitState);
       yield* Effect.promise(() =>
-        pushSingleWorkspaceGitStateImpl(toGitStateDeps(session, gs), workingDir)
+        pushSingleWorkspaceGitStateImpl(buildGitStateDeps(session, lastPushedGitState), workingDir)
       );
       lastFullPushMs.set(stateKey, now);
       console.log(
@@ -350,10 +337,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     const values = yield* Effect.promise(() => pipeline.collect(workingDir, preCollected));
 
     const hash = pipeline.computeHash(values, true);
-    const currentHash = yield* Ref.get(mutable.lastPushedGitState).pipe(
-      Effect.map((m) => m.get(stateKey))
-    );
-    if (reason !== 'refresh' && currentHash === hash) {
+    if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === hash) {
       return;
     }
 
@@ -367,10 +351,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
       })
     );
 
-    yield* Ref.update(mutable.lastPushedGitState, (m) => {
-      m.set(stateKey, hash);
-      return m;
-    });
+    lastPushedGitState.set(stateKey, hash);
     console.log(
       `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
     );
@@ -378,49 +359,52 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for pushGitState — yields DaemonSessionService | DaemonMutableStateService. */
-export const pushGitStateEffect: Effect.Effect<
-  void,
-  never,
-  DaemonSessionService | DaemonMutableStateService
-> = Effect.gen(function* () {
-  const session = yield* DaemonSessionService;
-  const mutable = yield* DaemonMutableStateService;
-  const gitState = yield* Ref.get(mutable.lastPushedGitState);
-  const ctx = toGitStateDeps(session, gitState);
+/** Effect twin for pushGitState — yields GitHeartbeatRequirements. */
+export const pushGitStateEffect: Effect.Effect<void, never, GitHeartbeatRequirements> = Effect.gen(
+  function* () {
+    const session = yield* DaemonSessionService;
+    const mutable = yield* DaemonMutableStateService;
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
 
-  const workspaces = yield* Effect.promise(() =>
-    getWorkspacesForMachine({
-      workspaceListStore: session.workspaceListStore,
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-      backend: session.backend,
-    })
-  );
-  if (workspaces.length === 0) return;
+    const workspaces = yield* Effect.promise(() =>
+      getWorkspacesForMachine({
+        workspaceListStore: session.workspaceListStore,
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+      })
+    );
+    if (workspaces.length === 0) return;
 
-  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-  if (uniqueWorkingDirs.size === 0) return;
+    const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+    if (uniqueWorkingDirs.size === 0) return;
 
-  for (const workingDir of uniqueWorkingDirs) {
-    try {
-      yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(ctx, workingDir));
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
-      );
+    for (const workingDir of uniqueWorkingDirs) {
+      try {
+        yield* Effect.promise(() =>
+          pushSingleWorkspaceGitStateImpl(
+            buildGitStateDeps(session, lastPushedGitState),
+            workingDir
+          )
+        );
+      } catch (err) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Git state push failed for ${workingDir}: ${getErrorMessage(err)}`
+        );
+      }
     }
   }
-});
+);
 
-/** Effect twin for pushSingleWorkspaceGitState — yields DaemonSessionService | DaemonMutableStateService. */
+/** Effect twin for pushSingleWorkspaceGitState — yields GitHeartbeatRequirements. */
 export const pushSingleWorkspaceGitStateEffect = (
   workingDir: string
-): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> =>
+): Effect.Effect<void, never, GitHeartbeatRequirements> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const mutable = yield* DaemonMutableStateService;
-    const gitState = yield* Ref.get(mutable.lastPushedGitState);
-    const ctx = toGitStateDeps(session, gitState);
-    yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(ctx, workingDir));
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
+    yield* Effect.promise(() =>
+      pushSingleWorkspaceGitStateImpl(buildGitStateDeps(session, lastPushedGitState), workingDir)
+    );
   });
