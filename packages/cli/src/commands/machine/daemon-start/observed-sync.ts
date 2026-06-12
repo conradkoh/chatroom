@@ -18,10 +18,9 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref } from 'effect';
+import { Effect } from 'effect';
 
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
-import type { DaemonMutableStateServiceShape } from './daemon-services.js';
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
 import { pushSingleWorkspaceGitSummaryForObservedEffect } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
@@ -43,15 +42,10 @@ interface ChatroomRefreshState {
 
 export const startObservedSyncSubscriptionEffect = (
   wsClient: ConvexClient
-): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
+): Effect.Effect<{ stop: () => void }, never, DaemonSessionService | DaemonMutableStateService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    const mutableStateService: DaemonMutableStateServiceShape = {
-      lastPushedGitState: yield* Ref.make(session.lastPushedGitState),
-      lastPushedModels: yield* Ref.make(session.lastPushedModels),
-      lastPushedHarnessFingerprint: yield* Ref.make(session.lastPushedHarnessFingerprint),
-      workspaceListStore: yield* Ref.make(session.workspaceListStore),
-    };
+    const mutable = yield* DaemonMutableStateService;
 
     console.log(`[${formatTimestamp()}] 👁️ Starting observed-sync subscription (reactive)`);
 
@@ -259,7 +253,7 @@ export const startObservedSyncSubscriptionEffect = (
       await Effect.runPromise(
         pushSingleWorkspaceGitSummaryForObservedEffect(workingDir, reason).pipe(
           Effect.provideService(DaemonSessionService, session),
-          Effect.provideService(DaemonMutableStateService, mutableStateService)
+          Effect.provideService(DaemonMutableStateService, mutable)
         )
       ).catch((err: unknown) => {
         console.warn(
@@ -269,7 +263,7 @@ export const startObservedSyncSubscriptionEffect = (
       await Effect.runPromise(
         pushSingleWorkspaceCommandsEffect(workingDir).pipe(
           Effect.provideService(DaemonSessionService, session),
-          Effect.provideService(DaemonMutableStateService, mutableStateService)
+          Effect.provideService(DaemonMutableStateService, mutable)
         )
       ).catch((err: unknown) => {
         console.warn(
