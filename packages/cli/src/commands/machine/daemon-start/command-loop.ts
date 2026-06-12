@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect } from 'effect';
+import { Effect, Ref } from 'effect';
 
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { api } from '../../../api.js';
@@ -24,11 +24,11 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { pushCommandsEffect } from './command-sync-heartbeat.js';
 import { syncCommitDetailsEffect } from './commit-detail-sync.js';
-import type {
-  DaemonAgentProcessManagerService,
+import {
   DaemonMutableStateService,
+  DaemonSessionService,
+  type DaemonAgentProcessManagerService,
 } from './daemon-services.js';
-import { DaemonSessionService } from './daemon-services.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import {
   startFileContentSubscriptionEffect,
@@ -172,7 +172,9 @@ function handleGitRefreshCommandEffect(
     if (tracker.gitRefreshIds.has(eventId)) return;
     const session = yield* DaemonSessionService;
     const typedEvent = event as Extract<CommandEvent, { type: 'daemon.gitRefresh' }>;
-    session.lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
+    const mutable = yield* DaemonMutableStateService;
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
+    lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
     yield* pushGitStateEffect;
     tracker.gitRefreshIds.set(eventId, Date.now());
@@ -200,7 +202,9 @@ function handleLocalActionCommandEffect(
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
     } else if (GIT_PUSH_ACTIONS.has(typedEvent.action)) {
       const session = yield* DaemonSessionService;
-      session.lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
+      const mutable = yield* DaemonMutableStateService;
+      const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
+      lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
       yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
     }
     tracker.localActionIds.set(eventId, Date.now());
