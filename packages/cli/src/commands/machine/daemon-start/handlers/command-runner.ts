@@ -12,7 +12,7 @@ import { Effect } from 'effect';
 import { api } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
-import { DaemonSessionService } from '../daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import type { SessionId } from '../types.js';
 import { formatTimestamp } from '../utils.js';
 import { clearTrackedPids } from './orphan-tracker.js';
@@ -24,7 +24,7 @@ import { TERMINAL_STATES } from './process/state.js';
 // ─── Flat deps type ──────────────────────────────────────────────────────────
 
 /**
- * Flat deps required by onCommandRunCore and onCommandStopCore.
+ * Flat deps required by runOnCommandRun / runOnCommandStop test helpers.
  * DaemonSessionServiceShape structurally satisfies this type.
  */
 export type CommandRunnerDeps = {
@@ -39,25 +39,214 @@ function buildCommandKey(machineId: string, workingDir: string, commandName: str
   return `${machineId}|${workingDir}|${commandName}`;
 }
 
-async function reportRunFailed(deps: CommandRunnerDeps, runId: any, reason: string): Promise<void> {
-  try {
-    await deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-      runId,
-      status: 'failed',
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to report run failure (${reason}): ${getErrorMessage(err)}`
+const reportRunFailedEffect = (
+  session: Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>,
+  runId: any,
+  reason: string
+): Effect.Effect<void, never, never> =>
+  Effect.catchAll(
+    Effect.tryPromise(() =>
+      session.backend.mutation(api.commands.updateRunStatus, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        runId,
+        status: 'failed',
+      })
+    ),
+    (err) =>
+      Effect.sync(() => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️ Failed to report run failure (${reason}): ${getErrorMessage(err)}`
+        );
+      })
+  );
+
+// ─── Effect Event Handlers ──────────────────────────────────────────────────
+
+/** Effect twin for onCommandRun — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
+export const onCommandRunEffect = (event: {
+  workingDir: string;
+  commandName: string;
+  script: string;
+  runId: any;
+}): Effect.Effect<void, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    const { workingDir, commandName, script, runId } = event;
+    const runIdStr = runId.toString();
+    const commandKey = buildCommandKey(session.machineId, workingDir, commandName);
+
+    if (processManager.has(runIdStr)) {
+      console.log(`[${formatTimestamp()}] ⚠️ Command already running: ${runIdStr}`);
+      return;
+    }
+
+    if (processManager.consumePendingStop(runIdStr)) {
+      console.log(
+        `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
+      );
+      yield* Effect.catchAll(
+        Effect.tryPromise(() =>
+          session.backend.mutation(api.commands.updateRunStatus, {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+            runId,
+            status: 'stopped',
+          })
+        ),
+        (err) =>
+          Effect.sync(() => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️ Failed to update status to stopped for pending-stop skip: ${getErrorMessage(err)}`
+            );
+          })
+      );
+      return;
+    }
+
+    const isTerminal = yield* Effect.catchAll(
+      Effect.tryPromise(() =>
+        session.backend.query(api.commands.getRunStatus, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          runId,
+        })
+      ).pipe(
+        Effect.map((currentRun: { status: string } | null) => {
+          if (currentRun && TERMINAL_STATES.has(currentRun.status)) {
+            console.log(
+              `[${formatTimestamp()}] ⏭️ Skipping command run — row already ${currentRun.status}: ${commandName} (${runIdStr})`
+            );
+            return true;
+          }
+          return false;
+        })
+      ),
+      (err) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️ Failed to check run status before spawn: ${getErrorMessage(err)}`
+        );
+        return Effect.succeed(false);
+      }
     );
-  }
-}
+    if (isTerminal) return;
 
-// ─── Core Event Handlers (flat deps, no ctx.deps.xxx) ───────────────────────
+    const priorTracked = processManager.getByCommand(commandKey);
+    if (priorTracked) {
+      console.log(
+        `[${formatTimestamp()}] 🔄 Replacing prior run ${priorTracked.runId} with ${runIdStr} for ${commandName}`
+      );
+      priorTracked.terminationIntent = 'killed';
+      clearInterval(priorTracked.flushTimer);
+      if (priorTracked.softTimeoutTimer) clearTimeout(priorTracked.softTimeoutTimer);
+      yield* Effect.promise(() => killTrackedProcess(priorTracked));
+      processManager.unregister(priorTracked.runId, commandKey);
+    }
 
+    console.log(`[${formatTimestamp()}] 🚀 Running command: ${commandName} → ${script}`);
+
+    if (!workingDir.startsWith('/')) {
+      console.error(
+        `[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`
+      );
+      yield* reportRunFailedEffect(session, runId, 'Working directory is not an absolute path');
+      return;
+    }
+
+    const dirFound = yield* Effect.catchAll(
+      Effect.tryPromise(() => access(workingDir)).pipe(Effect.map(() => true)),
+      () => Effect.succeed(false)
+    );
+    if (!dirFound) {
+      console.error(
+        `[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`
+      );
+      yield* reportRunFailedEffect(session, runId, 'Working directory not found');
+      return;
+    }
+
+    const spawnDeps = {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      backend: session.backend,
+    };
+    const tracked = yield* Effect.promise(() => spawnCommandProcess(spawnDeps, event, commandKey));
+
+    yield* Effect.catchAll(
+      Effect.tryPromise(() =>
+        session.backend.mutation(api.commands.updateRunStatus, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          runId,
+          status: 'running',
+          pid: tracked.process.pid,
+        })
+      ),
+      (err) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Failed to update run status to running: ${getErrorMessage(err)}`
+          );
+        })
+    );
+  });
+
+/** Effect twin for onCommandStop — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
+export const onCommandStopEffect = (event: {
+  runId: any;
+}): Effect.Effect<void, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
+    const runIdStr = event.runId.toString();
+    const tracked = processManager.get(runIdStr);
+
+    if (!tracked) {
+      console.log(
+        `[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr} — marking as stopped`
+      );
+      processManager.markPendingStop(runIdStr);
+      yield* Effect.promise(() =>
+        session.backend.mutation(api.commands.updateRunStatus, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          runId: event.runId,
+          status: 'stopped',
+        })
+      );
+      return;
+    }
+
+    console.log(`[${formatTimestamp()}] 🛑 Stopping command run: ${runIdStr}`);
+
+    if (tracked.softTimeoutTimer) {
+      clearTimeout(tracked.softTimeoutTimer);
+      tracked.softTimeoutTimer = null;
+    }
+
+    tracked.terminationIntent = 'stopped';
+    yield* Effect.promise(() => killTrackedProcess(tracked));
+
+    yield* Effect.catchAll(
+      Effect.tryPromise(() =>
+        session.backend.mutation(api.commands.updateRunStatus, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          runId: event.runId,
+          status: 'stopped',
+        })
+      ),
+      (err) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped in backend: ${getErrorMessage(err)}`
+          );
+        })
+    );
+  });
+
+/** Test helper — run onCommandRunEffect with flat deps (not a Core twin). */
 // fallow-ignore-next-line unused-export
-export async function onCommandRunCore(
+export const runOnCommandRun = (
   deps: CommandRunnerDeps,
   event: {
     workingDir: string;
@@ -65,168 +254,21 @@ export async function onCommandRunCore(
     script: string;
     runId: any;
   }
-): Promise<void> {
-  const { workingDir, commandName, script, runId } = event;
-  const runIdStr = runId.toString();
-  const commandKey = buildCommandKey(deps.machineId, workingDir, commandName);
+): Promise<void> =>
+  Effect.runPromise(
+    onCommandRunEffect(event).pipe(
+      Effect.provideService(DaemonSessionService, deps as DaemonSessionServiceShape)
+    )
+  );
 
-  // Prevent double-spawning
-  if (processManager.has(runIdStr)) {
-    console.log(`[${formatTimestamp()}] ⚠️ Command already running: ${runIdStr}`);
-    return;
-  }
-
-  // Check for a pending stop that arrived before this run event.
-  if (processManager.consumePendingStop(runIdStr)) {
-    console.log(
-      `[${formatTimestamp()}] ⏭️ Skipping command run due to pending stop: ${commandName} (${runIdStr})`
-    );
-    try {
-      await deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-        runId,
-        status: 'stopped',
-      });
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to update status to stopped for pending-stop skip: ${getErrorMessage(err)}`
-      );
-    }
-    return;
-  }
-
-  // ── Pre-spawn DB status check ──────────────────────────────────────────────
-  try {
-    const currentRun = (await deps.backend.query(api.commands.getRunStatus, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-      runId,
-    })) as { status: string } | null;
-    if (currentRun && TERMINAL_STATES.has(currentRun.status)) {
-      console.log(
-        `[${formatTimestamp()}] ⏭️ Skipping command run — row already ${currentRun.status}: ${commandName} (${runIdStr})`
-      );
-      return;
-    }
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to check run status before spawn: ${getErrorMessage(err)}`
-    );
-  }
-
-  // ── Replace semantics: kill any prior process for this (machineId, workingDir, commandName) ──
-  const priorTracked = processManager.getByCommand(commandKey);
-  if (priorTracked) {
-    console.log(
-      `[${formatTimestamp()}] 🔄 Replacing prior run ${priorTracked.runId} with ${runIdStr} for ${commandName}`
-    );
-    priorTracked.terminationIntent = 'killed';
-    clearInterval(priorTracked.flushTimer);
-    if (priorTracked.softTimeoutTimer) clearTimeout(priorTracked.softTimeoutTimer);
-    await killTrackedProcess(priorTracked);
-    processManager.unregister(priorTracked.runId, commandKey);
-  }
-
-  console.log(`[${formatTimestamp()}] 🚀 Running command: ${commandName} → ${script}`);
-
-  // Security: Validate working directory exists and is an absolute path
-  if (!workingDir.startsWith('/')) {
-    console.error(
-      `[${formatTimestamp()}] ❌ Rejected command: workingDir is not absolute: ${workingDir}`
-    );
-    await reportRunFailed(deps, runId, 'Working directory is not an absolute path');
-    return;
-  }
-  try {
-    await access(workingDir);
-  } catch {
-    console.error(
-      `[${formatTimestamp()}] ❌ Rejected command: workingDir not found: ${workingDir}`
-    );
-    await reportRunFailed(deps, runId, 'Working directory not found');
-    return;
-  }
-
-  // Delegate spawning, output streaming, event handler attachment to spawner.
-  // Pass flat SpawnDeps (plain object, no cast) that satisfies spawner's
-  // { sessionId, machineId, backend } requirement.
-  const spawnDeps = {
-    sessionId: deps.sessionId,
-    machineId: deps.machineId,
-    backend: deps.backend,
-  };
-  const tracked = await spawnCommandProcess(spawnDeps, event, commandKey);
-
-  // Update status to running with PID
-  try {
-    await deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-      runId,
-      status: 'running',
-      pid: tracked.process.pid,
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to update run status to running: ${getErrorMessage(err)}`
-    );
-  }
-}
-
+/** Test helper — run onCommandStopEffect with flat deps (not a Core twin). */
 // fallow-ignore-next-line unused-export
-export async function onCommandStopCore(
-  deps: CommandRunnerDeps,
-  event: { runId: any }
-): Promise<void> {
-  const runIdStr = event.runId.toString();
-  const tracked = processManager.get(runIdStr);
-
-  // No tracked process — register pending stop and mark backend stopped.
-  if (!tracked) {
-    console.log(
-      `[${formatTimestamp()}] ⚠️ No running process found for run: ${runIdStr} — marking as stopped`
-    );
-    processManager.markPendingStop(runIdStr);
-    try {
-      await deps.backend.mutation(api.commands.updateRunStatus, {
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-        runId: event.runId,
-        status: 'stopped',
-      });
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped (will retry): ${getErrorMessage(err)}`
-      );
-      throw err;
-    }
-    return;
-  }
-
-  console.log(`[${formatTimestamp()}] 🛑 Stopping command run: ${runIdStr}`);
-
-  if (tracked.softTimeoutTimer) {
-    clearTimeout(tracked.softTimeoutTimer);
-    tracked.softTimeoutTimer = null;
-  }
-
-  tracked.terminationIntent = 'stopped';
-  await killTrackedProcess(tracked);
-
-  try {
-    await deps.backend.mutation(api.commands.updateRunStatus, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-      runId: event.runId,
-      status: 'stopped',
-    });
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️ Failed to mark run as stopped in backend: ${getErrorMessage(err)}`
-    );
-  }
-}
+export const runOnCommandStop = (deps: CommandRunnerDeps, event: { runId: any }): Promise<void> =>
+  Effect.runPromise(
+    onCommandStopEffect(event).pipe(
+      Effect.provideService(DaemonSessionService, deps as DaemonSessionServiceShape)
+    )
+  );
 
 /**
  * Synchronously SIGKILL every in-memory tracked command process group.
@@ -241,29 +283,6 @@ export function forceKillAllCommands(): void {
     killProcess(tracked.process, 'SIGKILL');
   }
 }
-
-// ── Effect twins ──────────────────────────────────────────────────────────────
-
-/** Effect twin for onCommandRun — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
-export const onCommandRunEffect = (event: {
-  workingDir: string;
-  commandName: string;
-  script: string;
-  runId: any;
-}): Effect.Effect<void, never, DaemonSessionService> =>
-  Effect.gen(function* () {
-    const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => onCommandRunCore(session, event));
-  });
-
-/** Effect twin for onCommandStop — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
-export const onCommandStopEffect = (event: {
-  runId: any;
-}): Effect.Effect<void, never, DaemonSessionService> =>
-  Effect.gen(function* () {
-    const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => onCommandStopCore(session, event));
-  });
 
 /** Effect twin for forceKillAllCommands — synchronous, no service deps needed. */
 // fallow-ignore-next-line unused-export

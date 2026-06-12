@@ -20,6 +20,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 // ── Minimal dep type used by Core functions + Effect twins ────────────────────
 
+// fallow-ignore-next-line unused-type
 export type CommandSyncDeps = {
   machineId: string;
   sessionId: SessionId;
@@ -28,72 +29,66 @@ export type CommandSyncDeps = {
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
 };
 
-// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
-
-async function pushCommandsCore(ctx: CommandSyncDeps): Promise<void> {
-  const workspaces = await getWorkspacesForMachine({
-    workspaceListStore: ctx.workspaceListStore,
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    backend: ctx.backend,
-  });
-  if (workspaces.length === 0) return;
-
-  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
-  if (uniqueWorkingDirs.size === 0) return;
-
-  for (const workingDir of uniqueWorkingDirs) {
-    try {
-      await pushSingleWorkspaceCommandsCore(ctx, workingDir);
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`
-      );
-    }
-  }
-}
-
-export async function pushSingleWorkspaceCommandsCore(
-  ctx: CommandSyncDeps,
-  workingDir: string
-): Promise<void> {
-  const commands = await discoverCommands(workingDir);
-
-  // Change detection: hash the command list to skip unchanged syncs
-  const stateKey = `commands:${ctx.machineId}::${workingDir}`;
-  const commandsHash = createHash('md5').update(JSON.stringify(commands)).digest('hex');
-
-  if (ctx.lastPushedGitState.get(stateKey) === commandsHash) {
-    return; // No change
-  }
-
-  await ctx.backend.mutation(api.commands.syncCommands, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    workingDir,
-    commands,
-  });
-
-  ctx.lastPushedGitState.set(stateKey, commandsHash);
-  console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
-}
-
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
-/** Effect twin for pushCommands — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandSyncDeps. */
+/** Discover and sync workspace commands to backend for all workspaces. */
 export const pushCommandsEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
   function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => pushCommandsCore(session));
+
+    const workspaces = yield* Effect.promise(() =>
+      getWorkspacesForMachine({
+        workspaceListStore: session.workspaceListStore,
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+      })
+    );
+    if (workspaces.length === 0) return;
+
+    const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+    if (uniqueWorkingDirs.size === 0) return;
+
+    for (const workingDir of uniqueWorkingDirs) {
+      yield* pushSingleWorkspaceCommandsEffect(workingDir).pipe(
+        Effect.catchAll((err) =>
+          Effect.sync(() => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`
+            );
+          })
+        )
+      );
+    }
   }
 );
 
 /** Effect twin for pushSingleWorkspaceCommands — yields DaemonSessionService. */
-// fallow-ignore-next-line unused-export
 export const pushSingleWorkspaceCommandsEffect = (
   workingDir: string
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => pushSingleWorkspaceCommandsCore(session, workingDir));
+
+    const commands = yield* Effect.promise(() => discoverCommands(workingDir));
+
+    // Change detection: hash the command list to skip unchanged syncs
+    const stateKey = `commands:${session.machineId}::${workingDir}`;
+    const commandsHash = createHash('md5').update(JSON.stringify(commands)).digest('hex');
+
+    if (session.lastPushedGitState.get(stateKey) === commandsHash) {
+      return; // No change
+    }
+
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.commands.syncCommands, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        workingDir,
+        commands,
+      })
+    );
+
+    session.lastPushedGitState.set(stateKey, commandsHash);
+    console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
   });

@@ -28,9 +28,9 @@ export interface AgentExitedDeps {
 }
 
 /**
- * Core — passthrough to AgentProcessManager.handleExit().
+ * Passthrough to AgentProcessManager.handleExit().
  */
-export async function onAgentExitedCore(
+export async function handleAgentExited(
   deps: AgentExitedDeps,
   payload: AgentExitedPayload
 ): Promise<void> {

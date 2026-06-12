@@ -2,19 +2,19 @@
  * Daemon Services Tests (Phase E1)
  *
  * Tests for the four new daemon-specific Effect services and the
- * daemonContextToLayers() convenience builder:
+ * daemonSessionToLayers() convenience builder:
  *
  *   - DaemonMachineService
  *   - DaemonSpawningService
  *   - DaemonAgentProcessManagerService
  *   - DaemonSessionService
- *   - daemonContextToLayers()
+ *   - daemonSessionToLayers()
  */
 
 import { Effect, Layer } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { daemonContextToLayers } from './daemon-layers.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonAgentProcessManagerServiceLive,
@@ -24,7 +24,7 @@ import {
   DaemonSpawningService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
-import { createMockDaemonContext } from './testing/index.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
@@ -282,19 +282,23 @@ describe('DaemonSessionService', () => {
 });
 
 // ---------------------------------------------------------------------------
-// E. daemonContextToLayers()
+// E. daemonSessionToLayers()
 // ---------------------------------------------------------------------------
 
-describe('daemonContextToLayers', () => {
-  it('builds a layer that provides DaemonSessionService with ctx identity fields', async () => {
+describe('daemonSessionToLayers', () => {
+  it('builds a layer that provides DaemonSessionService with init identity fields', async () => {
     const deps = createMockDaemonDeps();
-    const ctx = createMockDaemonContext({
-      deps,
-      sessionId: 'sess-from-ctx',
-      machineId: 'machine-from-ctx',
+    const init = createMockDaemonSessionInit({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+      sessionId: 'sess-from-init',
+      machineId: 'machine-from-init',
     });
 
-    const layer = daemonContextToLayers(ctx);
+    const layer = daemonSessionToLayers(init);
     const { sessionId, machineId } = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* DaemonSessionService;
@@ -302,15 +306,21 @@ describe('daemonContextToLayers', () => {
       }).pipe(Effect.provide(layer))
     );
 
-    expect(sessionId).toBe('sess-from-ctx');
-    expect(machineId).toBe('machine-from-ctx');
+    expect(sessionId).toBe('sess-from-init');
+    expect(machineId).toBe('machine-from-init');
   });
 
-  it('populates flat backend/fs from ctx.deps (E3 extension)', async () => {
+  it('populates flat backend/fs from init (E3 extension)', async () => {
     const deps = createMockDaemonDeps();
-    const ctx = createMockDaemonContext({ deps });
+    const init = createMockDaemonSessionInit({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+    });
 
-    const layer = daemonContextToLayers(ctx);
+    const layer = daemonSessionToLayers(init);
     const { backend, fs } = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* DaemonSessionService;
@@ -322,12 +332,19 @@ describe('daemonContextToLayers', () => {
     expect(fs).toBe(deps.fs);
   });
 
-  it('populates lastPushedGitState with same reference as ctx (shared mutation)', async () => {
+  it('populates lastPushedGitState with same reference as init (shared mutation)', async () => {
     const deps = createMockDaemonDeps();
     const lastPushedGitState = new Map<string, string>([['k', 'v']]);
-    const ctx = createMockDaemonContext({ deps, lastPushedGitState });
+    const init = createMockDaemonSessionInit({
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
+      lastPushedGitState,
+    });
 
-    const layer = daemonContextToLayers(ctx);
+    const layer = daemonSessionToLayers(init);
     const map = await Effect.runPromise(
       Effect.gen(function* () {
         const svc = yield* DaemonSessionService;

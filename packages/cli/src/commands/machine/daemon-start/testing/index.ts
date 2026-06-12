@@ -4,4 +4,4 @@
  */
 
 export { createMockDaemonDeps } from './mock-daemon-deps.js';
-export { createMockDaemonContext } from './mock-daemon-context.js';
+export { createMockDaemonSessionInit } from './mock-daemon-context.js';

@@ -10,13 +10,15 @@
  * Command-runner effects (E5.1) now yield DaemonSessionService.
  */
 
-import { Effect, Layer } from 'effect';
+import type { Layer } from 'effect';
+import { Effect } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonSessionService } from '../daemon-services.js';
-import { createMockDaemonContext } from '../testing/index.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
+import type { DaemonSessionService } from '../daemon-services.js';
+import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
-import type { DaemonContext } from '../types.js';
+import type { DaemonSessionInit } from '../types.js';
 import {
   forceKillAllCommandsEffect,
   onCommandRunEffect,
@@ -79,28 +81,16 @@ vi.mock('../../../../infrastructure/convex/client.js', () => ({
 // Helpers — DaemonSessionService (for command-runner Effect twins, E5.1)
 // ---------------------------------------------------------------------------
 
-function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
-  const ctx = createMockDaemonContext(overrides);
-  return Layer.succeed(DaemonSessionService, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    client: ctx.client,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    agentServices: ctx.agentServices,
-    events: ctx.events,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
+function makeSessionLayer(
+  overrides?: Partial<DaemonSessionInit>
+): Layer.Layer<DaemonSessionService> {
+  const init = createMockDaemonSessionInit(overrides);
+  return daemonSessionToLayers(init);
 }
 
 async function runWithSession<A>(
   effect: Effect.Effect<A, never, DaemonSessionService>,
-  overrides?: Partial<DaemonContext>
+  overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
 }
@@ -169,7 +159,11 @@ describe('onCommandStopEffect', () => {
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
     await runWithSession(onCommandStopEffect({ runId: 'd2-stop-test-1' as any }), {
-      deps,
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
       machineId: 'test-machine-d2',
     });
 
@@ -185,7 +179,11 @@ describe('onCommandStopEffect', () => {
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
     await runWithSession(onCommandStopEffect({ runId: 'd2-stop-test-2' as any }), {
-      deps,
+      backend: deps.backend,
+      fs: deps.fs,
+      machine: deps.machine,
+      spawning: deps.spawning,
+      agentProcessManager: deps.agentProcessManager,
       sessionId: 'custom-session-id' as any,
     });
 
@@ -212,7 +210,14 @@ describe('onCommandRunEffect', () => {
         script: 'echo hello',
         runId: 'd2-run-test-1' as any,
       }),
-      { deps, machineId: 'test-machine-d2' }
+      {
+        backend: deps.backend,
+        fs: deps.fs,
+        machine: deps.machine,
+        spawning: deps.spawning,
+        agentProcessManager: deps.agentProcessManager,
+        machineId: 'test-machine-d2',
+      }
     );
 
     // Should NOT be registered in processManager (no spawn occurred)
@@ -238,7 +243,14 @@ describe('onCommandRunEffect', () => {
         script: 'echo hello',
         runId: 'd2-run-test-2' as any,
       }),
-      { deps, machineId: 'machine-from-ctx' }
+      {
+        backend: deps.backend,
+        fs: deps.fs,
+        machine: deps.machine,
+        spawning: deps.spawning,
+        agentProcessManager: deps.agentProcessManager,
+        machineId: 'machine-from-ctx',
+      }
     );
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(

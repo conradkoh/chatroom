@@ -14,10 +14,11 @@
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { daemonSessionToLayers } from './daemon-layers.js';
 import { DaemonSessionService } from './daemon-services.js';
-import { createMockDaemonContext } from './testing/index.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
-import type { DaemonContext } from './types.js';
+import type { DaemonSessionInit } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — avoid real WebSocket connections
@@ -99,30 +100,32 @@ function makeMockWsClient(): any {
 // Helpers — DaemonSessionService (for all subscriptions migrated to E4.x)
 // ---------------------------------------------------------------------------
 
-function makeSessionLayer(overrides?: Partial<DaemonContext>): Layer.Layer<DaemonSessionService> {
-  const ctx = createMockDaemonContext(overrides);
-  return Layer.succeed(DaemonSessionService, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    client: ctx.client,
-    config: ctx.config,
-    backend: ctx.deps.backend,
-    fs: ctx.deps.fs,
-    agentServices: ctx.agentServices,
-    events: ctx.events,
-    workspaceListStore: ctx.workspaceListStore,
-    logger: ctx.logger,
-    lastPushedGitState: ctx.lastPushedGitState,
-    lastPushedModels: ctx.lastPushedModels,
-    lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-  });
+function makeSessionLayer(
+  overrides?: Partial<DaemonSessionInit>
+): Layer.Layer<DaemonSessionService> {
+  const init = createMockDaemonSessionInit(overrides);
+  return daemonSessionToLayers(init);
 }
 
 async function runWithSession<A>(
   effect: Effect.Effect<A, never, DaemonSessionService>,
-  overrides?: Partial<DaemonContext>
+  overrides?: Partial<DaemonSessionInit>
 ) {
   return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
+}
+
+function withDeps(
+  deps: ReturnType<typeof createMockDaemonDeps>,
+  extra?: Partial<DaemonSessionInit>
+): Partial<DaemonSessionInit> {
+  return {
+    backend: deps.backend,
+    fs: deps.fs,
+    machine: deps.machine,
+    spawning: deps.spawning,
+    agentProcessManager: deps.agentProcessManager,
+    ...extra,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -155,11 +158,10 @@ describe('startFileTreeSubscriptionEffect', () => {
     const wsClient = makeMockWsClient();
     const deps = createMockDaemonDeps();
 
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient), {
-      deps,
-      sessionId: 'session-tree',
-      machineId: 'machine-tree',
-    });
+    await runWithSession(
+      startFileTreeSubscriptionEffect(wsClient),
+      withDeps(deps, { sessionId: 'session-tree', machineId: 'machine-tree' })
+    );
 
     expect(wsClient.onUpdate).toHaveBeenCalledWith(
       expect.anything(),
@@ -250,23 +252,9 @@ describe('startWorkspaceListSubscriptionEffect', () => {
     const layer = Layer.effect(
       DaemonSessionService,
       Effect.gen(function* () {
-        const ctx = createMockDaemonContext();
-        capturedSession = {
-          sessionId: ctx.sessionId,
-          machineId: ctx.machineId,
-          client: ctx.client,
-          config: ctx.config,
-          backend: ctx.deps.backend,
-          fs: ctx.deps.fs,
-          agentServices: ctx.agentServices,
-          events: ctx.events,
-          workspaceListStore: ctx.workspaceListStore,
-          logger: ctx.logger,
-          lastPushedGitState: ctx.lastPushedGitState,
-          lastPushedModels: ctx.lastPushedModels,
-          lastPushedHarnessFingerprint: ctx.lastPushedHarnessFingerprint,
-        };
-        return capturedSession as any;
+        const init = createMockDaemonSessionInit();
+        capturedSession = init;
+        return init as any;
       })
     );
 
@@ -294,7 +282,10 @@ describe('startGitRequestSubscriptionEffect', () => {
     vi.mocked(deps.backend.mutation).mockResolvedValue(0 as any);
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithSession(startGitRequestSubscriptionEffect(wsClient), { deps });
+    const handle = await runWithSession(
+      startGitRequestSubscriptionEffect(wsClient),
+      withDeps(deps)
+    );
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
@@ -306,11 +297,10 @@ describe('startGitRequestSubscriptionEffect', () => {
     vi.mocked(deps.backend.mutation).mockResolvedValue(0 as any);
     const wsClient = makeMockWsClient();
 
-    await runWithSession(startGitRequestSubscriptionEffect(wsClient), {
-      deps,
-      sessionId: 'session-git',
-      machineId: 'machine-git',
-    });
+    await runWithSession(
+      startGitRequestSubscriptionEffect(wsClient),
+      withDeps(deps, { sessionId: 'session-git', machineId: 'machine-git' })
+    );
 
     expect(wsClient.onUpdate).toHaveBeenCalledWith(
       expect.anything(),
@@ -347,11 +337,10 @@ describe('processRequestsEffect', () => {
     const gitReader = await import('../../../infrastructure/git/git-reader.js');
     vi.mocked(gitReader as any).getFullDiff = vi.fn().mockResolvedValue({ status: 'not_found' });
 
-    await runWithSession(processRequestsEffect([req as any], new Map(), 300_000), {
-      deps,
-      machineId: 'machine-process',
-      sessionId: 'session-process',
-    });
+    await runWithSession(
+      processRequestsEffect([req as any], new Map(), 300_000),
+      withDeps(deps, { machineId: 'machine-process', sessionId: 'session-process' })
+    );
 
     // updateRequestStatus should have been called (at least once)
     expect(deps.backend.mutation).toHaveBeenCalled();
@@ -368,7 +357,10 @@ describe('startObservedSyncSubscriptionEffect', () => {
     const deps = createMockDaemonDeps();
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithSession(startObservedSyncSubscriptionEffect(wsClient), { deps });
+    const handle = await runWithSession(
+      startObservedSyncSubscriptionEffect(wsClient),
+      withDeps(deps)
+    );
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');

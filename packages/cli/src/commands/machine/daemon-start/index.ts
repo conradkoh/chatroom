@@ -9,7 +9,7 @@
 import { Effect } from 'effect';
 
 import { startCommandLoopEffect } from './command-loop.js';
-import { daemonContextToLayers } from './daemon-layers.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
 import { initDaemon } from './init.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
@@ -18,14 +18,13 @@ import { initDaemon } from './init.js';
  * Start the daemon: initialize, then enter the command processing loop.
  */
 export async function daemonStart(): Promise<void> {
-  const ctx = await initDaemon();
-  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(daemonContextToLayers(ctx))));
+  const init = await initDaemon();
+  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(daemonSessionToLayers(init))));
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
 
 export type {
-  DaemonContext,
   CommandResult,
   StartAgentCommand,
   StopAgentCommand,

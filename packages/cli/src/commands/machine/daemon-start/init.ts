@@ -4,23 +4,22 @@
 
 import { stat } from 'node:fs/promises';
 
-import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import type { ConvexHttpClient } from 'convex/browser';
 import { Effect, Schedule, Duration } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
-import { daemonContextToLayers } from './daemon-layers.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
 import type { DaemonDeps } from './deps.js';
 import {
   clearStaleSpawnedPidsEffect,
   reapOrphanCommandRunsEffect,
 } from './handlers/daemon-restart-cleanup.js';
 import { recoverAgentStateEffect } from './handlers/state-recovery.js';
-import type { DaemonContext, SessionId } from './types.js';
+import type { DaemonSessionInit, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListenersCore } from '../../../events/daemon/register-listeners.js';
+import { registerEventListenersEffect } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
@@ -47,7 +46,7 @@ import type { RemoteAgentService } from '../../../infrastructure/services/remote
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { acquireLock, releaseLock } from '../pid.js';
-import { logStartupCore } from './handlers/daemon-startup-log.js';
+import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
 
@@ -319,11 +318,11 @@ async function connectDaemon(
  * Recover agent state from previous daemon session.
  * Non-critical: continues with fresh state on failure.
  */
-async function recoverState(ctx: DaemonContext): Promise<void> {
+async function recoverState(init: DaemonSessionInit): Promise<void> {
   console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
   try {
     await Effect.runPromise(
-      recoverAgentStateEffect.pipe(Effect.provide(daemonContextToLayers(ctx)))
+      recoverAgentStateEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
     );
   } catch (e) {
     console.log(`   ⚠️  Recovery failed: ${getErrorMessage(e)}`);
@@ -336,7 +335,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   // the UI from showing dead agents as "running" or "starting".
   try {
     const clearedCount = await Effect.runPromise(
-      clearStaleSpawnedPidsEffect().pipe(Effect.provide(daemonContextToLayers(ctx)))
+      clearStaleSpawnedPidsEffect().pipe(Effect.provide(daemonSessionToLayers(init)))
     );
     if (clearedCount > 0) {
       console.log(`   🧹 Cleared ${clearedCount} stale agent PID(s) from backend`);
@@ -353,7 +352,7 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
   // next triggers a run for the same command.
   try {
     const reapedCount = await Effect.runPromise(
-      reapOrphanCommandRunsEffect().pipe(Effect.provide(daemonContextToLayers(ctx)))
+      reapOrphanCommandRunsEffect().pipe(Effect.provide(daemonSessionToLayers(init)))
     );
     if (reapedCount > 0) {
       console.log(
@@ -390,9 +389,9 @@ class NetworkRetryError {
 /**
  * Initialize the daemon: validate auth, connect to Convex, recover state.
  * Retries with a fixed 1-second interval on network errors.
- * Returns the DaemonContext if successful, or exits the process on fatal failure.
+ * Returns the DaemonSessionInit if successful, or exits the process on fatal failure.
  */
-export async function initDaemon(): Promise<DaemonContext> {
+export async function initDaemon(): Promise<DaemonSessionInit> {
   // Acquire lock (prevents multiple daemons)
   if (!acquireLock()) {
     process.exit(1);
@@ -527,34 +526,35 @@ export async function initDaemon(): Promise<DaemonContext> {
   });
 
   const events = new DaemonEventBus();
-  const ctx: DaemonContext = {
+  const init: DaemonSessionInit = {
     client,
     sessionId: typedSessionId,
     machineId,
     config,
-    deps,
+    backend: deps.backend,
+    fs: deps.fs,
+    machine: deps.machine,
+    spawning: deps.spawning,
+    agentProcessManager: deps.agentProcessManager,
     events,
     agentServices,
     lastPushedGitState: new Map(),
-    // Seed with the snapshot pushed by registerCapabilities() during startup
-    // so the first refreshModels tick correctly detects "no change" instead
-    // of always re-pushing the same set on the first run.
     lastPushedModels: availableModels,
     lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
       config.availableHarnesses,
       config.harnessVersions as Record<string, unknown>
     ),
-    observedSyncEnabled: featureFlags.observedSyncEnabled ?? false,
     logger: console,
   };
 
-  registerEventListenersCore({
-    events,
-    handleExit: (opts) => deps.agentProcessManager.handleExit(opts),
-  });
+  await Effect.runPromise(
+    registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)))
+  );
 
-  logStartupCore({ machineId: ctx.machineId, config: ctx.config }, availableModels);
-  await recoverState(ctx);
+  await Effect.runPromise(
+    logStartupEffect(availableModels).pipe(Effect.provide(daemonSessionToLayers(init)))
+  );
+  await recoverState(init);
 
-  return ctx;
+  return init;
 }

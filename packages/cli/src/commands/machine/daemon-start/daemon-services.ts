@@ -7,7 +7,7 @@
  *   → infrastructure/services/
  */
 
-import { Context, Effect, Layer } from 'effect';
+import { Context, Effect, Layer, Ref } from 'effect';
 
 import type { MachineStateOps, SpawningOps } from './deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './types.js';
@@ -132,10 +132,8 @@ export const DaemonAgentProcessManagerServiceLive = (
 /**
  * Effect service carrying daemon identity fields.
  *
- * Note: mutable ctx state (lastPushedGitState, lastPushedModels, etc.)
- * is intentionally excluded — these mutable fields
- * use the same shared-reference pattern as the original DaemonContext.
- * Migrating them to Effect.Ref is future scope (Phase E5+).
+ * Mutable state (lastPushedGitState, lastPushedModels, etc.) is migrating to
+ * DaemonMutableStateService (E5). Fields remain on this shape until E5-final.
  */
 export interface DaemonSessionServiceShape {
   // ─── Identity ─────────────────────────────────────────────────────
@@ -170,3 +168,41 @@ export class DaemonSessionService extends Context.Tag('DaemonSessionService')<
   DaemonSessionService,
   DaemonSessionServiceShape
 >() {}
+
+// ─── DaemonMutableStateService (E5 — Effect.Ref for mutable state) ───────────
+
+/**
+ * Effect.Ref-backed mutable state previously held as shared references on
+ * DaemonSessionService. Migrating consumers incrementally (E5-2+).
+ */
+export interface DaemonMutableStateServiceShape {
+  lastPushedGitState: Ref.Ref<Map<string, string>>;
+  lastPushedModels: Ref.Ref<Record<string, string[]> | null>;
+  lastPushedHarnessFingerprint: Ref.Ref<string | null>;
+  workspaceListStore: Ref.Ref<{ workspaces: WorkspaceForSync[]; updatedAt: number } | undefined>;
+}
+
+export class DaemonMutableStateService extends Context.Tag('DaemonMutableStateService')<
+  DaemonMutableStateService,
+  DaemonMutableStateServiceShape
+>() {}
+
+/** Build DaemonMutableStateService layer from initial values. */
+export function DaemonMutableStateServiceLive(init: {
+  lastPushedGitState: Map<string, string>;
+  lastPushedModels: Record<string, string[]> | null;
+  lastPushedHarnessFingerprint: string | null;
+  workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
+}) {
+  return Layer.effect(
+    DaemonMutableStateService,
+    Effect.gen(function* () {
+      return {
+        lastPushedGitState: yield* Ref.make(init.lastPushedGitState),
+        lastPushedModels: yield* Ref.make(init.lastPushedModels),
+        lastPushedHarnessFingerprint: yield* Ref.make(init.lastPushedHarnessFingerprint),
+        workspaceListStore: yield* Ref.make(init.workspaceListStore),
+      };
+    })
+  );
+}

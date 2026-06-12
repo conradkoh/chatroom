@@ -10,6 +10,7 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
+import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
@@ -19,20 +20,16 @@ import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shut
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
-import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
-import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
-import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
-import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import { pushCommandsEffect } from './command-sync-heartbeat.js';
 import { syncCommitDetailsEffect } from './commit-detail-sync.js';
-import type { DaemonAgentProcessManagerService } from './daemon-services.js';
+import type {
+  DaemonAgentProcessManagerService,
+  DaemonMutableStateService,
+} from './daemon-services.js';
 import { DaemonSessionService } from './daemon-services.js';
-import { startCommandSubscriber } from './direct-harness/command-subscriber.js';
-import { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
-import { startMessageSubscriber } from './direct-harness/prompt-subscriber.js';
-import { startSessionSubscriber } from './direct-harness/session-subscriber.js';
+import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import {
   startFileContentSubscriptionEffect,
   type FileContentSubscriptionHandle,
@@ -115,7 +112,10 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Union of services required to dispatch any command event. */
-type CommandDispatchDeps = DaemonAgentProcessManagerService | DaemonSessionService;
+type CommandDispatchDeps =
+  | DaemonAgentProcessManagerService
+  | DaemonMutableStateService
+  | DaemonSessionService;
 
 // ── Per-event Effect helpers (private) ────────────────────────────────────────
 
@@ -246,7 +246,7 @@ function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
+): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> {
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.capabilitiesRefreshIds.has(eventId)) return;
@@ -313,11 +313,11 @@ export const dispatchCommandEventEffect = (
 export const startCommandLoopEffect: Effect.Effect<
   never,
   never,
-  DaemonSessionService | DaemonAgentProcessManagerService
+  DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
 > = Effect.gen(function* () {
   const session = yield* DaemonSessionService;
   const effectContext = yield* Effect.context<
-    DaemonSessionService | DaemonAgentProcessManagerService
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
   >();
 
   const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;
@@ -501,58 +501,16 @@ export const startCommandLoopEffect: Effect.Effect<
   );
 
   if (featureFlags.directHarnessWorkers) {
-    const sessionRepository = new ConvexSessionRepository({
-      backend: session.backend,
-      sessionId: session.sessionId,
-    });
-    const outputRepository = new ConvexOutputRepository({
-      backend: session.backend,
-      sessionId: session.sessionId,
-    });
-    const journalFactory = new BufferedJournalFactory({ outputRepository });
-
-    const sharedDeps = {
+    const handles = startDirectHarnessSubscriptions(
+      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
+      wsClient,
       activeSessions,
-      harnesses,
-      sessionRepository,
-      journalFactory,
-    };
-
-    pendingPromptSubscriptionHandle = startMessageSubscriber(
-      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
-      wsClient,
-      sharedDeps
+      harnesses
     );
-    pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
-      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
-      wsClient,
-      {
-        activeSessions,
-        harnesses,
-        sessionRepository,
-        journalFactory,
-      }
-    );
-
-    lifecycleManager = new HarnessLifecycleManager(harnesses, activeSessions, async (workspaceId) =>
-      session.backend.query(api.workspaces.getWorkspaceById, {
-        sessionId: session.sessionId,
-        workspaceId,
-      })
-    );
-    lifecycleManager.startMonitoring();
-
-    commandSubscriptionHandle = startCommandSubscriber(
-      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
-      wsClient,
-      {
-        lifecycleManager,
-        publisher: new ConvexCapabilitiesPublisher({
-          backend: session.backend,
-          sessionId: session.sessionId,
-        }),
-      }
-    );
+    pendingPromptSubscriptionHandle = handles.pendingPromptSubscriptionHandle;
+    pendingHarnessSessionSubscriptionHandle = handles.pendingHarnessSessionSubscriptionHandle;
+    commandSubscriptionHandle = handles.commandSubscriptionHandle;
+    lifecycleManager = handles.lifecycleManager;
   }
 
   console.log(`\nListening for commands...`);
