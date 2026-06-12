@@ -7,7 +7,7 @@ import { Effect, Ref } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
-import { discoverModels } from './init.js';
+import { discoverModelsEffect } from './init.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
@@ -147,10 +147,7 @@ export const refreshModelsEffect: Effect.Effect<
   const lastPushedHarnessFingerprint = yield* Ref.get(mutable.lastPushedHarnessFingerprint);
 
   const outcome = yield* Effect.gen(function* () {
-    const models = yield* Effect.tryPromise({
-      try: async () => discoverModels(session.agentServices),
-      catch: (e) => e,
-    });
+    const models = yield* discoverModelsEffect(session.agentServices);
 
     const freshConfig = yield* Effect.tryPromise({
       try: async () => ensureMachineRegistered(),

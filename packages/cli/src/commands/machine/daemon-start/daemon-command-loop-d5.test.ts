@@ -93,9 +93,15 @@ vi.mock('./workspace-cache.js', () => ({
 
 // refreshModels internals — intercepted because the Effect twin calls the
 // same-module function which uses these via static import bindings.
-vi.mock('./init.js', () => ({
-  discoverModels: vi.fn().mockResolvedValue({ opencode: ['opencode/model-a'] }),
-}));
+vi.mock('./init.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    discoverModels: vi.fn().mockResolvedValue({ opencode: ['opencode/model-a'] }),
+    discoverModelsEffect: vi
+      .fn()
+      .mockReturnValue(Effect.succeed({ opencode: ['opencode/model-a'] })),
+  };
+});
 
 vi.mock('../../../infrastructure/machine/index.js', () => ({
   ensureMachineRegistered: vi.fn().mockResolvedValue({
