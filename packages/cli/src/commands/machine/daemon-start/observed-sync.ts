@@ -18,10 +18,11 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
-import { DaemonMutableStateServiceLive, DaemonSessionService } from './daemon-services.js';
+import type { DaemonMutableStateService } from './daemon-services.js';
+import { DaemonSessionService } from './daemon-services.js';
 import { pushSingleWorkspaceGitSummaryForObservedEffect } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -42,9 +43,10 @@ interface ChatroomRefreshState {
 
 export const startObservedSyncSubscriptionEffect = (
   wsClient: ConvexClient
-): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
+): Effect.Effect<{ stop: () => void }, never, DaemonSessionService | DaemonMutableStateService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
+    const effectContext = yield* Effect.context<DaemonSessionService | DaemonMutableStateService>();
 
     console.log(`[${formatTimestamp()}] 👁️ Starting observed-sync subscription (reactive)`);
 
@@ -251,17 +253,7 @@ export const startObservedSyncSubscriptionEffect = (
     ): Promise<void> {
       await Effect.runPromise(
         pushSingleWorkspaceGitSummaryForObservedEffect(workingDir, reason).pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              Layer.succeed(DaemonSessionService, session),
-              DaemonMutableStateServiceLive({
-                lastPushedGitState: session.lastPushedGitState,
-                lastPushedModels: session.lastPushedModels,
-                lastPushedHarnessFingerprint: session.lastPushedHarnessFingerprint,
-                workspaceListStore: session.workspaceListStore,
-              })
-            )
-          )
+          Effect.provide(effectContext)
         )
       ).catch((err: unknown) => {
         console.warn(
@@ -269,19 +261,7 @@ export const startObservedSyncSubscriptionEffect = (
         );
       });
       await Effect.runPromise(
-        pushSingleWorkspaceCommandsEffect(workingDir).pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              Layer.succeed(DaemonSessionService, session),
-              DaemonMutableStateServiceLive({
-                lastPushedGitState: session.lastPushedGitState,
-                lastPushedModels: session.lastPushedModels,
-                lastPushedHarnessFingerprint: session.lastPushedHarnessFingerprint,
-                workspaceListStore: session.workspaceListStore,
-              })
-            )
-          )
-        )
+        pushSingleWorkspaceCommandsEffect(workingDir).pipe(Effect.provide(effectContext))
       ).catch((err: unknown) => {
         console.warn(
           `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`
