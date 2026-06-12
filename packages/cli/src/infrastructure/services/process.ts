@@ -1,4 +1,3 @@
-// fallow-ignore-next-line unused-file
 /**
  * ProcessService — Effect-TS service definition for OS process management.
  *
