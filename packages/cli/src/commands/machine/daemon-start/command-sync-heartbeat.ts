@@ -7,9 +7,9 @@
 
 import { createHash } from 'node:crypto';
 
-import { Effect } from 'effect';
+import { Effect, Ref } from 'effect';
 
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
 import type { SessionId, WorkspaceForSync } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
@@ -18,7 +18,9 @@ import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { discoverCommands } from '../../../infrastructure/services/workspace/command-discovery.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
-// ── Minimal dep type used by Core functions + Effect twins ────────────────────
+// ── Minimal dep type used by Effect twins ────────────────────
+
+type CommandSyncRequirements = DaemonSessionService | DaemonMutableStateService;
 
 // fallow-ignore-next-line unused-type
 export type CommandSyncDeps = {
@@ -32,7 +34,7 @@ export type CommandSyncDeps = {
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
 /** Discover and sync workspace commands to backend for all workspaces. */
-export const pushCommandsEffect: Effect.Effect<void, never, DaemonSessionService> = Effect.gen(
+export const pushCommandsEffect: Effect.Effect<void, never, CommandSyncRequirements> = Effect.gen(
   function* () {
     const session = yield* DaemonSessionService;
 
@@ -63,12 +65,14 @@ export const pushCommandsEffect: Effect.Effect<void, never, DaemonSessionService
   }
 );
 
-/** Effect twin for pushSingleWorkspaceCommands — yields DaemonSessionService. */
+/** Effect twin for pushSingleWorkspaceCommands — yields CommandSyncRequirements. */
 export const pushSingleWorkspaceCommandsEffect = (
   workingDir: string
-): Effect.Effect<void, never, DaemonSessionService> =>
+): Effect.Effect<void, never, CommandSyncRequirements> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
+    const mutable = yield* DaemonMutableStateService;
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
 
     const commands = yield* Effect.promise(() => discoverCommands(workingDir));
 
@@ -76,7 +80,7 @@ export const pushSingleWorkspaceCommandsEffect = (
     const stateKey = `commands:${session.machineId}::${workingDir}`;
     const commandsHash = createHash('md5').update(JSON.stringify(commands)).digest('hex');
 
-    if (session.lastPushedGitState.get(stateKey) === commandsHash) {
+    if (lastPushedGitState.get(stateKey) === commandsHash) {
       return; // No change
     }
 
@@ -89,6 +93,6 @@ export const pushSingleWorkspaceCommandsEffect = (
       })
     );
 
-    session.lastPushedGitState.set(stateKey, commandsHash);
+    lastPushedGitState.set(stateKey, commandsHash);
     console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
   });
