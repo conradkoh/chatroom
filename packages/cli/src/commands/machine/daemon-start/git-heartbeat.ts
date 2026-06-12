@@ -329,7 +329,10 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     const now = Date.now();
     const lastFull = lastFullPushMs.get(stateKey) ?? 0;
     if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-      yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
+      const gs = yield* Ref.get(mutable.lastPushedGitState);
+      yield* Effect.promise(() =>
+        pushSingleWorkspaceGitStateImpl(toGitStateDeps(session, gs), workingDir)
+      );
       lastFullPushMs.set(stateKey, now);
       console.log(
         `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`

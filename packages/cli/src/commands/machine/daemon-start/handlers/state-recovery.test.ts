@@ -43,9 +43,6 @@ function makeSessionLayer(overrides?: {
     fs: { stat: vi.fn().mockResolvedValue({ isDirectory: () => true }) } as any,
     agentServices: new Map(),
     events: new DaemonEventBus(),
-    lastPushedGitState: new Map(),
-    lastPushedModels: null,
-    lastPushedHarnessFingerprint: null,
   });
 }
 
