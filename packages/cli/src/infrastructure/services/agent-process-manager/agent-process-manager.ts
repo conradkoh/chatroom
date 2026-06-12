@@ -70,6 +70,8 @@ export interface AgentSlot {
   recentLogLines?: string[];
   /** User's persisted resume preference for this run; gates turn-resume & crash-recovery resume. */
   wantResume?: boolean;
+  /** Set to true when resumeTurn fails, signaling handleExit to cold-restart. */
+  turnResumeFailed?: boolean;
 }
 
 export interface OperationResult {
@@ -87,11 +89,13 @@ export interface EnsureRunningOpts {
   reason: string;
   /**
    * Whether to try daemon-memory resume on stop→start (same daemon process).
-   * Required: the "absent ⇒ default true" decision is resolved at the daemon
-   * event boundary (on-request-start-agent), so callers here always pass a
-   * concrete value. Forgetting it is a compile error.
    */
-  wantResume: boolean;
+  wantResume?: boolean;
+  /**
+   * When true, skip re-recording the last harness session in doStop even if
+   * preserveForResume would normally be true (used after turnResumeFailed).
+   */
+  forceColdRestart?: boolean;
 }
 
 export interface StopOpts {
@@ -100,6 +104,8 @@ export interface StopOpts {
   reason: StopReason;
   /** PID from the backend event — used as fallback when the daemon has no slot PID (e.g. after restart). */
   pid?: number;
+  /** When true, skip re-recording the last harness session (used after turnResumeFailed). */
+  forceColdRestart?: boolean;
 }
 
 export interface HandleExitOpts {
@@ -301,7 +307,10 @@ export class AgentProcessManager {
     // This ensures handleExit() will see state === 'stopping' and return early.
     slot.state = 'stopping';
 
-    const operation = this.doStop(key, slot, pid, opts);
+    const operation = this.doStop(key, slot, pid, {
+      ...opts,
+      forceColdRestart: opts.forceColdRestart,
+    });
     slot.pendingOperation = operation;
 
     await operation;
@@ -404,12 +413,14 @@ export class AgentProcessManager {
     const harnessSessionId = slot.harnessSessionId;
     const wantResume = slot.wantResume;
     const recentLogLines = slot.recentLogLines;
+    const turnResumeFailed = slot?.turnResumeFailed === true;
 
     if (
       harness &&
       harnessSessionId &&
       getHarnessCapabilities(harness).supportsSessionResume &&
-      shouldRetainHarnessSessionForReconnect(stopReason)
+      shouldRetainHarnessSessionForReconnect(stopReason) &&
+      !turnResumeFailed
     ) {
       const service = this.deps.agentServices.get(harness);
       const harnessMeta = service
@@ -500,6 +511,15 @@ export class AgentProcessManager {
       return;
     }
 
+    // Force cold restart when in-turn resumeTurn failed: clear daemon-memory
+    // session so the next ensureRunning does not attempt resumeFromDaemonMemory,
+    // and pass wantResume=false to skip both in-turn resume and daemon-memory
+    // resume (the slot.turnResumeFailed flag already prevents in-turn resume).
+    if (turnResumeFailed && slot) {
+      slot.turnResumeFailed = false;
+      this.clearLastHarnessSession(key);
+    }
+
     this.ensureRunning({
       chatroomId: opts.chatroomId,
       role: opts.role,
@@ -511,7 +531,8 @@ export class AgentProcessManager {
       // spawn. Enabled → rejoin the harness session; disabled → cold-restart.
       // Defaults to true when unknown (e.g. slot re-adopted after a daemon
       // restart) to preserve rejoin-on-crash.
-      wantResume: wantResume ?? true,
+      wantResume: turnResumeFailed ? false : (wantResume ?? true),
+      forceColdRestart: turnResumeFailed,
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
@@ -1044,7 +1065,7 @@ export class AgentProcessManager {
       let spawnResult: SpawnResult | undefined;
       const resumePath = decideResumePathOnRestart({
         supportsSessionResume: getHarnessCapabilities(opts.agentHarness).supportsSessionResume,
-        wantResume,
+        wantResume: opts.wantResume ?? true,
         hasStoredSnapshot: this.lastHarnessSessions.has(key),
       });
       if (resumePath === 'daemon_memory') {
@@ -1092,7 +1113,7 @@ export class AgentProcessManager {
       slot.pid = pid;
       slot.harness = opts.agentHarness;
       slot.harnessSessionId = spawnResult.harnessSessionId;
-      if (spawnResult.harnessSessionId) {
+      if (spawnResult.harnessSessionId && !opts.forceColdRestart) {
         this.recordLastHarnessSession(key, {
           harnessSessionId: spawnResult.harnessSessionId,
           harness: opts.agentHarness,
@@ -1231,7 +1252,7 @@ export class AgentProcessManager {
       );
 
       if (harness && slot.harnessSessionId) {
-        if (preserveForResume) {
+        if (preserveForResume && !opts.forceColdRestart) {
           const harnessMeta = service ? this.readHarnessReconnectMetadata(service, pid) : undefined;
           this.recordLastHarnessSession(key, {
             harnessSessionId: slot.harnessSessionId,

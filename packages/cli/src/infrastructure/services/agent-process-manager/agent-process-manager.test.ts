@@ -248,6 +248,98 @@ describe('AgentProcessManager', () => {
       });
     });
 
+    test('resumeTurn failure → handleExit forces cold restart (wantResume: false, clears daemon memory)', async () => {
+      const resumeTurn = vi.fn().mockRejectedValue(new Error('session not found'));
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: 100,
+        harnessSessionId: 'sess-cold-1',
+        harnessReconnect: { agentName: 'build', model: 'gpt-4' },
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const spawnMock = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'sess-opencode-1',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: spawnMock,
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({ agentName: 'build' }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      // Manually set up the slot with turnResumeFailed = true and a session in daemon memory.
+      // This simulates the state after resumeTurn has failed.
+      const key = `${CHATROOM_ID}:${ROLE.toLowerCase()}`;
+      const managedSlot = {
+        state: 'running' as const,
+        pid: PID,
+        harness: 'opencode-sdk' as const,
+        harnessSessionId: 'sess-opencode-1',
+        workingDir: '/tmp/test',
+        wantResume: true,
+        turnResumeFailed: true,
+      };
+      (manager as unknown as { slots: Map<string, typeof managedSlot> }).slots.set(
+        key,
+        managedSlot as any
+      );
+      getLastHarnessSessions(manager).set(key, {
+        harnessSessionId: 'sess-opencode-1',
+        harness: 'opencode-sdk',
+        agentName: 'build',
+        workingDir: '/tmp/test',
+        model: 'gpt-4',
+      });
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      spawnMock.mockClear();
+      (resumableService.resumeFromDaemonMemory as ReturnType<typeof vi.fn>).mockClear();
+
+      await manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: null,
+        signal: 'SIGTERM',
+      });
+
+      // Should have cleared daemon memory
+      expect(getLastHarnessSessions(manager).has(key)).toBe(false);
+
+      // Should have called ensureRunning with forceColdRestart: true and wantResume: false
+      await vi.waitFor(() => {
+        expect(spawnMock).toHaveBeenCalledOnce();
+      });
+      expect(resumableService.resumeFromDaemonMemory).not.toHaveBeenCalled();
+
+      // Should NOT have emitted sessionResumeFailed from daemon-memory path
+      const resumeFailedCalls = (
+        deps.backend.mutation as ReturnType<typeof vi.fn>
+      ).mock.calls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          (call[1] as Record<string, unknown>)?.reason !== undefined &&
+          (call[1] as Record<string, unknown>)?.reason !== 'session not found'
+      );
+      // Filter to only sessionResumeFailed events (which have a reason)
+      const sessionResumeFailedOnly = resumeFailedCalls.filter(
+        (call: unknown[]) =>
+          call.length >= 2 &&
+          typeof call[0] === 'function' &&
+          call[0].toString().includes('emitSessionResumeFailed')
+      );
+      expect(sessionResumeFailedOnly).toHaveLength(0);
+    });
+
     test('onAgentEnd calls resumeTurn for cursor-sdk without harnessSessionId', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const resumableService = {

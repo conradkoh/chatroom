@@ -349,7 +349,7 @@ describe('OpenCodeSdkAgentService', () => {
       await service.stop(4321, { preserveForResume: true });
 
       expect(abort).not.toHaveBeenCalled();
-      expect(sessionStore.get('sess-1')).toBeUndefined();
+      expect(sessionStore.get('sess-1')).toBeDefined();
     });
 
     it('calls session.abort with the correct sessionId before SIGTERM', async () => {
@@ -442,6 +442,62 @@ describe('OpenCodeSdkAgentService', () => {
         model: 'anthropic/claude-sonnet-4',
       });
       expect(service.getHarnessReconnectContext(9999)).toBeUndefined();
+    });
+
+    it('resumeTurn succeeds when stop() was not called (metadata preserved)', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      sessionStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      });
+      const deps = createMockDeps({ sessionMetadataStore: sessionStore });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      await service.resumeTurn(4321, 'resume prompt');
+
+      expect(sharedPromptAsyncFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: 'sess-1' },
+          body: expect.objectContaining({ agent: 'build' }),
+        })
+      );
+      expect(sessionStore.get('sess-1')).toBeDefined();
+    });
+
+    it('resumeTurn throws when stop() was called with preserveForResume=false (metadata removed)', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      sessionStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      });
+      const kill = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          throw new Error('ESRCH');
+        });
+      const deps = createMockDeps({ kill, sessionMetadataStore: sessionStore });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      // Call stop without preserveForResume — this removes the session metadata
+      await service.stop(4321);
+
+      // Now resumeTurn should fail because metadata was removed
+      await expect(service.resumeTurn(4321, 'prompt')).rejects.toThrow(
+        'No opencode-sdk session metadata for pid=4321'
+      );
     });
 
     it('proceeds with SIGTERM when no session metadata exists for the pid', async () => {

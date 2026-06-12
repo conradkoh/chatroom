@@ -131,10 +131,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
             err instanceof Error ? err.message : err
           );
         }
+        // Eager cleanup: doStop may kill before the child exit handler runs; stale
+        // pid-keyed metadata would otherwise block resumeTurn.
+        this.sessionStore.remove(meta.sessionId);
       }
-      // Eager cleanup: doStop may kill before the child exit handler runs; stale
-      // pid-keyed metadata would otherwise block resumeTurn.
-      this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
   }

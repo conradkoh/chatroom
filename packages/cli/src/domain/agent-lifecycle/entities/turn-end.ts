@@ -11,6 +11,8 @@ export interface TurnEndSlot {
   harnessSessionId?: string;
   state?: TurnEndSlotState;
   pid?: number;
+  /** Set when in-turn resumeTurn failed; handleExit must cold-restart without daemon-memory resume. */
+  turnResumeFailed?: boolean;
 }
 
 export interface TurnEndInput {

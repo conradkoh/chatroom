@@ -214,4 +214,17 @@ describe('handleTurnCompleted', () => {
       reason: 'platform.resume_storm',
     });
   });
+
+  test('resumeTurn failure sets slot.turnResumeFailed to true', async () => {
+    const { deps } = createDeps({
+      resumeTurn: vi.fn().mockRejectedValue(new Error('session not found')),
+    });
+
+    const slot: TurnEndSlot = { harnessSessionId: 'sess-1', state: 'running', pid: 42 };
+
+    await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(slot.turnResumeFailed).toBe(true);
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+  });
 });

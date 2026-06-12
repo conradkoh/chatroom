@@ -53,6 +53,9 @@ export async function handleTurnCompleted(
 
       return { outcome: 'resumed' };
     } catch (err) {
+      if (slot) {
+        slot.turnResumeFailed = true;
+      }
       try {
         await deps.backend.emitSessionResumeFailed({
           chatroomId: input.chatroomId,
