@@ -500,7 +500,7 @@ export class AgentProcessManager {
       return;
     }
 
-    this.ensureRunning({
+    const restartResult = await this.ensureRunning({
       chatroomId: opts.chatroomId,
       role: opts.role,
       agentHarness: harness,
@@ -512,22 +512,23 @@ export class AgentProcessManager {
       // Defaults to true when unknown (e.g. slot re-adopted after a daemon
       // restart) to preserve rejoin-on-crash.
       wantResume: wantResume ?? true,
-    }).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
+    });
 
-      // Emit start-failed event
+    if (!restartResult.success) {
+      const error = restartResult.error ?? 'unknown';
+      console.log(`   ⚠️  Failed to restart agent: ${error}`);
       this.deps.backend
         .mutation(api.machines.emitAgentStartFailed, {
           sessionId: this.deps.sessionId,
           machineId: this.deps.machineId,
           chatroomId: opts.chatroomId,
           role: opts.role,
-          error: err.message,
+          error,
         })
         .catch((emitErr: Error) => {
           console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
         });
-    });
+    }
   }
 
   getSlot(chatroomId: string, role: string): AgentSlot | undefined {
@@ -949,9 +950,10 @@ export class AgentProcessManager {
 
     try {
       // Gate 1: Rate limit check
-      // Bypass concurrent limit for manual user-triggered spawns
+      // Bypass concurrent limit for manual user-triggered spawns and crash recovery.
       const spawnCheck = this.deps.spawning.shouldAllowSpawn(opts.chatroomId, opts.reason, {
-        bypassConcurrentLimit: opts.reason.startsWith('user.'),
+        bypassConcurrentLimit:
+          opts.reason.startsWith('user.') || opts.reason === 'platform.crash_recovery',
       });
       if (!spawnCheck.allowed) {
         slot.state = 'idle';
@@ -1292,6 +1294,9 @@ export class AgentProcessManager {
     } catch {
       // Process cleanup is best-effort
     }
+
+    // handleExit returns early when state==='stopping', so decrement here.
+    this.deps.spawning.recordExit(opts.chatroomId);
 
     // Transition: stopping → idle
     slot.state = 'idle';
