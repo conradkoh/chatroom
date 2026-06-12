@@ -22,7 +22,7 @@ import { Effect } from 'effect';
 
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import { DaemonSessionService } from './daemon-services.js';
-import { pushSingleWorkspaceGitSummaryForObservedCore } from './git-heartbeat.js';
+import { pushSingleWorkspaceGitSummaryForObservedEffect } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -249,13 +249,15 @@ export const startObservedSyncSubscriptionEffect = (
       workingDir: string,
       reason: 'safety-poll' | 'refresh' = 'safety-poll'
     ): Promise<void> {
-      await pushSingleWorkspaceGitSummaryForObservedCore(session, workingDir, reason).catch(
-        (err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️ Observed git summary push failed for ${workingDir}: ${getErrorMessage(err)}`
-          );
-        }
-      );
+      await Effect.runPromise(
+        pushSingleWorkspaceGitSummaryForObservedEffect(workingDir, reason).pipe(
+          Effect.provideService(DaemonSessionService, session)
+        )
+      ).catch((err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️ Observed git summary push failed for ${workingDir}: ${getErrorMessage(err)}`
+        );
+      });
       await Effect.runPromise(
         pushSingleWorkspaceCommandsEffect(workingDir).pipe(
           Effect.provideService(DaemonSessionService, session)

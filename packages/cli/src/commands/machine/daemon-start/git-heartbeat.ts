@@ -241,100 +241,98 @@ async function pushSingleWorkspaceGitStateImpl(
   }
 }
 
-export async function pushSingleWorkspaceGitSummaryForObservedCore(
-  ctx: GitStateDeps,
+/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonSessionService. */
+export const pushSingleWorkspaceGitSummaryForObservedEffect = (
   workingDir: string,
   reason: 'safety-poll' | 'refresh' = 'safety-poll'
-): Promise<void> {
-  const stateKey = makeGitStateKey(ctx.machineId, workingDir);
+): Effect.Effect<void, never, DaemonSessionService> =>
+  Effect.gen(function* () {
+    const session = yield* DaemonSessionService;
 
-  const isRepo = await gitReader.isGitRepo(workingDir);
-  if (!isRepo) {
-    const stateHash = 'not_found';
-    if (reason !== 'refresh' && ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+    const stateKey = makeGitStateKey(session.machineId, workingDir);
 
-    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      status: 'not_found',
-    });
-    ctx.lastPushedGitState.set(stateKey, stateHash);
-    return;
-  }
+    const isRepo = yield* Effect.promise(() => gitReader.isGitRepo(workingDir));
+    if (!isRepo) {
+      const stateHash = 'not_found';
+      if (reason !== 'refresh' && session.lastPushedGitState.get(stateKey) === stateHash) return;
 
-  const branchResult = await gitReader.getBranch(workingDir);
+      yield* Effect.promise(() =>
+        session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir,
+          status: 'not_found',
+        })
+      );
+      session.lastPushedGitState.set(stateKey, stateHash);
+      return;
+    }
 
-  if (branchResult.status === 'error') {
-    const stateHash = `error:${branchResult.message}`;
-    if (reason !== 'refresh' && ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+    const branchResult = yield* Effect.promise(() => gitReader.getBranch(workingDir));
 
-    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      status: 'error',
-      errorMessage: branchResult.message,
-    });
-    ctx.lastPushedGitState.set(stateKey, stateHash);
-    return;
-  }
+    if (branchResult.status === 'error') {
+      const stateHash = `error:${branchResult.message}`;
+      if (reason !== 'refresh' && session.lastPushedGitState.get(stateKey) === stateHash) return;
 
-  if (branchResult.status === 'not_found') {
-    return;
-  }
+      yield* Effect.promise(() =>
+        session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir,
+          status: 'error',
+          errorMessage: branchResult.message,
+        })
+      );
+      session.lastPushedGitState.set(stateKey, stateHash);
+      return;
+    }
 
-  const branch = branchResult.branch;
+    if (branchResult.status === 'not_found') {
+      return;
+    }
 
-  // Periodic full push: when enough time has elapsed since the last full push
-  // for this workspace, route through the full pipeline to refresh non-slim
-  // fields (diffStat, commitsAhead, remotes, allPullRequests, recent commits).
-  // On daemon restart the map is empty, so the first observation triggers a
-  // full push — that's intentional.
-  //
-  // The timer is bumped ONLY on successful push. If pushSingleWorkspaceGitStateImpl
-  // throws, the next observation will re-attempt the full push instead of
-  // waiting another OBSERVED_FULL_PUSH_INTERVAL_MS. This keeps non-slim fields
-  // self-healing during transient failures.
-  const now = Date.now();
-  const lastFull = lastFullPushMs.get(stateKey) ?? 0;
-  if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-    await pushSingleWorkspaceGitStateImpl(ctx, workingDir);
-    lastFullPushMs.set(stateKey, now);
-    console.log(
-      `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
+    const branch = branchResult.branch;
+
+    const now = Date.now();
+    const lastFull = lastFullPushMs.get(stateKey) ?? 0;
+    if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
+      yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
+      lastFullPushMs.set(stateKey, now);
+      console.log(
+        `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
+      );
+      return;
+    }
+
+    const slimFields = [
+      branchField,
+      ...GIT_STATE_FIELDS.filter((f) => f.includeInSlim),
+      ...makeBranchDependentFields(branch),
+    ];
+    const pipeline = new GitStatePipeline(slimFields);
+    const preCollected = new Map<string, unknown>([['branch', branchResult]]);
+    const values = yield* Effect.promise(() => pipeline.collect(workingDir, preCollected));
+
+    const hash = pipeline.computeHash(values, true);
+    if (reason !== 'refresh' && session.lastPushedGitState.get(stateKey) === hash) {
+      return;
+    }
+
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        workingDir,
+        status: 'available',
+        ...pipeline.toMutationArgs(values, true),
+      })
     );
-    return;
-  }
 
-  // Slim push: only branch, isDirty, and branch-dependent fields
-  const slimFields = [
-    branchField,
-    ...GIT_STATE_FIELDS.filter((f) => f.includeInSlim),
-    ...makeBranchDependentFields(branch),
-  ];
-  const pipeline = new GitStatePipeline(slimFields);
-  const preCollected = new Map<string, unknown>([['branch', branchResult]]);
-  const values = await pipeline.collect(workingDir, preCollected);
-
-  const hash = pipeline.computeHash(values, true);
-  if (reason !== 'refresh' && ctx.lastPushedGitState.get(stateKey) === hash) {
-    return;
-  }
-
-  await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    workingDir,
-    status: 'available',
-    ...pipeline.toMutationArgs(values, true),
+    session.lastPushedGitState.set(stateKey, hash);
+    console.log(
+      `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
+    );
   });
-
-  ctx.lastPushedGitState.set(stateKey, hash);
-  console.log(
-    `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
-  );
-}
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
@@ -375,17 +373,4 @@ export const pushSingleWorkspaceGitStateEffect = (
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     yield* Effect.promise(() => pushSingleWorkspaceGitStateImpl(session, workingDir));
-  });
-
-/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields DaemonSessionService. */
-// fallow-ignore-next-line unused-export
-export const pushSingleWorkspaceGitSummaryForObservedEffect = (
-  workingDir: string,
-  reason?: 'safety-poll' | 'refresh'
-): Effect.Effect<void, never, DaemonSessionService> =>
-  Effect.gen(function* () {
-    const session = yield* DaemonSessionService;
-    yield* Effect.promise(() =>
-      pushSingleWorkspaceGitSummaryForObservedCore(session, workingDir, reason)
-    );
   });
