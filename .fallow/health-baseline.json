@@ -1366,20 +1366,9 @@
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/command-sync-heartbeat.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts": {
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      },
       "crap_moderate": {
-        "count": 1
+        "count": 3
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/command-subscriber.ts": {
@@ -1421,9 +1410,6 @@
     },
     "packages/cli/src/commands/machine/daemon-start/file-content-fulfillment.ts": {
       "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
         "count": 1
       }
     },
@@ -1475,17 +1461,9 @@
         "count": 4
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/state-recovery.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
     "packages/cli/src/commands/machine/daemon-start/init.ts": {
       "crap_moderate": {
-        "count": 3
+        "count": 1
       }
     },
     "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
@@ -2466,7 +2444,6 @@
     "services/backend/prompts/cli/roles/index.ts:dead code",
     "apps/webapp/src/modules/chatroom/eventTypes/index.ts:dead code",
     "services/backend/prompts/base/webapp/utils/config.ts:dead code",
-    "packages/cli/src/commands/machine/daemon-start/index.ts:dead code",
     "services/backend/prompts/cli/task-started/classification/index.ts:dead code",
     "services/backend/prompts/policies/index.ts:dead code",
     "services/backend/application/auth/requirePermission.ts:dead code",
@@ -2513,9 +2490,9 @@
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
     "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts:complexity",
+    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts:complexity",
     "packages/cli/src/commands/machine/daemon-start/observed-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
-    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts:complexity",
     "packages/cli/src/commands/handoff/index.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:complexity",
     "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",
