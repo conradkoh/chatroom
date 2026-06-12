@@ -151,15 +151,25 @@ async function appendFullOutputChunks(
   return Effect.runPromise(appendFullOutputChunksEffect(deps, tracked, runId));
 }
 
+/** Effect twin — final tail flush + optional full output sync. */
+const flushFinalChunksEffect = (
+  deps: SpawnDeps,
+  tracked: RunningProcess,
+  runId: any
+): Effect.Effect<void, never, never> =>
+  Effect.gen(function* () {
+    yield* flushTailV2Effect(deps, tracked, true);
+    if (consumePendingFullSync(tracked.runId)) {
+      yield* appendFullOutputChunksEffect(deps, tracked, runId);
+    }
+  });
+
 async function flushFinalChunks(
   deps: SpawnDeps,
   tracked: RunningProcess,
   runId: any
 ): Promise<void> {
-  await flushTailV2(deps, tracked, true); // final flush: always sync the tail, even if unobserved
-  if (consumePendingFullSync(tracked.runId)) {
-    await appendFullOutputChunks(deps, tracked, runId);
-  }
+  return Effect.runPromise(flushFinalChunksEffect(deps, tracked, runId));
 }
 
 /** One-shot full log sync when the webapp requests "Load more" on an active run. */
