@@ -20,7 +20,7 @@ import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
-import { pushSingleWorkspaceCommandsCore } from './command-sync-heartbeat.js';
+import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import { DaemonSessionService } from './daemon-services.js';
 import { pushSingleWorkspaceGitSummaryForObservedCore } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
@@ -256,7 +256,11 @@ export const startObservedSyncSubscriptionEffect = (
           );
         }
       );
-      await pushSingleWorkspaceCommandsCore(session, workingDir).catch((err: unknown) => {
+      await Effect.runPromise(
+        pushSingleWorkspaceCommandsEffect(workingDir).pipe(
+          Effect.provideService(DaemonSessionService, session)
+        )
+      ).catch((err: unknown) => {
         console.warn(
           `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`
         );

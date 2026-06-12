@@ -20,6 +20,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 // ── Minimal dep type used by Core functions + Effect twins ────────────────────
 
+// fallow-ignore-next-line unused-type
 export type CommandSyncDeps = {
   machineId: string;
   sessionId: SessionId;
@@ -27,33 +28,6 @@ export type CommandSyncDeps = {
   lastPushedGitState: Map<string, string>;
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
 };
-
-// ── Core implementations (flat deps, no ctx.deps.xxx) ─────────────────────────
-
-export async function pushSingleWorkspaceCommandsCore(
-  ctx: CommandSyncDeps,
-  workingDir: string
-): Promise<void> {
-  const commands = await discoverCommands(workingDir);
-
-  // Change detection: hash the command list to skip unchanged syncs
-  const stateKey = `commands:${ctx.machineId}::${workingDir}`;
-  const commandsHash = createHash('md5').update(JSON.stringify(commands)).digest('hex');
-
-  if (ctx.lastPushedGitState.get(stateKey) === commandsHash) {
-    return; // No change
-  }
-
-  await ctx.backend.mutation(api.commands.syncCommands, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-    workingDir,
-    commands,
-  });
-
-  ctx.lastPushedGitState.set(stateKey, commandsHash);
-  console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
-}
 
 // ── Effect twins ──────────────────────────────────────────────────────────────
 
@@ -76,7 +50,7 @@ export const pushCommandsEffect: Effect.Effect<void, never, DaemonSessionService
     if (uniqueWorkingDirs.size === 0) return;
 
     for (const workingDir of uniqueWorkingDirs) {
-      yield* Effect.promise(() => pushSingleWorkspaceCommandsCore(session, workingDir)).pipe(
+      yield* pushSingleWorkspaceCommandsEffect(workingDir).pipe(
         Effect.catchAll((err) =>
           Effect.sync(() => {
             console.warn(
@@ -90,11 +64,31 @@ export const pushCommandsEffect: Effect.Effect<void, never, DaemonSessionService
 );
 
 /** Effect twin for pushSingleWorkspaceCommands — yields DaemonSessionService. */
-// fallow-ignore-next-line unused-export
 export const pushSingleWorkspaceCommandsEffect = (
   workingDir: string
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    yield* Effect.promise(() => pushSingleWorkspaceCommandsCore(session, workingDir));
+
+    const commands = yield* Effect.promise(() => discoverCommands(workingDir));
+
+    // Change detection: hash the command list to skip unchanged syncs
+    const stateKey = `commands:${session.machineId}::${workingDir}`;
+    const commandsHash = createHash('md5').update(JSON.stringify(commands)).digest('hex');
+
+    if (session.lastPushedGitState.get(stateKey) === commandsHash) {
+      return; // No change
+    }
+
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.commands.syncCommands, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        workingDir,
+        commands,
+      })
+    );
+
+    session.lastPushedGitState.set(stateKey, commandsHash);
+    console.log(`[${formatTimestamp()}] 📦 Synced ${commands.length} commands for ${workingDir}`);
   });
