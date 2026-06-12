@@ -3,7 +3,7 @@
  *
  * Tests the public API of command-runner.ts:
  *   - replace-on-rerun: prior running process killed when same command re-dispatched
- *   - pending-stop race: onCommandStopCore registers + onCommandRunCore consumes
+ *   - pending-stop race: runOnCommandStop registers + runOnCommandRun consumes
  *   - evictStalePendingStops: TTL-based eviction of stale pending-stop entries
  *   - 24h soft timeout: process killed after 24-hour soft timeout
  *
@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { forceKillAllCommands, onCommandRunCore, onCommandStopCore } from './command-runner.js';
+import { forceKillAllCommands, runOnCommandRun, runOnCommandStop } from './command-runner.js';
 import type { CommandRunnerDeps } from './command-runner.js';
 import { processManager } from './process/manager.js';
 import { deriveTerminalStatus, SIGTERM_GRACE_PERIOD_MS, SOFT_TIMEOUT_MS } from './process/state.js';
@@ -174,7 +174,7 @@ describe('forceKillAllCommands', () => {
     const fakeChild = createFakeChild(5151);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-force' as any,
       commandName: 'test',
       script: 'sleep 60',
@@ -203,7 +203,7 @@ describe('replace-on-rerun', () => {
       .mockReturnValueOnce(secondChild as any);
 
     // First run
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-first' as any,
       commandName: 'dev',
       script: 'pnpm dev',
@@ -213,7 +213,7 @@ describe('replace-on-rerun', () => {
     expect(processManager.getByCommand('test-machine|/tmp/project|dev')?.runId).toBe('run-first');
 
     // Second run — should kill first
-    const secondRunPromise = onCommandRunCore(deps, {
+    const secondRunPromise = runOnCommandRun(deps, {
       runId: 'run-second' as any,
       commandName: 'dev',
       script: 'pnpm dev',
@@ -240,14 +240,14 @@ describe('replace-on-rerun', () => {
       .mockReturnValueOnce(devChild as any)
       .mockReturnValueOnce(buildChild as any);
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-dev' as any,
       commandName: 'dev',
       script: 'pnpm dev',
       workingDir: '/tmp/project',
     });
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-build' as any,
       commandName: 'build',
       script: 'pnpm build',
@@ -264,7 +264,7 @@ describe('replace-on-rerun', () => {
     const fakeChild = createFakeChild(5555);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-spawn-opts' as any,
       commandName: 'test',
       script: 'echo hi',
@@ -283,17 +283,17 @@ describe('replace-on-rerun', () => {
 
 describe('pending-stop race (stop-before-run)', () => {
   it('registers a pending stop when no process is found for the runId', async () => {
-    await onCommandStopCore(deps, { runId: 'run-orphan' as any });
+    await runOnCommandStop(deps, { runId: 'run-orphan' as any });
     expect(processManager.hasPendingStop('run-orphan')).toBe(true);
   });
 
   it('skips spawning when a pending stop exists for the runId', async () => {
     // Simulate stop arriving before run
-    await onCommandStopCore(deps, { runId: 'run-race' as any });
+    await runOnCommandStop(deps, { runId: 'run-race' as any });
     expect(processManager.hasPendingStop('run-race')).toBe(true);
 
     // Now the run event arrives — should be skipped
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-race' as any,
       commandName: 'should-not-spawn',
       script: 'echo hi',
@@ -304,7 +304,7 @@ describe('pending-stop race (stop-before-run)', () => {
     expect(spawn).not.toHaveBeenCalled();
     // Pending stop entry consumed
     expect(processManager.hasPendingStop('run-race')).toBe(false);
-    // Backend should have been called with 'stopped' (both from onCommandStopCore AND onCommandRunCore skip)
+    // Backend should have been called with 'stopped' (both from runOnCommandStop AND runOnCommandRun skip)
     const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls;
     const statusArgs = mutationCalls.map((c) => (c[1] as any)?.status);
     expect(statusArgs.filter((s) => s === 'stopped').length).toBeGreaterThanOrEqual(2);
@@ -314,7 +314,7 @@ describe('pending-stop race (stop-before-run)', () => {
     const fakeChild = createFakeChild(7777);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-normal' as any,
       commandName: 'normal',
       script: 'sleep 1',
@@ -328,7 +328,7 @@ describe('pending-stop race (stop-before-run)', () => {
   it('throws when backend mutation fails so dispatchCommandEvent can retry', async () => {
     vi.mocked(deps.backend.mutation).mockRejectedValueOnce(new Error('Convex disconnect'));
 
-    await expect(onCommandStopCore(deps, { runId: 'run-orphan-fail' as any })).rejects.toThrow(
+    await expect(runOnCommandStop(deps, { runId: 'run-orphan-fail' as any })).rejects.toThrow(
       'Convex disconnect'
     );
 
@@ -345,7 +345,7 @@ describe('pre-spawn DB status check', () => {
     // Mock getRunStatus to return 'stopped'
     vi.mocked(deps.backend.query).mockResolvedValue({ status: 'stopped' });
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-already-stopped' as any,
       commandName: 'dev',
       script: 'pnpm dev',
@@ -364,7 +364,7 @@ describe('pre-spawn DB status check', () => {
     for (const status of ['killed', 'completed', 'failed']) {
       vi.mocked(deps.backend.query).mockResolvedValue({ status });
 
-      await onCommandRunCore(deps, {
+      await runOnCommandRun(deps, {
         runId: `run-${status}` as any,
         commandName: 'test',
         script: 'echo hi',
@@ -382,7 +382,7 @@ describe('pre-spawn DB status check', () => {
     const fakeChild = createFakeChild(6666);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-pending-ok' as any,
       commandName: 'dev',
       script: 'pnpm dev',
@@ -398,7 +398,7 @@ describe('pre-spawn DB status check', () => {
     const fakeChild = createFakeChild(7777);
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-running-replace' as any,
       commandName: 'dev',
       script: 'pnpm dev',
@@ -415,7 +415,7 @@ describe('pre-spawn DB status check', () => {
     // Backend query throws
     vi.mocked(deps.backend.query).mockRejectedValueOnce(new Error('Convex disconnect'));
 
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: 'run-query-fail' as any,
       commandName: 'dev',
       script: 'pnpm dev',
@@ -470,7 +470,7 @@ describe('24-hour soft timeout', () => {
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     const runId = 'run-timeout-24h';
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: runId as any,
       commandName: 'long-runner',
       script: 'sleep 9999',
@@ -496,7 +496,7 @@ describe('24-hour soft timeout', () => {
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     const runId = 'run-forcekill-24h';
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: runId as any,
       commandName: 'unkillable',
       script: 'sleep 9999',
@@ -521,7 +521,7 @@ describe('24-hour soft timeout', () => {
     vi.mocked(spawn).mockReturnValueOnce(fakeChild as any);
 
     const runId = 'run-exits-early';
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId: runId as any,
       commandName: 'short',
       script: 'echo done',
@@ -551,13 +551,13 @@ describe('24-hour soft timeout', () => {
 // ---------------------------------------------------------------------------
 // G. Real-process-tree regression test (integration)
 //
-// Routes through onCommandRunCore → onCommandStopCore with a real spawned process tree.
+// Routes through runOnCommandRun → runOnCommandStop with a real spawned process tree.
 // Verifies that the process-group kill (detached:true + negative PID) terminates
 // not just the sh leader but ALL grandchildren (the bug this fix addresses).
 // ---------------------------------------------------------------------------
 
 describe('process-group kill (real process tree)', () => {
-  it('kills all grandchildren when onCommandStopCore is called — not just the sh leader', async () => {
+  it('kills all grandchildren when runOnCommandStop is called — not just the sh leader', async () => {
     if (process.platform === 'win32') {
       // process groups behave differently on Windows — skip
       return;
@@ -568,7 +568,7 @@ describe('process-group kill (real process tree)', () => {
     processKillSpy.mockRestore();
 
     // Wire the module-level spawn mock to delegate to the real child_process.spawn.
-    // This means onCommandRunCore's internal spawn() call uses a real process.
+    // This means runOnCommandRun's internal spawn() call uses a real process.
     const actual = (await vi.importActual('node:child_process')) as {
       spawn: typeof spawn;
       execSync: (command: string) => Buffer;
@@ -578,7 +578,7 @@ describe('process-group kill (real process tree)', () => {
 
     // Run the command through the real handler (exercises the detached:true spawn path)
     const runId = 'run-real-tree' as any;
-    await onCommandRunCore(deps, {
+    await runOnCommandRun(deps, {
       runId,
       commandName: 'test',
       script: 'sleep 30 & sleep 30 & sleep 30 & wait',
@@ -609,7 +609,7 @@ describe('process-group kill (real process tree)', () => {
     }
 
     // Stop via the actual handler — exercises killProcess() → process.kill(-pid, signal)
-    await onCommandStopCore(deps, { runId });
+    await runOnCommandStop(deps, { runId });
 
     // Brief additional wait for all OS-level cleanup
     await new Promise<void>((r) => setTimeout(r, 300));
