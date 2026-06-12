@@ -1,4 +1,3 @@
-// fallow-ignore-next-line unused-file
 /**
  * Effect-TS Service Definitions — index barrel export.
  *
