@@ -100,7 +100,6 @@ export const getNextTaskEffect = (
       const convexUrl = yield* sessionService.getConvexUrl();
       const otherUrls = yield* sessionService.getOtherSessionUrls();
       yield* Effect.sync(() => {
-        // fallow-ignore-next-line duplication
         console.error(`❌ Not authenticated for: ${convexUrl}`);
         if (otherUrls.length > 0) {
           console.error(`\n💡 You have sessions for other environments:`);
