@@ -146,10 +146,7 @@ export const drainCommandsEffect = (
 
             switch (cmd.type) {
               case 'refreshCapabilities':
-                yield* Effect.tryPromise({
-                  try: () => handleRefreshCapabilities(session, deps, cmd),
-                  catch: (e) => e,
-                });
+                yield* handleRefreshCapabilitiesEffect(session, deps, cmd);
                 break;
               case 'refreshSessionTitle':
                 yield* Effect.tryPromise({
@@ -190,38 +187,61 @@ async function drain(
 
 // ─── Command handlers ─────────────────────────────────────────────────────────
 
+/** Effect twin — process refreshCapabilities command. */
+const handleRefreshCapabilitiesEffect = (
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  cmd: PendingCommand
+) =>
+  Effect.gen(function* () {
+    const payload = cmd.refreshCapabilities as RefreshCapabilitiesPayload | undefined;
+    console.log(
+      `[direct-harness] Processing refreshCapabilities for workspace=${cmd.workspaceId}` +
+        (payload ? ` (initiatedBy=${payload.initiatedBy})` : '')
+    );
+
+    const harness = yield* Effect.tryPromise({
+      try: () => deps.lifecycleManager.getOrStart(cmd.workspaceId),
+      catch: (e) => e,
+    });
+
+    yield* Effect.tryPromise({
+      try: () =>
+        updateCapabilities(
+          { publisher: deps.publisher, machineId: session.machineId },
+          {
+            harness,
+            workspace: {
+              workspaceId: cmd.workspaceId,
+              cwd: harness.cwd,
+              name: harness.cwd,
+            },
+          }
+        ),
+      catch: (e) => e,
+    });
+
+    yield* Effect.tryPromise({
+      try: () =>
+        session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+          sessionId: session.sessionId,
+          commandId: cmd._id,
+          status: 'done',
+        }),
+      catch: (e) => e,
+    });
+
+    console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
+  });
+
+/** Thin wrapper — kept for any external/test callers. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handleRefreshCapabilities(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
   cmd: PendingCommand
 ): Promise<void> {
-  const payload = cmd.refreshCapabilities as RefreshCapabilitiesPayload | undefined;
-  console.log(
-    `[direct-harness] Processing refreshCapabilities for workspace=${cmd.workspaceId}` +
-      (payload ? ` (initiatedBy=${payload.initiatedBy})` : '')
-  );
-
-  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
-
-  await updateCapabilities(
-    { publisher: deps.publisher, machineId: session.machineId },
-    {
-      harness,
-      workspace: {
-        workspaceId: cmd.workspaceId,
-        cwd: harness.cwd,
-        name: harness.cwd,
-      },
-    }
-  );
-
-  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
-    sessionId: session.sessionId,
-    commandId: cmd._id,
-    status: 'done',
-  });
-
-  console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
+  return Effect.runPromise(handleRefreshCapabilitiesEffect(session, deps, cmd));
 }
 
 async function handleRefreshSessionTitle(
