@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref } from 'effect';
+import { Effect, Ref, Runtime } from 'effect';
 
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { api } from '../../../api.js';
@@ -323,6 +323,9 @@ export const startCommandLoopEffect: Effect.Effect<
   const effectContext = yield* Effect.context<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
   >();
+  const runtime = yield* Effect.runtime<
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+  >();
 
   const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;
 
@@ -338,26 +341,19 @@ export const startCommandLoopEffect: Effect.Effect<
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
         if (!observedSyncEnabled) {
-          Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(
-            (err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
-              );
-            }
-          );
-          Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(
-            (err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`
-              );
-            }
-          );
-          Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
-            (err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
-              );
-            }
+          Runtime.runFork(runtime)(
+            Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
+              concurrency: 'unbounded',
+            }).pipe(
+              Effect.provide(effectContext),
+              Effect.catchAll((err) =>
+                Effect.sync(() =>
+                  console.warn(
+                    `[${formatTimestamp()}] ⚠️  Heartbeat sync failed: ${getErrorMessage(err)}`
+                  )
+                )
+              )
+            )
           );
         }
       })
@@ -386,10 +382,10 @@ export const startCommandLoopEffect: Effect.Effect<
   if (observedSyncEnabled) {
     console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
   } else {
-    Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(() => {});
-    Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(() => {});
-    Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
-      () => {}
+    Runtime.runFork(runtime)(
+      Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
+        concurrency: 'unbounded',
+      }).pipe(Effect.provide(effectContext))
     );
   }
 

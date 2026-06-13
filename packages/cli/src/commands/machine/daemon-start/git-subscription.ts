@@ -23,7 +23,7 @@ import { promisify } from 'util';
 
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Runtime } from 'effect';
 
 import {
   DaemonMutableStateServiceLive,
@@ -56,6 +56,7 @@ export interface GitSubscriptionHandle {
  */
 export type GitSubscriptionDeps = GitStateDeps & {
   logger?: Pick<Console, 'log' | 'warn'>;
+  runtime?: Runtime.Runtime<GitSubscriptionDeps>;
 };
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
@@ -214,25 +215,50 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
   );
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
-  await Effect.runPromise(
-    pushGitStateEffect.pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
-          DaemonMutableStateServiceLive({
-            lastPushedGitState: deps.lastPushedGitState,
-            lastPushedModels: null,
-            lastPushedHarnessFingerprint: null,
-            workspaceListStore: deps.workspaceListStore,
-          })
+  if (deps.runtime) {
+    Runtime.runFork(deps.runtime)(
+      pushGitStateEffect.pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
+            DaemonMutableStateServiceLive({
+              lastPushedGitState: deps.lastPushedGitState,
+              lastPushedModels: null,
+              lastPushedHarnessFingerprint: null,
+              workspaceListStore: deps.workspaceListStore,
+            })
+          )
+        ),
+        Effect.catchAll((err) =>
+          Effect.sync(() =>
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
+            )
+          )
         )
       )
-    )
-  ).catch((err: unknown) => {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
     );
-  });
+  } else {
+    await Effect.runPromise(
+      pushGitStateEffect.pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
+            DaemonMutableStateServiceLive({
+              lastPushedGitState: deps.lastPushedGitState,
+              lastPushedModels: null,
+              lastPushedHarnessFingerprint: null,
+              workspaceListStore: deps.workspaceListStore,
+            })
+          )
+        )
+      )
+    ).catch((err: unknown) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
+      );
+    });
+  }
 }
 
 /**
@@ -402,12 +428,15 @@ export const startGitRequestSubscriptionEffect = (
 ): Effect.Effect<GitSubscriptionHandle, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
+    const runtime = yield* Effect.runtime<DaemonSessionService>();
 
     // Session-scoped dedup — prevents re-processing the same request within a single daemon run.
     const processedRequestIds = new Map<string, number>();
     const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-    let processing = false;
+    const sessionWithRuntime = { ...session, runtime } as unknown as DaemonSessionServiceShape;
+
+    const processingState = { isProcessing: false };
 
     // Reset any orphaned 'processing' requests left behind by a previous daemon crash.
     session.backend
@@ -437,27 +466,30 @@ export const startGitRequestSubscriptionEffect = (
       (requests) => {
         if (!requests || requests.length === 0) return;
 
-        const logger = session.logger ?? console;
+        const logger = sessionWithRuntime.logger ?? console;
         logger.log(
           `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
         );
 
-        if (processing) return;
-
-        processing = true;
-        Effect.runPromise(
+        if (processingState.isProcessing) return;
+        processingState.isProcessing = true;
+        Runtime.runFork(runtime)(
           processRequestsEffect(requests, processedRequestIds, DEDUP_TTL_MS).pipe(
-            Effect.provideService(DaemonSessionService, session)
+            Effect.provideService(DaemonSessionService, sessionWithRuntime),
+            Effect.catchAll((err) =>
+              Effect.sync(() =>
+                console.warn(
+                  `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
+                )
+              )
+            ),
+            Effect.ensuring(
+              Effect.sync(() => {
+                processingState.isProcessing = false;
+              })
+            )
           )
-        )
-          .catch((err: unknown) => {
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
-            );
-          })
-          .finally(() => {
-            processing = false;
-          });
+        );
       },
       (err: unknown) => {
         console.warn(

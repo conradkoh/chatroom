@@ -18,7 +18,7 @@ import {
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect } from 'effect';
+import { Effect, Runtime } from 'effect';
 
 import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import type { DaemonMutableStateService } from './daemon-services.js';
@@ -47,6 +47,7 @@ export const startObservedSyncSubscriptionEffect = (
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const effectContext = yield* Effect.context<DaemonSessionService | DaemonMutableStateService>();
+    const runtime = yield* Effect.runtime<DaemonSessionService | DaemonMutableStateService>();
 
     console.log(`[${formatTimestamp()}] 👁️ Starting observed-sync subscription (reactive)`);
 
@@ -229,43 +230,42 @@ export const startObservedSyncSubscriptionEffect = (
       }
 
       state.pushInFlight = true;
-      pushForWorkingDir(workingDir, reason)
-        .catch((err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️ Push failed for ${workingDir}: ${getErrorMessage(err)}`
-          );
-        })
-        .finally(() => {
-          const s = observedWorkingDirs.get(workingDir);
-          if (s) {
-            s.pushInFlight = false;
-            if (pendingRefresh.get(workingDir)) {
-              pendingRefresh.delete(workingDir);
-              schedulePushForWorkingDir(workingDir, 'refresh');
-            }
-          }
-        });
+      pushForWorkingDir(workingDir, reason);
     }
 
-    async function pushForWorkingDir(
+    function pushForWorkingDir(
       workingDir: string,
       reason: 'safety-poll' | 'refresh' = 'safety-poll'
-    ): Promise<void> {
-      await Effect.runPromise(
-        pushSingleWorkspaceGitSummaryForObservedEffect(workingDir, reason).pipe(
-          Effect.provide(effectContext)
+    ): void {
+      Runtime.runFork(runtime)(
+        Effect.all(
+          [
+            pushSingleWorkspaceGitSummaryForObservedEffect(workingDir, reason),
+            pushSingleWorkspaceCommandsEffect(workingDir),
+          ],
+          { concurrency: 'unbounded' }
+        ).pipe(
+          Effect.provide(effectContext),
+          Effect.catchAll((err) =>
+            Effect.sync(() =>
+              console.warn(
+                `[${formatTimestamp()}] ⚠️ Observed sync failed for ${workingDir}: ${getErrorMessage(err)}`
+              )
+            )
+          ),
+          Effect.ensuring(
+            Effect.sync(() => {
+              const s = observedWorkingDirs.get(workingDir);
+              if (s) {
+                s.pushInFlight = false;
+                if (pendingRefresh.get(workingDir)) {
+                  pendingRefresh.delete(workingDir);
+                  schedulePushForWorkingDir(workingDir, 'refresh');
+                }
+              }
+            })
+          )
         )
-      ).catch((err: unknown) => {
-        console.warn(
-          `[${formatTimestamp()}] ⚠️ Observed git summary push failed for ${workingDir}: ${getErrorMessage(err)}`
-        );
-      });
-      await Effect.runPromise(
-        pushSingleWorkspaceCommandsEffect(workingDir).pipe(Effect.provide(effectContext))
-      ).catch((err: unknown) => {
-        console.warn(
-          `[${formatTimestamp()}] ⚠️ Command sync failed for ${workingDir}: ${getErrorMessage(err)}`
-        );
-      });
+      );
     }
   });
