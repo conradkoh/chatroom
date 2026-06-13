@@ -1367,8 +1367,11 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts": {
+      "crap_high": {
+        "count": 1
+      },
       "crap_moderate": {
-        "count": 3
+        "count": 2
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/command-subscriber.ts": {
@@ -1381,11 +1384,6 @@
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/harness-lifecycle-manager.ts": {
       "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/idle-handler.ts": {
-      "crap_high": {
         "count": 1
       }
     },
@@ -1436,11 +1434,11 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/handlers/command-runner.ts": {
-      "crap_critical": {
+      "crap_high": {
         "count": 1
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "packages/cli/src/commands/machine/daemon-start/handlers/orphan-tracker.ts": {
@@ -1459,11 +1457,6 @@
     "packages/cli/src/commands/machine/daemon-start/handlers/process/spawner.ts": {
       "crap_moderate": {
         "count": 4
-      }
-    },
-    "packages/cli/src/commands/machine/daemon-start/init.ts": {
-      "crap_moderate": {
-        "count": 1
       }
     },
     "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
@@ -1558,32 +1551,21 @@
         "count": 3
       }
     },
-    "packages/cli/src/config/loader.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/cli/src/config/schema.ts": {
-      "complexity_critical": {
-        "count": 2
-      },
-      "crap_critical": {
-        "count": 2
-      }
-    },
     "packages/cli/src/domain/agent-lifecycle/policies/preserve-session.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/domain/direct-harness/usecases/publish-capabilities.ts": {
-      "crap_moderate": {
+    "packages/cli/src/domain/agent-lifecycle/policies/restart-decision.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/domain/agent-lifecycle/policies/slot-transitions.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
         "count": 1
       }
     },
@@ -1630,7 +1612,7 @@
         "count": 11
       },
       "crap_moderate": {
-        "count": 7
+        "count": 6
       }
     },
     "packages/cli/src/infrastructure/git/git-state-pipeline.ts": {
@@ -1691,12 +1673,20 @@
         "count": 1
       }
     },
+    "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-service.ts": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts": {
       "complexity_critical": {
         "count": 3
       },
       "crap_critical": {
-        "count": 6
+        "count": 7
       },
       "crap_moderate": {
         "count": 4
@@ -1757,7 +1747,7 @@
       "crap_critical": {
         "count": 2
       },
-      "crap_moderate": {
+      "crap_high": {
         "count": 1
       }
     },
@@ -1789,7 +1779,10 @@
         "count": 2
       },
       "crap_high": {
-        "count": 2
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/pure.ts": {
@@ -1805,7 +1798,7 @@
         "count": 3
       },
       "crap_high": {
-        "count": 1
+        "count": 2
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
@@ -2453,12 +2446,12 @@
     "apps/webapp/src/application/auth/resolve.ts:dead code",
     "services/backend/prompts/cli/roles/fromContext.ts:dead code",
     "services/backend/prompts/teams/squad/prompts/fromContext.ts:dead code",
+    "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.ts:dead code",
     "services/backend/application/auth/resolve.ts:dead code",
     "packages/cli/src/utils/error-formatting.ts:high impact",
     "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:dead code",
-    "packages/cli/src/infrastructure/services/workspace/command-discovery.ts:dead code",
     "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
-    "packages/cli/src/config/loader.ts:dead code",
+    "packages/cli/src/domain/agent-lifecycle/entities/spawn-bracket.ts:dead code",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
     "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-harness.ts:complexity",
@@ -2470,7 +2463,6 @@
     "services/backend/src/domain/entities/agent.ts:dead code",
     "packages/cli/src/infrastructure/auth/middleware.ts:dead code",
     "services/backend/prompts/generator.ts:circular dependency",
-    "packages/cli/src/infrastructure/history/storage.ts:dead code",
     "services/backend/prompts/base/webapp/utils/env.ts:dead code",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
@@ -2487,20 +2479,21 @@
     "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "services/backend/convex/messages.ts:complexity",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
+    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts:complexity",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
     "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts:complexity",
-    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts:complexity",
-    "packages/cli/src/commands/machine/daemon-start/observed-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
-    "packages/cli/src/commands/handoff/index.ts:complexity",
+    "packages/cli/src/commands/machine/daemon-start/observed-sync.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:complexity",
+    "packages/cli/src/commands/handoff/index.ts:complexity",
     "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",
     "services/backend/convex/tasks/taskDelivery.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "apps/webapp/src/modules/presentation/presentation-controls.tsx:complexity",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
+    "packages/cli/src/infrastructure/services/workspace/command-discovery.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts:complexity",
     "packages/cli/src/commands/context/index.ts:complexity",

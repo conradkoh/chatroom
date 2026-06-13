@@ -56,7 +56,7 @@ export interface GitSubscriptionHandle {
  */
 export type GitSubscriptionDeps = GitStateDeps & {
   logger?: Pick<Console, 'log' | 'warn'>;
-  runtime?: Runtime.Runtime<GitSubscriptionDeps>;
+  runtime: Runtime.Runtime<DaemonSessionService>;
 };
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
@@ -215,50 +215,28 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
   );
 
   // Refresh git state so the UI updates (PR list, branch, etc.)
-  if (deps.runtime) {
-    Runtime.runFork(deps.runtime)(
-      pushGitStateEffect.pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
-            DaemonMutableStateServiceLive({
-              lastPushedGitState: deps.lastPushedGitState,
-              lastPushedModels: null,
-              lastPushedHarnessFingerprint: null,
-              workspaceListStore: deps.workspaceListStore,
-            })
-          )
-        ),
-        Effect.catchAll((err) =>
-          Effect.sync(() =>
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
-            )
+  Runtime.runFork(deps.runtime)(
+    pushGitStateEffect.pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
+          DaemonMutableStateServiceLive({
+            lastPushedGitState: deps.lastPushedGitState,
+            lastPushedModels: null,
+            lastPushedHarnessFingerprint: null,
+            workspaceListStore: deps.workspaceListStore,
+          })
+        )
+      ),
+      Effect.catchAll((err) =>
+        Effect.sync(() =>
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
           )
         )
       )
-    );
-  } else {
-    await Effect.runPromise(
-      pushGitStateEffect.pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Layer.succeed(DaemonSessionService, deps as unknown as DaemonSessionServiceShape),
-            DaemonMutableStateServiceLive({
-              lastPushedGitState: deps.lastPushedGitState,
-              lastPushedModels: null,
-              lastPushedHarnessFingerprint: null,
-              workspaceListStore: deps.workspaceListStore,
-            })
-          )
-        )
-      )
-    ).catch((err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Failed to refresh git state after PR action: ${getErrorMessage(err)}`
-      );
-    });
-  }
+    )
+  );
 }
 
 /**
@@ -517,6 +495,7 @@ export const processRequestsEffect = (
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
+    const deps = session as unknown as GitSubscriptionDeps;
 
     // Evict stale dedup entries
     const evictBefore = Date.now() - dedupTtlMs;
@@ -549,28 +528,28 @@ export const processRequestsEffect = (
 
         switch (req.requestType) {
           case 'full_diff':
-            yield* Effect.promise(() => processFullDiff(session, req));
+            yield* Effect.promise(() => processFullDiff(deps, req));
             break;
           case 'commit_detail':
-            yield* Effect.promise(() => processCommitDetail(session, req));
+            yield* Effect.promise(() => processCommitDetail(deps, req));
             break;
           case 'more_commits':
-            yield* Effect.promise(() => processMoreCommits(session, req));
+            yield* Effect.promise(() => processMoreCommits(deps, req));
             break;
           case 'pr_diff':
-            yield* Effect.promise(() => processPRDiff(session, req));
+            yield* Effect.promise(() => processPRDiff(deps, req));
             break;
           case 'pr_action':
-            yield* Effect.promise(() => processPRAction(session, req));
+            yield* Effect.promise(() => processPRAction(deps, req));
             break;
           case 'pr_commits':
-            yield* Effect.promise(() => processPRCommits(session, req));
+            yield* Effect.promise(() => processPRCommits(deps, req));
             break;
           case 'all_pull_requests':
-            yield* Effect.promise(() => processAllPullRequests(session, req));
+            yield* Effect.promise(() => processAllPullRequests(deps, req));
             break;
           case 'recent_commits':
-            yield* Effect.promise(() => processRecentCommits(session, req));
+            yield* Effect.promise(() => processRecentCommits(deps, req));
             break;
         }
 

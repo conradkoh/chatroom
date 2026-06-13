@@ -15,7 +15,11 @@ import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
-import { DaemonSessionService, type DaemonMutableStateService } from './daemon-services.js';
+import {
+  DaemonSessionService,
+  type DaemonMutableStateService,
+  type DaemonSessionServiceShape,
+} from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from './types.js';
@@ -113,7 +117,17 @@ async function runWithSession<A>(
   effect: Effect.Effect<A, never, SubscriptionEffectRequirements>,
   overrides?: Partial<DaemonSessionInit>
 ) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
+  const layer = makeSessionLayer(overrides);
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const runtime = yield* Effect.runtime<DaemonSessionService>();
+      const session = yield* DaemonSessionService;
+      const sessionWithRuntime = { ...session, runtime };
+      return yield* effect.pipe(
+        Effect.provideService(DaemonSessionService, sessionWithRuntime as DaemonSessionServiceShape)
+      );
+    }).pipe(Effect.provide(layer))
+  );
 }
 
 function withDeps(
