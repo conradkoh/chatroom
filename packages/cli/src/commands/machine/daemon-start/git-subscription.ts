@@ -452,7 +452,7 @@ export const startGitRequestSubscriptionEffect = (
         if (processingState.isProcessing) return;
         processingState.isProcessing = true;
         Runtime.runFork(runtime)(
-          processRequestsEffect(requests, processedRequestIds, DEDUP_TTL_MS).pipe(
+          processRequestsEffect(requests, processedRequestIds, DEDUP_TTL_MS, runtime).pipe(
             Effect.provideService(DaemonSessionService, sessionWithRuntime),
             Effect.catchAll((err) =>
               Effect.sync(() =>
@@ -491,11 +491,11 @@ export const startGitRequestSubscriptionEffect = (
 export const processRequestsEffect = (
   requests: PendingRequest[],
   processedRequestIds: Map<string, number>,
-  dedupTtlMs: number
+  dedupTtlMs: number,
+  runtime: Runtime.Runtime<DaemonSessionService>
 ): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    const deps = session as unknown as GitSubscriptionDeps;
 
     // Evict stale dedup entries
     const evictBefore = Date.now() - dedupTtlMs;
@@ -526,30 +526,32 @@ export const processRequestsEffect = (
           `[${formatTimestamp()}] ⚙️  Processing git request: type=${req.requestType}, id=${requestId}`
         );
 
+        const sessionWithRuntime = { ...session, runtime } as unknown as GitSubscriptionDeps;
+
         switch (req.requestType) {
           case 'full_diff':
-            yield* Effect.promise(() => processFullDiff(deps, req));
+            yield* Effect.promise(() => processFullDiff(sessionWithRuntime, req));
             break;
           case 'commit_detail':
-            yield* Effect.promise(() => processCommitDetail(deps, req));
+            yield* Effect.promise(() => processCommitDetail(sessionWithRuntime, req));
             break;
           case 'more_commits':
-            yield* Effect.promise(() => processMoreCommits(deps, req));
+            yield* Effect.promise(() => processMoreCommits(sessionWithRuntime, req));
             break;
           case 'pr_diff':
-            yield* Effect.promise(() => processPRDiff(deps, req));
+            yield* Effect.promise(() => processPRDiff(sessionWithRuntime, req));
             break;
           case 'pr_action':
-            yield* Effect.promise(() => processPRAction(deps, req));
+            yield* Effect.promise(() => processPRAction(sessionWithRuntime, req));
             break;
           case 'pr_commits':
-            yield* Effect.promise(() => processPRCommits(deps, req));
+            yield* Effect.promise(() => processPRCommits(sessionWithRuntime, req));
             break;
           case 'all_pull_requests':
-            yield* Effect.promise(() => processAllPullRequests(deps, req));
+            yield* Effect.promise(() => processAllPullRequests(sessionWithRuntime, req));
             break;
           case 'recent_commits':
-            yield* Effect.promise(() => processRecentCommits(deps, req));
+            yield* Effect.promise(() => processRecentCommits(sessionWithRuntime, req));
             break;
         }
 
