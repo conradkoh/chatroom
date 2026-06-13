@@ -11,3 +11,23 @@ export {
   shouldAutoRestartAfterProcessExit,
   resumePathAfterTurnCompleted,
 } from './policies/decide-resume-path.js';
+
+// Phase 1: Pure domain state machine + invariants
+export type { AgentSlotState, AgentSlotSnapshot } from './entities/agent-slot.js';
+export { idleSlot, agentKey } from './entities/agent-slot.js';
+export type { SpawnBracketState } from './entities/spawn-bracket.js';
+export {
+  emptySpawnBracket,
+  recordSpawn,
+  recordExit,
+  bracketCountAfter,
+} from './entities/spawn-bracket.js';
+export type {
+  SlotTransitionEvent,
+  SlotTransitionResult,
+  SlotTransitionError,
+} from './policies/slot-transitions.js';
+export { transitionSlot, shouldIgnoreProcessExit } from './policies/slot-transitions.js';
+export type { RestartOutcome } from './policies/restart-decision.js';
+export { decideRestartAfterExit } from './policies/restart-decision.js';
+export { shouldBypassConcurrentLimit } from './policies/spawn-gate.js';
