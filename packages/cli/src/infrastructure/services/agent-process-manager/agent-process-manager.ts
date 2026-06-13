@@ -4,6 +4,13 @@
  * Owns all state transitions, PID tracking, process spawning/killing,
  * crash loop protection, rate limiting, and backend event emission.
  *
+ * Phase 3: Facade over AgentLifecycleService. Slot state machine (Ref,
+ * transitions, spawn/stop/exit brackets, restart decisions) is delegated
+ * to AgentLifecycleService. APM retains: killExistingBeforeSpawn,
+ * crash-loop gate, fs validation, init-prompt fetch, daemon-memory resume,
+ * backend mutations (recordAgentExited, updateSpawnedAgent, etc.),
+ * recover(), turn-end queue, exit retry queue, lastHarnessSessions.
+ *
  * State model per (chatroomId, role):
  *   idle → spawning → running → idle (on exit)
  *                  ↘ idle (on failure)
@@ -14,6 +21,7 @@
 
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
@@ -39,6 +47,13 @@ import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { Signals } from '../../types/signals.js';
+import { type AgentLifecyclePortAdapterDeps } from '../agent-lifecycle/agent-lifecycle-port-adapters.js';
+import type { AgentLifecycleRuntime } from '../agent-lifecycle/agent-lifecycle-runtime.js';
+import { createAgentLifecycleRuntime } from '../agent-lifecycle/agent-lifecycle-runtime.js';
+import {
+  AgentLifecycleService,
+  type AgentLifecycleSlot,
+} from '../agent-lifecycle/agent-lifecycle-types.js';
 import type {
   HarnessReconnectMetadata,
   RemoteAgentService,
@@ -193,6 +208,7 @@ type ResolvedAgentProcessManagerDeps = AgentProcessManagerDeps & {
 
 export class AgentProcessManager {
   private readonly deps: ResolvedAgentProcessManagerDeps;
+  /** Mirror of lifecycle service slot state — used by sync getSlot/listActive. */
   private readonly slots = new Map<string, AgentSlot>();
   /** Latest harness session reconnect context per chatroom+role — in-memory only. */
   private readonly lastHarnessSessions = new Map<string, HarnessSessionSnapshot>();
@@ -202,16 +218,51 @@ export class AgentProcessManager {
   /** Active retry interval timer handle, or null if queue is empty. */
   private exitRetryTimer: ReturnType<typeof setInterval> | null = null;
   private readonly turnEndQueue = new TurnEndQueue();
+  /** Effect-native lifecycle service runtime (Phase 3). */
+  private readonly lifecycle: AgentLifecycleRuntime;
 
   constructor(deps: AgentProcessManagerDeps) {
     this.deps = {
       ...deps,
       resumeStormTracker: deps.resumeStormTracker ?? new RapidResumeTracker(),
     };
+
+    // Create lifecycle runtime — delegates slot state machine to AgentLifecycleService
+    const portAdapterDeps: AgentLifecyclePortAdapterDeps = {
+      spawning: this.deps.spawning,
+      agentServices: this.deps.agentServices,
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      onAgentEnd: (args) => void this.runHandleAgentEnd(args),
+    };
+    this.lifecycle = createAgentLifecycleRuntime(portAdapterDeps);
   }
 
-  async whenTurnEndsIdle(): Promise<void> {
-    await this.turnEndQueue.whenIdle();
+  private updateSlotsMirror(chatroomId: string, role: string, slot: AgentLifecycleSlot): void {
+    const key = agentKey(chatroomId, role);
+    const existing = this.slots.get(key);
+    if (!existing || existing.state !== slot.state || existing.pid !== slot.pid) {
+      this.slots.set(key, {
+        state: slot.state,
+        pid: slot.pid,
+        harness: slot.harness,
+        harnessSessionId: slot.harnessSessionId,
+        model: slot.model,
+        workingDir: slot.workingDir,
+        startedAt: slot.startedAt,
+        resumeInFlight: slot.resumeInFlight,
+        recentLogLines: slot.recentLogLines,
+        wantResume: slot.wantResume,
+      });
+    }
+  }
+
+  private getSlotFromMirror(chatroomId: string, role: string): AgentSlot | undefined {
+    return this.slots.get(agentKey(chatroomId, role));
+  }
+
+  whenTurnEndsIdle(): Promise<void> {
+    return this.turnEndQueue.whenIdle();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -321,6 +372,19 @@ export class AgentProcessManager {
     const supportsSessionResume =
       capabilities.supportsSessionResume && typeof service?.resumeTurn === 'function';
 
+    this.updateSlotsMirror(opts.chatroomId, opts.role, {
+      state: slot?.state ?? 'idle',
+      pid: slot?.pid,
+      harness: slot?.harness,
+      harnessSessionId: slot?.harnessSessionId,
+      model: slot?.model,
+      workingDir: slot?.workingDir,
+      startedAt: slot?.startedAt,
+      resumeInFlight: slot?.resumeInFlight,
+      recentLogLines: slot?.recentLogLines,
+      wantResume: slot?.wantResume,
+    });
+
     console.log(
       `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${supportsSessionResume}`
     );
@@ -424,7 +488,22 @@ export class AgentProcessManager {
       });
     }
 
-    // Transition: running → idle
+    // Delegate slot state machine + restart decision to lifecycle service
+    const lifecyclePromise = this.lifecycle.runPromise(
+      Effect.gen(function* () {
+        const svc = yield* AgentLifecycleService;
+        yield* svc.handleExit({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid: opts.pid,
+          code: opts.code,
+          signal: opts.signal,
+        });
+      })
+    );
+
+    // APM backend side effects (currently in handleExit AFTER lifecycle ops)
+    // Transition: running → idle (APM mirror)
     slot.state = 'idle';
     slot.pid = undefined;
     slot.startedAt = undefined;
@@ -460,78 +539,88 @@ export class AgentProcessManager {
       service.untrack(opts.pid);
     }
 
-    // Restart decision
-    if (!shouldAutoRestartAfterProcessExit(stopReason)) {
-      if (
-        stopReason === 'user.stop' ||
-        stopReason === 'platform.team_switch' ||
-        stopReason === 'daemon.shutdown'
-      ) {
-        this.deps.crashLoop.clear(opts.chatroomId, opts.role);
-      }
-      return;
-    }
+    // Handle lifecycle result for backend side effects
+    void lifecyclePromise
+      .then(() => {
+        // Restart decision (APM-side effects for restart failures)
+        const stopReasonForRestart = resolveStopReason(opts.code, opts.signal);
 
-    // Auto-restart (if we have enough info)
-    if (!harness || !workingDir) {
-      console.log(
-        `[AgentProcessManager] ⚠️  Cannot restart — missing harness or workingDir ` +
-          `(role: ${opts.role}, harness: ${harness ?? 'none'}, workingDir: ${workingDir ?? 'none'})`
-      );
-      return;
-    }
+        if (!shouldAutoRestartAfterProcessExit(stopReasonForRestart)) {
+          if (
+            stopReasonForRestart === 'user.stop' ||
+            stopReasonForRestart === 'platform.team_switch' ||
+            stopReasonForRestart === 'daemon.shutdown'
+          ) {
+            this.deps.crashLoop.clear(opts.chatroomId, opts.role);
+          }
+          return;
+        }
 
-    if (isPermanentHarnessFailure(recentLogLines ?? [])) {
-      const error = formatPermanentHarnessFailureMessage(recentLogLines ?? []);
-      console.log(`[AgentProcessManager] ⛔ Skipping restart — ${error}`);
-      this.deps.crashLoop.clear(opts.chatroomId, opts.role);
-      this.clearLastHarnessSession(key);
-      this.deps.backend
-        .mutation(api.machines.emitAgentStartFailed, {
-          sessionId: this.deps.sessionId,
-          machineId: this.deps.machineId,
+        // Auto-restart (if we have enough info)
+        if (!harness || !workingDir) {
+          console.log(
+            `[AgentProcessManager] ⚠️  Cannot restart — missing harness or workingDir ` +
+              `(role: ${opts.role}, harness: ${harness ?? 'none'}, workingDir: ${workingDir ?? 'none'})`
+          );
+          return;
+        }
+
+        if (isPermanentHarnessFailure(recentLogLines ?? [])) {
+          const error = formatPermanentHarnessFailureMessage(recentLogLines ?? []);
+          console.log(`[AgentProcessManager] ⛔ Skipping restart — ${error}`);
+          this.deps.crashLoop.clear(opts.chatroomId, opts.role);
+          this.clearLastHarnessSession(key);
+          this.deps.backend
+            .mutation(api.machines.emitAgentStartFailed, {
+              sessionId: this.deps.sessionId,
+              machineId: this.deps.machineId,
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              error,
+            })
+            .catch((emitErr: Error) => {
+              console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
+            });
+          return;
+        }
+
+        // Trigger restart via APM's ensureRunning (handles gates + backend events)
+        void this.ensureRunning({
           chatroomId: opts.chatroomId,
           role: opts.role,
-          error,
-        })
-        .catch((emitErr: Error) => {
-          console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
-        });
-      return;
-    }
+          agentHarness: harness,
+          model,
+          workingDir,
+          reason: 'platform.crash_recovery',
+          // Non-intentional exit: honor the user's resume preference captured at
+          // spawn. Enabled → rejoin the harness session; disabled → cold-restart.
+          // Defaults to true when unknown (e.g. slot re-adopted after a daemon
+          // restart) to preserve rejoin-on-crash.
+          wantResume: wantResume ?? true,
+        }).catch((err: Error) => {
+          console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
 
-    this.ensureRunning({
-      chatroomId: opts.chatroomId,
-      role: opts.role,
-      agentHarness: harness,
-      model,
-      workingDir,
-      reason: 'platform.crash_recovery',
-      // Non-intentional exit: honor the user's resume preference captured at
-      // spawn. Enabled → rejoin the harness session; disabled → cold-restart.
-      // Defaults to true when unknown (e.g. slot re-adopted after a daemon
-      // restart) to preserve rejoin-on-crash.
-      wantResume: wantResume ?? true,
-    }).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
-
-      // Emit start-failed event
-      this.deps.backend
-        .mutation(api.machines.emitAgentStartFailed, {
-          sessionId: this.deps.sessionId,
-          machineId: this.deps.machineId,
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          error: err.message,
-        })
-        .catch((emitErr: Error) => {
-          console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
+          // Emit start-failed event
+          this.deps.backend
+            .mutation(api.machines.emitAgentStartFailed, {
+              sessionId: this.deps.sessionId,
+              machineId: this.deps.machineId,
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              error: err.message,
+            })
+            .catch((emitErr: Error) => {
+              console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
+            });
         });
-    });
+      })
+      .catch(() => {
+        // Lifecycle error — still emit exit event (already done above)
+      });
   }
 
   getSlot(chatroomId: string, role: string): AgentSlot | undefined {
-    return this.slots.get(agentKey(chatroomId, role));
+    return this.getSlotFromMirror(chatroomId, role);
   }
 
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {

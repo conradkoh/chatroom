@@ -12,14 +12,21 @@ import { Effect } from 'effect';
 import type { AgentLifecyclePorts, SpawnPort, HarnessSpawnPort } from './agent-lifecycle-types.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { AgentHarness } from '../../machine/types.js';
-import type { HarnessSpawningService } from '../harness-spawning/harness-spawning-service.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
 import type { SpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Port Adapter Dependencies ────────────────────────────────────────────────
 
 export interface AgentLifecyclePortAdapterDeps {
-  readonly spawning: HarnessSpawningService;
+  readonly spawning: {
+    readonly shouldAllowSpawn: (
+      chatroomId: string,
+      reason: string,
+      options?: { bypassConcurrentLimit?: boolean }
+    ) => { allowed: boolean; retryAfterMs?: number };
+    readonly recordSpawn: (chatroomId: string) => void;
+    readonly recordExit: (chatroomId: string) => void;
+  };
   readonly agentServices: Map<string, RemoteAgentService>;
   readonly sessionId: string;
   readonly machineId: string;
@@ -34,7 +41,7 @@ export interface AgentLifecyclePortAdapterDeps {
 
 // ─── Spawn Port Adapter ───────────────────────────────────────────────────────
 
-export function createSpawnPort(spawning: HarnessSpawningService): SpawnPort {
+export function createSpawnPort(spawning: AgentLifecyclePortAdapterDeps['spawning']): SpawnPort {
   return {
     shouldAllowSpawn: (chatroomId, reason, options) =>
       spawning.shouldAllowSpawn(chatroomId, reason, options),
@@ -120,5 +127,5 @@ export function createAgentLifecyclePorts(
     harness: createHarnessSpawnPort(deps),
     sessionId: deps.sessionId,
     machineId: deps.machineId,
-  };
+  } as AgentLifecyclePorts;
 }
