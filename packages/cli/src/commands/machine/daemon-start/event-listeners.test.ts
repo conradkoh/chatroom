@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
@@ -52,7 +52,7 @@ function registerListeners(
         lastPushedHarnessFingerprint: null,
       }),
       Effect.provideService(DaemonAgentProcessManagerService, {
-        handleExit: (opts) => Effect.promise(() => init.agentProcessManager.handleExit(opts)),
+        handleExit: (opts) => Effect.sync(() => init.agentProcessManager.handleExit(opts)),
         ensureRunning: (opts) => Effect.promise(() => init.agentProcessManager.ensureRunning(opts)),
         stop: (opts) => Effect.promise(() => init.agentProcessManager.stop(opts)),
         recover: () => Effect.promise(() => init.agentProcessManager.recover()),
@@ -65,9 +65,9 @@ function registerListeners(
 }
 
 describe('registerEventListeners', () => {
-  test('agent:exited delegates to agentProcessManager.handleExit', () => {
+  test('agent:exited delegates to agentProcessManager.handleExit', async () => {
     const init = createTestInit();
-    registerListeners(init);
+    const unsubscribe = registerListeners(init);
 
     init.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -78,18 +78,22 @@ describe('registerEventListeners', () => {
       stopReason: 'agent_process.crashed',
     });
 
-    expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
-      chatroomId: CHATROOM_ID,
-      role: 'builder',
-      pid: 1234,
-      code: 1,
-      signal: null,
+    await vi.waitFor(() => {
+      expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        pid: 1234,
+        code: 1,
+        signal: null,
+      });
     });
+
+    unsubscribe();
   });
 
-  test('agent:exited passes correct args for intentional stops', () => {
+  test('agent:exited passes correct args for intentional stops', async () => {
     const init = createTestInit();
-    registerListeners(init);
+    const unsubscribe = registerListeners(init);
 
     init.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -100,13 +104,17 @@ describe('registerEventListeners', () => {
       stopReason: 'user.stop',
     });
 
-    expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
-      chatroomId: CHATROOM_ID,
-      role: 'builder',
-      pid: 1234,
-      code: 0,
-      signal: null,
+    await vi.waitFor(() => {
+      expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        pid: 1234,
+        code: 0,
+        signal: null,
+      });
     });
+
+    unsubscribe();
   });
 
   test('unsubscribe removes all listeners', () => {
@@ -127,9 +135,9 @@ describe('registerEventListeners', () => {
     expect(init.agentProcessManager.handleExit).not.toHaveBeenCalled();
   });
 
-  test('agent:exited handles natural process exit (code 0)', () => {
+  test('agent:exited handles natural process exit (code 0)', async () => {
     const init = createTestInit();
-    registerListeners(init);
+    const unsubscribe = registerListeners(init);
 
     init.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -140,18 +148,22 @@ describe('registerEventListeners', () => {
       stopReason: 'agent_process.exited_clean',
     });
 
-    expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
-      chatroomId: CHATROOM_ID,
-      role: 'builder',
-      pid: 9999,
-      code: 0,
-      signal: null,
+    await vi.waitFor(() => {
+      expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        pid: 9999,
+        code: 0,
+        signal: null,
+      });
     });
+
+    unsubscribe();
   });
 
-  test('agent:exited passes signal information', () => {
+  test('agent:exited passes signal information', async () => {
     const init = createTestInit();
-    registerListeners(init);
+    const unsubscribe = registerListeners(init);
 
     init.events.emit('agent:exited', {
       chatroomId: CHATROOM_ID,
@@ -162,12 +174,16 @@ describe('registerEventListeners', () => {
       stopReason: 'agent_process.signal',
     });
 
-    expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
-      chatroomId: CHATROOM_ID,
-      role: 'builder',
-      pid: 5555,
-      code: null,
-      signal: 'SIGTERM',
+    await vi.waitFor(() => {
+      expect(init.agentProcessManager.handleExit).toHaveBeenCalledWith({
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        pid: 5555,
+        code: null,
+        signal: 'SIGTERM',
+      });
     });
+
+    unsubscribe();
   });
 });
