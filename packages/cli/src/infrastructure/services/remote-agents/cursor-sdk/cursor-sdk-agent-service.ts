@@ -327,9 +327,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         'Agent.resume'
       );
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
+      );
       keeper.kill();
       this.deleteProcess(pid);
-      throw err;
+      return this.spawn(options);
     }
 
     return this.startRunningSession({

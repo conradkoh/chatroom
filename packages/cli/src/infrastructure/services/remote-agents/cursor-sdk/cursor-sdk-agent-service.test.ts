@@ -634,31 +634,38 @@ describe('CursorSdkAgentService', () => {
       );
     });
 
-    it('throws when Agent.resume fails', async () => {
+    it('falls back to spawn when Agent.resume fails', async () => {
       sharedAgentResumeFn.mockRejectedValue(new Error('agent not found'));
+      sharedAgentCreateFn.mockResolvedValue({
+        agentId: 'agent-fresh-1',
+        send: sharedAgentSendFn,
+        close: vi.fn(),
+      });
 
-      const child = makeFakeChild(4321);
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const keeper = makeFakeChild(4321);
+      const spawnKeeper = makeFakeChild(4322);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValueOnce(keeper).mockReturnValueOnce(spawnKeeper),
+      });
       const service = new CursorSdkAgentService(deps);
 
-      await expect(
-        service.resumeFromDaemonMemory(
-          {
-            workingDir: '/tmp/resume-wd',
-            prompt: createSpawnPrompt('resume hello'),
-            systemPrompt: 'sys',
-            context: SPAWN_CONTEXT,
-          },
-          {
-            harnessSessionId: 'missing-agent',
-            agentName: 'builder@c1',
-            workingDir: '/tmp/resume-wd',
-          }
-        )
-      ).rejects.toThrow('agent not found');
+      const result = await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          context: SPAWN_CONTEXT,
+        },
+        {
+          harnessSessionId: 'missing-agent',
+          agentName: 'builder@c1',
+          workingDir: '/tmp/resume-wd',
+        }
+      );
 
-      expect(sharedAgentSendFn).not.toHaveBeenCalled();
-      expect(child.kill).toHaveBeenCalled();
+      expect(sharedAgentCreateFn).toHaveBeenCalled();
+      expect(result.pid).toBe(4322);
+      expect(keeper.kill).toHaveBeenCalled();
     });
   });
 

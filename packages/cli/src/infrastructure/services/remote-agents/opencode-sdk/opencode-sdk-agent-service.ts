@@ -68,6 +68,8 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
 }
 
 export class OpenCodeSdkAgentService extends BaseCLIAgentService {
+  /** Per-pid agent_end callbacks — preserved across in-turn session fallback. */
+  private readonly agentEndCallbacksByPid = new Map<number, (() => void)[]>();
   readonly id = 'opencode-sdk';
   readonly displayName = 'OpenCode (SDK)';
   readonly command = OPENCODE_COMMAND;
@@ -131,10 +133,10 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
             err instanceof Error ? err.message : err
           );
         }
+        // Eager cleanup: doStop may kill before the child exit handler runs; stale
+        // pid-keyed metadata would otherwise block resumeTurn.
+        this.sessionStore.remove(meta.sessionId);
       }
-      // Eager cleanup: doStop may kill before the child exit handler runs; stale
-      // pid-keyed metadata would otherwise block resumeTurn.
-      this.sessionStore.remove(meta.sessionId);
     }
     await super.stop(pid);
   }
@@ -237,6 +239,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
             this.forwarders.delete(pid);
           }
           this.sessionStore.remove(sessionId);
+          this.agentEndCallbacksByPid.delete(pid);
           this.deleteProcess(pid);
           cb({ code, signal, context });
         });
@@ -245,6 +248,9 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         outputCallbacks.push(cb);
       },
       onAgentEnd: (cb) => {
+        const callbacks = this.agentEndCallbacksByPid.get(pid) ?? [];
+        callbacks.push(cb);
+        this.agentEndCallbacksByPid.set(pid, callbacks);
         forwarder?.onAgentEnd(cb);
       },
       onLogLine: (cb) => {
@@ -264,6 +270,81 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         for (const cb of logLineCallbacks) cb(line);
       },
     };
+  }
+
+  /**
+   * Best-effort in-turn recovery: create a new OpenCode session on an existing
+   * serve process when resume on the prior sessionId fails.
+   */
+  private async startFreshSessionOnServe(args: {
+    pid: number;
+    baseUrl: string;
+    context: SpawnContext;
+    agentName: string;
+    model?: string;
+    prompt: string;
+    oldSessionId?: string;
+  }): Promise<void> {
+    const existingForwarder = this.forwarders.get(args.pid);
+    existingForwarder?.stop();
+    this.forwarders.delete(args.pid);
+
+    const client = createOpencodeClient({ baseUrl: args.baseUrl });
+
+    const sessionCreateResult = await withTimeout(
+      client.session.create({ body: {} }),
+      SESSION_CREATE_TIMEOUT_MS,
+      'session.create'
+    );
+    if (!sessionCreateResult.data?.id) {
+      throw new Error('Failed to create session during resume fallback');
+    }
+    const newSessionId = sessionCreateResult.data.id;
+
+    const forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
+      sessionId: newSessionId,
+      role: args.context.role,
+    });
+
+    const callbacks = this.agentEndCallbacksByPid.get(args.pid) ?? [];
+    for (const cb of callbacks) {
+      forwarder.onAgentEnd(cb);
+    }
+    this.forwarders.set(args.pid, forwarder);
+
+    if (args.oldSessionId) {
+      this.sessionStore.remove(args.oldSessionId);
+    }
+    this.sessionStore.upsert({
+      sessionId: newSessionId,
+      machineId: args.context.machineId,
+      chatroomId: args.context.chatroomId,
+      role: args.context.role,
+      agentName: args.agentName,
+      ...(args.model ? { model: args.model } : {}),
+      pid: args.pid,
+      createdAt: new Date().toISOString(),
+      baseUrl: args.baseUrl,
+    });
+
+    const modelParts = args.model ? parseModelId(args.model) : undefined;
+    await withTimeout(
+      client.session.promptAsync({
+        path: { id: newSessionId },
+        body: {
+          agent: args.agentName,
+          parts: [{ type: 'text', text: args.prompt }],
+          ...(modelParts ? { model: modelParts } : {}),
+          tools: {
+            task: false,
+            question: false,
+            external_directory: false,
+          },
+        },
+      }),
+      PROMPT_ASYNC_TIMEOUT_MS,
+      'session.promptAsync'
+    );
   }
 
   async resumeFromDaemonMemory(
@@ -342,11 +423,11 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} resume-error] ${reason}\n`
+        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
       );
       forwarder?.stop();
       childProcess.kill();
-      throw err;
+      return this.spawn(options);
     }
 
     return this.registerRunningSession({
@@ -490,28 +571,52 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   async resumeTurn(pid: number, prompt: string): Promise<void> {
     const meta = this.sessionStore.findByPid(pid);
     if (!meta) {
-      throw new Error(`No opencode-sdk session metadata for pid=${pid}`);
+      process.stderr.write(
+        `[${new Date().toISOString()}] opencode-sdk resumeTurn: no metadata for pid=${pid}, skipping\n`
+      );
+      return;
     }
 
     const client = createOpencodeClient({ baseUrl: meta.baseUrl });
     const modelParts = meta.model ? parseModelId(meta.model) : undefined;
+    const context: SpawnContext = {
+      machineId: meta.machineId,
+      chatroomId: meta.chatroomId,
+      role: meta.role,
+    };
 
-    await withTimeout(
-      client.session.promptAsync({
-        path: { id: meta.sessionId },
-        body: {
-          agent: meta.agentName,
-          parts: [{ type: 'text', text: prompt }],
-          ...(modelParts ? { model: modelParts } : {}),
-          tools: {
-            task: false,
-            question: false,
-            external_directory: false,
+    try {
+      await withTimeout(
+        client.session.promptAsync({
+          path: { id: meta.sessionId },
+          body: {
+            agent: meta.agentName,
+            parts: [{ type: 'text', text: prompt }],
+            ...(modelParts ? { model: modelParts } : {}),
+            tools: {
+              task: false,
+              question: false,
+              external_directory: false,
+            },
           },
-        },
-      }),
-      PROMPT_ASYNC_TIMEOUT_MS,
-      'session.promptAsync'
-    );
+        }),
+        PROMPT_ASYNC_TIMEOUT_MS,
+        'session.promptAsync'
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `[${new Date().toISOString()}] role:${meta.role} resume-fallback] ${reason} — starting fresh session\n`
+      );
+      await this.startFreshSessionOnServe({
+        pid,
+        baseUrl: meta.baseUrl,
+        context,
+        agentName: meta.agentName,
+        model: meta.model,
+        prompt,
+        oldSessionId: meta.sessionId,
+      });
+    }
   }
 }
