@@ -77,11 +77,7 @@ export function transitionSlot(
         return makeResult({ ...slot, state: 'stopping', pendingOperationKey: event.operationKey });
       }
       if (event.type === 'process_exited') {
-        // Check if we're in stopping state (should be caught by shouldIgnoreProcessExit)
-        if (slot.state === 'stopping') {
-          return { ok: false, error: { _tag: 'IgnoredDuplicateExit' } };
-        }
-        // Only accept exit if pid matches
+        // shouldIgnoreProcessExit catches stopping state before we reach here
         if (slot.pid !== undefined && slot.pid !== event.pid) {
           return { ok: false, error: { _tag: 'StalePid', expected: slot.pid, got: event.pid } };
         }

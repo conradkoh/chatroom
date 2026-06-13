@@ -13,5 +13,5 @@ export interface AgentSlotSnapshot {
 export const idleSlot = (): AgentSlotSnapshot => ({ state: 'idle' });
 
 export function agentKey(chatroomId: string, role: string): string {
-  return `${chatroomId}:${role}`;
+  return `${chatroomId}:${role.toLowerCase()}`;
 }
