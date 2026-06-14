@@ -53,6 +53,10 @@ import { createAgentLifecycleRuntime } from '../agent-lifecycle/agent-lifecycle-
 import {
   AgentLifecycleService,
   type AgentLifecycleSlot,
+  type EnsureRunningOpts,
+  type HandleExitOpts,
+  type OperationResult,
+  type StopOpts,
 } from '../agent-lifecycle/agent-lifecycle-types.js';
 import type {
   HarnessReconnectMetadata,
@@ -63,8 +67,18 @@ import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// Re-exported from AgentLifecycleService — authoritative definitions.
+// APM uses these for its imperative (async/await) public API.
+export type {
+  OperationResult,
+  EnsureRunningOpts,
+  StopOpts,
+  HandleExitOpts,
+} from '../agent-lifecycle/agent-lifecycle-types.js';
+
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
+/** APM's internal slot — mirrors AgentLifecycleSlot with imperative-compatible fields. */
 export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
@@ -82,44 +96,6 @@ export interface AgentSlot {
   recentLogLines?: string[];
   /** User's persisted resume preference for this run; gates turn-resume & crash-recovery resume. */
   wantResume?: boolean;
-}
-
-export interface OperationResult {
-  success: boolean;
-  pid?: number;
-  error?: string;
-}
-
-export interface EnsureRunningOpts {
-  chatroomId: string;
-  role: string;
-  agentHarness: AgentHarness;
-  model?: string;
-  workingDir: string;
-  reason: string;
-  /**
-   * Whether to try daemon-memory resume on stop→start (same daemon process).
-   * Required: the "absent ⇒ default true" decision is resolved at the daemon
-   * event boundary (on-request-start-agent), so callers here always pass a
-   * concrete value. Forgetting it is a compile error.
-   */
-  wantResume: boolean;
-}
-
-export interface StopOpts {
-  chatroomId: string;
-  role: string;
-  reason: StopReason;
-  /** PID from the backend event — used as fallback when the daemon has no slot PID (e.g. after restart). */
-  pid?: number;
-}
-
-export interface HandleExitOpts {
-  chatroomId: string;
-  role: string;
-  pid: number;
-  code: number | null;
-  signal: string | null;
 }
 
 export interface AgentProcessManagerDeps {

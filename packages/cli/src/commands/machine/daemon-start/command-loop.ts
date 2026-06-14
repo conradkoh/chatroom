@@ -385,7 +385,14 @@ export const startCommandLoopEffect: Effect.Effect<
     Runtime.runFork(runtime)(
       Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
         concurrency: 'unbounded',
-      }).pipe(Effect.provide(effectContext))
+      }).pipe(
+        Effect.provide(effectContext),
+        Effect.catchAll((err) =>
+          Effect.sync(() =>
+            console.warn(`[${formatTimestamp()}] ⚠️ Startup sync failed: ${getErrorMessage(err)}`)
+          )
+        )
+      )
     );
   }
 
