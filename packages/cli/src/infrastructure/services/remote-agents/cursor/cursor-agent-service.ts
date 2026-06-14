@@ -109,6 +109,21 @@ export function resolveCursorCliModel(model: string): string {
   return model.startsWith(prefix) ? model.slice(prefix.length) : model;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractBashCommandFromCursorToolCall(toolCall: unknown): string | null {
+  if (!toolCall || typeof toolCall !== 'object') return null;
+  for (const [key, value] of Object.entries(toolCall as Record<string, unknown>)) {
+    const isBashLike = /bash|shell|terminal|command/i.test(key);
+    if (!isBashLike || !value || typeof value !== 'object') continue;
+    const args = (value as { args?: unknown }).args;
+    if (args && typeof args === 'object' && 'command' in (args as object)) {
+      return String((args as { command: unknown }).command);
+    }
+  }
+  return null;
+}
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class CursorAgentService extends BaseCLIAgentService {
@@ -211,6 +226,11 @@ export class CursorAgentService extends BaseCLIAgentService {
 
       reader.onToolCall((callId, toolCall) => {
         flushText();
+        const bashCmd = extractBashCommandFromCursorToolCall(toolCall);
+        if (bashCmd !== null) {
+          process.stdout.write(`${logPrefix} tool: bash] running: ${bashCmd}\n`);
+          return;
+        }
         process.stdout.write(`${logPrefix} tool: ${callId} ${JSON.stringify(toolCall)}]\n`);
       });
 

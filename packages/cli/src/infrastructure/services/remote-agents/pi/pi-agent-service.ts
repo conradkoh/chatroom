@@ -426,6 +426,16 @@ export class PiAgentService extends BaseCLIAgentService {
     reader.onToolCall((name, toolArgs) => {
       flushText();
       flushThinking();
+      if (name === 'bash' || name === 'shell') {
+        const cmd =
+          typeof toolArgs === 'object' && toolArgs !== null && 'command' in toolArgs
+            ? String((toolArgs as { command: unknown }).command)
+            : typeof toolArgs === 'string'
+              ? toolArgs
+              : JSON.stringify(toolArgs);
+        writeFormattedLogLine(`${logPrefix} tool: bash] running: ${cmd}`);
+        return;
+      }
       const argsStr = toolArgs != null ? ` args: ${JSON.stringify(toolArgs)}` : '';
       writeFormattedLogLine(`${logPrefix} tool: ${name}${argsStr}]`);
     });
