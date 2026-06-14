@@ -23,6 +23,38 @@ export function isActiveParticipant(participant: { lastSeenAction?: string | nul
   return participant.lastSeenAction !== PARTICIPANT_EXITED_ACTION;
 }
 
+/** Statuses where the agent is already online or in-flight — skip restart. */
+const ONLINE_OR_STARTING_STATUSES = new Set([
+  'agent.waiting',
+  'agent.requestStart',
+  'agent.started',
+  'task.acknowledged',
+  'task.inProgress',
+  'task.completed',
+  'agent.requestStop',
+]);
+
+/**
+ * Returns true if a remote agent with desiredState=running should be restarted
+ * because it is offline (crashed/exited/never started) when the user sends a message.
+ */
+export function isOfflineForUserMessageRestart(participant: {
+  lastStatus?: string | null;
+  lastDesiredState?: string | null;
+  lastSeenAction?: string | null;
+}): boolean {
+  // Intentional stop — user chose to stop; do not auto-restart
+  if (participant.lastDesiredState === 'stopped') return false;
+
+  const status = participant.lastStatus ?? null;
+
+  // Already online, working, or starting — skip
+  if (status != null && ONLINE_OR_STARTING_STATUSES.has(status)) return false;
+
+  // Offline: no status yet, exited, start failed, etc.
+  return true;
+}
+
 /**
  * Canonical participant-presence row exposed to clients.
  *

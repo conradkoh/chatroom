@@ -17,6 +17,7 @@ import { getCliEnvPrefix } from '../prompts/utils/index';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
@@ -353,6 +354,8 @@ async function _sendMessageHandler(
         lastActivityAt: Date.now(),
       });
 
+      await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
+
       return queuedMessageId; // Return queue record ID as opaque message ID
     }
     // ─── Pending path: existing flow (store in chatroom_messages) ────────
@@ -385,6 +388,8 @@ async function _sendMessageHandler(
     });
 
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
+
+    await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
 
     return messageId;
   }
