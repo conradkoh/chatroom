@@ -277,62 +277,61 @@ async function processCommitDetail(deps: GitSubscriptionDeps, req: PendingReques
     gitReader.getCommitMetadata(req.workingDir, req.sha),
   ]);
 
+  await upsertCommitDetailResult(deps, req, result, metadata);
+
+  if (result.status === 'available' || result.status === 'truncated') {
+    const compressed = gzipSync(Buffer.from(result.content));
+    console.log(
+      `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir} (${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
+    );
+  }
+}
+
+async function upsertCommitDetailResult(
+  deps: GitSubscriptionDeps,
+  req: PendingRequest,
+  result: Awaited<ReturnType<typeof gitReader.getCommitDetail>>,
+  metadata: Awaited<ReturnType<typeof gitReader.getCommitMetadata>>
+): Promise<void> {
+  const baseArgs = {
+    sessionId: deps.sessionId,
+    machineId: deps.machineId,
+    workingDir: req.workingDir,
+    sha: req.sha,
+    message: metadata?.message,
+    body: metadata?.body,
+    author: metadata?.author,
+    date: metadata?.date,
+  };
+
   if (result.status === 'not_found') {
     await deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-      workingDir: req.workingDir,
-      sha: req.sha,
+      ...baseArgs,
       status: 'not_found',
-      message: metadata?.message,
-      body: metadata?.body,
-      author: metadata?.author,
-      date: metadata?.date,
     });
     return;
   }
 
   if (result.status === 'error') {
     await deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
-      workingDir: req.workingDir,
-      sha: req.sha,
+      ...baseArgs,
       status: 'error',
       errorMessage: (result as { status: 'error'; message: string }).message,
-      message: metadata?.message,
-      body: metadata?.body,
-      author: metadata?.author,
-      date: metadata?.date,
     });
     return;
   }
 
-  // result.status is 'available' or 'truncated'
   const diffStat = extractDiffStatFromShowOutput(result.content);
-
-  // Compress diff content for efficient transport
   const compressed = gzipSync(Buffer.from(result.content));
   const diffContentCompressed = compressed.toString('base64');
 
   await deps.backend.mutation(api.workspaces.upsertCommitDetailV2, {
-    sessionId: deps.sessionId,
-    machineId: deps.machineId,
-    workingDir: req.workingDir,
-    sha: req.sha,
+    ...baseArgs,
     status: 'available',
     data: { compression: 'gzip' as const, content: diffContentCompressed },
     truncated: result.truncated,
-    message: metadata?.message,
-    body: metadata?.body,
-    author: metadata?.author,
-    date: metadata?.date,
     diffStat,
   });
-
-  console.log(
-    `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir} (${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`
-  );
 }
 
 /**
@@ -398,6 +397,30 @@ async function processRecentCommits(deps: GitSubscriptionDeps, req: PendingReque
   console.log(
     `[${formatTimestamp()}] 📜 Recent commits pushed: ${req.workingDir} (${commits.length} commits)`
   );
+}
+
+function dispatchGitRequest(
+  deps: GitSubscriptionDeps,
+  req: PendingRequest
+): Effect.Effect<void, never, never> {
+  switch (req.requestType) {
+    case 'full_diff':
+      return Effect.promise(() => processFullDiff(deps, req));
+    case 'commit_detail':
+      return Effect.promise(() => processCommitDetail(deps, req));
+    case 'more_commits':
+      return Effect.promise(() => processMoreCommits(deps, req));
+    case 'pr_diff':
+      return Effect.promise(() => processPRDiff(deps, req));
+    case 'pr_action':
+      return Effect.promise(() => processPRAction(deps, req));
+    case 'pr_commits':
+      return Effect.promise(() => processPRCommits(deps, req));
+    case 'all_pull_requests':
+      return Effect.promise(() => processAllPullRequests(deps, req));
+    case 'recent_commits':
+      return Effect.promise(() => processRecentCommits(deps, req));
+  }
 }
 
 /** Starts the git request subscription — yields DaemonSessionService. */
@@ -528,32 +551,7 @@ export const processRequestsEffect = (
 
         const sessionWithRuntime = { ...session, runtime } as unknown as GitSubscriptionDeps;
 
-        switch (req.requestType) {
-          case 'full_diff':
-            yield* Effect.promise(() => processFullDiff(sessionWithRuntime, req));
-            break;
-          case 'commit_detail':
-            yield* Effect.promise(() => processCommitDetail(sessionWithRuntime, req));
-            break;
-          case 'more_commits':
-            yield* Effect.promise(() => processMoreCommits(sessionWithRuntime, req));
-            break;
-          case 'pr_diff':
-            yield* Effect.promise(() => processPRDiff(sessionWithRuntime, req));
-            break;
-          case 'pr_action':
-            yield* Effect.promise(() => processPRAction(sessionWithRuntime, req));
-            break;
-          case 'pr_commits':
-            yield* Effect.promise(() => processPRCommits(sessionWithRuntime, req));
-            break;
-          case 'all_pull_requests':
-            yield* Effect.promise(() => processAllPullRequests(sessionWithRuntime, req));
-            break;
-          case 'recent_commits':
-            yield* Effect.promise(() => processRecentCommits(sessionWithRuntime, req));
-            break;
-        }
+        yield* dispatchGitRequest(sessionWithRuntime, req);
 
         // Mark as done
         yield* Effect.promise(() =>

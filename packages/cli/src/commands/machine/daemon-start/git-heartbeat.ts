@@ -179,33 +179,14 @@ async function pushSingleWorkspaceGitStateImpl(
 
   const isRepo = await gitReader.isGitRepo(workingDir);
   if (!isRepo) {
-    const stateHash = 'not_found';
-    if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
-
-    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      status: 'not_found',
-    });
-    ctx.lastPushedGitState.set(stateKey, stateHash);
+    await pushNotFoundGitState(ctx, workingDir, stateKey);
     return;
   }
 
   const branchResult = await gitReader.getBranch(workingDir);
 
   if (branchResult.status === 'error') {
-    const stateHash = `error:${branchResult.message}`;
-    if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
-
-    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      status: 'error',
-      errorMessage: branchResult.message,
-    });
-    ctx.lastPushedGitState.set(stateKey, stateHash);
+    await pushErrorGitState(ctx, workingDir, stateKey, branchResult.message);
     return;
   }
 
@@ -213,17 +194,60 @@ async function pushSingleWorkspaceGitStateImpl(
     return;
   }
 
+  await pushAvailableGitState(ctx, workingDir, stateKey, branchResult);
+}
+
+async function pushNotFoundGitState(
+  ctx: GitStateDeps,
+  workingDir: string,
+  stateKey: string
+): Promise<void> {
+  const stateHash = 'not_found';
+  if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+
+  await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    status: 'not_found',
+  });
+  ctx.lastPushedGitState.set(stateKey, stateHash);
+}
+
+async function pushErrorGitState(
+  ctx: GitStateDeps,
+  workingDir: string,
+  stateKey: string,
+  message: string
+): Promise<void> {
+  const stateHash = `error:${message}`;
+  if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+
+  await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    status: 'error',
+    errorMessage: message,
+  });
+  ctx.lastPushedGitState.set(stateKey, stateHash);
+}
+
+async function pushAvailableGitState(
+  ctx: GitStateDeps,
+  workingDir: string,
+  stateKey: string,
+  branchResult: { branch: string }
+): Promise<void> {
   const branch = branchResult.branch;
   const allFields = [branchField, ...GIT_STATE_FIELDS, ...makeBranchDependentFields(branch)];
   const pipeline = new GitStatePipeline(allFields);
   const preCollected = new Map<string, unknown>([['branch', branchResult]]);
   const values = await pipeline.collect(workingDir, preCollected);
 
-  // Fetch recent commits separately (not part of the pipeline)
   const commits = await gitReader.getRecentCommits(workingDir, COMMITS_PER_PAGE);
   const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;
 
-  // Two independent hashes: one for gitState, one for recentCommits
   const stateHash = pipeline.computeHash(values, false);
   const commitsKey = `${stateKey}:commits`;
   const commitsHash = JSON.stringify(commits.map((c) => c.sha));
