@@ -14,6 +14,7 @@ import type { DirectHarnessSession } from './command-subscriber.js';
 import { handleSessionIdle } from './idle-handler.js';
 import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
+import type { DirectHarnessSessionEvent } from '../../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { HarnessSessionId } from '../../../../domain/direct-harness/entities/harness-session.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type {
@@ -96,6 +97,99 @@ export function startSessionSubscriber(
 
 // ─── Per-session orchestration ───────────────────────────────────────────────
 
+async function getOrCreateHarness(
+  daemonSession: DirectHarnessSession,
+  deps: SessionSubscriberDeps,
+  session: PendingSession,
+  workspace: WorkspaceInfo
+): Promise<BoundHarness> {
+  let harness = deps.harnesses.get(session.workspaceId);
+  if (harness && !harness.isAlive()) {
+    console.warn(
+      `[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`
+    );
+    harness.close().catch(() => {});
+    deps.harnesses.delete(session.workspaceId);
+    harness = undefined;
+  }
+  if (!harness) {
+    harness = await startOpencodeSdkHarness({
+      type: 'opencode',
+      workingDir: workspace.workingDir,
+      workspaceId: session.workspaceId,
+    });
+    deps.harnesses.set(session.workspaceId, harness);
+  }
+  return harness;
+}
+
+function recordLiveSessionChunk(
+  event: DirectHarnessSessionEvent,
+  handle: SessionHandle,
+  journal: ReturnType<JournalFactory['create']>,
+  extractChunk: ReturnType<typeof createOpencodeSdkChunkExtractor>,
+  deps: SessionSubscriberDeps
+): void {
+  const chunk = extractChunk(event);
+  if (chunk === null) {
+    return;
+  }
+  journal.record({
+    content: chunk.content,
+    timestamp: Date.now(),
+    messageId: chunk.messageId,
+    partType: chunk.partType,
+  });
+  if (handle.currentTurn && handle.currentTurn.messageId === null) {
+    handle.currentTurn.messageId = chunk.messageId;
+    deps.sessionRepository
+      .bindTurnMessageId(handle.currentTurn.turnId, chunk.messageId)
+      .catch((err: unknown) => console.warn('[direct-harness] bindTurnMessageId error:', err));
+  }
+}
+
+function handleLiveSessionTitleUpdate(
+  event: DirectHarnessSessionEvent,
+  deps: SessionSubscriberDeps,
+  rowId: string,
+  liveSession: { sessionTitle?: string; setTitle?: (title: string) => void }
+): void {
+  if (event.type !== 'session.updated') {
+    return;
+  }
+  const info = (event.payload as { info?: { title?: string } }).info;
+  const newTitle = info?.title;
+  if (!newTitle || newTitle === liveSession.sessionTitle) {
+    return;
+  }
+  liveSession.setTitle?.(newTitle);
+  void deps.sessionRepository
+    .updateSessionTitle(rowId as string, newTitle)
+    .catch((err: unknown) => console.warn('[direct-harness] updateSessionTitle error:', err));
+}
+
+function handleLiveSessionEvent(
+  event: DirectHarnessSessionEvent,
+  ctx: {
+    handle: SessionHandle;
+    journal: ReturnType<JournalFactory['create']>;
+    extractChunk: ReturnType<typeof createOpencodeSdkChunkExtractor>;
+    idleConfig: { agent: string; model?: { providerID: string; modelID: string } };
+    deps: SessionSubscriberDeps;
+    rowId: string;
+    liveSession: { sessionTitle?: string; setTitle?: (title: string) => void };
+  }
+): void {
+  const { handle, journal, extractChunk, idleConfig, deps, rowId, liveSession } = ctx;
+  recordLiveSessionChunk(event, handle, journal, extractChunk, deps);
+  if (event.type === 'session.idle') {
+    void handleSessionIdle(handle, journal, idleConfig, deps.sessionRepository).catch(
+      (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
+    );
+  }
+  handleLiveSessionTitleUpdate(event, deps, rowId, liveSession);
+}
+
 async function processOne(
   daemonSession: DirectHarnessSession,
   deps: SessionSubscriberDeps,
@@ -119,24 +213,7 @@ async function processOne(
     }
 
     // 2. Get or create BoundHarness for this workspace
-    let harness = deps.harnesses.get(session.workspaceId);
-    if (harness && !harness.isAlive()) {
-      // Process died since it was last used — evict so we start fresh
-      console.warn(
-        `[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`
-      );
-      harness.close().catch(() => {});
-      deps.harnesses.delete(session.workspaceId);
-      harness = undefined;
-    }
-    if (!harness) {
-      harness = await startOpencodeSdkHarness({
-        type: 'opencode',
-        workingDir: workspace.workingDir,
-        workspaceId: session.workspaceId,
-      });
-      deps.harnesses.set(session.workspaceId, harness);
-    }
+    const harness = await getOrCreateHarness(daemonSession, deps, session, workspace);
 
     // 3. Open a session on the harness
     const liveSession = await harness.newSession({
@@ -183,41 +260,15 @@ async function processOne(
     };
 
     unsubscribeEvents = liveSession.onEvent((event) => {
-      const chunk = extractChunk(event);
-      if (chunk !== null) {
-        journal.record({
-          content: chunk.content,
-          timestamp: Date.now(),
-          messageId: chunk.messageId,
-          partType: chunk.partType,
-        });
-        // Bind the messageId on first chunk for the current pending turn
-        if (handle.currentTurn && handle.currentTurn.messageId === null) {
-          handle.currentTurn.messageId = chunk.messageId;
-          deps.sessionRepository
-            .bindTurnMessageId(handle.currentTurn.turnId, chunk.messageId)
-            .catch((err: unknown) =>
-              console.warn('[direct-harness] bindTurnMessageId error:', err)
-            );
-        }
-      }
-      if (event.type === 'session.idle') {
-        void handleSessionIdle(handle, journal, idleConfig, deps.sessionRepository).catch(
-          (err: unknown) => console.warn('[direct-harness] idle handler error:', err)
-        );
-      }
-      if (event.type === 'session.updated') {
-        const info = (event.payload as { info?: { title?: string } }).info;
-        const newTitle = info?.title;
-        if (newTitle && newTitle !== liveSession.sessionTitle) {
-          liveSession.setTitle?.(newTitle);
-          void deps.sessionRepository
-            .updateSessionTitle(rowId as string, newTitle)
-            .catch((err: unknown) =>
-              console.warn('[direct-harness] updateSessionTitle error:', err)
-            );
-        }
-      }
+      handleLiveSessionEvent(event, {
+        handle,
+        journal,
+        extractChunk,
+        idleConfig,
+        deps,
+        rowId,
+        liveSession,
+      });
     });
 
     deps.activeSessions.set(rowId, handle);

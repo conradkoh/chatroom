@@ -16,35 +16,6 @@ export interface AgentExitedPayload {
   workingDir?: string;
 }
 
-/** Flat deps for core — no DaemonContext. */
-export interface AgentExitedDeps {
-  handleExit: (opts: {
-    chatroomId: Id<'chatroom_rooms'>;
-    role: string;
-    pid: number;
-    code: number | null;
-    signal: string | null;
-  }) => Promise<void>;
-}
-
-/**
- * Passthrough to AgentProcessManager.handleExit().
- */
-export async function handleAgentExited(
-  deps: AgentExitedDeps,
-  payload: AgentExitedPayload
-): Promise<void> {
-  await deps.handleExit({
-    chatroomId: payload.chatroomId,
-    role: payload.role,
-    pid: payload.pid,
-    code: payload.code,
-    signal: payload.signal,
-  });
-}
-
-/** Effect twin — yields DaemonAgentProcessManagerService. */
-// fallow-ignore-next-line unused-export
 export const onAgentExitedEffect = (
   payload: AgentExitedPayload
 ): Effect.Effect<void, never, DaemonAgentProcessManagerService> =>

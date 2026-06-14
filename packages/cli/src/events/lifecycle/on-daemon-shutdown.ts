@@ -27,18 +27,17 @@ export const onDaemonShutdownEffect: Effect.Effect<
   if (activeAgents.length > 0) {
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s)...`);
 
-    yield* Effect.promise(() =>
-      Promise.allSettled(
-        activeAgents.map(async ({ chatroomId, role, slot }) => {
-          const pid = slot.pid;
-          try {
-            await Effect.runPromise(agentPm.stop({ chatroomId, role, reason: 'daemon.shutdown' }));
-            console.log(`   Stopped ${role} (PID ${pid})`);
-          } catch (e) {
-            console.log(`   ⚠️  Failed to stop ${role}: ${(e as Error).message}`);
-          }
-        })
-      )
+    yield* Effect.all(
+      activeAgents.map(({ chatroomId, role, slot }) => {
+        const pid = slot.pid;
+        return agentPm.stop({ chatroomId, role, reason: 'daemon.shutdown' }).pipe(
+          Effect.tap(() => Effect.sync(() => console.log(`   Stopped ${role} (PID ${pid})`))),
+          Effect.catchAll((e) =>
+            Effect.sync(() => console.log(`   ⚠️  Failed to stop ${role}: ${(e as Error).message}`))
+          )
+        );
+      }),
+      { concurrency: 'unbounded' }
     );
 
     console.log(`[${formatTimestamp()}] All agents stopped`);

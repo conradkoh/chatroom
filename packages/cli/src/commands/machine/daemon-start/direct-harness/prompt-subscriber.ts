@@ -132,128 +132,110 @@ async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps)
 
 // ─── Process messages for a single session ───────────────────────────────────
 
-async function processSessionMessages(
+async function resumeSessionHandle(
   session: DirectHarnessSession,
+  deps: MessageSubscriberDeps,
+  rowId: string,
+  info: PendingSessionInfo
+): Promise<ActiveSession | null> {
+  const opencodeSessionId = info.opencodeSessionId;
+  if (!opencodeSessionId) {
+    console.warn(`[direct-harness] Session ${rowId} not yet open — waiting for session-subscriber`);
+    return null;
+  }
+
+  const workspaceId = info.workspaceId;
+  if (!workspaceId) {
+    console.warn(`[direct-harness] Cannot resume session ${rowId}: no workspace info`);
+    return null;
+  }
+
+  let harness = deps.harnesses.get(workspaceId);
+  if (harness && !harness.isAlive()) {
+    harness.close().catch(() => {});
+    deps.harnesses.delete(workspaceId);
+    harness = undefined;
+  }
+  if (!harness) {
+    const workspace = (await session.backend.query(api.workspaces.getWorkspaceById, {
+      sessionId: session.sessionId,
+      workspaceId,
+    })) as WorkspaceInfo | null;
+
+    if (!workspace) {
+      console.warn(`[direct-harness] Cannot resume session ${rowId}: workspace not found`);
+      return null;
+    }
+
+    harness = await startOpencodeSdkHarness({
+      type: 'opencode',
+      workingDir: workspace.workingDir,
+      workspaceId,
+    });
+    deps.harnesses.set(workspaceId, harness);
+  }
+
+  try {
+    return await resumeSession(
+      {
+        harness,
+        journalFactory: deps.journalFactory,
+        chunkExtractor: createOpencodeSdkChunkExtractor(),
+      },
+      { harnessSessionId: rowId, opencodeSessionId, workspaceId }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[direct-harness] Cannot resume session ${rowId}: ${message}`);
+    await deps.sessionRepository.markFailed(rowId).catch(() => {});
+    return null;
+  }
+}
+
+function wireResumedSessionEvents(
+  handle: ActiveSession,
+  deps: MessageSubscriberDeps,
+  info: PendingSessionInfo
+): void {
+  const idleConfig = {
+    agent: info.lastUsedConfig.agent ?? 'build',
+    model: info.lastUsedConfig.model,
+  };
+  let lastBoundKey: string | null = null;
+  handle.session.onEvent((event) => {
+    const turn = handle.currentTurn;
+    if (turn?.messageId !== null && turn?.messageId !== undefined) {
+      const key = `${turn.turnId}:${turn.messageId}`;
+      if (key !== lastBoundKey) {
+        lastBoundKey = key;
+        deps.sessionRepository
+          .bindTurnMessageId(turn.turnId, turn.messageId)
+          .catch((err: unknown) =>
+            console.warn('[direct-harness] bindTurnMessageId error (resume):', err)
+          );
+      }
+    }
+    if (event.type === 'session.idle') {
+      void handleSessionIdle(handle, handle.journal, idleConfig, deps.sessionRepository).catch(
+        (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
+      );
+    }
+  });
+}
+
+async function deliverPendingMessages(
+  handle: ActiveSession,
   deps: MessageSubscriberDeps,
   rowId: string,
   messages: PendingMessage[],
   info: PendingSessionInfo | undefined
 ): Promise<void> {
-  // 1. Resolve the session handle
-  let handle = deps.activeSessions.get(rowId);
-
-  if (!handle) {
-    // No in-memory handle. Two sub-cases:
-    //   a) Session just opened by session-subscriber but opencodeSessionId not
-    //      yet in DB (genuine pending) — info.opencodeSessionId is undefined.
-    //      We skip and wait for the subscription to re-fire once the ID is set.
-    //   b) Daemon restarted — session is active, opencodeSessionId is in DB.
-    //      We lazy-resume.
-    const opencodeSessionId = info?.opencodeSessionId;
-
-    if (!opencodeSessionId) {
-      // Case (a): session not yet opened — subscription will re-fire when
-      // pendingForMachine's opencodeSessionId field changes undefined → string.
-      console.warn(
-        `[direct-harness] Session ${rowId} not yet open — waiting for session-subscriber`
-      );
-      return;
-    }
-
-    // Case (b): lazy-resume after daemon restart
-    const workspaceId = info?.workspaceId;
-    if (!workspaceId) {
-      console.warn(`[direct-harness] Cannot resume session ${rowId}: no workspace info`);
-      return;
-    }
-
-    let harness = deps.harnesses.get(workspaceId);
-    if (harness && !harness.isAlive()) {
-      harness.close().catch(() => {});
-      deps.harnesses.delete(workspaceId);
-      harness = undefined;
-    }
-    if (!harness) {
-      const workspace = (await session.backend.query(api.workspaces.getWorkspaceById, {
-        sessionId: session.sessionId,
-        workspaceId,
-      })) as WorkspaceInfo | null;
-
-      if (!workspace) {
-        console.warn(`[direct-harness] Cannot resume session ${rowId}: workspace not found`);
-        return;
-      }
-
-      harness = await startOpencodeSdkHarness({
-        type: 'opencode',
-        workingDir: workspace.workingDir,
-        workspaceId,
-      });
-      deps.harnesses.set(workspaceId, harness);
-    }
-
-    try {
-      handle = await resumeSession(
-        {
-          harness,
-          journalFactory: deps.journalFactory,
-          chunkExtractor: createOpencodeSdkChunkExtractor(),
-        },
-        { harnessSessionId: rowId, opencodeSessionId, workspaceId }
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[direct-harness] Cannot resume session ${rowId}: ${message}`);
-      // opencode confirmed the session does not exist on disk.
-      await deps.sessionRepository.markFailed(rowId).catch(() => {});
-      return;
-    }
-
-    deps.activeSessions.set(rowId, handle);
-    // Session reconnected — update status so the UI reflects it.
-    await deps.sessionRepository.markActive(rowId).catch(() => {});
-
-    // Wire session.idle so queued messages are drained after a daemon restart.
-    // Wire first-chunk → bindTurnMessageId for the resumed session.
-    const idleConfig = {
-      agent: info?.lastUsedConfig.agent ?? 'build',
-      model: info?.lastUsedConfig.model,
-    };
-    // Track which (turnId, messageId) pair we've already dispatched a bind for
-    let lastBoundKey: string | null = null;
-    handle.session.onEvent((event) => {
-      // First-chunk bind: resumeSession sets currentTurn.messageId on chunk events.
-      // We watch for when it becomes non-null and call bind (idempotent on backend).
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const turn = handle!.currentTurn;
-      if (turn?.messageId !== null && turn?.messageId !== undefined) {
-        const key = `${turn.turnId}:${turn.messageId}`;
-        if (key !== lastBoundKey) {
-          lastBoundKey = key;
-          deps.sessionRepository
-            .bindTurnMessageId(turn.turnId, turn.messageId)
-            .catch((err: unknown) =>
-              console.warn('[direct-harness] bindTurnMessageId error (resume):', err)
-            );
-        }
-      }
-      if (event.type === 'session.idle') {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        void handleSessionIdle(handle!, handle!.journal, idleConfig, deps.sessionRepository).catch(
-          (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
-        );
-      }
-    });
-  }
-
-  // 2. Send each pending user message as a prompt
   for (const msg of messages) {
     const override = info?.lastUsedConfig ?? { agent: 'build' };
 
     try {
       await deps.sessionRepository.setGenerating(rowId, true);
 
-      // Begin assistant turn eagerly before sending the prompt
       const { turnId } = await deps.sessionRepository.beginAssistantTurn(rowId);
       handle.currentTurn = { turnId, messageId: null };
 
@@ -269,12 +251,39 @@ async function processSessionMessages(
       console.warn(
         `[direct-harness] Prompt failed for session ${rowId} seq=${msg.seq}: ${message}`
       );
-      // The prompt failed — likely the harness process crashed. The opencode
-      // session is still on disk, so mark idle (resumable) rather than closed.
       await deps.sessionRepository.markIdle(rowId).catch(() => {});
       deps.activeSessions.delete(rowId);
       if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
       return;
     }
   }
+}
+
+async function processSessionMessages(
+  session: DirectHarnessSession,
+  deps: MessageSubscriberDeps,
+  rowId: string,
+  messages: PendingMessage[],
+  info: PendingSessionInfo | undefined
+): Promise<void> {
+  let handle = deps.activeSessions.get(rowId);
+
+  if (!handle) {
+    if (!info) {
+      console.warn(
+        `[direct-harness] Session ${rowId} not yet open — waiting for session-subscriber`
+      );
+      return;
+    }
+    const resumed = await resumeSessionHandle(session, deps, rowId, info);
+    if (!resumed) {
+      return;
+    }
+    handle = resumed;
+    deps.activeSessions.set(rowId, handle);
+    await deps.sessionRepository.markActive(rowId).catch(() => {});
+    wireResumedSessionEvents(handle, deps, info);
+  }
+
+  await deliverPendingMessages(handle, deps, rowId, messages, info);
 }

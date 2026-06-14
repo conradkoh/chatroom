@@ -37,7 +37,7 @@ export const recoverAgentStateEffect: Effect.Effect<
           for (const config of configsResult.configs) {
             if (config.machineId === session.machineId && config.workingDir) {
               registeredCount++;
-              Effect.runPromise(
+              yield* Effect.forkDaemon(
                 Effect.tryPromise(() =>
                   session.backend.mutation(api.workspaces.registerWorkspace, {
                     sessionId: session.sessionId,
@@ -47,12 +47,16 @@ export const recoverAgentStateEffect: Effect.Effect<
                     hostname: session.config?.hostname ?? 'unknown',
                     registeredBy: config.role,
                   })
+                ).pipe(
+                  Effect.catchAll((err) =>
+                    Effect.sync(() =>
+                      console.warn(
+                        `[daemon] ⚠️ Failed to register workspace on recovery: ${err.message}`
+                      )
+                    )
+                  )
                 )
-              ).catch((err: Error) => {
-                console.warn(
-                  `[daemon] ⚠️ Failed to register workspace on recovery: ${err.message}`
-                );
-              });
+              );
             }
           }
         }),

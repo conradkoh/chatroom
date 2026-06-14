@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref } from 'effect';
+import { Effect, Ref, Runtime } from 'effect';
 
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { api } from '../../../api.js';
@@ -81,29 +81,21 @@ interface DedupTracker {
 /**
  * Evict dedup entries older than AGENT_REQUEST_DEADLINE_MS to bound memory growth.
  */
+function evictStaleEntries(entries: Map<string, number>, evictBefore: number): void {
+  for (const [id, ts] of entries) {
+    if (ts < evictBefore) entries.delete(id);
+  }
+}
+
 function evictStaleDedupEntries(tracker: DedupTracker): void {
   const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
-  for (const [id, ts] of tracker.commandIds) {
-    if (ts < evictBefore) tracker.commandIds.delete(id);
-  }
-  for (const [id, ts] of tracker.pingIds) {
-    if (ts < evictBefore) tracker.pingIds.delete(id);
-  }
-  for (const [id, ts] of tracker.gitRefreshIds) {
-    if (ts < evictBefore) tracker.gitRefreshIds.delete(id);
-  }
-  for (const [id, ts] of tracker.capabilitiesRefreshIds) {
-    if (ts < evictBefore) tracker.capabilitiesRefreshIds.delete(id);
-  }
-  for (const [id, ts] of tracker.localActionIds) {
-    if (ts < evictBefore) tracker.localActionIds.delete(id);
-  }
-  for (const [id, ts] of tracker.commandRunIds) {
-    if (ts < evictBefore) tracker.commandRunIds.delete(id);
-  }
-  for (const [id, ts] of tracker.commandStopIds) {
-    if (ts < evictBefore) tracker.commandStopIds.delete(id);
-  }
+  evictStaleEntries(tracker.commandIds, evictBefore);
+  evictStaleEntries(tracker.pingIds, evictBefore);
+  evictStaleEntries(tracker.gitRefreshIds, evictBefore);
+  evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
+  evictStaleEntries(tracker.localActionIds, evictBefore);
+  evictStaleEntries(tracker.commandRunIds, evictBefore);
+  evictStaleEntries(tracker.commandStopIds, evictBefore);
 
   // Evict stale pending stops from command-runner (stop-before-run race handling)
   processManager.evictStalePendingStops();
@@ -323,6 +315,9 @@ export const startCommandLoopEffect: Effect.Effect<
   const effectContext = yield* Effect.context<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
   >();
+  const runtime = yield* Effect.runtime<
+    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
+  >();
 
   const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;
 
@@ -338,26 +333,19 @@ export const startCommandLoopEffect: Effect.Effect<
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
         if (!observedSyncEnabled) {
-          Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(
-            (err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Git state push failed: ${getErrorMessage(err)}`
-              );
-            }
-          );
-          Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(
-            (err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Command sync failed: ${getErrorMessage(err)}`
-              );
-            }
-          );
-          Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
-            (err: unknown) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Commit detail sync failed: ${getErrorMessage(err)}`
-              );
-            }
+          Runtime.runFork(runtime)(
+            Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
+              concurrency: 'unbounded',
+            }).pipe(
+              Effect.provide(effectContext),
+              Effect.catchAll((err) =>
+                Effect.sync(() =>
+                  console.warn(
+                    `[${formatTimestamp()}] ⚠️  Heartbeat sync failed: ${getErrorMessage(err)}`
+                  )
+                )
+              )
+            )
           );
         }
       })
@@ -386,10 +374,17 @@ export const startCommandLoopEffect: Effect.Effect<
   if (observedSyncEnabled) {
     console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
   } else {
-    Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext))).catch(() => {});
-    Effect.runPromise(pushCommandsEffect.pipe(Effect.provide(effectContext))).catch(() => {});
-    Effect.runPromise(syncCommitDetailsEffect().pipe(Effect.provide(effectContext))).catch(
-      () => {}
+    Runtime.runFork(runtime)(
+      Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
+        concurrency: 'unbounded',
+      }).pipe(
+        Effect.provide(effectContext),
+        Effect.catchAll((err) =>
+          Effect.sync(() =>
+            console.warn(`[${formatTimestamp()}] ⚠️ Startup sync failed: ${getErrorMessage(err)}`)
+          )
+        )
+      )
     );
   }
 
@@ -433,42 +428,54 @@ export const startCommandLoopEffect: Effect.Effect<
   const shutdown = async () => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    console.log(`\n[${formatTimestamp()}] Shutting down... (press Ctrl+C again to force)`);
+    console.log(`\n[${formatTimestamp()}] Shutting down... (press Ctrl+B again to force)`);
 
+    const watchdog = setupShutdownWatchdog();
+    clearInterval(heartbeatTimer);
+    stopSubscriptions();
+    await runDaemonShutdownEffect();
+    await closeAllSessionsAndHarnesses();
+    clearTimeout(watchdog);
+    releaseLock();
+    process.exit(0);
+  };
+
+  const setupShutdownWatchdog = (): ReturnType<typeof setTimeout> => {
     const watchdog = setTimeout(() => {
       console.error(`[${formatTimestamp()}] Shutdown timed out — forcing exit.`);
       forceExit(1);
     }, SHUTDOWN_WATCHDOG_MS);
     watchdog.unref?.();
+    return watchdog;
+  };
 
-    clearInterval(heartbeatTimer);
+  const stopSubscriptions = (): void => {
+    gitSubscriptionHandle?.stop();
+    fileContentSubscriptionHandle?.stop();
+    fileTreeSubscriptionHandle?.stop();
+    workspaceListSubscriptionHandle?.stop();
+    observedSyncSubscriptionHandle?.stop();
+    logObserverSubscriptionHandle?.stop();
+    pendingPromptSubscriptionHandle?.stop();
+    pendingHarnessSessionSubscriptionHandle?.stop();
+    commandSubscriptionHandle?.stop();
+    lifecycleManager?.stopMonitoring();
+  };
 
-    if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
-    if (fileContentSubscriptionHandle) fileContentSubscriptionHandle.stop();
-    if (fileTreeSubscriptionHandle) fileTreeSubscriptionHandle.stop();
-    if (workspaceListSubscriptionHandle) workspaceListSubscriptionHandle.stop();
-    if (observedSyncSubscriptionHandle) observedSyncSubscriptionHandle.stop();
-    if (logObserverSubscriptionHandle) logObserverSubscriptionHandle.stop();
-    if (pendingPromptSubscriptionHandle) pendingPromptSubscriptionHandle.stop();
-    if (pendingHarnessSessionSubscriptionHandle) pendingHarnessSessionSubscriptionHandle.stop();
-    if (commandSubscriptionHandle) commandSubscriptionHandle.stop();
-    if (lifecycleManager) lifecycleManager.stopMonitoring();
-
+  const runDaemonShutdownEffect = async (): Promise<void> => {
     await withTimeout(
       Effect.runPromise(onDaemonShutdownEffect.pipe(Effect.provide(effectContext))),
       PROCESS_KILL_TIMEOUT_MS
     );
+  };
 
+  const closeAllSessionsAndHarnesses = async (): Promise<void> => {
     for (const handle of activeSessions.values()) {
       await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
     }
     for (const harness of harnesses.values()) {
       await withTimeout(harness.close(), CLOSE_TIMEOUT_MS);
     }
-
-    clearTimeout(watchdog);
-    releaseLock();
-    process.exit(0);
   };
 
   const handleSignal = (signal: NodeJS.Signals) => {
