@@ -179,33 +179,14 @@ async function pushSingleWorkspaceGitStateImpl(
 
   const isRepo = await gitReader.isGitRepo(workingDir);
   if (!isRepo) {
-    const stateHash = 'not_found';
-    if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
-
-    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      status: 'not_found',
-    });
-    ctx.lastPushedGitState.set(stateKey, stateHash);
+    await pushNotFoundGitState(ctx, workingDir, stateKey);
     return;
   }
 
   const branchResult = await gitReader.getBranch(workingDir);
 
   if (branchResult.status === 'error') {
-    const stateHash = `error:${branchResult.message}`;
-    if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
-
-    await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      workingDir,
-      status: 'error',
-      errorMessage: branchResult.message,
-    });
-    ctx.lastPushedGitState.set(stateKey, stateHash);
+    await pushErrorGitState(ctx, workingDir, stateKey, branchResult.message);
     return;
   }
 
@@ -213,17 +194,60 @@ async function pushSingleWorkspaceGitStateImpl(
     return;
   }
 
+  await pushAvailableGitState(ctx, workingDir, stateKey, branchResult);
+}
+
+async function pushNotFoundGitState(
+  ctx: GitStateDeps,
+  workingDir: string,
+  stateKey: string
+): Promise<void> {
+  const stateHash = 'not_found';
+  if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+
+  await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    status: 'not_found',
+  });
+  ctx.lastPushedGitState.set(stateKey, stateHash);
+}
+
+async function pushErrorGitState(
+  ctx: GitStateDeps,
+  workingDir: string,
+  stateKey: string,
+  message: string
+): Promise<void> {
+  const stateHash = `error:${message}`;
+  if (ctx.lastPushedGitState.get(stateKey) === stateHash) return;
+
+  await ctx.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    status: 'error',
+    errorMessage: message,
+  });
+  ctx.lastPushedGitState.set(stateKey, stateHash);
+}
+
+async function pushAvailableGitState(
+  ctx: GitStateDeps,
+  workingDir: string,
+  stateKey: string,
+  branchResult: { branch: string }
+): Promise<void> {
   const branch = branchResult.branch;
   const allFields = [branchField, ...GIT_STATE_FIELDS, ...makeBranchDependentFields(branch)];
   const pipeline = new GitStatePipeline(allFields);
   const preCollected = new Map<string, unknown>([['branch', branchResult]]);
   const values = await pipeline.collect(workingDir, preCollected);
 
-  // Fetch recent commits separately (not part of the pipeline)
   const commits = await gitReader.getRecentCommits(workingDir, COMMITS_PER_PAGE);
   const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;
 
-  // Two independent hashes: one for gitState, one for recentCommits
   const stateHash = pipeline.computeHash(values, false);
   const commitsKey = `${stateKey}:commits`;
   const commitsHash = JSON.stringify(commits.map((c) => c.sha));
@@ -260,73 +284,85 @@ async function pushSingleWorkspaceGitStateImpl(
   }
 }
 
-/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields GitHeartbeatRequirements. */
-export const pushSingleWorkspaceGitSummaryForObservedEffect = (
+function pushObservedNotRepoEffect(
+  session: DaemonSessionServiceShape,
+  lastPushedGitState: Map<string, string>,
+  stateKey: string,
   workingDir: string,
-  reason: 'safety-poll' | 'refresh' = 'safety-poll'
-): Effect.Effect<void, never, GitHeartbeatRequirements> =>
-  Effect.gen(function* () {
-    const session = yield* DaemonSessionService;
-    const mutable = yield* DaemonMutableStateService;
-    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
-
-    const stateKey = makeGitStateKey(session.machineId, workingDir);
-
-    const isRepo = yield* Effect.promise(() => gitReader.isGitRepo(workingDir));
-    if (!isRepo) {
-      const stateHash = 'not_found';
-      if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === stateHash) return;
-
-      yield* Effect.promise(() =>
-        session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          workingDir,
-          status: 'not_found',
-        })
-      );
-      lastPushedGitState.set(stateKey, stateHash);
+  reason: 'safety-poll' | 'refresh'
+): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    const stateHash = 'not_found';
+    if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === stateHash) {
       return;
     }
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        workingDir,
+        status: 'not_found',
+      })
+    );
+    lastPushedGitState.set(stateKey, stateHash);
+  });
+}
 
-    const branchResult = yield* Effect.promise(() => gitReader.getBranch(workingDir));
-
-    if (branchResult.status === 'error') {
-      const stateHash = `error:${branchResult.message}`;
-      if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === stateHash) return;
-
-      yield* Effect.promise(() =>
-        session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          workingDir,
-          status: 'error',
-          errorMessage: branchResult.message,
-        })
-      );
-      lastPushedGitState.set(stateKey, stateHash);
+function pushObservedBranchErrorEffect(
+  session: DaemonSessionServiceShape,
+  lastPushedGitState: Map<string, string>,
+  stateKey: string,
+  workingDir: string,
+  reason: 'safety-poll' | 'refresh',
+  message: string
+): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    const stateHash = `error:${message}`;
+    if (reason !== 'refresh' && lastPushedGitState.get(stateKey) === stateHash) {
       return;
     }
+    yield* Effect.promise(() =>
+      session.backend.mutation(api.workspaces.upsertWorkspaceGitState, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        workingDir,
+        status: 'error',
+        errorMessage: message,
+      })
+    );
+    lastPushedGitState.set(stateKey, stateHash);
+  });
+}
 
-    if (branchResult.status === 'not_found') {
-      return;
-    }
+function pushObservedFullGitStateEffect(
+  session: DaemonSessionServiceShape,
+  lastPushedGitState: Map<string, string>,
+  stateKey: string,
+  workingDir: string,
+  branch: string,
+  reason: 'safety-poll' | 'refresh'
+): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    yield* Effect.promise(() =>
+      pushSingleWorkspaceGitStateImpl(buildGitStateDeps(session, lastPushedGitState), workingDir)
+    );
+    lastFullPushMs.set(stateKey, Date.now());
+    console.log(
+      `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
+    );
+  });
+}
 
-    const branch = branchResult.branch;
-
-    const now = Date.now();
-    const lastFull = lastFullPushMs.get(stateKey) ?? 0;
-    if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
-      yield* Effect.promise(() =>
-        pushSingleWorkspaceGitStateImpl(buildGitStateDeps(session, lastPushedGitState), workingDir)
-      );
-      lastFullPushMs.set(stateKey, now);
-      console.log(
-        `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
-      );
-      return;
-    }
-
+function pushObservedSlimGitSummaryEffect(
+  session: DaemonSessionServiceShape,
+  lastPushedGitState: Map<string, string>,
+  stateKey: string,
+  workingDir: string,
+  branch: string,
+  branchResult: GitBranchResult,
+  reason: 'safety-poll' | 'refresh'
+): Effect.Effect<void> {
+  return Effect.gen(function* () {
     const slimFields = [
       branchField,
       ...GIT_STATE_FIELDS.filter((f) => f.includeInSlim),
@@ -354,6 +390,68 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     lastPushedGitState.set(stateKey, hash);
     console.log(
       `[${formatTimestamp()}] 👁️ Observed git summary pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})${reason === 'refresh' ? ' [refresh]' : ''}`
+    );
+  });
+}
+
+/** Effect twin for pushSingleWorkspaceGitSummaryForObserved — yields GitHeartbeatRequirements. */
+export const pushSingleWorkspaceGitSummaryForObservedEffect = (
+  workingDir: string,
+  reason: 'safety-poll' | 'refresh' = 'safety-poll'
+): Effect.Effect<void, never, GitHeartbeatRequirements> =>
+  Effect.gen(function* pushObservedGitSummaryForObserved() {
+    const session = yield* DaemonSessionService;
+    const mutable = yield* DaemonMutableStateService;
+    const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
+
+    const stateKey = makeGitStateKey(session.machineId, workingDir);
+
+    const isRepo = yield* Effect.promise(() => gitReader.isGitRepo(workingDir));
+    if (!isRepo) {
+      yield* pushObservedNotRepoEffect(session, lastPushedGitState, stateKey, workingDir, reason);
+      return;
+    }
+
+    const branchResult = yield* Effect.promise(() => gitReader.getBranch(workingDir));
+    if (branchResult.status === 'error') {
+      yield* pushObservedBranchErrorEffect(
+        session,
+        lastPushedGitState,
+        stateKey,
+        workingDir,
+        reason,
+        branchResult.message
+      );
+      return;
+    }
+
+    if (branchResult.status === 'not_found') {
+      return;
+    }
+
+    const branch = branchResult.branch;
+    const now = Date.now();
+    const lastFull = lastFullPushMs.get(stateKey) ?? 0;
+    if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
+      yield* pushObservedFullGitStateEffect(
+        session,
+        lastPushedGitState,
+        stateKey,
+        workingDir,
+        branch,
+        reason
+      );
+      return;
+    }
+
+    yield* pushObservedSlimGitSummaryEffect(
+      session,
+      lastPushedGitState,
+      stateKey,
+      workingDir,
+      branch,
+      branchResult,
+      reason
     );
   });
 

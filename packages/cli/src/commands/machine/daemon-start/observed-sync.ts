@@ -123,7 +123,10 @@ export const startObservedSyncSubscriptionEffect = (
       },
     };
 
-    function handleObservedChange(observed: ObservedChatrooms): void {
+    function collectWorkingDirChanges(observed: ObservedChatrooms): {
+      newWorkingDirs: Set<string>;
+      refreshedWorkingDirs: Set<string>;
+    } {
       const newWorkingDirs = new Set<string>();
       const refreshedWorkingDirs = new Set<string>();
 
@@ -149,51 +152,85 @@ export const startObservedSyncSubscriptionEffect = (
         }
       }
 
+      return { newWorkingDirs, refreshedWorkingDirs };
+    }
+
+    function pruneStaleChatroomRefreshState(observed: ObservedChatrooms): void {
       for (const [chatroomId] of chatroomRefreshState) {
         const stillObserved = observed.some((c) => c.chatroomId === chatroomId);
         if (!stillObserved) {
           chatroomRefreshState.delete(chatroomId);
         }
       }
+    }
 
+    function removeUnobservedWorkingDirs(newWorkingDirs: Set<string>): number {
       const currentWorkingDirs = new Set(observedWorkingDirs.keys());
-      let addedCount = 0;
       let removedCount = 0;
 
       for (const wd of currentWorkingDirs) {
-        if (!newWorkingDirs.has(wd)) {
-          const state = observedWorkingDirs.get(wd);
-          if (state) {
-            clearInterval(state.intervalHandle);
-            observedWorkingDirs.delete(wd);
-            const skips = skippedPushCount.get(wd) ?? 0;
-            if (skips > 0) {
-              console.log(
-                `[${formatTimestamp()}] 👁️ Stopped observing ${wd} (skipped ${skips} overlapping pushes)`
-              );
-            } else {
-              console.log(`[${formatTimestamp()}] 👁️ Stopped observing ${wd}`);
-            }
-            skippedPushCount.delete(wd);
-            pendingRefresh.delete(wd);
-            removedCount++;
-          }
+        if (newWorkingDirs.has(wd)) {
+          continue;
         }
+        const state = observedWorkingDirs.get(wd);
+        if (!state) {
+          continue;
+        }
+        clearInterval(state.intervalHandle);
+        observedWorkingDirs.delete(wd);
+        const skips = skippedPushCount.get(wd) ?? 0;
+        if (skips > 0) {
+          console.log(
+            `[${formatTimestamp()}] 👁️ Stopped observing ${wd} (skipped ${skips} overlapping pushes)`
+          );
+        } else {
+          console.log(`[${formatTimestamp()}] 👁️ Stopped observing ${wd}`);
+        }
+        skippedPushCount.delete(wd);
+        pendingRefresh.delete(wd);
+        removedCount++;
       }
 
+      return removedCount;
+    }
+
+    function addNewlyObservedWorkingDirs(newWorkingDirs: Set<string>): number {
+      let addedCount = 0;
+
       for (const wd of newWorkingDirs) {
-        if (!observedWorkingDirs.has(wd)) {
-          observedWorkingDirs.set(wd, {
-            intervalHandle: setInterval(() => {
-              schedulePushForWorkingDir(wd, 'safety-poll');
-            }, OBSERVED_SAFETY_POLL_MS),
-            pushInFlight: false,
-          });
-          console.log(`[${formatTimestamp()}] 👁️ Started observing ${wd}`);
-          schedulePushForWorkingDir(wd, 'safety-poll');
-          addedCount++;
+        if (observedWorkingDirs.has(wd)) {
+          continue;
         }
+        observedWorkingDirs.set(wd, {
+          intervalHandle: setInterval(() => {
+            schedulePushForWorkingDir(wd, 'safety-poll');
+          }, OBSERVED_SAFETY_POLL_MS),
+          pushInFlight: false,
+        });
+        console.log(`[${formatTimestamp()}] 👁️ Started observing ${wd}`);
+        schedulePushForWorkingDir(wd, 'safety-poll');
+        addedCount++;
       }
+
+      return addedCount;
+    }
+
+    function triggerRefreshedWorkingDirs(refreshedWorkingDirs: Set<string>): void {
+      for (const wd of refreshedWorkingDirs) {
+        if (!observedWorkingDirs.has(wd)) {
+          continue;
+        }
+        console.log(`[${formatTimestamp()}] 🔄 Refresh triggered for ${wd}`);
+        schedulePushForWorkingDir(wd, 'refresh');
+      }
+    }
+
+    function handleObservedChange(observed: ObservedChatrooms): void {
+      const { newWorkingDirs, refreshedWorkingDirs } = collectWorkingDirChanges(observed);
+      pruneStaleChatroomRefreshState(observed);
+
+      const removedCount = removeUnobservedWorkingDirs(newWorkingDirs);
+      const addedCount = addNewlyObservedWorkingDirs(newWorkingDirs);
 
       if (addedCount > 0 || removedCount > 0) {
         console.log(
@@ -201,12 +238,7 @@ export const startObservedSyncSubscriptionEffect = (
         );
       }
 
-      for (const wd of refreshedWorkingDirs) {
-        if (observedWorkingDirs.has(wd)) {
-          console.log(`[${formatTimestamp()}] 🔄 Refresh triggered for ${wd}`);
-          schedulePushForWorkingDir(wd, 'refresh');
-        }
-      }
+      triggerRefreshedWorkingDirs(refreshedWorkingDirs);
     }
 
     function schedulePushForWorkingDir(
