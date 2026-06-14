@@ -278,34 +278,29 @@ export class AgentProcessManager {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
 
-    if (!slot || slot.state === 'idle') {
-      // Slot is already idle — no process to kill. But if the backend provided a
-      // PID (e.g. after daemon restart), attempt to kill that process directly.
-      const eventPid = opts.pid;
-      if (eventPid && eventPid > 0) {
-        try {
-          this.deps.processes.kill(eventPid, 'SIGTERM');
-        } catch {
-          // Process may already be dead — that's fine.
-        }
-      }
+    const earlyResult = await this.handleStopEarlyReturns(slot, opts, key);
+    if (earlyResult) {
+      return earlyResult;
+    }
 
-      // Still notify the backend so participant status is cleaned up.
-      const exitArgs1 = {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid: eventPid ?? 0, // Use backend PID if available, else 0
-        stopReason: opts.reason,
-        exitCode: undefined as number | undefined,
-        signal: undefined as string | undefined,
-        agentHarness: undefined as string | undefined,
-      };
-      this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs1).catch((err: Error) => {
-        console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
-        this.queueExitRetry({ role: opts.role, args: exitArgs1 });
-      });
+    // At this point, slot is guaranteed to be defined with a pid
+    const actualSlot = slot as NonNullable<typeof slot>;
+    actualSlot.state = 'stopping';
+
+    const operation = this.doStop(key, actualSlot, actualSlot.pid as number, opts);
+    actualSlot.pendingOperation = operation;
+
+    await operation;
+    return { success: true };
+  }
+
+  private async handleStopEarlyReturns(
+    slot: AgentSlot | undefined,
+    opts: StopOpts,
+    _key: string
+  ): Promise<{ success: boolean } | null> {
+    if (!slot || slot.state === 'idle') {
+      await this.killAndRecordForIdleSlot(slot, opts);
       return { success: true };
     }
     if (slot.state === 'stopping' && slot.pendingOperation) {
@@ -320,16 +315,37 @@ export class AgentProcessManager {
       return { success: true };
     }
 
-    // CRITICAL: Set stopping state BEFORE any async operations to prevent
-    // race condition where onExit callback fires before the guard can check.
-    // This ensures handleExit() will see state === 'stopping' and return early.
-    slot.state = 'stopping';
+    return null;
+  }
 
-    const operation = this.doStop(key, slot, pid, opts);
-    slot.pendingOperation = operation;
+  private async killAndRecordForIdleSlot(
+    slot: AgentSlot | undefined,
+    opts: StopOpts
+  ): Promise<void> {
+    const eventPid = opts.pid;
+    if (eventPid && eventPid > 0) {
+      try {
+        this.deps.processes.kill(eventPid, 'SIGTERM');
+      } catch {
+        // Process may already be dead
+      }
+    }
 
-    await operation;
-    return { success: true };
+    const exitArgs1 = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid: eventPid ?? 0,
+      stopReason: opts.reason,
+      exitCode: undefined as number | undefined,
+      signal: undefined as string | undefined,
+      agentHarness: undefined as string | undefined,
+    };
+    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs1).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
+      this.queueExitRetry({ role: opts.role, args: exitArgs1 });
+    });
   }
 
   // fallow-ignore-next-line complexity

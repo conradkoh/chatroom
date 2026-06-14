@@ -228,63 +228,87 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           restartAllowed: true,
         });
 
-        switch (restartOutcome._tag) {
+        yield* dispatchRestartOutcome(restartOutcome, slot, chatroomId, role);
+      });
+
+    const dispatchRestartOutcome = (
+      outcome: ReturnType<typeof decideRestartAfterExit>,
+      slot: AgentLifecycleSlot,
+      chatroomId: string,
+      role: string
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        switch (outcome._tag) {
           case 'RestartNow': {
-            if (!slot.harness) {
-              yield* Effect.logError(
-                `Agent restart failed for ${chatroomId}:${role}: missing harness`
-              );
-              break;
-            }
-            const restartResult = yield* ensureRunning({
-              chatroomId,
-              role,
-              agentHarness: slot.harness,
-              workingDir: slot.workingDir ?? '',
-              reason: restartOutcome.spawnReason,
-              wantResume: restartOutcome.wantResume,
-              initPrompt: slot._initPrompt,
-              systemPrompt: slot._systemPrompt,
-            });
-
-            if (!restartResult.success && restartResult.error) {
-              yield* Effect.logError(
-                `Agent restart failed for ${chatroomId}:${role}: ${restartResult.error}`
-              );
-            }
+            yield* handleRestartNow(slot, chatroomId, role, outcome);
             break;
           }
-
           case 'ScheduleRetry': {
-            if (!slot.harness) {
-              yield* Effect.logError(
-                `Agent restart failed for ${chatroomId}:${role}: missing harness`
-              );
-              break;
-            }
-            yield* Effect.forkDaemon(
-              Effect.sleep(Duration.millis(restartOutcome.waitMs)).pipe(
-                Effect.as(
-                  ensureRunning({
-                    chatroomId,
-                    role,
-                    agentHarness: slot.harness,
-                    workingDir: slot.workingDir ?? '',
-                    reason: restartOutcome.spawnReason,
-                    wantResume: restartOutcome.wantResume,
-                    initPrompt: slot._initPrompt,
-                    systemPrompt: slot._systemPrompt,
-                  })
-                )
-              )
-            );
+            yield* handleScheduleRetry(slot, chatroomId, role, outcome);
             break;
           }
-
           case 'NoRestart': {
             break;
           }
         }
+      });
+
+    const handleRestartNow = (
+      slot: AgentLifecycleSlot,
+      chatroomId: string,
+      role: string,
+      outcome: Extract<ReturnType<typeof decideRestartAfterExit>, { _tag: 'RestartNow' }>
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        if (!slot.harness) {
+          yield* Effect.logError(`Agent restart failed for ${chatroomId}:${role}: missing harness`);
+          return;
+        }
+        const restartResult = yield* ensureRunning({
+          chatroomId,
+          role,
+          agentHarness: slot.harness,
+          workingDir: slot.workingDir ?? '',
+          reason: outcome.spawnReason,
+          wantResume: outcome.wantResume,
+          initPrompt: slot._initPrompt,
+          systemPrompt: slot._systemPrompt,
+        });
+
+        if (!restartResult.success && restartResult.error) {
+          yield* Effect.logError(
+            `Agent restart failed for ${chatroomId}:${role}: ${restartResult.error}`
+          );
+        }
+      });
+
+    const handleScheduleRetry = (
+      slot: AgentLifecycleSlot,
+      chatroomId: string,
+      role: string,
+      outcome: Extract<ReturnType<typeof decideRestartAfterExit>, { _tag: 'ScheduleRetry' }>
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        if (!slot.harness) {
+          yield* Effect.logError(`Agent restart failed for ${chatroomId}:${role}: missing harness`);
+          return;
+        }
+        yield* Effect.forkDaemon(
+          Effect.sleep(Duration.millis(outcome.waitMs)).pipe(
+            Effect.as(
+              ensureRunning({
+                chatroomId,
+                role,
+                agentHarness: slot.harness,
+                workingDir: slot.workingDir ?? '',
+                reason: outcome.spawnReason,
+                wantResume: outcome.wantResume,
+                initPrompt: slot._initPrompt,
+                systemPrompt: slot._systemPrompt,
+              })
+            )
+          )
+        );
       });
 
     const handleExit = (opts: HandleExitOpts): Effect.Effect<void> =>
