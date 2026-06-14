@@ -25,6 +25,10 @@ export interface AgentLifecycleSlot extends AgentSlotSnapshot {
   readonly wantResume?: boolean;
   readonly recentLogLines?: string[];
   readonly resumeInFlight?: boolean;
+  readonly _stopReasonCode?: number;
+  readonly _stopReasonSignal?: string | null;
+  readonly _initPrompt?: string;
+  readonly _systemPrompt?: string;
 }
 
 // ─── Public API Types ──────────────────────────────────────────────────────────

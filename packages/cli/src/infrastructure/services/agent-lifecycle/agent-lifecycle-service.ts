@@ -62,46 +62,21 @@ export const AgentLifecycleServiceLive: Layer.Layer<
     // would fire immediately, decrementing the count prematurely.
     // Instead, we call recordSpawn directly and recordExit in handleExit/stop.
 
-    const ensureRunning = (opts: EnsureRunningOpts): Effect.Effect<OperationResult> =>
+    const spawnAndRegister = (
+      key: string,
+      opts: EnsureRunningOpts
+    ): Effect.Effect<OperationResult> =>
       Effect.gen(function* () {
-        const key = agentKey(opts.chatroomId, opts.role);
-
-        // Read current slot
-        const currentSlot = yield* getSlotFromRef(key);
-
-        if (currentSlot && currentSlot.state !== 'idle') {
-          // Already spawning/running/stopping — return existing state info
-          return {
-            success: true,
-            pid: currentSlot.pid,
-          };
-        }
-
-        // Check concurrent limit via port
-        const bypass = shouldBypassConcurrentLimit(opts.reason);
-        const allowResult = ports.spawn.shouldAllowSpawn(
-          opts.chatroomId,
-          opts.reason,
-          bypass ? { bypassConcurrentLimit: true } : undefined
-        );
-
-        if (!allowResult.allowed) {
-          const error: OperationResult['error'] = allowResult.retryAfterMs
-            ? 'rate_limited'
-            : 'backoff';
-          return { success: false, error };
-        }
-
-        // Build initial idle slot and transition through spawn
         let slot: AgentLifecycleSlot = {
           ...idleSlot(),
           harness: opts.agentHarness,
           model: opts.model,
           workingDir: opts.workingDir,
           wantResume: opts.wantResume,
+          _initPrompt: opts.initPrompt ?? '',
+          _systemPrompt: opts.systemPrompt,
         };
 
-        // Transition: spawn_started
         const startedResult = transitionSlot(slot, {
           type: 'spawn_started',
           operationKey: opts.reason,
@@ -111,7 +86,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         }
         slot = startedResult.slot;
 
-        // Spawn via harness port — absorb Error into OperationResult
         const spawnHandle = yield* ports.harness
           .spawn({
             harness: opts.agentHarness,
@@ -128,7 +102,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           return { success: false, error: 'spawn_failed' };
         }
 
-        // Transition: spawn_succeeded
         const succeededResult = transitionSlot(slot, {
           type: 'spawn_succeeded',
           pid: spawnHandle.pid,
@@ -138,26 +111,57 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         }
         slot = succeededResult.slot;
 
-        // Record spawn (paired with recordExit in handleExit/stop)
         yield* ports.spawn.recordSpawn(opts.chatroomId);
-
-        // Save slot to Ref for later access
         yield* setSlotInRef(key, slot);
 
-        // Wire onAgentEnd callback from spawn result
         if (spawnHandle) {
           spawnHandle.onAgentEnd(() => {
             // Phase 3: emit turn-completed, check for resume-storm
           });
         }
 
-        // Store harnessSessionId on slot after spawn_succeeded
         if (spawnHandle && spawnHandle.harnessSessionId) {
           const updatedSlot = { ...slot, harnessSessionId: spawnHandle.harnessSessionId };
           yield* setSlotInRef(key, updatedSlot);
         }
 
         return { success: true, pid: slot.pid };
+      });
+
+    const ensureRunning = (opts: EnsureRunningOpts): Effect.Effect<OperationResult> =>
+      Effect.gen(function* () {
+        const key = agentKey(opts.chatroomId, opts.role);
+
+        const currentSlot = yield* getSlotFromRef(key);
+
+        if (currentSlot && currentSlot.state !== 'idle') {
+          return {
+            success: true,
+            pid: currentSlot.pid,
+          };
+        }
+
+        const bypass = shouldBypassConcurrentLimit(opts.reason);
+        const allowResult = ports.spawn.shouldAllowSpawn(
+          opts.chatroomId,
+          opts.reason,
+          bypass ? { bypassConcurrentLimit: true } : undefined
+        );
+
+        if (!allowResult.allowed) {
+          const error: OperationResult['error'] = allowResult.retryAfterMs
+            ? 'rate_limited'
+            : 'backoff';
+          return { success: false, error };
+        }
+
+        const result = yield* spawnAndRegister(key, opts);
+
+        if (!result.success && result.error) {
+          yield* Effect.logError(`Agent spawn failed for ${key}: ${result.error}`);
+        }
+
+        return result;
       });
 
     // ── stop ─────────────────────────────────────────────────────────────────
@@ -209,40 +213,14 @@ export const AgentLifecycleServiceLive: Layer.Layer<
     // Handles process exit: transitions slot, decides restart, calls recordExit.
     // No acquireRelease — recordExit called directly (ensureRunning handles errors gracefully).
 
-    const handleExit = (opts: HandleExitOpts): Effect.Effect<void> =>
+    const executeRestart = (
+      slot: AgentLifecycleSlot,
+      chatroomId: string,
+      role: string
+    ): Effect.Effect<void> =>
       Effect.gen(function* () {
-        const key = agentKey(opts.chatroomId, opts.role);
-        const slot = yield* getSlotFromRef(key);
-
-        if (!slot) {
-          return;
-        }
-
-        // Early return if shouldIgnoreProcessExit (stopping state)
-        if (shouldIgnoreProcessExit(slot, opts.pid)) {
-          return;
-        }
-
-        // Resolve stop reason from exit info
-        const stopReason = resolveStopReason(opts.code, opts.signal);
-
-        // Apply transitionSlot with process_exited
-        const transitionResult = transitionSlot(slot, {
-          type: 'process_exited',
-          pid: opts.pid,
-        });
-
-        if (!transitionResult.ok) {
-          // StalePid or IgnoredDuplicateExit — ignore
-          return;
-        }
-
-        const exitedSlot = transitionResult.slot;
-        yield* setSlotInRef(key, exitedSlot);
-
-        // Decide restart
         const restartOutcome = decideRestartAfterExit({
-          stopReason,
+          stopReason: resolveStopReason(slot._stopReasonCode ?? 0, slot._stopReasonSignal ?? null),
           harness: slot.harness,
           workingDir: slot.workingDir,
           wantResume: slot.wantResume ?? false,
@@ -252,42 +230,50 @@ export const AgentLifecycleServiceLive: Layer.Layer<
 
         switch (restartOutcome._tag) {
           case 'RestartNow': {
-            // Retry restart — call ensureRunning (returns { success: false } on rate limit)
             if (!slot.harness) {
-              yield* Effect.logError(`Agent restart failed for ${key}: missing harness`);
+              yield* Effect.logError(
+                `Agent restart failed for ${chatroomId}:${role}: missing harness`
+              );
               break;
             }
             const restartResult = yield* ensureRunning({
-              chatroomId: opts.chatroomId,
-              role: opts.role,
+              chatroomId,
+              role,
               agentHarness: slot.harness,
               workingDir: slot.workingDir ?? '',
               reason: restartOutcome.spawnReason,
               wantResume: restartOutcome.wantResume,
+              initPrompt: slot._initPrompt,
+              systemPrompt: slot._systemPrompt,
             });
 
             if (!restartResult.success && restartResult.error) {
-              yield* Effect.logError(`Agent restart failed for ${key}: ${restartResult.error}`);
+              yield* Effect.logError(
+                `Agent restart failed for ${chatroomId}:${role}: ${restartResult.error}`
+              );
             }
             break;
           }
 
           case 'ScheduleRetry': {
-            // Fork supervised fiber with backoff delay
             if (!slot.harness) {
-              yield* Effect.logError(`Agent restart failed for ${key}: missing harness`);
+              yield* Effect.logError(
+                `Agent restart failed for ${chatroomId}:${role}: missing harness`
+              );
               break;
             }
             yield* Effect.forkDaemon(
               Effect.sleep(Duration.millis(restartOutcome.waitMs)).pipe(
                 Effect.as(
                   ensureRunning({
-                    chatroomId: opts.chatroomId,
-                    role: opts.role,
+                    chatroomId,
+                    role,
                     agentHarness: slot.harness,
                     workingDir: slot.workingDir ?? '',
                     reason: restartOutcome.spawnReason,
                     wantResume: restartOutcome.wantResume,
+                    initPrompt: slot._initPrompt,
+                    systemPrompt: slot._systemPrompt,
                   })
                 )
               )
@@ -296,13 +282,62 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           }
 
           case 'NoRestart': {
-            // Clean exit — remove the slot
-            yield* removeSlotFromRef(key);
             break;
           }
         }
+      });
 
-        // Always call recordExit (paired with recordSpawn from ensureRunning)
+    const handleExit = (opts: HandleExitOpts): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        const key = agentKey(opts.chatroomId, opts.role);
+        const slot = yield* getSlotFromRef(key);
+
+        if (!slot) {
+          return;
+        }
+
+        if (shouldIgnoreProcessExit(slot, opts.pid)) {
+          return;
+        }
+
+        const stopReason = resolveStopReason(opts.code, opts.signal);
+
+        const transitionResult = transitionSlot(slot, {
+          type: 'process_exited',
+          pid: opts.pid,
+        });
+
+        if (!transitionResult.ok) {
+          return;
+        }
+
+        const exitedSlot = {
+          ...transitionResult.slot,
+          _stopReasonCode: opts.code,
+          _stopReasonSignal: opts.signal,
+          harness: slot.harness,
+          workingDir: slot.workingDir,
+          wantResume: slot.wantResume,
+          _initPrompt: slot._initPrompt,
+          _systemPrompt: slot._systemPrompt,
+        } as AgentLifecycleSlot;
+        yield* setSlotInRef(key, exitedSlot);
+
+        yield* executeRestart(exitedSlot, opts.chatroomId, opts.role);
+
+        const restartOutcome = decideRestartAfterExit({
+          stopReason,
+          harness: slot.harness,
+          workingDir: slot.workingDir,
+          wantResume: slot.wantResume ?? false,
+          isPermanentFailure: false,
+          restartAllowed: true,
+        });
+
+        if (restartOutcome._tag === 'NoRestart') {
+          yield* removeSlotFromRef(key);
+        }
+
         yield* ports.spawn.recordExit(opts.chatroomId);
       });
 
