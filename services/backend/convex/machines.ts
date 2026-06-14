@@ -661,6 +661,50 @@ export const getDaemonStatus = query({
   },
 });
 
+const MAX_DAEMON_STATUS_BATCH = 10;
+
+/** Batch daemon connectivity for multiple machines in one subscription. */
+export const getDaemonStatusesBatch = query({
+  args: {
+    ...SessionIdArg,
+    machineIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const machineIds = args.machineIds.slice(0, MAX_DAEMON_STATUS_BATCH);
+    const statuses: Array<{
+      machineId: string;
+      connected: boolean;
+      lastSeenAt: number | null;
+    }> = [];
+
+    for (const machineId of machineIds) {
+      const auth = await getMachineOwner(ctx, args.sessionId, machineId);
+      if (!auth) {
+        statuses.push({ machineId, connected: false, lastSeenAt: null });
+        continue;
+      }
+
+      const machineStatus = await ctx.db
+        .query('chatroom_machineStatus')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      statuses.push({
+        machineId,
+        connected: machineStatus?.status === 'online',
+        lastSeenAt: liveness?.lastSeenAt ?? null,
+      });
+    }
+
+    return { statuses };
+  },
+});
+
 /** Returns machine-level agent configs for a chatroom, enriched with machine details. */
 export const getMachineAgentConfigs = query({
   args: {
@@ -1064,12 +1108,28 @@ export const daemonHeartbeat = mutation({
 
     const now = Date.now();
 
-    // Write liveness data to dedicated table (upsert)
+    // Check if we can skip — daemon is already healthy and liveness is fresh.
     const existingLiveness = await ctx.db
       .query('chatroom_machineLiveness')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
 
+    const machineStatus = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    const livenessFresh =
+      existingLiveness != null &&
+      now - existingLiveness.lastSeenAt < DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+    const alreadyOnline =
+      existingLiveness?.daemonConnected === true && machineStatus?.status === 'online';
+
+    if (livenessFresh && alreadyOnline) {
+      return { success: true, noop: true };
+    }
+
+    // Write liveness data to dedicated table (upsert)
     if (existingLiveness) {
       const livenessStale = now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
       const needsDaemonConnected = existingLiveness.daemonConnected !== true;
@@ -1088,11 +1148,6 @@ export const daemonHeartbeat = mutation({
     }
 
     // Update materialized machine status — only write on actual transition
-    const machineStatus = await ctx.db
-      .query('chatroom_machineStatus')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
     if (!machineStatus) {
       // No row yet — insert as online
       await ctx.db.insert('chatroom_machineStatus', {

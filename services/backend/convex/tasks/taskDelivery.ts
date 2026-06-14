@@ -61,7 +61,7 @@ export async function getTaskDeliveryPromptData(
     .query('chatroom_messages')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .order('desc')
-    .take(50);
+    .take(15); // was 50 — only need latest user classification
 
   // Find current classification
   let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;

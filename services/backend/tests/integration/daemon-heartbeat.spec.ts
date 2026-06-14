@@ -38,10 +38,11 @@ describe('Daemon Heartbeat', () => {
     });
 
     // Send another heartbeat within throttle window — lastSeenAt should not change
-    await t.mutation(api.machines.daemonHeartbeat, {
+    const noopResult = await t.mutation(api.machines.daemonHeartbeat, {
       sessionId,
       machineId,
     });
+    expect(noopResult).toEqual({ success: true, noop: true });
 
     const withinWindow = await t.run(async (ctx) => {
       const liveness = await ctx.db
