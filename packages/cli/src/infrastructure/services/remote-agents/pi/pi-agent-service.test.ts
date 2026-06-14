@@ -27,28 +27,26 @@ function resolveWriteCallback(
 }
 
 function wireGetStateOnStdinWrite(child: MockChild): void {
-  child.stdin.write = vi.fn(
-    (data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
-      const cb = resolveWriteCallback(encodingOrCb, maybeCb);
-      const text = typeof data === 'string' ? data : data.toString();
-      if (text.includes('get_state')) {
-        setTimeout(() => {
-          child.stdout.push(
-            `${JSON.stringify({
-              type: 'response',
-              command: 'get_state',
-              success: true,
-              data: { sessionId: SAMPLE_SESSION_ID },
-            })}\n`
-          );
-          cb?.(null);
-        }, 0);
-        return true;
-      }
-      cb?.(null);
+  child.stdin.write = vi.fn((data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+    const cb = resolveWriteCallback(encodingOrCb, maybeCb);
+    const text = typeof data === 'string' ? data : data.toString();
+    if (text.includes('get_state')) {
+      setTimeout(() => {
+        child.stdout.push(
+          `${JSON.stringify({
+            type: 'response',
+            command: 'get_state',
+            success: true,
+            data: { sessionId: SAMPLE_SESSION_ID },
+          })}\n`
+        );
+        cb?.(null);
+      }, 0);
       return true;
     }
-  );
+    cb?.(null);
+    return true;
+  });
 }
 
 function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentServiceDeps {
@@ -283,6 +281,7 @@ describe('PiAgentService', () => {
         prompt: createSpawnPrompt('Hello world'),
         model: 'github-copilot/claude-sonnet-4.6',
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -317,6 +316,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'You are a test agent',
         prompt: createSpawnPrompt('Hello world'),
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const args = spawnFn.mock.calls[0][1] as string[];
@@ -334,13 +334,15 @@ describe('PiAgentService', () => {
         systemPrompt: "It's a system prompt with 'quotes'",
         prompt: createSpawnPrompt("Don't stop"),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
         .map((call) => call[0] as string)
         .filter((line) => line.includes('"prompt"'));
       expect(promptWrites.length).toBeGreaterThanOrEqual(1);
-      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
+      const lastWrite = promptWrites[promptWrites.length - 1];
+      const parsed = JSON.parse(lastWrite.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message).toBe("Don't stop");
     });
@@ -356,6 +358,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(child.stdin.end).not.toHaveBeenCalled();
@@ -381,6 +384,7 @@ describe('PiAgentService', () => {
           systemPrompt: 'test',
           prompt: createSpawnPrompt('test'),
           context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+          resolvedConvexUrl: 'http://test:3210',
         })
       ).rejects.toThrow('exited immediately');
     });
@@ -396,6 +400,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(result.pid).toBe(99);
@@ -416,6 +421,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       // onAgentEnd should be present (stdout was provided via makeChildProcess)
@@ -423,7 +429,7 @@ describe('PiAgentService', () => {
 
       // Register a callback and fire agent_end from the stream
       const agentEndCb = vi.fn();
-      result.onAgentEnd!(agentEndCb);
+      result.onAgentEnd?.(agentEndCb);
 
       // Push an agent_end event through the readable stream
       child.stdout.push('{"type":"agent_end"}\n');
@@ -446,12 +452,14 @@ describe('PiAgentService', () => {
         systemPrompt: 'You are an agent',
         prompt: createSpawnPrompt(''),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
         .map((call) => call[0] as string)
         .filter((line) => line.includes('"prompt"'));
-      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
+      const lastWrite = promptWrites[promptWrites.length - 1];
+      const parsed = JSON.parse(lastWrite.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message).toBeTruthy();
       expect(parsed.message).not.toBe('');
@@ -468,12 +476,14 @@ describe('PiAgentService', () => {
         systemPrompt: 'You are an agent',
         prompt: createSpawnPrompt('   '),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
         .map((call) => call[0] as string)
         .filter((line) => line.includes('"prompt"'));
-      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
+      const lastWrite = promptWrites[promptWrites.length - 1];
+      const parsed = JSON.parse(lastWrite.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message.trim()).toBeTruthy();
     });
@@ -491,6 +501,7 @@ describe('PiAgentService', () => {
           systemPrompt: 'system',
           prompt: createSpawnPrompt('prompt'),
           context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+          resolvedConvexUrl: 'http://test:3210',
         });
 
         const assertion = expect(spawnPromise).rejects.toThrow('get_state timed out');
@@ -513,6 +524,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'system',
         prompt: createSpawnPrompt('initial'),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const writeWithCallback = vi.fn(
@@ -548,6 +560,7 @@ describe('PiAgentService', () => {
         systemPrompt: "It's a system prompt with 'quotes'",
         prompt: createSpawnPrompt("Don't stop"),
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const args = spawnFn.mock.calls[0][1] as string[];
@@ -599,6 +612,7 @@ describe('PiAgentService', () => {
           prompt: createSpawnPrompt('resume prompt'),
           model: 'anthropic/claude-3-5-sonnet',
           context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+          resolvedConvexUrl: 'http://test:3210',
         },
         {
           harnessSessionId: 'stored-session-id',
@@ -661,6 +675,7 @@ describe('PiAgentService', () => {
         prompt: createSpawnPrompt('go'),
         model: 'openai/gpt-4o',
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(service.getHarnessReconnectContext(70)).toEqual({

@@ -22,6 +22,7 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';
@@ -104,9 +105,11 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
     context: SpawnContext
   ): SpawnResult['onExit'] {
     let exitInfo: { code: number | null; signal: string | null } | null = null;
-    const exitCallbacks: Array<
-      (exit: { code: number | null; signal: string | null; context: SpawnContext }) => void
-    > = [];
+    const exitCallbacks: ((exit: {
+      code: number | null;
+      signal: string | null;
+      context: SpawnContext;
+    }) => void)[] = [];
 
     childProcess.on('exit', (code, signal) => {
       this.deleteProcess(pid);
@@ -153,12 +156,10 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: {
-        ...process.env,
-        // Prevent git rebase/merge from opening an interactive editor
+      env: buildChatroomSpawnEnv(options.resolvedConvexUrl, {
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',
-      },
+      }),
     });
 
     childProcess.stdin?.write(fullPrompt);

@@ -23,6 +23,7 @@ export interface DirectHarnessSubscriptionSession {
   sessionId: SessionId;
   machineId: string;
   backend: BackendOps;
+  convexUrl: string;
 }
 
 export interface DirectHarnessSubscriptionHandles {
@@ -69,7 +70,8 @@ export function startDirectHarnessSubscriptions(
       session.backend.query(api.workspaces.getWorkspaceById, {
         sessionId: session.sessionId,
         workspaceId,
-      })
+      }),
+    session.convexUrl
   );
   lifecycleManager.startMonitoring();
 

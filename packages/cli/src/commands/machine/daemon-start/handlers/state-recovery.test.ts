@@ -34,6 +34,7 @@ function makeSessionLayer(overrides?: {
   return Layer.succeed(DaemonSessionService, {
     sessionId: overrides?.sessionId ?? 'test-session-id',
     machineId: overrides?.machineId ?? 'test-machine-id',
+    convexUrl: 'http://test:3210',
     client: {},
     config: null,
     backend: {

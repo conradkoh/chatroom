@@ -42,6 +42,11 @@ export interface SpawnOptions {
   systemPrompt: string;
   model?: string;
   context: SpawnContext;
+  /**
+   * Daemon-resolved Convex URL — used to sanitize child env (backlog #2).
+   * Production children have NO `CHATROOM_CONVEX_URL` even if parent shell does.
+   */
+  resolvedConvexUrl: string;
 }
 
 /** Harness-specific metadata needed to reconnect after stop (daemon memory only). */

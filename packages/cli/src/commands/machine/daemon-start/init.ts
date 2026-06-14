@@ -49,6 +49,7 @@ import { acquireLock, releaseLock } from '../pid.js';
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
+import { formatConvexUrlMismatchWarning } from '../../../infrastructure/convex/spawn-env.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -505,6 +506,10 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
     });
 
     const convexUrl = getConvexUrl();
+    console.log(`[${formatTimestamp()}] 🌐 Resolved Convex URL: ${convexUrl}`);
+    const mismatchWarning = formatConvexUrlMismatchWarning(convexUrl);
+    if (mismatchWarning) console.warn(`[${formatTimestamp()}] ${mismatchWarning}`);
+
     const sessionId = yield* validateAuthenticationEffect(convexUrl);
     const client = yield* Effect.tryPromise({
       try: () => getConvexClient(),
@@ -538,6 +543,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       sessionId: typedSessionId,
       machineId,
       config,
+      convexUrl,
       backend: deps.backend,
       fs: deps.fs,
       machine: deps.machine,

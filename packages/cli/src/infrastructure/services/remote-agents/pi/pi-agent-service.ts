@@ -25,6 +25,7 @@
 import { type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 
+import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type {
   DaemonHarnessSessionContext,
@@ -102,6 +103,7 @@ export class PiAgentService extends BaseCLIAgentService {
         systemPrompt,
         model: modelForSession,
         sessionId: stored.harnessSessionId,
+        resolvedConvexUrl: options.resolvedConvexUrl,
       });
 
       await this.waitForSpawnReady(childProcess);
@@ -176,6 +178,7 @@ export class PiAgentService extends BaseCLIAgentService {
       workingDir,
       systemPrompt,
       model,
+      resolvedConvexUrl: options.resolvedConvexUrl,
     });
 
     await this.waitForSpawnReady(childProcess);
@@ -203,6 +206,7 @@ export class PiAgentService extends BaseCLIAgentService {
     systemPrompt: string;
     model?: string;
     sessionId?: string;
+    resolvedConvexUrl: string;
   }): ChildProcess {
     const rpcArgs: string[] = ['--mode', 'rpc', '--session-dir', getPiSessionDir(args.workingDir)];
 
@@ -223,11 +227,10 @@ export class PiAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: {
-        ...process.env,
+      env: buildChatroomSpawnEnv(args.resolvedConvexUrl, {
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',
-      },
+      }),
     });
 
     return childProcess;

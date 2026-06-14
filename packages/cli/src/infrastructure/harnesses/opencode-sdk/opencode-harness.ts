@@ -22,17 +22,27 @@
 
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+
 import { createOpencodeClient } from '@opencode-ai/sdk';
-import type { OpencodeClient, Event as SdkEvent } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent, GlobalEvent } from '@opencode-ai/sdk';
 import { Effect, Fiber } from 'effect';
 
-import type { BoundHarness, ModelInfo, NewSessionConfig, ResumeHarnessSessionOptions, BoundHarnessFactory } from '../../../domain/direct-harness/entities/bound-harness.js';
-import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/entities/machine-capabilities.js';
+import { OpencodeSdkSession } from './opencode-session.js';
+import type {
+  BoundHarness,
+  ModelInfo,
+  NewSessionConfig,
+  ResumeHarnessSessionOptions,
+  BoundHarnessFactory,
+} from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
-import type { GlobalEvent } from '@opencode-ai/sdk';
-import { OpencodeSdkSession } from './opencode-session.js';
+import type {
+  PublishedAgent,
+  PublishedProvider,
+} from '../../../domain/direct-harness/entities/machine-capabilities.js';
 import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
+import { buildChatroomSpawnEnv } from '../../convex/spawn-env.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -330,7 +340,9 @@ export class OpencodeSdkHarness implements BoundHarness {
                   if (session) {
                     session._receiveEvent(raw);
                   } else {
-                    console.warn(`[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener`);
+                    console.warn(
+                      `[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener`
+                    );
                   }
                 } else if (raw?.type !== 'server.connected') {
                   // Silently ignore events without a sessionID (e.g. sync, project.updated)
@@ -423,11 +435,10 @@ export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
     cwd: config.workingDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
-    env: {
-      ...process.env,
+    env: buildChatroomSpawnEnv(config.resolvedConvexUrl, {
       GIT_EDITOR: 'true',
       GIT_SEQUENCE_EDITOR: 'true',
-    },
+    }),
   });
 
   if (!childProcess.pid) {

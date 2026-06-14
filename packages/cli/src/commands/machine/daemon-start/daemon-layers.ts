@@ -54,6 +54,7 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
     Layer.succeed(DaemonSessionService, {
       sessionId: init.sessionId,
       machineId: init.machineId,
+      convexUrl: init.convexUrl,
       client: init.client,
       config: init.config,
       backend: init.backend,

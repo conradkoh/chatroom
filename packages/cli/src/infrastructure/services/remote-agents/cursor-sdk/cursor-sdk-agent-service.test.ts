@@ -120,6 +120,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(sharedAgentCreateFn).toHaveBeenCalledWith({
@@ -141,6 +142,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(sharedAgentSendFn).toHaveBeenCalledWith(
@@ -164,6 +166,7 @@ describe('CursorSdkAgentService', () => {
         systemPrompt: 'you are helpful',
         model: 'composer-2.5',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(result.harnessSessionId).toBe('agent-1');
@@ -192,6 +195,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       await service.stop(result.pid);
@@ -216,6 +220,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       sharedAgentCloseFn.mockClear();
@@ -262,6 +267,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
       result.onExit(exitInfo);
 
@@ -288,6 +294,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const waitingForResume = new Promise<void>((resolve) => {
@@ -321,6 +328,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       let agentEndCount = 0;
@@ -378,6 +386,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
@@ -426,6 +435,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
       if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
       result.onAgentEnd(() => agentEndTimes.push(Date.now()));
@@ -452,6 +462,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
       result.onExit(exitInfo);
 
@@ -509,6 +520,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
       result.onExit(exitInfo);
 
@@ -557,6 +569,7 @@ describe('CursorSdkAgentService', () => {
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'system',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
       result.onExit(exitInfo);
 
@@ -582,6 +595,7 @@ describe('CursorSdkAgentService', () => {
         systemPrompt: 'system',
         model: 'composer-2.5',
         context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(service.getHarnessReconnectContext(result.pid)).toEqual({
@@ -607,6 +621,7 @@ describe('CursorSdkAgentService', () => {
           systemPrompt: 'sys',
           model: 'composer-2.5',
           context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
         },
         {
           harnessSessionId: 'agent-resume-1',
@@ -655,6 +670,7 @@ describe('CursorSdkAgentService', () => {
           prompt: createSpawnPrompt('resume hello'),
           systemPrompt: 'sys',
           context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
         },
         {
           harnessSessionId: 'missing-agent',

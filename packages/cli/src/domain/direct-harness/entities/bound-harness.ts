@@ -16,8 +16,8 @@
  *   `HarnessProcess.listAgents()` / `.listProviders()`    → Use the `CapabilitiesCollector` port instead
  */
 
+import type { DirectHarnessSession } from './direct-harness-session.js';
 import type { OpenCodeSessionId, HarnessSessionId } from './harness-session.js';
-import type { DirectHarnessSession, PromptInput } from './direct-harness-session.js';
 import type { PublishedAgent, PublishedProvider } from './machine-capabilities.js';
 
 // ─── BoundHarness ─────────────────────────────────────────────────────────────
@@ -130,9 +130,9 @@ export interface StartBoundHarnessConfig {
   readonly workingDir: string;
   /** Workspace identifier (used for session metadata and process tracking). */
   readonly workspaceId: string;
+  /** Daemon-resolved Convex URL — used to sanitize child env (backlog #2). */
+  readonly resolvedConvexUrl: string;
 }
 
 /** Factory function type — implemented by each harness backend. */
-export type BoundHarnessFactory = (
-  config: StartBoundHarnessConfig
-) => Promise<BoundHarness>;
+export type BoundHarnessFactory = (config: StartBoundHarnessConfig) => Promise<BoundHarness>;

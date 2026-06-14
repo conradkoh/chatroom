@@ -13,6 +13,7 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
@@ -69,12 +70,10 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: {
-        ...process.env,
-        // Prevent git rebase/merge from opening an interactive editor
+      env: buildChatroomSpawnEnv(options.resolvedConvexUrl, {
         GIT_EDITOR: 'true',
         GIT_SEQUENCE_EDITOR: 'true',
-      },
+      }),
     });
 
     // Write combined prompt to stdin

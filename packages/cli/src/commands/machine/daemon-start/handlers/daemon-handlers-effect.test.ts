@@ -53,6 +53,7 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
   return Layer.succeed(DaemonSessionService, {
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
+    convexUrl: 'http://test:3210',
     client: {},
     config,
     backend: {

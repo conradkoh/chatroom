@@ -35,6 +35,7 @@ describe('onRequestStartAgentEffect', () => {
     return Layer.succeed(DaemonSessionService, {
       sessionId: 'test-session',
       machineId: 'test-machine',
+      convexUrl: 'http://test:3210',
       client: {} as any,
       config: { hostname: 'test-host' } as any,
       backend: { mutation: backendMutation, query: vi.fn().mockResolvedValue(undefined) } as any,

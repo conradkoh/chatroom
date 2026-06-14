@@ -171,6 +171,7 @@ async function resumeSessionHandle(
       type: 'opencode',
       workingDir: workspace.workingDir,
       workspaceId,
+      resolvedConvexUrl: session.convexUrl,
     });
     deps.harnesses.set(workspaceId, harness);
   }

@@ -117,6 +117,7 @@ async function getOrCreateHarness(
       type: 'opencode',
       workingDir: workspace.workingDir,
       workspaceId: session.workspaceId,
+      resolvedConvexUrl: daemonSession.convexUrl,
     });
     deps.harnesses.set(session.workspaceId, harness);
   }

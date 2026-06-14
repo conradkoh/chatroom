@@ -178,6 +178,7 @@ describe('CursorAgentService', () => {
         systemPrompt: 'You are a test agent',
         model: 'claude-4-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -228,6 +229,7 @@ describe('CursorAgentService', () => {
         systemPrompt: 'System',
         model: 'cursor/gpt-5.4-high',
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -264,6 +266,7 @@ describe('CursorAgentService', () => {
         systemPrompt: 'System',
         model: 'gpt-5.4-high',
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -299,6 +302,7 @@ describe('CursorAgentService', () => {
         prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -330,6 +334,7 @@ describe('CursorAgentService', () => {
           prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+          resolvedConvexUrl: 'http://test:3210',
         })
       ).rejects.toThrow('exited immediately');
     });
@@ -360,6 +365,7 @@ describe('CursorAgentService', () => {
         prompt: createSpawnPrompt('just the prompt'),
         systemPrompt: '',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(mockStdin.write).toHaveBeenCalledWith(

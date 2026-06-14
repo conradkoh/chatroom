@@ -1,4 +1,4 @@
-import { Effect, Runtime } from 'effect';
+import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
@@ -41,6 +41,7 @@ function registerListeners(
       Effect.provideService(DaemonSessionService, {
         sessionId: 'test',
         machineId: 'test',
+        convexUrl: 'http://test:3210',
         client: {},
         config: null,
         backend: {} as any,
