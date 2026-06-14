@@ -5,9 +5,9 @@
  * Returns an unsubscribe function that removes all listeners (for tests/shutdown).
  */
 
-import { Effect } from 'effect';
+import { Effect, Runtime } from 'effect';
 
-import { handleAgentExited } from './agent/on-agent-exited.js';
+import { onAgentExitedEffect } from './agent/on-agent-exited.js';
 import { logAgentStarted } from './agent/on-agent-started.js';
 import { logAgentStopped } from './agent/on-agent-stopped.js';
 import {
@@ -22,17 +22,16 @@ export const registerEventListenersEffect = (): Effect.Effect<
 > =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-    const apm = yield* DaemonAgentProcessManagerService;
+    const runtime = yield* Effect.runtime<
+      DaemonSessionService | DaemonAgentProcessManagerService
+    >();
 
     const unsubs: (() => void)[] = [];
 
     unsubs.push(
-      session.events.on('agent:exited', (payload) =>
-        handleAgentExited(
-          { handleExit: (opts) => Effect.runPromise(apm.handleExit(opts)) },
-          payload
-        )
-      )
+      session.events.on('agent:exited', (payload) => {
+        Runtime.runFork(runtime)(onAgentExitedEffect(payload));
+      })
     );
     unsubs.push(session.events.on('agent:started', (payload) => logAgentStarted(payload)));
     unsubs.push(session.events.on('agent:stopped', (payload) => logAgentStopped(payload)));

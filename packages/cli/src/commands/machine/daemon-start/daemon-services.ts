@@ -7,6 +7,7 @@
  *   → infrastructure/services/
  */
 
+import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
 
 import type { MachineStateOps, SpawningOps } from './deps.js';
@@ -154,6 +155,8 @@ export interface DaemonSessionServiceShape {
   /** Populated by workspace-list-subscription; consumed by heartbeats. Mutable reference. */
   workspaceListStore?: { workspaces: WorkspaceForSync[]; updatedAt: number };
   logger?: Pick<Console, 'log' | 'warn'>;
+  /** Runtime for Effect execution — provided by `startGitRequestSubscriptionEffect` via `Effect.runtime()`. */
+  runtime?: Runtime.Runtime<DaemonSessionService>;
 
   // ─── Mutable state (shared reference semantics) ───────────────────
   /** Change-detection cache for git state, keyed by `machineId::workingDir`. */

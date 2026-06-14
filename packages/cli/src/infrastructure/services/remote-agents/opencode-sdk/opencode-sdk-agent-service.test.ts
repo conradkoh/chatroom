@@ -349,7 +349,7 @@ describe('OpenCodeSdkAgentService', () => {
       await service.stop(4321, { preserveForResume: true });
 
       expect(abort).not.toHaveBeenCalled();
-      expect(sessionStore.get('sess-1')).toBeUndefined();
+      expect(sessionStore.get('sess-1')).toBeDefined();
     });
 
     it('calls session.abort with the correct sessionId before SIGTERM', async () => {
@@ -442,6 +442,83 @@ describe('OpenCodeSdkAgentService', () => {
         model: 'anthropic/claude-sonnet-4',
       });
       expect(service.getHarnessReconnectContext(9999)).toBeUndefined();
+    });
+
+    it('resumeTurn succeeds when stop() was not called (metadata preserved)', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      sessionStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      });
+      const deps = createMockDeps({ sessionMetadataStore: sessionStore });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      await service.resumeTurn(4321, 'resume prompt');
+
+      expect(sharedPromptAsyncFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: 'sess-1' },
+          body: expect.objectContaining({ agent: 'build' }),
+        })
+      );
+      expect(sessionStore.get('sess-1')).toBeDefined();
+    });
+
+    it('resumeTurn returns without throwing when metadata was removed', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      sessionStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      });
+      const deps = createMockDeps({ sessionMetadataStore: sessionStore });
+      stubSdkClient();
+      sharedPromptAsyncFn.mockClear();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      sessionStore.remove('sess-1');
+
+      await expect(service.resumeTurn(4321, 'prompt')).resolves.toBeUndefined();
+      expect(sharedPromptAsyncFn).not.toHaveBeenCalled();
+    });
+
+    it('resumeTurn falls back to fresh session when promptAsync fails', async () => {
+      const sessionStore = new InMemorySessionMetadataStore();
+      sessionStore.upsert({
+        sessionId: 'sess-1',
+        machineId: 'm1',
+        chatroomId: 'c1',
+        role: 'builder',
+        agentName: 'build',
+        pid: 4321,
+        createdAt: new Date().toISOString(),
+        baseUrl: 'http://127.0.0.1:5678',
+      });
+      const deps = createMockDeps({ sessionMetadataStore: sessionStore });
+      stubSdkClient();
+      sharedPromptAsyncFn
+        .mockRejectedValueOnce(new Error('session not found'))
+        .mockResolvedValue({ data: {} });
+      sharedCreateFn.mockResolvedValue({ data: { id: 'sess-2' } });
+      const service = new OpenCodeSdkAgentService(deps);
+
+      await expect(service.resumeTurn(4321, 'resume prompt')).resolves.toBeUndefined();
+
+      expect(sharedCreateFn).toHaveBeenCalled();
+      expect(sessionStore.get('sess-2')).toBeDefined();
+      expect(sessionStore.get('sess-1')).toBeUndefined();
+      expect(sharedPromptAsyncFn).toHaveBeenCalledTimes(2);
     });
 
     it('proceeds with SIGTERM when no session metadata exists for the pid', async () => {
@@ -1012,12 +1089,18 @@ describe('OpenCodeSdkAgentService', () => {
       expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'resume hello' }]);
     });
 
-    it('throws when session.get fails (session missing after serve restart)', async () => {
+    it('falls back to spawn when session.get fails (session missing after serve restart)', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       stubSdkClient();
       sharedGetFn.mockRejectedValue(new Error('404 Not Found'));
       const service = new OpenCodeSdkAgentService(deps);
+      const spawnSpy = vi.spyOn(service, 'spawn').mockResolvedValue({
+        pid: 4322,
+        harnessSessionId: 'sess-fresh',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+      });
 
       const resumePromise = service.resumeFromDaemonMemory(
         spawnOptions({ prompt: 'resume hello' }),
@@ -1028,10 +1111,12 @@ describe('OpenCodeSdkAgentService', () => {
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
       );
 
-      await expect(resumePromise).rejects.toThrow('404 Not Found');
+      const result = await resumePromise;
+
       expect(child.kill).toHaveBeenCalled();
-      expect(sharedCreateFn).not.toHaveBeenCalled();
-      expect(sharedPromptAsyncFn).not.toHaveBeenCalled();
+      expect(spawnSpy).toHaveBeenCalledOnce();
+      expect(result.pid).toBe(4322);
+      spawnSpy.mockRestore();
     });
   });
 

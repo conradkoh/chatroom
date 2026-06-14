@@ -95,23 +95,33 @@ export class PiAgentService extends BaseCLIAgentService {
     const { prompt, systemPrompt, model, context } = options;
     const modelForSession = model ?? stored.model;
 
-    const childProcess = this.spawnPiRpcProcess({
-      workingDir: stored.workingDir,
-      systemPrompt,
-      model: modelForSession,
-      sessionId: stored.harnessSessionId,
-    });
+    let childProcess: ChildProcess | undefined;
+    try {
+      childProcess = this.spawnPiRpcProcess({
+        workingDir: stored.workingDir,
+        systemPrompt,
+        model: modelForSession,
+        sessionId: stored.harnessSessionId,
+      });
 
-    await this.waitForSpawnReady(childProcess);
-    await this.writePrompt(childProcess, prompt);
+      await this.waitForSpawnReady(childProcess);
+      await this.writePrompt(childProcess, prompt);
 
-    return this.wireRpcProcess({
-      childProcess,
-      context,
-      workingDir: stored.workingDir,
-      model: modelForSession,
-      harnessSessionId: stored.harnessSessionId,
-    });
+      return this.wireRpcProcess({
+        childProcess,
+        context,
+        workingDir: stored.workingDir,
+        model: modelForSession,
+        harnessSessionId: stored.harnessSessionId,
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
+      );
+      childProcess?.kill();
+      return this.spawn(options);
+    }
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {

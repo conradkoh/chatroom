@@ -58,25 +58,43 @@ function writeLogLine(
 }
 
 /**
- * Detects fatal provider usage-limit errors. OpenCode does NOT emit session.idle
+ * Detects fatal provider usage/rate-limit errors. OpenCode does NOT emit session.idle
  * after such an error, so the agent would otherwise hang forever waiting for its
  * turn to end. We treat these as a turn end and fire agent_end. Loose shape: the
  * error name/type and message can arrive under different keys across SDK versions.
  */
-function isUsageLimitError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+function isTerminalProviderError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    if (typeof error === 'string') {
+      return matchesTerminalProviderErrorText(error);
+    }
+    return false;
+  }
   const e = error as {
     name?: unknown;
     type?: unknown;
     message?: unknown;
     data?: { message?: unknown };
+    responseBody?: unknown;
   };
   const name = String(e.name ?? e.type ?? '').toLowerCase();
-  const message = String(e.data?.message ?? e.message ?? '').toLowerCase();
+  const message = String(e.data?.message ?? e.message ?? e.responseBody ?? '').toLowerCase();
+  const blob = `${name}\n${message}`;
+  return matchesTerminalProviderErrorText(blob);
+}
+
+function matchesTerminalProviderErrorText(blob: string): boolean {
+  const text = blob.toLowerCase();
   return (
-    name.includes('usagelimit') ||
-    message.includes('usage limit') ||
-    message.includes('enable usage from your available balance')
+    text.includes('usagelimit') ||
+    text.includes('usage limit') ||
+    text.includes('enable usage from your available balance') ||
+    text.includes('rate limit') ||
+    text.includes('ratelimit') ||
+    text.includes('too many requests') ||
+    text.includes('x-ratelimit-exceeded') ||
+    text.includes('weekly rate limit') ||
+    text.includes('exceeded your weekly')
   );
 }
 
@@ -282,10 +300,10 @@ export function startSessionEventForwarder(
               payload += ` [command: ${props.command}]`;
             }
             writeLogLine(errorTarget, options, 'error', payload);
-            // Usage-limit errors are terminal: OpenCode will not emit session.idle,
+            // Usage-limit and rate-limit errors are terminal: OpenCode will not emit session.idle,
             // so end the turn ourselves to avoid a hung agent.
-            if (isUsageLimitError(err)) {
-              writeLogLine(target, options, 'agent_end', 'reason: usage_limit_reached');
+            if (isTerminalProviderError(err)) {
+              writeLogLine(target, options, 'agent_end', 'reason: provider_rate_limit');
               for (const cb of agentEndCallbacks) cb();
             }
             break;
@@ -297,6 +315,10 @@ export function startSessionEventForwarder(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       writeLogLine(errorTarget, options, 'error', message);
+      if (isTerminalProviderError(err)) {
+        writeLogLine(target, options, 'agent_end', 'reason: provider_rate_limit');
+        for (const cb of agentEndCallbacks) cb();
+      }
     } finally {
       doneResolve();
     }

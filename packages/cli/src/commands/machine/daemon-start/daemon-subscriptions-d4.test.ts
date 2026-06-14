@@ -11,11 +11,16 @@
  *   startObservedSyncSubscriptionEffect   (E4.4)
  */
 
+import type { Runtime } from 'effect';
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
-import { DaemonSessionService, type DaemonMutableStateService } from './daemon-services.js';
+import {
+  DaemonSessionService,
+  type DaemonMutableStateService,
+  type DaemonSessionServiceShape,
+} from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from './types.js';
@@ -113,8 +118,23 @@ async function runWithSession<A>(
   effect: Effect.Effect<A, never, SubscriptionEffectRequirements>,
   overrides?: Partial<DaemonSessionInit>
 ) {
-  return Effect.runPromise(effect.pipe(Effect.provide(makeSessionLayer(overrides))));
+  const layer = makeSessionLayer(overrides);
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const runtime = yield* Effect.runtime<DaemonSessionService>();
+      const session = yield* DaemonSessionService;
+      const sessionWithRuntime = { ...session, runtime };
+      return yield* effect.pipe(
+        Effect.provideService(DaemonSessionService, sessionWithRuntime as DaemonSessionServiceShape)
+      );
+    }).pipe(Effect.provide(layer))
+  );
 }
+
+// Simple mock runtime for tests that call processRequestsEffect
+const mockRuntime: Runtime.Runtime<DaemonSessionService> = {
+  run: <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect),
+} as any;
 
 function withDeps(
   deps: ReturnType<typeof createMockDaemonDeps>,
@@ -318,7 +338,7 @@ describe('processRequestsEffect', () => {
     const { processRequestsEffect } = await import('./git-subscription.js');
 
     await expect(
-      runWithSession(processRequestsEffect([], new Map(), 300_000))
+      runWithSession(processRequestsEffect([], new Map(), 300_000, mockRuntime))
     ).resolves.toBeUndefined();
   });
 
@@ -340,7 +360,7 @@ describe('processRequestsEffect', () => {
     vi.mocked(gitReader as any).getFullDiff = vi.fn().mockResolvedValue({ status: 'not_found' });
 
     await runWithSession(
-      processRequestsEffect([req as any], new Map(), 300_000),
+      processRequestsEffect([req as any], new Map(), 300_000, mockRuntime),
       withDeps(deps, { machineId: 'machine-process', sessionId: 'session-process' })
     );
 

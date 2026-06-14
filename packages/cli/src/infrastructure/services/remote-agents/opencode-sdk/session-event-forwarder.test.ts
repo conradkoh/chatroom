@@ -166,6 +166,23 @@ describe('SessionEventForwarder', () => {
     };
   }
 
+  async function* weeklyRateLimitErrorStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-1',
+        error: {
+          name: 'APIError',
+          data: {
+            message:
+              "Sorry, you've exceeded your weekly rate limit. Please review our Terms of Service.",
+          },
+        },
+      },
+    };
+  }
+
   async function* otherSessionStream(): AsyncGenerator<unknown> {
     await new Promise((r) => setTimeout(r, 10));
     yield {
@@ -319,7 +336,62 @@ describe('SessionEventForwarder', () => {
     vi.useRealTimers();
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(target.write).toHaveBeenCalledWith(
-      '[fake-ts] role:builder agent_end] reason: usage_limit_reached\n'
+      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
+    );
+  }, 10000);
+
+  it('session.error weekly rate limit -> agent_end fired', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(weeklyRateLimitErrorStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(550);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
+    );
+  }, 10000);
+
+  it('stream throws weekly rate limit -> agent_end fired from catch block', async () => {
+    async function* weeklyRateLimitStreamThrow(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'message.part.updated',
+        properties: {
+          delta: 'hello',
+          part: {
+            id: 'p1',
+            type: 'text',
+            sessionID: 'sess-1',
+            messageID: 'm1',
+            text: '',
+          },
+        },
+      };
+      throw {
+        name: 'APIError',
+        data: {
+          message:
+            "Sorry, you've exceeded your weekly rate limit. Please review our Terms of Service.",
+        },
+        responseHeaders: { 'x-ratelimit-exceeded': 'true' },
+      };
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(weeklyRateLimitStreamThrow());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
     );
   }, 10000);
 
