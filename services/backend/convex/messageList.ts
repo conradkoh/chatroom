@@ -20,6 +20,8 @@ import { enrichMessages } from './messages';
 /** Max rows for initial latest-window and load-older page requests. */
 const MAX_LATEST_MESSAGES_LIMIT = 200;
 const MAX_LOAD_OLDER_PAGE_SIZE = 50;
+/** Max rows for reactive tail subscription (prevents unbounded growth). */
+const MAX_MESSAGES_SINCE_LIMIT = 500;
 
 function isTimelineMessage(msg: Doc<'chatroom_messages'>): boolean {
   return msg.type !== 'join' && msg.type !== 'progress';
@@ -80,7 +82,7 @@ async function fetchMessagesSince(
       q.eq('chatroomId', chatroomId).gte('_creationTime', afterCreationTime)
     )
     .order('asc')
-    .collect();
+    .take(MAX_MESSAGES_SINCE_LIMIT);
 
   return rows.filter(isTimelineMessage);
 }
@@ -184,9 +186,7 @@ export const listMessagesBefore = query({
       .withIndex('by_chatroom', (q) =>
         q.eq('chatroomId', args.chatroomId).lt('_creationTime', args.before)
       )
-      .filter((q) =>
-        q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress'))
-      )
+      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
       .take(limit);
 
