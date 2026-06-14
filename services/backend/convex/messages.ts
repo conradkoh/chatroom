@@ -13,8 +13,10 @@ import { decodeStructured } from './lib/stdinDecoder';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
+import { getCodemapperPrompt } from '../prompts/templates/codemapper';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { isActiveParticipant } from '../src/domain/entities/participant';
+import { isSubAgentRole, parseSubAgentRole } from '../src/domain/entities/sub-agent';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
@@ -298,9 +300,9 @@ async function _sendMessageHandler(
   }
 
   // Validate senderRole to prevent impersonation
-  // Only allow 'user' or roles that are in the team configuration
+  // Only allow 'user', sub-agent roles, or roles that are in the team configuration
   const normalizedSenderRole = args.senderRole.toLowerCase();
-  if (normalizedSenderRole !== 'user') {
+  if (normalizedSenderRole !== 'user' && !isSubAgentRole(args.senderRole)) {
     // Check if senderRole is in teamRoles
     const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
     if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
@@ -489,10 +491,10 @@ async function _handoffHandler(
     };
   }
 
-  // Validate senderRole
+  // Validate senderRole (sub-agent roles bypass this check)
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-  if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+  if (!isSubAgentRole(args.senderRole) && !normalizedTeamRoles.includes(normalizedSenderRole)) {
     return {
       success: false,
       error: {
@@ -748,10 +750,10 @@ export const reportProgress = mutation({
     // Validate session and check chatroom access
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Validate senderRole to prevent impersonation
+    // Validate senderRole to prevent impersonation (sub-agent roles bypass this check)
     const normalizedSenderRole = args.senderRole.toLowerCase();
     const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+    if (!isSubAgentRole(args.senderRole) && !normalizedTeamRoles.includes(normalizedSenderRole)) {
       throw new ConvexError({
         code: 'INVALID_ROLE',
         message: `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`,
@@ -1818,6 +1820,9 @@ export const getInitPrompt = query({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Check if this is a sub-agent role (e.g., subagent:codemapper:sa-xxx)
+    const subAgentInfo = isSubAgentRole(args.role) ? parseSubAgentRole(args.role) : null;
+
     // Look up existing team agent config to include the agent type in the prompt
     const teamRoleKey = chatroom.teamId
       ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
@@ -1828,6 +1833,21 @@ export const getInitPrompt = query({
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
           .first()
       : null;
+
+    // For codemapper sub-agents, include the codemapper prompt with briefing
+    let extraCodemapperSection: string | undefined;
+    if (subAgentInfo && subAgentInfo.type === 'codemapper') {
+      const instance = await ctx.db
+        .query('chatroom_subAgentInstances')
+        .withIndex('by_chatroom_instance', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('instanceId', subAgentInfo.instanceId)
+        )
+        .first();
+
+      if (instance && instance.briefing) {
+        extraCodemapperSection = getCodemapperPrompt(instance.briefing);
+      }
+    }
 
     const promptInput = {
       chatroomId: args.chatroomId,
@@ -1841,7 +1861,17 @@ export const getInitPrompt = query({
     };
 
     // Compose init prompt (system prompt + init message + combined)
-    const composed = composeInitPrompt(promptInput);
+    let composed = composeInitPrompt(promptInput);
+
+    // Append codemapper-specific section if present
+    if (extraCodemapperSection) {
+      const codemapperAppendix = `\n\n---\n\n${extraCodemapperSection}`;
+      composed = {
+        ...composed,
+        initPrompt: composed.initPrompt + codemapperAppendix,
+        systemPrompt: composed.systemPrompt + codemapperAppendix,
+      };
+    }
 
     // Resolve agent config to determine system prompt control
     const agentConfigResult = await getAgentConfig(ctx, {

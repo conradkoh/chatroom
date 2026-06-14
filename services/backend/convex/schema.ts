@@ -950,6 +950,51 @@ export default defineSchema({
     .index('by_machineId', ['machineId']),
 
   /**
+   * Sub-agent configuration per chatroom+type.
+   * Defines how sub-agents (e.g., codemapper) should be spawned.
+   */
+  chatroom_subAgentConfigs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    subAgentType: v.union(v.literal('codemapper')),
+    machineId: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    workingDir: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_type', ['chatroomId', 'subAgentType']),
+
+  /**
+   * Sub-agent instances — one row per spawned sub-agent.
+   */
+  chatroom_subAgentInstances: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    instanceId: v.string(),
+    subAgentType: v.union(v.literal('codemapper')),
+    parentRole: v.string(),
+    role: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed')
+    ),
+    briefing: v.string(),
+    codemapPath: v.optional(v.string()),
+    codemapName: v.optional(v.string()),
+    taskId: v.optional(v.id('chatroom_tasks')),
+    machineId: v.string(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_parent', ['chatroomId', 'parentRole'])
+    .index('by_chatroom_instance', ['chatroomId', 'instanceId'])
+    .index('by_role', ['chatroomId', 'role']),
+
+  /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.
    * Per-machine outcomes live in `chatroom_capabilities_refresh_machine_results`.
    */

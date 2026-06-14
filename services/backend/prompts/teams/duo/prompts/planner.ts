@@ -78,5 +78,24 @@ ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, { cliEnvPrefix, chatroomId, ro
 
 ${getHandoffRulesSection(DUO_TEAM_CONFIG)}
 
-${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}`;
+${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}
+
+## Sub-Agent Management
+
+You can spawn sub-agents to perform specialized research tasks:
+
+**Spawning a Codemapper:**
+\`\`\`bash
+${cliEnvPrefix}chatroom subagent spawn --chatroom-id="<chatroom-id>" --type="codemapper" --name="<codemap-name>" --briefing="<briefing-text>"
+\`\`\`
+
+**Monitoring Sub-Agents:**
+\`\`\`bash
+${cliEnvPrefix}chatroom subagent list --chatroom-id="<chatroom-id>"
+\`\`\`
+
+**Viewing Codemaps:**
+\`\`\`bash
+${cliEnvPrefix}chatroom codemap xray --chatroom-id="<chatroom-id>" --instance-id="<instance-id>"
+\`\`\``;
 }

@@ -147,6 +147,7 @@ export const AGENT_START_REASONS = [
   'platform.crash_recovery',
   'platform.auto_restart_on_new_context',
   'platform.restart_offline_on_user_message',
+  'platform.subagent_spawn',
   'test',
 ] as const;
 

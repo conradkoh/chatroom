@@ -143,9 +143,10 @@ export type BackendErrorCode =
   | 'INVALID_ITEM_STATUS'
   | 'INVALID_MESSAGE'
   | 'MESSAGE_NOT_FOUND'
-
-  // ── Conflict ──────────────────────────────────────────────────────
-  | 'CONFLICT';
+  | 'CONFLICT'
+  | 'SUB_AGENT_CONFIG_NOT_FOUND'
+  | 'SUB_AGENT_INSTANCE_NOT_FOUND'
+  | 'SUB_AGENT_MACHINE_NOT_FOUND';
 
 /**
  * Mapping of error names to their string code values.
@@ -353,6 +354,14 @@ export const BACKEND_ERROR_CODES = {
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
+
+  // ── Sub-Agent ────────────────────────────────────────────────────────
+  /** Sub-agent config not found for the specified type in chatroom */
+  SUB_AGENT_CONFIG_NOT_FOUND: 'SUB_AGENT_CONFIG_NOT_FOUND',
+  /** Sub-agent instance not found */
+  SUB_AGENT_INSTANCE_NOT_FOUND: 'SUB_AGENT_INSTANCE_NOT_FOUND',
+  /** Machine not found for sub-agent spawn */
+  SUB_AGENT_MACHINE_NOT_FOUND: 'SUB_AGENT_MACHINE_NOT_FOUND',
 } as const satisfies Record<BackendErrorCode, BackendErrorCode>;
 
 /**
@@ -491,6 +500,11 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.HARNESS_SESSION_INVALID_PROMPT,
   BACKEND_ERROR_CODES.HARNESS_SESSION_CLOSED,
   BACKEND_ERROR_CODES.HARNESS_SESSION_UNKNOWN_AGENT,
+
+  // Sub-Agent
+  BACKEND_ERROR_CODES.SUB_AGENT_CONFIG_NOT_FOUND,
+  BACKEND_ERROR_CODES.SUB_AGENT_INSTANCE_NOT_FOUND,
+  BACKEND_ERROR_CODES.SUB_AGENT_MACHINE_NOT_FOUND,
 ] as const;
 
 /**

@@ -6,8 +6,12 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS, CONNECTION_CLOSE_REQUEST_TTL_MS } from '../config/reliability';
+import {
+  PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
+  CONNECTION_CLOSE_REQUEST_TTL_MS,
+} from '../config/reliability';
 import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
+import { isSubAgentRole } from '../src/domain/entities/sub-agent';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
@@ -37,9 +41,9 @@ export const join = mutation({
     // Validate session and check chatroom access - returns chatroom directly
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Validate role is in team configuration
+    // Validate role is in team configuration (sub-agent roles bypass this check)
     const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-    if (teamRoles.length > 0) {
+    if (teamRoles.length > 0 && !isSubAgentRole(args.role)) {
       const normalizedRole = args.role.toLowerCase();
       if (!normalizedTeamRoles.includes(normalizedRole)) {
         throw new Error(
@@ -68,8 +72,7 @@ export const join = mutation({
         args.machineId !== undefined && args.machineId !== existing.machineId;
       const agentTypeChanged =
         args.agentType !== undefined && args.agentType !== existing.agentType;
-      const actionChanged =
-        args.action !== undefined && args.action !== existing.lastSeenAction;
+      const actionChanged = args.action !== undefined && args.action !== existing.lastSeenAction;
       const lastSeenAtStale =
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
@@ -87,7 +90,13 @@ export const join = mutation({
         });
       }
 
-      if (connectionIdChanged || machineIdChanged || agentTypeChanged || actionChanged || lastSeenAtStale) {
+      if (
+        connectionIdChanged ||
+        machineIdChanged ||
+        agentTypeChanged ||
+        actionChanged ||
+        lastSeenAtStale
+      ) {
         await ctx.db.patch('chatroom_participants', existing._id, {
           ...(connectionIdChanged ? { connectionId: args.connectionId } : {}),
           ...(machineIdChanged ? { machineId: args.machineId } : {}),

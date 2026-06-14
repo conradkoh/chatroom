@@ -436,6 +436,25 @@ describe('Duo Team > Planner > System Prompt', () => {
       3. If requirements are NOT met → hand back to \`builder\` for rework
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
+      ## Sub-Agent Management
+
+      You can spawn sub-agents to perform specialized research tasks:
+
+      **Spawning a Codemapper:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom subagent spawn --chatroom-id="<chatroom-id>" --type="codemapper" --name="<codemap-name>" --briefing="<briefing-text>"
+      \`\`\`
+
+      **Monitoring Sub-Agents:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom subagent list --chatroom-id="<chatroom-id>"
+      \`\`\`
+
+      **Viewing Codemaps:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom codemap xray --chatroom-id="<chatroom-id>" --instance-id="<instance-id>"
+      \`\`\`
+
       ### Handoff Options
       Available targets: builder, user
 

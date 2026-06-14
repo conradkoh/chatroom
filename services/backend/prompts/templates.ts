@@ -122,6 +122,23 @@ export function getRoleTemplate(role: string): RoleTemplate {
     return template;
   }
 
+  // Sub-agent roles get a specialized template
+  if (role.startsWith('subagent:')) {
+    const parts = role.split(':');
+    const subAgentType = parts[1]?.toLowerCase() || 'unknown';
+    return {
+      role: role,
+      title: `${subAgentType.charAt(0).toUpperCase() + subAgentType.slice(1)} Sub-Agent`,
+      description: `You are a ${subAgentType} sub-agent operating under a parent agent's direction.`,
+      responsibilities: [
+        'Complete tasks assigned by your parent agent',
+        'Produce high-quality output for your specialized role',
+        'Hand off back to your parent agent when complete',
+      ],
+      defaultHandoffTarget: 'user',
+    };
+  }
+
   // Generic fallback for unknown roles
   return {
     role: role,

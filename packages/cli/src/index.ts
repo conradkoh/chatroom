@@ -1186,6 +1186,77 @@ opencodeCommand
     const { installTool } = await import('./commands/opencode-install/index.js');
     await installTool({ checkExisting: !options.force });
   });
+
+// ============================================================================
+// SUB-AGENT COMMANDS
+// ============================================================================
+
+const subagentCommand = program.command('subagent').description('Manage sub-agents');
+
+subagentCommand
+  .command('spawn')
+  .description('Spawn a new sub-agent')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--type <type>', 'Sub-agent type (e.g., codemapper)')
+  .requiredOption('--name <name>', 'Codemap name for output path')
+  .requiredOption('--briefing <briefing>', 'Briefing text for the sub-agent')
+  .option('--machine-id <id>', 'Machine ID where sub-agent should run')
+  .option('--role <role>', 'Parent role (default: planner)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      type: string;
+      name: string;
+      briefing: string;
+      machineId?: string;
+      role?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { spawnSubAgent } = await import('./commands/subagent/spawn/index.js');
+      await spawnSubAgent(options.chatroomId, {
+        type: options.type,
+        name: options.name,
+        briefing: options.briefing,
+        machineId: options.machineId,
+        parentRole: options.role,
+      });
+    }
+  );
+
+subagentCommand
+  .command('list')
+  .description('List sub-agents for a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .action(async (options: { chatroomId: string }) => {
+    await maybeRequireAuth();
+    const { listSubAgents } = await import('./commands/subagent/list/index.js');
+    await listSubAgents(options.chatroomId);
+  });
+
+// ============================================================================
+// CODEMAP COMMANDS
+// ============================================================================
+
+program
+  .command('codemap')
+  .description('Manage codemaps from sub-agents')
+  .action(() => {
+    program.help();
+  });
+
+const codemapCommand = program.command('codemap').description('Manage codemaps from sub-agents');
+
+codemapCommand
+  .command('xray')
+  .description('View a codemap from a sub-agent instance')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--instance-id <id>', 'Sub-agent instance ID')
+  .action(async (options: { chatroomId: string; instanceId: string }) => {
+    await maybeRequireAuth();
+    const { codemapXray } = await import('./commands/codemap/xray/index.js');
+    await codemapXray(options.chatroomId, options.instanceId);
+  });
+
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages list` and `backlog` that previously had no coverage.
