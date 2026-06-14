@@ -1562,11 +1562,8 @@
       }
     },
     "packages/cli/src/domain/agent-lifecycle/policies/slot-transitions.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
+      "crap_moderate": {
+        "count": 3
       }
     },
     "packages/cli/src/events/daemon/agent/on-request-start-agent.ts": {
@@ -1674,22 +1671,19 @@
       }
     },
     "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-service.ts": {
-      "crap_critical": {
+      "crap_high": {
         "count": 2
       },
       "crap_moderate": {
-        "count": 1
+        "count": 3
       }
     },
     "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts": {
-      "complexity_critical": {
-        "count": 3
-      },
-      "crap_critical": {
-        "count": 7
+      "crap_high": {
+        "count": 8
       },
       "crap_moderate": {
-        "count": 4
+        "count": 16
       }
     },
     "packages/cli/src/infrastructure/services/harness-spawning/harness-spawning-service.ts": {
@@ -2479,7 +2473,6 @@
     "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "services/backend/convex/messages.ts:complexity",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
-    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts:complexity",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
     "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts:complexity",
