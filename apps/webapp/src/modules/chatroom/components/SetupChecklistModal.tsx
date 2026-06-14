@@ -1,7 +1,9 @@
 'use client';
 
 import { X, Settings2, Check } from 'lucide-react';
-import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, memo, useEffect, useMemo, useRef, useState } from 'react';
+
+import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 
 import { SetupChecklist } from './SetupChecklist';
 
@@ -40,6 +42,15 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   // Chatroom name editing state
   const [editedName, setEditedName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus + select the name input when modal opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isOpen]);
 
   // Initialize editedName when modal opens or chatroomName changes
   useEffect(() => {
@@ -151,12 +162,19 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
           </span>
           <div className="flex-1 flex items-center gap-2">
             <input
+              ref={inputRef}
               type="text"
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
               onBlur={handleSaveName}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveName();
+              }}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData('text');
+                if (!pasted.includes('/') && !pasted.includes('\\')) return;
+                e.preventDefault();
+                setEditedName(normalizePastedChatroomName(pasted));
               }}
               placeholder="Enter chatroom name..."
               className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm text-chatroom-text-primary px-2 py-1 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"

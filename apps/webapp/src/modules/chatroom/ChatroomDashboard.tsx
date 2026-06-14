@@ -25,6 +25,8 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
+
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { useTeamConfigs } from './hooks/use-team-configs';
 import { AgentPanel } from './components/AgentPanel';
@@ -102,7 +104,8 @@ const AgentSettingsModal = dynamic(
 );
 
 const SetupChecklistModal = dynamic(
-  () => import('./components/SetupChecklistModal').then((m) => ({ default: m.SetupChecklistModal })),
+  () =>
+    import('./components/SetupChecklistModal').then((m) => ({ default: m.SetupChecklistModal })),
   { loading: () => null }
 );
 
@@ -175,12 +178,18 @@ const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   const [isPending, setIsPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
   const renameChatroom = useSessionMutation(api.chatrooms.rename);
 
   const handleStartEdit = useCallback(() => {
     setEditedName(displayName);
     setIsEditing(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
   }, [displayName]);
 
   const handleCancel = useCallback(() => {
@@ -227,6 +236,12 @@ const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData('text');
+            if (!pasted.includes('/') && !pasted.includes('\\')) return;
+            e.preventDefault();
+            setEditedName(normalizePastedChatroomName(pasted));
+          }}
           className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
           placeholder="Enter name..."
           disabled={isPending}
