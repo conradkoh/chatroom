@@ -1369,7 +1369,7 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/command-subscriber.ts": {
-      "crap_critical": {
+      "crap_high": {
         "count": 1
       },
       "crap_moderate": {
@@ -1382,22 +1382,16 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_high": {
-        "count": 2
+        "count": 4
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/session-subscriber.ts": {
-      "crap_critical": {
-        "count": 2
+      "crap_high": {
+        "count": 1
       },
       "crap_moderate": {
-        "count": 1
+        "count": 2
       }
     },
     "packages/cli/src/commands/machine/daemon-start/file-content-fulfillment.ts": {
@@ -1406,14 +1400,8 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/git-heartbeat.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_moderate": {
-        "count": 2
+        "count": 4
       }
     },
     "packages/cli/src/commands/machine/daemon-start/git-subscription.ts": {
@@ -1451,14 +1439,11 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+      "crap_high": {
         "count": 1
       },
       "crap_moderate": {
-        "count": 1
+        "count": 2
       }
     },
     "packages/cli/src/commands/machine/daemon-start/workspace-cache.ts": {
@@ -2466,9 +2451,7 @@
     "services/backend/prompts/review-guidelines/review.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts:complexity",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
-    "packages/cli/src/commands/machine/daemon-start/observed-sync.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:complexity",
     "packages/cli/src/commands/handoff/index.ts:complexity",
     "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",

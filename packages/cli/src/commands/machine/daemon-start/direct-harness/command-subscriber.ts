@@ -112,6 +112,40 @@ export function startCommandSubscriber(
  * Commands are processed one at a time to avoid race conditions on shared
  * state (e.g., two capabilities refreshes in flight).
  */
+async function dispatchPendingCommand(
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  cmd: PendingCommand
+): Promise<void> {
+  switch (cmd.type) {
+    case 'refreshCapabilities':
+      await handleRefreshCapabilities(session, deps, cmd);
+      break;
+    case 'refreshSessionTitle':
+      await handleRefreshSessionTitle(session, deps, cmd);
+      break;
+    default:
+      await markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`);
+  }
+}
+
+async function processPendingCommand(
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  cmd: PendingCommand,
+  now: number
+): Promise<void> {
+  if (now - cmd.createdAt > DIRECT_HARNESS_COMMAND_TTL_MS) {
+    console.log(
+      `[direct-harness] Discarding stale command ${cmd._id} (type=${cmd.type}, age=${now - cmd.createdAt}ms)`
+    );
+    await markFailed(session, cmd._id, 'Command expired (TTL)');
+    return;
+  }
+
+  await dispatchPendingCommand(session, deps, cmd);
+}
+
 async function drain(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
@@ -127,31 +161,11 @@ async function drain(
   const now = Date.now();
 
   for (const cmd of pending) {
-    // Skip already-processed (idempotency key = _id)
     if (processed.has(cmd._id)) continue;
     processed.add(cmd._id);
 
     try {
-      // TTL check: discard stale commands
-      if (now - cmd.createdAt > DIRECT_HARNESS_COMMAND_TTL_MS) {
-        console.log(
-          `[direct-harness] Discarding stale command ${cmd._id} (type=${cmd.type}, age=${now - cmd.createdAt}ms)`
-        );
-        await markFailed(session, cmd._id, 'Command expired (TTL)');
-        continue;
-      }
-
-      // Process based on type
-      switch (cmd.type) {
-        case 'refreshCapabilities':
-          await handleRefreshCapabilities(session, deps, cmd);
-          break;
-        case 'refreshSessionTitle':
-          await handleRefreshSessionTitle(session, deps, cmd);
-          break;
-        default:
-          await markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`);
-      }
+      await processPendingCommand(session, deps, cmd, now);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[direct-harness] Command ${cmd._id} failed: ${message}`);
