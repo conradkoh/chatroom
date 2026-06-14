@@ -88,11 +88,10 @@ export const PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS = 30_000;
  *  Daemon heartbeats every 30s but only writes liveness when this interval elapses,
  *  reducing getDaemonStatus subscription invalidations. Must be < DAEMON_HEARTBEAT_TTL_MS.
  *
- *  Set to 60s (TTL is 180s): each liveness write invalidates the getDaemonStatus
- *  subscription for every machine and every subscribed webapp tab, so a longer
- *  interval cuts those re-runs ~3x. The only cost is "last seen" display
- *  freshness, which still refreshes well within the 180s liveness TTL. */
-export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 60_000;
+ *  Set to 90s (TTL is 180s): cuts liveness-driven subscription invalidations ~1.5x vs 60s.
+ *  The only cost is "last seen" display freshness, which still refreshes well within
+ *  the 180s liveness TTL. */
+export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 90_000;
 
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 
