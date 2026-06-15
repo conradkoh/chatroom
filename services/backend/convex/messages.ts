@@ -18,6 +18,7 @@ import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
+import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
@@ -28,6 +29,7 @@ import {
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
+import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 const config = getConfig();
 
@@ -2515,5 +2517,106 @@ export const getContextForRole = query({
       classification: originMessage?.classification || null,
       pendingTasksForRole: pendingTasks.length,
     };
+  },
+});
+
+// =============================================================================
+// SELF-COMPOSITION (COMPACTION) — backlog #13
+// =============================================================================
+
+/**
+ * Self-composition: allows a remote agent to trigger its own compaction.
+ *
+ * This mutation:
+ * 1. Validates the agent is a remote agent (not a subagent)
+ * 2. Stops the agent for this team + role
+ * 3. Inserts a compaction message into the chatroom
+ *
+ * The compaction message contains the agent's summary of:
+ * - Goal (user-centric + development-centric)
+ * - Requirements
+ * - Structure (folder structure, architecture decisions)
+ * - Avoid (out of scope)
+ */
+export const compact = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // 1. Validate chatroom access
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!chatroom.teamId) {
+      throw new ConvexError({
+        code: 'CHATROOM_HAS_NO_TEAM',
+        message: 'Chatroom has no team — cannot compact',
+      });
+    }
+
+    // 2. Look up the agent config for this role
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+    const agentConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+
+    if (!agentConfig) {
+      throw new ConvexError({
+        code: 'AGENT_CONFIG_NOT_FOUND',
+        message: `No agent config found for role "${args.role}"`,
+      });
+    }
+
+    // 3. Ensure the agent is a remote agent (not a subagent)
+    if (agentConfig.type !== 'remote') {
+      throw new ConvexError({
+        code: 'NOT_REMOTE_AGENT',
+        message: `Self-composition is only available for remote agents. Role "${args.role}" is type "${agentConfig.type}".`,
+      });
+    }
+
+    // 4. Get the machine ID from the agent config
+    const machineId = agentConfig.machineId;
+    if (!machineId) {
+      throw new ConvexError({
+        code: 'NO_MACHINE_ID',
+        message: `Remote agent "${args.role}" has no machine ID configured`,
+      });
+    }
+
+    // 5. Stop the agent (if running) and release tasks
+    try {
+      await stopAgentUseCase(ctx, {
+        machineId,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        userId: args.sessionId as unknown as Id<'users'>,
+        reason: 'user.stop',
+      });
+
+      await onAgentExited(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        stopReason: 'user.stop',
+      });
+    } catch (_err) {
+      // Agent may already be stopped — non-fatal for compaction
+    }
+
+    // 6. Insert the compaction message into the chatroom
+    const compactMessageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: args.role,
+      targetRole: undefined,
+      type: 'compaction',
+      content: args.content,
+      classification: undefined,
+      featureTitle: undefined,
+      taskId: undefined,
+    });
+
+    return { success: true, compactMessageId };
   },
 });

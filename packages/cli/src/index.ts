@@ -345,6 +345,48 @@ program
     });
   });
 
+program
+  .command('compact')
+  .description('Self-compose: stop the agent and insert a compaction message')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+
+    // Read compaction template from stdin (mandatory)
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+
+    if (!stdinContent.trim()) {
+      console.error('❌ No compaction content provided via stdin');
+      console.error("   Usage: chatroom compact --chatroom-id=<id> --role=<role> << 'EOF'");
+      console.error('   Your compaction template here');
+      console.error('   EOF');
+      process.exit(1);
+    }
+
+    let message: string;
+    try {
+      const result = decode(stdinContent, { singleParam: 'message' });
+      message = result.message;
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    // Validate that message is not empty
+    if (!message || message.trim().length === 0) {
+      console.error('❌ Compaction content cannot be empty');
+      process.exit(1);
+    }
+
+    const { compact } = await import('./commands/compact/index.js');
+    await compact(options.chatroomId, {
+      role: options.role,
+      content: message,
+    });
+  });
+
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
 // ============================================================================
