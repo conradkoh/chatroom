@@ -125,16 +125,214 @@ export function startSessionEventForwarder(
   let doneResolve: () => void;
   let sessionStarted = false;
   const seenToolStates = new Map<string, string>();
-
-  // Deduplication: track last logged status to avoid duplicate status lines
   let lastStatus: string | undefined;
-
-  // Callbacks registered via onAgentEnd()
   const agentEndCallbacks: (() => void)[] = [];
 
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
   });
+
+  function emitAgentEnd(reason?: string): void {
+    writeLogLine(target, options, 'agent_end', reason ? `reason: ${reason}` : undefined);
+    for (const cb of agentEndCallbacks) cb();
+  }
+
+  async function handlePartUpdated(props: {
+    part?: {
+      type?: string;
+      tool?: string;
+      text?: string;
+      sessionID?: string;
+      state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
+      callID?: string;
+    };
+    delta?: string;
+    state?: string;
+  }): Promise<void> {
+    const part = props?.part;
+    if (!part) return;
+
+    if (part.type === 'text') {
+      const chunk = props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
+      if (chunk) writeLogLine(target, options, 'text', chunk);
+    } else if (part.type === 'reasoning') {
+      const chunk = props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
+      if (chunk) writeLogLine(target, options, 'thinking', chunk);
+    } else if (part.type === 'tool' && part.tool) {
+      await handleToolPart(part, props, seenToolStates);
+    }
+  }
+
+  async function handleToolPart(
+    part: {
+      type?: string;
+      tool?: string;
+      state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
+      callID?: string;
+    },
+    props: { state?: string },
+    toolStates: Map<string, string>
+  ): Promise<void> {
+    const state =
+      typeof props?.state === 'string'
+        ? props.state
+        : typeof part.state?.status === 'string'
+          ? part.state.status
+          : 'started';
+
+    const payload = buildToolPayload(part, state);
+    const callID = part.callID ?? 'unknown';
+    const seenKey = `${callID}:${state}`;
+
+    if (!toolStates.has(seenKey)) {
+      toolStates.set(seenKey, payload);
+      writeLogLine(target, options, 'tool: ' + part.tool!, payload);
+    }
+    if (state === 'completed' || state === 'error') {
+      toolStates.delete(seenKey);
+    }
+  }
+
+  function buildToolPayload(
+    part: { state?: { input?: unknown; time?: { start?: number; end?: number } }; tool?: string },
+    state: string
+  ): string {
+    let payload = state;
+    if (part.state?.input) {
+      payload = appendInputToPayload(payload, part.state.input, part.tool);
+    }
+    if (
+      state === 'completed' &&
+      part.state?.time?.start !== undefined &&
+      part.state?.time?.end !== undefined
+    ) {
+      const duration = ((part.state.time.end - part.state.time.start) / 1000).toFixed(1);
+      payload = appendInputToPayload(`${state} (${duration}s)`, part.state.input, part.tool);
+    }
+    return payload;
+  }
+
+  function appendInputToPayload(base: string, input: unknown, tool?: string): string {
+    if (!input || (typeof input === 'object' && Object.keys(input as object).length === 0)) {
+      return base;
+    }
+    const inp = input as Record<string, unknown>;
+    if (tool === 'bash' && typeof inp.command === 'string') {
+      return `${base}: ${inp.command}`;
+    }
+    const inputStr = typeof inp === 'string' ? inp : JSON.stringify(inp);
+    return `${base}: ${inputStr}`;
+  }
+
+  async function handleFileEdited(props: {
+    file?: string;
+    action?: string;
+    kind?: string;
+  }): Promise<void> {
+    const kind = props?.action ?? props?.kind;
+    const filePayload = kind ? `${props?.file} (${kind})` : props?.file;
+    writeLogLine(target, options, 'file', filePayload);
+  }
+
+  async function handleSessionIdle(): Promise<void> {
+    writeLogLine(target, options, 'agent_end');
+    for (const cb of agentEndCallbacks) cb();
+  }
+
+  async function handleSessionCompacted(): Promise<void> {
+    writeLogLine(target, options, 'compacted');
+  }
+
+  async function handleSessionStatus(props: { status?: { type?: string } }): Promise<void> {
+    const currentStatus = props?.status?.type;
+    if (currentStatus !== lastStatus) {
+      lastStatus = currentStatus;
+      writeLogLine(target, options, 'status', currentStatus);
+    }
+  }
+
+  async function handleSessionError(props: {
+    error?: { name?: string; data?: { message?: string } };
+    tool?: string;
+    command?: string;
+  }): Promise<void> {
+    const err = props?.error;
+    const errMsg = err?.name
+      ? `${err.name}${err?.data?.message ? ': ' + err.data.message : ''}`
+      : String(err ?? 'unknown');
+    let payload = errMsg;
+    if (props?.tool) {
+      payload += ` [tool: ${props.tool}]`;
+    } else if (props?.command) {
+      payload += ` [command: ${props.command}]`;
+    }
+    writeLogLine(errorTarget, options, 'error', payload);
+    if (isTerminalProviderError(err)) {
+      emitAgentEnd('provider_rate_limit');
+    }
+  }
+
+  async function handleEvent(event: OpenCodeEvent): Promise<void> {
+    const eventSession = eventSessionId(event);
+    if (eventSession && eventSession !== options.sessionId) return;
+    const knownTypes = new Set([
+      'message.part.updated',
+      'session.idle',
+      'session.compacted',
+      'session.error',
+      'session.status',
+      'file.edited',
+    ]);
+    if (eventSession === undefined && !knownTypes.has(event.type)) return;
+
+    if (!sessionStarted) {
+      sessionStarted = true;
+      writeLogLine(target, options, 'session] Started', `role: ${options.role}`);
+    }
+
+    const props = event.properties;
+    switch (event.type) {
+      case 'message.part.updated':
+        await handlePartUpdated(
+          props as {
+            part?: {
+              type?: string;
+              tool?: string;
+              text?: string;
+              sessionID?: string;
+              state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
+              callID?: string;
+            };
+            delta?: string;
+            state?: string;
+          }
+        );
+        break;
+      case 'file.edited':
+        await handleFileEdited(props as { file?: string; action?: string; kind?: string });
+        break;
+      case 'session.idle':
+        await handleSessionIdle();
+        break;
+      case 'session.compacted':
+        await handleSessionCompacted();
+        break;
+      case 'session.status':
+        await handleSessionStatus(props as { status?: { type?: string } });
+        break;
+      case 'session.error':
+        await handleSessionError(
+          props as {
+            error?: { name?: string; data?: { message?: string } };
+            tool?: string;
+            command?: string;
+          }
+        );
+        break;
+      default:
+        break;
+    }
+  }
 
   async function run() {
     try {
@@ -151,173 +349,13 @@ export function startSessionEventForwarder(
           await stream.return?.(undefined);
           break;
         }
-
-        const eventSession = eventSessionId(event);
-        if (eventSession && eventSession !== options.sessionId) continue;
-        if (
-          eventSession === undefined &&
-          event.type !== 'message.part.updated' &&
-          event.type !== 'session.idle' &&
-          event.type !== 'session.compacted' &&
-          event.type !== 'session.error' &&
-          event.type !== 'session.status' &&
-          event.type !== 'file.edited'
-        )
-          continue;
-
-        if (!sessionStarted) {
-          sessionStarted = true;
-          writeLogLine(target, options, 'session] Started', `role: ${options.role}`);
-        }
-
-        switch (event.type) {
-          case 'message.part.updated': {
-            // OpenCode SDK: EventMessagePartUpdated is { part: Part; delta?: string }.
-            // TextPart / ReasoningPart use `text`; streaming deltas live on properties.delta
-            // (see @opencode-ai/sdk types). Do not read part.delta — it is not on Part.
-            const props = event.properties as
-              | {
-                  part?: {
-                    type?: string;
-                    tool?: string;
-                    text?: string;
-                    sessionID?: string;
-                    state?: {
-                      status?: string;
-                      input?: unknown;
-                      time?: { start?: number; end?: number };
-                    };
-                  };
-                  delta?: string;
-                  state?: string;
-                }
-              | undefined;
-            const part = props?.part;
-            if (part?.type === 'text') {
-              const chunk =
-                props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
-              if (chunk) {
-                writeLogLine(target, options, 'text', chunk);
-              }
-            } else if (part?.type === 'reasoning') {
-              const chunk =
-                props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
-              if (chunk) {
-                writeLogLine(target, options, 'thinking', chunk);
-              }
-            } else if (part?.type === 'tool' && part.tool) {
-              const state =
-                typeof props?.state === 'string'
-                  ? props.state
-                  : typeof part.state?.status === 'string'
-                    ? part.state.status
-                    : 'started';
-
-              function appendInput(base: string, input: unknown, tool: string): string {
-                if (
-                  !input ||
-                  (typeof input === 'object' && Object.keys(input as object).length === 0)
-                ) {
-                  return base;
-                }
-                const inp = input as Record<string, unknown>;
-                if (tool === 'bash' && typeof inp.command === 'string') {
-                  return `${base}: ${inp.command}`;
-                }
-                const inputStr = typeof inp === 'string' ? inp : JSON.stringify(inp);
-                return `${base}: ${inputStr}`;
-              }
-
-              let payload = state;
-              if (part.state?.input) {
-                payload = appendInput(payload, part.state.input, part.tool);
-              }
-
-              if (
-                state === 'completed' &&
-                part.state?.time?.start !== undefined &&
-                part.state?.time?.end !== undefined
-              ) {
-                const duration = ((part.state.time.end - part.state.time.start) / 1000).toFixed(1);
-                payload = appendInput(`${state} (${duration}s)`, part.state.input, part.tool);
-              }
-
-              const callID = (part as { callID?: string }).callID ?? 'unknown';
-              const seenKey = `${callID}:${state}`;
-              if (!seenToolStates.has(seenKey)) {
-                seenToolStates.set(seenKey, payload);
-                writeLogLine(target, options, 'tool: ' + part.tool, payload);
-              }
-              if (state === 'completed' || state === 'error') {
-                seenToolStates.delete(seenKey);
-              }
-            }
-            break;
-          }
-          case 'file.edited': {
-            const props = event.properties as
-              | { file?: string; action?: string; kind?: string }
-              | undefined;
-            const kind = props?.action ?? props?.kind;
-            const filePayload = kind ? `${props?.file} (${kind})` : props?.file;
-            writeLogLine(target, options, 'file', filePayload);
-            break;
-          }
-          case 'session.idle': {
-            writeLogLine(target, options, 'agent_end');
-            for (const cb of agentEndCallbacks) cb();
-            break;
-          }
-          case 'session.compacted': {
-            writeLogLine(target, options, 'compacted');
-            break;
-          }
-          case 'session.status': {
-            const props = event.properties as { status?: { type?: string } } | undefined;
-            const currentStatus = props?.status?.type;
-            if (currentStatus !== lastStatus) {
-              lastStatus = currentStatus;
-              writeLogLine(target, options, 'status', currentStatus);
-            }
-            break;
-          }
-          case 'session.error': {
-            const props = event.properties as
-              | {
-                  error?: { name?: string; data?: { message?: string } };
-                  tool?: string;
-                  command?: string;
-                }
-              | undefined;
-            const err = props?.error;
-            const errMsg = err?.name
-              ? `${err.name}${err?.data?.message ? ': ' + err.data.message : ''}`
-              : String(err ?? 'unknown');
-            let payload = errMsg;
-            if (props?.tool) {
-              payload += ` [tool: ${props.tool}]`;
-            } else if (props?.command) {
-              payload += ` [command: ${props.command}]`;
-            }
-            writeLogLine(errorTarget, options, 'error', payload);
-            // Usage-limit and rate-limit errors are terminal: OpenCode will not emit session.idle,
-            // so end the turn ourselves to avoid a hung agent.
-            if (isTerminalProviderError(err)) {
-              writeLogLine(target, options, 'agent_end', 'reason: provider_rate_limit');
-              for (const cb of agentEndCallbacks) cb();
-            }
-            break;
-          }
-          default:
-            break;
-        }
+        await handleEvent(event);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       writeLogLine(errorTarget, options, 'error', message);
       if (isTerminalProviderError(err)) {
-        writeLogLine(target, options, 'agent_end', 'reason: provider_rate_limit');
-        for (const cb of agentEndCallbacks) cb();
+        emitAgentEnd('provider_rate_limit');
       }
     } finally {
       doneResolve();
