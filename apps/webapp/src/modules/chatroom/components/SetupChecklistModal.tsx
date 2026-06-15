@@ -3,9 +3,8 @@
 import { X, Settings2, Check } from 'lucide-react';
 import React, { useCallback, memo, useEffect, useMemo, useRef, useState } from 'react';
 
-import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
-
 import { SetupChecklist } from './SetupChecklist';
+import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 
 interface Participant {
   role: string;
@@ -25,6 +24,8 @@ interface SetupChecklistModalProps {
   chatroomName: string;
   /** Callback to rename the chatroom */
   onRenameChatroom: (newName: string) => Promise<void>;
+  /** Called when the user pastes a path into an agent's working directory field. */
+  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 export const SetupChecklistModal = memo(function SetupChecklistModal({
@@ -38,21 +39,14 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   onViewPrompt,
   chatroomName,
   onRenameChatroom,
+  onWorkingDirPasted,
 }: SetupChecklistModalProps) {
   // Chatroom name editing state
   const [editedName, setEditedName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus + select the name input when modal opens
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isOpen]);
-
-  // Initialize editedName when modal opens or chatroomName changes
+  // Sync edited name when modal opens or chatroom is renamed externally.
   useEffect(() => {
     if (isOpen) {
       setEditedName(chatroomName);
@@ -204,6 +198,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
             participants={participants}
             onViewPrompt={onViewPrompt}
             hideHeader
+            onWorkingDirPasted={onWorkingDirPasted}
           />
         </div>
       </div>

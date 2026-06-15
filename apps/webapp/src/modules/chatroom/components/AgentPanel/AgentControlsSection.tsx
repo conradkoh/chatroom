@@ -21,6 +21,10 @@ export interface AgentControlsSectionProps {
   linkedMachineIds?: ReadonlySet<string>;
   /** Which tab to show initially. Defaults to 'remote'. */
   initialTab?: 'remote' | 'custom';
+  /** Focus the working directory input on mount (entry-point agent during setup). */
+  autoFocusWorkingDir?: boolean;
+  /** Called when the user pastes into the working directory field. */
+  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 /**
@@ -37,6 +41,8 @@ export const AgentControlsSection = memo(function AgentControlsSection({
   prompt,
   linkedMachineIds,
   initialTab = 'remote',
+  autoFocusWorkingDir = false,
+  onWorkingDirPasted,
 }: AgentControlsSectionProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(initialTab);
 
@@ -77,6 +83,8 @@ export const AgentControlsSection = memo(function AgentControlsSection({
             chatroomId={chatroomId}
             role={role}
             linkedMachineIds={linkedMachineIds}
+            autoFocusWorkingDir={autoFocusWorkingDir}
+            onWorkingDirPasted={onWorkingDirPasted}
           />
         ) : (
           <CustomTabContent role={role} prompt={prompt} />

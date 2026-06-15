@@ -1,9 +1,9 @@
 'use client';
 
-import { Rocket, Check } from 'lucide-react';
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { Rocket, Check } from 'lucide-react';
 import React, { useMemo, memo } from 'react';
 
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
@@ -29,6 +29,8 @@ interface SetupChecklistProps {
   onViewPrompt: (role: string) => void;
   /** Hide the header section (used when rendered inside a modal with its own header) */
   hideHeader?: boolean;
+  /** Called when the user pastes a path into an agent's working directory field. */
+  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 interface Prerequisites {
@@ -90,10 +92,11 @@ export const SetupChecklist = memo(function SetupChecklist({
   chatroomId,
   teamName: _teamName,
   teamRoles,
-  teamEntryPoint: _teamEntryPoint,
+  teamEntryPoint,
   participants,
   onViewPrompt,
   hideHeader = false,
+  onWorkingDirPasted,
 }: SetupChecklistProps) {
   // ── Panel data (machines, configs, send command) ───────────────────
   const {
@@ -191,6 +194,8 @@ export const SetupChecklist = memo(function SetupChecklist({
     '# Install a supported harness:\nnpm install -g opencode-ai   # opencode\nnpm install -g @plandex/pi   # pi';
 
   const allJoined = joinedCount === teamRoles.length && teamRoles.length > 0;
+
+  const entryPointRole = teamEntryPoint || teamRoles[0];
 
   // ── Loading guard ─────────────────────────────────────────────────
   // Show skeleton rows while machine data is loading to prevent the
@@ -330,6 +335,8 @@ export const SetupChecklist = memo(function SetupChecklist({
                     sendCommand={sendCommand}
                     agentRoleView={agentRoleView}
                     restartSummary={restartSummaryMap.get(role.toLowerCase())}
+                    autoFocusWorkingDir={role === entryPointRole}
+                    onWorkingDirPasted={onWorkingDirPasted}
                   />
                 );
               })}
