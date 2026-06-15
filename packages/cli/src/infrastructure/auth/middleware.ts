@@ -131,31 +131,38 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
 
   const sessionId = await checkLocalAuth();
   const convexUrl = getConvexUrl();
-  let consecutiveNetworkFailures = 0;
 
-  while (true) {
-    try {
-      const result = await validateSessionWithBackend(sessionId);
-      if (consecutiveNetworkFailures > 0) {
-        console.log(`✅ Backend reachable again at ${convexUrl}`);
-        consecutiveNetworkFailures = 0;
-      }
-      return { sessionId, userId: result.userId, userName: result.userName };
-    } catch (error) {
-      if (isNetworkError(error)) {
+  // Retry mode — keep long-running commands alive through transient outages
+  if (retryOnNetworkError) {
+    let consecutiveNetworkFailures = 0;
+    while (true) {
+      try {
+        const result = await validateSessionWithBackend(sessionId);
+        if (consecutiveNetworkFailures > 0) {
+          console.log(`✅ Backend reachable again at ${convexUrl}`);
+          consecutiveNetworkFailures = 0;
+        }
+        return { sessionId, userId: result.userId, userName: result.userName };
+      } catch (error) {
+        if (!isNetworkError(error)) {
+          failNonNetworkError(error);
+        }
         consecutiveNetworkFailures++;
-        handleNetworkError(
-          error,
-          convexUrl,
-          retryOnNetworkError,
-          consecutiveNetworkFailures,
-          retryIntervalMs
-        );
+        handleNetworkError(error, convexUrl, true, consecutiveNetworkFailures, retryIntervalMs);
         await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
-        continue;
       }
-      failNonNetworkError(error);
     }
+  }
+
+  // Fast-fail (default) — one attempt, exit on any error (no retry loop)
+  try {
+    const result = await validateSessionWithBackend(sessionId);
+    return { sessionId, userId: result.userId, userName: result.userName };
+  } catch (error) {
+    if (isNetworkError(error)) {
+      handleNetworkError(error, convexUrl, false, 1, retryIntervalMs);
+    }
+    failNonNetworkError(error);
   }
 }
 

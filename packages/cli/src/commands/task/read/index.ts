@@ -23,6 +23,7 @@ import {
   SessionService,
   SessionServiceLive,
 } from '../../../infrastructure/services/index.js';
+import type { SessionServiceShape } from '../../../infrastructure/services/session.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -79,17 +80,19 @@ function layerFromDeps(deps: TaskReadDeps): Layer.Layer<BackendService | Session
 
 // ─── Effect Programs ───────────────────────────────────────────────────────
 
-function getSessionId(session: SessionService): Effect.Effect<string, TaskReadError, never> {
+function getSessionIdFromService(
+  session: SessionServiceShape
+): Effect.Effect<string, TaskReadError, never> {
   return Effect.gen(function* () {
-    const sessionId = yield* session.getSessionId();
-    if (sessionId) return sessionId;
+    const maybeSessionId = yield* session.getSessionId();
+    if (maybeSessionId) return maybeSessionId;
     const convexUrl = yield* session.getConvexUrl();
     const otherUrls = yield* session.getOtherSessionUrls();
-    return yield* Effect.fail<TaskReadError>({
-      _tag: 'NotAuthenticated',
+    return yield* Effect.fail({
+      _tag: 'NotAuthenticated' as const,
       convexUrl,
       otherUrls,
-    });
+    } as TaskReadError);
   });
 }
 
@@ -126,7 +129,7 @@ export const taskReadEffect = (
     const backend = yield* BackendService;
     const { role, taskId } = options;
 
-    const sessionId = yield* getSessionId(session);
+    const sessionId = yield* getSessionIdFromService(session);
     yield* validateChatroomId(chatroomId);
     yield* validateTaskId(taskId);
 
