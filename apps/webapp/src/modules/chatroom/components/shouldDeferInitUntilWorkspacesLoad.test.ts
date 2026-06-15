@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { shouldDeferInitUntilWorkspacesLoad } from './AgentControls';
 import type { AgentConfig } from '../types/machine';
-import { shouldDeferInitUntilWorkspacesLoad } from './AgentConfigTabs';
 
 function mkConfig(machineId: string, workingDir: string): AgentConfig {
   return {

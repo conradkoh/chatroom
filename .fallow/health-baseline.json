@@ -244,7 +244,7 @@
         "count": 4
       }
     },
-    "apps/webapp/src/modules/chatroom/components/AgentConfigTabs.tsx": {
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx": {
       "complexity_critical": {
         "count": 2
       },
@@ -2427,7 +2427,7 @@
     "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-harness.ts:complexity",
     "services/backend/prompts/cli/index.ts:dead code",
     "packages/cli/src/commands/auth-login/index.ts:dead code",
-    "apps/webapp/src/modules/chatroom/components/AgentConfigTabs.tsx:dead code",
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts:high impact",
     "services/backend/prompts/teams/solo/prompts/fromContext.ts:dead code",
     "services/backend/src/domain/entities/agent.ts:dead code",

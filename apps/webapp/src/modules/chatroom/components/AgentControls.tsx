@@ -19,10 +19,10 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import { SessionResumeBadge } from './SessionResumeBadge';
 import { useMachineModels } from '../../../hooks/useMachineModels';
+import { useSetupNaming } from '../context/SetupNamingContext';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
-import { isModelHidden, selectModel } from '../utils/modelSelection';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -36,17 +36,11 @@ import {
   getMachineDisplayName,
   harnessSupportsSessionResume,
 } from '../types/machine';
-import { SessionResumeBadge } from './SessionResumeBadge';
 import type { Workspace } from '../types/workspace';
+import { isModelHidden, selectModel } from '../utils/modelSelection';
+import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,13 +51,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export interface AgentConfigTabsProps {
+export interface AgentControlsProps {
   role: string;
   prompt: string;
   chatroomId: string;
@@ -224,7 +225,7 @@ export function useAgentControls({
   chatroomId: string;
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
-  sendCommand: AgentConfigTabsProps['sendCommand'];
+  sendCommand: AgentControlsProps['sendCommand'];
   /** Model from team config — used as fallback when machine config has no model */
   teamConfigModel?: string;
   /** Harness from team config — used as a seeding hint for initialization when
@@ -695,19 +696,21 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleCancelRehomeStart,
   } = controls;
 
+  const { onWorkingDirPasted, entryPointRole } = useSetupNaming();
+  const autoFocusWorkingDir = entryPointRole !== undefined && role === entryPointRole;
+
   // When an agent is running, display values come exclusively from runningAgentConfig.
   // Internal form state is preserved so it's ready again when the agent stops.
-  const displayMachineId = isAgentRunning ? runningAgentConfig!.machineId : selectedMachineId;
-  const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
-  const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
-  const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
+  const runningConfig = isAgentRunning ? runningAgentConfig : undefined;
+  const displayMachineId = runningConfig?.machineId ?? selectedMachineId;
+  const displayHarness = runningConfig?.agentType ?? selectedHarness;
+  const displayModel = runningConfig?.model ?? selectedModel;
+  const displayWorkingDir = runningConfig?.workingDir ?? workingDir;
   // When running, show the actual resume preference the agent was started with
   // (from the backend config). Falls back to local form state for older configs
   // that predate the persisted field, or while not running.
   const displayResumeSession =
-    isAgentRunning && runningAgentConfig!.wantResume !== undefined
-      ? runningAgentConfig!.wantResume
-      : resumeSession;
+    runningConfig?.wantResume !== undefined ? runningConfig.wantResume : resumeSession;
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -966,14 +969,21 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             </div>
           </div>
 
-          {/* Row 2: Working Directory */}
+          {/* Row 2: Working Directory.
+              During setup, pasting a path here auto-names the chatroom (see onWorkingDirPasted). */}
           <div className="flex items-center gap-1">
             <input
               type="text"
               value={displayWorkingDir}
               onChange={(e) => handleWorkingDirChange(e.target.value)}
+              onPaste={
+                onWorkingDirPasted
+                  ? (e) => onWorkingDirPasted(e.clipboardData.getData('text'))
+                  : undefined
+              }
               placeholder="/path/to/project"
               disabled={isBusy || isAgentRunning}
+              autoFocus={autoFocusWorkingDir}
               className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
               title="Working directory for agent (absolute path on remote machine)"
               onClick={(e) => e.stopPropagation()}

@@ -1,13 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-
+import { RemoteTabContent, useAgentControls } from './AgentControls';
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
-
-import { RemoteTabContent, useAgentControls } from './AgentConfigTabs';
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
@@ -104,7 +102,7 @@ function Harness({
   );
 }
 
-describe('AgentConfigTabs resume toggle persistence', () => {
+describe('AgentControls resume toggle persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

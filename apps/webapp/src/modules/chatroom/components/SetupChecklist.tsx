@@ -1,13 +1,14 @@
 'use client';
 
-import { Rocket, Check } from 'lucide-react';
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { Rocket, Check } from 'lucide-react';
 import React, { useMemo, memo } from 'react';
 
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import { CopyButton } from './CopyButton';
+import { SetupNamingProvider } from '../context/SetupNamingContext';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
@@ -29,6 +30,8 @@ interface SetupChecklistProps {
   onViewPrompt: (role: string) => void;
   /** Hide the header section (used when rendered inside a modal with its own header) */
   hideHeader?: boolean;
+  /** Called when the user pastes a path into an agent's working directory field. */
+  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 interface Prerequisites {
@@ -90,10 +93,11 @@ export const SetupChecklist = memo(function SetupChecklist({
   chatroomId,
   teamName: _teamName,
   teamRoles,
-  teamEntryPoint: _teamEntryPoint,
+  teamEntryPoint,
   participants,
   onViewPrompt,
   hideHeader = false,
+  onWorkingDirPasted,
 }: SetupChecklistProps) {
   // ── Panel data (machines, configs, send command) ───────────────────
   const {
@@ -191,6 +195,8 @@ export const SetupChecklist = memo(function SetupChecklist({
     '# Install a supported harness:\nnpm install -g opencode-ai   # opencode\nnpm install -g @plandex/pi   # pi';
 
   const allJoined = joinedCount === teamRoles.length && teamRoles.length > 0;
+
+  const entryPointRole = teamEntryPoint || teamRoles[0];
 
   // ── Loading guard ─────────────────────────────────────────────────
   // Show skeleton rows while machine data is loading to prevent the
@@ -309,31 +315,36 @@ export const SetupChecklist = memo(function SetupChecklist({
               Agents
             </h3>
             {/* InlineAgentCard uses border-b / last:border-b-0 internally; wrap in a container border */}
-            <div className="border border-chatroom-border">
-              {teamRoles.map((role) => {
-                const agentStatus = agentStatusMap.get(role.toLowerCase());
-                const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
-                return (
-                  <InlineAgentCard
-                    key={role}
-                    role={role}
-                    allRoles={teamRoles}
-                    online={agentStatus?.online ?? false}
-                    lastSeenAt={agentStatus?.lastSeenAt ?? null}
-                    latestEventType={agentStatus?.latestEventType ?? null}
-                    statusVariant={agentStatus?.statusVariant}
-                    prompt=""
-                    chatroomId={chatroomId}
-                    connectedMachines={connectedMachines}
-                    isLoadingMachines={isLoading}
-                    agentConfigs={machineConfigs}
-                    sendCommand={sendCommand}
-                    agentRoleView={agentRoleView}
-                    restartSummary={restartSummaryMap.get(role.toLowerCase())}
-                  />
-                );
-              })}
-            </div>
+            <SetupNamingProvider
+              onWorkingDirPasted={onWorkingDirPasted}
+              entryPointRole={entryPointRole}
+            >
+              <div className="border border-chatroom-border">
+                {teamRoles.map((role) => {
+                  const agentStatus = agentStatusMap.get(role.toLowerCase());
+                  const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
+                  return (
+                    <InlineAgentCard
+                      key={role}
+                      role={role}
+                      allRoles={teamRoles}
+                      online={agentStatus?.online ?? false}
+                      lastSeenAt={agentStatus?.lastSeenAt ?? null}
+                      latestEventType={agentStatus?.latestEventType ?? null}
+                      statusVariant={agentStatus?.statusVariant}
+                      prompt=""
+                      chatroomId={chatroomId}
+                      connectedMachines={connectedMachines}
+                      isLoadingMachines={isLoading}
+                      agentConfigs={machineConfigs}
+                      sendCommand={sendCommand}
+                      agentRoleView={agentRoleView}
+                      restartSummary={restartSummaryMap.get(role.toLowerCase())}
+                    />
+                  );
+                })}
+              </div>
+            </SetupNamingProvider>
           </div>
 
           {/* Or run manually section */}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { deriveInitialResumeSession } from './AgentControls';
 import type { AgentConfig } from '../types/machine';
-import { deriveInitialResumeSession } from './AgentConfigTabs';
 
 function mkConfig(machineId: string, wantResume: boolean | undefined, updatedAt = 1): AgentConfig {
   return {
