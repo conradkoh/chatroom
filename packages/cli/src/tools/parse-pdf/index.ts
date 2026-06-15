@@ -98,6 +98,39 @@ function createDefaultDeps(): ParsePdfDeps {
  * @param deps       - Optional dependencies for testing
  * @returns ToolResult with the output file path on success
  */
+async function resolvePdfInput(
+  input: string,
+  workingDir: string,
+  d: ParsePdfDeps
+): Promise<{ pdfInput: string | Buffer } | { error: string }> {
+  if (!isUrl(input)) {
+    const absolutePath = resolve(workingDir, input);
+    try {
+      await d.fs.access(absolutePath);
+    } catch {
+      return { error: `PDF file not found: ${absolutePath}` };
+    }
+    return { pdfInput: absolutePath };
+  }
+
+  try {
+    const pdfInput = await d.http.download(input);
+    return { pdfInput };
+  } catch (err) {
+    const message =
+      err instanceof Error && err.name === 'TimeoutError'
+        ? `Download timed out after ${FETCH_TIMEOUT_MS / 1000}s`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    return { error: `Failed to download PDF: ${message}` };
+  }
+}
+
+function formatErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export async function parsePdf(
   input: string,
   workingDir: string,
@@ -105,74 +138,35 @@ export async function parsePdf(
 ): Promise<ToolResult> {
   const d = deps ?? createDefaultDeps();
 
-  // ── Prepare output directory ──────────────────────────────────────────
-  // ParsePdfFsOps extends OutputFsOps, so d.fs satisfies OutputDeps.fs directly.
   try {
     await ensureChatroomDir({ fs: d.fs }, workingDir);
     await ensureGitignore({ fs: d.fs }, workingDir);
   } catch (err) {
     return {
       success: false,
-      message: `Failed to prepare output directory: ${err instanceof Error ? err.message : String(err)}`,
+      message: `Failed to prepare output directory: ${formatErrorMessage(err)}`,
     };
   }
 
-  // ── Resolve input ─────────────────────────────────────────────────────
-  let pdfInput: string | Buffer;
-
-  if (isUrl(input)) {
-    // Download from URL
-    try {
-      pdfInput = await d.http.download(input);
-    } catch (err) {
-      // Provide clear message for timeout errors
-      const message =
-        err instanceof Error && err.name === 'TimeoutError'
-          ? `Download timed out after ${FETCH_TIMEOUT_MS / 1000}s`
-          : err instanceof Error
-            ? err.message
-            : String(err);
-      return {
-        success: false,
-        message: `Failed to download PDF: ${message}`,
-      };
-    }
-  } else {
-    // Local file path
-    const absolutePath = resolve(workingDir, input);
-    try {
-      await d.fs.access(absolutePath);
-    } catch {
-      return {
-        success: false,
-        message: `PDF file not found: ${absolutePath}`,
-      };
-    }
-    pdfInput = absolutePath;
+  const resolved = await resolvePdfInput(input, workingDir, d);
+  if ('error' in resolved) {
+    return { success: false, message: resolved.error };
   }
 
-  // ── Parse PDF ─────────────────────────────────────────────────────────
   let text: string;
   try {
-    const result = await d.parser.parse(pdfInput);
+    const result = await d.parser.parse(resolved.pdfInput);
     text = result.text;
   } catch (err) {
-    return {
-      success: false,
-      message: `Failed to parse PDF: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return { success: false, message: `Failed to parse PDF: ${formatErrorMessage(err)}` };
   }
 
-  // ── Write output ──────────────────────────────────────────────────────
   const outputPath = generateOutputPath(workingDir, 'parse-pdf', 'txt');
 
   try {
     await d.fs.writeFile(outputPath, text, 'utf8');
   } catch (err) {
-    return {
-      success: false,
-      message: `Failed to write output file: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return { success: false, message: `Failed to write output file: ${formatErrorMessage(err)}` };
   }
 
   return {

@@ -22,16 +22,25 @@
 
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+
 import { createOpencodeClient } from '@opencode-ai/sdk';
-import type { OpencodeClient, Event as SdkEvent } from '@opencode-ai/sdk';
+import type { OpencodeClient, Event as SdkEvent, GlobalEvent } from '@opencode-ai/sdk';
 import { Effect, Fiber } from 'effect';
 
-import type { BoundHarness, ModelInfo, NewSessionConfig, ResumeHarnessSessionOptions, BoundHarnessFactory } from '../../../domain/direct-harness/entities/bound-harness.js';
-import type { PublishedAgent, PublishedProvider } from '../../../domain/direct-harness/entities/machine-capabilities.js';
+import { OpencodeSdkSession } from './opencode-session.js';
+import type {
+  BoundHarness,
+  ModelInfo,
+  NewSessionConfig,
+  ResumeHarnessSessionOptions,
+  BoundHarnessFactory,
+} from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
-import type { GlobalEvent } from '@opencode-ai/sdk';
-import { OpencodeSdkSession } from './opencode-session.js';
+import type {
+  PublishedAgent,
+  PublishedProvider,
+} from '../../../domain/direct-harness/entities/machine-capabilities.js';
 import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -272,96 +281,115 @@ export class OpencodeSdkHarness implements BoundHarness {
    * On stream end or error, reconnects immediately (no backoff) to minimize
    * the window where events could be missed during reconnection.
    */
+  /**
+   * Drain a single SSE subscription stream, dispatching events to sessions.
+   * Returns when the stream ends, errors, or the harness is closed/interrupted.
+   */
+  private async drainEventStream(
+    stream: AsyncIterable<unknown>,
+    interrupted: () => boolean
+  ): Promise<void> {
+    const iterator = stream[Symbol.asyncIterator]();
+    try {
+      while (!interrupted() && !this.closed) {
+        let next: IteratorResult<unknown>;
+        try {
+          next = await iterator.next();
+        } catch {
+          break;
+        }
+        if (next.done) break;
+
+        const globalEvent = next.value as GlobalEvent;
+        const raw = globalEvent.payload as SdkEvent;
+        try {
+          this._routeEvent(raw);
+        } catch (e) {
+          console.warn('[opencode-harness] Error routing event:', e);
+        }
+      }
+    } finally {
+      void iterator.return?.();
+    }
+  }
+
+  private async subscribeAndRetry(
+    abortSignal: AbortSignal,
+    interrupted: () => boolean
+  ): Promise<{ result: unknown } | null> {
+    this._subscribeCallCount++;
+    try {
+      const result = await this.client.global.event({ signal: abortSignal } as never);
+      return { result };
+    } catch {
+      if (!interrupted() && !this.closed) {
+        console.warn('[opencode-harness] SSE subscribe error');
+        return null;
+      }
+      return null;
+    }
+  }
+
   private buildSseProgram(): Effect.Effect<void, never, never> {
     const self = this;
 
     return Effect.async<void, never>((resume) => {
-      let interrupted = false;
-      let abortController: AbortController | null = null;
-
-      const runLoop = async (): Promise<void> => {
-        while (!interrupted && !self.closed) {
-          // Subscribe to the global event stream (/global/event) which stays alive
-          // in serve mode and delivers events for all directories with a wrapping
-          // { directory, payload } envelope.
-          self._subscribeCallCount++;
-          let result: Awaited<ReturnType<typeof self.client.global.event>> | null = null;
-          abortController = new AbortController();
-          try {
-            result = await self.client.global.event({ signal: abortController.signal } as never);
-          } catch (e) {
-            if (interrupted || self.closed) break;
-            console.warn('[opencode-harness] SSE subscribe error:', e);
-            // Brief pause before retry on subscribe error
-            await new Promise<void>((r) => setTimeout(r, 500));
-            continue;
-          } finally {
-            abortController = null;
-          }
-
-          if (interrupted || self.closed) break;
-
-          // Guard: subscribe returned null/undefined (shouldn't happen in production,
-          // but guards against cleared mocks in tests or unexpected SDK behavior).
-          if (!result || !(result as { stream?: unknown }).stream) {
-            await new Promise<void>((r) => setTimeout(r, 100));
-            continue;
-          }
-
-          // Drain the global event stream using manual iterator.next() calls
-          // (avoids for-await cleanup semantics that can close the iterator early)
-          const iterator = (result.stream as AsyncIterable<unknown>)[Symbol.asyncIterator]();
-          try {
-            while (!interrupted && !self.closed) {
-              let next: IteratorResult<unknown>;
-              try {
-                next = await iterator.next();
-              } catch {
-                break; // stream error — reconnect
-              }
-              if (next.done) break; // stream ended — reconnect
-
-              const globalEvent = next.value as GlobalEvent;
-              const raw = globalEvent.payload as SdkEvent;
-              try {
-                const sid = harnessEventSessionId(raw);
-                if (sid) {
-                  const session = self.sessionListeners.get(sid);
-                  if (session) {
-                    session._receiveEvent(raw);
-                  } else {
-                    console.warn(`[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener`);
-                  }
-                } else if (raw?.type !== 'server.connected') {
-                  // Silently ignore events without a sessionID (e.g. sync, project.updated)
-                }
-              } catch (e) {
-                // Never let event routing crash the loop
-                console.warn('[opencode-harness] Error routing event:', e);
-              }
-            }
-          } finally {
-            // Always release the iterator when we exit the inner loop
-            void iterator.return?.();
-          }
-          // Stream ended or errored — short pause before reconnect
-          // (avoids tight CPU loop if server closes immediately after connect)
-          if (!interrupted && !self.closed) {
-            await new Promise<void>((r) => setTimeout(r, 100));
-          }
-        }
-        // Outer loop exited cleanly — signal the fiber is done
-        resume(Effect.succeed(undefined));
-      };
-
-      void runLoop();
-
-      // Interruption handler: signal the loop to stop and abort any in-flight subscribe
+      const state = { interrupted: false, abortController: null as AbortController | null };
+      void self._sseRunLoop(state, resume);
       return Effect.sync(() => {
-        interrupted = true;
-        abortController?.abort();
+        state.interrupted = true;
+        state.abortController?.abort();
       });
     });
+  }
+
+  private async _sseRunLoop(
+    state: { interrupted: boolean; abortController: AbortController | null },
+    resume: (eff: Effect.Effect<void, never, never>) => void
+  ): Promise<void> {
+    while (this._sseShouldContinue(state)) {
+      const stream = await this._sseSubscribeUntilStream(state);
+      if (stream) {
+        await this.drainEventStream(stream, () => state.interrupted);
+      }
+      await this._sseSleepIfActive(100, state);
+    }
+    resume(Effect.succeed(undefined));
+  }
+
+  private _sseShouldContinue(state: { interrupted: boolean }): boolean {
+    return !state.interrupted && !this.closed;
+  }
+
+  private async _sseSleepIfActive(ms: number, state: { interrupted: boolean }): Promise<void> {
+    if (!state.interrupted && !this.closed) {
+      await new Promise<void>((r) => setTimeout(r, ms));
+    }
+  }
+
+  private async _sseSubscribeUntilStream(state: {
+    interrupted: boolean;
+    abortController: AbortController | null;
+  }): Promise<AsyncIterable<unknown> | null> {
+    state.abortController = new AbortController();
+    const subscribed = await this.subscribeAndRetry(
+      state.abortController.signal,
+      () => state.interrupted
+    );
+    state.abortController = null;
+
+    if (!subscribed) {
+      await this._sseSleepIfActive(500, state);
+      return null;
+    }
+
+    const result = subscribed.result as { stream?: AsyncIterable<unknown> } | null | undefined;
+    if (!result?.stream) {
+      await this._sseSleepIfActive(100, state);
+      return null;
+    }
+
+    return result.stream;
   }
 
   /** Fetch the current title of a session directly from the OpenCode API. */
@@ -405,6 +433,22 @@ export class OpencodeSdkHarness implements BoundHarness {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  private _routeEvent(raw: SdkEvent): void {
+    const sid = harnessEventSessionId(raw);
+    if (sid) {
+      const session = this.sessionListeners.get(sid);
+      if (session) {
+        session._receiveEvent(raw);
+      } else {
+        console.warn(
+          `[opencode-harness] Event type="${raw.type}" has sessionID="${sid}" but NO matching listener`
+        );
+      }
+    } else if (raw?.type !== 'server.connected') {
+      // Silently ignore events without a sessionID (e.g. sync, project.updated)
+    }
+  }
 
   /** Return the base URL of the running opencode server. */
   private getBaseUrl(): string {

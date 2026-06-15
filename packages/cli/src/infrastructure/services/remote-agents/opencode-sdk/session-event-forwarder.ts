@@ -64,23 +64,41 @@ function writeLogLine(
  * error name/type and message can arrive under different keys across SDK versions.
  */
 function isTerminalProviderError(error: unknown): boolean {
+  if (typeof error === 'string') {
+    return matchesTerminalProviderErrorText(error);
+  }
   if (!error || typeof error !== 'object') {
-    if (typeof error === 'string') {
-      return matchesTerminalProviderErrorText(error);
-    }
     return false;
   }
-  const e = error as {
-    name?: unknown;
-    type?: unknown;
-    message?: unknown;
-    data?: { message?: unknown };
-    responseBody?: unknown;
-  };
-  const name = String(e.name ?? e.type ?? '').toLowerCase();
-  const message = String(e.data?.message ?? e.message ?? e.responseBody ?? '').toLowerCase();
-  const blob = `${name}\n${message}`;
-  return matchesTerminalProviderErrorText(blob);
+  return matchesTerminalProviderErrorText(normalizeError(error));
+}
+
+function normalizeError(error: unknown): string {
+  const e = error as Record<string, unknown>;
+  const name = extractName(e);
+  const message = extractMessage(e);
+  return `${name}\n${message}`;
+}
+
+function extractName(e: Record<string, unknown>): string {
+  const name = e.name;
+  if (typeof name === 'string') return name.toLowerCase();
+  const type = e.type;
+  if (typeof type === 'string') return type.toLowerCase();
+  return '';
+}
+
+function extractMessage(e: Record<string, unknown>): string {
+  const data = e.data;
+  if (data && typeof data === 'object') {
+    const msg = (data as Record<string, unknown>).message;
+    if (typeof msg === 'string') return msg.toLowerCase();
+  }
+  const message = e.message;
+  if (typeof message === 'string') return message.toLowerCase();
+  const body = e.responseBody;
+  if (typeof body === 'string') return body.toLowerCase();
+  return '';
 }
 
 function matchesTerminalProviderErrorText(blob: string): boolean {
@@ -101,16 +119,40 @@ function matchesTerminalProviderErrorText(blob: string): boolean {
 function eventSessionId(event: OpenCodeEvent): string | undefined {
   const p = event.properties;
   if (!p || typeof p !== 'object') return undefined;
+
+  const direct = sessionIdFromDirect(p);
+  if (direct !== undefined) return direct;
+
+  const fromPart = sessionIdFromPart(p);
+  if (fromPart !== undefined) return fromPart;
+
+  return sessionIdFromInfoBlock(p);
+}
+
+function sessionIdFromDirect(p: Record<string, unknown>): string | undefined {
   if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
+  return undefined;
+}
+
+function sessionIdFromPart(p: Record<string, unknown>): string | undefined {
   if ('part' in p && p.part && typeof p.part === 'object') {
     return (p.part as { sessionID?: string }).sessionID;
   }
+  return undefined;
+}
+
+function sessionIdFromInfoBlock(p: Record<string, unknown>): string | undefined {
   if ('info' in p && p.info && typeof p.info === 'object') {
-    // session.created / session.updated / session.deleted carry a Session object
-    // in properties.info. The Session type uses `id` as its identifier, not `sessionID`.
-    const info = p.info as { id?: string; sessionID?: string };
-    return info.id ?? info.sessionID;
+    return sessionIdFromInfo(p.info as Record<string, unknown>);
   }
+  return undefined;
+}
+
+function sessionIdFromInfo(info: Record<string, unknown>): string | undefined {
+  const id = info.id;
+  if (typeof id === 'string') return id;
+  const sid = info.sessionID;
+  if (typeof sid === 'string') return sid;
   return undefined;
 }
 
@@ -137,6 +179,13 @@ export function startSessionEventForwarder(
     for (const cb of agentEndCallbacks) cb();
   }
 
+  function resolvePartContent(
+    delta: string | undefined,
+    text: string | undefined
+  ): string | undefined {
+    return delta !== undefined && delta !== '' ? delta : text;
+  }
+
   async function handlePartUpdated(props: {
     part?: {
       type?: string;
@@ -153,14 +202,26 @@ export function startSessionEventForwarder(
     if (!part) return;
 
     if (part.type === 'text') {
-      const chunk = props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
-      if (chunk) writeLogLine(target, options, 'text', chunk);
-    } else if (part.type === 'reasoning') {
-      const chunk = props?.delta !== undefined && props.delta !== '' ? props.delta : part.text;
-      if (chunk) writeLogLine(target, options, 'thinking', chunk);
-    } else if (part.type === 'tool' && part.tool) {
+      writeTextContent(props, part);
+      return;
+    }
+    if (part.type === 'reasoning') {
+      writeThinkingContent(props, part);
+      return;
+    }
+    if (part.type === 'tool' && part.tool) {
       await handleToolPart(part, props, seenToolStates);
     }
+  }
+
+  function writeTextContent(props: { delta?: string }, part: { text?: string }): void {
+    const chunk = resolvePartContent(props?.delta, part.text);
+    if (chunk) writeLogLine(target, options, 'text', chunk);
+  }
+
+  function writeThinkingContent(props: { delta?: string }, part: { text?: string }): void {
+    const chunk = resolvePartContent(props?.delta, part.text);
+    if (chunk) writeLogLine(target, options, 'thinking', chunk);
   }
 
   async function handleToolPart(
@@ -186,7 +247,7 @@ export function startSessionEventForwarder(
 
     if (!toolStates.has(seenKey)) {
       toolStates.set(seenKey, payload);
-      writeLogLine(target, options, 'tool: ' + part.tool!, payload);
+      writeLogLine(target, options, 'tool: ' + (part.tool as string), payload);
     }
     if (state === 'completed' || state === 'error') {
       toolStates.delete(seenKey);
@@ -257,81 +318,61 @@ export function startSessionEventForwarder(
     command?: string;
   }): Promise<void> {
     const err = props?.error;
-    const errMsg = err?.name
-      ? `${err.name}${err?.data?.message ? ': ' + err.data.message : ''}`
-      : String(err ?? 'unknown');
-    let payload = errMsg;
-    if (props?.tool) {
-      payload += ` [tool: ${props.tool}]`;
-    } else if (props?.command) {
-      payload += ` [command: ${props.command}]`;
-    }
+    const errMsg = formatErrorName(err);
+    const context = formatErrorContext(props);
+    const payload = context ? `${errMsg} ${context}` : errMsg;
     writeLogLine(errorTarget, options, 'error', payload);
     if (isTerminalProviderError(err)) {
       emitAgentEnd('provider_rate_limit');
     }
   }
 
+  function formatErrorName(
+    err: { name?: string; data?: { message?: string } } | undefined
+  ): string {
+    if (!err?.name) return String(err ?? 'unknown');
+    const detail = err?.data?.message;
+    return detail ? `${err.name}: ${detail}` : err.name;
+  }
+
+  function formatErrorContext(props: { tool?: string; command?: string }): string | undefined {
+    if (props?.tool) return `[tool: ${props.tool}]`;
+    if (props?.command) return `[command: ${props.command}]`;
+    return undefined;
+  }
+
+  const eventHandlers: Record<string, (props: Record<string, unknown>) => Promise<void>> = {
+    'message.part.updated': (props) =>
+      handlePartUpdated(props as Parameters<typeof handlePartUpdated>[0]),
+    'file.edited': (props) => handleFileEdited(props as Parameters<typeof handleFileEdited>[0]),
+    'session.idle': () => handleSessionIdle(),
+    'session.compacted': () => handleSessionCompacted(),
+    'session.status': (props) =>
+      handleSessionStatus(props as Parameters<typeof handleSessionStatus>[0]),
+    'session.error': (props) =>
+      handleSessionError(props as Parameters<typeof handleSessionError>[0]),
+  };
+
+  const knownEventTypes = new Set(Object.keys(eventHandlers));
+
   async function handleEvent(event: OpenCodeEvent): Promise<void> {
     const eventSession = eventSessionId(event);
-    if (eventSession && eventSession !== options.sessionId) return;
-    const knownTypes = new Set([
-      'message.part.updated',
-      'session.idle',
-      'session.compacted',
-      'session.error',
-      'session.status',
-      'file.edited',
-    ]);
-    if (eventSession === undefined && !knownTypes.has(event.type)) return;
+    if (!shouldProcessEvent(event, eventSession)) return;
 
     if (!sessionStarted) {
       sessionStarted = true;
       writeLogLine(target, options, 'session] Started', `role: ${options.role}`);
     }
 
-    const props = event.properties;
-    switch (event.type) {
-      case 'message.part.updated':
-        await handlePartUpdated(
-          props as {
-            part?: {
-              type?: string;
-              tool?: string;
-              text?: string;
-              sessionID?: string;
-              state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
-              callID?: string;
-            };
-            delta?: string;
-            state?: string;
-          }
-        );
-        break;
-      case 'file.edited':
-        await handleFileEdited(props as { file?: string; action?: string; kind?: string });
-        break;
-      case 'session.idle':
-        await handleSessionIdle();
-        break;
-      case 'session.compacted':
-        await handleSessionCompacted();
-        break;
-      case 'session.status':
-        await handleSessionStatus(props as { status?: { type?: string } });
-        break;
-      case 'session.error':
-        await handleSessionError(
-          props as {
-            error?: { name?: string; data?: { message?: string } };
-            tool?: string;
-            command?: string;
-          }
-        );
-        break;
-      default:
-        break;
+    const handler = eventHandlers[event.type];
+    if (handler) {
+      await handler(event.properties ?? {});
     }
+  }
+
+  function shouldProcessEvent(event: OpenCodeEvent, eventSession: string | undefined): boolean {
+    if (eventSession) return eventSession === options.sessionId;
+    return knownEventTypes.has(event.type);
   }
 
   async function run() {

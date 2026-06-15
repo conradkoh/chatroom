@@ -78,6 +78,101 @@ export function decode(input: string, options: DecodeOptions = {}): DecodeResult
 }
 
 /**
+ * Validate required parameters exist in the result.
+ */
+function validateRequiredParams(result: DecodeResult, requiredParams: string[] | undefined): void {
+  if (!requiredParams) return;
+  for (const required of requiredParams) {
+    if (!(required in result)) {
+      throw createDecodeError(
+        'MISSING_PARAM',
+        `Required parameter '${required}' is missing`,
+        undefined,
+        required
+      );
+    }
+  }
+}
+
+/**
+ * Check for empty parameters in the result.
+ */
+function validateNonEmptyParams(result: DecodeResult): void {
+  for (const [param, content] of Object.entries(result)) {
+    if (content.length === 0) {
+      throw createDecodeError(
+        'INVALID_FORMAT',
+        `Parameter '${param}' is empty. Each parameter must have content.`,
+        undefined,
+        param
+      );
+    }
+  }
+}
+
+function handleDelimiter(
+  line: string,
+  i: number,
+  expectedParams: string[] | undefined,
+  seenParams: Set<string>,
+  currentParam: string | null,
+  currentContent: string[],
+  result: DecodeResult
+): { currentParam: string | null; currentContent: string[] } | null {
+  const delimiterPattern = /^---([A-Z_]+)---$/;
+  const match = line.match(delimiterPattern);
+  if (!match) return null;
+
+  const paramName = match[1];
+
+  if (currentParam !== null) {
+    const content = currentContent.join('\n').trim();
+    result[currentParam] = content;
+  }
+
+  if (expectedParams && !expectedParams.includes(paramName)) {
+    throw createDecodeError(
+      'UNKNOWN_PARAM',
+      `Unknown parameter '${paramName}'. Expected one of: ${expectedParams.join(', ')}`,
+      i + 1,
+      paramName
+    );
+  }
+
+  if (seenParams.has(paramName)) {
+    throw createDecodeError(
+      'DUPLICATE_PARAM',
+      `Duplicate parameter '${paramName}' found at line ${i + 1}`,
+      i + 1,
+      paramName
+    );
+  }
+
+  seenParams.add(paramName);
+  return { currentParam: paramName, currentContent: [] };
+}
+
+function handleContentLine(
+  line: string,
+  i: number,
+  currentParam: string | null,
+  currentContent: string[]
+): string[] | null {
+  if (currentParam === null) {
+    if (line.trim().length > 0) {
+      throw createDecodeError(
+        'INVALID_FORMAT',
+        `Content found before first parameter delimiter at line ${i + 1}. Expected format: ---PARAM_NAME---`,
+        i + 1
+      );
+    }
+    return null; // skip empty lines before first delimiter
+  }
+  currentContent.push(line);
+  return currentContent;
+}
+
+/**
  * Decode multi-parameter structured input.
  * Internal function for multi-parameter mode.
  */
@@ -90,98 +185,39 @@ function decodeMultiParam(
   const result: DecodeResult = {};
   const seenParams = new Set<string>();
 
-  // Delimiter pattern: ---PARAM_NAME--- on its own line
-  const delimiterPattern = /^---([A-Z_]+)---$/;
-
   let currentParam: string | null = null;
   let currentContent: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const match = line.match(delimiterPattern);
+    const delim = handleDelimiter(
+      line,
+      i,
+      expectedParams,
+      seenParams,
+      currentParam,
+      currentContent,
+      result
+    );
+    if (delim !== null) {
+      currentParam = delim.currentParam;
+      currentContent = delim.currentContent;
+      continue;
+    }
 
-    if (match) {
-      // Found a delimiter
-      const paramName = match[1];
-
-      // Save previous parameter content if any
-      if (currentParam !== null) {
-        const content = currentContent.join('\n').trim();
-        result[currentParam] = content;
-      }
-
-      // Validate parameter name
-      if (expectedParams && !expectedParams.includes(paramName)) {
-        throw createDecodeError(
-          'UNKNOWN_PARAM',
-          `Unknown parameter '${paramName}'. Expected one of: ${expectedParams.join(', ')}`,
-          i + 1,
-          paramName
-        );
-      }
-
-      // Check for duplicates
-      if (seenParams.has(paramName)) {
-        throw createDecodeError(
-          'DUPLICATE_PARAM',
-          `Duplicate parameter '${paramName}' found at line ${i + 1}`,
-          i + 1,
-          paramName
-        );
-      }
-
-      seenParams.add(paramName);
-      currentParam = paramName;
-      currentContent = [];
-    } else {
-      // Regular content line
-      if (currentParam === null) {
-        // Content before first delimiter - invalid format
-        if (line.trim().length > 0) {
-          throw createDecodeError(
-            'INVALID_FORMAT',
-            `Content found before first parameter delimiter at line ${i + 1}. Expected format: ---PARAM_NAME---`,
-            i + 1
-          );
-        }
-        // Skip empty lines before first delimiter
-        continue;
-      }
-      currentContent.push(line);
+    const content = handleContentLine(line, i, currentParam, currentContent);
+    if (content !== null) {
+      currentContent = content;
     }
   }
 
-  // Save last parameter content
   if (currentParam !== null) {
     const content = currentContent.join('\n').trim();
     result[currentParam] = content;
   }
 
-  // Validate required parameters
-  if (requiredParams) {
-    for (const required of requiredParams) {
-      if (!(required in result)) {
-        throw createDecodeError(
-          'MISSING_PARAM',
-          `Required parameter '${required}' is missing`,
-          undefined,
-          required
-        );
-      }
-    }
-  }
-
-  // Check for empty parameters
-  for (const [param, content] of Object.entries(result)) {
-    if (content.length === 0) {
-      throw createDecodeError(
-        'INVALID_FORMAT',
-        `Parameter '${param}' is empty. Each parameter must have content.`,
-        undefined,
-        param
-      );
-    }
-  }
+  validateRequiredParams(result, requiredParams);
+  validateNonEmptyParams(result);
 
   return result;
 }
