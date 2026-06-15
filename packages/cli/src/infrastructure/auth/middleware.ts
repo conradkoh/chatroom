@@ -94,35 +94,64 @@ async function validateSessionWithBackend(
   return { userId: validation.userId as string, userName: validation.userName, convexUrl };
 }
 
-function handleNetworkError(
-  error: unknown,
-  convexUrl: string,
-  retryOnNetworkError: boolean,
-  consecutiveNetworkFailures: number,
-  retryIntervalMs: number
-): { retry: true } | never {
-  if (!retryOnNetworkError) {
-    formatConnectivityError(error, convexUrl);
-    process.exit(1);
-  }
-  const retrySec = retryIntervalMs / 1000;
-  if (consecutiveNetworkFailures === 1) {
-    formatConnectivityError(error, convexUrl);
-    console.log(`⏳ Backend not reachable. Retrying every ${retrySec}s...`);
-  } else {
-    console.log(
-      `❌ Backend still unreachable (attempt ${consecutiveNetworkFailures}, retrying in ${retrySec}s)`
-    );
-  }
-  return { retry: true };
-}
-
 function failNonNetworkError(error: unknown): never {
   const err = error as Error;
   console.error(`\n❌ Error: Could not validate session`);
   console.error(`   ${err.message}`);
   console.error(`\n   Please re-authenticate:\n   $ chatroom auth login\n`);
   process.exit(1);
+}
+
+async function retryValidation(
+  sessionId: SessionId,
+  convexUrl: string,
+  retryIntervalMs: number
+): Promise<AuthContext> {
+  let consecutiveNetworkFailures = 0;
+  while (true) {
+    try {
+      const result = await validateSessionWithBackend(sessionId);
+      if (consecutiveNetworkFailures > 0) {
+        console.log(`✅ Backend reachable again at ${convexUrl}`);
+      }
+      return {
+        sessionId: sessionId as unknown as SessionId,
+        userId: result.userId,
+        userName: result.userName,
+      };
+    } catch (error) {
+      if (!isNetworkError(error)) {
+        failNonNetworkError(error);
+      }
+      consecutiveNetworkFailures++;
+      const retrySec = retryIntervalMs / 1000;
+      if (consecutiveNetworkFailures === 1) {
+        formatConnectivityError(error, convexUrl);
+        console.log(`⏳ Backend not reachable. Retrying every ${retrySec}s...`);
+      } else {
+        console.log(
+          `❌ Backend still unreachable (attempt ${consecutiveNetworkFailures}, retrying in ${retrySec}s)`
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
+    }
+  }
+}
+
+async function fastFailValidation(sessionId: SessionId, convexUrl: string): Promise<AuthContext> {
+  try {
+    const result = await validateSessionWithBackend(sessionId);
+    return {
+      sessionId: sessionId as unknown as SessionId,
+      userId: result.userId,
+      userName: result.userName,
+    };
+  } catch (error) {
+    if (isNetworkError(error)) {
+      formatConnectivityError(error, convexUrl);
+    }
+    failNonNetworkError(error);
+  }
 }
 
 export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthContext> {
@@ -132,38 +161,11 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
   const sessionId = await checkLocalAuth();
   const convexUrl = getConvexUrl();
 
-  // Retry mode — keep long-running commands alive through transient outages
   if (retryOnNetworkError) {
-    let consecutiveNetworkFailures = 0;
-    while (true) {
-      try {
-        const result = await validateSessionWithBackend(sessionId);
-        if (consecutiveNetworkFailures > 0) {
-          console.log(`✅ Backend reachable again at ${convexUrl}`);
-          consecutiveNetworkFailures = 0;
-        }
-        return { sessionId, userId: result.userId, userName: result.userName };
-      } catch (error) {
-        if (!isNetworkError(error)) {
-          failNonNetworkError(error);
-        }
-        consecutiveNetworkFailures++;
-        handleNetworkError(error, convexUrl, true, consecutiveNetworkFailures, retryIntervalMs);
-        await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
-      }
-    }
+    return retryValidation(sessionId, convexUrl, retryIntervalMs);
   }
 
-  // Fast-fail (default) — one attempt, exit on any error (no retry loop)
-  try {
-    const result = await validateSessionWithBackend(sessionId);
-    return { sessionId, userId: result.userId, userName: result.userName };
-  } catch (error) {
-    if (isNetworkError(error)) {
-      handleNetworkError(error, convexUrl, false, 1, retryIntervalMs);
-    }
-    failNonNetworkError(error);
-  }
+  return fastFailValidation(sessionId, convexUrl);
 }
 
 /**
