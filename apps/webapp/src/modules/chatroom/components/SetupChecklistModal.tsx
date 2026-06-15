@@ -28,6 +28,11 @@ interface SetupChecklistModalProps {
   onWorkingDirPasted?: (rawPath: string) => void;
 }
 
+// SETUP NAMING CONTRACT
+// During first-time setup, pasting a project path into the entry-point agent's
+// working-directory field (inside the agent cards below) auto-names the chatroom
+// from the final path segment. The "Chatroom Name" field at the top of this modal
+// reflects that name and can also be edited / pasted into directly.
 export const SetupChecklistModal = memo(function SetupChecklistModal({
   isOpen,
   onClose,

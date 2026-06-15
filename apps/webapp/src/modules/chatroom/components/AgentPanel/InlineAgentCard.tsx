@@ -8,7 +8,7 @@ import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
-import { useAgentControls } from '../AgentConfigTabs';
+import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow } from './AgentStatusRow';
@@ -57,10 +57,6 @@ export interface InlineAgentCardProps {
    * Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view).
    */
   restartSummary?: { count3h: number; count3d: number } | null;
-  /** Focus working directory input on mount (entry-point agent during setup). */
-  autoFocusWorkingDir?: boolean;
-  /** Called when the user pastes a path into the working directory field. */
-  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 /** Compact always-visible agent row with tabs for inline remote config editing. */
@@ -80,8 +76,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   sendCommand,
   agentRoleView,
   restartSummary: restartSummaryProp,
-  autoFocusWorkingDir = false,
-  onWorkingDirPasted,
 }: InlineAgentCardProps) {
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
@@ -170,8 +164,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           prompt={prompt}
           linkedMachineIds={linkedMachineIds}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
-          autoFocusWorkingDir={autoFocusWorkingDir}
-          onWorkingDirPasted={onWorkingDirPasted}
         />
 
         {/* Restart stats row — always shown when data is loaded */}

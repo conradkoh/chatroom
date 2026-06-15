@@ -8,6 +8,7 @@ import React, { useMemo, memo } from 'react';
 
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import { CopyButton } from './CopyButton';
+import { SetupNamingProvider } from '../context/SetupNamingContext';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
@@ -314,33 +315,36 @@ export const SetupChecklist = memo(function SetupChecklist({
               Agents
             </h3>
             {/* InlineAgentCard uses border-b / last:border-b-0 internally; wrap in a container border */}
-            <div className="border border-chatroom-border">
-              {teamRoles.map((role) => {
-                const agentStatus = agentStatusMap.get(role.toLowerCase());
-                const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
-                return (
-                  <InlineAgentCard
-                    key={role}
-                    role={role}
-                    allRoles={teamRoles}
-                    online={agentStatus?.online ?? false}
-                    lastSeenAt={agentStatus?.lastSeenAt ?? null}
-                    latestEventType={agentStatus?.latestEventType ?? null}
-                    statusVariant={agentStatus?.statusVariant}
-                    prompt=""
-                    chatroomId={chatroomId}
-                    connectedMachines={connectedMachines}
-                    isLoadingMachines={isLoading}
-                    agentConfigs={machineConfigs}
-                    sendCommand={sendCommand}
-                    agentRoleView={agentRoleView}
-                    restartSummary={restartSummaryMap.get(role.toLowerCase())}
-                    autoFocusWorkingDir={role === entryPointRole}
-                    onWorkingDirPasted={onWorkingDirPasted}
-                  />
-                );
-              })}
-            </div>
+            <SetupNamingProvider
+              onWorkingDirPasted={onWorkingDirPasted}
+              entryPointRole={entryPointRole}
+            >
+              <div className="border border-chatroom-border">
+                {teamRoles.map((role) => {
+                  const agentStatus = agentStatusMap.get(role.toLowerCase());
+                  const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
+                  return (
+                    <InlineAgentCard
+                      key={role}
+                      role={role}
+                      allRoles={teamRoles}
+                      online={agentStatus?.online ?? false}
+                      lastSeenAt={agentStatus?.lastSeenAt ?? null}
+                      latestEventType={agentStatus?.latestEventType ?? null}
+                      statusVariant={agentStatus?.statusVariant}
+                      prompt=""
+                      chatroomId={chatroomId}
+                      connectedMachines={connectedMachines}
+                      isLoadingMachines={isLoading}
+                      agentConfigs={machineConfigs}
+                      sendCommand={sendCommand}
+                      agentRoleView={agentRoleView}
+                      restartSummary={restartSummaryMap.get(role.toLowerCase())}
+                    />
+                  );
+                })}
+              </div>
+            </SetupNamingProvider>
           </div>
 
           {/* Or run manually section */}

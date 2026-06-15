@@ -21,6 +21,7 @@ import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshBu
 import { ModelFilterPanel } from './ModelFilterPanel';
 import { SessionResumeBadge } from './SessionResumeBadge';
 import { useMachineModels } from '../../../hooks/useMachineModels';
+import { useSetupNaming } from '../context/SetupNamingContext';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import type {
   AgentHarness,
@@ -63,7 +64,7 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export interface AgentConfigTabsProps {
+export interface AgentControlsProps {
   role: string;
   prompt: string;
   chatroomId: string;
@@ -224,7 +225,7 @@ export function useAgentControls({
   chatroomId: string;
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
-  sendCommand: AgentConfigTabsProps['sendCommand'];
+  sendCommand: AgentControlsProps['sendCommand'];
   /** Model from team config — used as fallback when machine config has no model */
   teamConfigModel?: string;
   /** Harness from team config — used as a seeding hint for initialization when
@@ -651,10 +652,6 @@ interface RemoteTabContentProps {
   role: string;
   /** When provided, skips a duplicate workspace registry subscription in this tab. */
   linkedMachineIds?: ReadonlySet<string>;
-  /** Focus the working directory input on mount (entry-point agent during setup). */
-  autoFocusWorkingDir?: boolean;
-  /** Called when the user pastes into the working directory field. */
-  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -665,8 +662,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   chatroomId,
   role,
   linkedMachineIds: linkedMachineIdsProp,
-  autoFocusWorkingDir = false,
-  onWorkingDirPasted,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -700,6 +695,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleConfirmRehomeStart,
     handleCancelRehomeStart,
   } = controls;
+
+  const { onWorkingDirPasted, entryPointRole } = useSetupNaming();
+  const autoFocusWorkingDir = entryPointRole !== undefined && role === entryPointRole;
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
   // Internal form state is preserved so it's ready again when the agent stops.
@@ -971,7 +969,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             </div>
           </div>
 
-          {/* Row 2: Working Directory */}
+          {/* Row 2: Working Directory.
+              During setup, pasting a path here auto-names the chatroom (see onWorkingDirPasted). */}
           <div className="flex items-center gap-1">
             <input
               type="text"

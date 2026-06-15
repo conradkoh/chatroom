@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { deriveInitialWorkingDir } from './AgentControls';
 import type { AgentConfig } from '../types/machine';
 import type { Workspace } from '../types/workspace';
-import { deriveInitialWorkingDir } from './AgentConfigTabs';
 
 function mkConfig(machineId: string, workingDir: string, updatedAt = 1): AgentConfig {
   return {
