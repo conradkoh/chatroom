@@ -1336,15 +1336,15 @@ export const listQueued = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Enforce maximum limit to prevent unbounded queries
+    const MAX_LIMIT = 1000;
+    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
+
     const queuedMessages = await ctx.db
       .query('chatroom_messageQueue')
       .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
       .order('asc') // Ascending by queuePosition (oldest first)
-      .collect();
-
-    // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 1000;
-    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
+      .take(limit);
 
     // Transform queue records to match message shape + add isQueued flag
     const transformedMessages = queuedMessages.map((qMsg) => ({
