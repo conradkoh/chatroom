@@ -96,6 +96,8 @@
     "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:inferHasMoreOlder",
     "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:hasMoreOlderAfterPage",
     "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:toMessage",
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:VISIBLE_UPDATE_WINDOW",
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:applyVisibleUpdates",
     "apps/webapp/src/modules/chatroom/hooks/useScrollController.ts:ScrollController",
     "apps/webapp/src/modules/chatroom/index.ts:AgentPanel",
     "apps/webapp/src/modules/chatroom/index.ts:ChatroomSidebar",

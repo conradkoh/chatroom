@@ -1,27 +1,30 @@
 'use client';
 
 /**
- * useChatroomMessageStore — cursor-pinned delta subscription for the timeline.
+ * useChatroomMessageStore — dual-subscription delta store for the timeline.
  *
- * Architecture (matches direct-harness turn store pattern):
- * 1. Initial load — imperative getLatestMessages(limit); pin tailAfterCreationTime
- * 2. Live tail — useSessionQuery(subscribeMessagesSince, { afterCreationTime })
- * 3. Merge — reducer appends/updates by _id; chronological order in store
- * 4. Older pages — imperative listMessagesBefore on scroll-up
+ * Architecture:
+ * 1. Initial load — imperative getLatestMessages(limit)
+ * 2. New-messages tail — useSessionQuery(subscribeNewMessages, { afterCreationTime: newest })
+ * 3. Visible-message updates — useSessionQuery(subscribeVisibleMessageUpdates, { messageIds: recent })
+ * 4. Merge — reducer appends/updates by _id; chronological order in store
+ * 5. Older pages — imperative listMessagesBefore on scroll-up
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useConvex } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-
-import type { Message } from '../types/message';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { Dispatch } from 'react';
 
 import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
+import type { Message } from '../types/message';
 
 export const MESSAGE_STORE_LIMIT = 20;
 export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 20;
+/** How many of the most-recent messages to keep "live" for status/progress updates. */
+export const VISIBLE_UPDATE_WINDOW = 30;
 
 /** Match legacy useMessages: a full initial window implies more history may exist. */
 export function inferHasMoreOlder(messageCount: number, hasMoreFromServer: boolean): boolean {
@@ -92,7 +95,8 @@ type Action =
   | { type: 'PREPEND_OLDER'; messages: Message[]; hasMoreOlder: boolean }
   | { type: 'LOAD_OLDER_START' }
   | { type: 'LOAD_OLDER_FAILED' }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  | { type: 'APPLY_VISIBLE_UPDATES'; updates: VisibleUpdate[] };
 
 function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] {
   if (incoming.length === 0) return existing;
@@ -113,6 +117,34 @@ function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] 
 function filterNewMessages(existing: Message[], incoming: Message[]): Message[] {
   const existingIds = new Set(existing.map((m) => m._id));
   return incoming.filter((m) => !existingIds.has(m._id));
+}
+
+interface VisibleUpdate {
+  _id: Message['_id'];
+  taskStatus?: Message['taskStatus'];
+  latestProgress?: Message['latestProgress'];
+}
+
+function sameProgress(a: Message['latestProgress'], b: Message['latestProgress']): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.content === b.content && a.senderRole === b.senderRole && a._creationTime === b._creationTime
+  );
+}
+
+export function applyVisibleUpdates(existing: Message[], updates: VisibleUpdate[]): Message[] {
+  if (updates.length === 0) return existing;
+  const byId = new Map(updates.map((u) => [u._id, u]));
+  let changed = false;
+  const next = existing.map((m) => {
+    const u = byId.get(m._id);
+    if (!u) return m;
+    if (m.taskStatus === u.taskStatus && sameProgress(m.latestProgress, u.latestProgress)) return m;
+    changed = true;
+    return { ...m, taskStatus: u.taskStatus, latestProgress: u.latestProgress };
+  });
+  return changed ? next : existing;
 }
 
 function reducer(state: State, action: Action): State {
@@ -151,6 +183,12 @@ function reducer(state: State, action: Action): State {
         isLoadingOlder: false,
       };
     }
+    case 'APPLY_VISIBLE_UPDATES': {
+      if (!state.isInitialized) return state;
+      const next = applyVisibleUpdates(state.messages, action.updates);
+      if (next === state.messages) return state;
+      return { ...state, messages: next };
+    }
     case 'LOAD_OLDER_START':
       return state.isLoadingOlder ? state : { ...state, isLoadingOlder: true };
     case 'LOAD_OLDER_FAILED':
@@ -160,6 +198,72 @@ function reducer(state: State, action: Action): State {
     default:
       return state;
   }
+}
+
+// ─── Delta subscriptions ─────────────────────────────────────────────────────
+
+/**
+ * Wires the two reactive timeline subscriptions and dispatches their results:
+ *  - subscribeNewMessages pinned to the NEWEST seen row (strict cursor → near-empty result).
+ *  - subscribeVisibleMessageUpdates for the most-recent VISIBLE_UPDATE_WINDOW messages
+ *    (lightweight task/progress deltas only).
+ */
+// fallow-ignore-next-line complexity
+function useTimelineDeltaSubscriptions(
+  typedChatroomId: Id<'chatroom_rooms'>,
+  state: State,
+  dispatch: Dispatch<Action>
+): void {
+  // New-messages tail (newest-cursor, near-empty result).
+  const newestSeenCreationTime =
+    state.messages.length > 0
+      ? state.messages[state.messages.length - 1]._creationTime
+      : state.isInitialized
+        ? 0
+        : null;
+
+  const newMessagesData = useSessionQuery(
+    api.messageList.subscribeNewMessages,
+    state.isInitialized && newestSeenCreationTime !== null
+      ? { chatroomId: typedChatroomId, afterCreationTime: newestSeenCreationTime }
+      : 'skip'
+  );
+
+  useEffect(() => {
+    if (!newMessagesData) return;
+    dispatch({ type: 'MERGE_TAIL', messages: newMessagesData.map(toMessage) });
+  }, [newMessagesData, dispatch]);
+
+  // Visible-message updates (lightweight status/progress delta). The id list is keyed by
+  // a stable join so it only changes identity when the visible ID set changes.
+  const recentVisibleIdsKey = state.messages
+    .slice(-VISIBLE_UPDATE_WINDOW)
+    .map((m) => m._id)
+    .join(',');
+  const recentVisibleIds = useMemo(
+    () =>
+      recentVisibleIdsKey ? (recentVisibleIdsKey.split(',') as Id<'chatroom_messages'>[]) : [],
+    [recentVisibleIdsKey]
+  );
+
+  const visibleUpdatesData = useSessionQuery(
+    api.messageList.subscribeVisibleMessageUpdates,
+    state.isInitialized && recentVisibleIds.length > 0
+      ? { chatroomId: typedChatroomId, messageIds: recentVisibleIds }
+      : 'skip'
+  );
+
+  useEffect(() => {
+    if (!visibleUpdatesData) return;
+    dispatch({
+      type: 'APPLY_VISIBLE_UPDATES',
+      updates: visibleUpdatesData.map((u) => ({
+        _id: u._id,
+        taskStatus: u.taskStatus as Message['taskStatus'],
+        latestProgress: u.latestProgress,
+      })),
+    });
+  }, [visibleUpdatesData, dispatch]);
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -221,21 +325,8 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
       });
   }, [state.isInitialized, sessionId, convex, typedChatroomId, initialLoadRequested]);
 
-  // ── Tail subscription (pinned cursor) ─────────────────────────────────────
-  const tailData = useSessionQuery(
-    api.messageList.subscribeMessagesSince,
-    state.isInitialized && state.tailAfterCreationTime !== null
-      ? {
-          chatroomId: typedChatroomId,
-          afterCreationTime: state.tailAfterCreationTime,
-        }
-      : 'skip'
-  );
-
-  useEffect(() => {
-    if (!tailData) return;
-    dispatch({ type: 'MERGE_TAIL', messages: tailData.map(toMessage) });
-  }, [tailData]);
+  // ── Reactive delta subscriptions (new-messages tail + visible-message updates) ──
+  useTimelineDeltaSubscriptions(typedChatroomId, state, dispatch);
 
   const loadOlderMessages = useCallback(() => {
     if (
