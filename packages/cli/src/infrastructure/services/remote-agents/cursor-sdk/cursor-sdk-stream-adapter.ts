@@ -27,6 +27,7 @@ export class CursorSdkStreamAdapter {
     this.outputCallbacks.push(cb);
   }
 
+  // fallow-ignore-next-line complexity
   handleMessage(message: SDKMessage): void {
     this.notifyOutput();
 
@@ -34,12 +35,18 @@ export class CursorSdkStreamAdapter {
       case 'assistant':
         this.handleAssistant(message);
         break;
-      case 'tool_call':
+      case 'tool_call': {
         this.flushText();
+        const bashCmd = this.extractBashCommand(message);
+        if (bashCmd !== null) {
+          this.writeLine(`${this.logPrefix} tool: bash] running: ${bashCmd}`);
+          break;
+        }
         this.writeLine(
           `${this.logPrefix} tool: ${message.call_id} ${message.name} ${JSON.stringify({ status: message.status, args: message.args })}]`
         );
         break;
+      }
       case 'status':
         this.writeLine(`${this.logPrefix} status: ${message.status}]`);
         // Terminal statuses are logged only; agent_end is emitted from finish()
@@ -78,6 +85,17 @@ export class CursorSdkStreamAdapter {
         }
       }
     }
+  }
+
+  /** Extract a shell command from a bash/shell tool_call, else null. */
+  private extractBashCommand(message: Extract<SDKMessage, { type: 'tool_call' }>): string | null {
+    const isBashLike = /bash|shell|terminal/i.test(message.name);
+    if (!isBashLike) return null;
+    const args = message.args;
+    if (args && typeof args === 'object' && 'command' in args) {
+      return String((args as { command: unknown }).command);
+    }
+    return null;
   }
 
   private flushText(): void {

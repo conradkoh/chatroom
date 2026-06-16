@@ -111,6 +111,7 @@ export function resolveCursorCliModel(model: string): string {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 function extractBashCommandFromCursorToolCall(toolCall: unknown): string | null {
   if (!toolCall || typeof toolCall !== 'object') return null;
   for (const [key, value] of Object.entries(toolCall as Record<string, unknown>)) {

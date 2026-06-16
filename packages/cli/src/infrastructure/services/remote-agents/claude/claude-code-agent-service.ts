@@ -37,6 +37,16 @@ const CLAUDE_COMMAND = 'claude';
  */
 const DEFAULT_MAX_TURNS = 200;
 
+/** Extract a shell command from a Claude `Bash`/`shell` tool_use, else null. */
+// fallow-ignore-next-line unused-export complexity
+export function extractBashCommandFromClaudeToolUse(name: string, input: unknown): string | null {
+  if (!/^(bash|shell)$/i.test(name)) return null;
+  if (input && typeof input === 'object' && 'command' in input) {
+    return String((input as { command: unknown }).command);
+  }
+  return null;
+}
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class ClaudeCodeAgentService extends BaseCLIAgentService {
@@ -169,8 +179,15 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       });
 
       // Handle tool use invocations — log and track in entry
+      // fallow-ignore-next-line complexity
       reader.onToolUse((name, input) => {
         entry.lastOutputAt = Date.now();
+        const bashCmd = extractBashCommandFromClaudeToolUse(name, input);
+        if (bashCmd !== null) {
+          process.stdout.write(`${logPrefix} tool: bash] running: ${bashCmd}\n`);
+          for (const cb of outputCallbacks) cb();
+          return;
+        }
         const inputStr = JSON.stringify(input);
         process.stdout.write(
           `${logPrefix} tool] ${name}(${inputStr.slice(0, 100)}${inputStr.length > 100 ? '...' : ''})\n`
