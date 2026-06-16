@@ -798,6 +798,19 @@ export class TimelineScrollCoordinator {
     }
   }
 
+  /**
+   * Programmatic scroll with two clear strategies:
+   *
+   * 1. **Tail/jump scrolls** — caller provides `targetCheck`. The `programmaticScroll`
+   *    flag is cleared as soon as `targetCheck()` returns true (or after the hard frame
+   *    cap). Used by `jumpToEnd`, `applyFollowTailIntent`, and `tail_settle` to keep
+   *    the flag active only while scrolling to the bottom.
+   *
+   * 2. **Mid-list scrolls** — no `targetCheck` (e.g. `applyPrependScrollTop` at ~line 700).
+   *    Falls back to a fixed 2-rAF window. These scrolls do NOT target the bottom,
+   *    so a target-check would be incorrect; the fixed window is sufficient because
+   *    mid-list scrolls are short-lived and do not compete with tail follow.
+   */
   private runProgrammaticScroll(
     action: () => void,
     options: { targetCheck?: () => boolean } = {}
