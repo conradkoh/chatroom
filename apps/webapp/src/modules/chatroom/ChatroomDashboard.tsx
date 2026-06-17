@@ -26,9 +26,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
-import { useTeamConfigs } from './hooks/use-team-configs';
 import { AgentPanel } from './components/AgentPanel';
-import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -37,26 +35,29 @@ import {
   type CommandItem,
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
-import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
+import { MessageInput } from './components/MessageInput';
+import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
-import { MessageInput } from './components/MessageInput';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
+import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { useTeamConfigs } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
-import type { AgentConfig } from './types/machine';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
-import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useCommandRunner } from './hooks/useCommandRunner';
+import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
+import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
+import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
@@ -102,7 +103,8 @@ const AgentSettingsModal = dynamic(
 );
 
 const SetupChecklistModal = dynamic(
-  () => import('./components/SetupChecklistModal').then((m) => ({ default: m.SetupChecklistModal })),
+  () =>
+    import('./components/SetupChecklistModal').then((m) => ({ default: m.SetupChecklistModal })),
   { loading: () => null }
 );
 
@@ -175,12 +177,18 @@ const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   const [isPending, setIsPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
   const renameChatroom = useSessionMutation(api.chatrooms.rename);
 
   const handleStartEdit = useCallback(() => {
     setEditedName(displayName);
     setIsEditing(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
   }, [displayName]);
 
   const handleCancel = useCallback(() => {
@@ -227,6 +235,12 @@ const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData('text');
+            if (!pasted.includes('/') && !pasted.includes('\\')) return;
+            e.preventDefault();
+            setEditedName(normalizePastedChatroomName(pasted));
+          }}
           className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
           placeholder="Enter name..."
           disabled={isPending}
@@ -332,12 +346,15 @@ const ExplorerContent = memo(function ExplorerContent({
                   (t) => t.key === fileTabs.activeRightTabKey
                 );
                 if (!activeRight) return null;
+                const mw = activeWorkspace?.machineId;
+                const wd = activeWorkspace?.workingDir;
+                if (!mw || !wd) return null;
                 if (activeRight.viewType === 'preview') {
                   return (
                     <MarkdownPreviewPane
                       key={activeRight.key}
-                      machineId={activeWorkspace.machineId!}
-                      workingDir={activeWorkspace.workingDir!}
+                      machineId={mw}
+                      workingDir={wd}
                       filePath={activeRight.filePath}
                     />
                   );
@@ -346,8 +363,8 @@ const ExplorerContent = memo(function ExplorerContent({
                   return (
                     <CsvTablePane
                       key={activeRight.key}
-                      machineId={activeWorkspace.machineId!}
-                      workingDir={activeWorkspace.workingDir!}
+                      machineId={mw}
+                      workingDir={wd}
                       filePath={activeRight.filePath}
                     />
                   );
@@ -906,7 +923,8 @@ export function ChatroomDashboard({
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
     const results = await Promise.allSettled(
       agentRoles.map((role) => {
-        const config = roleConfigMap.get(role.toLowerCase())!;
+        const config = roleConfigMap.get(role.toLowerCase());
+        if (!config) return null;
         return agentPanelData.sendCommand({
           machineId: config.machineId,
           type: 'start-agent' as const,
@@ -955,16 +973,18 @@ export function ChatroomDashboard({
     }
 
     const results = await Promise.allSettled(
-      stoppableAgents.map((agent) =>
-        agentPanelData.sendCommand({
-          machineId: agent.machineId!,
+      stoppableAgents.map((agent) => {
+        const mid = agent.machineId;
+        if (!mid) return null;
+        return agentPanelData.sendCommand({
+          machineId: mid,
           type: 'stop-agent' as const,
           payload: {
             chatroomId: chatroomIdTyped,
             role: agent.role,
           },
-        })
-      )
+        });
+      })
     );
     setIsStoppingAllAgents(false);
 
@@ -1027,7 +1047,8 @@ export function ChatroomDashboard({
       // Start all agents (including ones that were stopped)
       const results = await Promise.allSettled(
         agentRoles.map((role) => {
-          const config = roleConfigMap.get(role.toLowerCase())!;
+          const config = roleConfigMap.get(role.toLowerCase());
+          if (!config) return null;
           return agentPanelData.sendCommand({
             machineId: config.machineId,
             type: 'start-agent' as const,
@@ -1058,7 +1079,8 @@ export function ChatroomDashboard({
       const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
       const results = await Promise.allSettled(
         agentRoles.map((role) => {
-          const config = roleConfigMap.get(role.toLowerCase())!;
+          const config = roleConfigMap.get(role.toLowerCase());
+          if (!config) return null;
           return agentPanelData.sendCommand({
             machineId: config.machineId,
             type: 'start-agent' as const,
@@ -1301,6 +1323,18 @@ export function ChatroomDashboard({
 
   // Derive display name
   const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
+
+  // During setup, pasting a project path into the entry-point agent's working dir
+  // auto-names the chatroom from the final path segment.
+  const handleWorkingDirPastedForChatroomName = useCallback(
+    async (rawPath: string) => {
+      if (!isSetupMode || chatroom?.name) return;
+      const suggested = normalizePastedChatroomName(rawPath);
+      if (!suggested || suggested === displayName) return;
+      await handleRenameChatroom(suggested);
+    },
+    [isSetupMode, chatroom?.name, displayName, handleRenameChatroom]
+  );
 
   // Update browser tab title with chatroom name
   useEffect(() => {
@@ -1545,9 +1579,7 @@ export function ChatroomDashboard({
                     {/* Right: Mode-switchable panel (Messages | Direct Harness) */}
                     {/* Note: the mode dropdown is desktop-only since the split-view toggle is hidden on mobile */}
                     <RightSplitPanel
-                      chatroomId={
-                        chatroomId as import('@workspace/backend/convex/_generated/dataModel').Id<'chatroom_rooms'>
-                      }
+                      chatroomId={chatroomId as Id<'chatroom_rooms'>}
                       messagesPanelProps={{
                         coordinator: timelineScrollCoordinator,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
@@ -1718,6 +1750,7 @@ export function ChatroomDashboard({
             onViewPrompt={handleViewPrompt}
             chatroomName={displayName}
             onRenameChatroom={handleRenameChatroom}
+            onWorkingDirPasted={handleWorkingDirPastedForChatroomName}
           />
 
           {/* Saved Command Modal */}

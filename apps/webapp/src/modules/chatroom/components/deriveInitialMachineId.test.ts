@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { deriveInitialMachineId } from './AgentControls';
 import type { AgentConfig, MachineInfo } from '../types/machine';
-import { deriveInitialMachineId } from './AgentConfigTabs';
 
 function mkMachine(id: string, hostname: string): MachineInfo {
   return {

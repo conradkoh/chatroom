@@ -1,15 +1,20 @@
 /**
  * Unit tests for useChatroomMessageStore / useMessages.
  *
- * Mocks imperative getLatestMessages, reactive subscribeMessagesSince,
- * and listMessagesBefore.
+ * Mocks imperative getLatestMessages + listMessagesBefore, and the reactive
+ * subscribeNewMessages / subscribeVisibleMessageUpdates subscriptions (the
+ * mocked useSessionQuery returns mockTailData for any reactive query).
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+import { useMessages } from './useMessages';
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-let mockTailData: Array<Record<string, unknown>> | undefined = [];
+let mockTailData: Record<string, unknown>[] | undefined = [];
 const mockConvexQuery = vi.fn();
 
 vi.mock('convex/react', () => ({
@@ -28,7 +33,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messageList: {
       getLatestMessages: 'getLatestMessages',
-      subscribeMessagesSince: 'subscribeMessagesSince',
+      subscribeNewMessages: 'subscribeNewMessages',
+      subscribeVisibleMessageUpdates: 'subscribeVisibleMessageUpdates',
       listMessagesBefore: 'listMessagesBefore',
     },
   },
@@ -51,10 +57,7 @@ function makeMsg(
   };
 }
 
-function mockInitialLoad(
-  messages: Array<Record<string, unknown>>,
-  hasMore = false
-) {
+function mockInitialLoad(messages: Record<string, unknown>[], hasMore = false) {
   const sorted = [...messages].sort(
     (a, b) => (a._creationTime as number) - (b._creationTime as number)
   );
@@ -70,10 +73,6 @@ function mockInitialLoad(
   });
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-import { useMessages } from './useMessages';
-
 describe('useMessages (delta store)', () => {
   beforeEach(() => {
     mockTailData = [];
@@ -82,9 +81,7 @@ describe('useMessages (delta store)', () => {
   });
 
   it('isLoading=true until initial getLatestMessages resolves', () => {
-    mockConvexQuery.mockImplementation(
-      () => new Promise(() => {})
-    );
+    mockConvexQuery.mockImplementation(() => new Promise(() => {}));
     const { result } = renderHook(() => useMessages('room-1'));
     expect(result.current.isLoading).toBe(true);
   });
@@ -127,40 +124,29 @@ describe('useMessages (delta store)', () => {
     const { result, rerender } = renderHook(() => useMessages('room-1'));
     await waitFor(() => expect(result.current.messages).toHaveLength(2));
 
-    mockTailData = [
-      makeMsg('msg-1', 1000),
-      makeMsg('msg-2', 2000),
-      makeMsg('msg-3', 3000),
-    ];
+    mockTailData = [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000), makeMsg('msg-3', 3000)];
     rerender();
 
     await waitFor(() => {
-      expect(result.current.messages.map((m) => m._id)).toEqual([
-        'msg-1',
-        'msg-2',
-        'msg-3',
-      ]);
+      expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-3']);
     });
   });
 
   it('updates existing row when tail subscription replaces taskStatus', async () => {
     mockInitialLoad([makeMsg('msg-1', 1000, { taskStatus: 'pending' })]);
     const { result, rerender } = renderHook(() => useMessages('room-1'));
-    await waitFor(() => expect(result.current.messages[0]!.taskStatus).toBe('pending'));
+    await waitFor(() => expect(result.current.messages[0]?.taskStatus).toBe('pending'));
 
     mockTailData = [makeMsg('msg-1', 1000, { taskStatus: 'in_progress' })];
     rerender();
 
     await waitFor(() => {
-      expect(result.current.messages[0]!.taskStatus).toBe('in_progress');
+      expect(result.current.messages[0]?.taskStatus).toBe('in_progress');
     });
   });
 
   it('loadOlderMessages calls listMessagesBefore with oldest creation time', async () => {
-    mockInitialLoad(
-      [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
-      true
-    );
+    mockInitialLoad([makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)], true);
     mockConvexQuery.mockImplementation((endpoint: string) => {
       if (endpoint === 'getLatestMessages') {
         return Promise.resolve({
@@ -189,19 +175,12 @@ describe('useMessages (delta store)', () => {
         limit: 20,
         sessionId: 'session-1',
       });
-      expect(result.current.messages.map((m) => m._id)).toEqual([
-        'msg-0',
-        'msg-1',
-        'msg-2',
-      ]);
+      expect(result.current.messages.map((m) => m._id)).toEqual(['msg-0', 'msg-1', 'msg-2']);
     });
   });
 
   it('issues a second listMessagesBefore after a duplicate-only page', async () => {
-    mockInitialLoad(
-      [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
-      true
-    );
+    mockInitialLoad([makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)], true);
     const beforeArgs: number[] = [];
     mockConvexQuery.mockImplementation((endpoint: string, args?: { before?: number }) => {
       if (endpoint === 'getLatestMessages') {
@@ -246,9 +225,7 @@ describe('useMessages (delta store)', () => {
     );
     mockConvexQuery.mockImplementation((endpoint: string) => {
       if (endpoint === 'getLatestMessages') {
-        const messages = Array.from({ length: 20 }, (_, i) =>
-          makeMsg(`msg-${i}`, i * 1000)
-        );
+        const messages = Array.from({ length: 20 }, (_, i) => makeMsg(`msg-${i}`, i * 1000));
         return Promise.resolve({
           messages,
           hasMore: true,
@@ -280,14 +257,14 @@ describe('useMessages (delta store)', () => {
     const { result, rerender } = renderHook(({ roomId }) => useMessages(roomId), {
       initialProps: { roomId: 'room-1' },
     });
-    await waitFor(() => expect(result.current.messages[0]!._id).toBe('a-1'));
+    await waitFor(() => expect(result.current.messages[0]?._id).toBe('a-1'));
 
     mockInitialLoad([makeMsg('b-1', 2000)]);
     rerender({ roomId: 'room-2' });
 
     await waitFor(() => {
       expect(result.current.messages).toHaveLength(1);
-      expect(result.current.messages[0]!._id).toBe('b-1');
+      expect(result.current.messages[0]?._id).toBe('b-1');
     });
   });
 });

@@ -2,10 +2,10 @@
  * Message list API for the chatroom timeline feed.
  *
  * Queries:
- *   - getLatestMessages        — one-shot initial load (imperative)
- *   - subscribeMessagesSince   — reactive tail from a pinned _creationTime cursor
- *   - listMessagesBefore       — imperative load-older before a timestamp
- *   - subscribeLatestMessages  — legacy full-window subscription (deprecated for webapp)
+ *   - getLatestMessages              — one-shot initial load (imperative)
+ *   - subscribeNewMessages           — reactive tail from a NEWEST-row cursor (strict >)
+ *   - subscribeVisibleMessageUpdates — lightweight task/progress deltas for visible rows
+ *   - listMessagesBefore             — imperative load-older before a timestamp
  */
 
 import { v } from 'convex/values';
@@ -20,6 +20,10 @@ import { enrichMessages } from './messages';
 /** Max rows for initial latest-window and load-older page requests. */
 const MAX_LATEST_MESSAGES_LIMIT = 200;
 const MAX_LOAD_OLDER_PAGE_SIZE = 50;
+/** Max rows for the strict-after "new messages" tail (prevents unbounded growth). */
+const MAX_NEW_MESSAGES_LIMIT = 500;
+/** Max visible message IDs accepted for the lightweight updates subscription. */
+const MAX_VISIBLE_UPDATE_IDS = 100;
 
 function isTimelineMessage(msg: Doc<'chatroom_messages'>): boolean {
   return msg.type !== 'join' && msg.type !== 'progress';
@@ -69,18 +73,25 @@ async function fetchLatestTimelineWindow(
   };
 }
 
-async function fetchMessagesSince(
+/**
+ * Fetch timeline messages strictly after a `_creationTime` cursor (ascending), bounded.
+ *
+ * Strict (`> afterCreationTime`) so the newest-cursor "new messages" tail never re-sends
+ * the cursor row itself.
+ */
+async function fetchMessagesStrictlyAfter(
   ctx: QueryCtx,
   chatroomId: Doc<'chatroom_messages'>['chatroomId'],
-  afterCreationTime: number
+  afterCreationTime: number,
+  limit: number
 ): Promise<Doc<'chatroom_messages'>[]> {
   const rows = await ctx.db
     .query('chatroom_messages')
     .withIndex('by_chatroom', (q) =>
-      q.eq('chatroomId', chatroomId).gte('_creationTime', afterCreationTime)
+      q.eq('chatroomId', chatroomId).gt('_creationTime', afterCreationTime)
     )
     .order('asc')
-    .collect();
+    .take(limit);
 
   return rows.filter(isTimelineMessage);
 }
@@ -90,8 +101,8 @@ async function fetchMessagesSince(
  * pagination metadata. Called imperatively — no reactive subscription.
  *
  * `tailAfterCreationTime` is the _creationTime of the oldest message in the
- * returned window (or 0 when empty). Pass it to subscribeMessagesSince so the
- * tail subscription includes status updates on visible messages and all new ones.
+ * returned window (or 0 when empty), kept for backward compatibility. The frontend
+ * derives its own newest-row cursor for subscribeNewMessages.
  */
 export const getLatestMessages = query({
   args: {
@@ -121,13 +132,14 @@ export const getLatestMessages = query({
 });
 
 /**
- * Reactive tail subscription: timeline messages with `_creationTime >= afterCreationTime`.
+ * Reactive "new messages" tail: timeline messages with `_creationTime > afterCreationTime`.
  *
- * Pin `afterCreationTime` to `tailAfterCreationTime` from getLatestMessages (oldest
- * visible row). Convex re-runs when rows in this range are inserted or patched, and
- * when linked tasks change (via enrichMessages). The frontend merges by `_id`.
+ * The frontend pins `afterCreationTime` to the NEWEST message it has seen and advances it
+ * as new messages arrive — so this subscription's result stays near-empty and each new
+ * message is delivered roughly once. Status/progress edits to already-visible messages are
+ * handled separately by subscribeVisibleMessageUpdates.
  */
-export const subscribeMessagesSince = query({
+export const subscribeNewMessages = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
@@ -136,28 +148,83 @@ export const subscribeMessagesSince = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const messages = await fetchMessagesSince(ctx, args.chatroomId, args.afterCreationTime);
+    const messages = await fetchMessagesStrictlyAfter(
+      ctx,
+      args.chatroomId,
+      args.afterCreationTime,
+      MAX_NEW_MESSAGES_LIMIT
+    );
     return await enrichMessages(ctx, messages);
   },
 });
 
+/** Lightweight per-message delta: only the volatile fields that change post-creation. */
+interface VisibleMessageUpdate {
+  _id: Doc<'chatroom_messages'>['_id'];
+  taskStatus?: string;
+  latestProgress?: { content: string; senderRole: string; _creationTime: number };
+}
+
 /**
- * Reactive subscription for the latest N messages in a chatroom.
- *
- * @deprecated Prefer getLatestMessages + subscribeMessagesSince for delta tail updates.
+ * Resolve the volatile (task status + latest progress) fields for one visible message.
+ * Returns null when the id is unknown or belongs to a different chatroom.
  */
-export const subscribeLatestMessages = query({
+// fallow-ignore-next-line complexity
+async function resolveVisibleMessageUpdate(
+  ctx: QueryCtx,
+  chatroomId: Doc<'chatroom_messages'>['chatroomId'],
+  id: Doc<'chatroom_messages'>['_id']
+): Promise<VisibleMessageUpdate | null> {
+  const message = await ctx.db.get('chatroom_messages', id);
+  if (!message || message.chatroomId !== chatroomId) return null;
+  if (!message.taskId) return { _id: id, taskStatus: undefined, latestProgress: undefined };
+
+  const task = await ctx.db.get('chatroom_tasks', message.taskId);
+
+  const progressRows = await ctx.db
+    .query('chatroom_messages')
+    .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
+    .filter((q) => q.eq(q.field('type'), 'progress'))
+    .order('desc')
+    .take(1);
+  const progress = progressRows[0];
+
+  return {
+    _id: id,
+    taskStatus: task?.status,
+    latestProgress: progress
+      ? {
+          content: progress.content,
+          senderRole: progress.senderRole,
+          _creationTime: progress._creationTime,
+        }
+      : undefined,
+  };
+}
+
+/**
+ * Reactive lightweight updates for a bounded set of currently-visible messages.
+ *
+ * Returns only the volatile, derived fields that change after a message is created
+ * (task status + latest progress) — NOT the full enriched message. The frontend
+ * subscribes with the IDs of the most-recent visible messages so that a task-status
+ * flip or a progress heartbeat re-sends a few tiny objects instead of the whole window.
+ */
+export const subscribeVisibleMessageUpdates = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    limit: v.number(),
+    messageIds: v.array(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const limit = Math.min(Math.max(args.limit, 1), MAX_LATEST_MESSAGES_LIMIT);
-    const { messages } = await fetchLatestTimelineWindow(ctx, args.chatroomId, limit);
-    return await enrichMessages(ctx, messages);
+    const ids = args.messageIds.slice(0, MAX_VISIBLE_UPDATE_IDS);
+    const results = await Promise.all(
+      ids.map((id) => resolveVisibleMessageUpdate(ctx, args.chatroomId, id))
+    );
+
+    return results.filter((r): r is VisibleMessageUpdate => r !== null);
   },
 });
 
@@ -184,9 +251,7 @@ export const listMessagesBefore = query({
       .withIndex('by_chatroom', (q) =>
         q.eq('chatroomId', args.chatroomId).lt('_creationTime', args.before)
       )
-      .filter((q) =>
-        q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress'))
-      )
+      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
       .take(limit);
 

@@ -2,7 +2,7 @@
  * Machine and Agent Types & Constants
  *
  * Shared types and constants for machine identity and agent management.
- * Used by AgentPanel.tsx and AgentConfigTabs.tsx.
+ * Used by AgentPanel.tsx and AgentControls.tsx.
  *
  * AgentHarness and HarnessVersionInfo are canonical in the backend domain layer.
  *

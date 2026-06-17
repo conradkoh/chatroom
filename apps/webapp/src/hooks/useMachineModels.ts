@@ -10,7 +10,7 @@
  * and this hook returns that stored snapshot unchanged.
  *
  * Keep this hook tiny — single thin wrapper, one subscription per call site.
- * AgentConfigTabs renders one machine at a time in the settings modal; one
+ * AgentControls renders one machine at a time in the settings modal; one
  * subscription is sufficient. Do NOT add fixed-slot or multi-machine patterns here.
  */
 
