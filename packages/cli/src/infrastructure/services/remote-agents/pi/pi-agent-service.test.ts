@@ -27,28 +27,26 @@ function resolveWriteCallback(
 }
 
 function wireGetStateOnStdinWrite(child: MockChild): void {
-  child.stdin.write = vi.fn(
-    (data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
-      const cb = resolveWriteCallback(encodingOrCb, maybeCb);
-      const text = typeof data === 'string' ? data : data.toString();
-      if (text.includes('get_state')) {
-        setTimeout(() => {
-          child.stdout.push(
-            `${JSON.stringify({
-              type: 'response',
-              command: 'get_state',
-              success: true,
-              data: { sessionId: SAMPLE_SESSION_ID },
-            })}\n`
-          );
-          cb?.(null);
-        }, 0);
-        return true;
-      }
-      cb?.(null);
+  child.stdin.write = vi.fn((data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+    const cb = resolveWriteCallback(encodingOrCb, maybeCb);
+    const text = typeof data === 'string' ? data : data.toString();
+    if (text.includes('get_state')) {
+      setTimeout(() => {
+        child.stdout.push(
+          `${JSON.stringify({
+            type: 'response',
+            command: 'get_state',
+            success: true,
+            data: { sessionId: SAMPLE_SESSION_ID },
+          })}\n`
+        );
+        cb?.(null);
+      }, 0);
       return true;
     }
-  );
+    cb?.(null);
+    return true;
+  });
 }
 
 function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentServiceDeps {
@@ -555,6 +553,73 @@ describe('PiAgentService', () => {
       expect(args).toContain("It's a system prompt with 'quotes'");
       // Prompt is NOT in args — it goes via stdin
       expect(args).not.toContain("Don't stop");
+    });
+
+    it('logs bash tool calls with "running:" format', async () => {
+      const child = makeChildProcess(43);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('prompt'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+      });
+
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_start',
+          toolName: 'bash',
+          toolArgs: { command: 'git status' },
+        }) + '\n'
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
+      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      expect(bashLine).toBeDefined();
+      expect(bashLine).toContain('git status');
+      expect(bashLine).toContain('[pi:builder');
+
+      stdoutWrite.mockRestore();
+    });
+
+    it('logs shell tool calls with "running:" format', async () => {
+      const child = makeChildProcess(44);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('prompt'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+      });
+
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_start',
+          toolName: 'shell',
+          toolArgs: { command: 'npm run build' },
+        }) + '\n'
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
+      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      expect(bashLine).toBeDefined();
+      expect(bashLine).toContain('npm run build');
+
+      stdoutWrite.mockRestore();
     });
   });
 

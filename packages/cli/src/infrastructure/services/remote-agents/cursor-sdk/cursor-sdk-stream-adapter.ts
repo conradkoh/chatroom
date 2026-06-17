@@ -5,6 +5,13 @@
 
 import type { SDKMessage } from '@cursor/sdk';
 
+import {
+  BASH_TOOL_KIND,
+  extractBashCommandFromToolInput,
+  formatAgentLogLine,
+  formatBashRunningPayload,
+} from '../agent-log-format.js';
+
 type AgentEndCallback = () => void;
 type OutputCallback = () => void;
 
@@ -27,6 +34,7 @@ export class CursorSdkStreamAdapter {
     this.outputCallbacks.push(cb);
   }
 
+  // fallow-ignore-next-line complexity
   handleMessage(message: SDKMessage): void {
     this.notifyOutput();
 
@@ -34,23 +42,34 @@ export class CursorSdkStreamAdapter {
       case 'assistant':
         this.handleAssistant(message);
         break;
-      case 'tool_call':
+      case 'tool_call': {
         this.flushText();
+        const bashCmd = extractBashCommandFromToolInput(message.name, message.args);
+        if (bashCmd !== null) {
+          this.writeLine(
+            formatAgentLogLine(this.logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd))
+          );
+          break;
+        }
         this.writeLine(
-          `${this.logPrefix} tool: ${message.call_id} ${message.name} ${JSON.stringify({ status: message.status, args: message.args })}]`
+          formatAgentLogLine(
+            this.logPrefix,
+            `tool: ${message.call_id} ${message.name} ${JSON.stringify({ status: message.status, args: message.args })}`
+          )
         );
         break;
+      }
       case 'status':
-        this.writeLine(`${this.logPrefix} status: ${message.status}]`);
+        this.writeLine(formatAgentLogLine(this.logPrefix, `status: ${message.status}`));
         // Terminal statuses are logged only; agent_end is emitted from finish()
         // after run.wait() so resumeTurn is not invoked mid-stream.
         break;
       case 'thinking':
-        this.writeLine(`${this.logPrefix} thinking] ${message.text}`);
+        this.writeLine(formatAgentLogLine(this.logPrefix, 'thinking', message.text));
         break;
       case 'system':
         if (message.subtype === 'init') {
-          this.writeLine(`${this.logPrefix} system: init]`);
+          this.writeLine(formatAgentLogLine(this.logPrefix, 'system: init'));
         }
         break;
       default:
@@ -83,7 +102,7 @@ export class CursorSdkStreamAdapter {
   private flushText(): void {
     if (!this.textBuffer) return;
     for (const line of this.textBuffer.split('\n')) {
-      if (line) this.writeLine(`${this.logPrefix} text] ${line}`);
+      if (line) this.writeLine(formatAgentLogLine(this.logPrefix, 'text', line));
     }
     this.textBuffer = '';
   }
@@ -92,7 +111,7 @@ export class CursorSdkStreamAdapter {
     if (this.agentEndEmitted) return;
     this.agentEndEmitted = true;
     this.flushText();
-    this.writeLine(`${this.logPrefix} agent_end]`);
+    this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
     for (const cb of this.agentEndCallbacks) cb();
   }
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } fr
 
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 
-const LOG_PREFIX = '[cursor-sdk:builder@test]';
+const LOG_PREFIX = '[cursor-sdk:builder@test';
 
 function assistantMessage(text: string) {
   return {
@@ -34,6 +34,18 @@ function toolCallMessage() {
     name: 'read_file',
     status: 'running' as const,
     args: { path: 'README.md' },
+  };
+}
+
+function bashToolCallMessage() {
+  return {
+    type: 'tool_call' as const,
+    agent_id: 'agent-1',
+    run_id: 'run-1',
+    call_id: 'call-2',
+    name: 'shell',
+    status: 'running' as const,
+    args: { command: 'git status' },
   };
 }
 
@@ -69,7 +81,15 @@ describe('CursorSdkStreamAdapter', () => {
     }
   );
 
-  it('writes tool_call events with tool name', () => {
+  it('writes bash/shell tool_call as a clean running: <command> line', () => {
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    adapter.handleMessage(bashToolCallMessage());
+
+    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: git status\n`);
+    expect(stdoutWriteSpy).not.toHaveBeenCalledWith(expect.stringContaining('tool: call-2 shell'));
+  });
+
+  it('still logs non-bash tool_call as JSON (unchanged behavior)', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
     adapter.handleMessage(toolCallMessage());
 
