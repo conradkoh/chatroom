@@ -15,15 +15,23 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { GitPullRequest as GitPullRequestIcon, Loader2, Star } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { WorkspacePRReview } from '../WorkspacePRReview';
-import { useAllPullRequests } from '../../hooks/useWorkspaceGit';
 import { useCurrentBranchPullRequest } from '../../hooks/useCurrentBranchPullRequest';
+import { useAllPullRequests } from '../../hooks/useWorkspaceGit';
 import type { GitPullRequest } from '../../types/git';
 import { prStateBadge, relativeTime } from '../../utils/pr-helpers';
-import { cn } from '@/lib/utils';
-import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
-import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
+import { WorkspacePRReview } from '../WorkspacePRReview';
+
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
+import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,17 +127,21 @@ const PRListColumn = memo(function PRListColumn({
     <div className="flex flex-col h-full">
       {/* Filter bar */}
       <div className="px-3 py-2 border-b border-border shrink-0">
-        <select
-          value={filter}
-          onChange={(e) => onFilterChange(e.target.value as PRFilter)}
-          className="text-xs bg-chatroom-bg-surface border border-border rounded px-2 py-1 text-chatroom-text-primary w-full cursor-pointer"
-        >
-          {(Object.keys(FILTER_LABELS) as PRFilter[]).map((f) => (
-            <option key={f} value={f}>
-              {FILTER_LABELS[f]}
-            </option>
-          ))}
-        </select>
+        <Select value={filter} onValueChange={(v) => onFilterChange(v as PRFilter)}>
+          <SelectTrigger
+            size="sm"
+            className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-chatroom-bg-surface border border-chatroom-border rounded-none">
+            {(Object.keys(FILTER_LABELS) as PRFilter[]).map((f) => (
+              <SelectItem key={f} value={f} className="text-xs rounded-none">
+                {FILTER_LABELS[f]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* List */}
@@ -251,13 +263,15 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
   const handlePRAction = useCallback(
     async (action: 'merge_squash' | 'merge_no_squash' | 'close') => {
       if (!selectedPR || prActionLoading) return;
+      const { prNumber } = selectedPR;
+      if (prNumber == null) return;
       setPrActionLoading(true);
       setPrActionError(null);
       try {
         await requestPRActionMutation({
           machineId,
           workingDir,
-          prNumber: selectedPR.prNumber!,
+          prNumber,
           prAction: action,
         });
       } catch (err) {
