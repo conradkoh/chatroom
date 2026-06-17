@@ -72,8 +72,8 @@ describe('Squad Team > Builder > System Prompt', () => {
     expect(prompt).not.toContain('### Classify message');
     expect(prompt).toContain('### Start Working');
     expect(prompt).toContain('## Builder Workflow');
-    // Squad builder CANNOT hand off to user
-    expect(prompt).toContain('only the planner can hand off to the user');
+    // Squad builder can hand off to user
+    expect(prompt).toMatch(/Available targets:.*user/);
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain('### Commands');
 
@@ -275,9 +275,7 @@ describe('Squad Team > Builder > System Prompt', () => {
        
 
       ### Handoff Options
-      Available targets: planner, reviewer
-
-      ⚠️ **Restriction:** In squad team, only the planner can hand off to the user.
+      Available targets: planner, reviewer, user
 
       ### Commands
 

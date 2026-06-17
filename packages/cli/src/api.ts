@@ -49,8 +49,6 @@ export interface SessionValidation {
 // Response types from backend functions
 export interface AllowedHandoffRoles {
   availableRoles: string[];
-  canHandoffToUser: boolean;
-  restrictionReason: string | null;
   currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
@@ -64,8 +62,6 @@ export interface RolePromptResponse {
   prompt: string;
   currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
   availableHandoffRoles: string[];
-  canHandoffToUser: boolean;
-  restrictionReason: string | null;
 }
 
 export interface TeamReadinessInfo {
