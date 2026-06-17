@@ -1,5 +1,7 @@
 import type { Writable } from 'node:stream';
 
+import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
+
 export interface SessionEventForwarderOptions {
   sessionId: string;
   role: string;
@@ -42,8 +44,7 @@ function formatLogLine(
   kind: string,
   payload?: string
 ): string {
-  const ts = options.now ? options.now() : new Date().toISOString();
-  return `[${ts}] role:${options.role} ${kind}]${payload ? ` ${payload}` : ''}`;
+  return formatTimestampedLogLine(options.role, kind, payload, options.now);
 }
 
 function writeLogLine(
@@ -213,24 +214,9 @@ export function startSessionEventForwarder(
                     ? part.state.status
                     : 'started';
 
-              function appendInput(base: string, input: unknown, tool: string): string {
-                if (
-                  !input ||
-                  (typeof input === 'object' && Object.keys(input as object).length === 0)
-                ) {
-                  return base;
-                }
-                const inp = input as Record<string, unknown>;
-                if (tool === 'bash' && typeof inp.command === 'string') {
-                  return `${base}: ${inp.command}`;
-                }
-                const inputStr = typeof inp === 'string' ? inp : JSON.stringify(inp);
-                return `${base}: ${inputStr}`;
-              }
-
               let payload = state;
               if (part.state?.input) {
-                payload = appendInput(payload, part.state.input, part.tool);
+                payload = appendToolInputToPayload(payload, part.state.input, part.tool);
               }
 
               if (
@@ -239,7 +225,11 @@ export function startSessionEventForwarder(
                 part.state?.time?.end !== undefined
               ) {
                 const duration = ((part.state.time.end - part.state.time.start) / 1000).toFixed(1);
-                payload = appendInput(`${state} (${duration}s)`, part.state.input, part.tool);
+                payload = appendToolInputToPayload(
+                  `${state} (${duration}s)`,
+                  part.state.input,
+                  part.tool
+                );
               }
 
               const callID = (part as { callID?: string }).callID ?? 'unknown';

@@ -1,23 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractBashCommandFromClaudeToolUse } from './claude-code-agent-service.js';
+import { extractBashCommandFromToolInput } from '../agent-log-format.js';
 
-describe('extractBashCommandFromClaudeToolUse', () => {
+describe('extractBashCommandFromToolInput (Claude)', () => {
   it('extracts command from Bash tool_use', () => {
-    expect(extractBashCommandFromClaudeToolUse('Bash', { command: 'ls -la' })).toBe('ls -la');
+    expect(extractBashCommandFromToolInput('Bash', { command: 'ls -la' })).toBe('ls -la');
   });
 
   it('extracts command from shell tool_use (case-insensitive)', () => {
-    expect(extractBashCommandFromClaudeToolUse('shell', { command: 'git status' })).toBe(
-      'git status'
-    );
+    expect(extractBashCommandFromToolInput('shell', { command: 'git status' })).toBe('git status');
   });
 
   it('returns null for non-bash tools', () => {
-    expect(extractBashCommandFromClaudeToolUse('Read', { file: 'x' })).toBeNull();
+    expect(extractBashCommandFromToolInput('Read', { file: 'x' })).toBeNull();
   });
 
   it('returns null when Bash input has no command', () => {
-    expect(extractBashCommandFromClaudeToolUse('Bash', null)).toBeNull();
+    expect(extractBashCommandFromToolInput('Bash', null)).toBeNull();
   });
 });

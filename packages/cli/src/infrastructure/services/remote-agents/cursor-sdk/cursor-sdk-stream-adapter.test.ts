@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } fr
 
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
 
-const LOG_PREFIX = '[cursor-sdk:builder@test]';
+const LOG_PREFIX = '[cursor-sdk:builder@test';
 
 function assistantMessage(text: string) {
   return {
