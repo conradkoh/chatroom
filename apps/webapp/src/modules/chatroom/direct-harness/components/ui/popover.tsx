@@ -1,6 +1,6 @@
 /**
  * Harness-local Popover — identical API to ShadCN Popover but with sharp corners
- * (removes rounded-md from PopoverContent) per docs/design/theme.md.
+ * (removes rounded-md from PopoverContent) per docs/application/design/theme.md.
  */
 'use client';
 

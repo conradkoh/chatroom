@@ -96,7 +96,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 
   return (
     <>
-      <ContextMenu>
+      <ContextMenu modal={false}>
         <ContextMenuTrigger asChild>
           <div
             role="button"
@@ -156,8 +156,8 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           </div>
         </ContextMenuTrigger>
         {!isCompleted && (
-          <ContextMenuContent className="min-w-[160px]">
-            <ContextMenuItem onSelect={handleArchive}>
+          <ContextMenuContent className="min-w-[160px] rounded-none">
+            <ContextMenuItem onSelect={handleArchive} className="rounded-none">
               <Archive size={14} />
               Archive Chat
             </ContextMenuItem>

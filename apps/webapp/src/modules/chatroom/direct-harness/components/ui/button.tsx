@@ -1,6 +1,6 @@
 /**
  * Harness-local Button — identical API to ShadCN Button but with sharp corners
- * (removes rounded-md from base and size variants) per docs/design/theme.md.
+ * (removes rounded-md from base and size variants) per docs/application/design/theme.md.
  */
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';

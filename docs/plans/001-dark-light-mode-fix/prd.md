@@ -2,14 +2,14 @@
 
 ## Glossary
 
-| Term                    | Definition                                                                                                                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Dark Steel Theme**    | The primary dark theme variant as defined in `docs/design/theme.md`. Uses zinc-950 backgrounds, zinc-100 text, and bright status colors (emerald-400, amber-400, red-400, blue-400). |
-| **Neutral Glass Theme** | The light theme variant as defined in `docs/design/theme.md`. Uses neutral-100 backgrounds, neutral-900 text, and darker status colors (green-700, amber-700, red-700, blue-700).    |
-| **Semantic Token**      | CSS custom property or Tailwind class that adapts based on the current theme (e.g., `bg-background`, `text-foreground`)                                                              |
-| **Hardcoded Color**     | A direct color value (e.g., `bg-zinc-950`, `text-zinc-100`) that doesn't change with theme                                                                                           |
-| **Chatroom Module**     | The collection of components under `apps/webapp/src/modules/chatroom/` that implement the multi-agent chatroom functionality                                                         |
-| **`.chatroom-root`**    | The CSS class applied to chatroom module containers that provides scoped CSS variables                                                                                               |
+| Term                    | Definition                                                                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Dark Steel Theme**    | The primary dark theme variant as defined in `docs/application/design/theme.md`. Uses zinc-950 backgrounds, zinc-100 text, and bright status colors (emerald-400, amber-400, red-400, blue-400). |
+| **Neutral Glass Theme** | The light theme variant as defined in `docs/application/design/theme.md`. Uses neutral-100 backgrounds, neutral-900 text, and darker status colors (green-700, amber-700, red-700, blue-700).    |
+| **Semantic Token**      | CSS custom property or Tailwind class that adapts based on the current theme (e.g., `bg-background`, `text-foreground`)                                                                          |
+| **Hardcoded Color**     | A direct color value (e.g., `bg-zinc-950`, `text-zinc-100`) that doesn't change with theme                                                                                                       |
+| **Chatroom Module**     | The collection of components under `apps/webapp/src/modules/chatroom/` that implement the multi-agent chatroom functionality                                                                     |
+| **`.chatroom-root`**    | The CSS class applied to chatroom module containers that provides scoped CSS variables                                                                                                           |
 
 ## User Stories
 

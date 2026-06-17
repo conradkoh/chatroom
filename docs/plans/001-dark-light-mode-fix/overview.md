@@ -7,7 +7,7 @@ Fix the broken dark/light mode theming across the chatroom application. Currentl
 ## Goals
 
 1. **Enable proper light mode support** - All chatroom components should adapt their colors based on the current theme setting (light/dark/system)
-2. **Maintain design system consistency** - Follow the established design guidelines in `docs/design/theme.md` which defines the "Dark Steel" (dark) and "Neutral Glass" (light) theme variants
+2. **Maintain design system consistency** - Follow the established design guidelines in `docs/application/design/theme.md` which defines the "Dark Steel" (dark) and "Neutral Glass" (light) theme variants
 3. **Preserve the industrial design aesthetic** - Keep the brutalist, utilitarian design philosophy intact across both themes
 4. **Ensure WCAG AA accessibility** - Both themes must meet contrast requirements
 
