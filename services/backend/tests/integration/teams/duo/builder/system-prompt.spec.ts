@@ -69,10 +69,9 @@ describe('Duo Team > Builder > System Prompt', () => {
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('## Getting Started');
     expect(prompt).toContain('## Builder Workflow');
-    // Builder CANNOT hand off to user in duo team
+    // Builder can hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: planner');
-    expect(prompt).toContain('In duo team, only the planner can hand off to the user.');
+    expect(prompt).toMatch(/Available targets:.*user/);
     expect(prompt).toContain('### Commands');
 
     expect(prompt).toMatchInlineSnapshot(`
@@ -270,9 +269,7 @@ describe('Duo Team > Builder > System Prompt', () => {
        
 
       ### Handoff Options
-      Available targets: planner
-
-      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
+      Available targets: planner, user
 
       ### Commands
 
