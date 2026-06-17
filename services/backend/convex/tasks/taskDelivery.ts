@@ -56,17 +56,20 @@ export async function getTaskDeliveryPromptData(
     (p) => p.role.toLowerCase() !== role.toLowerCase() && isActiveParticipant(p)
   );
 
-  // Get recent messages for classification
-  const recentMessages = await ctx.db
+  // Get the latest classified user message via the senderRole+type index
+  // (scans only user 'message' rows, not all message types).
+  const recentUserMessages = await ctx.db
     .query('chatroom_messages')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+      q.eq('chatroomId', chatroomId).eq('senderRole', 'user').eq('type', 'message')
+    )
     .order('desc')
-    .take(15); // was 50 — only need latest user classification
+    .take(15);
 
-  // Find current classification
+  // Find current classification (newest classified user message wins)
   let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
-  for (const msg of recentMessages) {
-    if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+  for (const msg of recentUserMessages) {
+    if (msg.classification) {
       currentClassification = msg.classification;
       break;
     }

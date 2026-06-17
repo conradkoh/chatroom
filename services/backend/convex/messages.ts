@@ -923,15 +923,17 @@ export const taskStarted = mutation({
     if (args.skipClassification) {
       // For handoff recipients, the task's sourceMessage is the handoff message (not user message)
       // We need to find the most recent classified user message in the chatroom
-      const recentMessages = await ctx.db
+      const recentUserMessages = await ctx.db
         .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+        )
         .order('desc')
-        .take(15); // was 50 — only need latest user classification
+        .take(15);
 
       let classifiedMessage = null;
-      for (const msg of recentMessages) {
-        if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+      for (const msg of recentUserMessages) {
+        if (msg.classification) {
           classifiedMessage = msg;
           break;
         }
@@ -2014,17 +2016,20 @@ export const getTaskDeliveryPrompt = query({
       (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
-    // Get recent messages for classification
-    const recentMessages = await ctx.db
+    // Get the latest classified user message via the senderRole+type index
+    // (scans only user 'message' rows, not all message types).
+    const recentUserMessages = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
       .order('desc')
-      .take(15); // was 50 — only need latest user classification
+      .take(15);
 
-    // Find current classification
+    // Find current classification (newest classified user message wins)
     let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
-    for (const msg of recentMessages) {
-      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+    for (const msg of recentUserMessages) {
+      if (msg.classification) {
         currentClassification = msg.classification;
         break;
       }
