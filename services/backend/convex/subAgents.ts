@@ -179,7 +179,7 @@ export const spawnSubAgent = mutation({
     // machineId is required for sub-agent spawn — must be provided by caller
     if (!args.machineId) {
       throw new ConvexError({
-        code: 'ALREADY_CONNECTED',
+        code: 'SUB_AGENT_MACHINE_NOT_FOUND',
         message: 'Machine ID is required for sub-agent spawn',
       });
     }

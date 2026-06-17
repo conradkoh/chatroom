@@ -85,8 +85,13 @@ export async function spawnSubAgent(input: SpawnSubAgentInput): Promise<SpawnSub
     completedAt: undefined,
   });
 
-  // Fetch the machine document required by startAgent
-  const machine = await ctx.db.get('chatroom_machines', machineId as any);
+  // Fetch the machine document required by startAgent.
+  // machineId is a CLI-generated UUID stored in the `machineId` field — look it up
+  // via the by_machineId index, NOT ctx.db.get (which expects a Convex document _id).
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .first();
   if (!machine) {
     throw new ConvexError({
       code: BACKEND_ERROR_CODES.SUB_AGENT_MACHINE_NOT_FOUND,
