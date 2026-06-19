@@ -16,7 +16,7 @@ import type { ChildProcess } from 'node:child_process';
 
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
-import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
+import { buildAgentSpawnEnv } from '../../../convex/spawn-env.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import type {
@@ -148,10 +148,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: buildChatroomSpawnEnv(resolvedConvexUrl, {
-        GIT_EDITOR: 'true',
-        GIT_SEQUENCE_EDITOR: 'true',
-      }),
+      env: buildAgentSpawnEnv(resolvedConvexUrl),
     });
 
     if (!childProcess.pid) {

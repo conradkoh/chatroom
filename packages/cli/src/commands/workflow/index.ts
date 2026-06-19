@@ -4,17 +4,18 @@
  * Phase 9: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { WorkflowDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
@@ -114,23 +115,6 @@ async function createDefaultDeps(): Promise<WorkflowDeps> {
   };
 }
 
-/**
- * Build Effect Layer from WorkflowDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: WorkflowDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Section Parser ────────────────────────────────────────────────────────
 
 /**
@@ -225,18 +209,6 @@ function getWorkflowStatusEmoji(status: WorkflowStatus): string {
 }
 
 // ─── Validation Helpers ────────────────────────────────────────────────────
-
-function validateChatroomIdEffect(chatroomId: string): Effect.Effect<void, WorkflowError> {
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    return Effect.fail<WorkflowError>({ _tag: 'InvalidChatroomId', id: chatroomId });
-  }
-  return Effect.succeed(undefined);
-}
 
 /** Validate a single step object — returns a WorkflowError or null if valid */
 function validateStepInput(step: StepInput, index: number): WorkflowError | null {
@@ -460,17 +432,18 @@ export const createWorkflowEffect = (
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   // fallow-ignore-next-line complexity
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Parse JSON from stdin
     const stepsData = yield* Effect.try({
@@ -557,17 +530,18 @@ export const specifyWorkflowStepEffect = (
   options: SpecifyStepOptions
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Parse sections from stdin (parseSections calls process.exit on error)
     const sections = yield* Effect.try({
@@ -633,17 +607,18 @@ export const executeWorkflowEffect = (
   options: ExecuteWorkflowOptions
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     yield* backend
       .mutation<void>(api.workflows.executeWorkflow, {
@@ -673,17 +648,18 @@ export const getWorkflowStatusEffect = (
   options: WorkflowStatusOptions
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     const result = yield* backend
       .query<{
@@ -740,17 +716,18 @@ export const completeStepEffect = (
   options: StepCompleteOptions
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     yield* backend
       .mutation<void>(api.workflows.completeStep, {
@@ -779,17 +756,18 @@ export const exitWorkflowEffect = (
   options: ExitWorkflowOptions
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     if (!options.reason || options.reason.trim().length === 0) {
       return yield* Effect.fail<WorkflowError>({
@@ -825,17 +803,18 @@ export const viewStepEffect = (
   options: ViewStepOptions
 ): Effect.Effect<void, WorkflowError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<WorkflowError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomIdEffect(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     const result = yield* backend
       .query<{
@@ -930,7 +909,7 @@ export async function createWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     createWorkflowEffect(chatroomId, options).pipe(
@@ -949,7 +928,7 @@ export async function specifyWorkflowStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     specifyWorkflowStepEffect(chatroomId, options).pipe(
@@ -968,7 +947,7 @@ export async function executeWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     executeWorkflowEffect(chatroomId, options).pipe(
@@ -987,7 +966,7 @@ export async function getWorkflowStatus(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     getWorkflowStatusEffect(chatroomId, options).pipe(
@@ -1006,7 +985,7 @@ export async function completeStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     completeStepEffect(chatroomId, options).pipe(
@@ -1025,7 +1004,7 @@ export async function exitWorkflow(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     exitWorkflowEffect(chatroomId, options).pipe(
@@ -1044,7 +1023,7 @@ export async function viewStep(
   deps?: WorkflowDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     viewStepEffect(chatroomId, options).pipe(

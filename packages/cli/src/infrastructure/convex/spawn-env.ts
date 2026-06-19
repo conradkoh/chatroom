@@ -27,6 +27,14 @@ export function buildChatroomSpawnEnv(
   return env;
 }
 
+/** Standard child env for remote agent spawns (git tools disabled + Convex URL guard). */
+export function buildAgentSpawnEnv(resolvedConvexUrl: string): NodeJS.ProcessEnv {
+  return buildChatroomSpawnEnv(resolvedConvexUrl, {
+    GIT_EDITOR: 'true',
+    GIT_SEQUENCE_EDITOR: 'true',
+  });
+}
+
 /**
  * Warn when parent shell env disagrees with the daemon-resolved URL.
  * Returns null when there is no mismatch (or env is unset).

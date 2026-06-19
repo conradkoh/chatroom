@@ -25,7 +25,7 @@
 import { type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 
-import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
+import { buildAgentSpawnEnv } from '../../../convex/spawn-env.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -234,10 +234,7 @@ export class PiAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: buildChatroomSpawnEnv(args.resolvedConvexUrl, {
-        GIT_EDITOR: 'true',
-        GIT_SEQUENCE_EDITOR: 'true',
-      }),
+      env: buildAgentSpawnEnv(args.resolvedConvexUrl),
     });
 
     return childProcess;

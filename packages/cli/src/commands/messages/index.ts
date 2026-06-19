@@ -4,17 +4,18 @@
  * Phase 8: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { MessagesDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -74,36 +75,7 @@ async function createDefaultDeps(): Promise<MessagesDeps> {
   };
 }
 
-/**
- * Build Effect Layer from MessagesDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: MessagesDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-function validateChatroomId(chatroomId: string): Effect.Effect<void, MessagesError> {
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    return Effect.fail<MessagesError>({ _tag: 'InvalidChatroomId', id: chatroomId });
-  }
-  return Effect.succeed(undefined);
-}
 
 /** Format classification and status badges for a message */
 function formatBadges(message: MessageItem): string {
@@ -140,17 +112,18 @@ export const listBySenderRoleEffect = (
   options: ListBySenderRoleOptions
 ): Effect.Effect<void, MessagesError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<MessagesError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomId(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     const messages = yield* backend
       .query<MessageItem[]>(api.messages.listBySenderRole, {
@@ -204,17 +177,18 @@ export const listSinceMessageEffect = (
   options: ListSinceMessageOptions
 ): Effect.Effect<void, MessagesError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    const convexUrl = yield* session.getConvexUrl();
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<MessagesError>({ _tag: 'NotAuthenticated', convexUrl, otherUrls });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    yield* validateChatroomId(chatroomId);
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     const messages = yield* backend
       .query<MessageItem[]>(api.messages.listSinceMessage, {
@@ -306,7 +280,7 @@ export async function listBySenderRole(
   deps?: MessagesDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     listBySenderRoleEffect(chatroomId, options).pipe(
@@ -326,7 +300,7 @@ export async function listSinceMessage(
   deps?: MessagesDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     listSinceMessageEffect(chatroomId, options).pipe(

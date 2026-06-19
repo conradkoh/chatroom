@@ -71,6 +71,9 @@
       "services/backend/application/auth/permissions.ts",
       "services/backend/application/auth/roles.ts",
       "services/backend/application/auth/resolve.ts",
+      // Intentional parallel stdin delimiter decoders (CLI + Convex backend)
+      "packages/cli/src/utils/serialization/decode/index.ts",
+      "services/backend/convex/lib/stdinDecoder.ts",
     ],
   },
   "health": {

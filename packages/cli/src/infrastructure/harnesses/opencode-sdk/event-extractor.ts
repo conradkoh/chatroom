@@ -43,68 +43,63 @@ export function createOpencodeSdkChunkExtractor(): (
   const partMap = new Map<string, { messageId: string; partType: 'text' | 'reasoning' }>();
 
   return function extract(event: DirectHarnessSessionEvent): ExtractedChunk | null {
+    // ── message.part.updated ─────────────────────────────────────────────────
+    // Fired when a part is created or its state changes. Contains the full Part
+    // object (id, messageID, type). We use this to populate our partID map so
+    // subsequent message.part.delta events can be tagged correctly.
+    //
+    // SDK v1 also piggy-backs a `delta` field on this event; we extract it here
+    // for backwards compatibility.
     if (event.type === 'message.part.updated') {
-      return handlePartUpdated(
-        event.payload as
-          | { part?: { id?: string; messageID?: string; type?: string }; delta?: string }
-          | undefined,
-        partMap
-      );
+      const payload = event.payload as
+        | {
+            part?: { id?: string; messageID?: string; type?: string };
+            delta?: string;
+          }
+        | undefined;
+
+      const part = payload?.part;
+      if (part?.id && part?.messageID) {
+        const partType: 'text' | 'reasoning' = part.type === 'reasoning' ? 'reasoning' : 'text';
+        partMap.set(part.id, { messageId: part.messageID, partType });
+
+        // SDK v1 compat: extract delta when present on the same event
+        const delta = payload?.delta;
+        if (delta && delta.length > 0) {
+          return { content: delta, messageId: part.messageID, partType };
+        }
+      }
+      return null;
     }
 
+    // ── message.part.delta ───────────────────────────────────────────────────
+    // Primary streaming event in SDK v2. Carries partID + delta but NOT the
+    // part type — resolved via the map populated above.
     if (event.type === 'message.part.delta') {
-      return handlePartDelta(
-        event.payload as { partID?: string; messageID?: string; delta?: string } | undefined,
-        partMap
-      );
+      const payload = event.payload as
+        | {
+            partID?: string;
+            messageID?: string;
+            delta?: string;
+          }
+        | undefined;
+
+      const delta = payload?.delta;
+      if (!delta || delta.length === 0) return null;
+
+      const messageId = payload?.messageID;
+      if (!messageId) return null;
+
+      // Resolve part type from the map. If message.part.updated has not yet
+      // arrived for this partID (rare race), default to 'text' so no content
+      // is silently dropped.
+      const partID = payload?.partID;
+      const partType: 'text' | 'reasoning' =
+        (partID ? partMap.get(partID)?.partType : undefined) ?? 'text';
+
+      return { content: delta, messageId, partType };
     }
 
     return null;
   };
-}
-
-function resolvePartType(
-  part: { id?: string; messageID?: string; type?: string } | undefined
-): 'text' | 'reasoning' {
-  return part?.type === 'reasoning' ? 'reasoning' : 'text';
-}
-
-function handlePartUpdated(
-  payload:
-    | { part?: { id?: string; messageID?: string; type?: string }; delta?: string }
-    | undefined,
-  partMap: Map<string, { messageId: string; partType: 'text' | 'reasoning' }>
-): ExtractedChunk | null {
-  const part = payload?.part;
-  if (!part?.id || !part?.messageID) return null;
-
-  const partType = resolvePartType(part);
-  partMap.set(part.id, { messageId: part.messageID, partType });
-
-  const delta = payload?.delta;
-  if (!delta || delta.length === 0) return null;
-
-  return { content: delta, messageId: part.messageID, partType };
-}
-
-function handlePartDelta(
-  payload: { partID?: string; messageID?: string; delta?: string } | undefined,
-  partMap: Map<string, { messageId: string; partType: 'text' | 'reasoning' }>
-): ExtractedChunk | null {
-  const delta = payload?.delta;
-  if (!delta) return null;
-
-  const messageId = payload?.messageID;
-  if (!messageId) return null;
-
-  const partType = partTypeFromPayload(payload?.partID, partMap);
-
-  return { content: delta, messageId, partType };
-}
-
-function partTypeFromPayload(
-  partID: string | undefined,
-  partMap: Map<string, { messageId: string; partType: 'text' | 'reasoning' }>
-): 'text' | 'reasoning' {
-  return (partID ? partMap.get(partID)?.partType : undefined) ?? 'text';
 }

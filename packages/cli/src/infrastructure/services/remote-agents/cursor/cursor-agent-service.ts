@@ -18,7 +18,6 @@
 
 import { type ChildProcess } from 'node:child_process';
 
-import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -156,26 +155,13 @@ export class CursorAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: buildChatroomSpawnEnv(options.resolvedConvexUrl, {
-        GIT_EDITOR: 'true',
-        GIT_SEQUENCE_EDITOR: 'true',
-      }),
+      env: this.agentSpawnEnv(options.resolvedConvexUrl),
     });
 
     childProcess.stdin?.write(fullPrompt);
     childProcess.stdin?.end();
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    if (childProcess.killed || childProcess.exitCode !== null) {
-      throw new Error(`Agent process exited immediately (exit code: ${childProcess.exitCode})`);
-    }
-
-    if (!childProcess.pid) {
-      throw new Error('Agent process started but has no PID');
-    }
-
-    const pid = childProcess.pid;
+    const pid = await this.assertChildProcessStarted(childProcess);
     const context = options.context;
 
     const entry = this.registerProcess(pid, context);

@@ -10,33 +10,37 @@ function getClientStatus(): { initialized: boolean; dsnConfigured: boolean } {
   return { initialized: Boolean(client), dsnConfigured };
 }
 
+function assertSentryReady(status: { initialized: boolean; dsnConfigured: boolean }): boolean {
+  if (!status.dsnConfigured) {
+    toast.error(
+      'NEXT_PUBLIC_SENTRY_DSN is not set — restart dev server after adding it to .env.local'
+    );
+    return false;
+  }
+  if (!status.initialized) {
+    toast.error(
+      'Sentry client SDK is not initialized. Check instrumentation-client.ts is present and restart dev server.'
+    );
+    return false;
+  }
+  return true;
+}
+
+function captureTestError(type: 'message' | 'exception'): string | undefined {
+  return type === 'message'
+    ? Sentry.captureMessage('Sentry test message from /test/sentry-error')
+    : Sentry.captureException(new Error('Sentry test exception from /test/sentry-error'));
+}
+
 export default function SentryErrorTestPage() {
   const initialStatus = useMemo(() => getClientStatus(), []);
   const [lastEventId, setLastEventId] = useState<string | null>(null);
 
   const handleCapture = async (type: 'message' | 'exception') => {
-    const status = getClientStatus();
-
-    if (!status.dsnConfigured) {
-      toast.error(
-        'NEXT_PUBLIC_SENTRY_DSN is not set — restart dev server after adding it to .env.local'
-      );
-      return;
-    }
-
-    if (!status.initialized) {
-      toast.error(
-        'Sentry client SDK is not initialized. Check instrumentation-client.ts is present and restart dev server.'
-      );
-      return;
-    }
+    if (!assertSentryReady(getClientStatus())) return;
 
     try {
-      const eventId =
-        type === 'message'
-          ? Sentry.captureMessage('Sentry test message from /test/sentry-error')
-          : Sentry.captureException(new Error('Sentry test exception from /test/sentry-error'));
-
+      const eventId = captureTestError(type);
       await Sentry.flush(2000);
       setLastEventId(eventId ?? null);
       toast.success(`Captured ${type} — event ID: ${eventId ?? 'unknown'}`);

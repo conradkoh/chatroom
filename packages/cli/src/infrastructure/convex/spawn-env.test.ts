@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 
-import { buildChatroomSpawnEnv, formatConvexUrlMismatchWarning } from './spawn-env.js';
+import {
+  buildAgentSpawnEnv,
+  buildChatroomSpawnEnv,
+  formatConvexUrlMismatchWarning,
+} from './spawn-env.js';
 
 const PROD = 'https://chatroom-cloud.duskfare.com';
 const LOCAL = 'http://localhost:3210';
@@ -26,6 +30,26 @@ describe('buildChatroomSpawnEnv', () => {
   it('sets CHATROOM_CONVEX_URL for non-production resolved URL', () => {
     const env = buildChatroomSpawnEnv(LOCAL);
     expect(env.CHATROOM_CONVEX_URL).toBe(LOCAL);
+  });
+});
+
+describe('buildAgentSpawnEnv', () => {
+  const original = process.env.CHATROOM_CONVEX_URL;
+
+  afterEach(() => {
+    if (original === undefined) {
+      delete process.env.CHATROOM_CONVEX_URL;
+    } else {
+      process.env.CHATROOM_CONVEX_URL = original;
+    }
+  });
+
+  it('buildAgentSpawnEnv sets GIT_EDITOR overrides and strips prod URL', () => {
+    process.env.CHATROOM_CONVEX_URL = LOCAL;
+    const env = buildAgentSpawnEnv(PROD);
+    expect(env.CHATROOM_CONVEX_URL).toBeUndefined();
+    expect(env.GIT_EDITOR).toBe('true');
+    expect(env.GIT_SEQUENCE_EDITOR).toBe('true');
   });
 });
 

@@ -42,7 +42,7 @@ import type {
   PublishedProvider,
 } from '../../../domain/direct-harness/entities/machine-capabilities.js';
 import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
-import { buildChatroomSpawnEnv } from '../../convex/spawn-env.js';
+import { buildAgentSpawnEnv } from '../../convex/spawn-env.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -286,6 +286,15 @@ export class OpencodeSdkHarness implements BoundHarness {
    * Drain a single SSE subscription stream, dispatching events to sessions.
    * Returns when the stream ends, errors, or the harness is closed/interrupted.
    */
+  private processEventLine(globalEvent: unknown): void {
+    const raw = (globalEvent as GlobalEvent).payload as SdkEvent;
+    try {
+      this._routeEvent(raw);
+    } catch (e) {
+      console.warn('[opencode-harness] Error routing event:', e);
+    }
+  }
+
   private async drainEventStream(
     stream: AsyncIterable<unknown>,
     interrupted: () => boolean
@@ -301,13 +310,7 @@ export class OpencodeSdkHarness implements BoundHarness {
         }
         if (next.done) break;
 
-        const globalEvent = next.value as GlobalEvent;
-        const raw = globalEvent.payload as SdkEvent;
-        try {
-          this._routeEvent(raw);
-        } catch (e) {
-          console.warn('[opencode-harness] Error routing event:', e);
-        }
+        this.processEventLine(next.value);
       }
     } finally {
       void iterator.return?.();
@@ -468,10 +471,7 @@ export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
     cwd: config.workingDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
-    env: buildChatroomSpawnEnv(config.resolvedConvexUrl, {
-      GIT_EDITOR: 'true',
-      GIT_SEQUENCE_EDITOR: 'true',
-    }),
+    env: buildAgentSpawnEnv(config.resolvedConvexUrl),
   });
 
   if (!childProcess.pid) {

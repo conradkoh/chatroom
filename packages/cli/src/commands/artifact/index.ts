@@ -4,18 +4,19 @@
  * Phase 6b: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { ArtifactDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { readFileContent } from '../../utils/file-content.js';
 
@@ -78,23 +79,6 @@ async function createDefaultDeps(): Promise<ArtifactDeps> {
   };
 }
 
-/**
- * Build Effect Layer from ArtifactDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: ArtifactDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Effect Programs ───────────────────────────────────────────────────────
 
 /**
@@ -112,35 +96,18 @@ export const createArtifactEffect = (
   }
 ): Effect.Effect<string | undefined, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Validate file extension
     if (!options.fromFile.endsWith('.md')) {
@@ -207,35 +174,18 @@ export const viewArtifactEffect = (
   }
 ): Effect.Effect<void, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Query artifact
     const artifact = yield* backend
@@ -293,35 +243,18 @@ export const viewManyArtifactsEffect = (
   }
 ): Effect.Effect<void, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     if (options.artifactIds.length === 0) {
       return yield* Effect.fail<ArtifactError>({ _tag: 'NoArtifactIds' });
@@ -470,7 +403,7 @@ export async function createArtifact(
   deps?: ArtifactDeps
 ): Promise<string | undefined> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   return Effect.runPromise(
     createArtifactEffect(chatroomId, options).pipe(
@@ -492,7 +425,7 @@ export async function viewArtifact(
   deps?: ArtifactDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     viewArtifactEffect(chatroomId, options).pipe(
@@ -514,7 +447,7 @@ export async function viewManyArtifacts(
   deps?: ArtifactDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     viewManyArtifactsEffect(chatroomId, options).pipe(

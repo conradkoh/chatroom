@@ -98,33 +98,48 @@ function createDefaultDeps(): ParsePdfDeps {
  * @param deps       - Optional dependencies for testing
  * @returns ToolResult with the output file path on success
  */
+async function resolvePdfPath(
+  input: string,
+  workingDir: string,
+  d: ParsePdfDeps
+): Promise<{ pdfInput: string } | { error: string }> {
+  const absolutePath = resolve(workingDir, input);
+  try {
+    await d.fs.access(absolutePath);
+  } catch {
+    return { error: `PDF file not found: ${absolutePath}` };
+  }
+  return { pdfInput: absolutePath };
+}
+
+function formatDownloadError(err: unknown): string {
+  if (err instanceof Error && err.name === 'TimeoutError') {
+    return `Download timed out after ${FETCH_TIMEOUT_MS / 1000}s`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function resolvePdfUrl(
+  input: string,
+  d: ParsePdfDeps
+): Promise<{ pdfInput: Buffer } | { error: string }> {
+  try {
+    const pdfInput = await d.http.download(input);
+    return { pdfInput };
+  } catch (err) {
+    return { error: `Failed to download PDF: ${formatDownloadError(err)}` };
+  }
+}
+
 async function resolvePdfInput(
   input: string,
   workingDir: string,
   d: ParsePdfDeps
 ): Promise<{ pdfInput: string | Buffer } | { error: string }> {
   if (!isUrl(input)) {
-    const absolutePath = resolve(workingDir, input);
-    try {
-      await d.fs.access(absolutePath);
-    } catch {
-      return { error: `PDF file not found: ${absolutePath}` };
-    }
-    return { pdfInput: absolutePath };
+    return resolvePdfPath(input, workingDir, d);
   }
-
-  try {
-    const pdfInput = await d.http.download(input);
-    return { pdfInput };
-  } catch (err) {
-    const message =
-      err instanceof Error && err.name === 'TimeoutError'
-        ? `Download timed out after ${FETCH_TIMEOUT_MS / 1000}s`
-        : err instanceof Error
-          ? err.message
-          : String(err);
-    return { error: `Failed to download PDF: ${message}` };
-  }
+  return resolvePdfUrl(input, d);
 }
 
 function formatErrorMessage(err: unknown): string {

@@ -22,7 +22,11 @@ import {
   SessionService,
   SessionServiceLive,
 } from '../../infrastructure/services/index.js';
-import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
+import {
+  formatAuthError,
+  formatConnectivityError,
+  isNetworkError,
+} from '../../utils/error-formatting.js';
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────
 
@@ -99,19 +103,7 @@ export const getNextTaskEffect = (
     if (!sessionId) {
       const convexUrl = yield* sessionService.getConvexUrl();
       const otherUrls = yield* sessionService.getOtherSessionUrls();
-      yield* Effect.sync(() => {
-        console.error(`❌ Not authenticated for: ${convexUrl}`);
-        if (otherUrls.length > 0) {
-          console.error(`\n💡 You have sessions for other environments:`);
-          for (const url of otherUrls) {
-            console.error(`   • ${url}`);
-          }
-          console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-          console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom get-next-task ...`);
-          console.error(`\n   Or to authenticate for the current environment:`);
-        }
-        console.error(`   chatroom auth login`);
-      });
+      yield* Effect.sync(() => formatAuthError(convexUrl, otherUrls));
       return yield* Effect.fail<GetNextTaskError>({ _tag: 'NotAuthenticated' });
     }
 

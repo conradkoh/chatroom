@@ -77,18 +77,20 @@ function hasNetworkErrorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+const NETWORK_ERROR_SUBSTRINGS = [
+  'fetch failed',
+  'failed to fetch',
+  'econnrefused',
+  'enotfound',
+  'etimedout',
+  'network',
+  'connection refused',
+  'socket hang up',
+  'dns',
+] as const;
+
 function isNetworkErrorMessage(msg: string): boolean {
-  return (
-    msg.includes('fetch failed') ||
-    msg.includes('failed to fetch') ||
-    msg.includes('econnrefused') ||
-    msg.includes('enotfound') ||
-    msg.includes('etimedout') ||
-    msg.includes('network') ||
-    msg.includes('connection refused') ||
-    msg.includes('socket hang up') ||
-    msg.includes('dns')
-  );
+  return NETWORK_ERROR_SUBSTRINGS.some((s) => msg.includes(s));
 }
 
 function isNetworkErrorCode(code: string | undefined): boolean {

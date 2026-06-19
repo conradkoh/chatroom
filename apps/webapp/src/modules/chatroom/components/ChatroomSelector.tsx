@@ -16,6 +16,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 
+import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 
@@ -489,12 +490,7 @@ const ChatroomCard = memo(function ChatroomCard({
         tabIndex={0}
         className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 md:p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelect(chatroom._id);
-          }
-        }}
+        onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
         data-chat-status={chatStatus}
       >
         {/* Card Main */}

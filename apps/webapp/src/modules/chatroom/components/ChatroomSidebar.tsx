@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -107,12 +108,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
                 : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
             }`}
             onClick={() => onSelect(chatroom._id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelect(chatroom._id);
-              }
-            }}
+            onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
           >
             {/* Status indicator - square per theme guidelines */}
             <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
