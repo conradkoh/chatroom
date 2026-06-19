@@ -1237,13 +1237,6 @@ subagentCommand
 // CODEMAP COMMANDS
 // ============================================================================
 
-program
-  .command('codemap')
-  .description('Manage codemaps from sub-agents')
-  .action(() => {
-    program.help();
-  });
-
 const codemapCommand = program.command('codemap').description('Manage codemaps from sub-agents');
 
 codemapCommand
