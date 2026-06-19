@@ -101,7 +101,10 @@ describe('Sentry initialization guard', () => {
     expect(mockSentryInit).toHaveBeenCalledWith(
       expect.objectContaining({
         dsn: testDsn,
+        tracesSampleRate: 1,
       })
     );
+    expect(mockSentryInit.mock.calls[0]?.[0]).not.toHaveProperty('integrations');
+    expect(mockReplayIntegration).not.toHaveBeenCalled();
   });
 });
