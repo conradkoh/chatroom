@@ -35,51 +35,51 @@ export type WorkspacePackage = SubWorkspacePackage;
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**
+ * Resolve a glob pattern (e.g., `apps/*`) to matching directories.
+ */
+async function resolveGlobPatternStar(rootDir: string, cleaned: string): Promise<string[]> {
+  const parentDir = join(rootDir, cleaned.slice(0, -2));
+  try {
+    const entries = await readdir(parentDir, { withFileTypes: true });
+    const dirs: string[] = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = join(parentDir, entry.name);
+      if (resolve(dirPath).startsWith(resolve(rootDir))) {
+        dirs.push(dirPath);
+      }
+    }
+    return dirs;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolve a literal path pattern to matching directories.
+ */
+async function resolveLiteralPath(rootDir: string, cleaned: string): Promise<string[]> {
+  const dir = join(rootDir, cleaned);
+  try {
+    if (!resolve(dir).startsWith(resolve(rootDir))) return [];
+    const s = await stat(dir);
+    if (s.isDirectory()) return [dir];
+  } catch {
+    // Directory doesn't exist
+  }
+  return [];
+}
+
+/**
  * Resolve a single glob pattern to matching directories.
  * Only supports trailing `/*` patterns (e.g., `apps/*`, `packages/*`).
  * Literal paths (e.g., `tools/my-tool`) are also supported.
  */
 async function resolveGlobPattern(rootDir: string, pattern: string): Promise<string[]> {
-  // Strip trailing slash if present
   const cleaned = pattern.replace(/\/+$/, '');
-
-  // Security: reject patterns with path traversal
-  if (cleaned.includes('..')) {
-    return [];
-  }
-
-  if (cleaned.endsWith('/*')) {
-    // Glob pattern: list subdirectories
-    const parentDir = join(rootDir, cleaned.slice(0, -2));
-    try {
-      const entries = await readdir(parentDir, { withFileTypes: true });
-      const dirs: string[] = [];
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const dirPath = join(parentDir, entry.name);
-          // Security: ensure resolved path stays within root
-          if (resolve(dirPath).startsWith(resolve(rootDir))) {
-            dirs.push(dirPath);
-          }
-        }
-      }
-      return dirs;
-    } catch {
-      return []; // Parent directory doesn't exist
-    }
-  } else {
-    // Literal path
-    const dir = join(rootDir, cleaned);
-    try {
-      // Security: ensure resolved path stays within root
-      if (!resolve(dir).startsWith(resolve(rootDir))) return [];
-      const s = await stat(dir);
-      if (s.isDirectory()) return [dir];
-    } catch {
-      // Directory doesn't exist
-    }
-    return [];
-  }
+  if (cleaned.includes('..')) return [];
+  if (cleaned.endsWith('/*')) return resolveGlobPatternStar(rootDir, cleaned);
+  return resolveLiteralPath(rootDir, cleaned);
 }
 
 /**

@@ -44,79 +44,88 @@ export function detectBacklogDivergence(
   return attachedIds.filter((id) => !contextContent.includes(id));
 }
 
+function renderAttachments(
+  input: RenderTaskPromptInput,
+  chatroomId: string,
+  role: string
+): string[] {
+  if (!input.attachedBacklogItems || input.attachedBacklogItems.length === 0) return [];
+  const lines: string[] = [''];
+  lines.push('<attachments>');
+  for (const item of input.attachedBacklogItems) {
+    lines.push(`  <attachment type="backlog-item">`);
+    lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
+    lines.push(`      ID: ${item._id}`);
+    lines.push(
+      `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}</hint>`
+    );
+    lines.push(`  </attachment>`);
+  }
+  lines.push('</attachments>');
+  return lines;
+}
+
+function renderDivergenceWarnings(input: RenderTaskPromptInput): string[] {
+  const ctx = input.context;
+  if (!ctx || !input.attachedBacklogItems || input.attachedBacklogItems.length === 0) return [];
+  const attachedIds = input.attachedBacklogItems.map((i) => i._id);
+  const divergentIds = detectBacklogDivergence(ctx.content, attachedIds);
+  return divergentIds.map((id) => `⚠ Backlog ${id} diverges from context — confirm scope.`);
+}
+
+function renderStalenessNotice(elapsedHours: number): string[] {
+  if (elapsedHours < 4) return [];
+  const ageLabel =
+    elapsedHours >= 48 ? `${Math.round(elapsedHours / 24)}d old` : `${elapsedHours}h old`;
+  return [
+    `<system-notice>`,
+    `⚠️ Context is ${ageLabel}.`,
+    `   Entry point role will update when needed.`,
+    `</system-notice>`,
+  ];
+}
+
+function renderContextSection(
+  input: RenderTaskPromptInput,
+  chatroomId: string,
+  role: string
+): string[] {
+  const ctx = input.context;
+  if (!ctx) return [];
+  const lines: string[] = [
+    '',
+    'Background context (may be stale)',
+    '<context>',
+    ctx.content,
+    '</context>',
+  ];
+
+  if (ctx.triggerMessageContent) {
+    lines.push(
+      `(For the message that triggered this context, run: chatroom context read --chatroom-id="${chatroomId}" --role="${role}")`
+    );
+  }
+
+  lines.push(...renderStalenessNotice(ctx.elapsedHours));
+  return lines;
+}
+
 export function renderTaskPrompt(input: RenderTaskPromptInput): string {
   const { taskId, status, content, chatroomId, role } = input;
   const lines: string[] = [];
 
-  // 1. Header
   lines.push(`✅ Task content:`);
   lines.push(`   Task ID: ${taskId}`);
   lines.push(`   Status: ${status}`);
 
-  // 2. Precedence line (only when context exists — no context means nothing to conflict with)
   if (input.context) {
     lines.push('On conflict, the message wins over background context.');
   }
 
-  // 3. Divergence warning for attached backlog IDs not matching context
-  if (input.context && input.attachedBacklogItems && input.attachedBacklogItems.length > 0) {
-    const attachedIds = input.attachedBacklogItems.map((i) => i._id);
-    const divergentIds = detectBacklogDivergence(input.context.content, attachedIds);
-    for (const id of divergentIds) {
-      lines.push(`⚠ Backlog ${id} diverges from context — confirm scope.`);
-    }
-  }
-
-  // 4. User message body
+  lines.push(...renderDivergenceWarnings(input));
   lines.push(`\n${content}`);
-
-  // 5. Attachments
-  if (input.attachedBacklogItems && input.attachedBacklogItems.length > 0) {
-    lines.push('');
-    lines.push('<attachments>');
-    for (const item of input.attachedBacklogItems) {
-      lines.push(`  <attachment type="backlog-item">`);
-      lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
-      lines.push(`      ID: ${item._id}`);
-      lines.push(
-        `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}</hint>`
-      );
-      lines.push(`  </attachment>`);
-    }
-    lines.push('</attachments>');
-  }
-
-  // 6. Background context (demoted, relabeled)
-  if (input.context) {
-    lines.push('');
-    lines.push('Background context (may be stale)');
-    lines.push('<context>');
-    lines.push(input.context.content);
-    lines.push('</context>');
-
-    if (input.context.triggerMessageContent) {
-      // The originating message is intentionally NOT inlined. Run the context command
-      // to retrieve the full context and the message that triggered it.
-      lines.push(
-        `(For the message that triggered this context, run: chatroom context read --chatroom-id="${chatroomId}" --role="${role}")`
-      );
-    }
-
-    // Staleness notice (time-based): soft warning at >= 4h, hard at >= 24h.
-    const hoursAgo = Math.round(input.context.elapsedHours);
-    if (hoursAgo >= 4) {
-      const ageLabel =
-        hoursAgo >= 48
-          ? `${Math.round(hoursAgo / 24)}d old`
-          : hoursAgo >= 24
-            ? `${hoursAgo}h old`
-            : `${hoursAgo}h old`;
-      lines.push(`<system-notice>`);
-      lines.push(`⚠️ Context is ${ageLabel}.`);
-      lines.push(`   Entry point role will update when needed.`);
-      lines.push(`</system-notice>`);
-    }
-  }
+  lines.push(...renderAttachments(input, chatroomId, role));
+  lines.push(...renderContextSection(input, chatroomId, role));
 
   return lines.join('\n');
 }

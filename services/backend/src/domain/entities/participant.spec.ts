@@ -100,4 +100,34 @@ describe('isOfflineForUserMessageRestart', () => {
   test('returns true when lastStatus is null (never started)', () => {
     expect(isOfflineForUserMessageRestart({})).toBe(true);
   });
+
+  test('returns true when isAlive is false even if lastStatus is agent.waiting (stale)', () => {
+    expect(
+      isOfflineForUserMessageRestart({
+        lastStatus: 'agent.waiting',
+        lastDesiredState: 'running',
+        isAlive: false,
+      })
+    ).toBe(true);
+  });
+
+  test('returns true when lastSeenAction is exited even if lastStatus is agent.waiting (stale)', () => {
+    expect(
+      isOfflineForUserMessageRestart({
+        lastStatus: 'agent.waiting',
+        lastDesiredState: 'running',
+        lastSeenAction: 'exited',
+      })
+    ).toBe(true);
+  });
+
+  test('returns false when isAlive is true and lastStatus is agent.waiting', () => {
+    expect(
+      isOfflineForUserMessageRestart({
+        lastStatus: 'agent.waiting',
+        lastDesiredState: 'running',
+        isAlive: true,
+      })
+    ).toBe(false);
+  });
 });

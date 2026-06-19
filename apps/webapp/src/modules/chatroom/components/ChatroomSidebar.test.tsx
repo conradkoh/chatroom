@@ -3,8 +3,6 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomSidebar } from './ChatroomSidebar';
-
-// Import the mocked hook (must be after vi.mock)
 import { useChatroomListing } from '../context/ChatroomListingContext';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────

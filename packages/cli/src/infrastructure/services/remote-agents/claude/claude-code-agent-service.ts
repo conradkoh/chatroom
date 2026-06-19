@@ -69,6 +69,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
     return [...CLAUDE_FALLBACK_MODELS];
   }
 
+  // fallow-ignore-next-line complexity
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
     // at the use-case layer (`agent-process-manager`). See

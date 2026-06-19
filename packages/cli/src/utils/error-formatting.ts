@@ -70,12 +70,14 @@ export function formatChatroomIdError(chatroomId: string | undefined): void {
  * Check if an error is a network/connectivity error (backend unreachable)
  * as opposed to an application-level error (auth invalid, etc.)
  */
-export function isNetworkError(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  const code =
-    typeof error === 'object' && error !== null && 'code' in error
-      ? (error as { code: string }).code
-      : undefined;
+function hasNetworkErrorCode(error: unknown): string | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code: string }).code;
+  }
+  return undefined;
+}
+
+function isNetworkErrorMessage(msg: string): boolean {
   return (
     msg.includes('fetch failed') ||
     msg.includes('failed to fetch') ||
@@ -85,12 +87,21 @@ export function isNetworkError(error: unknown): boolean {
     msg.includes('network') ||
     msg.includes('connection refused') ||
     msg.includes('socket hang up') ||
-    msg.includes('dns') ||
-    code === 'ECONNREFUSED' ||
-    code === 'ENOTFOUND' ||
-    code === 'ETIMEDOUT' ||
-    code === 'ECONNRESET'
+    msg.includes('dns')
   );
+}
+
+function isNetworkErrorCode(code: string | undefined): boolean {
+  if (!code) return false;
+  return (
+    code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT' || code === 'ECONNRESET'
+  );
+}
+
+export function isNetworkError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const code = hasNetworkErrorCode(error);
+  return isNetworkErrorMessage(msg) || isNetworkErrorCode(code);
 }
 
 /**

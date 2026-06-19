@@ -383,59 +383,76 @@ export const viewManyArtifactsEffect = (
  */
 function handleArtifactError(err: ArtifactError): Effect.Effect<void> {
   return Effect.sync(() => {
-    if (err._tag === 'NotAuthenticated') {
-      console.error(`❌ Not authenticated for: ${err.convexUrl}`);
-
-      if (err.otherUrls.length > 0) {
-        console.error(`\n💡 You have sessions for other environments:`);
-        for (const url of err.otherUrls) {
-          console.error(`   • ${url}`);
-        }
-        console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-        console.error(`   CHATROOM_CONVEX_URL=${err.otherUrls[0]} chatroom artifact ...`);
-        console.error(`\n   Or to authenticate for the current environment:`);
-      }
-
-      console.error(`   chatroom auth login`);
-      process.exit(1);
-    } else if (err._tag === 'InvalidChatroomId') {
-      console.error(
-        `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
-      );
-      process.exit(1);
-    } else if (err._tag === 'InvalidFileExtension') {
-      console.error(`❌ Invalid file extension: ${err.file}`);
-      console.error(`   Only *.md files are supported`);
-      process.exit(1);
-    } else if (err._tag === 'FileReadFailed') {
-      console.error(`❌ Failed to read file for --from-file: ${err.file}`);
-      console.error(`   Reason: ${err.cause}`);
-      process.exit(1);
-    } else if (err._tag === 'EmptyFile') {
-      console.error(`❌ File is empty`);
-      process.exit(1);
-    } else if (err._tag === 'NoArtifactIds') {
-      console.error(`❌ No artifact IDs provided`);
-      console.error(
-        `   Usage: chatroom artifact view-many <chatroomId> --artifact=id1 --artifact=id2`
-      );
-      process.exit(1);
-    } else if (err._tag === 'ArtifactNotFound') {
-      console.error(`❌ Artifact not found`);
-      console.error(`   Artifact ID: ${err.artifactId}`);
-      console.error(`   Please create an artifact first:`);
-      console.error(`   chatroom artifact create <chatroomId> --from-file=... --filename=...`);
-      process.exit(1);
-    } else if (err._tag === 'NoArtifactsFound') {
-      console.error(`❌ No artifacts found`);
-      process.exit(1);
-    } else if (err._tag === 'ArtifactOperationFailed') {
-      console.error(`❌ Failed to perform artifact operation`);
-      console.error(`   Error: ${err.cause.message || String(err.cause)}`);
-      process.exit(1);
-    }
+    const handler = artifactErrorHandlers[err._tag];
+    if (handler) handler(err);
   });
 }
+
+const artifactErrorHandlers: Record<string, (err: ArtifactError) => void> = {
+  NotAuthenticated: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'NotAuthenticated' }>;
+    console.error(`❌ Not authenticated for: ${e.convexUrl}`);
+    if (e.otherUrls.length > 0) {
+      console.error(`\n💡 You have sessions for other environments:`);
+      for (const url of e.otherUrls) {
+        console.error(`   • ${url}`);
+      }
+      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+      console.error(`   CHATROOM_CONVEX_URL=${e.otherUrls[0]} chatroom artifact ...`);
+      console.error(`\n   Or to authenticate for the current environment:`);
+    }
+    console.error(`   chatroom auth login`);
+    process.exit(1);
+  },
+  InvalidChatroomId: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'InvalidChatroomId' }>;
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${e.id?.length || 0})`
+    );
+    process.exit(1);
+  },
+  InvalidFileExtension: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'InvalidFileExtension' }>;
+    console.error(`❌ Invalid file extension: ${e.file}`);
+    console.error(`   Only *.md files are supported`);
+    process.exit(1);
+  },
+  FileReadFailed: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'FileReadFailed' }>;
+    console.error(`❌ Failed to read file for --from-file: ${e.file}`);
+    console.error(`   Reason: ${e.cause}`);
+    process.exit(1);
+  },
+  EmptyFile: () => {
+    console.error(`❌ File is empty`);
+    process.exit(1);
+  },
+  NoArtifactIds: () => {
+    console.error(`❌ No artifact IDs provided`);
+    console.error(
+      `   Usage: chatroom artifact view-many <chatroomId> --artifact=id1 --artifact=id2`
+    );
+    process.exit(1);
+  },
+  ArtifactNotFound: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'ArtifactNotFound' }>;
+    console.error(`❌ Artifact not found`);
+    console.error(`   Artifact ID: ${e.artifactId}`);
+    console.error(`   Please create an artifact first:`);
+    console.error(`   chatroom artifact create <chatroomId> --from-file=... --filename=...`);
+    process.exit(1);
+  },
+  NoArtifactsFound: () => {
+    console.error(`❌ No artifacts found`);
+    process.exit(1);
+  },
+  ArtifactOperationFailed: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'ArtifactOperationFailed' }>;
+    console.error(`❌ Failed to perform artifact operation`);
+    console.error(`   Error: ${e.cause.message || String(e.cause)}`);
+    process.exit(1);
+  },
+};
 
 // ─── Entry Point (public API — unchanged signature) ──────────────────────
 

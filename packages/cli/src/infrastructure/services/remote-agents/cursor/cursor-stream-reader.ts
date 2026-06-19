@@ -78,35 +78,49 @@ export class CursorStreamReader {
 
     for (const cb of this.anyEventCallbacks) cb();
 
+    this._dispatchEvent(event);
+  }
+
+  private _dispatchEvent(event: Record<string, unknown>): void {
     const type = event['type'];
-    const subtype = event['subtype'];
 
     if (type === 'assistant') {
-      const message = event['message'] as Record<string, unknown> | undefined;
-      const content = (message?.['content'] as Record<string, unknown>[]) ?? [];
-      for (const block of content) {
-        if (block['type'] === 'text' && typeof block['text'] === 'string') {
-          for (const cb of this.textCallbacks) cb(block['text']);
-        }
-      }
+      this._handleAssistant(event);
       return;
     }
 
     if (type === 'tool_call') {
-      const callId = (event['call_id'] as string) ?? '';
-      const toolCall = event['tool_call'];
-      if (subtype === 'started') {
-        for (const cb of this.toolCallCallbacks) cb(callId, toolCall);
-      } else if (subtype === 'completed') {
-        for (const cb of this.toolResultCallbacks) cb(callId, toolCall);
-      }
+      this._handleToolCall(event);
       return;
     }
 
-    if (type === 'result' && subtype === 'success') {
-      const sessionId = event['session_id'] as string | undefined;
-      for (const cb of this.agentEndCallbacks) cb(sessionId);
-      return;
+    if (type === 'result' && event['subtype'] === 'success') {
+      this._handleResult(event);
     }
+  }
+
+  private _handleAssistant(event: Record<string, unknown>): void {
+    const message = event['message'] as Record<string, unknown> | undefined;
+    const content = (message?.['content'] as Record<string, unknown>[]) ?? [];
+    for (const block of content) {
+      if (block['type'] === 'text' && typeof block['text'] === 'string') {
+        for (const cb of this.textCallbacks) cb(block['text']);
+      }
+    }
+  }
+
+  private _handleToolCall(event: Record<string, unknown>): void {
+    const callId = (event['call_id'] as string) ?? '';
+    const toolCall = event['tool_call'];
+    if (event['subtype'] === 'started') {
+      for (const cb of this.toolCallCallbacks) cb(callId, toolCall);
+    } else if (event['subtype'] === 'completed') {
+      for (const cb of this.toolResultCallbacks) cb(callId, toolCall);
+    }
+  }
+
+  private _handleResult(event: Record<string, unknown>): void {
+    const sessionId = event['session_id'] as string | undefined;
+    for (const cb of this.agentEndCallbacks) cb(sessionId);
   }
 }
