@@ -2,6 +2,7 @@
  * Integration tests: restart offline remote agents when a user sends a message.
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
@@ -10,6 +11,7 @@ import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
+  createPlannerBuilderDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -27,6 +29,10 @@ async function findOfflineRestartEvents(chatroomId: Id<'chatroom_rooms'>) {
       e.type === 'agent.requestStart' &&
       (e as { reason?: string }).reason === 'platform.restart_offline_on_user_message'
   );
+}
+
+async function getPendingTasks(sessionId: SessionId, chatroomId: Id<'chatroom_rooms'>) {
+  return t.query(api.tasks.listTasks, { sessionId, chatroomId, statusFilter: 'pending' });
 }
 
 test('restarts offline builder on user sendMessage', async () => {
@@ -100,7 +106,7 @@ test('does not restart when agent is waiting', async () => {
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { desiredState: 'running' });
+      await ctx.db.patch(config._id, { desiredState: 'running', spawnedAgentPid: 4242 });
     }
 
     const existing = await ctx.db
@@ -134,40 +140,45 @@ test('does not restart when agent is waiting', async () => {
   expect(restartEvents).toHaveLength(0);
 });
 
-test('does not restart when desiredState=stopped', async () => {
-  const { sessionId } = await createTestSession('offline-restart-c');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
-  const machineId = 'machine-offline-restart-c';
+test('restarts when desiredState=stopped on user message (wake on message)', async () => {
+  const { sessionId } = await createTestSession('offline-restart-stopped-wake');
+  const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+  const machineId = 'machine-offline-restart-stopped-wake';
   await registerMachineWithDaemon(sessionId, machineId);
-  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
 
-  // Set the config to desiredState=stopped and participant to exited
   await t.run(async (ctx) => {
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { desiredState: 'stopped' });
+      await ctx.db.patch(config._id, {
+        desiredState: 'stopped',
+        spawnedAgentPid: undefined,
+      });
     }
-
-    const participant = await ctx.db
+    const existing = await ctx.db
       .query('chatroom_participants')
       .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        q.eq('chatroomId', chatroomId).eq('role', 'planner')
       )
       .unique();
-    if (participant) {
-      await ctx.db.patch(participant._id, { lastStatus: 'agent.exited' });
+    const data = {
+      lastStatus: 'agent.exited' as const,
+      lastDesiredState: 'stopped' as const,
+      lastSeenAction: 'exited' as const,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
     } else {
       await ctx.db.insert('chatroom_participants', {
         chatroomId,
-        role: 'builder',
+        role: 'planner',
         agentType: 'remote',
-        lastStatus: 'agent.exited',
-        lastDesiredState: 'stopped',
+        ...data,
       });
     }
   });
@@ -176,22 +187,88 @@ test('does not restart when desiredState=stopped', async () => {
     sessionId,
     chatroomId,
     senderRole: 'user',
-    content: 'Hello stopped agent',
+    content: 'Wake after stop',
     type: 'message',
   });
 
   const restartEvents = await findOfflineRestartEvents(chatroomId);
-  expect(restartEvents).toHaveLength(0);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('planner');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+      )
+      .first();
+    expect(config?.desiredState).toBe('running');
+  });
 });
 
-test('does not restart when circuit open', async () => {
+test('restarts after agent.startFailed left desiredState=stopped', async () => {
+  const { sessionId } = await createTestSession('offline-restart-startfailed');
+  const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+  const machineId = 'machine-offline-restart-startfailed';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch(config._id, {
+        desiredState: 'stopped',
+        agentHarness: 'pi',
+        spawnedAgentPid: undefined,
+      });
+    }
+    const existing = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'planner')
+      )
+      .unique();
+    const data = {
+      lastStatus: 'agent.startFailed' as const,
+      lastDesiredState: 'stopped' as const,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId,
+        role: 'planner',
+        agentType: 'remote',
+        ...data,
+      });
+    }
+  });
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'Retry after start failed',
+    type: 'message',
+  });
+
+  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('planner');
+});
+
+test('restarts when circuit open on user message', async () => {
   const { sessionId } = await createTestSession('offline-restart-d');
   const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = 'machine-offline-restart-d';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  // Set the config to circuitState=open
   await t.run(async (ctx) => {
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -231,7 +308,247 @@ test('does not restart when circuit open', async () => {
   });
 
   const restartEvents = await findOfflineRestartEvents(chatroomId);
-  expect(restartEvents).toHaveLength(0);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('builder');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+      )
+      .first();
+    expect(config?.circuitState).toBe('closed');
+  });
+});
+
+test('restarts when lastStatus is agent.waiting but spawnedAgentPid is cleared (stale state)', async () => {
+  const { sessionId } = await createTestSession('offline-restart-stale');
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const machineId = 'machine-offline-restart-stale';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch(config._id, {
+        desiredState: 'running',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      });
+    }
+
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      )
+      .unique();
+    if (participant) {
+      await ctx.db.patch(participant._id, {
+        lastStatus: 'agent.waiting',
+        lastDesiredState: 'running',
+      });
+    } else {
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId,
+        role: 'builder',
+        agentType: 'remote',
+        lastStatus: 'agent.waiting',
+        lastDesiredState: 'running',
+      });
+    }
+  });
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'Wake up stale agent',
+    type: 'message',
+  });
+
+  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('builder');
+});
+
+test('restarts offline planner on user sendMessage (production duo: planner entry point)', async () => {
+  const { sessionId } = await createTestSession('offline-restart-planner');
+  const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+  const machineId = 'machine-offline-restart-planner';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch(config._id, {
+        desiredState: 'running',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      });
+    }
+    const existing = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'planner')
+      )
+      .unique();
+    const participantData = {
+      lastStatus: 'agent.waiting' as const,
+      lastDesiredState: 'running' as const,
+      lastSeenAction: 'exited' as const,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, participantData);
+    } else {
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId,
+        role: 'planner',
+        agentType: 'remote',
+        ...participantData,
+      });
+    }
+  });
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'Wake up planner',
+    type: 'message',
+  });
+
+  const tasks = await getPendingTasks(sessionId, chatroomId);
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]?.assignedTo).toBe('planner');
+
+  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('planner');
+  expect(restartEvents[0].machineId).toBe(machineId);
+});
+
+test('restarts when participant lastDesiredState is stale stopped but config desiredState is running', async () => {
+  const { sessionId } = await createTestSession('offline-restart-desync');
+  const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+  const machineId = 'machine-offline-restart-desync';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch(config._id, {
+        desiredState: 'running',
+        spawnedAgentPid: undefined,
+      });
+    }
+    const existing = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'planner')
+      )
+      .unique();
+    const data = {
+      lastStatus: 'agent.exited' as const,
+      lastDesiredState: 'stopped' as const,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId,
+        role: 'planner',
+        agentType: 'remote',
+        ...data,
+      });
+    }
+  });
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'Restart despite stale participant state',
+    type: 'message',
+  });
+
+  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('planner');
+});
+
+test('restarts when lastStatus is task.inProgress but spawnedAgentPid is cleared', async () => {
+  const { sessionId } = await createTestSession('offline-restart-inprogress');
+  const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+  const machineId = 'machine-offline-restart-inprogress';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch(config._id, {
+        desiredState: 'running',
+        spawnedAgentPid: undefined,
+      });
+    }
+    const existing = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'planner')
+      )
+      .unique();
+    const data = {
+      lastStatus: 'task.inProgress' as const,
+      lastDesiredState: 'running' as const,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId,
+        role: 'planner',
+        agentType: 'remote',
+        ...data,
+      });
+    }
+  });
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'Restart after crash mid-task',
+    type: 'message',
+  });
+
+  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  expect(restartEvents).toHaveLength(1);
+  expect(restartEvents[0].role).toBe('planner');
 });
 
 test('restartOfflineAgentsFromConfig mutation works standalone', async () => {

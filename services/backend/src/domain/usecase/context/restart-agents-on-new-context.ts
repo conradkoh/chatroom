@@ -2,19 +2,17 @@
  * Restart remote agents that opted into auto-restart when pinned context changes.
  */
 
-import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
+import { listTeamAgentConfigsForChatroom } from '../agent/list-team-agent-configs-for-chatroom';
+import { transitionAgentStatus } from '../agent/transition-agent-status';
 
 export async function restartAgentsOnNewContext(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<{ restartedRoles: string[] }> {
-  const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
+  const configs = await listTeamAgentConfigsForChatroom(ctx, chatroomId);
 
   const now = Date.now();
   const restartedRoles: string[] = [];

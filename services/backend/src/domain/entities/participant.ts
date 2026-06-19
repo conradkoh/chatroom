@@ -34,6 +34,10 @@ const ONLINE_OR_STARTING_STATUSES = new Set([
   'agent.requestStop',
 ]);
 
+function isOnlineOrStartingStatus(status: string | null): boolean {
+  return status != null && ONLINE_OR_STARTING_STATUSES.has(status);
+}
+
 /**
  * Returns true if a remote agent with desiredState=running should be restarted
  * because it is offline (crashed/exited/never started) when the user sends a message.
@@ -42,17 +46,14 @@ export function isOfflineForUserMessageRestart(participant: {
   lastStatus?: string | null;
   lastDesiredState?: string | null;
   lastSeenAction?: string | null;
+  isAlive?: boolean;
 }): boolean {
   // Intentional stop — user chose to stop; do not auto-restart
   if (participant.lastDesiredState === 'stopped') return false;
-
-  const status = participant.lastStatus ?? null;
-
-  // Already online, working, or starting — skip
-  if (status != null && ONLINE_OR_STARTING_STATUSES.has(status)) return false;
-
-  // Offline: no status yet, exited, start failed, etc.
-  return true;
+  if (participant.isAlive === true) return false;
+  if (participant.isAlive === false) return true;
+  if (participant.lastSeenAction === PARTICIPANT_EXITED_ACTION) return true;
+  return !isOnlineOrStartingStatus(participant.lastStatus ?? null);
 }
 
 /**
