@@ -401,6 +401,7 @@ describe('CursorAgentService', () => {
         prompt: createSpawnPrompt('hello'),
         systemPrompt: 'system',
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       mockStdout.push(

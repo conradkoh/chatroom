@@ -587,6 +587,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       child.stdout.push(
@@ -621,6 +622,7 @@ describe('PiAgentService', () => {
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       child.stdout.push(
