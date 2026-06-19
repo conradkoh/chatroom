@@ -354,8 +354,6 @@ async function _sendMessageHandler(
         lastActivityAt: Date.now(),
       });
 
-      await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
-
       return queuedMessageId; // Return queue record ID as opaque message ID
     }
     // ─── Pending path: existing flow (store in chatroom_messages) ────────

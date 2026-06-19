@@ -262,6 +262,69 @@ test('restarts after agent.startFailed left desiredState=stopped', async () => {
   expect(restartEvents[0].role).toBe('planner');
 });
 
+test('does not restart when user message is queued behind active task', async () => {
+  const { sessionId } = await createTestSession('offline-restart-queued');
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const machineId = 'machine-offline-restart-queued';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'First message',
+    type: 'message',
+  });
+
+  await t.mutation(api.participants.join, {
+    sessionId,
+    chatroomId,
+    role: 'builder',
+    action: 'get-next-task:started',
+  });
+  await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+  await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+
+  const restartEventsBefore = await findOfflineRestartEvents(chatroomId);
+  const countBefore = restartEventsBefore.length;
+
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch(config._id, { spawnedAgentPid: undefined, spawnedAt: undefined });
+    }
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      )
+      .unique();
+    if (participant) {
+      await ctx.db.patch(participant._id, { lastStatus: 'agent.exited' });
+    }
+  });
+
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    senderRole: 'user',
+    content: 'Queued message',
+    type: 'message',
+  });
+
+  const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+  expect(queued).toHaveLength(1);
+
+  const restartEventsAfter = await findOfflineRestartEvents(chatroomId);
+  expect(restartEventsAfter).toHaveLength(countBefore);
+});
+
 test('restarts when circuit open on user message', async () => {
   const { sessionId } = await createTestSession('offline-restart-d');
   const chatroomId = await createDuoTeamChatroom(sessionId);
