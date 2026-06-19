@@ -20,7 +20,7 @@ export function getCurrentClassificationSection(
     },
     new_feature: {
       label: 'NEW FEATURE',
-      description: 'New functionality request. MUST go through reviewer before returning to user.',
+      description: 'New functionality request.',
     },
     follow_up: {
       label: 'FOLLOW-UP',

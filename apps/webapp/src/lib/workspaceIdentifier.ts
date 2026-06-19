@@ -84,16 +84,17 @@ export function decodeWorkspaceId(encoded: string): { machineId: string; working
 // ============================================================================
 
 /**
- * Extract the last path segment of workingDir for display purposes.
- * This preserves the existing "workspace name" behavior.
+ * Extract the last path segment of a path for display purposes.
+ * This is the canonical basename helper — handles both Unix (`/`) and
+ * Windows (`\`) separators and trims surrounding whitespace.
  *
- * "/Users/alice/chatroom" → "chatroom"
- * "chatroom"              → "chatroom"
- * "/"                     → ""
+ * "/Users/alice/chatroom"      → "chatroom"
+ * "C:\\Users\\alice\\my-proj"  → "my-proj"
+ * "chatroom"                   → "chatroom"
+ * "/"                          → ""
  */
 export function getWorkspaceDisplayName(workingDir: string): string {
-  // Remove trailing slash(es) then take the last segment
-  const trimmed = workingDir.replace(/\/+$/, '');
-  const lastSlash = trimmed.lastIndexOf('/');
-  return lastSlash === -1 ? trimmed : trimmed.slice(lastSlash + 1);
+  const trimmed = workingDir.trim().replace(/[/\\]+$/, '');
+  const lastSep = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return lastSep === -1 ? trimmed : trimmed.slice(lastSep + 1);
 }

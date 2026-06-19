@@ -4,6 +4,7 @@
  * Tests the complete message sent from server to get-next-task command,
  * including all sections: init prompt, task info, pinned message, backlog attachments, and available actions.
  */
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- guarded by expect().toBeDefined() */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -408,9 +409,7 @@ ${taskDeliveryPrompt.fullCliOutput}
        
 
       ### Handoff Options
-      Available targets: reviewer
-
-      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
+      Available targets: reviewer, user
 
       ### Commands
 
@@ -1197,9 +1196,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
 
       ### Handoff Options
-      Available targets: builder
-
-      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
+      Available targets: builder, user
 
       ### Commands
 

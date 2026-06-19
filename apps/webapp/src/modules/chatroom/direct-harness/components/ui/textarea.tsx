@@ -1,6 +1,6 @@
 /**
  * Harness-local Textarea — identical API to ShadCN Textarea but with sharp corners
- * (removes rounded-md) per docs/design/theme.md.
+ * (removes rounded-md) per docs/application/design/theme.md.
  */
 import type * as React from 'react';
 

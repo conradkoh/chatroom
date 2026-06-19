@@ -115,7 +115,6 @@ export type BackendErrorCode =
   | 'ALREADY_CONNECTED'
   | 'CONNECT_ERROR'
   | 'UNSAFE_DISCONNECT'
-  | 'HANDOFF_RESTRICTED'
   | 'CHATROOM_NO_TEAM_ID'
 
   // ── Direct Harness Sessions ──────────────────────────────────────────
@@ -304,8 +303,6 @@ export const BACKEND_ERROR_CODES = {
   CONNECT_ERROR: 'CONNECT_ERROR',
   /** Unsafe disconnect */
   UNSAFE_DISCONNECT: 'UNSAFE_DISCONNECT',
-  /** Handoff restricted */
-  HANDOFF_RESTRICTED: 'HANDOFF_RESTRICTED',
   /** Chatroom has no teamId — cannot build agent config key */
   CHATROOM_NO_TEAM_ID: 'CHATROOM_NO_TEAM_ID',
 
@@ -413,7 +410,6 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT,
   BACKEND_ERROR_CODES.CONTEXT_NOT_FOUND,
   BACKEND_ERROR_CODES.CONTEXT_RESTRICTED,
-  BACKEND_ERROR_CODES.HANDOFF_RESTRICTED,
 
   // Not found (recoverable)
   BACKEND_ERROR_CODES.BACKLOG_ITEM_NOT_FOUND,

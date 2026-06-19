@@ -27,28 +27,26 @@ function resolveWriteCallback(
 }
 
 function wireGetStateOnStdinWrite(child: MockChild): void {
-  child.stdin.write = vi.fn(
-    (data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
-      const cb = resolveWriteCallback(encodingOrCb, maybeCb);
-      const text = typeof data === 'string' ? data : data.toString();
-      if (text.includes('get_state')) {
-        setTimeout(() => {
-          child.stdout.push(
-            `${JSON.stringify({
-              type: 'response',
-              command: 'get_state',
-              success: true,
-              data: { sessionId: SAMPLE_SESSION_ID },
-            })}\n`
-          );
-          cb?.(null);
-        }, 0);
-        return true;
-      }
-      cb?.(null);
+  child.stdin.write = vi.fn((data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
+    const cb = resolveWriteCallback(encodingOrCb, maybeCb);
+    const text = typeof data === 'string' ? data : data.toString();
+    if (text.includes('get_state')) {
+      setTimeout(() => {
+        child.stdout.push(
+          `${JSON.stringify({
+            type: 'response',
+            command: 'get_state',
+            success: true,
+            data: { sessionId: SAMPLE_SESSION_ID },
+          })}\n`
+        );
+        cb?.(null);
+      }, 0);
       return true;
     }
-  );
+    cb?.(null);
+    return true;
+  });
 }
 
 function createMockDeps(overrides?: Partial<PiAgentServiceDeps>): PiAgentServiceDeps {
@@ -340,7 +338,9 @@ describe('PiAgentService', () => {
         .map((call) => call[0] as string)
         .filter((line) => line.includes('"prompt"'));
       expect(promptWrites.length).toBeGreaterThanOrEqual(1);
-      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
+      const lastPrompt = promptWrites.at(-1);
+      if (!lastPrompt) throw new Error('expected prompt write');
+      const parsed = JSON.parse(lastPrompt.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message).toBe("Don't stop");
     });
@@ -423,7 +423,8 @@ describe('PiAgentService', () => {
 
       // Register a callback and fire agent_end from the stream
       const agentEndCb = vi.fn();
-      result.onAgentEnd!(agentEndCb);
+      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+      result.onAgentEnd(agentEndCb);
 
       // Push an agent_end event through the readable stream
       child.stdout.push('{"type":"agent_end"}\n');
@@ -451,7 +452,9 @@ describe('PiAgentService', () => {
       const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
         .map((call) => call[0] as string)
         .filter((line) => line.includes('"prompt"'));
-      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
+      const lastPrompt = promptWrites.at(-1);
+      if (!lastPrompt) throw new Error('expected prompt write');
+      const parsed = JSON.parse(lastPrompt.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message).toBeTruthy();
       expect(parsed.message).not.toBe('');
@@ -470,10 +473,12 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      const promptWrites = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
+      const promptWritesWhitespace = (child.stdin.write as ReturnType<typeof vi.fn>).mock.calls
         .map((call) => call[0] as string)
         .filter((line) => line.includes('"prompt"'));
-      const parsed = JSON.parse(promptWrites.at(-1)!.trim()) as { type: string; message: string };
+      const lastWhitespacePrompt = promptWritesWhitespace.at(-1);
+      if (!lastWhitespacePrompt) throw new Error('expected prompt write');
+      const parsed = JSON.parse(lastWhitespacePrompt.trim()) as { type: string; message: string };
       expect(parsed.type).toBe('prompt');
       expect(parsed.message.trim()).toBeTruthy();
     });
@@ -555,6 +560,73 @@ describe('PiAgentService', () => {
       expect(args).toContain("It's a system prompt with 'quotes'");
       // Prompt is NOT in args — it goes via stdin
       expect(args).not.toContain("Don't stop");
+    });
+
+    it('logs bash tool calls with "running:" format', async () => {
+      const child = makeChildProcess(43);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('prompt'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+      });
+
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_start',
+          toolName: 'bash',
+          toolArgs: { command: 'git status' },
+        }) + '\n'
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
+      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      expect(bashLine).toBeDefined();
+      expect(bashLine).toContain('git status');
+      expect(bashLine).toContain('[pi:builder');
+
+      stdoutWrite.mockRestore();
+    });
+
+    it('logs shell tool calls with "running:" format', async () => {
+      const child = makeChildProcess(44);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: createSpawnPrompt('prompt'),
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+      });
+
+      child.stdout.push(
+        JSON.stringify({
+          type: 'tool_execution_start',
+          toolName: 'shell',
+          toolArgs: { command: 'npm run build' },
+        }) + '\n'
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
+      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      expect(bashLine).toBeDefined();
+      expect(bashLine).toContain('npm run build');
+
+      stdoutWrite.mockRestore();
     });
   });
 

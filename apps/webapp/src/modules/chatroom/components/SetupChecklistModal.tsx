@@ -1,9 +1,10 @@
 'use client';
 
 import { X, Settings2, Check } from 'lucide-react';
-import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, memo, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SetupChecklist } from './SetupChecklist';
+import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 
 interface Participant {
   role: string;
@@ -23,8 +24,15 @@ interface SetupChecklistModalProps {
   chatroomName: string;
   /** Callback to rename the chatroom */
   onRenameChatroom: (newName: string) => Promise<void>;
+  /** Called when the user pastes a path into an agent's working directory field. */
+  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
+// SETUP NAMING CONTRACT
+// During first-time setup, pasting a project path into the entry-point agent's
+// working-directory field (inside the agent cards below) auto-names the chatroom
+// from the final path segment. The "Chatroom Name" field at the top of this modal
+// reflects that name and can also be edited / pasted into directly.
 export const SetupChecklistModal = memo(function SetupChecklistModal({
   isOpen,
   onClose,
@@ -36,12 +44,14 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   onViewPrompt,
   chatroomName,
   onRenameChatroom,
+  onWorkingDirPasted,
 }: SetupChecklistModalProps) {
   // Chatroom name editing state
   const [editedName, setEditedName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize editedName when modal opens or chatroomName changes
+  // Sync edited name when modal opens or chatroom is renamed externally.
   useEffect(() => {
     if (isOpen) {
       setEditedName(chatroomName);
@@ -151,12 +161,19 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
           </span>
           <div className="flex-1 flex items-center gap-2">
             <input
+              ref={inputRef}
               type="text"
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
               onBlur={handleSaveName}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveName();
+              }}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData('text');
+                if (!pasted.includes('/') && !pasted.includes('\\')) return;
+                e.preventDefault();
+                setEditedName(normalizePastedChatroomName(pasted));
               }}
               placeholder="Enter chatroom name..."
               className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm text-chatroom-text-primary px-2 py-1 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"
@@ -186,6 +203,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
             participants={participants}
             onViewPrompt={onViewPrompt}
             hideHeader
+            onWorkingDirPasted={onWorkingDirPasted}
           />
         </div>
       </div>

@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import type * as CursorSdkModule from '@cursor/sdk';
 import { Effect } from 'effect';
 
+import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
@@ -149,12 +150,6 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
   ]);
 }
 
-function buildLogPrefix(context: SpawnOptions['context']): string {
-  const roleTag = context.role ?? 'unknown';
-  const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
-  return `[cursor-sdk:${roleTag}${chatroomSuffix}`;
-}
-
 function resolveModelId(model?: string): string {
   return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
@@ -164,7 +159,7 @@ function writeSpawnError(
   err: unknown,
   emitLogLine?: (line: string) => void
 ): void {
-  const line = `${logPrefix} spawn-error] ${formatCursorSdkLoadError(err)}`;
+  const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCursorSdkLoadError(err));
   process.stderr.write(`${line}\n`);
   emitLogLine?.(line);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
@@ -389,7 +384,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     } = args;
 
     const entry = this.registerProcess(pid, context);
-    const logPrefix = buildLogPrefix(context);
+    const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
 
     const session: SdkSession = {
       agent,
@@ -548,7 +543,11 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
             if (result.status === 'error') {
               exitCode = 2;
-              const runErrorLine = `${logPrefix} run-error] run ${result.id} failed`;
+              const runErrorLine = formatAgentLogLine(
+                logPrefix,
+                'run-error',
+                `run ${result.id} failed`
+              );
               process.stderr.write(`${runErrorLine}\n`);
               emitLogLine(runErrorLine);
               break;

@@ -3,8 +3,8 @@
 import { memo, useState } from 'react';
 
 import type { MachineInfo } from '../../types/machine';
-import type { useAgentControls } from '../AgentConfigTabs';
-import { RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
+import type { useAgentControls } from '../AgentControls';
+import { RemoteTabContent, CustomTabContent } from '../AgentControls';
 
 // ─── AgentControlsSection ────────────────────────────────────────────────────
 

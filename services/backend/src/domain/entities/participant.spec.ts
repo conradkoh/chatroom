@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   isActiveParticipant,
+  isOfflineForUserMessageRestart,
   PARTICIPANT_EXITED_ACTION,
   toParticipantPresence,
 } from './participant';
@@ -72,5 +73,31 @@ describe('toParticipantPresence', () => {
 
     expect(row.lastSeenAt).toBeNull();
     expect(row.lastStatus).toBeNull();
+  });
+});
+
+describe('isOfflineForUserMessageRestart', () => {
+  test('returns false when lastDesiredState is "stopped"', () => {
+    expect(
+      isOfflineForUserMessageRestart({ lastDesiredState: 'stopped', lastStatus: 'agent.exited' })
+    ).toBe(false);
+  });
+
+  test('returns false when lastStatus is "agent.waiting"', () => {
+    expect(isOfflineForUserMessageRestart({ lastStatus: 'agent.waiting' })).toBe(false);
+  });
+
+  test('returns false when lastStatus is "agent.requestStart"', () => {
+    expect(isOfflineForUserMessageRestart({ lastStatus: 'agent.requestStart' })).toBe(false);
+  });
+
+  test('returns true when lastStatus is "agent.exited" and desiredState is "running"', () => {
+    expect(
+      isOfflineForUserMessageRestart({ lastStatus: 'agent.exited', lastDesiredState: 'running' })
+    ).toBe(true);
+  });
+
+  test('returns true when lastStatus is null (never started)', () => {
+    expect(isOfflineForUserMessageRestart({})).toBe(true);
   });
 });

@@ -6,7 +6,7 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { Check, RefreshCw } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-/** Success check visibility — see docs/design/theme.md (industrial / restrained feedback). */
+/** Success check visibility — see docs/application/design/theme.md (industrial / restrained feedback). */
 const SUCCESS_TICK_MS = 1000;
 
 /**
@@ -208,7 +208,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
         ? 'text-chatroom-status-warning'
         : 'text-chatroom-text-muted';
 
-  /* Industrial control: sharp corners, 2px border, opacity hover (docs/design/theme.md). */
+  /* Industrial control: sharp corners, 2px border, opacity hover (docs/application/design/theme.md). */
   const buttonClassName = [
     'touch-manipulation inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-none border-2 transition-opacity duration-100',
     canClick &&

@@ -1,7 +1,7 @@
 /**
  * Integration tests for messageList.ts timeline queries.
  *
- * Tests getLatestMessages, subscribeMessagesSince, subscribeLatestMessages,
+ * Tests getLatestMessages, subscribeNewMessages, subscribeVisibleMessageUpdates,
  * and listMessagesBefore from convex/messageList.ts.
  */
 
@@ -49,7 +49,7 @@ async function sendMessageOfType(
 }
 
 // ---------------------------------------------------------------------------
-// getLatestMessages + subscribeMessagesSince (delta tail)
+// getLatestMessages + subscribeNewMessages (delta tail)
 // ---------------------------------------------------------------------------
 
 describe('getLatestMessages', () => {
@@ -82,43 +82,62 @@ describe('getLatestMessages', () => {
 
     expect(result.messages).toHaveLength(20);
     expect(result.hasMore).toBe(true);
-    expect(result.messages[0]!.content).toBe('message-6');
-    expect(result.messages[19]!.content).toBe('message-25');
-    expect(result.tailAfterCreationTime).toBe(result.messages[0]!._creationTime);
+    expect(result.messages[0]?.content).toBe('message-6');
+    expect(result.messages[19]?.content).toBe('message-25');
+    expect(result.tailAfterCreationTime).toBe(result.messages[0]?._creationTime);
   });
 });
 
-describe('subscribeMessagesSince', () => {
-  test('returns only messages at or after tail cursor', async () => {
-    const { sessionId } = await createTestSession('ml-since-tail-1');
+describe('subscribeNewMessages', () => {
+  test('returns all messages strictly after a zero cursor', async () => {
+    const { sessionId } = await createTestSession('ml-new-tail-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 10);
 
+    const since = await t.query(api.messageList.subscribeNewMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterCreationTime: 0,
+    });
+
+    expect(since).toHaveLength(10);
+    expect(since[0]?.content).toBe('message-1');
+    expect(since[9]?.content).toBe('message-10');
+  });
+
+  test('excludes the cursor row (strict greater-than)', async () => {
+    const { sessionId } = await createTestSession('ml-new-tail-strict-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 5);
+
+    // Use the oldest row's _creationTime as the cursor; strict `>` must exclude it.
     const latest = await t.query(api.messageList.getLatestMessages, {
       sessionId: sessionId as any,
       chatroomId,
       limit: 20,
     });
+    const oldestCreationTime = latest.messages[0]?._creationTime;
 
-    const since = await t.query(api.messageList.subscribeMessagesSince, {
+    const since = await t.query(api.messageList.subscribeNewMessages, {
       sessionId: sessionId as any,
       chatroomId,
-      afterCreationTime: latest.tailAfterCreationTime,
+      afterCreationTime: oldestCreationTime,
     });
 
-    expect(since).toHaveLength(10);
-    expect(since[0]!.content).toBe('message-1');
-    expect(since[9]!.content).toBe('message-10');
+    expect(since).toHaveLength(4);
+    expect(since[0]?.content).toBe('message-2');
+    expect(since[3]?.content).toBe('message-5');
   });
 
   test('cursor after newest returns empty until new message', async () => {
-    const { sessionId } = await createTestSession('ml-since-future-1');
+    const { sessionId } = await createTestSession('ml-new-tail-future-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 3);
 
-    const result = await t.query(api.messageList.subscribeMessagesSince, {
+    const result = await t.query(api.messageList.subscribeNewMessages, {
       sessionId: sessionId as any,
       chatroomId,
       afterCreationTime: Date.now() + 60_000,
@@ -146,7 +165,7 @@ describe('subscribeMessagesSince', () => {
   });
 
   test('filters out join and progress message types', async () => {
-    const { sessionId } = await createTestSession('ml-since-filter-1');
+    const { sessionId } = await createTestSession('ml-new-tail-filter-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -154,7 +173,7 @@ describe('subscribeMessagesSince', () => {
     await sendMessageOfType(sessionId, chatroomId, 'join');
     await sendMessageOfType(sessionId, chatroomId, 'progress');
 
-    const since = await t.query(api.messageList.subscribeMessagesSince, {
+    const since = await t.query(api.messageList.subscribeNewMessages, {
       sessionId: sessionId as any,
       chatroomId,
       afterCreationTime: 0,
@@ -165,77 +184,6 @@ describe('subscribeMessagesSince', () => {
       expect(msg.type).not.toBe('join');
       expect(msg.type).not.toBe('progress');
     }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// subscribeLatestMessages (legacy)
-// ---------------------------------------------------------------------------
-
-describe('subscribeLatestMessages', () => {
-  test('empty chatroom → empty array', async () => {
-    const { sessionId } = await createTestSession('ml-latest-empty-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-
-    const result = await t.query(api.messageList.subscribeLatestMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      limit: 20,
-    });
-
-    expect(result).toHaveLength(0);
-  });
-
-  test('returns up to limit messages in ascending chronological order', async () => {
-    const { sessionId } = await createTestSession('ml-latest-window-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    await sendMessages(sessionId, chatroomId, 25);
-
-    const result = await t.query(api.messageList.subscribeLatestMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      limit: 20,
-    });
-
-    expect(result).toHaveLength(20);
-    expect(result[0]!.content).toBe('message-6');
-    expect(result[19]!.content).toBe('message-25');
-  });
-
-  test('filters out join and progress message types', async () => {
-    const { sessionId } = await createTestSession('ml-latest-filter-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-
-    await sendMessages(sessionId, chatroomId, 3);
-    await sendMessageOfType(sessionId, chatroomId, 'join');
-    await sendMessageOfType(sessionId, chatroomId, 'progress');
-
-    const result = await t.query(api.messageList.subscribeLatestMessages, {
-      sessionId: sessionId as any,
-      chatroomId,
-      limit: 20,
-    });
-
-    expect(result).toHaveLength(3);
-    for (const msg of result) {
-      expect(msg.type).not.toBe('join');
-      expect(msg.type).not.toBe('progress');
-    }
-  });
-
-  test('rejects access from unauthenticated session', async () => {
-    const { sessionId } = await createTestSession('ml-latest-auth-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-
-    await expect(
-      t.query(api.messageList.subscribeLatestMessages, {
-        sessionId: 'invalid-session' as any,
-        chatroomId,
-        limit: 20,
-      })
-    ).rejects.toThrow();
   });
 });
 
@@ -264,14 +212,14 @@ describe('listMessagesBefore', () => {
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 25);
 
-    const latest = await t.query(api.messageList.subscribeLatestMessages, {
+    const latest = await t.query(api.messageList.getLatestMessages, {
       sessionId: sessionId as any,
       chatroomId,
       limit: 20,
     });
-    expect(latest).toHaveLength(20);
+    expect(latest.messages).toHaveLength(20);
 
-    const before = latest[0]!._creationTime;
+    const before = latest.messages[0]?._creationTime;
     const older = await t.query(api.messageList.listMessagesBefore, {
       sessionId: sessionId as any,
       chatroomId,
@@ -280,8 +228,8 @@ describe('listMessagesBefore', () => {
     });
 
     expect(older).toHaveLength(5);
-    expect(older[0]!.content).toBe('message-1');
-    expect(older[4]!.content).toBe('message-5');
+    expect(older[0]?.content).toBe('message-1');
+    expect(older[4]?.content).toBe('message-5');
   });
 
   test('second page returns remaining older messages', async () => {
@@ -290,7 +238,7 @@ describe('listMessagesBefore', () => {
     await joinParticipant(sessionId, chatroomId, 'builder');
     await sendMessages(sessionId, chatroomId, 45);
 
-    const latest = await t.query(api.messageList.subscribeLatestMessages, {
+    const latest = await t.query(api.messageList.getLatestMessages, {
       sessionId: sessionId as any,
       chatroomId,
       limit: 20,
@@ -298,21 +246,21 @@ describe('listMessagesBefore', () => {
     const firstOlder = await t.query(api.messageList.listMessagesBefore, {
       sessionId: sessionId as any,
       chatroomId,
-      before: latest[0]!._creationTime,
+      before: latest.messages[0]?._creationTime,
       limit: 20,
     });
     expect(firstOlder).toHaveLength(20);
-    expect(firstOlder[0]!.content).toBe('message-6');
+    expect(firstOlder[0]?.content).toBe('message-6');
 
     const secondOlder = await t.query(api.messageList.listMessagesBefore, {
       sessionId: sessionId as any,
       chatroomId,
-      before: firstOlder[0]!._creationTime,
+      before: firstOlder[0]?._creationTime,
       limit: 20,
     });
     expect(secondOlder).toHaveLength(5);
-    expect(secondOlder[0]!.content).toBe('message-1');
-    expect(secondOlder[4]!.content).toBe('message-5');
+    expect(secondOlder[0]?.content).toBe('message-1');
+    expect(secondOlder[4]?.content).toBe('message-5');
   });
 
   test('filters out join and progress types', async () => {

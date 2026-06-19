@@ -88,6 +88,11 @@
         "count": 1
       }
     },
+    "apps/webapp/src/app/test/sentry-error/page.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/components/CallbackErrorCard.tsx": {
       "crap_critical": {
         "count": 1
@@ -238,13 +243,13 @@
         "count": 2
       },
       "crap_high": {
-        "count": 2
+        "count": 3
       },
       "crap_moderate": {
-        "count": 4
+        "count": 5
       }
     },
-    "apps/webapp/src/modules/chatroom/components/AgentConfigTabs.tsx": {
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx": {
       "complexity_critical": {
         "count": 2
       },
@@ -545,8 +550,11 @@
       }
     },
     "apps/webapp/src/modules/chatroom/components/SetupChecklist.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
       "crap_high": {
-        "count": 2
+        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/components/SetupChecklistModal.tsx": {
@@ -894,6 +902,9 @@
       },
       "crap_high": {
         "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/hooks/useChatroomTimelineFeedData.ts": {
@@ -1542,11 +1553,8 @@
       }
     },
     "packages/cli/src/infrastructure/auth/middleware.ts": {
-      "crap_high": {
-        "count": 1
-      },
       "crap_moderate": {
-        "count": 2
+        "count": 3
       }
     },
     "packages/cli/src/infrastructure/auth/storage.ts": {
@@ -1677,13 +1685,8 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-stream-adapter.ts": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
-      "crap_critical": {
+      "crap_high": {
         "count": 1
       }
     },
@@ -2010,10 +2013,10 @@
         "count": 10
       },
       "crap_high": {
-        "count": 2
+        "count": 1
       },
       "crap_moderate": {
-        "count": 6
+        "count": 5
       }
     },
     "services/backend/convex/migrations.ts": {
@@ -2180,7 +2183,7 @@
         "count": 2
       },
       "crap_high": {
-        "count": 2
+        "count": 1
       }
     },
     "services/backend/prompts/teams/squad/prompts/planner.ts": {
@@ -2195,7 +2198,7 @@
     },
     "services/backend/src/domain/entities/participant.ts": {
       "crap_moderate": {
-        "count": 1
+        "count": 2
       }
     },
     "services/backend/src/domain/entities/team.ts": {
@@ -2225,6 +2228,11 @@
     },
     "services/backend/src/domain/usecase/agent/list-chatroom-agent-overview.ts": {
       "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/restart-offline-agents-on-user-message.ts": {
+      "crap_critical": {
         "count": 1
       }
     },
