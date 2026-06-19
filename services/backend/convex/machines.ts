@@ -8,6 +8,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getSession, requireSession } from './auth/session';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
@@ -30,6 +31,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1936,6 +1938,18 @@ export const setAutoRestartOnNewContext = mutation({
     }
 
     return { success: true, enabled: args.enabled };
+  },
+});
+
+/** Restart offline remote agents using persisted team config. Called when user sends a message. */
+export const restartOfflineAgentsFromConfig = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
   },
 });
 
