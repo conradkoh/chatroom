@@ -6,6 +6,7 @@
  *
  * Follows the same patterns as get-next-task-prompt.spec.ts for the pair team.
  */
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- guarded by expect().toBeDefined() */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -216,9 +217,8 @@ describe('Squad Team - Builder Init Prompt', () => {
     expect(prompt).toContain('Squad Team Context');
     expect(prompt).toContain('do NOT communicate directly with the user');
 
-    // Builder should NOT have 'user' in handoff targets
-    // The restriction message should appear
-    expect(prompt).toContain('only the planner can hand off to the user');
+    // Builder should have 'user' in handoff targets
+    expect(prompt).toMatch(/Available targets:.*user/);
 
     // Should have commands section
     expect(prompt).toContain('### Commands');
@@ -300,9 +300,8 @@ describe('Squad Team - Reviewer Init Prompt', () => {
     expect(prompt).toContain('Squad Team Context');
     expect(prompt).toContain('do NOT communicate directly with the user');
 
-    // Reviewer should NOT have 'user' in handoff targets — restriction notice
-    expect(prompt).toContain('Restriction');
-    expect(prompt).toContain('only the planner can hand off to the user');
+    // Reviewer should have 'user' in handoff targets
+    expect(prompt).toMatch(/Available targets:.*user/);
 
     // Should have review policies
     expect(prompt).toContain('Available Review Policies');
@@ -380,9 +379,9 @@ describe('Squad Team - Planner as Point of Contact', () => {
     expect(plannerPrompt!.prompt).toContain('### Handoff Options');
     expect(plannerPrompt!.prompt).toMatch(/Available targets:.*user/);
 
-    // Builder and reviewer should have restriction notice about not handing off to user
-    expect(builderPrompt!.prompt).toContain('only the planner can hand off to the user');
-    expect(reviewerPrompt!.prompt).toContain('only the planner can hand off to the user');
+    // Builder and reviewer should also have 'user' in handoff targets
+    expect(builderPrompt!.prompt).toMatch(/Available targets:.*user/);
+    expect(reviewerPrompt!.prompt).toMatch(/Available targets:.*user/);
   });
 
   test('planner is the entry point and classifies messages', async () => {

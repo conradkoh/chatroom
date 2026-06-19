@@ -26,6 +26,13 @@ import { type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 
 import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
+import {
+  BASH_TOOL_KIND,
+  buildAgentLogPrefix,
+  createAgentLogWriter,
+  formatBashRunningPayload,
+  resolveBashCommandForLog,
+} from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type {
   DaemonHarnessSessionContext,
@@ -298,9 +305,7 @@ export class PiAgentService extends BaseCLIAgentService {
 
     const entry = this.registerProcess(pid, context);
 
-    const roleTag = context.role ?? 'unknown';
-    const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
-    const logPrefix = `[pi:${roleTag}${chatroomSuffix}`;
+    const logPrefix = buildAgentLogPrefix('pi', context);
 
     const outputCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
@@ -349,10 +354,7 @@ export class PiAgentService extends BaseCLIAgentService {
       onLogLine,
     };
 
-    const writeFormattedLogLine = (formatted: string) => {
-      process.stdout.write(`${formatted}\n`);
-      emitLogLine(formatted);
-    };
+    const log = createAgentLogWriter(logPrefix, { emitLogLine });
 
     const onStderrData = (chunk: Buffer | string) => {
       entry.lastOutputAt = Date.now();
@@ -377,13 +379,9 @@ export class PiAgentService extends BaseCLIAgentService {
     let thinkingBuffer = '';
 
     const flushBufferedLines = (buffer: string, kind: 'text' | 'thinking', clear: () => void) => {
-      if (!buffer) return;
-      for (const line of buffer.split('\n')) {
-        if (line) {
-          writeFormattedLogLine(`${logPrefix} ${kind}] ${line}`);
-        }
-      }
+      const remaining = log.flushBufferedLines(buffer, kind);
       clear();
+      return remaining;
     };
 
     const flushText = () =>
@@ -422,20 +420,25 @@ export class PiAgentService extends BaseCLIAgentService {
     reader.onAgentEnd(() => {
       flushText();
       flushThinking();
-      process.stdout.write(`${logPrefix} agent_end]\n`);
+      log.write('agent_end');
       for (const cb of agentEndCallbacks) cb();
     });
 
     reader.onToolCall((name, toolArgs) => {
       flushText();
       flushThinking();
+      const bashCmd = resolveBashCommandForLog(name, toolArgs);
+      if (bashCmd !== null) {
+        log.write(BASH_TOOL_KIND, formatBashRunningPayload(bashCmd));
+        return;
+      }
       const argsStr = toolArgs != null ? ` args: ${JSON.stringify(toolArgs)}` : '';
-      writeFormattedLogLine(`${logPrefix} tool: ${name}${argsStr}]`);
+      log.write('tool', `${name}${argsStr}`);
     });
 
     reader.onToolResult((name, result) => {
       const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-      writeFormattedLogLine(`${logPrefix} tool_result: ${name} result: ${resultStr}]`);
+      log.write('tool_result', `${name} result: ${resultStr}`);
     });
 
     attachStderr(childProcess.stderr);

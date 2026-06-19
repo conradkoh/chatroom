@@ -955,12 +955,15 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
         {/* Mobile tab selector — visible only on small screens */}
         <div className="sm:hidden border-b border-chatroom-border px-4 py-2 flex-shrink-0">
           <Select value={activeTab} onValueChange={(val) => setActiveTab(val as SettingsTab)}>
-            <SelectTrigger size="sm" className="w-full text-xs">
+            <SelectTrigger
+              size="sm"
+              className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none"
+            >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-chatroom-bg-surface border border-chatroom-border rounded-none">
               {TAB_CONFIG.map((tab) => (
-                <SelectItem key={tab.id} value={tab.id}>
+                <SelectItem key={tab.id} value={tab.id} className="text-xs rounded-none">
                   {tab.label}
                 </SelectItem>
               ))}

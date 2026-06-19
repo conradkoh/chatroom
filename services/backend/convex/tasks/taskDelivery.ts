@@ -14,6 +14,10 @@ import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import { loadCurrentContext } from '../../src/domain/usecase/context/load-current-context';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import {
+  buildAvailableHandoffRoles,
+  getLatestUserMessageClassification,
+} from '../lib/handoffRoles';
 
 // Types
 interface TaskDeliveryParams {
@@ -56,34 +60,9 @@ export async function getTaskDeliveryPromptData(
     (p) => p.role.toLowerCase() !== role.toLowerCase() && isActiveParticipant(p)
   );
 
-  // Get recent messages for classification
-  const recentMessages = await ctx.db
-    .query('chatroom_messages')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .order('desc')
-    .take(50);
-
-  // Find current classification
-  let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
-  for (const msg of recentMessages) {
-    if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
-      currentClassification = msg.classification;
-      break;
-    }
-  }
-
-  // Determine handoff restrictions
+  const currentClassification = await getLatestUserMessageClassification(ctx, chatroomId);
   const availableRoles = waitingParticipants.map((p) => p.role);
-  let canHandoffToUser = true;
-
-  if (currentClassification === 'new_feature') {
-    const normalizedRole = role.toLowerCase();
-    if (normalizedRole === 'builder') {
-      canHandoffToUser = false;
-    }
-  }
-
-  const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
+  const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
   // Fetch current context (time-based staleness only — no message reads).
   const currentContext = await loadCurrentContext(ctx, chatroomId);

@@ -7,6 +7,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
+import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
@@ -16,6 +17,7 @@ import { getCliEnvPrefix } from '../prompts/utils/index';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
@@ -385,6 +387,8 @@ async function _sendMessageHandler(
 
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
 
+    await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
+
     return messageId;
   }
   // ─── Non-user messages: always write to chatroom_messages ────────────────
@@ -512,42 +516,6 @@ async function _handoffHandler(
           code: 'INVALID_TARGET_ROLE',
           message: `Cannot hand off to "${args.targetRole}": this role is not part of the current team. Available targets: ${['user', ...teamRoles].join(', ')}.`,
           suggestedTargets: ['user', ...teamRoles],
-        },
-        messageId: null,
-        completedTaskIds: [],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
-    }
-  }
-
-  // Validate handoff to user is allowed based on classification
-  if (isHandoffToUser) {
-    // Get the most recent classified user message to determine restrictions (optimized)
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(50);
-
-    let currentClassification = null;
-    for (const msg of recentMessages) {
-      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
-        currentClassification = msg.classification;
-        break;
-      }
-    }
-
-    // For new_feature requests, builder cannot hand off directly to user
-    if (currentClassification === 'new_feature' && normalizedSenderRole === 'builder') {
-      // Return error response instead of throwing - allows CLI to handle gracefully
-      return {
-        success: false,
-        error: {
-          code: 'HANDOFF_RESTRICTED',
-          message:
-            'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.',
-          suggestedTarget: 'reviewer',
         },
         messageId: null,
         completedTaskIds: [],
@@ -923,15 +891,17 @@ export const taskStarted = mutation({
     if (args.skipClassification) {
       // For handoff recipients, the task's sourceMessage is the handoff message (not user message)
       // We need to find the most recent classified user message in the chatroom
-      const recentMessages = await ctx.db
+      const recentUserMessages = await ctx.db
         .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+        )
         .order('desc')
-        .take(50);
+        .take(15);
 
       let classifiedMessage = null;
-      for (const msg of recentMessages) {
-        if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+      for (const msg of recentUserMessages) {
+        if (msg.classification) {
           classifiedMessage = msg;
           break;
         }
@@ -1085,43 +1055,11 @@ export const getAllowedHandoffRoles = query({
       (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
-    // Get the most recent classified user message to determine restrictions (optimized)
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(50);
-
-    // Find the most recent classified user message
-    let currentClassification = null;
-    for (const msg of recentMessages) {
-      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
-        currentClassification = msg.classification;
-        break;
-      }
-    }
-
-    // Determine allowed handoff roles based on classification
     const availableRoles = waitingParticipants.map((p) => p.role);
-
-    // For new_feature requests, builder cannot hand off directly to user
-    // They must go through the reviewer first
-    let canHandoffToUser = true;
-    let restrictionReason = null;
-
-    if (currentClassification === 'new_feature') {
-      const normalizedRole = args.role.toLowerCase();
-      // Builder cannot hand directly to user for new features
-      if (normalizedRole === 'builder') {
-        canHandoffToUser = false;
-        restrictionReason = 'new_feature requests must be reviewed before returning to user';
-      }
-    }
+    const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
 
     return {
       availableRoles,
-      canHandoffToUser,
-      restrictionReason,
       currentClassification,
     };
   },
@@ -1336,15 +1274,15 @@ export const listQueued = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Enforce maximum limit to prevent unbounded queries
+    const MAX_LIMIT = 1000;
+    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
+
     const queuedMessages = await ctx.db
       .query('chatroom_messageQueue')
       .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
       .order('asc') // Ascending by queuePosition (oldest first)
-      .collect();
-
-    // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 1000;
-    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
+      .take(limit);
 
     // Transform queue records to match message shape + add isQueued flag
     const transformedMessages = queuedMessages.map((qMsg) => ({
@@ -1842,39 +1780,9 @@ export const getRolePrompt = query({
       (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
-    // Get the most recent classified user message to determine restrictions (optimized)
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(50);
-
-    // Find the most recent classified user message
-    let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
-    for (const msg of recentMessages) {
-      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
-        currentClassification = msg.classification;
-        break;
-      }
-    }
-
-    // Determine allowed handoff roles based on classification
     const availableRoles = waitingParticipants.map((p) => p.role);
-
-    // For new_feature requests, builder cannot hand off directly to user
-    let canHandoffToUser = true;
-    let restrictionReason: string | null = null;
-
-    if (currentClassification === 'new_feature') {
-      const normalizedRole = args.role.toLowerCase();
-      if (normalizedRole === 'builder') {
-        canHandoffToUser = false;
-        restrictionReason = 'new_feature requests must be reviewed before returning to user';
-      }
-    }
-
-    // Build the handoff roles list
-    const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
+    const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
+    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
     // Generate the role-specific prompt
     const prompt = generateRolePrompt({
@@ -1886,8 +1794,6 @@ export const getRolePrompt = query({
       teamEntryPoint: chatroom.teamEntryPoint,
       currentClassification,
       availableHandoffRoles,
-      canHandoffToUser,
-      restrictionReason,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
     });
 
@@ -1895,8 +1801,6 @@ export const getRolePrompt = query({
       prompt,
       currentClassification,
       availableHandoffRoles,
-      canHandoffToUser,
-      restrictionReason,
     };
   },
 });
@@ -2014,42 +1918,15 @@ export const getTaskDeliveryPrompt = query({
       (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
-    // Get recent messages for classification
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(50);
-
-    // Find current classification
-    let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
-    for (const msg of recentMessages) {
-      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
-        currentClassification = msg.classification;
-        break;
-      }
-    }
-
-    // Determine handoff restrictions
     const availableRoles = waitingParticipants.map((p) => p.role);
-    let canHandoffToUser = true;
-    let restrictionReason: string | null = null;
-
-    if (currentClassification === 'new_feature') {
-      const normalizedRole = args.role.toLowerCase();
-      if (normalizedRole === 'builder') {
-        canHandoffToUser = false;
-        restrictionReason = 'new_feature requests must be reviewed before returning to user';
-      }
-    }
-
-    const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
+    const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
+    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
     // Get context window (reuse getContextWindow logic)
     // Fetch recent messages for context
-    // fallow-ignore-next-line duplication
     // (Pre-existing duplication with services/backend/convex/tasks/taskDelivery.ts
     //  — origin/follow-up resolution; out of scope for this optimization PR.)
+    // fallow-ignore-next-line code-duplication
     const contextRecentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -2170,6 +2047,7 @@ export const getTaskDeliveryPrompt = query({
       { id: string; content: string; status: string }
     >();
     if (allAttachedBacklogItemIds.length > 0) {
+      // fallow-ignore-next-line code-duplication
       const uniqueItemIds = [...new Set(allAttachedBacklogItemIds)];
       for (const itemId of uniqueItemIds) {
         const item = await ctx.db.get('chatroom_backlog', itemId);
@@ -2283,7 +2161,6 @@ export const getTaskDeliveryPrompt = query({
       rolePrompt: {
         currentClassification,
         availableHandoffRoles,
-        restrictionReason,
       },
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],

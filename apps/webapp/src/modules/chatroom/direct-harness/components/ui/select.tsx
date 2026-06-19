@@ -1,6 +1,6 @@
 /**
  * Harness-local Select — identical API to ShadCN Select but with sharp corners
- * (removes rounded-md from Trigger, Content, and Item) per docs/design/theme.md.
+ * (removes rounded-md from Trigger, Content, and Item) per docs/application/design/theme.md.
  */
 'use client';
 

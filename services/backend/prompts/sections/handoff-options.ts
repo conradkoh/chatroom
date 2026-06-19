@@ -9,8 +9,6 @@ import { createSection } from '../types/sections';
 
 export interface HandoffOptionsParams {
   availableHandoffRoles: string[];
-  canHandoffToUser: boolean;
-  restrictionReason?: string | null;
 }
 
 /**
@@ -18,11 +16,7 @@ export interface HandoffOptionsParams {
  */
 export function getHandoffOptionsSection(params: HandoffOptionsParams): PromptSection {
   const roles = params.availableHandoffRoles.join(', ');
-  let content = `### Handoff Options\nAvailable targets: ${roles}`;
-
-  if (!params.canHandoffToUser && params.restrictionReason) {
-    content += `\n\n⚠️ **Restriction:** ${params.restrictionReason}`;
-  }
+  const content = `### Handoff Options\nAvailable targets: ${roles}`;
 
   return createSection('handoff-options', 'guidance', content);
 }

@@ -14,8 +14,6 @@ export interface RolePromptContext {
     featureDescription?: string;
     techSpecs?: string;
   };
-  canHandoffToUser: boolean;
-  restrictionReason?: string;
   availableHandoffRoles: string[];
   cliEnvPrefix?: string;
 }

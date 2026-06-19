@@ -41,6 +41,24 @@ export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'c
   });
 }
 
+/**
+ * Create a production-accurate duo team chatroom (planner + builder, entry point = planner).
+ * Matches the real Duo team template used in production.
+ */
+export async function createPlannerBuilderDuoChatroom(
+  sessionId: SessionId
+): Promise<Id<'chatroom_rooms'>> {
+  const chatroomId = await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'duo',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
+  });
+  await createTestWorkflow(chatroomId);
+  return chatroomId;
+}
+
 // ---------------------------------------------------------------------------
 // Participants
 // ---------------------------------------------------------------------------

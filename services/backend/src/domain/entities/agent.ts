@@ -137,6 +137,7 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  * - `user.restart`: @deprecated — no longer used, kept for backward compatibility with old events
  * - `platform.crash_recovery`: Daemon restart after agent exit (all harnesses)
  * - `platform.auto_restart_on_new_context`: Restart after the entry role sets a new pinned context (autoRestartOnNewContext)
+ * - `platform.restart_offline_on_user_message`: Restart offline remote agents when user sends a message (using persisted team config)
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
@@ -145,6 +146,7 @@ export const AGENT_START_REASONS = [
   'user.restart',
   'platform.crash_recovery',
   'platform.auto_restart_on_new_context',
+  'platform.restart_offline_on_user_message',
   'test',
 ] as const;
 

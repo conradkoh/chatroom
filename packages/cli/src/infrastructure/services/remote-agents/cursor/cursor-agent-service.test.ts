@@ -372,5 +372,55 @@ describe('CursorAgentService', () => {
         'NEVER spawn subagents. Follow the chatroom instructions strictly.\n\njust the prompt'
       );
     });
+
+    it('logs bash tool calls with "running:" format', async () => {
+      const mockStdin = { write: vi.fn(), end: vi.fn() };
+      const mockStdout = new Readable({ read() {} });
+      const mockStderr = new Readable({ read() {} });
+
+      const mockChild = Object.assign(new EventEmitter(), {
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        pid: 51,
+        killed: false,
+        exitCode: null,
+      });
+
+      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
+      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
+
+      const spawnFn = vi.fn().mockReturnValue(mockChild);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new CursorAgentService(deps);
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        prompt: createSpawnPrompt('hello'),
+        systemPrompt: 'system',
+        context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
+      });
+
+      mockStdout.push(
+        JSON.stringify({
+          type: 'tool_call',
+          subtype: 'started',
+          call_id: 'call-1',
+          tool_call: { bashToolCall: { args: { command: 'git status' } } },
+        }) + '\n'
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
+      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      expect(bashLine).toBeDefined();
+      expect(bashLine).toContain('git status');
+      expect(bashLine).toContain('[cursor:builder');
+
+      stdoutWrite.mockRestore();
+    });
   });
 });

@@ -51,27 +51,18 @@ export const DEFAULT_AUTH_RETRY_INTERVAL_MS = 10_000;
  * Pass `{ retryOnNetworkError: true }` to keep long-running commands alive through
  * transient backend outages — the call will block and retry instead of exiting.
  */
-export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthContext> {
-  const retryOnNetworkError = opts.retryOnNetworkError ?? false;
-  const retryIntervalMs = opts.retryIntervalMs ?? DEFAULT_AUTH_RETRY_INTERVAL_MS;
-
-  // Check local auth file first — this is network-free and always fast-fails.
-  if (!await isAuthenticated()) {
+async function checkLocalAuth(): Promise<SessionId> {
+  if (!(await isAuthenticated())) {
     const otherUrls = await getOtherSessionUrls();
     const currentUrl = getConvexUrl();
-
     console.error(`\n❌ Error: Not authenticated for: ${currentUrl}`);
-
     if (otherUrls.length > 0) {
       console.error(`\n💡 You have sessions for other environments:`);
-      for (const url of otherUrls) {
-        console.error(`   • ${url}`);
-      }
+      for (const url of otherUrls) console.error(`   • ${url}`);
       console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
       console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom <command>`);
       console.error(`\n   Or to authenticate for the current environment:`);
     }
-
     console.error(`   $ chatroom auth login\n`);
     process.exit(1);
   }
@@ -80,80 +71,101 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
   if (!sessionId) {
     console.error(`\n❌ Error: Invalid auth file`);
     console.error(`   Path: ${getAuthFilePath()}`);
-    console.error(`\n   Please re-authenticate:`);
-    console.error(`   $ chatroom auth login\n`);
+    console.error(`\n   Please re-authenticate:\n   $ chatroom auth login\n`);
+    process.exit(1);
+  }
+  return sessionId;
+}
+
+async function validateSessionWithBackend(
+  sessionId: SessionId
+): Promise<{ userId: string; userName?: string; convexUrl: string }> {
+  const convexUrl = getConvexUrl();
+  const client = await getConvexClient();
+  const validation = await client.query(api.cliAuth.validateSession, { sessionId });
+
+  if (!validation.valid) {
+    console.error(`\n❌ Error: Session invalid - ${validation.reason}`);
+    console.error(`\n   Please re-authenticate:\n   $ chatroom auth login\n`);
     process.exit(1);
   }
 
-  // Validate session with backend — may be retried on network error.
-  const convexUrl = getConvexUrl();
-  let consecutiveNetworkFailures = 0;
+  await client.mutation(api.cliAuth.touchSession, { sessionId });
+  return { userId: validation.userId as string, userName: validation.userName, convexUrl };
+}
 
+function failNonNetworkError(error: unknown): never {
+  const err = error as Error;
+  console.error(`\n❌ Error: Could not validate session`);
+  console.error(`   ${err.message}`);
+  console.error(`\n   Please re-authenticate:\n   $ chatroom auth login\n`);
+  process.exit(1);
+}
+
+async function retryValidation(
+  sessionId: SessionId,
+  convexUrl: string,
+  retryIntervalMs: number
+): Promise<AuthContext> {
+  let consecutiveNetworkFailures = 0;
   while (true) {
     try {
-      const client = await getConvexClient();
-      const validation = await client.query(api.cliAuth.validateSession, {
-        sessionId,
-      });
-
-      if (!validation.valid) {
-        console.error(`\n❌ Error: Session invalid - ${validation.reason}`);
-        console.error(`\n   Please re-authenticate:`);
-        console.error(`   $ chatroom auth login\n`);
-        process.exit(1);
-      }
-
-      // Touch the session to keep it fresh
-      await client.mutation(api.cliAuth.touchSession, { sessionId });
-
-      // Log recovery if we had prior network failures.
+      const result = await validateSessionWithBackend(sessionId);
       if (consecutiveNetworkFailures > 0) {
         console.log(`✅ Backend reachable again at ${convexUrl}`);
-        consecutiveNetworkFailures = 0;
       }
-
       return {
-        sessionId,
-        userId: validation.userId!,
-        userName: validation.userName,
+        sessionId: sessionId as unknown as SessionId,
+        userId: result.userId,
+        userName: result.userName,
       };
     } catch (error) {
-      if (isNetworkError(error)) {
-        if (!retryOnNetworkError) {
-          // Default fast-fail behaviour (unchanged for short-lived commands).
-          formatConnectivityError(error, convexUrl);
-          process.exit(1);
-          // Unreachable in production; prevents fall-through when process.exit
-          // is mocked as a no-op in tests.
-          return undefined as never;
-        }
-
-        // Opt-in retry mode: block and wait instead of exiting.
-        consecutiveNetworkFailures++;
-        const retrySec = retryIntervalMs / 1000;
-        if (consecutiveNetworkFailures === 1) {
-          // First failure — log the full verbose guidance block once.
-          formatConnectivityError(error, convexUrl);
-          console.log(`⏳ Backend not reachable. Retrying every ${retrySec}s...`);
-        } else {
-          // Subsequent failures — a single concise line to avoid log spam.
-          console.log(
-            `❌ Backend still unreachable (attempt ${consecutiveNetworkFailures}, retrying in ${retrySec}s)`
-          );
-        }
-        await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
-        // Continue retry loop
-        continue;
+      if (!isNetworkError(error)) {
+        failNonNetworkError(error);
       }
-      // Non-network error — always fast-fail.
-      const err = error as Error;
-      console.error(`\n❌ Error: Could not validate session`);
-      console.error(`   ${err.message}`);
-      console.error(`\n   Please re-authenticate:`);
-      console.error(`   $ chatroom auth login\n`);
-      process.exit(1);
+      consecutiveNetworkFailures++;
+      const retrySec = retryIntervalMs / 1000;
+      if (consecutiveNetworkFailures === 1) {
+        formatConnectivityError(error, convexUrl);
+        console.log(`⏳ Backend not reachable. Retrying every ${retrySec}s...`);
+      } else {
+        console.log(
+          `❌ Backend still unreachable (attempt ${consecutiveNetworkFailures}, retrying in ${retrySec}s)`
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
     }
   }
+}
+
+async function fastFailValidation(sessionId: SessionId, convexUrl: string): Promise<AuthContext> {
+  try {
+    const result = await validateSessionWithBackend(sessionId);
+    return {
+      sessionId: sessionId as unknown as SessionId,
+      userId: result.userId,
+      userName: result.userName,
+    };
+  } catch (error) {
+    if (isNetworkError(error)) {
+      formatConnectivityError(error, convexUrl);
+    }
+    failNonNetworkError(error);
+  }
+}
+
+export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthContext> {
+  const retryOnNetworkError = opts.retryOnNetworkError ?? false;
+  const retryIntervalMs = opts.retryIntervalMs ?? DEFAULT_AUTH_RETRY_INTERVAL_MS;
+
+  const sessionId = await checkLocalAuth();
+  const convexUrl = getConvexUrl();
+
+  if (retryOnNetworkError) {
+    return retryValidation(sessionId, convexUrl, retryIntervalMs);
+  }
+
+  return fastFailValidation(sessionId, convexUrl);
 }
 
 /**
@@ -161,7 +173,7 @@ export async function requireAuth(opts: RequireAuthOptions = {}): Promise<AuthCo
  * Returns auth context if authenticated, null otherwise
  */
 export async function checkAuth(): Promise<AuthContext | null> {
-  if (!await isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return null;
   }
 
@@ -182,7 +194,7 @@ export async function checkAuth(): Promise<AuthContext | null> {
 
     return {
       sessionId,
-      userId: validation.userId!,
+      userId: validation.userId as string,
       userName: validation.userName,
     };
   } catch (error) {

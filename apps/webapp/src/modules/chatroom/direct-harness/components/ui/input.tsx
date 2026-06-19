@@ -1,6 +1,6 @@
 /**
  * Harness-local Input — identical API to ShadCN Input but with sharp corners
- * (removes rounded-md) per docs/design/theme.md.
+ * (removes rounded-md) per docs/application/design/theme.md.
  */
 import * as React from 'react';
 

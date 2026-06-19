@@ -19,6 +19,13 @@
 import { type ChildProcess } from 'node:child_process';
 
 import { buildChatroomSpawnEnv } from '../../../convex/spawn-env.js';
+import {
+  BASH_TOOL_KIND,
+  buildAgentLogPrefix,
+  extractBashCommandFromCursorToolCall,
+  formatAgentLogLine,
+  formatBashRunningPayload,
+} from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CursorStreamReader } from './cursor-stream-reader.js';
@@ -173,9 +180,7 @@ export class CursorAgentService extends BaseCLIAgentService {
 
     const entry = this.registerProcess(pid, context);
 
-    const roleTag = context.role ?? 'unknown';
-    const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
-    const logPrefix = `[cursor:${roleTag}${chatroomSuffix}`;
+    const logPrefix = buildAgentLogPrefix('cursor', context);
 
     const outputCallbacks: (() => void)[] = [];
 
@@ -186,7 +191,7 @@ export class CursorAgentService extends BaseCLIAgentService {
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
+          if (line) process.stdout.write(`${formatAgentLogLine(logPrefix, 'text', line)}\n`);
         }
         textBuffer = '';
       };
@@ -205,17 +210,26 @@ export class CursorAgentService extends BaseCLIAgentService {
 
       reader.onAgentEnd(() => {
         flushText();
-        process.stdout.write(`${logPrefix} agent_end]\n`);
+        process.stdout.write(`${formatAgentLogLine(logPrefix, 'agent_end')}\n`);
       });
 
       reader.onToolCall((callId, toolCall) => {
         flushText();
-        process.stdout.write(`${logPrefix} tool: ${callId} ${JSON.stringify(toolCall)}]\n`);
+        const bashCmd = extractBashCommandFromCursorToolCall(toolCall);
+        if (bashCmd !== null) {
+          process.stdout.write(
+            `${formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd))}\n`
+          );
+          return;
+        }
+        process.stdout.write(
+          `${formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`)}\n`
+        );
       });
 
       reader.onToolResult((callId) => {
         flushText();
-        process.stdout.write(`${logPrefix} tool_result: ${callId}]\n`);
+        process.stdout.write(`${formatAgentLogLine(logPrefix, 'tool_result', callId)}\n`);
       });
 
       if (childProcess.stderr) {

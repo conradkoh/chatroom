@@ -5,6 +5,7 @@
  * returned by getInitPrompt for remote agents in machine mode.
  * The "prompt" field (combined) is tested in get-next-task-prompt.spec.ts.
  */
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- guarded by expect().toBeDefined() */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -357,9 +358,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
        
 
       ### Handoff Options
-      Available targets: reviewer
-
-      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
+      Available targets: reviewer, user
 
       ### Commands
 
@@ -680,9 +679,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
 
       ### Handoff Options
-      Available targets: builder
-
-      ⚠️ **Restriction:** In duo team, only the planner can hand off to the user.
+      Available targets: builder, user
 
       ### Commands
 

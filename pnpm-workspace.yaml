@@ -17,6 +17,7 @@ minimumReleaseAgeExclude:
   - '@cursor/sdk-win32-x64'
 
 allowBuilds:
+  '@sentry/cli': true
   bun: true
   esbuild: true
   sharp: true
