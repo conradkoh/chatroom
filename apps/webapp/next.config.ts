@@ -1,6 +1,7 @@
 import path from 'path';
 
 import createMDX from '@next/mdx';
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 /** @type {import('next').NextConfig} */
@@ -32,5 +33,9 @@ const withMDX = createMDX({
   },
 });
 
-// Combine MDX and Next.js config
-export default withMDX(nextConfig);
+// Combine MDX and Next.js config, then wrap with Sentry
+const sentryConfig = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG || undefined,
+  project: process.env.SENTRY_PROJECT || undefined,
+});
+export default withMDX(sentryConfig);
