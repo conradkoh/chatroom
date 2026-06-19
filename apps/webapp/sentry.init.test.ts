@@ -24,6 +24,34 @@ describe('Sentry initialization guard', () => {
     mockReplayIntegration.mockReset();
   });
 
+  it('does not initialize Sentry client when NEXT_PUBLIC_SENTRY_DSN is not set', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', '');
+
+    const { initSentryClient } = await import('./src/lib/sentry/clientInit');
+    initSentryClient();
+
+    expect(mockSentryInit).not.toHaveBeenCalled();
+  });
+
+  it('initializes Sentry client when NEXT_PUBLIC_SENTRY_DSN is set', async () => {
+    const testDsn = 'https://test@example.com/789';
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', testDsn);
+    vi.stubEnv('NODE_ENV', 'development');
+
+    const { initSentryClient } = await import('./src/lib/sentry/clientInit');
+    initSentryClient();
+
+    expect(mockSentryInit).toHaveBeenCalledTimes(1);
+    expect(mockSentryInit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dsn: testDsn,
+        sendDefaultPii: false,
+      })
+    );
+    expect(mockSentryInit.mock.calls[0]?.[0]).not.toHaveProperty('debug');
+    expect(mockReplayIntegration).toHaveBeenCalled();
+  });
+
   it('does not initialize Sentry when NEXT_PUBLIC_SENTRY_DSN is not set', async () => {
     vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', '');
 

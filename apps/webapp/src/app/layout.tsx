@@ -9,7 +9,6 @@ import { Navigation } from '@/components/Navigation';
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 import { Toaster } from '@/components/ui/sonner';
 import { getAppTitle } from '@/lib/environment';
-import '@/lib/sentry';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
 import { HeaderPortalProvider } from '@/modules/header/HeaderPortalProvider';
