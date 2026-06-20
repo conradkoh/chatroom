@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy non-null assertions in command builders */
+
 import {
   Activity,
   AlertTriangle,
@@ -241,7 +243,7 @@ export function useCommandPaletteCommands({
         label: 'Chatroom: New',
         icon: <Plus size={14} />,
         category: 'Navigate',
-        keywords: ['new', 'create', 'chatroom'],
+        keywords: ['new', 'create', 'chatroom', 'new chatroom'],
         action: onCreateNewChatroom,
       });
     }

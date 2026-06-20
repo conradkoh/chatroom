@@ -1,8 +1,9 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
+
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
 
 describe('useCommandPaletteCommands', () => {
   const baseProps = {
@@ -38,11 +39,29 @@ describe('useCommandPaletteCommands', () => {
     );
     expect(newChatroomCommand).toMatchObject({
       label: 'Chatroom: New',
-      keywords: ['new', 'create', 'chatroom'],
+      keywords: ['new', 'create', 'chatroom', 'new chatroom'],
     });
 
     newChatroomCommand?.action();
     expect(onCreateNewChatroom).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches "New Chatroom" search query via keywords', () => {
+    const onCreateNewChatroom = vi.fn();
+
+    const { result } = renderHook(() =>
+      useCommandPaletteCommands({
+        ...baseProps,
+        onCreateNewChatroom,
+      })
+    );
+
+    const newChatroomCommand = result.current.find((command) => command.id === 'nav-new-chatroom');
+
+    expect(newChatroomCommand).toBeDefined();
+    expect(
+      fuzzyFilter('Chatroom: New', 'New Chatroom', newChatroomCommand?.keywords)
+    ).toBeGreaterThan(0);
   });
 
   it('omits the New Chatroom command when no callback is provided', () => {
