@@ -290,6 +290,10 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
 
        
 
+      ## Begin With the End in Mind
+
+      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
+
       ### Handoff Options
       Available targets: planner, builder, user
 

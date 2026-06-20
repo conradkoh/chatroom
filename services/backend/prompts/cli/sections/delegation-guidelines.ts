@@ -12,7 +12,6 @@
  * no longer mandatory before delegating.
  */
 
-import { getPlannerToBuilderHandoffTemplate } from '../handoff-templates';
 import type { TeamCompositionConfig } from './team-composition';
 
 /**
@@ -64,9 +63,7 @@ flowchart TD
     H -->|No| I[Deliver to user]
 \`\`\`
 
-**Default: delegate with a Delegation Brief.** A structured workflow is NOT required before handing off to the builder — a clear, self-contained brief is enough for most work.
-
-${getPlannerToBuilderHandoffTemplate()}
+**Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.
 
 **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 

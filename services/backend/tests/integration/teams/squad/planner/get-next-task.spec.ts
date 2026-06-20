@@ -152,10 +152,11 @@ describe('Squad Team > Planner > Get Next Task', () => {
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
 
-      ## Restart new context (mandatory)
-      Can the agent be restarted to reduce the context window size? Select the mode that matches this handoff. Use \`reset\` when the delegation brief fully captures everything the builder needs. Use \`none\` when the builder should continue prior session context.
-      Hard = Full reset | Compact = Compress context | None = continue with previous context
-      // data:agent.compress_context=none
+      ## Session Management
+      Valid values: \`new_session\` | \`none\`
+      - \`new_session\` — start a fresh agent session (default; prior session must NOT be resumed)
+      - \`none\` — continue prior session context
+      // data:agent.compress_context=new_session
       \`\`\`
 
       Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
@@ -272,6 +273,72 @@ describe('Squad Team > Planner > Get Next Task', () => {
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
          Run: pnpm typecheck && pnpm test
+
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+
+      **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
+
+      **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
+
+      \`\`\`markdown
+      ## Goal
+      <one sentence: the outcome this slice delivers>
+
+      ## Files to implement (exhaustive, file-level)
+      List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+
+      ### \`path/to/file.ts\`
+      **Change:** <precisely what to add, modify, or remove in this file>
+
+      \`\`\`typescript
+      // Target code: exports, types, function bodies, component skeleton, query/mutation shape, etc.
+      // Enough that the builder can implement this file without inventing structure
+      \`\`\`
+
+      ### \`path/to/other-file.ts\`
+      **Change:** <...>
+
+      \`\`\`typescript
+      // ...
+      \`\`\`
+
+      (Add one ### block per file. If this slice touches only one file, still use the ### header.)
+
+      ## Shared contracts (planner-owned)
+      Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+
+      ### Interfaces & types
+      \`\`\`typescript
+      // Shared signatures, schemas, props, or DB shapes
+      \`\`\`
+
+      ### Reference snippets
+      \`\`\`typescript
+      // Canonical call patterns, hook usage, imports, or wiring between files
+      \`\`\`
+
+      ## Requirements (acceptance criteria)
+      - <verifiable outcome the builder can self-check>
+      - Verify: \`pnpm typecheck && pnpm test\`
+
+      ## What to avoid
+      - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+
+      ## Skills to activate
+      - <e.g. chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
+
+      ## Out of scope
+      - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
+
+      ## Session Management
+      Valid values: \`new_session\` | \`none\`
+      - \`new_session\` — start a fresh agent session (default; prior session must NOT be resumed)
+      - \`none\` — continue prior session context
+      // data:agent.compress_context=new_session
+      \`\`\`
+
+      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=<target> << 'EOF'
       ---MESSAGE---
