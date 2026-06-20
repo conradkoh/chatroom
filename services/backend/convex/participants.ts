@@ -6,7 +6,10 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS, CONNECTION_CLOSE_REQUEST_TTL_MS } from '../config/reliability';
+import {
+  PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
+  CONNECTION_CLOSE_REQUEST_TTL_MS,
+} from '../config/reliability';
 import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
@@ -68,8 +71,7 @@ export const join = mutation({
         args.machineId !== undefined && args.machineId !== existing.machineId;
       const agentTypeChanged =
         args.agentType !== undefined && args.agentType !== existing.agentType;
-      const actionChanged =
-        args.action !== undefined && args.action !== existing.lastSeenAction;
+      const actionChanged = args.action !== undefined && args.action !== existing.lastSeenAction;
       const lastSeenAtStale =
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
@@ -87,9 +89,21 @@ export const join = mutation({
         });
       }
 
-      if (connectionIdChanged || machineIdChanged || agentTypeChanged || actionChanged || lastSeenAtStale) {
+      const clearConnectionId = args.action === 'get-next-task:stopped';
+      if (
+        connectionIdChanged ||
+        machineIdChanged ||
+        agentTypeChanged ||
+        actionChanged ||
+        lastSeenAtStale ||
+        clearConnectionId
+      ) {
         await ctx.db.patch('chatroom_participants', existing._id, {
-          ...(connectionIdChanged ? { connectionId: args.connectionId } : {}),
+          ...(clearConnectionId
+            ? { connectionId: undefined }
+            : connectionIdChanged
+              ? { connectionId: args.connectionId }
+              : {}),
           ...(machineIdChanged ? { machineId: args.machineId } : {}),
           ...(lastSeenAtStale ? { lastSeenAt: now } : {}),
           ...(actionChanged ? { lastSeenAction: args.action } : {}),
@@ -154,6 +168,11 @@ export const join = mutation({
         timestamp: now,
       });
       await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+    }
+
+    if (args.action === 'get-next-task:stopped') {
+      // Agent left the blocking listener to process a claimed task.
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
     }
 
     return participantId;

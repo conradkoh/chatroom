@@ -328,6 +328,13 @@ describe('GetNextTaskSession', () => {
 
       expect(exitSpy).toHaveBeenCalledWith(0);
 
+      // Verify get-next-task:stopped is emitted before exit (markListeningStopped)
+      const stoppedCalls = params.client.mutation.mock.calls.filter(
+        (call: unknown[]) =>
+          (call[1] as { action?: string } | undefined)?.action === 'get-next-task:stopped'
+      );
+      expect(stoppedCalls.length).toBeGreaterThanOrEqual(1);
+
       // Verify claimTask was called (it's the first mutation call for pending tasks)
       expect(params.client.mutation).toHaveBeenCalled();
 
