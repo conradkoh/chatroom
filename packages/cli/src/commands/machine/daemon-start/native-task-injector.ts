@@ -65,7 +65,6 @@ export function runNativeInjectionEffect(
 
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
-      taskContent,
       compressMode: parseCompressContext(taskContent),
     });
 

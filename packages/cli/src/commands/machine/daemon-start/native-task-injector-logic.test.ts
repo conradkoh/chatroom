@@ -105,6 +105,20 @@ describe('shouldInjectNativeTask', () => {
     dedup.markInjected(task.taskId);
     expect(shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })).toBe(false);
   });
+
+  test('does not inject when lastSeenAction is non-injectable', () => {
+    expect(
+      shouldInjectNativeTask(
+        makeTask({
+          participant: {
+            lastSeenAction: 'get-next-task:started',
+            lastSeenAt: 500,
+            lastStatus: 'agent.waiting',
+          },
+        })
+      )
+    ).toBe(false);
+  });
 });
 
 describe('shouldNudgeNativeInjection', () => {
@@ -157,11 +171,8 @@ describe('shouldNudgeNativeInjection', () => {
 
 describe('buildNativeInjectionPrompt', () => {
   test('adds compaction header for compress_context=new_session', () => {
-    const content = `## Session Management
-// data:agent.compress_context=new_session`;
     const output = buildNativeInjectionPrompt({
       taskDeliveryOutput: 'TASK BODY',
-      taskContent: content,
       compressMode: 'new_session',
     });
     expect(output).toContain('compress_context=new_session');
@@ -171,7 +182,6 @@ describe('buildNativeInjectionPrompt', () => {
   test('no compaction header for compress_context=none', () => {
     const output = buildNativeInjectionPrompt({
       taskDeliveryOutput: 'TASK BODY',
-      taskContent: '## Goal\nWork',
       compressMode: 'none',
     });
     expect(output).toBe('TASK BODY');

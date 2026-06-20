@@ -91,3 +91,8 @@ export function getHarnessCapabilities(harness: AgentHarness): HarnessCapabiliti
 export function getHarnessRuntimeKind(harness: AgentHarness): HarnessRuntimeKind {
   return getHarnessCapabilities(harness).runtimeKind;
 }
+
+export function isNativeHarness(harness: AgentHarness | string | undefined | null): boolean {
+  if (harness == null) return false;
+  return getHarnessCapabilities(harness as AgentHarness).supportsNativeIntegration;
+}

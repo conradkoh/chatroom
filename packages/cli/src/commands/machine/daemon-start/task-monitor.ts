@@ -32,20 +32,25 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type AssignedTasksResult = FunctionReturnType<typeof api.machines.getAssignedTasks>;
 
+type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
+type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
+
+interface SessionDeps {
+  sessionId: string;
+  convexUrl: string;
+  backend: {
+    mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
+    query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
+  };
+}
+
 function runNativeInjectionFork(
   task: AssignedTaskView,
-  runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>,
-  effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
   dedup: NativeInjectionDedup,
   agentMgr: DaemonAgentProcessManagerServiceShape,
-  session: {
-    sessionId: string;
-    convexUrl: string;
-    backend: {
-      mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-      query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-    };
-  }
+  session: SessionDeps
 ): void {
   Runtime.runFork(runtime)(
     runNativeInjectionEffect(
@@ -72,38 +77,36 @@ function runNativeInjectionFork(
   );
 }
 
-// fallow-ignore-next-line complexity
-function runNudgeEffect(
+function runNativeNudgeEffect(
   task: AssignedTaskView,
-  runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>,
-  effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
   dedup: NativeInjectionDedup,
-  session: {
-    sessionId: string;
-    convexUrl: string;
-    backend: {
-      mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-      query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-    };
-  }
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  session: SessionDeps
 ): void {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
+  console.log(
+    `[TaskMonitor] native nudge ${role}@${chatroomId} — retrying injection for pending task ${task.taskId}`
+  );
+  dedup.clear(task.taskId);
+  runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, session);
+}
 
-  if (isNativeHarness(agentConfig.agentHarness)) {
-    console.log(
-      `[TaskMonitor] native nudge ${role}@${chatroomId} — retrying injection for pending task ${task.taskId}`
-    );
-    dedup.clear(task.taskId);
-    runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, session);
-    return;
-  }
-
+// fallow-ignore-next-line complexity
+function runCliNudgeEffect(
+  task: AssignedTaskView,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): void {
+  const { chatroomId, agentConfig } = task;
+  const { role } = agentConfig;
   const workingDir = agentConfig.workingDir;
   if (!workingDir) return;
-  const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
 
+  const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
   const compressMode = parseCompressContext(task.taskContent ?? '');
   const wantResume = compressContextToWantResume(compressMode);
 
@@ -136,6 +139,42 @@ function runNudgeEffect(
   );
 }
 
+function runNudgeEffect(
+  task: AssignedTaskView,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  dedup: NativeInjectionDedup,
+  session: SessionDeps
+): void {
+  if (isNativeHarness(task.agentConfig.agentHarness)) {
+    runNativeNudgeEffect(task, runtime, effectContext, dedup, agentMgr, session);
+    return;
+  }
+  runCliNudgeEffect(task, runtime, effectContext, agentMgr);
+}
+
+function processTasksUpdate(
+  tasks: AssignedTaskView[],
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  dedup: NativeInjectionDedup,
+  cooldown: NudgeCooldown,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: SessionDeps
+): void {
+  for (const task of tasks) {
+    if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
+      runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
+    }
+  }
+
+  const tasksToNudge = listTasksReadyForNudge(tasks, Date.now(), cooldown);
+  for (const task of tasksToNudge) {
+    runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
+  }
+}
+
 export const startTaskMonitorSubscriptionEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<
@@ -159,7 +198,7 @@ export const startTaskMonitorSubscriptionEffect = (
     const dedup = new NativeInjectionDedup();
     let stopped = false;
 
-    const sessionDeps = {
+    const sessionDeps: SessionDeps = {
       sessionId: session.sessionId,
       convexUrl: session.convexUrl,
       backend: {
@@ -169,20 +208,17 @@ export const startTaskMonitorSubscriptionEffect = (
       },
     };
 
-    // fallow-ignore-next-line complexity
     const onTasksUpdate = (result: AssignedTasksResult | undefined): void => {
       if (stopped || !result?.tasks?.length) return;
-
-      for (const task of result.tasks) {
-        if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
-          runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
-        }
-      }
-
-      const tasksToNudge = listTasksReadyForNudge(result.tasks, Date.now(), cooldown);
-      for (const task of tasksToNudge) {
-        runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
-      }
+      processTasksUpdate(
+        result.tasks,
+        runtime,
+        effectContext,
+        dedup,
+        cooldown,
+        agentMgr,
+        sessionDeps
+      );
     };
 
     const unsubscribe = wsClient.onUpdate(

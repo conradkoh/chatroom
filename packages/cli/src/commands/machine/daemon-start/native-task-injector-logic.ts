@@ -1,4 +1,4 @@
-import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
 import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
@@ -6,35 +6,9 @@ import {
 import type { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
-import type { AgentHarness } from './types.js';
+export { isNativeHarness };
 
-// fallow-ignore-next-line unused-export
-export const NATIVE_INJECTABLE_ACTIONS = [
-  NATIVE_WAITING_ACTION,
-  'agent.waiting', // lastStatus fallback when action not yet set
-] as const;
-
-export function isNativeHarness(agentHarness: string): boolean {
-  return getHarnessCapabilities(agentHarness as AgentHarness).supportsNativeIntegration;
-}
-
-/** True when daemon should inject a pending task into a live native session. */
-// fallow-ignore-next-line complexity
-export function shouldInjectNativeTask(
-  task: AssignedTaskView,
-  opts?: { alreadyInjectedTaskIds?: { has(taskId: string): boolean } }
-): boolean {
-  const { agentConfig, status, participant } = task;
-  if (!isNativeHarness(agentConfig.agentHarness)) return false;
-  if (status !== 'pending') return false;
-  if (agentConfig.spawnedAgentPid == null) return false;
-  if (agentConfig.desiredState !== 'running') return false;
-  if (opts?.alreadyInjectedTaskIds?.has(task.taskId)) return false;
-
-  const action = participant?.lastSeenAction;
-  if (action == null) return true;
-  return (NATIVE_INJECTABLE_ACTIONS as readonly string[]).includes(action);
-}
+const NATIVE_INJECTABLE_ACTIONS = [NATIVE_WAITING_ACTION] as const;
 
 function isNativePendingAliveRunning(task: AssignedTaskView): boolean {
   const { agentConfig, status } = task;
@@ -46,35 +20,52 @@ function isNativePendingAliveRunning(task: AssignedTaskView): boolean {
   );
 }
 
-/** True when native agent has pending task but injection appears stuck. */
+function isInjectableAction(action: string | null | undefined): boolean {
+  if (action == null) return true;
+  return (NATIVE_INJECTABLE_ACTIONS as readonly string[]).includes(action);
+}
+
+/** True when daemon should inject a pending task into a live native session. */
+export function shouldInjectNativeTask(
+  task: AssignedTaskView,
+  opts?: { alreadyInjectedTaskIds?: { has(taskId: string): boolean } }
+): boolean {
+  if (!isNativePendingAliveRunning(task)) return false;
+  if (opts?.alreadyInjectedTaskIds?.has(task.taskId)) return false;
+  return isInjectableAction(task.participant?.lastSeenAction);
+}
+
+function isStaleNativeWaiting(task: AssignedTaskView, now: number, thresholdMs: number): boolean {
+  return (
+    task.participant?.lastSeenAction === NATIVE_WAITING_ACTION && now - task.createdAt > thresholdMs
+  );
+}
+
 // fallow-ignore-next-line complexity
+function isStuckAfterInject(task: AssignedTaskView, now: number, thresholdMs: number): boolean {
+  return (
+    task.participant?.lastSeenAction === NATIVE_TASK_INJECTED_ACTION &&
+    task.participant?.lastStatus === 'task.acknowledged' &&
+    now - (task.participant?.lastSeenAt ?? 0) > thresholdMs
+  );
+}
+
+/** True when native agent has pending task but injection appears stuck. */
 export function shouldNudgeNativeInjection(
   task: AssignedTaskView,
   now: number,
   pendingIdleThresholdMs = 15_000
 ): boolean {
   if (!isNativePendingAliveRunning(task)) return false;
-
-  const action = task.participant?.lastSeenAction;
-  // Stale: waiting too long with pending task
-  if (action === NATIVE_WAITING_ACTION && now - task.createdAt > pendingIdleThresholdMs) {
-    return true;
-  }
-  // Stuck after failed inject: acknowledged heartbeat never led to work
-  if (
-    action === NATIVE_TASK_INJECTED_ACTION &&
-    task.participant?.lastStatus === 'task.acknowledged' &&
-    now - (task.participant?.lastSeenAt ?? 0) > pendingIdleThresholdMs
-  ) {
-    return true;
-  }
-  return false;
+  return (
+    isStaleNativeWaiting(task, now, pendingIdleThresholdMs) ||
+    isStuckAfterInject(task, now, pendingIdleThresholdMs)
+  );
 }
 
 /** Shape injected prompt: task delivery body + optional compaction header. */
 export function buildNativeInjectionPrompt(params: {
   taskDeliveryOutput: string;
-  taskContent: string;
   compressMode: ReturnType<typeof parseCompressContext>;
 }): string {
   const { taskDeliveryOutput, compressMode } = params;

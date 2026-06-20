@@ -9,8 +9,7 @@
 import { generateFullCliOutput } from '../../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
-import type { AgentHarness } from '../../src/domain/entities/agent';
-import { getHarnessCapabilities } from '../../src/domain/entities/harness/types';
+import { isNativeHarness } from '../../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import { loadCurrentContext } from '../../src/domain/usecase/context/load-current-context';
@@ -30,11 +29,6 @@ interface TaskDeliveryParams {
   chatroom: Doc<'chatroom_rooms'>;
   convexUrl?: string;
   agentHarness?: string;
-}
-
-function isNativeHarness(agentHarness: string | undefined): boolean {
-  if (!agentHarness) return false;
-  return getHarnessCapabilities(agentHarness as AgentHarness).supportsNativeIntegration;
 }
 
 export interface TaskDeliveryResult {

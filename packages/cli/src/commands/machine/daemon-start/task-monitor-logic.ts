@@ -26,17 +26,12 @@ function isIdleNotListening(
   return now - task.createdAt > pendingIdleThresholdMs;
 }
 
-/** Returns true when a pending task should trigger an agent restart nudge. */
-// fallow-ignore-next-line unused-export complexity
-export function shouldNudgePendingTask(
+// fallow-ignore-next-line complexity
+function shouldNudgeCliPendingTask(
   task: AssignedTaskView,
   now: number,
-  pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
+  pendingIdleThresholdMs: number
 ): boolean {
-  if (isNativeHarness(task.agentConfig.agentHarness)) {
-    return shouldNudgeNativeInjection(task, now, pendingIdleThresholdMs);
-  }
-
   if (!isPendingAliveRunningTask(task)) return false;
 
   const lastSeenAt = task.participant?.lastSeenAt ?? 0;
@@ -44,6 +39,18 @@ export function shouldNudgePendingTask(
     task.participant?.lastSeenAction === 'get-next-task:started' && task.createdAt > lastSeenAt;
 
   return staleWaiting || isIdleNotListening(task, now, pendingIdleThresholdMs);
+}
+
+/** Returns true when a pending task should trigger an agent restart nudge. */
+function shouldNudgePendingTask(
+  task: AssignedTaskView,
+  now: number,
+  pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
+): boolean {
+  if (isNativeHarness(task.agentConfig.agentHarness)) {
+    return shouldNudgeNativeInjection(task, now, pendingIdleThresholdMs);
+  }
+  return shouldNudgeCliPendingTask(task, now, pendingIdleThresholdMs);
 }
 
 export class NudgeCooldown {
@@ -73,7 +80,8 @@ export function listTasksReadyForNudge(
     if (!shouldNudgePendingTask(task, now)) continue;
     const { chatroomId, agentConfig } = task;
     if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) continue;
-    if (!agentConfig.workingDir) continue;
+    const native = isNativeHarness(agentConfig.agentHarness);
+    if (!native && !agentConfig.workingDir) continue;
     cooldown.recordNudge(chatroomId, agentConfig.role, now);
     ready.push(task);
   }

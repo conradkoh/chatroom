@@ -57,13 +57,9 @@ import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
 import { getCliEnvPrefix } from './utils/index';
 import type { AgentHarness } from '../src/domain/entities/agent';
-import { getHarnessCapabilities } from '../src/domain/entities/harness/types';
+import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import type { TeamKind } from '../src/domain/entities/team-kind';
-
-function isNativeHarness(harness?: AgentHarness): boolean {
-  return harness != null && getHarnessCapabilities(harness).supportsNativeIntegration;
-}
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed

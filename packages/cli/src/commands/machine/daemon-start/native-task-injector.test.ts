@@ -84,7 +84,6 @@ describe('runNativeInjectionEffect', () => {
       role: 'builder',
       prompt: buildNativeInjectionPrompt({
         taskDeliveryOutput: 'DELIVERY OUTPUT',
-        taskContent: task.taskContent,
         compressMode: parseCompressContext(task.taskContent),
       }),
     });

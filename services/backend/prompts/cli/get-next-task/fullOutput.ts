@@ -91,6 +91,16 @@ function maybeAddVerificationReminder(lines: string[], availableHandoffTargets: 
   }
 }
 
+function getNextStepsIntro(nativeIntegration: boolean): string {
+  return nativeIntegration
+    ? 'This task was injected into your native harness session. Infer what to do from the message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.'
+    : 'This blocking `get-next-task` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.';
+}
+
+function getReminderFooter(nativeIntegration: boolean): string {
+  return nativeIntegration ? getNativeInjectionReminder() : getNextTaskReminder();
+}
+
 // ─── Generator ────────────────────────────────────────────────────────────────
 
 /**
@@ -238,15 +248,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('');
   lines.push('<next-steps>');
-  if (nativeIntegration) {
-    lines.push(
-      'This task was injected into your native harness session. Infer what to do from the message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.'
-    );
-  } else {
-    lines.push(
-      'This blocking `get-next-task` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.'
-    );
-  }
+  lines.push(getNextStepsIntro(nativeIntegration));
   lines.push('');
 
   if (isUserMessage) {
@@ -394,11 +396,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('');
   lines.push(SEP_EQUAL);
-  if (nativeIntegration) {
-    lines.push(getNativeInjectionReminder());
-  } else {
-    lines.push(getNextTaskReminder());
-  }
+  lines.push(getReminderFooter(nativeIntegration));
   lines.push(getCompactionRecoveryOneLiner({ cliEnvPrefix, chatroomId, role }));
   lines.push(SEP_EQUAL);
 

@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 
 import { AGENT_HARNESSES } from '../agent';
 import { CLI_ONLY_WIRE_EVENT_KINDS, isCliOnlyWireEvent } from './lifecycle-events';
-import { getHarnessCapabilities, getHarnessRuntimeKind } from './types';
+import { getHarnessCapabilities, getHarnessRuntimeKind, isNativeHarness } from './types';
 
 describe('getHarnessCapabilities', () => {
   test('every AgentHarness has a capabilities entry', () => {
@@ -73,5 +73,17 @@ describe('getHarnessCapabilities', () => {
     for (const kind of CLI_ONLY_WIRE_EVENT_KINDS) {
       expect(isCliOnlyWireEvent(kind)).toBe(true);
     }
+  });
+});
+
+describe('isNativeHarness', () => {
+  test('returns true for sdk harnesses', () => {
+    expect(isNativeHarness('cursor-sdk')).toBe(true);
+    expect(isNativeHarness('opencode-sdk')).toBe(true);
+  });
+
+  test('returns false for cli harnesses and undefined', () => {
+    expect(isNativeHarness('cursor')).toBe(false);
+    expect(isNativeHarness(undefined)).toBe(false);
   });
 });

@@ -14,8 +14,7 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
-import type { AgentHarness } from '../src/domain/entities/agent';
-import { getHarnessCapabilities } from '../src/domain/entities/harness/types';
+import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -2187,9 +2186,7 @@ export const getTaskDeliveryPrompt = query({
           .first()
       : null;
     const agentHarness = existingAgentConfig?.agentHarness;
-    const nativeIntegration =
-      agentHarness != null &&
-      getHarnessCapabilities(agentHarness as AgentHarness).supportsNativeIntegration;
+    const nativeIntegration = isNativeHarness(agentHarness);
 
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({

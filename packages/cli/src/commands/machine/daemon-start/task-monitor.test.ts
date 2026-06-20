@@ -7,7 +7,13 @@ import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/mac
 import { describe, expect, test } from 'vitest';
 
 import { isNativeHarness } from './native-task-injector-logic.js';
-import { NudgeCooldown, shouldNudgePendingTask } from './task-monitor-logic.js';
+import { NudgeCooldown, listTasksReadyForNudge } from './task-monitor-logic.js';
+
+function expectPendingNudge(task: AssignedTaskView, now: number, shouldNudge: boolean): void {
+  const cooldown = new NudgeCooldown(60_000);
+  const ready = listTasksReadyForNudge([task], now, cooldown);
+  expect(ready.length > 0).toBe(shouldNudge);
+}
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
   return {
@@ -37,61 +43,56 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
 
 describe('shouldNudgePendingTask', () => {
   test('nudges when agent claims listening but task arrived after lastSeenAt', () => {
-    const now = 10_000;
-    expect(shouldNudgePendingTask(makeTask(), now)).toBe(true);
+    expectPendingNudge(makeTask(), 10_000, true);
   });
 
   test('does not nudge when task predates lastSeenAt', () => {
-    const now = 10_000;
-    expect(
-      shouldNudgePendingTask(
-        makeTask({
-          createdAt: 400,
-          participant: {
-            lastSeenAction: 'get-next-task:started',
-            lastSeenAt: 500,
-            lastStatus: 'agent.waiting',
-          },
-        }),
-        now
-      )
-    ).toBe(false);
+    expectPendingNudge(
+      makeTask({
+        createdAt: 400,
+        participant: {
+          lastSeenAction: 'get-next-task:started',
+          lastSeenAt: 500,
+          lastStatus: 'agent.waiting',
+        },
+      }),
+      10_000,
+      false
+    );
   });
 
   test('nudges when agent is idle after delivery and task is pending >15s', () => {
     const createdAt = 1_000;
     const now = createdAt + 15_000 + 1;
-    expect(
-      shouldNudgePendingTask(
-        makeTask({
-          createdAt,
-          participant: {
-            lastSeenAction: 'get-next-task:stopped',
-            lastSeenAt: createdAt - 100,
-            lastStatus: 'task.acknowledged',
-          },
-        }),
-        now
-      )
-    ).toBe(true);
+    expectPendingNudge(
+      makeTask({
+        createdAt,
+        participant: {
+          lastSeenAction: 'get-next-task:stopped',
+          lastSeenAt: createdAt - 100,
+          lastStatus: 'task.acknowledged',
+        },
+      }),
+      now,
+      true
+    );
   });
 
   test('does not nudge non-pending tasks', () => {
-    expect(shouldNudgePendingTask(makeTask({ status: 'in_progress' }), 10_000)).toBe(false);
+    expectPendingNudge(makeTask({ status: 'in_progress' }), 10_000, false);
   });
 
   test('does not nudge when agent process is not alive', () => {
-    expect(
-      shouldNudgePendingTask(
-        makeTask({
-          agentConfig: {
-            ...makeTask().agentConfig,
-            spawnedAgentPid: undefined,
-          },
-        }),
-        10_000
-      )
-    ).toBe(false);
+    expectPendingNudge(
+      makeTask({
+        agentConfig: {
+          ...makeTask().agentConfig,
+          spawnedAgentPid: undefined,
+        },
+      }),
+      10_000,
+      false
+    );
   });
 });
 
@@ -152,7 +153,7 @@ describe('native nudge delegation', () => {
       },
     });
     expect(isNativeHarness(nativeTask.agentConfig.agentHarness)).toBe(true);
-    expect(shouldNudgePendingTask(nativeTask, now)).toBe(true);
+    expectPendingNudge(nativeTask, now, true);
   });
 
   test('CLI harness still uses get-next-task stale waiting logic (regression)', () => {
@@ -163,12 +164,49 @@ describe('native nudge delegation', () => {
         agentHarness: 'opencode',
       },
     });
-    expect(shouldNudgePendingTask(cliTask, now)).toBe(true);
+    expectPendingNudge(cliTask, now, true);
   });
 
   test('CLI new_session still implies wantResume false (regression)', () => {
     const content = `## Session Management
 // data:agent.compress_context=new_session`;
     expect(compressContextToWantResume(parseCompressContext(content))).toBe(false);
+  });
+});
+
+describe('listTasksReadyForNudge', () => {
+  test('includes native harness without workingDir', () => {
+    const createdAt = 1_000;
+    const now = createdAt + 15_001;
+    const nativeTask = makeTask({
+      agentConfig: {
+        ...makeTask().agentConfig,
+        agentHarness: 'cursor-sdk',
+        workingDir: undefined,
+      },
+      createdAt,
+      participant: {
+        lastSeenAction: NATIVE_WAITING_ACTION,
+        lastSeenAt: createdAt,
+        lastStatus: 'agent.waiting',
+      },
+    });
+    const cooldown = new NudgeCooldown(60_000);
+    const ready = listTasksReadyForNudge([nativeTask], now, cooldown);
+    expect(ready).toHaveLength(1);
+    expect(ready[0].taskId).toBe(nativeTask.taskId);
+  });
+
+  test('still excludes CLI harness without workingDir', () => {
+    const now = 10_000;
+    const cliTask = makeTask({
+      agentConfig: {
+        ...makeTask().agentConfig,
+        agentHarness: 'opencode',
+        workingDir: undefined,
+      },
+    });
+    const cooldown = new NudgeCooldown(60_000);
+    expect(listTasksReadyForNudge([cliTask], now, cooldown)).toHaveLength(0);
   });
 });
