@@ -14,6 +14,8 @@
 
 'use client';
 
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy non-null assertions in git popover branches */
+
 import {
   ChevronDown,
   Code2,
@@ -101,6 +103,17 @@ function detectPlatform(remoteUrl: string): GitPlatform {
   if (hostname.includes('gitlab.com') || hostname.includes('gitlab')) return 'gitlab';
   if (hostname.includes('bitbucket.org') || hostname.includes('bitbucket')) return 'bitbucket';
   return 'generic';
+}
+
+const PLATFORM_LABELS: Record<GitPlatform, string> = {
+  github: 'Github',
+  gitlab: 'Gitlab',
+  bitbucket: 'Bitbucket',
+  generic: 'Repository',
+};
+
+function getPlatformLabel(remoteUrl: string): string {
+  return PLATFORM_LABELS[detectPlatform(remoteUrl)];
 }
 
 const PLATFORM_ICONS: Record<GitPlatform, ComponentType<{ size?: number; className?: string }>> = {
@@ -315,6 +328,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
     branchDisplay,
     repoHttpsUrl,
     isGitHubRepo,
+    primaryRemote,
     remotes,
     openPullRequests,
     diffStat,
@@ -322,6 +336,8 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
     commitsAhead,
     commitsBehind,
   } = useDerivedGitInfo(workspace, isLocal);
+
+  const platformLabel = primaryRemote ? getPlatformLabel(primaryRemote.url) : 'Repository';
 
   const { refresh: refreshGitState } = useGitRefresh(workspace.machineId, workspace.workingDir);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -428,7 +444,7 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
                       ) : (
                         <ExternalLink size={12} className="shrink-0" />
                       )}
-                      View Repository
+                      {`${platformLabel}: View Repository`}
                     </a>
                   )}
                 </PopoverContent>
@@ -584,6 +600,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   const [branchExpanded, setBranchExpanded] = useState(false);
 
   const PrimaryRemoteIcon = primaryRemote ? getPlatformIcon(primaryRemote.url) : null;
+  const platformLabel = primaryRemote ? getPlatformLabel(primaryRemote.url) : 'Repository';
   const hasMultipleWorkspaces = allWorkspaces.length > 1;
   const hasWorkspaceActions = hasMultipleWorkspaces || isLocal;
   const hasRemoteActions = remotes.length > 1;
@@ -894,7 +911,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                           ) : (
                             <ExternalLink size={12} className="shrink-0" />
                           )}
-                          View Repository
+                          {`${platformLabel}: View Repository`}
                         </a>
                       )}
                     </div>
