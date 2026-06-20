@@ -30,6 +30,7 @@ export interface AssignedTaskView {
   chatroomId: Id<'chatroom_rooms'>;
   status: string;
   assignedTo: string | undefined;
+  taskContent: string;
   updatedAt: number;
   createdAt: number;
   agentConfig: {
@@ -161,6 +162,7 @@ export async function getAssignedTasksForMachine(
           chatroomId: task.chatroomId,
           status: task.status,
           assignedTo: task.assignedTo,
+          taskContent: task.content,
           updatedAt: task.updatedAt ?? task.createdAt ?? Date.now(),
           createdAt: task.createdAt ?? Date.now(),
           agentConfig: {

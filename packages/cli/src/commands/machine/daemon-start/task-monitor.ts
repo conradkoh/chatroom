@@ -5,6 +5,10 @@
  * in the get-next-task loop (stale waiting or idle after delivery).
  */
 
+import {
+  compressContextToWantResume,
+  parseCompressContext,
+} from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
@@ -20,6 +24,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type AssignedTasksResult = FunctionReturnType<typeof api.machines.getAssignedTasks>;
 
+// fallow-ignore-next-line complexity
 function runNudgeEffect(
   task: AssignedTaskView,
   runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>,
@@ -32,8 +37,11 @@ function runNudgeEffect(
   if (!workingDir) return;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
 
+  const compressMode = parseCompressContext(task.taskContent ?? '');
+  const wantResume = compressContextToWantResume(compressMode);
+
   console.log(
-    `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}`
+    `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`
   );
 
   Runtime.runFork(runtime)(
@@ -46,7 +54,7 @@ function runNudgeEffect(
         model: agentConfig.model,
         workingDir,
         reason: 'platform.task_monitor_nudge',
-        wantResume: true,
+        wantResume,
       });
     }).pipe(
       Effect.provide(effectContext),

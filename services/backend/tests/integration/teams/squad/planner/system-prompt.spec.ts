@@ -393,6 +393,11 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
+
+      ## Restart new context (mandatory)
+      Can the agent be restarted to reduce the context window size? Select the mode that matches this handoff. Use \`reset\` when the delegation brief fully captures everything the builder needs. Use \`none\` when the builder should continue prior session context.
+      Hard = Full reset | Compact = Compress context | None = continue with previous context
+      // data:agent.compress_context=none
       \`\`\`
 
       Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.

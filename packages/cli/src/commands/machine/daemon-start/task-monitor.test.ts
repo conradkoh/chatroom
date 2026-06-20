@@ -1,3 +1,7 @@
+import {
+  compressContextToWantResume,
+  parseCompressContext,
+} from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import { describe, expect, test } from 'vitest';
 
@@ -9,6 +13,7 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
     chatroomId: 'room_1' as AssignedTaskView['chatroomId'],
     status: 'pending',
     assignedTo: 'builder',
+    taskContent: '',
     updatedAt: 1_000,
     createdAt: 1_000,
     agentConfig: {
@@ -85,6 +90,34 @@ describe('shouldNudgePendingTask', () => {
         10_000
       )
     ).toBe(false);
+  });
+});
+
+describe('nudge wantResume from task content', () => {
+  function resolveWantResume(taskContent: string): boolean {
+    return compressContextToWantResume(parseCompressContext(taskContent));
+  }
+
+  test('reset → wantResume false (cold spawn)', () => {
+    const content = `## Restart new context
+// data:agent.compress_context=reset`;
+    expect(resolveWantResume(content)).toBe(false);
+  });
+
+  test('compact → wantResume false (cold spawn)', () => {
+    const content = `## Restart new context
+// data:agent.compress_context=compact`;
+    expect(resolveWantResume(content)).toBe(false);
+  });
+
+  test('none → wantResume true (resume session)', () => {
+    const content = `## Restart new context
+// data:agent.compress_context=none`;
+    expect(resolveWantResume(content)).toBe(true);
+  });
+
+  test('missing section → wantResume true (backward compatible)', () => {
+    expect(resolveWantResume('## Goal\nImplement feature')).toBe(true);
   });
 });
 

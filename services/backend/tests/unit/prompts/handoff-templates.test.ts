@@ -116,4 +116,9 @@ describe('handoff-templates > planner → builder delegation brief', () => {
     expect(brief).toContain('## What to avoid');
     expect(brief).toMatch(/anti-patterns|recurring mistakes/i);
   });
+
+  test('includes mandatory restart new context section with compress_context tag', () => {
+    expect(brief).toContain('## Restart new context');
+    expect(brief).toContain('data:agent.compress_context');
+  });
 });
