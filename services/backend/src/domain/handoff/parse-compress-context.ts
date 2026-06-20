@@ -5,14 +5,9 @@ const DATA_TAG = /\/\/\s*data:agent\.compress_context=(new_session|reset|none)\b
 
 const DEFAULT_MODE: CompressContextMode = 'new_session';
 
-function findSectionHeading(content: string): string | null {
-  const found = SECTION_HEADINGS.map((heading) => ({
-    heading,
-    idx: content.indexOf(heading),
-  }))
-    .filter((entry) => entry.idx !== -1)
-    .sort((a, b) => a.idx - b.idx);
-  return found[0]?.heading ?? null;
+function findSectionIndex(content: string, headings: string[]): number {
+  const indices = headings.map((heading) => content.indexOf(heading)).filter((idx) => idx !== -1);
+  return indices.length === 0 ? -1 : Math.min(...indices);
 }
 
 function normalizeMode(raw: string): CompressContextMode {
@@ -22,18 +17,23 @@ function normalizeMode(raw: string): CompressContextMode {
   return DEFAULT_MODE;
 }
 
+function extractSectionBody(content: string, sectionIdx: number): string {
+  const matchedHeading =
+    SECTION_HEADINGS.find((h) => content.indexOf(h, sectionIdx) === sectionIdx) ??
+    SECTION_HEADINGS[0];
+  const afterSection = content.slice(sectionIdx);
+  const nextHeading = afterSection.slice(matchedHeading.length).search(/\n## /);
+  return nextHeading === -1
+    ? afterSection
+    : afterSection.slice(0, matchedHeading.length + nextHeading);
+}
+
 /** Parse compress_context from planner handoff body. Defaults to 'new_session' if missing/invalid. */
 export function parseCompressContext(handoffContent: string): CompressContextMode {
-  const heading = findSectionHeading(handoffContent);
-  if (!heading) return DEFAULT_MODE;
+  const sectionIdx = findSectionIndex(handoffContent, SECTION_HEADINGS);
+  if (sectionIdx === -1) return DEFAULT_MODE;
 
-  const sectionIdx = handoffContent.indexOf(heading);
-  const afterSection = handoffContent.slice(sectionIdx);
-  const nextHeading = afterSection.slice(heading.length).search(/\n## /);
-  const sectionBody =
-    nextHeading === -1 ? afterSection : afterSection.slice(0, heading.length + nextHeading);
-
-  const match = sectionBody.match(DATA_TAG);
+  const match = extractSectionBody(handoffContent, sectionIdx).match(DATA_TAG);
   if (!match) return DEFAULT_MODE;
   return normalizeMode(match[1]);
 }
