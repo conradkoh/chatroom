@@ -38,7 +38,7 @@ describe('useCommandPaletteCommands', () => {
       (command) => command.id === 'nav-new-chatroom'
     );
     expect(newChatroomCommand).toMatchObject({
-      label: 'Chatroom: New',
+      label: 'New Chatroom',
       keywords: ['new', 'create', 'chatroom', 'new chatroom'],
     });
 
@@ -60,7 +60,7 @@ describe('useCommandPaletteCommands', () => {
 
     expect(newChatroomCommand).toBeDefined();
     expect(
-      fuzzyFilter('Chatroom: New', 'New Chatroom', newChatroomCommand?.keywords)
+      fuzzyFilter('New Chatroom', 'New Chatroom', newChatroomCommand?.keywords)
     ).toBeGreaterThan(0);
   });
 

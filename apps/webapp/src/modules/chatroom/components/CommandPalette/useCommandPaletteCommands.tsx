@@ -240,7 +240,7 @@ export function useCommandPaletteCommands({
     if (onCreateNewChatroom) {
       commands.push({
         id: 'nav-new-chatroom',
-        label: 'Chatroom: New',
+        label: 'New Chatroom',
         icon: <Plus size={14} />,
         category: 'Navigate',
         keywords: ['new', 'create', 'chatroom', 'new chatroom'],
