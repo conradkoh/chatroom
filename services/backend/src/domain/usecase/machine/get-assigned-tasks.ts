@@ -42,6 +42,11 @@ export interface AssignedTaskView {
     desiredState?: string;
     circuitState?: string;
   };
+  participant?: {
+    lastSeenAction: string | null;
+    lastSeenAt: number | null;
+    lastStatus: string | null;
+  };
 }
 
 export interface GetAssignedTasksResult {
@@ -125,8 +130,9 @@ export async function getAssignedTasksForMachine(
 
       if (task.assignedTo && task.assignedTo.toLowerCase() !== 'user') {
         // Task has an explicit assignee — match that role's config
+        const assignedTo = task.assignedTo;
         responsibleConfigs = configsForChatroom.filter(
-          (c) => c.role.toLowerCase() === task.assignedTo!.toLowerCase()
+          (c) => c.role.toLowerCase() === assignedTo.toLowerCase()
         );
       } else {
         // No assignee — resolve to entry point role only
@@ -143,6 +149,13 @@ export async function getAssignedTasksForMachine(
       }
 
       for (const config of responsibleConfigs) {
+        const participant = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', config.role)
+          )
+          .unique();
+
         tasks.push({
           taskId: task._id,
           chatroomId: task.chatroomId,
@@ -152,13 +165,18 @@ export async function getAssignedTasksForMachine(
           createdAt: task.createdAt ?? Date.now(),
           agentConfig: {
             role: config.role,
-            machineId: config.machineId!,
+            machineId: config.machineId ?? input.machineId,
             agentHarness: config.agentHarness ?? 'opencode',
             model: config.model,
             workingDir: config.workingDir,
             spawnedAgentPid: config.spawnedAgentPid,
             desiredState: config.desiredState,
             circuitState: config.circuitState,
+          },
+          participant: {
+            lastSeenAction: participant?.lastSeenAction ?? null,
+            lastSeenAt: participant?.lastSeenAt ?? null,
+            lastStatus: participant?.lastStatus ?? null,
           },
         });
       }
