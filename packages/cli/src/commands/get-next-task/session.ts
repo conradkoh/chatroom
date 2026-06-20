@@ -143,6 +143,20 @@ export class GetNextTaskSession {
     process.exit(exitCode);
   }
 
+  /** Best-effort: leave the waiting loop so UI/backend know the agent is working. */
+  private async markListeningStopped(): Promise<void> {
+    try {
+      await this.client.mutation(api.participants.join, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        action: 'get-next-task:stopped',
+      });
+    } catch {
+      // Best-effort
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Cleanup
   // -----------------------------------------------------------------------
@@ -461,6 +475,7 @@ export class GetNextTaskSession {
       // Print the complete backend-generated output
       console.log(sanitizeForTerminal(taskDeliveryPrompt.fullCliOutput));
 
+      await this.markListeningStopped();
       process.exit(0);
     } catch (deliveryError) {
       // Task was claimed but delivery failed — MUST exit so the agent regains control.

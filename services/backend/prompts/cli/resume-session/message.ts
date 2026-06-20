@@ -5,8 +5,8 @@
  * instead of performing a full cold restart.
  */
 
-import { getNextTaskCommand } from '../get-next-task/command';
 import { getCliEnvPrefix } from '../../utils/env';
+import { getNextTaskCommand } from '../get-next-task/command';
 
 export interface ComposeResumeMessageParams {
   chatroomId: string;
@@ -24,9 +24,11 @@ export function composeResumeMessage(params: ComposeResumeMessageParams): string
   const contextRead = `${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"`;
 
   return [
-    'Your previous turn has ended.',
-    'Please rejoin the chatroom and get your next task by running:',
+    'Your previous turn has ended. A pending chatroom task may already be waiting.',
+    'You MUST immediately run this command as a foreground blocking bash tool call (not in background):',
     `  ${getNextTask}`,
+    '',
+    'Do not reply with text only — run the command first. The harness delivers tasks only while get-next-task blocks.',
     '',
     'If you need context on what you were doing, run:',
     `  ${contextRead}`,

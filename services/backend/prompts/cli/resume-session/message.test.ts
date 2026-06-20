@@ -10,6 +10,10 @@ describe('composeResumeMessage', () => {
     });
 
     expect(message).toContain('Your previous turn has ended.');
+    expect(message).toContain('A pending chatroom task may already be waiting.');
+    expect(message).toContain('foreground blocking bash tool call');
+    expect(message).toContain('Do not reply with text only');
+    expect(message).toContain('get-next-task blocks');
     expect(message).toContain('chatroom get-next-task --chatroom-id="room123" --role="builder"');
     expect(message).toContain('chatroom context read --chatroom-id="room123" --role="builder"');
   });

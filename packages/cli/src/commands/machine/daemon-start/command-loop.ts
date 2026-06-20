@@ -54,6 +54,7 @@ import { startLogObserverSubscription } from './handlers/process/log-observer-sy
 import { processManager } from './handlers/process/manager.js';
 import { refreshModelsEffect, type RefreshModelsOutcome } from './models-refresh.js';
 import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
+import { startTaskMonitorSubscriptionEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
 
@@ -455,6 +456,7 @@ export const startCommandLoopEffect: Effect.Effect<
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     observedSyncSubscriptionHandle?.stop();
+    taskMonitorHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     pendingPromptSubscriptionHandle?.stop();
     pendingHarnessSessionSubscriptionHandle?.stop();
@@ -505,6 +507,8 @@ export const startCommandLoopEffect: Effect.Effect<
   if (observedSyncEnabled) {
     observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
   }
+
+  const taskMonitorHandle = yield* startTaskMonitorSubscriptionEffect(wsClient);
 
   logObserverSubscriptionHandle = startLogObserverSubscription(
     { sessionId: session.sessionId, machineId: session.machineId },

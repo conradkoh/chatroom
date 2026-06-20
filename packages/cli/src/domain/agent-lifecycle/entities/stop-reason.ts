@@ -7,6 +7,7 @@
 export type StopReason =
   | 'user.stop'
   | 'platform.dedup'
+  | 'platform.task_monitor_nudge'
   | 'platform.team_switch'
   | 'platform.resume_storm'
   | 'daemon.respawn'
