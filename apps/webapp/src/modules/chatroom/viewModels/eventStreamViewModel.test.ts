@@ -3,20 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { formatTimestamp, formatTimestampFull } from './eventStreamViewModel';
 
 describe('formatTimestamp', () => {
-  it('includes date and time', () => {
-    // 2026-06-20 13:45:30 UTC — use fixed timestamp
-    const ms = Date.UTC(2026, 5, 20, 13, 45, 30);
-    const result = formatTimestamp(ms);
-    // Should contain date portion (06/20) and time portion (13:45:30 or local equivalent)
-    expect(result).toMatch(/\d{2}\/\d{2}/);
-    expect(result).toMatch(/\d{2}:\d{2}:\d{2}/);
+  const currentYearMs = new Date(2026, 5, 12, 22, 0, 0).getTime();
+  const priorYearMs = new Date(2025, 5, 12, 22, 0, 0).getTime();
+
+  it('formats current-year messages without year', () => {
+    expect(formatTimestamp(currentYearMs)).toBe('12th June, 10:00pm');
   });
 
-  it('differs from formatTimestampFull (no year in short format)', () => {
-    const ms = Date.UTC(2026, 5, 20, 13, 45, 30);
-    const short = formatTimestamp(ms);
-    const full = formatTimestampFull(ms);
-    expect(full).toContain('2026');
-    expect(short).not.toContain('2026');
+  it('formats prior-year messages with year', () => {
+    expect(formatTimestamp(priorYearMs)).toBe('12th June 2025, 10:00pm');
+  });
+
+  it('formatTimestampFull always includes year', () => {
+    expect(formatTimestampFull(currentYearMs)).toBe('12th June 2026, 10:00pm');
+    expect(formatTimestampFull(priorYearMs)).toBe('12th June 2025, 10:00pm');
   });
 });
