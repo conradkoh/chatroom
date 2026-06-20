@@ -4,18 +4,19 @@
  * Phase 6b: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { ArtifactDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { readFileContent } from '../../utils/file-content.js';
 
@@ -78,23 +79,6 @@ async function createDefaultDeps(): Promise<ArtifactDeps> {
   };
 }
 
-/**
- * Build Effect Layer from ArtifactDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: ArtifactDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Effect Programs ───────────────────────────────────────────────────────
 
 /**
@@ -112,35 +96,18 @@ export const createArtifactEffect = (
   }
 ): Effect.Effect<string | undefined, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Validate file extension
     if (!options.fromFile.endsWith('.md')) {
@@ -207,35 +174,18 @@ export const viewArtifactEffect = (
   }
 ): Effect.Effect<void, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Query artifact
     const artifact = yield* backend
@@ -293,35 +243,18 @@ export const viewManyArtifactsEffect = (
   }
 ): Effect.Effect<void, ArtifactError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ArtifactError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     if (options.artifactIds.length === 0) {
       return yield* Effect.fail<ArtifactError>({ _tag: 'NoArtifactIds' });
@@ -383,59 +316,76 @@ export const viewManyArtifactsEffect = (
  */
 function handleArtifactError(err: ArtifactError): Effect.Effect<void> {
   return Effect.sync(() => {
-    if (err._tag === 'NotAuthenticated') {
-      console.error(`❌ Not authenticated for: ${err.convexUrl}`);
-
-      if (err.otherUrls.length > 0) {
-        console.error(`\n💡 You have sessions for other environments:`);
-        for (const url of err.otherUrls) {
-          console.error(`   • ${url}`);
-        }
-        console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-        console.error(`   CHATROOM_CONVEX_URL=${err.otherUrls[0]} chatroom artifact ...`);
-        console.error(`\n   Or to authenticate for the current environment:`);
-      }
-
-      console.error(`   chatroom auth login`);
-      process.exit(1);
-    } else if (err._tag === 'InvalidChatroomId') {
-      console.error(
-        `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
-      );
-      process.exit(1);
-    } else if (err._tag === 'InvalidFileExtension') {
-      console.error(`❌ Invalid file extension: ${err.file}`);
-      console.error(`   Only *.md files are supported`);
-      process.exit(1);
-    } else if (err._tag === 'FileReadFailed') {
-      console.error(`❌ Failed to read file for --from-file: ${err.file}`);
-      console.error(`   Reason: ${err.cause}`);
-      process.exit(1);
-    } else if (err._tag === 'EmptyFile') {
-      console.error(`❌ File is empty`);
-      process.exit(1);
-    } else if (err._tag === 'NoArtifactIds') {
-      console.error(`❌ No artifact IDs provided`);
-      console.error(
-        `   Usage: chatroom artifact view-many <chatroomId> --artifact=id1 --artifact=id2`
-      );
-      process.exit(1);
-    } else if (err._tag === 'ArtifactNotFound') {
-      console.error(`❌ Artifact not found`);
-      console.error(`   Artifact ID: ${err.artifactId}`);
-      console.error(`   Please create an artifact first:`);
-      console.error(`   chatroom artifact create <chatroomId> --from-file=... --filename=...`);
-      process.exit(1);
-    } else if (err._tag === 'NoArtifactsFound') {
-      console.error(`❌ No artifacts found`);
-      process.exit(1);
-    } else if (err._tag === 'ArtifactOperationFailed') {
-      console.error(`❌ Failed to perform artifact operation`);
-      console.error(`   Error: ${err.cause.message || String(err.cause)}`);
-      process.exit(1);
-    }
+    const handler = artifactErrorHandlers[err._tag];
+    if (handler) handler(err);
   });
 }
+
+const artifactErrorHandlers: Record<string, (err: ArtifactError) => void> = {
+  NotAuthenticated: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'NotAuthenticated' }>;
+    console.error(`❌ Not authenticated for: ${e.convexUrl}`);
+    if (e.otherUrls.length > 0) {
+      console.error(`\n💡 You have sessions for other environments:`);
+      for (const url of e.otherUrls) {
+        console.error(`   • ${url}`);
+      }
+      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+      console.error(`   CHATROOM_CONVEX_URL=${e.otherUrls[0]} chatroom artifact ...`);
+      console.error(`\n   Or to authenticate for the current environment:`);
+    }
+    console.error(`   chatroom auth login`);
+    process.exit(1);
+  },
+  InvalidChatroomId: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'InvalidChatroomId' }>;
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${e.id?.length || 0})`
+    );
+    process.exit(1);
+  },
+  InvalidFileExtension: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'InvalidFileExtension' }>;
+    console.error(`❌ Invalid file extension: ${e.file}`);
+    console.error(`   Only *.md files are supported`);
+    process.exit(1);
+  },
+  FileReadFailed: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'FileReadFailed' }>;
+    console.error(`❌ Failed to read file for --from-file: ${e.file}`);
+    console.error(`   Reason: ${e.cause}`);
+    process.exit(1);
+  },
+  EmptyFile: () => {
+    console.error(`❌ File is empty`);
+    process.exit(1);
+  },
+  NoArtifactIds: () => {
+    console.error(`❌ No artifact IDs provided`);
+    console.error(
+      `   Usage: chatroom artifact view-many <chatroomId> --artifact=id1 --artifact=id2`
+    );
+    process.exit(1);
+  },
+  ArtifactNotFound: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'ArtifactNotFound' }>;
+    console.error(`❌ Artifact not found`);
+    console.error(`   Artifact ID: ${e.artifactId}`);
+    console.error(`   Please create an artifact first:`);
+    console.error(`   chatroom artifact create <chatroomId> --from-file=... --filename=...`);
+    process.exit(1);
+  },
+  NoArtifactsFound: () => {
+    console.error(`❌ No artifacts found`);
+    process.exit(1);
+  },
+  ArtifactOperationFailed: (err) => {
+    const e = err as Extract<ArtifactError, { _tag: 'ArtifactOperationFailed' }>;
+    console.error(`❌ Failed to perform artifact operation`);
+    console.error(`   Error: ${e.cause.message || String(e.cause)}`);
+    process.exit(1);
+  },
+};
 
 // ─── Entry Point (public API — unchanged signature) ──────────────────────
 
@@ -453,7 +403,7 @@ export async function createArtifact(
   deps?: ArtifactDeps
 ): Promise<string | undefined> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   return Effect.runPromise(
     createArtifactEffect(chatroomId, options).pipe(
@@ -475,7 +425,7 @@ export async function viewArtifact(
   deps?: ArtifactDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     viewArtifactEffect(chatroomId, options).pipe(
@@ -497,7 +447,7 @@ export async function viewManyArtifacts(
   deps?: ArtifactDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     viewManyArtifactsEffect(chatroomId, options).pipe(

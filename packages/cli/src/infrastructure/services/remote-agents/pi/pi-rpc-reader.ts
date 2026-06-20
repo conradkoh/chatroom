@@ -92,67 +92,74 @@ export class PiRpcReader {
     try {
       event = JSON.parse(trimmed) as Record<string, unknown>;
     } catch {
-      // Non-JSON line (e.g. startup banner) — ignore silently
       return;
     }
 
-    // Fire any-event callbacks first
     for (const cb of this.anyEventCallbacks) cb();
 
-    const type = event['type'];
+    this._dispatchEvent(event);
+  }
 
-    if (type === 'response' && event['command'] === 'get_state') {
-      const data = event['data'] as Record<string, unknown> | undefined;
-      const sessionId = data?.['sessionId'];
-      if (event['success'] === true && typeof sessionId === 'string') {
-        for (const cb of this.stateResponseCallbacks) cb(sessionId);
-      }
-      return;
-    }
-
-    if (type === 'message_update') {
-      const assistantMessageEvent = event['assistantMessageEvent'] as
-        | Record<string, unknown>
-        | undefined;
-      if (assistantMessageEvent?.['type'] === 'text_delta') {
-        const delta = assistantMessageEvent['delta'];
-        if (typeof delta === 'string') {
-          for (const cb of this.textDeltaCallbacks) cb(delta);
-        }
-      } else if (assistantMessageEvent?.['type'] === 'thinking_delta') {
-        const delta = assistantMessageEvent['delta'];
-        if (typeof delta === 'string') {
-          for (const cb of this.thinkingDeltaCallbacks) cb(delta);
-        }
-      }
-      return;
-    }
-
-    if (type === 'agent_end') {
+  private readonly eventHandlers: Record<string, (event: Record<string, unknown>) => void> = {
+    response: (event) => {
+      if (event['command'] === 'get_state') this._handleStateResponse(event);
+    },
+    message_update: (event) => this._handleMessageUpdate(event),
+    agent_end: () => {
       for (const cb of this.agentEndCallbacks) cb();
-      return;
-    }
+    },
+    tool_execution_start: (event) => this._handleToolCallStart(event),
+    tool_execution_end: (event) => this._handleToolCallEnd(event),
+  };
 
-    if (type === 'tool_execution_start') {
-      const toolName = event['toolName'];
-      const toolArgs = event['toolArgs'];
-      if (typeof toolName === 'string') {
-        for (const cb of this.toolCallCallbacks) cb(toolName, toolArgs);
-      }
-      return;
-    }
+  private _dispatchEvent(event: Record<string, unknown>): void {
+    const handler = this.eventHandlers[event['type'] as string];
+    handler?.(event);
+  }
 
-    if (type === 'tool_execution_end') {
-      const toolName = event['toolName'];
-      // The result field may be 'toolResult', 'output', or similar — fall back to whole event
-      const toolResult = event['toolResult'] ?? event['output'] ?? event;
-      if (typeof toolName === 'string') {
-        for (const cb of this.toolResultCallbacks) cb(toolName, toolResult);
-      }
-      return;
+  private _handleStateResponse(event: Record<string, unknown>): void {
+    const data = event['data'] as Record<string, unknown> | undefined;
+    const sessionId = data?.['sessionId'];
+    if (event['success'] === true && typeof sessionId === 'string') {
+      for (const cb of this.stateResponseCallbacks) cb(sessionId);
     }
+  }
 
-    // All other event types (agent_start, tool_execution_end, etc.) are silently
-    // accepted — anyEventCallbacks already fired above.
+  private _handleMessageUpdate(event: Record<string, unknown>): void {
+    const assistantMessageEvent = event['assistantMessageEvent'] as
+      | Record<string, unknown>
+      | undefined;
+    if (!assistantMessageEvent) return;
+
+    const deltaHandlers: Record<string, (delta: string) => void> = {
+      text_delta: (delta) => {
+        for (const cb of this.textDeltaCallbacks) cb(delta);
+      },
+      thinking_delta: (delta) => {
+        for (const cb of this.thinkingDeltaCallbacks) cb(delta);
+      },
+    };
+
+    const eventType = assistantMessageEvent['type'];
+    const delta = assistantMessageEvent['delta'];
+    if (typeof eventType !== 'string' || typeof delta !== 'string') return;
+
+    deltaHandlers[eventType]?.(delta);
+  }
+
+  private _handleToolCallStart(event: Record<string, unknown>): void {
+    const toolName = event['toolName'];
+    const toolArgs = event['toolArgs'];
+    if (typeof toolName === 'string') {
+      for (const cb of this.toolCallCallbacks) cb(toolName, toolArgs);
+    }
+  }
+
+  private _handleToolCallEnd(event: Record<string, unknown>): void {
+    const toolName = event['toolName'];
+    const toolResult = event['toolResult'] ?? event['output'] ?? event;
+    if (typeof toolName === 'string') {
+      for (const cb of this.toolResultCallbacks) cb(toolName, toolResult);
+    }
   }
 }

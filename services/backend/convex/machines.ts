@@ -6,8 +6,9 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
@@ -18,14 +19,15 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
+import { roleSupportsAutoRestartOnNewContextSetting } from '../src/domain/entities/team-agent-settings';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
-import { roleSupportsAutoRestartOnNewContextSetting } from '../src/domain/entities/team-agent-settings';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
@@ -661,6 +663,50 @@ export const getDaemonStatus = query({
   },
 });
 
+const MAX_DAEMON_STATUS_BATCH = 10;
+
+/** Batch daemon connectivity for multiple machines in one subscription. */
+export const getDaemonStatusesBatch = query({
+  args: {
+    ...SessionIdArg,
+    machineIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const machineIds = args.machineIds.slice(0, MAX_DAEMON_STATUS_BATCH);
+    const statuses: {
+      machineId: string;
+      connected: boolean;
+      lastSeenAt: number | null;
+    }[] = [];
+
+    for (const machineId of machineIds) {
+      const auth = await getMachineOwner(ctx, args.sessionId, machineId);
+      if (!auth) {
+        statuses.push({ machineId, connected: false, lastSeenAt: null });
+        continue;
+      }
+
+      const machineStatus = await ctx.db
+        .query('chatroom_machineStatus')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      const liveness = await ctx.db
+        .query('chatroom_machineLiveness')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      statuses.push({
+        machineId,
+        connected: machineStatus?.status === 'online',
+        lastSeenAt: liveness?.lastSeenAt ?? null,
+      });
+    }
+
+    return { statuses };
+  },
+});
+
 /** Returns machine-level agent configs for a chatroom, enriched with machine details. */
 export const getMachineAgentConfigs = query({
   args: {
@@ -715,24 +761,28 @@ export const getMachineAgentConfigs = query({
       return true;
     });
 
-    const configsWithMachine = userConfigs.map((config) => {
-      const machine = userMachineMap.get(config.machineId!);
-      const status = statusMap.get(config.machineId!);
-      return {
-        machineId: config.machineId!,
-        hostname: machine?.hostname ?? 'Unknown',
-        alias: machine?.alias,
-        role: config.role,
-        agentType: config.agentHarness,
-        workingDir: config.workingDir,
-        model: config.model,
-        daemonConnected: status?.daemonConnected ?? false,
-        availableHarnesses: machine?.availableHarnesses ?? [],
-        updatedAt: config.updatedAt,
-        spawnedAgentPid: config.spawnedAgentPid,
-        spawnedAt: config.spawnedAt,
-        wantResume: config.wantResume,
-      };
+    const configsWithMachine = userConfigs.flatMap((config) => {
+      const machineId = config.machineId;
+      if (!machineId) return [];
+      const machine = userMachineMap.get(machineId);
+      const status = statusMap.get(machineId);
+      return [
+        {
+          machineId,
+          hostname: machine?.hostname ?? 'Unknown',
+          alias: machine?.alias,
+          role: config.role,
+          agentType: config.agentHarness,
+          workingDir: config.workingDir,
+          model: config.model,
+          daemonConnected: status?.daemonConnected ?? false,
+          availableHarnesses: machine?.availableHarnesses ?? [],
+          updatedAt: config.updatedAt,
+          spawnedAgentPid: config.spawnedAgentPid,
+          spawnedAt: config.spawnedAt,
+          wantResume: config.wantResume,
+        },
+      ];
     });
 
     return { configs: configsWithMachine };
@@ -878,9 +928,8 @@ export const getDaemonPongEvent = query({
       .order('asc')
       .collect();
 
-    const matching = args.afterEventId
-      ? pongEvents.filter((e) => e._id > args.afterEventId!)
-      : pongEvents;
+    const afterEventId = args.afterEventId;
+    const matching = afterEventId ? pongEvents.filter((e) => e._id > afterEventId) : pongEvents;
 
     return matching.length > 0 ? matching[matching.length - 1] : null;
   },
@@ -1053,6 +1102,64 @@ export const updateDaemonStatus = mutation({
   },
 });
 
+async function upsertDaemonLiveness(
+  ctx: MutationCtx,
+  machineId: string,
+  now: number,
+  existing: Doc<'chatroom_machineLiveness'> | null
+): Promise<void> {
+  if (existing) {
+    const livenessStale = now - existing.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+    const needsDaemonConnected = existing.daemonConnected !== true;
+    if (!livenessStale && !needsDaemonConnected) return;
+    await ctx.db.patch('chatroom_machineLiveness', existing._id, {
+      ...(livenessStale ? { lastSeenAt: now } : {}),
+      ...(needsDaemonConnected ? { daemonConnected: true } : {}),
+    });
+    return;
+  }
+  await ctx.db.insert('chatroom_machineLiveness', {
+    machineId,
+    lastSeenAt: now,
+    daemonConnected: true,
+  });
+}
+
+async function ensureMachineStatusOnline(
+  ctx: MutationCtx,
+  machineStatus: Doc<'chatroom_machineStatus'> | null,
+  machineId: string,
+  now: number
+): Promise<void> {
+  if (!machineStatus) {
+    await ctx.db.insert('chatroom_machineStatus', {
+      machineId,
+      status: 'online',
+      lastTransitionAt: now,
+    });
+    return;
+  }
+  if (machineStatus.status === 'offline') {
+    await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
+      status: 'online',
+      lastTransitionAt: now,
+    });
+  }
+}
+
+function isDaemonHeartbeatNoop(
+  existingLiveness: Doc<'chatroom_machineLiveness'> | null,
+  machineStatus: Doc<'chatroom_machineStatus'> | null,
+  now: number
+): boolean {
+  const livenessFresh =
+    existingLiveness != null &&
+    now - existingLiveness.lastSeenAt < DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+  const alreadyOnline =
+    existingLiveness?.daemonConnected === true && machineStatus?.status === 'online';
+  return livenessFresh && alreadyOnline;
+}
+
 /** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
 export const daemonHeartbeat = mutation({
   args: {
@@ -1061,54 +1168,20 @@ export const daemonHeartbeat = mutation({
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-
     const now = Date.now();
-
-    // Write liveness data to dedicated table (upsert)
     const existingLiveness = await ctx.db
       .query('chatroom_machineLiveness')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-
-    if (existingLiveness) {
-      const livenessStale = now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
-      const needsDaemonConnected = existingLiveness.daemonConnected !== true;
-      if (livenessStale || needsDaemonConnected) {
-        await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
-          ...(livenessStale ? { lastSeenAt: now } : {}),
-          ...(needsDaemonConnected ? { daemonConnected: true } : {}),
-        });
-      }
-    } else {
-      await ctx.db.insert('chatroom_machineLiveness', {
-        machineId: args.machineId,
-        lastSeenAt: now,
-        daemonConnected: true,
-      });
-    }
-
-    // Update materialized machine status — only write on actual transition
     const machineStatus = await ctx.db
       .query('chatroom_machineStatus')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-
-    if (!machineStatus) {
-      // No row yet — insert as online
-      await ctx.db.insert('chatroom_machineStatus', {
-        machineId: args.machineId,
-        status: 'online',
-        lastTransitionAt: now,
-      });
-    } else if (machineStatus.status === 'offline') {
-      // Transition offline → online
-      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
-        status: 'online',
-        lastTransitionAt: now,
-      });
+    if (isDaemonHeartbeatNoop(existingLiveness, machineStatus, now)) {
+      return { success: true, noop: true };
     }
-    // If already online, do NOT write (write suppression)
-
+    await upsertDaemonLiveness(ctx, args.machineId, now, existingLiveness);
+    await ensureMachineStatusOnline(ctx, machineStatus, args.machineId, now);
     return { success: true };
   },
 });
@@ -1884,6 +1957,18 @@ export const setAutoRestartOnNewContext = mutation({
   },
 });
 
+/** Restart offline remote agents using persisted team config. Called when user sends a message. */
+export const restartOfflineAgentsFromConfig = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
+  },
+});
+
 /** Returns all team-level agent configurations for a chatroom. */
 export const getTeamAgentConfigs = query({
   args: {
@@ -2002,8 +2087,11 @@ export const listRemoteAgentRunningStatus = query({
         const userConfigs = configs.filter((c) => c.machineId && userMachineIds.has(c.machineId));
 
         const runningConfigs = userConfigs
-          .filter((c) => c.spawnedAgentPid != null)
-          .map((c) => ({ machineId: c.machineId!, role: c.role }));
+          .filter(
+            (c): c is typeof c & { machineId: Id<'chatroom_machines'> } =>
+              c.spawnedAgentPid != null && c.machineId != null
+          )
+          .map((c) => ({ machineId: c.machineId, role: c.role }));
 
         const remoteAgentStatus: 'running' | 'stopped' | 'none' =
           userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
@@ -2064,22 +2152,24 @@ export const getAgentRestartMetrics = query({
     let rows: Doc<'chatroom_agentRestartMetrics'>[];
 
     if (args.chatroomId != null) {
+      const chatroomId = args.chatroomId;
       rows = await ctx.db
         .query('chatroom_agentRestartMetrics')
         .withIndex('by_chatroom_role_hour', (q) =>
-          q.eq('chatroomId', args.chatroomId!).eq('role', args.role).gte('hourBucket', startHour)
+          q.eq('chatroomId', chatroomId).eq('role', args.role).gte('hourBucket', startHour)
         )
         .filter((q) =>
           q.and(q.eq(q.field('machineId'), args.machineId), q.lte(q.field('hourBucket'), endHour))
         )
         .collect();
     } else if (args.workingDir != null) {
+      const workingDir = args.workingDir;
       rows = await ctx.db
         .query('chatroom_agentRestartMetrics')
         .withIndex('by_workspace_role_hour', (q) =>
           q
             .eq('machineId', args.machineId)
-            .eq('workingDir', args.workingDir!)
+            .eq('workingDir', workingDir)
             .eq('role', args.role)
             .gte('hourBucket', startHour)
         )
@@ -2358,8 +2448,8 @@ export const getAgentOverviewForChatroom = query({
     });
 
     const runningConfigs = configs.filter((c) => {
-      if (c.spawnedAgentPid == null) return false;
-      const status = statusMap.get(c.machineId!);
+      if (c.spawnedAgentPid == null || c.machineId == null) return false;
+      const status = statusMap.get(c.machineId);
       return status?.daemonConnected === true;
     });
 

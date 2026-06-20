@@ -22,6 +22,7 @@ export function createMockDaemonSessionInit(
     client: {},
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
+    convexUrl: 'http://test:3210',
     config: null,
     backend: deps.backend,
     fs: deps.fs,

@@ -201,6 +201,7 @@ describe('DaemonSessionService', () => {
     const layer = Layer.succeed(DaemonSessionService, {
       sessionId: 'sess-e1',
       machineId: 'machine-e1',
+      convexUrl: 'http://test:3210',
       client: {},
       config: null,
       backend: { mutation: vi.fn(), query: vi.fn() } as any,
@@ -230,6 +231,7 @@ describe('DaemonSessionService', () => {
     const layer = Layer.succeed(DaemonSessionService, {
       sessionId: 'sess-e3',
       machineId: 'machine-e3',
+      convexUrl: 'http://test:3210',
       client: {},
       config: null,
       backend: backendMock,
@@ -259,6 +261,7 @@ describe('DaemonSessionService', () => {
     const layer = Layer.succeed(DaemonSessionService, {
       sessionId: 'sess-e3b',
       machineId: 'machine-e3b',
+      convexUrl: 'http://test:3210',
       client: {},
       config: null,
       backend: { mutation: vi.fn(), query: vi.fn() } as any,

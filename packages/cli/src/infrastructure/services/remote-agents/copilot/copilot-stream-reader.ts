@@ -20,8 +20,9 @@
  * - onAnyEvent: fires for activity tracking
  */
 
-import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
+
+import { attachLineReader } from '../line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
@@ -61,14 +62,13 @@ export class CopilotStreamReader {
   private agentEnded = false;
 
   // Callbacks that are not used in plain text mode but defined for interface compatibility
-   
+
   private readonly toolCallCallbacks: ToolCallCallback[] = [];
-   
+
   private readonly toolResultCallbacks: ToolResultCallback[] = [];
 
   constructor(stream: Readable) {
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-    rl.on('line', (line) => this._handleLine(line));
+    attachLineReader(stream, (line) => this._handleLine(line));
   }
 
   /** Fires for each text line of output. */
@@ -85,7 +85,7 @@ export class CopilotStreamReader {
    * Tool call callback — NOT available in plain text mode.
    * Kept for interface compatibility with other readers.
    */
-   
+
   onToolCall(_cb: ToolCallCallback): void {
     // Not available in plain text mode
   }
@@ -94,7 +94,7 @@ export class CopilotStreamReader {
    * Tool result callback — NOT available in plain text mode.
    * Kept for interface compatibility with other readers.
    */
-   
+
   onToolResult(_cb: ToolResultCallback): void {
     // Not available in plain text mode
   }

@@ -16,6 +16,7 @@ import type { ChildProcess } from 'node:child_process';
 
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
+import { buildAgentSpawnEnv } from '../../../convex/spawn-env.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import type {
@@ -141,17 +142,13 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     await super.stop(pid);
   }
 
-  private spawnServeProcess(workingDir: string): ChildProcess {
+  private spawnServeProcess(workingDir: string, resolvedConvexUrl: string): ChildProcess {
     const childProcess = this.deps.spawn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
       cwd: workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: {
-        ...process.env,
-        GIT_EDITOR: 'true',
-        GIT_SEQUENCE_EDITOR: 'true',
-      },
+      env: buildAgentSpawnEnv(resolvedConvexUrl),
     });
 
     if (!childProcess.pid) {
@@ -357,7 +354,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const modelForSession = model ?? session.model;
     const workingDir = session.workingDir;
 
-    const childProcess = this.spawnServeProcess(workingDir);
+    const childProcess = this.spawnServeProcess(workingDir, options.resolvedConvexUrl);
     const pid = childProcess.pid;
     if (pid == null) {
       throw new Error('Failed to spawn opencode serve process');
@@ -447,7 +444,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const { prompt, systemPrompt, model, context } = options;
 
-    const childProcess = this.spawnServeProcess(options.workingDir);
+    const childProcess = this.spawnServeProcess(options.workingDir, options.resolvedConvexUrl);
     const pid = childProcess.pid;
     if (pid == null) {
       throw new Error('Failed to spawn opencode serve process');

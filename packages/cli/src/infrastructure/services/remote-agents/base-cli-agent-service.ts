@@ -13,9 +13,11 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
-import type { ExecSyncOptions } from 'node:child_process';
+import type { ChildProcess, ExecSyncOptions } from 'node:child_process';
+
 import { Effect, Schedule, Duration } from 'effect';
 
+import { DetectionResult, isInstalled, DETECTION_RETRY_POLICY } from './detection-result.js';
 import type {
   AgentStopOptions,
   RemoteAgentService,
@@ -25,7 +27,7 @@ import type {
   ProcessInfo,
   VersionInfo,
 } from './remote-agent-service.js';
-import { DetectionResult, isInstalled, DETECTION_RETRY_POLICY } from './detection-result.js';
+import { buildAgentSpawnEnv } from '../../convex/spawn-env.js';
 
 // ─── Error Classification ─────────────────────────────────────────────────────
 
@@ -91,6 +93,7 @@ function defaultDeps(): CLIAgentServiceDeps {
 
 const KILL_TIMEOUT_MS = 5000;
 const POLL_INTERVAL_MS = 200;
+const SPAWN_READY_DELAY_MS = 500;
 
 // ─── Retry Schedule ───────────────────────────────────────────────────────────
 
@@ -355,6 +358,21 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
    */
   protected deleteProcess(pid: number): void {
     this.processes.delete(pid);
+  }
+
+  protected agentSpawnEnv(resolvedConvexUrl: string): NodeJS.ProcessEnv {
+    return buildAgentSpawnEnv(resolvedConvexUrl);
+  }
+
+  protected async assertChildProcessStarted(childProcess: ChildProcess): Promise<number> {
+    await new Promise((resolve) => setTimeout(resolve, SPAWN_READY_DELAY_MS));
+    if (childProcess.killed || childProcess.exitCode !== null) {
+      throw new Error(`Agent process exited immediately (exit code: ${childProcess.exitCode})`);
+    }
+    if (!childProcess.pid) {
+      throw new Error('Agent process started but has no PID');
+    }
+    return childProcess.pid;
   }
 
   // ─── Abstract properties & methods (subclasses must implement) ──────────────

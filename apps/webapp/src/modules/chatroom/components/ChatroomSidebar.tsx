@@ -3,13 +3,21 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { ChevronDown, MessageSquare, Play, Square, Star } from 'lucide-react';
+import { Archive, ChevronDown, MessageSquare, Play, Square, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
+
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 // Status indicator colors - using squares per theme guidelines
 const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
@@ -40,6 +48,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
 
   const handleStop = useCallback(
     async (e: React.MouseEvent) => {
@@ -64,6 +73,23 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     setStartModalOpen(true);
   }, []);
 
+  const handleArchive = useCallback(
+    async (e: Event) => {
+      e.preventDefault();
+      try {
+        await updateStatus({
+          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+          status: 'completed',
+        });
+      } catch (error) {
+        console.error('Failed to archive chat:', error);
+      }
+    },
+    [updateStatus, chatroom._id]
+  );
+
+  const isCompleted = chatroom.chatStatus === 'completed' || chatroom.status === 'completed';
+
   const showStartButton =
     chatroom.status !== 'completed' &&
     chatroom.teamId &&
@@ -71,60 +97,69 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 
   return (
     <>
-      <div
-        role="button"
-        tabIndex={0}
-        className={`w-full cursor-pointer text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
-          isActive
-            ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
-            : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
-        }`}
-        onClick={() => onSelect(chatroom._id)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelect(chatroom._id);
-          }
-        }}
-      >
-        {/* Status indicator - square per theme guidelines */}
-        <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
-
-        {/* Name + inline unread */}
-        <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
-          <span className="text-xs font-bold uppercase tracking-wide truncate text-chatroom-text-primary">
-            {displayName}
-          </span>
-          {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
-        </span>
-
-        {/* Favorite star indicator */}
-        {chatroom.isFavorite && (
-          <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
-        )}
-
-        {/* Remote agent stop button */}
-        {chatroom.remoteAgentStatus === 'running' && (
-          <button
-            onClick={handleStop}
-            title="Stop agent"
-            className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+      <ContextMenu modal={false}>
+        <ContextMenuTrigger asChild>
+          <div
+            role="button"
+            tabIndex={0}
+            className={`w-full cursor-pointer text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
+              isActive
+                ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
+                : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
+            }`}
+            onClick={() => onSelect(chatroom._id)}
+            onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
           >
-            <Square size={8} fill="currentColor" />
-          </button>
-        )}
+            {/* Status indicator - square per theme guidelines */}
+            <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
 
-        {/* Remote agent start button */}
-        {showStartButton && (
-          <button
-            onClick={handleStart}
-            title="Start agent"
-            className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors"
-          >
-            <Play size={10} fill="currentColor" />
-          </button>
+            {/* Name + inline unread */}
+            <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
+              <span className="text-xs font-bold uppercase tracking-wide truncate text-chatroom-text-primary">
+                {displayName}
+              </span>
+              {chatroom.hasUnread && (
+                <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />
+              )}
+            </span>
+
+            {/* Favorite star indicator */}
+            {chatroom.isFavorite && (
+              <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+            )}
+
+            {/* Remote agent stop button */}
+            {chatroom.remoteAgentStatus === 'running' && (
+              <button
+                onClick={handleStop}
+                title="Stop agent"
+                className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+              >
+                <Square size={8} fill="currentColor" />
+              </button>
+            )}
+
+            {/* Remote agent start button */}
+            {showStartButton && (
+              <button
+                onClick={handleStart}
+                title="Start agent"
+                className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors"
+              >
+                <Play size={10} fill="currentColor" />
+              </button>
+            )}
+          </div>
+        </ContextMenuTrigger>
+        {!isCompleted && (
+          <ContextMenuContent className="min-w-[160px] rounded-none">
+            <ContextMenuItem onSelect={handleArchive} className="rounded-none">
+              <Archive size={14} />
+              Archive Chat
+            </ContextMenuItem>
+          </ContextMenuContent>
         )}
-      </div>
+      </ContextMenu>
 
       {startModalOpen && (
         <UnifiedAgentListModal

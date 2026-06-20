@@ -106,6 +106,7 @@ export interface DaemonSessionInit {
   sessionId: SessionId;
   machineId: string;
   config: MachineConfig | null;
+  convexUrl: string;
 
   // ─── Flat deps (no .deps. indirection) ────────────────────────────
   backend: BackendOps;

@@ -25,36 +25,38 @@ const SERVER_ERROR_HINT =
  * - Regular Error: returns error.message
  * - Non-Error values: returns String(value)
  */
+function formatConvexErrorObject(data: {
+  code?: string;
+  message?: string;
+  fields?: string[];
+}): string {
+  const base = data.message ?? data.code ?? JSON.stringify(data);
+  if (Array.isArray(data.fields) && data.fields.length > 0) {
+    return `${base}\n  offending fields: ${data.fields.join(', ')}`;
+  }
+  return base;
+}
+
+function formatConvexErrorData(error: ConvexError<any>): string {
+  if (typeof error.data === 'string') return error.data;
+
+  if (error.data !== null && typeof error.data === 'object') {
+    return formatConvexErrorObject(
+      error.data as { code?: string; message?: string; fields?: string[] }
+    );
+  }
+  return String(error.data);
+}
+
+function formatServerError(error: Error): string {
+  if (error.message.includes('Server Error')) {
+    return `${error.message}\n  hint: ${SERVER_ERROR_HINT}`;
+  }
+  return error.message;
+}
+
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof ConvexError) {
-    if (typeof error.data === 'string') {
-      return error.data;
-    }
-    if (error.data !== null && typeof error.data === 'object') {
-      const data = error.data as {
-        code?: string;
-        message?: string;
-        fields?: string[];
-      };
-      const base = data.message ?? data.code ?? String(error.data);
-      const parts = [base];
-
-      if (Array.isArray(data.fields) && data.fields.length > 0) {
-        parts.push(`  offending fields: ${data.fields.join(', ')}`);
-      }
-
-      return parts.join('\n');
-    }
-    return String(error.data);
-  }
-  if (error instanceof Error) {
-    if (error.message.includes('Server Error')) {
-      return `${error.message}\n  hint: ${SERVER_ERROR_HINT}`;
-    }
-    return error.message;
-  }
-  if (error === null || error === undefined) {
-    return String(error);
-  }
+  if (error instanceof ConvexError) return formatConvexErrorData(error as ConvexError<any>);
+  if (error instanceof Error) return formatServerError(error);
   return String(error);
 }

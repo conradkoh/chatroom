@@ -70,27 +70,40 @@ export function formatChatroomIdError(chatroomId: string | undefined): void {
  * Check if an error is a network/connectivity error (backend unreachable)
  * as opposed to an application-level error (auth invalid, etc.)
  */
+function hasNetworkErrorCode(error: unknown): string | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code: string }).code;
+  }
+  return undefined;
+}
+
+const NETWORK_ERROR_SUBSTRINGS = [
+  'fetch failed',
+  'failed to fetch',
+  'econnrefused',
+  'enotfound',
+  'etimedout',
+  'network',
+  'connection refused',
+  'socket hang up',
+  'dns',
+] as const;
+
+function isNetworkErrorMessage(msg: string): boolean {
+  return NETWORK_ERROR_SUBSTRINGS.some((s) => msg.includes(s));
+}
+
+function isNetworkErrorCode(code: string | undefined): boolean {
+  if (!code) return false;
+  return (
+    code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT' || code === 'ECONNRESET'
+  );
+}
+
 export function isNetworkError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  const code =
-    typeof error === 'object' && error !== null && 'code' in error
-      ? (error as { code: string }).code
-      : undefined;
-  return (
-    msg.includes('fetch failed') ||
-    msg.includes('failed to fetch') ||
-    msg.includes('econnrefused') ||
-    msg.includes('enotfound') ||
-    msg.includes('etimedout') ||
-    msg.includes('network') ||
-    msg.includes('connection refused') ||
-    msg.includes('socket hang up') ||
-    msg.includes('dns') ||
-    code === 'ECONNREFUSED' ||
-    code === 'ENOTFOUND' ||
-    code === 'ETIMEDOUT' ||
-    code === 'ECONNRESET'
-  );
+  const code = hasNetworkErrorCode(error);
+  return isNetworkErrorMessage(msg) || isNetworkErrorCode(code);
 }
 
 /**

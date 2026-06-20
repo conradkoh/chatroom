@@ -32,6 +32,7 @@ export interface DirectHarnessSession {
   readonly sessionId: SessionId;
   readonly machineId: string;
   readonly backend: BackendOps;
+  readonly convexUrl: string;
 }
 
 // ─── Convex shape types ──────────────────────────────────────────────────────

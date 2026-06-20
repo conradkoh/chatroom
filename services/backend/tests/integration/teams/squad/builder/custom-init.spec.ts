@@ -228,9 +228,7 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
        
 
       ### Handoff Options
-      Available targets: planner, reviewer
-
-      ⚠️ **Restriction:** In squad team, only the planner can hand off to the user.
+      Available targets: planner, reviewer, user
 
       ### Commands
 

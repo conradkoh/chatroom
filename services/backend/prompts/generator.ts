@@ -35,21 +35,21 @@ import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
-import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import {
   getTeamHeaderSection,
   getRoleTitleSection,
   getRoleDescriptionSection,
 } from './sections/role-identity';
+import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
 import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
-import type { TeamKind } from '../src/domain/entities/team-kind';
 import { getCliEnvPrefix } from './utils/index';
 import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
+import type { TeamKind } from '../src/domain/entities/team-kind';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -92,10 +92,7 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 /**
  * Detect team type from team configuration
  */
-function detectTeamType(
-  teamRoles: string[],
-  teamName?: string
-): TeamKind | 'unknown' {
+function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unknown' {
   const normalizedName = (teamName || '').toLowerCase();
   if (normalizedName.includes('solo')) return 'solo';
   if (normalizedName.includes('squad')) return 'squad';
@@ -193,7 +190,6 @@ export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
       const result = getDuoRoleGuidanceFromContext(ctx);
       if (result !== null) return result;
     }
-
   } catch {
     // Fall back to base guidance
   }
@@ -214,8 +210,6 @@ export interface RolePromptContext {
   teamEntryPoint?: string;
   currentClassification?: 'question' | 'new_feature' | 'follow_up' | null;
   availableHandoffRoles: string[];
-  canHandoffToUser: boolean;
-  restrictionReason?: string | null;
   convexUrl: string; // Required Convex URL for env var prefix generation
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
@@ -264,8 +258,6 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(
     getHandoffOptionsSection({
       availableHandoffRoles: ctx.availableHandoffRoles,
-      canHandoffToUser: ctx.canHandoffToUser,
-      restrictionReason: ctx.restrictionReason,
     })
   );
 
@@ -432,7 +424,8 @@ ${handoffCmd}
 
 💡 You're working on:
 Task ID: ${taskId}`;
-    } else if (isDuoTeam) {
+    }
+    if (isDuoTeam) {
       // Duo team: builder always hands off to planner, never to user
       const handoffCmd = handoffCommand({
         chatroomId,
@@ -455,15 +448,15 @@ ${handoffCmd}
 
 💡 You're working on:
 Task ID: ${taskId}`;
-    } else {
-      // Generic builder reminder (no specific team structure)
-      const handoffCmd = handoffCommand({
-        chatroomId,
-        role: 'builder',
-        nextRole: '<target>',
-        cliEnvPrefix,
-      });
-      return `You can proceed with your work and hand off when complete.
+    }
+    // Generic builder reminder (no specific team structure)
+    const handoffCmd = handoffCommand({
+      chatroomId,
+      role: 'builder',
+      nextRole: '<target>',
+      cliEnvPrefix,
+    });
+    return `You can proceed with your work and hand off when complete.
 
 \`\`\`bash
 ${handoffCmd}
@@ -471,7 +464,6 @@ ${handoffCmd}
 
 💡 You're working on:
 Task ID: ${taskId}`;
-    }
   }
 
   // Reviewer acknowledges receipt and reviews work
@@ -620,14 +612,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   });
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
-
-  // In squad/duo team, only the planner can hand off to the user.
-  // Solo team can always hand off to user (only team member).
-  const isRestrictedTeam = selectorCtx.team === 'squad' || selectorCtx.team === 'duo';
-  const canHandoffToUser = isRestrictedTeam ? role.toLowerCase() === 'planner' : true;
-  const handoffTargets = canHandoffToUser
-    ? [...new Set([...otherRoles, 'user'])]
-    : [...new Set(otherRoles)];
+  const handoffTargets = [...new Set([...otherRoles, 'user'])];
 
   const sections: PromptSection[] = [];
 
@@ -649,16 +634,10 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
 
-  // Handoff options (includes restriction notice for squad/duo non-planner roles)
+  // Handoff options
   sections.push(
     getHandoffOptionsSection({
       availableHandoffRoles: handoffTargets,
-      canHandoffToUser,
-      restrictionReason: canHandoffToUser
-        ? null
-        : selectorCtx.team === 'duo'
-          ? 'In duo team, only the planner can hand off to the user.'
-          : 'In squad team, only the planner can hand off to the user.',
     })
   );
 
@@ -697,7 +676,9 @@ export function generateHandoffOutput(params: {
   lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   lines.push('');
   lines.push('✅ Level B complete (chatroom task handed off).');
-  lines.push('⏳ Level A continues (session is still active) — run get-next-task to stay connected:');
+  lines.push(
+    '⏳ Level A continues (session is still active) — run get-next-task to stay connected:'
+  );
   lines.push('');
   lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 

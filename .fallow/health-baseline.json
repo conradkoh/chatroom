@@ -88,6 +88,11 @@
         "count": 1
       }
     },
+    "apps/webapp/src/app/test/sentry-error/page.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/components/CallbackErrorCard.tsx": {
       "crap_critical": {
         "count": 1
@@ -238,10 +243,10 @@
         "count": 2
       },
       "crap_high": {
-        "count": 2
+        "count": 3
       },
       "crap_moderate": {
-        "count": 4
+        "count": 5
       }
     },
     "apps/webapp/src/modules/chatroom/components/AgentControls.tsx": {
@@ -545,8 +550,11 @@
       }
     },
     "apps/webapp/src/modules/chatroom/components/SetupChecklist.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
       "crap_high": {
-        "count": 2
+        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/components/SetupChecklistModal.tsx": {
@@ -894,6 +902,9 @@
       },
       "crap_high": {
         "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/hooks/useChatroomTimelineFeedData.ts": {
@@ -1287,12 +1298,6 @@
       }
     },
     "packages/cli/src/commands/artifact/index.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_high": {
         "count": 3
       }
@@ -1488,16 +1493,8 @@
       }
     },
     "packages/cli/src/commands/task/read/index.ts": {
-      "crap_critical": {
+      "crap_moderate": {
         "count": 2
-      }
-    },
-    "packages/cli/src/commands/task/read/render.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
       }
     },
     "packages/cli/src/commands/telegram/index.ts": {
@@ -1556,14 +1553,8 @@
       }
     },
     "packages/cli/src/infrastructure/auth/middleware.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_moderate": {
-        "count": 1
+        "count": 3
       }
     },
     "packages/cli/src/infrastructure/auth/storage.ts": {
@@ -1607,17 +1598,11 @@
       }
     },
     "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-harness.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_high": {
         "count": 2
       },
       "crap_moderate": {
-        "count": 4
+        "count": 6
       }
     },
     "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-session.ts": {
@@ -1630,14 +1615,6 @@
     },
     "packages/cli/src/infrastructure/harnesses/opencode-sdk/sse-event-buffer.ts": {
       "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/cli/src/infrastructure/local-actions/execute-local-action.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
         "count": 1
       }
     },
@@ -1677,21 +1654,8 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/claude/claude-code-agent-service.ts": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
     "packages/cli/src/infrastructure/services/remote-agents/claude/claude-models.ts": {
       "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/cli/src/infrastructure/services/remote-agents/claude/claude-stream-reader.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
         "count": 1
       }
     },
@@ -1721,22 +1685,14 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-stream-adapter.ts": {
+    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
     "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-stream-reader.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
+      "crap_moderate": {
+        "count": 3
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/compose-system-prompt.ts": {
@@ -1761,14 +1717,11 @@
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts": {
-      "complexity_critical": {
+      "crap_high": {
         "count": 1
       },
-      "crap_critical": {
-        "count": 3
-      },
-      "crap_high": {
-        "count": 2
+      "crap_moderate": {
+        "count": 10
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
@@ -1782,22 +1735,13 @@
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
+      "crap_moderate": {
+        "count": 3
       }
     },
     "packages/cli/src/infrastructure/services/workspace/command-discovery.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_moderate": {
-        "count": 2
+        "count": 5
       }
     },
     "packages/cli/src/infrastructure/services/workspace/file-tree-scanner.ts": {
@@ -1806,17 +1750,11 @@
       }
     },
     "packages/cli/src/infrastructure/services/workspace/workspace-resolver.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_high": {
         "count": 2
       },
       "crap_moderate": {
-        "count": 2
+        "count": 3
       }
     },
     "packages/cli/src/tools/output.ts": {
@@ -1825,38 +1763,26 @@
       }
     },
     "packages/cli/src/tools/parse-pdf/index.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
       "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
         "count": 1
       }
     },
     "packages/cli/src/utils/convex-error.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+      "crap_moderate": {
         "count": 1
       }
     },
     "packages/cli/src/utils/error-formatting.ts": {
-      "crap_critical": {
-        "count": 1
-      },
       "crap_moderate": {
-        "count": 2
+        "count": 3
       }
     },
     "packages/cli/src/utils/serialization/decode/index.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
+      "crap_moderate": {
+        "count": 2
       }
     },
     "packages/cli/src/version.ts": {
@@ -2061,10 +1987,10 @@
         "count": 5
       },
       "crap_high": {
-        "count": 10
+        "count": 9
       },
       "crap_moderate": {
-        "count": 13
+        "count": 16
       }
     },
     "services/backend/convex/messages.ts": {
@@ -2075,10 +2001,10 @@
         "count": 10
       },
       "crap_high": {
-        "count": 2
+        "count": 1
       },
       "crap_moderate": {
-        "count": 6
+        "count": 5
       }
     },
     "services/backend/convex/migrations.ts": {
@@ -2245,7 +2171,7 @@
         "count": 2
       },
       "crap_high": {
-        "count": 2
+        "count": 1
       }
     },
     "services/backend/prompts/teams/squad/prompts/planner.ts": {
@@ -2260,7 +2186,7 @@
     },
     "services/backend/src/domain/entities/participant.ts": {
       "crap_moderate": {
-        "count": 1
+        "count": 2
       }
     },
     "services/backend/src/domain/entities/team.ts": {
@@ -2291,6 +2217,11 @@
     "services/backend/src/domain/usecase/agent/list-chatroom-agent-overview.ts": {
       "crap_moderate": {
         "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/restart-offline-agents-on-user-message.ts": {
+      "crap_moderate": {
+        "count": 2
       }
     },
     "services/backend/src/domain/usecase/agent/start-agent.ts": {
@@ -2415,32 +2346,29 @@
     "apps/webapp/src/modules/chatroom/components/AgentPanel/InlineAgentCard.tsx:dead code",
     "apps/webapp/src/application/auth/resolve.ts:dead code",
     "services/backend/prompts/cli/roles/fromContext.ts:dead code",
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:dead code",
     "services/backend/prompts/teams/squad/prompts/fromContext.ts:dead code",
     "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.ts:dead code",
     "services/backend/application/auth/resolve.ts:dead code",
-    "packages/cli/src/utils/error-formatting.ts:high impact",
-    "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:dead code",
     "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
     "packages/cli/src/domain/agent-lifecycle/entities/spawn-bracket.ts:dead code",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
-    "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-harness.ts:complexity",
     "services/backend/prompts/cli/index.ts:dead code",
     "packages/cli/src/commands/auth-login/index.ts:dead code",
-    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
+    "packages/cli/src/infrastructure/auth/middleware.ts:dead code",
     "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts:high impact",
     "services/backend/prompts/teams/solo/prompts/fromContext.ts:dead code",
     "services/backend/src/domain/entities/agent.ts:dead code",
-    "packages/cli/src/infrastructure/auth/middleware.ts:dead code",
-    "services/backend/prompts/generator.ts:circular dependency",
     "services/backend/prompts/base/webapp/utils/env.ts:dead code",
+    "services/backend/prompts/generator.ts:circular dependency",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
     "services/backend/convex/participants.ts:complexity",
     "services/backend/modules/auth/accessControl.ts:dead code",
     "packages/cli/src/infrastructure/machine/crash-loop-tracker.ts:dead code",
     "services/backend/src/domain/types/skills.ts:dead code",
-    "services/backend/prompts/utils/env.ts:dead code",
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "services/backend/prompts/sections/role-guidance.ts:dead code",
     "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
     "services/backend/prompts/utils/config.ts:dead code",
@@ -2449,23 +2377,21 @@
     "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "services/backend/convex/messages.ts:complexity",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
+    "services/backend/prompts/utils/env.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
+    "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:complexity",
     "packages/cli/src/commands/handoff/index.ts:complexity",
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:untested risk",
     "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",
     "services/backend/convex/tasks/taskDelivery.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "apps/webapp/src/modules/presentation/presentation-controls.tsx:complexity",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
-    "packages/cli/src/infrastructure/services/workspace/command-discovery.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
-    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts:complexity",
     "packages/cli/src/commands/context/index.ts:complexity",
-    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-stream-reader.ts:complexity",
-    "packages/cli/src/infrastructure/services/remote-agents/claude/claude-stream-reader.ts:complexity",
     "apps/webapp/src/modules/checklist/use-checklist-sync.ts:complexity",
     "apps/webapp/src/modules/presentation/use-presentation-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx:complexity",

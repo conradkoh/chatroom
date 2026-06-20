@@ -9,7 +9,7 @@
  * Phase 4: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { ClassifyDeps } from './deps.js';
 import { api } from '../../api.js';
@@ -18,9 +18,10 @@ import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/sto
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import {
   BackendService,
-  BackendServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
   SessionService,
-  SessionServiceLive,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 
@@ -66,23 +67,6 @@ async function createDefaultDeps(): Promise<ClassifyDeps> {
   };
 }
 
-/**
- * Build Effect Layer from ClassifyDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: ClassifyDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Effect Programs ───────────────────────────────────────────────────────
 
 /**
@@ -100,32 +84,18 @@ export const classifyEffect = (
     const backend = yield* BackendService;
     const { role, originMessageClassification, rawStdin, taskId } = options;
 
-    // Get Convex URL for authentication
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
+
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
+
     const convexUrl = yield* session.getConvexUrl();
-
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<ClassifyError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ClassifyError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
 
     // Fetch the chatroom to get its configuration (for entry point check)
     const chatroom = yield* backend
@@ -311,7 +281,7 @@ export async function classify(
   deps?: ClassifyDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     classifyEffect(chatroomId, options).pipe(

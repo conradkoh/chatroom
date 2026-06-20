@@ -44,6 +44,7 @@ function createSpawnDeps(mutationImpl?: MutationFn): SpawnDeps {
   return {
     sessionId: 'test-session' as SessionId,
     machineId: 'test-machine',
+    convexUrl: 'https://chatroom-cloud.duskfare.com',
     backend: {
       mutation: mutationImpl
         ? vi.fn().mockImplementation(mutationImpl as any)

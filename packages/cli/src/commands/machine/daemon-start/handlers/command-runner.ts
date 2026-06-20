@@ -169,6 +169,7 @@ export const onCommandRunEffect = (event: {
       sessionId: session.sessionId,
       machineId: session.machineId,
       backend: session.backend,
+      convexUrl: session.convexUrl,
     };
     const tracked = yield* Effect.promise(() => spawnCommandProcess(spawnDeps, event, commandKey));
 

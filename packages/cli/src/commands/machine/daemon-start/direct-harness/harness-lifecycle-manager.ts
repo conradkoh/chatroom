@@ -48,7 +48,9 @@ export class HarnessLifecycleManager {
     /** Shared map of active sessions — workspaceId is on each handle. */
     private readonly activeSessions: Map<string, SessionHandle>,
     /** Looks up workspace workingDir from the backend. */
-    private readonly resolveWorkspace: WorkspaceResolver
+    private readonly resolveWorkspace: WorkspaceResolver,
+    /** Daemon-resolved Convex URL — used to sanitize child env (backlog #2). */
+    private readonly resolvedConvexUrl: string
   ) {}
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export class HarnessLifecycleManager {
             type: 'opencode',
             workingDir: workspace.workingDir,
             workspaceId,
+            resolvedConvexUrl: this.resolvedConvexUrl,
           }),
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       });

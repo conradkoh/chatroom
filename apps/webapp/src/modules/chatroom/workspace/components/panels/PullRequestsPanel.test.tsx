@@ -6,13 +6,17 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+import { PullRequestsPanel } from './PullRequestsPanel';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockRequestAllPRs = vi.fn();
-let mockAllPRsState: { status: string; pullRequests?: Array<Record<string, unknown>> } = {
+let mockAllPRsState: { status: string; pullRequests?: Record<string, unknown>[] } = {
   status: 'available',
   pullRequests: [],
 };
@@ -52,13 +56,48 @@ vi.mock('../WorkspacePRReview', () => ({
 }));
 
 vi.mock('@/components/ui/resizable', () => ({
-  ResizablePanelGroup: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={className} data-testid="resizable-group">{children}</div>
+  ResizablePanelGroup: ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <div className={className} data-testid="resizable-group">
+      {children}
+    </div>
   ),
   ResizablePanel: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="resizable-panel">{children}</div>
   ),
   ResizableHandle: () => <div data-testid="resizable-handle" />,
+}));
+
+const mockOnValueChange = vi.fn();
+
+vi.mock('@/components/ui/select', () => ({
+  Select: ({
+    children,
+    onValueChange,
+  }: {
+    children: React.ReactNode;
+    onValueChange: (v: string) => void;
+  }) => {
+    mockOnValueChange.mockImplementation(onValueChange);
+    return <div>{children}</div>;
+  },
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+    <button type="button" role="combobox">
+      {children}
+    </button>
+  ),
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
+    <button type="button" data-value={value} onClick={() => mockOnValueChange(value)}>
+      {children}
+    </button>
+  ),
 }));
 
 // ─── Test data ────────────────────────────────────────────────────────────────
@@ -84,10 +123,6 @@ const PR_CURRENT = makePR(10, { headRefName: 'feature/current', author: 'alice' 
 const PR_OTHER_1 = makePR(9, { author: 'alice' });
 const PR_OTHER_2 = makePR(8, { author: 'bob' });
 const ALL_PRS = [PR_CURRENT, PR_OTHER_1, PR_OTHER_2];
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-import { PullRequestsPanel } from './PullRequestsPanel';
 
 describe('PullRequestsPanel', () => {
   beforeEach(() => {
@@ -121,13 +156,12 @@ describe('PullRequestsPanel', () => {
     // Current-branch PR is auto-selected (PR review shown)
     const reviews = screen.getAllByTestId('pr-review');
     expect(reviews.length).toBeGreaterThan(0);
-    expect(reviews[0]!.textContent).toBe('PR #10');
+    const review = reviews[0];
+    expect(review?.textContent).toBe('PR #10');
   });
 
   it('shows star indicator on the current-branch PR', () => {
-    const { container } = render(
-      <PullRequestsPanel machineId="m1" workingDir="/repo" />
-    );
+    const { container } = render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
     // The Star icon has title="Current branch PR"
     const starTitle = container.querySelector('[title="Current branch PR"]');
     expect(starTitle).toBeTruthy();
@@ -146,8 +180,7 @@ describe('PullRequestsPanel', () => {
   it('switching to all filter shows all PRs including other authors', () => {
     render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
-    const select = screen.getByRole('combobox');
-    fireEvent.change(select, { target: { value: 'all' } });
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
 
     expect(screen.getByText('PR #8')).toBeTruthy();
     expect(screen.getAllByText('PR #9').length).toBeGreaterThan(0);

@@ -15,11 +15,12 @@
  *   pnpm test -- --reporter=verbose command-code-agent-service.integration
  */
 
-import { describe, it, expect, afterAll } from 'vitest';
 import { execSync, spawn as nodeSpawn } from 'node:child_process';
-import os from 'node:os';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+
+import { describe, it, expect, afterAll } from 'vitest';
 
 import { CommandCodeAgentService } from './command-code-agent-service.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
@@ -85,6 +86,7 @@ describe.skipIf(SKIP)('CommandCodeAgentService integration', { timeout: TEST_TIM
       systemPrompt: '',
       model: MODEL,
       context: { machineId: 'integration-test', chatroomId: 'integration-test', role: 'test' },
+      resolvedConvexUrl: 'http://test:3210',
     });
 
     spawnedPid = result.pid;
@@ -92,11 +94,9 @@ describe.skipIf(SKIP)('CommandCodeAgentService integration', { timeout: TEST_TIM
 
     let outputCount = 0;
 
-    const exitPromise = new Promise<{ code: number | null; signal: string | null }>(
-      (resolve) => {
-        result.onExit((info) => resolve(info));
-      }
-    );
+    const exitPromise = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+      result.onExit((info) => resolve(info));
+    });
 
     result.onOutput(() => {
       outputCount++;
@@ -174,7 +174,11 @@ function runVariant(
     }
 
     const timer = setTimeout(() => {
-      try { child.kill('SIGTERM'); } catch { /* ignore */ }
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        /* ignore */
+      }
       resolve({
         stdoutBytes,
         stdoutChunks,
@@ -290,10 +294,14 @@ describe.skipIf(SKIP)(
           `[diagnostic] ${label.padEnd(14)}: stdout=${r.stdoutBytes}B in ${r.stdoutChunks} chunks, ttfb=${ttfb}, exit=${exitStr}, stderr=${r.stderrBytes}B${errStr}`
         );
         if (r.stdoutText) {
-          console.info(`[diagnostic] ${label.padEnd(14)}: stdout_preview=${r.stdoutText.slice(0, 200).replace(/\n/g, '\\n')}`);
+          console.info(
+            `[diagnostic] ${label.padEnd(14)}: stdout_preview=${r.stdoutText.slice(0, 200).replace(/\n/g, '\\n')}`
+          );
         }
         if (r.stderrText) {
-          console.info(`[diagnostic] ${label.padEnd(14)}: stderr_preview=${r.stderrText.slice(0, 200).replace(/\n/g, '\\n')}`);
+          console.info(
+            `[diagnostic] ${label.padEnd(14)}: stderr_preview=${r.stderrText.slice(0, 200).replace(/\n/g, '\\n')}`
+          );
         }
       }
 

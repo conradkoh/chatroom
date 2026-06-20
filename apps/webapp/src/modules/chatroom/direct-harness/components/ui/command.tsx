@@ -1,7 +1,7 @@
 /**
  * Harness-local Command — identical API to ShadCN Command but with sharp corners
  * (removes rounded-md from Command container and rounded-sm from CommandItem)
- * per docs/design/theme.md.
+ * per docs/application/design/theme.md.
  */
 'use client';
 

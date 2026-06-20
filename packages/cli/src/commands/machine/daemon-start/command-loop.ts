@@ -513,7 +513,12 @@ export const startCommandLoopEffect: Effect.Effect<
 
   if (featureFlags.directHarnessWorkers) {
     const handles = startDirectHarnessSubscriptions(
-      { sessionId: session.sessionId, machineId: session.machineId, backend: session.backend },
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+        convexUrl: session.convexUrl,
+      },
       wsClient,
       activeSessions,
       harnesses

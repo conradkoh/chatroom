@@ -19,8 +19,9 @@
  * Full event reference: https://docs.anthropic.com/en/docs/claude-code/sdk#output-formats
  */
 
-import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
+
+import { attachLineReader } from '../line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
@@ -41,18 +42,7 @@ export class ClaudeStreamReader {
   private toolUseCallbacks: ToolCallCallback[] = [];
 
   constructor(stream: Readable) {
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-    rl.on('line', (line) => {
-      if (!line.trim()) return;
-
-      try {
-        const event = JSON.parse(line);
-        this.dispatch(event);
-      } catch (err) {
-        // Non-JSON line — skip it (might be plain text in non-stream-json mode)
-      }
-    });
+    attachLineReader(stream, (line) => this._handleLine(line));
   }
 
   onText(cb: TextCallback): void {
@@ -71,50 +61,94 @@ export class ClaudeStreamReader {
     this.toolUseCallbacks.push(cb);
   }
 
-  private dispatch(event: {
+  private _handleLine(line: string): void {
+    if (!line.trim()) return;
+    try {
+      const event = JSON.parse(line) as {
+        type?: string;
+        subtype?: string;
+        message?: {
+          content: {
+            type: string;
+            text?: string;
+            thinking?: string;
+            name?: string;
+            input?: unknown;
+          }[];
+        };
+      };
+      this._dispatchEvent(event);
+    } catch {
+      // Non-JSON line — skip
+    }
+  }
+
+  private _dispatchEvent(event: {
     type?: string;
     subtype?: string;
     message?: {
-      content: {
-        type: string;
-        text?: string;
-        thinking?: string;
-        name?: string;
-        input?: unknown;
-        tool_use_id?: string;
-      }[];
+      content: { type: string; text?: string; thinking?: string; name?: string; input?: unknown }[];
     };
-    result?: string;
-    is_error?: boolean;
   }): void {
-    const { type, subtype, message } = event;
-
-    // System event: init, done, etc.
-    if (type === 'system') {
-      if (subtype === 'init') {
-        // Agent initialized — no-op, useful for debugging
-      }
+    const { type } = event;
+    if (type === 'system') return;
+    if (type === 'assistant') {
+      this._handleAssistant(event);
       return;
     }
-
-    // Assistant message with content blocks
-    if (type === 'assistant' && message?.content) {
-      for (const block of message.content) {
-        if (block.type === 'text' && block.text) {
-          for (const cb of this.textCallbacks) cb(block.text);
-        } else if (block.type === 'thinking' && block.thinking) {
-          for (const cb of this.thinkingCallbacks) cb(block.thinking);
-        } else if (block.type === 'tool_use' && block.name && block.input) {
-          for (const cb of this.toolUseCallbacks) cb(block.name, block.input);
-        }
-      }
-      return;
-    }
-
-    // Result: success or error — agent has finished
     if (type === 'result') {
-      for (const cb of this.endCallbacks) cb();
+      this._handleResult();
+    }
+  }
+
+  private _handleAssistant(event: {
+    message?: {
+      content: { type: string; text?: string; thinking?: string; name?: string; input?: unknown }[];
+    };
+  }): void {
+    const content = event.message?.content;
+    if (!content) return;
+    for (const block of content) {
+      this._handleAssistantBlock(block);
+    }
+  }
+
+  private _handleAssistantBlock(block: {
+    type: string;
+    text?: string;
+    thinking?: string;
+    name?: string;
+    input?: unknown;
+  }): void {
+    if (block.type === 'text') {
+      this._fireTextIfPresent(block.text);
       return;
     }
+    if (block.type === 'thinking') {
+      this._fireThinkingIfPresent(block.thinking);
+      return;
+    }
+    if (block.type === 'tool_use') {
+      this._fireToolUseIfPresent(block.name, block.input);
+    }
+  }
+
+  private _fireTextIfPresent(text: string | undefined): void {
+    if (!text) return;
+    for (const cb of this.textCallbacks) cb(text);
+  }
+
+  private _fireThinkingIfPresent(thinking: string | undefined): void {
+    if (!thinking) return;
+    for (const cb of this.thinkingCallbacks) cb(thinking);
+  }
+
+  private _fireToolUseIfPresent(name: string | undefined, input: unknown): void {
+    if (!name || !input) return;
+    for (const cb of this.toolUseCallbacks) cb(name, input);
+  }
+
+  private _handleResult(): void {
+    for (const cb of this.endCallbacks) cb();
   }
 }

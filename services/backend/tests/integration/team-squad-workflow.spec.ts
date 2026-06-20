@@ -9,10 +9,9 @@
  *
  * Key differences from Pair team:
  * - Planner is the entry point (not builder)
- * - Only planner can hand off to user
- * - Builder and reviewer CANNOT hand off directly to user
  * - Dynamic team availability affects planner's workflow
  */
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- guarded by expect().toBeDefined() */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -433,7 +432,7 @@ Full-text search`,
       });
 
       expect(plannerPrompt.currentClassification).toBe('question');
-      expect(plannerPrompt.canHandoffToUser).toBe(true);
+      expect(plannerPrompt.availableHandoffRoles).toContain('user');
 
       // Planner answers and hands off to user
       const handoffResult = await t.mutation(api.messages.handoff, {
@@ -452,7 +451,7 @@ Full-text search`,
   // SQUAD HANDOFF RESTRICTIONS
   // =========================================================================
   describe('squad handoff restrictions', () => {
-    test('builder CANNOT hand off directly to user', async () => {
+    test('builder CAN hand off directly to user for new_feature', async () => {
       const { sessionId } = await createTestSession('test-squad-builder-no-user');
       const chatroomId = await createSquadTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
@@ -512,17 +511,16 @@ Standard implementation`,
         role: 'builder',
       });
 
-      // Builder tries to hand off directly to user — SHOULD FAIL
-      const failedHandoff = await t.mutation(api.messages.handoff, {
+      // Builder can hand off directly to user (no classification gate)
+      const handoffResult = await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
         senderRole: 'builder',
         content: 'Done with feature X!',
         targetRole: 'user',
       });
-      expect(failedHandoff.success).toBe(false);
-      expect(failedHandoff.error).toBeDefined();
-      expect(failedHandoff.error?.message).toContain('Cannot hand off directly to user');
+      expect(handoffResult.success).toBe(true);
+      expect(handoffResult.messageId).toBeDefined();
     });
 
     test('reviewer prompt warns against handing off directly to user (prompt-level restriction)', async () => {

@@ -6,6 +6,7 @@
  */
 
 export * from './backend.js';
+export * from './command-effect-helpers.js';
 export * from './clock.js';
 export * from './fs.js';
 export * from './process.js';

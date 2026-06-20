@@ -12,6 +12,7 @@ import { getAppTitle } from '@/lib/environment';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
 import { HeaderPortalProvider } from '@/modules/header/HeaderPortalProvider';
+import { SentryErrorBoundary } from '@/modules/sentry/SentryErrorBoundary';
 import { ThemeProvider, themeScript } from '@/modules/theme/ThemeProvider';
 
 const geistSans = Geist({
@@ -68,34 +69,36 @@ export default function RootLayout({
         </Script>
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ConvexClientProvider>
-          <ConvexQueryCacheProvider>
-            <AppInfoProvider>
-              <AuthProvider>
-                <ThemeProvider>
-                  <HeaderPortalProvider>
-                    <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
-                      <Navigation />
-                      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
-                        {children}
-                      </main>
-                    </div>
-                  </HeaderPortalProvider>
-                </ThemeProvider>
-              </AuthProvider>
-            </AppInfoProvider>
-          </ConvexQueryCacheProvider>
-        </ConvexClientProvider>
-        <Toaster />
-        <ServiceWorkerRegistration />
-        {/* React Grab for development — afterInteractive to avoid hydration mismatch */}
-        {process.env.NODE_ENV === 'development' && (
-          <Script
-            src="//unpkg.com/react-grab/dist/index.global.js"
-            crossOrigin="anonymous"
-            strategy="afterInteractive"
-          />
-        )}
+        <SentryErrorBoundary>
+          <ConvexClientProvider>
+            <ConvexQueryCacheProvider>
+              <AppInfoProvider>
+                <AuthProvider>
+                  <ThemeProvider>
+                    <HeaderPortalProvider>
+                      <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
+                        <Navigation />
+                        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+                          {children}
+                        </main>
+                      </div>
+                    </HeaderPortalProvider>
+                  </ThemeProvider>
+                </AuthProvider>
+              </AppInfoProvider>
+            </ConvexQueryCacheProvider>
+          </ConvexClientProvider>
+          <Toaster />
+          <ServiceWorkerRegistration />
+          {/* React Grab for development — afterInteractive to avoid hydration mismatch */}
+          {process.env.NODE_ENV === 'development' && (
+            <Script
+              src="//unpkg.com/react-grab/dist/index.global.js"
+              crossOrigin="anonymous"
+              strategy="afterInteractive"
+            />
+          )}
+        </SentryErrorBoundary>
       </body>
     </html>
   );

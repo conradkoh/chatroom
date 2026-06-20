@@ -36,7 +36,9 @@ export type { ExtractedChunk };
  *     ExtractedChunk; defaults to 'text' if the mapping is not yet known.
  *   - All other event types: returns null.
  */
-export function createOpencodeSdkChunkExtractor(): (event: DirectHarnessSessionEvent) => ExtractedChunk | null {
+export function createOpencodeSdkChunkExtractor(): (
+  event: DirectHarnessSessionEvent
+) => ExtractedChunk | null {
   /** Maps partID → { messageId, partType } built from message.part.updated events. */
   const partMap = new Map<string, { messageId: string; partType: 'text' | 'reasoning' }>();
 
@@ -49,15 +51,16 @@ export function createOpencodeSdkChunkExtractor(): (event: DirectHarnessSessionE
     // SDK v1 also piggy-backs a `delta` field on this event; we extract it here
     // for backwards compatibility.
     if (event.type === 'message.part.updated') {
-      const payload = event.payload as {
-        part?: { id?: string; messageID?: string; type?: string };
-        delta?: string;
-      } | undefined;
+      const payload = event.payload as
+        | {
+            part?: { id?: string; messageID?: string; type?: string };
+            delta?: string;
+          }
+        | undefined;
 
       const part = payload?.part;
       if (part?.id && part?.messageID) {
-        const partType: 'text' | 'reasoning' =
-          part.type === 'reasoning' ? 'reasoning' : 'text';
+        const partType: 'text' | 'reasoning' = part.type === 'reasoning' ? 'reasoning' : 'text';
         partMap.set(part.id, { messageId: part.messageID, partType });
 
         // SDK v1 compat: extract delta when present on the same event
@@ -73,11 +76,13 @@ export function createOpencodeSdkChunkExtractor(): (event: DirectHarnessSessionE
     // Primary streaming event in SDK v2. Carries partID + delta but NOT the
     // part type — resolved via the map populated above.
     if (event.type === 'message.part.delta') {
-      const payload = event.payload as {
-        partID?: string;
-        messageID?: string;
-        delta?: string;
-      } | undefined;
+      const payload = event.payload as
+        | {
+            partID?: string;
+            messageID?: string;
+            delta?: string;
+          }
+        | undefined;
 
       const delta = payload?.delta;
       if (!delta || delta.length === 0) return null;
