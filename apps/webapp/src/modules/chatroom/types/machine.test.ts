@@ -5,6 +5,7 @@ import {
   getHarnessDisplayName,
   getModelDisplayLabel,
   harnessSupportsSessionResume,
+  harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
 } from './machine';
@@ -82,6 +83,22 @@ describe('harnessSupportsSessionResume', () => {
     'returns false for non-resumable harness "%s"',
     (harness) => {
       expect(harnessSupportsSessionResume(harness)).toBe(false);
+    }
+  );
+});
+
+describe('harnessSupportsNativeIntegration', () => {
+  it.each(['opencode-sdk', 'cursor-sdk'] as const)(
+    'returns true for native integration harness "%s"',
+    (harness) => {
+      expect(harnessSupportsNativeIntegration(harness)).toBe(true);
+    }
+  );
+
+  it.each(['opencode', 'cursor', 'pi', 'commandcode'] as const)(
+    'returns false for non-native harness "%s"',
+    (harness) => {
+      expect(harnessSupportsNativeIntegration(harness)).toBe(false);
     }
   );
 });

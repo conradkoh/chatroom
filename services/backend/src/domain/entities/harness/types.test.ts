@@ -4,12 +4,9 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { AGENT_HARNESSES } from '../agent.js';
-import {
-  CLI_ONLY_WIRE_EVENT_KINDS,
-  isCliOnlyWireEvent,
-} from './lifecycle-events.js';
-import { getHarnessCapabilities, getHarnessRuntimeKind } from './types.js';
+import { AGENT_HARNESSES } from '../agent';
+import { CLI_ONLY_WIRE_EVENT_KINDS, isCliOnlyWireEvent } from './lifecycle-events';
+import { getHarnessCapabilities, getHarnessRuntimeKind } from './types';
 
 describe('getHarnessCapabilities', () => {
   test('every AgentHarness has a capabilities entry', () => {
@@ -30,6 +27,18 @@ describe('getHarnessCapabilities', () => {
     );
     for (const harness of nonResumable) {
       expect(getHarnessCapabilities(harness).supportsSessionResume).toBe(false);
+    }
+  });
+
+  test('cursor-sdk and opencode-sdk support native integration', () => {
+    expect(getHarnessCapabilities('cursor-sdk').supportsNativeIntegration).toBe(true);
+    expect(getHarnessCapabilities('opencode-sdk').supportsNativeIntegration).toBe(true);
+  });
+
+  test('all other harnesses do not support native integration', () => {
+    const nonNative = AGENT_HARNESSES.filter((h) => h !== 'cursor-sdk' && h !== 'opencode-sdk');
+    for (const harness of nonNative) {
+      expect(getHarnessCapabilities(harness).supportsNativeIntegration).toBe(false);
     }
   });
 

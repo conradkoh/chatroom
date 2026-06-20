@@ -33,6 +33,38 @@ async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: stri
   });
 }
 
+async function getEventStreamTypes(chatroomId: Id<'chatroom_rooms'>, role: string) {
+  return t.run(async (ctx) => {
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+    return events.filter((e) => e.role === role).map((e) => e.type);
+  });
+}
+
+async function createAcknowledgedTask(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+) {
+  const { taskId } = await t.mutation(api.tasks.createTask, {
+    sessionId,
+    chatroomId,
+    content: 'Native lifecycle test task',
+    createdBy: 'user',
+  });
+
+  await t.mutation(api.tasks.claimTask, {
+    sessionId,
+    chatroomId,
+    role,
+    taskId,
+  });
+
+  return taskId;
+}
+
 describe('Participant Status Tracking', () => {
   test('agent.registered via recordRemoteAgentRegistered', async () => {
     const { sessionId } = await createTestSession('test-pst-registered');
@@ -88,6 +120,8 @@ describe('Participant Status Tracking', () => {
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
+      if (!user) throw new Error('expected test user');
+      if (!machine) throw new Error('expected test machine');
 
       return startAgent(
         ctx,
@@ -95,13 +129,13 @@ describe('Participant Status Tracking', () => {
           machineId,
           chatroomId,
           role: 'builder',
-          userId: user!._id,
+          userId: user._id,
           model: 'claude-sonnet-4',
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'user.start',
         },
-        machine!
+        machine
       );
     });
 
@@ -145,6 +179,108 @@ describe('Participant Status Tracking', () => {
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.waiting');
+  });
+
+  test('agent.waiting via join with native:waiting', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-waiting');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('agent.waiting');
+
+    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
+    expect(eventTypes).toContain('agent.waiting');
+  });
+
+  test('task.acknowledged via join with native:task-injected', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-injected');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.acknowledged');
+
+    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
+    expect(eventTypes.filter((type) => type === 'task.acknowledged').length).toBeGreaterThanOrEqual(
+      1
+    );
+  });
+
+  test('task.inProgress via updateTokenActivity when lastStatus is task.acknowledged', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-token-ack');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+
+    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
+    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
+  });
+
+  test('updateTokenActivity does not duplicate task.inProgress when already in progress', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-token-dedup');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+
+    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
+    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
   });
 
   test('task.acknowledged via claimTask', async () => {
@@ -240,11 +376,12 @@ describe('Participant Status Tracking', () => {
 
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
+      if (!user) throw new Error('expected test user');
       return stopAgent(ctx, {
         machineId,
         chatroomId,
         role: 'builder',
-        userId: user!._id,
+        userId: user._id,
         reason: 'user.stop',
       });
     });
@@ -297,19 +434,21 @@ describe('Participant Status Tracking', () => {
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
+      if (!user) throw new Error('expected test user');
+      if (!machine) throw new Error('expected test machine');
       return startAgent(
         ctx,
         {
           machineId,
           chatroomId,
           role: 'builder',
-          userId: user!._id,
+          userId: user._id,
           model: 'claude-sonnet-4',
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'user.start',
         },
-        machine!
+        machine
       );
     });
     let status = await getParticipantStatus(chatroomId, 'builder');
@@ -377,11 +516,12 @@ describe('Participant Status Tracking', () => {
     // 8. Stop agent → lastDesiredState = stopped
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
+      if (!user) throw new Error('expected test user');
       return stopAgent(ctx, {
         machineId,
         chatroomId,
         role: 'builder',
-        userId: user!._id,
+        userId: user._id,
         reason: 'user.stop',
       });
     });

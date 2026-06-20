@@ -1,8 +1,9 @@
-import type { HarnessCapabilities } from './types.js';
+import type { HarnessCapabilities } from './types';
 
 export const piCapabilities: HarnessCapabilities = {
   runtimeKind: 'cli',
   supportsSessionResume: true,
+  supportsNativeIntegration: false,
   lifecycle: {
     turnCompleted: true,
     outputActivity: true,

@@ -35,6 +35,7 @@ export function toBuilderParams(ctx: SelectorContext): BuilderGuidanceParams {
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 

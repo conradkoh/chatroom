@@ -93,6 +93,8 @@ export interface BuilderGuidanceParams extends BasePromptParams {
    * Set to 'planner' in teams where there is no reviewer (e.g. duo team).
    */
   codeChangesTarget?: string;
+  /** True when harness uses native task injection instead of get-next-task */
+  nativeIntegration?: boolean;
 }
 
 /**

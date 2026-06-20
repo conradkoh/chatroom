@@ -153,7 +153,8 @@ describe('handoff-templates > planner → builder delegation brief', () => {
     expect(brief).toContain('## Session Management');
     expect(brief).toContain('new_session');
     expect(brief).toContain('data:agent.compress_context=new_session');
-    expect(brief).not.toContain('compact');
+    expect(brief).toContain('Native harnesses');
+    expect(brief).toContain('CLI harnesses');
     expect(brief).not.toContain('## Restart new context');
   });
 });
