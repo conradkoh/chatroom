@@ -1,22 +1,41 @@
-export type CompressContextMode = 'reset' | 'compact' | 'none';
+export type CompressContextMode = 'new_session' | 'none';
 
-const SECTION_HEADING = '## Restart new context';
-const DATA_TAG = /\/\/\s*data:agent\.compress_context=(reset|compact|none)\b/i;
+const SECTION_HEADINGS = ['## Session Management', '## Restart new context'];
+const DATA_TAG = /\/\/\s*data:agent\.compress_context=(new_session|reset|none)\b/i;
 
-/** Parse compress_context from planner handoff body. Defaults to 'none' if missing/invalid. */
+const DEFAULT_MODE: CompressContextMode = 'new_session';
+
+function findSectionHeading(content: string): string | null {
+  const found = SECTION_HEADINGS.map((heading) => ({
+    heading,
+    idx: content.indexOf(heading),
+  }))
+    .filter((entry) => entry.idx !== -1)
+    .sort((a, b) => a.idx - b.idx);
+  return found[0]?.heading ?? null;
+}
+
+function normalizeMode(raw: string): CompressContextMode {
+  const value = raw.toLowerCase();
+  if (value === 'reset') return 'new_session';
+  if (value === 'none') return value;
+  return DEFAULT_MODE;
+}
+
+/** Parse compress_context from planner handoff body. Defaults to 'new_session' if missing/invalid. */
 export function parseCompressContext(handoffContent: string): CompressContextMode {
-  const sectionIdx = handoffContent.indexOf(SECTION_HEADING);
-  if (sectionIdx === -1) return 'none';
+  const heading = findSectionHeading(handoffContent);
+  if (!heading) return DEFAULT_MODE;
 
-  // Search only within this section until next ## heading or EOF
+  const sectionIdx = handoffContent.indexOf(heading);
   const afterSection = handoffContent.slice(sectionIdx);
-  const nextHeading = afterSection.slice(SECTION_HEADING.length).search(/\n## /);
+  const nextHeading = afterSection.slice(heading.length).search(/\n## /);
   const sectionBody =
-    nextHeading === -1 ? afterSection : afterSection.slice(0, SECTION_HEADING.length + nextHeading);
+    nextHeading === -1 ? afterSection : afterSection.slice(0, heading.length + nextHeading);
 
   const match = sectionBody.match(DATA_TAG);
-  if (!match) return 'none';
-  return match[1].toLowerCase() as CompressContextMode;
+  if (!match) return DEFAULT_MODE;
+  return normalizeMode(match[1]);
 }
 
 /** Map mode to daemon wantResume for ensureRunning after stop nudge. */

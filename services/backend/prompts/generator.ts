@@ -27,6 +27,7 @@ import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
 import { reportProgressCommand } from './cli/report-progress/command';
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
+import { getHandoffTemplatesPreviewSection } from './cli/sections/handoff-templates-preview';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
@@ -633,6 +634,14 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
+
+  sections.push(
+    getHandoffTemplatesPreviewSection({
+      teamId,
+      role,
+      handoffTargets,
+    })
+  );
 
   // Handoff options
   sections.push(

@@ -1,5 +1,5 @@
 /**
- * Handoff template: Planner → Builder (delegation brief).
+ * Handoff template: Duo planner → builder (delegation brief).
  *
  * Provides the structure the planner should follow when delegating an
  * implementation slice to the builder. The planner owns technical decisions
@@ -72,10 +72,11 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 ## Out of scope
 - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
 
-## Restart new context (mandatory)
-Can the agent be restarted to reduce the context window size? Select the mode that matches this handoff. Use \`reset\` when the delegation brief fully captures everything the builder needs. Use \`none\` when the builder should continue prior session context.
-Hard = Full reset | Compact = Compress context | None = continue with previous context
-// data:agent.compress_context=none
+## Session Management
+Valid values: \`new_session\` | \`none\`
+- \`new_session\` — start a fresh agent session (default; prior session must NOT be resumed)
+- \`none\` — continue prior session context
+// data:agent.compress_context=new_session
 \`\`\`
 
 Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;

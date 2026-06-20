@@ -337,6 +337,87 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
        
 
+      ## Begin With the End in Mind
+
+      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
+
+      ### Handoff to \`planner\`
+      **Review Outcome (Reviewer → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
+
+      \`\`\`markdown
+      ## Outcome
+      <APPROVED ✅ | CHANGES REQUESTED — brief statement>
+
+      ## Summary
+      <what was reviewed and the conclusion>
+
+      ## Proof — files reviewed
+      - \`path/to/file.ts\` — <what was checked>
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <result observed or trusted from builder>
+
+      ## Issues / follow-ups
+      <remaining concerns for planner, or "Not Applicable">
+
+      ## Recommendation
+      <deliver to user | send back to builder for rework | partial delivery with explanation>
+      \`\`\`
+
+      ### Handoff to \`builder\`
+      **Rework Feedback (Reviewer → Builder)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
+
+      \`\`\`markdown
+      ## Summary
+      <overall assessment — what must change before approval>
+
+      ## Issues found
+      - <specific problem> — <file/line or area> — <why it matters> — <suggested fix>
+
+      ## Required changes
+      - <concrete change the builder must make>
+
+      ## Verification after rework
+      - \`pnpm typecheck && pnpm test\` — <expected result>
+
+      ## Notes
+      <anything else the builder should know, or "Not Applicable">
+      \`\`\`
+
+      ### Handoff to \`user\`
+      **Approval Report (Reviewer → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown. Fill in EVERY section: if one does not apply, write \`Not Applicable\` (do not delete the section):
+
+      \`\`\`markdown
+      ## Summary
+      <what was reviewed and the approval outcome — no references to prior messages>
+
+      ## Proof — files reviewed
+      - \`path/to/file.ts\` — <what was checked>
+
+      ## Key Technical Decisions
+      - <notable design choices validated during review, or "Not Applicable">
+
+      ## Key Tradeoffs
+      - <tradeoffs assessed during review, or "Not Applicable">
+
+      ## Tech Debt Observed
+      - <issues noticed but accepted for this release, or "Not Applicable">
+
+      ## System Design
+      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
+
+      \`\`\`mermaid
+      flowchart TD
+          A[Component] --> B[Component]
+      \`\`\`
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <result>
+
+      ## Notes / Next steps
+      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
+      \`\`\`
+
       ### Handoff Options
       Available targets: planner, builder, user
 

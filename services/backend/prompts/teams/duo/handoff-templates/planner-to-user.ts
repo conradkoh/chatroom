@@ -1,5 +1,5 @@
 /**
- * Handoff template: Planner → User (final report).
+ * Handoff template: Duo planner → user (final report).
  *
  * This is the most important template in the set: the planner is the single
  * point of contact for the user, and the user can ONLY see the final

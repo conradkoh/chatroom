@@ -98,15 +98,15 @@ describe('nudge wantResume from task content', () => {
     return compressContextToWantResume(parseCompressContext(taskContent));
   }
 
-  test('reset → wantResume false (cold spawn)', () => {
-    const content = `## Restart new context
-// data:agent.compress_context=reset`;
+  test('new_session → wantResume false (cold spawn)', () => {
+    const content = `## Session Management
+// data:agent.compress_context=new_session`;
     expect(resolveWantResume(content)).toBe(false);
   });
 
-  test('compact → wantResume false (cold spawn)', () => {
+  test('legacy reset → wantResume false (cold spawn)', () => {
     const content = `## Restart new context
-// data:agent.compress_context=compact`;
+// data:agent.compress_context=reset`;
     expect(resolveWantResume(content)).toBe(false);
   });
 
@@ -116,8 +116,8 @@ describe('nudge wantResume from task content', () => {
     expect(resolveWantResume(content)).toBe(true);
   });
 
-  test('missing section → wantResume true (backward compatible)', () => {
-    expect(resolveWantResume('## Goal\nImplement feature')).toBe(true);
+  test('missing section → wantResume false (default new_session)', () => {
+    expect(resolveWantResume('## Goal\nImplement feature')).toBe(false);
   });
 });
 

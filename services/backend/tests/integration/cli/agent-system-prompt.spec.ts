@@ -357,6 +357,10 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
        
 
+      ## Begin With the End in Mind
+
+      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
+
       ### Handoff Options
       Available targets: reviewer, user
 
@@ -677,6 +681,10 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - Suggest solutions when possible
       - Maintain a collaborative and constructive tone
 
+
+      ## Begin With the End in Mind
+
+      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
 
       ### Handoff Options
       Available targets: builder, user

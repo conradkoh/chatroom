@@ -2178,6 +2178,7 @@ export const getTaskDeliveryPrompt = query({
       chatroomId: args.chatroomId,
       role: args.role,
       cliEnvPrefix,
+      teamId: chatroom.teamId ?? 'duo',
       task: {
         _id: task._id,
         content: task.content,

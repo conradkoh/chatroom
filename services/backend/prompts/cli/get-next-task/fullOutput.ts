@@ -23,6 +23,7 @@ export interface FullCliOutputParams {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
+  teamId?: string;
 
   /** The task being delivered */
   task: {
@@ -96,6 +97,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     chatroomId,
     role,
     cliEnvPrefix,
+    teamId,
     task,
     message,
     currentContext,
@@ -283,7 +285,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         '4. Delegate ONE slice to the builder (a structured workflow is optional, not required):'
       );
       lines.push('');
-      lines.push(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' }) ?? '');
+      lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
@@ -301,7 +303,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push('5. When the work is done, deliver to the user using this report template:');
       maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('');
-      lines.push(getHandoffTemplate({ fromRole: 'planner', toRole: 'user' }) ?? '');
+      lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
     } else {
       // Non-coordinator role receiving a user message
       let nextStepNum = 3;
@@ -349,6 +351,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
     lines.push(`${nextStepNum}. Hand off when complete:`);
     maybeAddVerificationReminder(lines, availableHandoffTargets);
+    const primaryTarget = availableHandoffTargets[0];
+    if (primaryTarget) {
+      const tmpl = getHandoffTemplate({ teamId, fromRole: role, toRole: primaryTarget });
+      if (tmpl) {
+        lines.push('');
+        lines.push(tmpl);
+      }
+    }
     lines.push('```');
     lines.push(
       `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`

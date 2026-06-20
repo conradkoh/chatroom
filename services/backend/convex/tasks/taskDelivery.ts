@@ -166,6 +166,7 @@ export async function getTaskDeliveryPromptData(
     chatroomId,
     role,
     cliEnvPrefix,
+    teamId: chatroom.teamId ?? 'duo',
     task: {
       _id: task._id,
       content: task.content,
