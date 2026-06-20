@@ -21,6 +21,7 @@
 
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
@@ -289,6 +290,23 @@ export class AgentProcessManager {
     return operation;
   }
 
+  async resumeTurnForSlot(args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+  }): Promise<void> {
+    const key = agentKey(args.chatroomId, args.role);
+    const slot = this.slots.get(key);
+    if (!slot?.pid || !slot.harness) {
+      throw new Error(`No running agent for ${args.role}@${args.chatroomId}`);
+    }
+    const service = this.deps.agentServices.get(slot.harness);
+    if (!service?.resumeTurn) {
+      throw new Error(`Harness ${slot.harness} does not support resumeTurn`);
+    }
+    await service.resumeTurn(slot.pid, args.prompt);
+  }
+
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -444,6 +462,9 @@ export class AgentProcessManager {
       console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
     } else if (result.outcome === 'resumed') {
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`);
+      if (capabilities.supportsNativeIntegration) {
+        await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.harness);
+      }
     } else if (result.outcome === 'killed_terminal_provider_error') {
       console.log(
         `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
@@ -1407,6 +1428,25 @@ export class AgentProcessManager {
     }
 
     this.registerSpawnCallbacks(slot, opts, spawnResult, pid);
+    await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
+  }
+
+  private async emitNativeWaiting(
+    chatroomId: string,
+    role: string,
+    harness: AgentHarness
+  ): Promise<void> {
+    if (!getHarnessCapabilities(harness).supportsNativeIntegration) return;
+    try {
+      await this.deps.backend.mutation(api.participants.join, {
+        sessionId: this.deps.sessionId,
+        chatroomId,
+        role,
+        action: NATIVE_WAITING_ACTION,
+      });
+    } catch (err) {
+      console.log(`   ⚠️  Failed to emit native:waiting for ${role}: ${(err as Error).message}`);
+    }
   }
 
   private async doEnsureRunning(

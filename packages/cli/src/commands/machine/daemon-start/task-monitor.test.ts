@@ -1,3 +1,4 @@
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
   compressContextToWantResume,
   parseCompressContext,
@@ -5,6 +6,7 @@ import {
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import { describe, expect, test } from 'vitest';
 
+import { isNativeHarness } from './native-task-injector-logic.js';
 import { NudgeCooldown, shouldNudgePendingTask } from './task-monitor-logic.js';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
@@ -19,7 +21,7 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
     agentConfig: {
       role: 'builder',
       machineId: 'machine_1',
-      agentHarness: 'cursor-sdk',
+      agentHarness: 'opencode',
       workingDir: '/tmp/project',
       spawnedAgentPid: 12345,
       desiredState: 'running',
@@ -130,5 +132,43 @@ describe('NudgeCooldown', () => {
     cooldown.recordNudge('room', 'builder', now);
     expect(cooldown.canNudge('room', 'builder', now + 30_000)).toBe(false);
     expect(cooldown.canNudge('room', 'builder', now + 60_000)).toBe(true);
+  });
+});
+
+describe('native nudge delegation', () => {
+  test('native harness uses shouldNudgeNativeInjection instead of CLI idle logic', () => {
+    const createdAt = 1_000;
+    const now = createdAt + 15_001;
+    const nativeTask = makeTask({
+      agentConfig: {
+        ...makeTask().agentConfig,
+        agentHarness: 'cursor-sdk',
+      },
+      createdAt,
+      participant: {
+        lastSeenAction: NATIVE_WAITING_ACTION,
+        lastSeenAt: createdAt,
+        lastStatus: 'agent.waiting',
+      },
+    });
+    expect(isNativeHarness(nativeTask.agentConfig.agentHarness)).toBe(true);
+    expect(shouldNudgePendingTask(nativeTask, now)).toBe(true);
+  });
+
+  test('CLI harness still uses get-next-task stale waiting logic (regression)', () => {
+    const now = 10_000;
+    const cliTask = makeTask({
+      agentConfig: {
+        ...makeTask().agentConfig,
+        agentHarness: 'opencode',
+      },
+    });
+    expect(shouldNudgePendingTask(cliTask, now)).toBe(true);
+  });
+
+  test('CLI new_session still implies wantResume false (regression)', () => {
+    const content = `## Session Management
+// data:agent.compress_context=new_session`;
+    expect(compressContextToWantResume(parseCompressContext(content))).toBe(false);
   });
 });

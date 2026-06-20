@@ -3,6 +3,8 @@
  *
  * Restarts alive agents that have pending tasks but are not actively listening
  * in the get-next-task loop (stale waiting or idle after delivery).
+ *
+ * For native harnesses, injects tasks via resumeTurn instead of cold-restart nudge.
  */
 
 import {
@@ -16,6 +18,12 @@ import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import {
+  isNativeHarness,
+  NativeInjectionDedup,
+  shouldInjectNativeTask,
+} from './native-task-injector-logic.js';
+import { runNativeInjectionEffect } from './native-task-injector.js';
 import { listTasksReadyForNudge, NudgeCooldown } from './task-monitor-logic.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -24,15 +32,74 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type AssignedTasksResult = FunctionReturnType<typeof api.machines.getAssignedTasks>;
 
+function runNativeInjectionFork(
+  task: AssignedTaskView,
+  runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>,
+  effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>,
+  dedup: NativeInjectionDedup,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  session: {
+    sessionId: string;
+    convexUrl: string;
+    backend: {
+      mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
+      query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
+    };
+  }
+): void {
+  Runtime.runFork(runtime)(
+    runNativeInjectionEffect(
+      task,
+      {
+        sessionId: session.sessionId,
+        backend: session.backend,
+        agentMgr: {
+          resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
+        },
+        convexUrl: session.convexUrl,
+      },
+      dedup
+    ).pipe(
+      Effect.provide(effectContext),
+      Effect.catchAll((err) =>
+        Effect.sync(() =>
+          console.warn(
+            `[TaskMonitor] native injection failed for ${task.agentConfig.role}@${task.chatroomId}: ${getErrorMessage(err)}`
+          )
+        )
+      )
+    )
+  );
+}
+
 // fallow-ignore-next-line complexity
 function runNudgeEffect(
   task: AssignedTaskView,
   runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>,
   effectContext: Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>,
-  agentMgr: DaemonAgentProcessManagerServiceShape
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  dedup: NativeInjectionDedup,
+  session: {
+    sessionId: string;
+    convexUrl: string;
+    backend: {
+      mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
+      query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
+    };
+  }
 ): void {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
+
+  if (isNativeHarness(agentConfig.agentHarness)) {
+    console.log(
+      `[TaskMonitor] native nudge ${role}@${chatroomId} — retrying injection for pending task ${task.taskId}`
+    );
+    dedup.clear(task.taskId);
+    runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, session);
+    return;
+  }
+
   const workingDir = agentConfig.workingDir;
   if (!workingDir) return;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
@@ -89,14 +156,32 @@ export const startTaskMonitorSubscriptionEffect = (
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor subscription (reactive)`);
 
     const cooldown = new NudgeCooldown();
+    const dedup = new NativeInjectionDedup();
     let stopped = false;
+
+    const sessionDeps = {
+      sessionId: session.sessionId,
+      convexUrl: session.convexUrl,
+      backend: {
+        mutation: (fn: unknown, args: Record<string, unknown>) =>
+          session.backend.mutation(fn, args),
+        query: (fn: unknown, args: Record<string, unknown>) => session.backend.query(fn, args),
+      },
+    };
 
     // fallow-ignore-next-line complexity
     const onTasksUpdate = (result: AssignedTasksResult | undefined): void => {
       if (stopped || !result?.tasks?.length) return;
+
+      for (const task of result.tasks) {
+        if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
+          runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
+        }
+      }
+
       const tasksToNudge = listTasksReadyForNudge(result.tasks, Date.now(), cooldown);
       for (const task of tasksToNudge) {
-        runNudgeEffect(task, runtime, effectContext, agentMgr);
+        runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
       }
     };
 

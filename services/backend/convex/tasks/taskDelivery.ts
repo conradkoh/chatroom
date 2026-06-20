@@ -9,6 +9,8 @@
 import { generateFullCliOutput } from '../../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
+import type { AgentHarness } from '../../src/domain/entities/agent';
+import { getHarnessCapabilities } from '../../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import { loadCurrentContext } from '../../src/domain/usecase/context/load-current-context';
@@ -27,6 +29,12 @@ interface TaskDeliveryParams {
   message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null;
   chatroom: Doc<'chatroom_rooms'>;
   convexUrl?: string;
+  agentHarness?: string;
+}
+
+function isNativeHarness(agentHarness: string | undefined): boolean {
+  if (!agentHarness) return false;
+  return getHarnessCapabilities(agentHarness as AgentHarness).supportsNativeIntegration;
 }
 
 export interface TaskDeliveryResult {
@@ -47,7 +55,7 @@ export async function getTaskDeliveryPromptData(
   ctx: QueryCtx,
   params: TaskDeliveryParams
 ): Promise<TaskDeliveryResult> {
-  const { chatroomId, role, task, message, chatroom, convexUrl } = params;
+  const { chatroomId, role, task, message, chatroom, convexUrl, agentHarness } = params;
   const config = getConfig();
 
   // Fetch participants
@@ -194,6 +202,7 @@ export async function getTaskDeliveryPromptData(
     originMessageCreatedAt: originMessage?._creationTime ?? null,
     isEntryPoint,
     availableHandoffTargets: availableHandoffRoles,
+    nativeIntegration: isNativeHarness(agentHarness),
   });
 
   // Build JSON context

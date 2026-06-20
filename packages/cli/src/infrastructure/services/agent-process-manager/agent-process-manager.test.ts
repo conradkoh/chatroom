@@ -156,6 +156,69 @@ describe('AgentProcessManager', () => {
       );
     });
 
+    test('ensureRunning cursor-sdk emits native:waiting after spawn', async () => {
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
+      expect(nativeWaitingCalls[0]).toMatchObject({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        action: 'native:waiting',
+      });
+    });
+
+    test('turn-end idle resume for cursor-sdk emits native:waiting', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      let agentEndCb: (() => void) | undefined;
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            agentEndCb = cb;
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      await triggerAgentEnd(manager, () => agentEndCb!());
+
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
+    });
+
     test('onAgentEnd calls resumeTurn instead of kill for resumable harness', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const resumableService = {

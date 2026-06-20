@@ -14,6 +14,8 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
+import type { AgentHarness } from '../src/domain/entities/agent';
+import { getHarnessCapabilities } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -2174,6 +2176,21 @@ export const getTaskDeliveryPrompt = query({
     // Determine entry point status for context management
     const entryPoint = getTeamEntryPoint(chatroom);
     const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
+
+    const teamRoleKey = chatroom.teamId
+      ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
+      : null;
+    const existingAgentConfig = teamRoleKey
+      ? await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+          .first()
+      : null;
+    const agentHarness = existingAgentConfig?.agentHarness;
+    const nativeIntegration =
+      agentHarness != null &&
+      getHarnessCapabilities(agentHarness as AgentHarness).supportsNativeIntegration;
+
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
       chatroomId: args.chatroomId,
@@ -2207,6 +2224,7 @@ export const getTaskDeliveryPrompt = query({
       originMessageCreatedAt: originMessage?._creationTime ?? null,
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
+      nativeIntegration,
     });
 
     return {

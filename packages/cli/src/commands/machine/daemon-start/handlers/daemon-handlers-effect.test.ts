@@ -171,6 +171,7 @@ describe('executeStopAgentEffect', () => {
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
+      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
     });
 
     const effect = executeStopAgentEffect({
@@ -195,6 +196,7 @@ describe('executeStopAgentEffect', () => {
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
+      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
     });
 
     const effect = executeStopAgentEffect({
@@ -225,6 +227,7 @@ describe('handleStopAgentEffect', () => {
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
+      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
     });
 
     const command = {

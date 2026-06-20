@@ -1,5 +1,7 @@
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
+import { isNativeHarness, shouldNudgeNativeInjection } from './native-task-injector-logic.js';
+
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;
 
@@ -31,6 +33,10 @@ export function shouldNudgePendingTask(
   now: number,
   pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
 ): boolean {
+  if (isNativeHarness(task.agentConfig.agentHarness)) {
+    return shouldNudgeNativeInjection(task, now, pendingIdleThresholdMs);
+  }
+
   if (!isPendingAliveRunningTask(task)) return false;
 
   const lastSeenAt = task.participant?.lastSeenAt ?? 0;

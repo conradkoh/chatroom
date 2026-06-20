@@ -68,6 +68,7 @@ describe('onRequestStartAgentEffect', () => {
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
     });
     const sessionLayer = makeSessionLayer();
     const event = createEvent({ deadline: Date.now() - 1000 });
@@ -87,6 +88,7 @@ describe('onRequestStartAgentEffect', () => {
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
     });
     const sessionLayer = makeSessionLayer();
     const event = createEvent();
@@ -114,6 +116,7 @@ describe('onRequestStartAgentEffect', () => {
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
     });
     const backendMutation = vi.fn().mockResolvedValue(undefined);
     const sessionLayer = makeSessionLayer(backendMutation);

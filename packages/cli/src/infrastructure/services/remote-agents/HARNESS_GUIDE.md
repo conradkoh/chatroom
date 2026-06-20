@@ -31,6 +31,16 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 - `native:task-injected` — task delivered into session context; maps to `task.acknowledged` / UI **TASK RECEIVED**
 - First token via `updateTokenActivity` when `lastStatus` is `task.acknowledged` → `task.inProgress` / UI **WORKING**
 
+**Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
+
+The task monitor watches assigned tasks and, for native harnesses, injects pending work via `resumeTurn` instead of cold-restart nudge:
+
+1. `native-task-injector-logic.ts` — pure inject/nudge decisions (`shouldInjectNativeTask`, `shouldNudgeNativeInjection`)
+2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
+3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and idle turn-end resume
+
+CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path unchanged.
+
 ### Context compaction vs hard restart
 
 | Harness kind                                   | `compress_context=new_session` behavior                                                 | In-session compaction                    |

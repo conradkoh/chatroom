@@ -77,3 +77,10 @@ export function getCompactionRecoveryOneLiner(params: {
   const { cliEnvPrefix, chatroomId, role } = params;
   return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload prompt, and \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` for current chatroom task.`;
 }
+
+/**
+ * Footer reminder for native-integration harnesses (task injection, no get-next-task loop).
+ */
+export function getNativeInjectionReminder(): string {
+  return 'Wait for handoff to complete Level B; next task will be injected automatically.';
+}
