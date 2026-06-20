@@ -100,32 +100,21 @@ export class PiRpcReader {
     this._dispatchEvent(event);
   }
 
-  private _dispatchEvent(event: Record<string, unknown>): void {
-    const type = event['type'];
-
-    if (type === 'response' && event['command'] === 'get_state') {
-      this._handleStateResponse(event);
-      return;
-    }
-
-    if (type === 'message_update') {
-      this._handleMessageUpdate(event);
-      return;
-    }
-
-    if (type === 'agent_end') {
+  private readonly eventHandlers: Record<string, (event: Record<string, unknown>) => void> = {
+    response: (event) => {
+      if (event['command'] === 'get_state') this._handleStateResponse(event);
+    },
+    message_update: (event) => this._handleMessageUpdate(event),
+    agent_end: () => {
       for (const cb of this.agentEndCallbacks) cb();
-      return;
-    }
+    },
+    tool_execution_start: (event) => this._handleToolCallStart(event),
+    tool_execution_end: (event) => this._handleToolCallEnd(event),
+  };
 
-    if (type === 'tool_execution_start') {
-      this._handleToolCallStart(event);
-      return;
-    }
-
-    if (type === 'tool_execution_end') {
-      this._handleToolCallEnd(event);
-    }
+  private _dispatchEvent(event: Record<string, unknown>): void {
+    const handler = this.eventHandlers[event['type'] as string];
+    handler?.(event);
   }
 
   private _handleStateResponse(event: Record<string, unknown>): void {
@@ -142,18 +131,20 @@ export class PiRpcReader {
       | undefined;
     if (!assistantMessageEvent) return;
 
-    const eventType = assistantMessageEvent['type'];
-    if (eventType === 'text_delta') {
-      const delta = assistantMessageEvent['delta'];
-      if (typeof delta === 'string') {
+    const deltaHandlers: Record<string, (delta: string) => void> = {
+      text_delta: (delta) => {
         for (const cb of this.textDeltaCallbacks) cb(delta);
-      }
-    } else if (eventType === 'thinking_delta') {
-      const delta = assistantMessageEvent['delta'];
-      if (typeof delta === 'string') {
+      },
+      thinking_delta: (delta) => {
         for (const cb of this.thinkingDeltaCallbacks) cb(delta);
-      }
-    }
+      },
+    };
+
+    const eventType = assistantMessageEvent['type'];
+    const delta = assistantMessageEvent['delta'];
+    if (typeof eventType !== 'string' || typeof delta !== 'string') return;
+
+    deltaHandlers[eventType]?.(delta);
   }
 
   private _handleToolCallStart(event: Record<string, unknown>): void {

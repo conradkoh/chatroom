@@ -155,38 +155,60 @@ function isValidScriptEntry(name: string, script: string | unknown): script is s
   );
 }
 
+async function readJsonFile<T>(filePath: string, label: string): Promise<T | null> {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    return parseJsonc<T>(content);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.debug(`[command-discovery] skipping ${label}: ${(error as Error).message}`);
+    }
+    return null;
+  }
+}
+
+function collectRootScriptCommands(
+  scripts: Record<string, string>,
+  pm: PackageManager,
+  scriptPrefix: string,
+  rootSw: SubWorkspaceInfo
+): DiscoveredCommand[] {
+  const commands: DiscoveredCommand[] = [];
+  for (const [name, script] of Object.entries(scripts)) {
+    if (!isValidScriptEntry(name, script)) continue;
+    commands.push({
+      name: `${pm}: ${name}`,
+      script: `${scriptPrefix} ${name}`,
+      source: 'package.json',
+      subWorkspace: rootSw,
+    });
+  }
+  return commands;
+}
+
 async function readRootPackageJson(
   workingDir: string,
   pm: PackageManager,
   scriptPrefix: string
 ): Promise<{ commands: DiscoveredCommand[]; rootPackageName: string }> {
-  const commands: DiscoveredCommand[] = [];
   let rootPackageName = basename(workingDir);
-  try {
-    const pkgContent = await readFile(join(workingDir, 'package.json'), 'utf-8');
-    const pkg = parseJsonc<{ name?: string; scripts?: Record<string, string> }>(pkgContent);
 
-    if (pkg.name) rootPackageName = pkg.name;
+  const pkg = await readJsonFile<{ name?: string; scripts?: Record<string, string> }>(
+    join(workingDir, 'package.json'),
+    'root package.json'
+  );
+  if (!pkg) return { commands: [], rootPackageName };
 
-    const scripts = pkg.scripts;
-    if (!scripts || typeof scripts !== 'object') return { commands, rootPackageName };
+  if (pkg.name) rootPackageName = pkg.name;
 
-    const rootSw: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
-    for (const [name, script] of Object.entries(scripts)) {
-      if (!isValidScriptEntry(name, script)) continue;
-      commands.push({
-        name: `${pm}: ${name}`,
-        script: `${scriptPrefix} ${name}`,
-        source: 'package.json',
-        subWorkspace: rootSw,
-      });
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.debug(`[command-discovery] skipping root package.json: ${(error as Error).message}`);
-    }
-  }
-  return { commands, rootPackageName };
+  const scripts = pkg.scripts;
+  if (!scripts || typeof scripts !== 'object') return { commands: [], rootPackageName };
+
+  const rootSw: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
+  return {
+    commands: collectRootScriptCommands(scripts, pm, scriptPrefix, rootSw),
+    rootPackageName,
+  };
 }
 
 async function readTurboJson(
@@ -195,21 +217,15 @@ async function readTurboJson(
   _rootSubWorkspace: SubWorkspaceInfo
 ): Promise<string[]> {
   const turboTaskNames: string[] = [];
-  try {
-    const turboPath = join(workingDir, 'turbo.json');
-    const turboContent = await readFile(turboPath, 'utf-8');
-    const turbo = parseJsonc<{ tasks?: Record<string, unknown> }>(turboContent);
+  const turbo = await readJsonFile<{ tasks?: Record<string, unknown> }>(
+    join(workingDir, 'turbo.json'),
+    'turbo.json'
+  );
+  if (!turbo?.tasks || typeof turbo.tasks !== 'object') return turboTaskNames;
 
-    if (turbo.tasks && typeof turbo.tasks === 'object') {
-      for (const taskName of Object.keys(turbo.tasks)) {
-        if (taskName.length <= MAX_NAME_LENGTH) {
-          turboTaskNames.push(taskName);
-        }
-      }
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.debug(`[command-discovery] skipping turbo.json: ${(error as Error).message}`);
+  for (const taskName of Object.keys(turbo.tasks)) {
+    if (taskName.length <= MAX_NAME_LENGTH) {
+      turboTaskNames.push(taskName);
     }
   }
   return turboTaskNames;

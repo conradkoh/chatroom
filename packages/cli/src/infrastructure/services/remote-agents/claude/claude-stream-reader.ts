@@ -19,8 +19,9 @@
  * Full event reference: https://docs.anthropic.com/en/docs/claude-code/sdk#output-formats
  */
 
-import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
+
+import { attachLineReader } from '../line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
@@ -41,8 +42,7 @@ export class ClaudeStreamReader {
   private toolUseCallbacks: ToolCallCallback[] = [];
 
   constructor(stream: Readable) {
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-    rl.on('line', (line) => this._handleLine(line));
+    attachLineReader(stream, (line) => this._handleLine(line));
   }
 
   onText(cb: TextCallback): void {

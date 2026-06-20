@@ -216,6 +216,7 @@ export class AgentProcessManager {
       agentServices: this.deps.agentServices,
       sessionId: this.deps.sessionId,
       machineId: this.deps.machineId,
+      convexUrl: this.deps.convexUrl,
       onAgentEnd: (args) => void this.runHandleAgentEnd(args),
     };
     this.lifecycle = createAgentLifecycleRuntime(portAdapterDeps);
@@ -976,6 +977,7 @@ export class AgentProcessManager {
             chatroomId: opts.chatroomId,
             role: opts.role,
           },
+          resolvedConvexUrl: this.deps.convexUrl,
         },
         {
           harnessSessionId: stored.harnessSessionId,
@@ -1249,6 +1251,7 @@ export class AgentProcessManager {
             chatroomId: opts.chatroomId,
             role: opts.role,
           },
+          resolvedConvexUrl: this.deps.convexUrl,
         });
       } catch (e) {
         this.resetSlotIdle(slot);

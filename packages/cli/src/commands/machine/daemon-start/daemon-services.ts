@@ -140,6 +140,7 @@ export interface DaemonSessionServiceShape {
   // ─── Identity ─────────────────────────────────────────────────────
   sessionId: SessionId;
   machineId: string;
+  convexUrl: string;
   client: ConvexClient;
   config: MachineConfig | null;
 

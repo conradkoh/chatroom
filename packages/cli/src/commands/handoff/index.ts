@@ -14,7 +14,7 @@
 
 import { generateHandoffOutput } from '@workspace/backend/prompts/generator.js';
 import { ConvexError } from 'convex/values';
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { HandoffDeps } from './deps.js';
 import { api } from '../../api.js';
@@ -23,9 +23,10 @@ import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/sto
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import {
   BackendService,
-  BackendServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
   SessionService,
-  SessionServiceLive,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import {
   formatError,
@@ -87,23 +88,6 @@ async function createDefaultDeps(): Promise<HandoffDeps> {
   };
 }
 
-/**
- * Build Effect Layer from HandoffDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: HandoffDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Effect Programs ───────────────────────────────────────────────────────
 
 /**
@@ -127,30 +111,16 @@ export const handoffEffect = (
       attachedWorkflowKeys = [],
     } = options;
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      const convexUrl = yield* session.getConvexUrl();
-      return yield* Effect.fail<HandoffError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<HandoffError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Validate artifact IDs if provided
     if (attachedArtifactIds.length > 0) {
@@ -398,7 +368,7 @@ export async function handoff(
   deps?: HandoffDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     handoffEffect(chatroomId, options).pipe(

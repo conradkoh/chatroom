@@ -16,11 +16,12 @@ import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 
@@ -75,15 +76,7 @@ function layerFromDeps(
   deps: RegisterAgentDeps
 ): Layer.Layer<BackendService | SessionService | RegisterAgentMachineService> {
   return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    }),
+    commandServicesLayerFromDeps(deps),
     Layer.succeed(RegisterAgentMachineService, {
       getMachineId: () => Effect.promise(() => getMachineId()),
       loadMachineConfig: () => Effect.promise(() => loadMachineConfig()),
@@ -107,35 +100,20 @@ export const registerAgentEffect = (
 > =>
   // fallow-ignore-next-line complexity
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
     const machine = yield* RegisterAgentMachineService;
     const { role, type, allowTypeChange } = options;
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      const convexUrl = yield* session.getConvexUrl();
-      return yield* Effect.fail<RegisterAgentError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<RegisterAgentError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     if (!/^[a-zA-Z0-9_]+$/.test(chatroomId)) {
       return yield* Effect.fail<RegisterAgentError>({ _tag: 'InvalidChatroomIdChars' });

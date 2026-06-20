@@ -13,8 +13,9 @@
  *   result           – { type: "result", subtype: "success", duration_ms: ..., session_id: "..." }
  */
 
-import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
+
+import { attachLineReader } from '../line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
@@ -34,8 +35,7 @@ export class CursorStreamReader {
   private readonly anyEventCallbacks: AnyEventCallback[] = [];
 
   constructor(stream: Readable) {
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-    rl.on('line', (line) => this._handleLine(line));
+    attachLineReader(stream, (line) => this._handleLine(line));
   }
 
   /** Fires for each assistant message text segment. */
@@ -99,14 +99,18 @@ export class CursorStreamReader {
     }
   }
 
-  private _handleAssistant(event: Record<string, unknown>): void {
-    const message = event['message'] as Record<string, unknown> | undefined;
-    const content = (message?.['content'] as Record<string, unknown>[]) ?? [];
-    for (const block of content) {
+  private emitAssistantBlocks(blocks: Record<string, unknown>[]): void {
+    for (const block of blocks) {
       if (block['type'] === 'text' && typeof block['text'] === 'string') {
         for (const cb of this.textCallbacks) cb(block['text']);
       }
     }
+  }
+
+  private _handleAssistant(event: Record<string, unknown>): void {
+    const message = event['message'] as Record<string, unknown> | undefined;
+    const content = (message?.['content'] as Record<string, unknown>[]) ?? [];
+    this.emitAssistantBlocks(content);
   }
 
   private _handleToolCall(event: Record<string, unknown>): void {

@@ -159,6 +159,7 @@ function spawnOptions(
     systemPrompt: overrides?.systemPrompt ?? 'you are a helpful builder',
     model: overrides?.model,
     context: { ...SPAWN_CONTEXT, ...contextOverride },
+    resolvedConvexUrl: 'http://test:3210',
   };
 }
 

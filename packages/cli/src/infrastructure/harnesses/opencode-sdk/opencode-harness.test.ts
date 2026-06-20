@@ -1,8 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { ChildProcess } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+
+import type { OpencodeClient } from '@opencode-ai/sdk';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -56,12 +61,12 @@ vi.mock('node:child_process', () => ({
   }),
 }));
 
-vi.mock('../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js', () => ({
-  waitForListeningUrl: vi.fn(() => Promise.resolve('http://127.0.0.1:15432')),
-}));
-
-import { spawn } from 'node:child_process';
-import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
+vi.mock(
+  '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js',
+  () => ({
+    waitForListeningUrl: vi.fn(() => Promise.resolve('http://127.0.0.1:15432')),
+  })
+);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,8 +111,8 @@ function createHarness(overrides?: {
       session: { create: mockCreate, get: mockGet, abort: mockAbort, prompt: mockPrompt },
       provider: { list: mockProviderList },
       global: { event: mockGlobalEvent },
-    }) as unknown as import('@opencode-ai/sdk').OpencodeClient,
-    process: proc as unknown as import('node:child_process').ChildProcess,
+    }) as unknown as OpencodeClient,
+    process: proc as unknown as ChildProcess,
   });
 }
 
@@ -120,7 +125,11 @@ describe('OpencodeSdkHarness', () => {
       data: {
         all: [
           { name: 'OpenAI', id: 'openai', models: { 'gpt-4': { id: 'gpt-4', name: 'GPT-4' } } },
-          { name: 'Anthropic', id: 'anthropic', models: { 'claude-3': { id: 'claude-3', name: 'Claude 3' } } },
+          {
+            name: 'Anthropic',
+            id: 'anthropic',
+            models: { 'claude-3': { id: 'claude-3', name: 'Claude 3' } },
+          },
         ],
       },
     });
@@ -295,6 +304,7 @@ describe('OpencodeSdkHarness', () => {
       type: 'opencode',
       workingDir: '/test/ws',
       workspaceId: 'ws-1',
+      resolvedConvexUrl: 'http://test:3210',
     });
 
     expect(spawn).toHaveBeenCalledWith(
@@ -312,11 +322,14 @@ describe('OpencodeSdkHarness', () => {
     (spawn as ReturnType<typeof vi.fn>).mockReturnValue(proc);
     (waitForListeningUrl as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('timeout'));
 
-    await expect(startOpencodeSdkHarness({
-      type: 'opencode',
-      workingDir: '/test/ws',
-      workspaceId: 'ws-1',
-    })).rejects.toThrow('timeout');
+    await expect(
+      startOpencodeSdkHarness({
+        type: 'opencode',
+        workingDir: '/test/ws',
+        workspaceId: 'ws-1',
+        resolvedConvexUrl: 'http://test:3210',
+      })
+    ).rejects.toThrow('timeout');
 
     // The process should have been killed
     expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
@@ -334,7 +347,7 @@ describe('OpencodeSdkHarness', () => {
 
 describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
   // Helper: make a controlled async stream
-  function makeNeverEndingStream() {
+  function _makeNeverEndingStream() {
     return {
       stream: (async function* () {
         // yields nothing, hangs forever — represents a live SSE connection
@@ -423,10 +436,12 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     const received: unknown[] = [];
     const mockSession = { _receiveEvent: (e: unknown) => received.push(e) } as any;
 
-    mockGlobalEvent.mockResolvedValue(makeEventStream([
-      { type: 'session.idle', properties: { sessionID: 'sess-target' } },
-      { type: 'session.idle', properties: { sessionID: 'other-sess' } },
-    ]));
+    mockGlobalEvent.mockResolvedValue(
+      makeEventStream([
+        { type: 'session.idle', properties: { sessionID: 'sess-target' } },
+        { type: 'session.idle', properties: { sessionID: 'other-sess' } },
+      ])
+    );
 
     const harness = createHarness();
     harness.registerSessionListener('sess-target', mockSession);
@@ -489,9 +504,9 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
 
     // Mock process exit so close() resolves
     (harness as any).childProcess.kill = vi.fn();
-    (harness as any).childProcess.once = vi.fn().mockImplementation(
-      (_event: string, cb: () => void) => setTimeout(cb, 0)
-    );
+    (harness as any).childProcess.once = vi
+      .fn()
+      .mockImplementation((_event: string, cb: () => void) => setTimeout(cb, 0));
 
     await harness.close();
 
@@ -505,9 +520,9 @@ describe('OpencodeSdkHarness — SSE fan-out (Effect fiber)', () => {
     expect((harness as any)._sseFiber).toBeNull();
 
     (harness as any).childProcess.kill = vi.fn();
-    (harness as any).childProcess.once = vi.fn().mockImplementation(
-      (_event: string, cb: () => void) => setTimeout(cb, 0)
-    );
+    (harness as any).childProcess.once = vi
+      .fn()
+      .mockImplementation((_event: string, cb: () => void) => setTimeout(cb, 0));
 
     await harness.close();
     expect((harness as any)._sseFiber).toBeNull();

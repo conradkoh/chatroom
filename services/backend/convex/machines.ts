@@ -1102,6 +1102,64 @@ export const updateDaemonStatus = mutation({
   },
 });
 
+async function upsertDaemonLiveness(
+  ctx: MutationCtx,
+  machineId: string,
+  now: number,
+  existing: Doc<'chatroom_machineLiveness'> | null
+): Promise<void> {
+  if (existing) {
+    const livenessStale = now - existing.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+    const needsDaemonConnected = existing.daemonConnected !== true;
+    if (!livenessStale && !needsDaemonConnected) return;
+    await ctx.db.patch('chatroom_machineLiveness', existing._id, {
+      ...(livenessStale ? { lastSeenAt: now } : {}),
+      ...(needsDaemonConnected ? { daemonConnected: true } : {}),
+    });
+    return;
+  }
+  await ctx.db.insert('chatroom_machineLiveness', {
+    machineId,
+    lastSeenAt: now,
+    daemonConnected: true,
+  });
+}
+
+async function ensureMachineStatusOnline(
+  ctx: MutationCtx,
+  machineStatus: Doc<'chatroom_machineStatus'> | null,
+  machineId: string,
+  now: number
+): Promise<void> {
+  if (!machineStatus) {
+    await ctx.db.insert('chatroom_machineStatus', {
+      machineId,
+      status: 'online',
+      lastTransitionAt: now,
+    });
+    return;
+  }
+  if (machineStatus.status === 'offline') {
+    await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
+      status: 'online',
+      lastTransitionAt: now,
+    });
+  }
+}
+
+function isDaemonHeartbeatNoop(
+  existingLiveness: Doc<'chatroom_machineLiveness'> | null,
+  machineStatus: Doc<'chatroom_machineStatus'> | null,
+  now: number
+): boolean {
+  const livenessFresh =
+    existingLiveness != null &&
+    now - existingLiveness.lastSeenAt < DAEMON_LIVENESS_WRITE_INTERVAL_MS;
+  const alreadyOnline =
+    existingLiveness?.daemonConnected === true && machineStatus?.status === 'online';
+  return livenessFresh && alreadyOnline;
+}
+
 /** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
 export const daemonHeartbeat = mutation({
   args: {
@@ -1110,65 +1168,20 @@ export const daemonHeartbeat = mutation({
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-
     const now = Date.now();
-
-    // Check if we can skip — daemon is already healthy and liveness is fresh.
     const existingLiveness = await ctx.db
       .query('chatroom_machineLiveness')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-
     const machineStatus = await ctx.db
       .query('chatroom_machineStatus')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-
-    const livenessFresh =
-      existingLiveness != null &&
-      now - existingLiveness.lastSeenAt < DAEMON_LIVENESS_WRITE_INTERVAL_MS;
-    const alreadyOnline =
-      existingLiveness?.daemonConnected === true && machineStatus?.status === 'online';
-
-    if (livenessFresh && alreadyOnline) {
+    if (isDaemonHeartbeatNoop(existingLiveness, machineStatus, now)) {
       return { success: true, noop: true };
     }
-
-    // Write liveness data to dedicated table (upsert)
-    if (existingLiveness) {
-      const livenessStale = now - existingLiveness.lastSeenAt >= DAEMON_LIVENESS_WRITE_INTERVAL_MS;
-      const needsDaemonConnected = existingLiveness.daemonConnected !== true;
-      if (livenessStale || needsDaemonConnected) {
-        await ctx.db.patch('chatroom_machineLiveness', existingLiveness._id, {
-          ...(livenessStale ? { lastSeenAt: now } : {}),
-          ...(needsDaemonConnected ? { daemonConnected: true } : {}),
-        });
-      }
-    } else {
-      await ctx.db.insert('chatroom_machineLiveness', {
-        machineId: args.machineId,
-        lastSeenAt: now,
-        daemonConnected: true,
-      });
-    }
-
-    // Update materialized machine status — only write on actual transition
-    if (!machineStatus) {
-      // No row yet — insert as online
-      await ctx.db.insert('chatroom_machineStatus', {
-        machineId: args.machineId,
-        status: 'online',
-        lastTransitionAt: now,
-      });
-    } else if (machineStatus.status === 'offline') {
-      // Transition offline → online
-      await ctx.db.patch('chatroom_machineStatus', machineStatus._id, {
-        status: 'online',
-        lastTransitionAt: now,
-      });
-    }
-    // If already online, do NOT write (write suppression)
-
+    await upsertDaemonLiveness(ctx, args.machineId, now, existingLiveness);
+    await ensureMachineStatusOnline(ctx, machineStatus, args.machineId, now);
     return { success: true };
   },
 });

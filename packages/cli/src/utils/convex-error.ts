@@ -25,16 +25,25 @@ const SERVER_ERROR_HINT =
  * - Regular Error: returns error.message
  * - Non-Error values: returns String(value)
  */
+function formatConvexErrorObject(data: {
+  code?: string;
+  message?: string;
+  fields?: string[];
+}): string {
+  const base = data.message ?? data.code ?? JSON.stringify(data);
+  if (Array.isArray(data.fields) && data.fields.length > 0) {
+    return `${base}\n  offending fields: ${data.fields.join(', ')}`;
+  }
+  return base;
+}
+
 function formatConvexErrorData(error: ConvexError<any>): string {
   if (typeof error.data === 'string') return error.data;
 
   if (error.data !== null && typeof error.data === 'object') {
-    const data = error.data as { code?: string; message?: string; fields?: string[] };
-    const base = data.message ?? data.code ?? String(error.data);
-    if (Array.isArray(data.fields) && data.fields.length > 0) {
-      return `${base}\n  offending fields: ${data.fields.join(', ')}`;
-    }
-    return base;
+    return formatConvexErrorObject(
+      error.data as { code?: string; message?: string; fields?: string[] }
+    );
   }
   return String(error.data);
 }

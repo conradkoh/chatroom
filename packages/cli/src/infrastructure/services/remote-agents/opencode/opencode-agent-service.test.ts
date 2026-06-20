@@ -204,6 +204,7 @@ describe('OpenCodeAgentService', () => {
         systemPrompt: 'You are a test agent',
         model: 'anthropic/claude-3.5-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -250,6 +251,7 @@ describe('OpenCodeAgentService', () => {
         prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith('opencode', ['run'], expect.any(Object));
@@ -277,6 +279,7 @@ describe('OpenCodeAgentService', () => {
           prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+          resolvedConvexUrl: 'http://test:3210',
         })
       ).rejects.toThrow('exited immediately');
     });

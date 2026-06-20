@@ -99,26 +99,10 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
       detached: true,
-      env: {
-        ...process.env,
-        // Prevent git rebase/merge from opening an interactive editor
-        GIT_EDITOR: 'true',
-        GIT_SEQUENCE_EDITOR: 'true',
-      },
+      env: this.agentSpawnEnv(options.resolvedConvexUrl),
     });
 
-    // Wait briefly for immediate crash detection
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    if (childProcess.killed || childProcess.exitCode !== null) {
-      throw new Error(`Agent process exited immediately (exit code: ${childProcess.exitCode})`);
-    }
-
-    if (!childProcess.pid) {
-      throw new Error('Agent process started but has no PID');
-    }
-
-    const pid = childProcess.pid;
+    const pid = await this.assertChildProcessStarted(childProcess);
     const context = options.context;
 
     // Register in process registry

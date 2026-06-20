@@ -15,6 +15,7 @@ import {
   type RunningProcess,
 } from './state.js';
 import { api } from '../../../../../api.js';
+import { buildChatroomSpawnEnv } from '../../../../../infrastructure/convex/spawn-env.js';
 import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import type { SessionId } from '../../types.js';
@@ -33,6 +34,7 @@ export type SpawnDeps = {
   sessionId: SessionId;
   machineId: string;
   backend: BackendOps;
+  convexUrl: string;
 };
 
 async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = false): Promise<void> {
@@ -168,7 +170,7 @@ export async function spawnCommandProcess(
 
   const child = spawn('sh', ['-c', script], {
     cwd: workingDir,
-    env: { ...process.env },
+    env: buildChatroomSpawnEnv(deps.convexUrl),
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });

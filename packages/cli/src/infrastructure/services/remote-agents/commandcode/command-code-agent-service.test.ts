@@ -27,10 +27,8 @@ function createMockChildWithStreams(options: {
   exitCode?: number | null;
 }) {
   const mockStdin = { write: vi.fn(), end: vi.fn() };
-  const stdout =
-    options.stdout === undefined ? new Readable({ read() {} }) : options.stdout;
-  const stderr =
-    options.stderr === undefined ? new Readable({ read() {} }) : options.stderr;
+  const stdout = options.stdout === undefined ? new Readable({ read() {} }) : options.stdout;
+  const stderr = options.stderr === undefined ? new Readable({ read() {} }) : options.stderr;
 
   const mockChild = Object.assign(new EventEmitter(), {
     stdin: mockStdin,
@@ -199,6 +197,7 @@ describe('CommandCodeAgentService', () => {
         systemPrompt: 'You are a test agent',
         model: 'deepseek/deepseek-v4-flash',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -254,6 +253,7 @@ describe('CommandCodeAgentService', () => {
         prompt: createSpawnPrompt('test'),
         systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -285,6 +285,7 @@ describe('CommandCodeAgentService', () => {
           prompt: createSpawnPrompt('test'),
           systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+          resolvedConvexUrl: 'http://test:3210',
         })
       ).rejects.toThrow('exited immediately');
     });
@@ -304,6 +305,7 @@ describe('CommandCodeAgentService', () => {
         prompt: createSpawnPrompt('short-lived test'),
         systemPrompt: 'test',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       // Simulate process exit BEFORE consumer attaches onExit
@@ -335,6 +337,7 @@ describe('CommandCodeAgentService', () => {
         prompt: createSpawnPrompt('multi-listener test'),
         systemPrompt: 'test',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       mockChild.emit('exit', 1, 'SIGTERM');
@@ -370,6 +373,7 @@ describe('CommandCodeAgentService', () => {
         prompt: createSpawnPrompt('normal exit test'),
         systemPrompt: 'test',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       const onExitCb = vi.fn();
@@ -398,6 +402,7 @@ describe('CommandCodeAgentService', () => {
         prompt: createSpawnPrompt('no-stdout test'),
         systemPrompt: 'test',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       mockChild.emit('exit', 0, null);
@@ -440,6 +445,7 @@ describe('CommandCodeAgentService', () => {
         prompt: createSpawnPrompt('just the prompt'),
         systemPrompt: '',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(mockStdin.write).toHaveBeenCalledWith('just the prompt');

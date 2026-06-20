@@ -30,6 +30,7 @@ export interface AgentLifecyclePortAdapterDeps {
   readonly agentServices: Map<string, RemoteAgentService>;
   readonly sessionId: string;
   readonly machineId: string;
+  readonly convexUrl: string;
   /** Called when harness reports agent_end for a slot. */
   readonly onAgentEnd: (args: {
     chatroomId: string;
@@ -77,6 +78,7 @@ export function createHarnessSpawnPort(deps: AgentLifecyclePortAdapterDeps): Har
               chatroomId: args.chatroomId,
               role: args.role,
             },
+            resolvedConvexUrl: deps.convexUrl,
           });
           return {
             pid: result.pid,

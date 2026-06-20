@@ -9,17 +9,18 @@
  * Phase 5: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { ContextDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
@@ -59,23 +60,6 @@ async function createDefaultDeps(): Promise<ContextDeps> {
   };
 }
 
-/**
- * Build Effect Layer from ContextDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: ContextDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Effect Programs ───────────────────────────────────────────────────────
 
 /**
@@ -88,27 +72,16 @@ export const readContextEffect = (
 ): Effect.Effect<void, ContextError, BackendService | SessionService> =>
   // fallow-ignore-next-line complexity
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      return yield* Effect.fail<ContextError>({ _tag: 'NotAuthenticated' });
-    }
+    const sessionId = yield* requireSessionIdEffect(() => ({
+      _tag: 'NotAuthenticated' as const,
+    }));
 
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ContextError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Query context
     const context = yield* backend
@@ -286,27 +259,16 @@ export const newContextEffect = (
   }
 ): Effect.Effect<void, ContextError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      return yield* Effect.fail<ContextError>({ _tag: 'NotAuthenticated' });
-    }
+    const sessionId = yield* requireSessionIdEffect(() => ({
+      _tag: 'NotAuthenticated' as const,
+    }));
 
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ContextError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Validate content is not empty
     if (!options.content || options.content.trim().length === 0) {
@@ -373,27 +335,16 @@ export const listContextsEffect = (
   }
 ): Effect.Effect<void, ContextError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      return yield* Effect.fail<ContextError>({ _tag: 'NotAuthenticated' });
-    }
+    const sessionId = yield* requireSessionIdEffect(() => ({
+      _tag: 'NotAuthenticated' as const,
+    }));
 
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<ContextError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Query contexts
     const contexts = yield* backend
@@ -464,14 +415,11 @@ export const inspectContextEffect = (
   }
 ): Effect.Effect<void, ContextError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      return yield* Effect.fail<ContextError>({ _tag: 'NotAuthenticated' });
-    }
+    const sessionId = yield* requireSessionIdEffect(() => ({
+      _tag: 'NotAuthenticated' as const,
+    }));
 
     // Query context
     const context = yield* backend
@@ -595,7 +543,7 @@ export async function readContext(
   deps?: ContextDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     readContextEffect(chatroomId, options).pipe(
@@ -619,7 +567,7 @@ export async function newContext(
   deps?: ContextDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     newContextEffect(chatroomId, options).pipe(
@@ -641,7 +589,7 @@ export async function listContexts(
   deps?: ContextDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     listContextsEffect(chatroomId, options).pipe(
@@ -681,7 +629,7 @@ export async function inspectContext(
   deps?: ContextDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     inspectContextEffect(chatroomId, options).pipe(

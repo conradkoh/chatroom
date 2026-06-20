@@ -1,7 +1,2186 @@
 {
   "finding_counts": {
-    "apps/webapp/src/app/test/sentry-error/page.tsx": {
+    "apps/webapp/public/sw.js": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/scripts/generate-icons.ts": {
       "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/app/api/auth/google/callback/page.tsx": {
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/app/app/admin/google-auth/page.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "apps/webapp/src/app/app/admin/page.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/app/app/profile/page.tsx": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/app/cli-auth/page.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/app/login/[loginRequestId]/page.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/app/login/google/components/GoogleCallback.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/app/page.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/app/recover/page.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/app/test/sentry-error/page.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/components/CallbackErrorCard.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/components/CallbackSuccessCard.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/components/Navigation.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/hooks/useDaemonConnected.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/hooks/useDaemonConnectivity.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/hooks/useMachineModels.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/hooks/useTwoFingerTap.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/lib/contentEditableSerializer.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/lib/fuzzyMatch.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/lib/git-remote.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/lib/git-url.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/lib/github-refs.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/attendance/components/Attendance.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/attendance/components/AttendanceCopyDialog.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/attendance/hooks/useAttendanceData.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/auth/AuthProvider.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/auth/GoogleLoginButton.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/auth/LoginCodeGenerator.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/auth/LoginWithCode.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 4
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/AgentRestartChart.tsx": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/AgentStatusRow.tsx": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/InlineAgentCard.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/RemoteAgentAdvancedSettings.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/UnifiedAgentListModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AgentSettingsModal.tsx": {
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AttachedBacklogItemChip.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AttachedTaskDetailModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/AttachedWorkflowChip.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/BacklogCreateModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ChatroomSidebar.tsx": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ChatroomSwitcher.tsx": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/CommandOutputPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/CommandPalette.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/WorkspaceCommandsAggregator.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/useCommandPaletteCommands.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/useWorkspaceCommandItems.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CopyButton.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CreateChatroomForm.tsx": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/EditorModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ErrorBoundary.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/EventStreamModal.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/FeatureDetailModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/FileReferenceAutocomplete.tsx": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/FileSelector/FilePreviewDialog.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/FileSelector/FileSelectorModal.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/FileSelector/useFileSelector.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/IntegrationsTab.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/MermaidBlock.tsx": {
+      "crap_high": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/MessageAttachmentChips.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/MessageDetailModal.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/MessageInput.tsx": {
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ModelFilterPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/PromptModal.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/QueuedMessagesIndicator.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ReviewPanel/ReviewPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/SavedCommandModal.tsx": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/SetupChecklist.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/SetupChecklistModal.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/SkillEditorModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/SkillsTab.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/TaskDetailModal.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/TaskQueueModal.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/TerminalOutputPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/BacklogQueueModal.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/CompactBacklogItem.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/PendingReviewModal/PendingReviewBacklogItem.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/PendingReviewModal/PendingReviewBacklogModalItem.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/QueuedMessageDetailModal.tsx": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/QueuedMessageItem.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/TaskItem.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkQueue/utils.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkflowVisualizer.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/WorkingIndicator.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/markdown-utils.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/timeline/ChatroomTimelineFeed.tsx": {
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/timeline/TimelineLatestEventTicker.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/timeline/TimelineTeamMessage.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/timeline/TimelineUserMessage.tsx": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/timeline/timelineRowStyles.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/context/ChatroomListingContext.tsx": {
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/components/DirectHarnessView.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/components/SessionComposer.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/components/SessionMessageStream.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/components/harness-selectors/HarnessAgentSelect.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/components/harness-selectors/HarnessSelectorBar.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessModelFilter.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessTurnStore.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/eventTypes/agentEvents.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/explorer-split-panels/DirectHarnessPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/components/AnsiText.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/components/CommandDetailPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/components/StatusBadge.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/components/StatusIcon.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/components/TerminalView.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/components/WorkspaceDetailPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/hooks/useProcessesPanelState.ts": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/utils/grouping.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/persistence/useActivityView.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/timelineScrollCoordinator.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/twoPaneLayout.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useAgentStatuses.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomActiveWorkspace.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomTimelineFeedData.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useCommandRunOutputV2.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useCommandRunner.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useGlobalHandoffNotification.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useHandoffNotification.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useObserveChatroom.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/usePersistedState.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/usePresenceForChatrooms.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useScrollController.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/hooks/useTriggerAutocomplete.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/lib/commandUsageStore.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/utils/agentStatusLabel.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/utils/handleNotificationClick.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/utils/modelSelection.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/utils/showNotification.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/utils/workflowMermaid.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/CommitStatusIndicator.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/FileContentViewer.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/PRActionButtons.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/WorkspaceBottomBar.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/WorkspaceDiffViewer.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/WorkspaceFileExplorer.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/WorkspaceGitLog.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/panels/ProcessesPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/panels/PullRequestsPanel.tsx": {
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/panels/SourceControlPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/components/shared.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/file-renderers/SyntaxHighlighter.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/file-renderers/csvParser.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/file-renderers/useHighlighter.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/files/useFileEntries.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/files/useMultiWorkspaceFiles.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTree.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/hooks/useFileTabs.ts": {
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/hooks/useWorkspaceGit.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/utils/decompressGzip.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/utils/intra-line-diff.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/utils/pr-helpers.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/checklist/checklist.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/checklist/use-checklist-sync.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/discussion/discussion-conclusion.tsx": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/discussion/discussion-form.tsx": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/discussion/discussion.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/discussion/use-discussion-sync.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/password-protection/PasswordProtect.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/password-protection/PasswordProtectContext.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/password-protection/PasswordProtectedConditionalRender.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/password-protection/password-utils.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/presentation/presentation-container.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/presentation/presentation-controls.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/presentation/use-presentation-sync.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/modules/profile/NameEditForm.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/artifact/index.ts": {
+      "crap_high": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/commands/auth-login/index.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/backlog/index.ts": {
+      "crap_high": {
+        "count": 5
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/context/index.ts": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/get-next-task/index.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/get-next-task/session.ts": {
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/get-system-prompt/index.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/handoff/index.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/init/index.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/command-loop.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/direct-harness/command-subscriber.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/direct-harness/harness-lifecycle-manager.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-subscriber.ts": {
+      "crap_high": {
+        "count": 4
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/direct-harness/session-subscriber.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/file-content-fulfillment.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/git-heartbeat.ts": {
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/git-subscription.ts": {
+      "crap_high": {
+        "count": 4
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/handlers/command-runner.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/handlers/orphan-tracker.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/handlers/process/log-observer-subscription.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/handlers/process/spawner.ts": {
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/workspace-cache.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/harness-status.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/pid.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/messages/index.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/opencode-install/index.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/report-progress/index.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/skill/index.ts": {
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/task/read/index.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/telegram/index.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/update/index.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/workflow/index.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/domain/agent-lifecycle/policies/preserve-session.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/domain/agent-lifecycle/policies/restart-decision.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/domain/agent-lifecycle/policies/slot-transitions.ts": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/events/daemon/agent/on-request-start-agent.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/index.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/auth/middleware.ts": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/auth/storage.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/git/git-reader.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 11
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "packages/cli/src/infrastructure/git/git-state-pipeline.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/infrastructure/git/git-writer.ts": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/infrastructure/harnesses/opencode-sdk/event-extractor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-harness.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-session.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/infrastructure/harnesses/opencode-sdk/sse-event-buffer.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/machine/crash-loop-tracker.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-service.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts": {
+      "crap_high": {
+        "count": 8
+      },
+      "crap_moderate": {
+        "count": 16
+      }
+    },
+    "packages/cli/src/infrastructure/services/harness-spawning/harness-spawning-service.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/harness-spawning/rate-limiter.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/base-cli-agent-service.ts": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/claude/claude-models.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/commandcode/command-code-agent-service.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-stream-reader.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-stream-reader.ts": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/compose-system-prompt.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/opencode-sdk-agent-service.ts": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/pure.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 10
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-agent-service.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/command-discovery.ts": {
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/file-tree-scanner.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/workspace-resolver.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/tools/output.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/tools/parse-pdf/index.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/utils/convex-error.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/utils/error-formatting.ts": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/utils/serialization/decode/index.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/version.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/cleanup-tmp.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/setup.js": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "services/backend/convex/appinfo.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/attendance.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/auth.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "services/backend/convex/auth/google.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 4
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/capabilitiesRefreshCron.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/chatroomCleanup.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "services/backend/convex/chatrooms.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "services/backend/convex/cliAuth.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "services/backend/convex/commands.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/commands/mutations.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "services/backend/convex/commands/process/state.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/commands/queries.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/connections.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/contexts.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/daemon/directHarness/commands.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/daemon/directHarness/messages.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/daemon/directHarness/sessions.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/daemon/directHarness/turns.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/directHarnessCleanup.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/guidelines.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/integrations/telegram/api.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/lib/backlogStateMachine.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/lib/stdinDecoder.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/lib/taskStateMachine.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/lib/taskWorkflows.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/machines.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 9
+      },
+      "crap_moderate": {
+        "count": 16
+      }
+    },
+    "services/backend/convex/messages.ts": {
+      "complexity_critical": {
+        "count": 9
+      },
+      "crap_critical": {
+        "count": 10
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "services/backend/convex/migrations.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/participants.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "services/backend/convex/prompts/webapp.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/savedCommands.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/sessions.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "services/backend/convex/storageCleanup.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/system/auth/google.ts": {
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "services/backend/convex/tasks.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 3
+      }
+    },
+    "services/backend/convex/tasks/taskDelivery.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/web/directHarness/capabilities.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/web/directHarness/commands.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/web/directHarness/messages.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/workflows.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "services/backend/convex/workspaceFiles.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "services/backend/convex/workspaces.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/classify/command.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/get-next-task/fullOutput.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/handoff-templates/index.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/handoff/command.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/roles/builder.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/roles/fromContext.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/sections/delegation-guidelines.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/sections/workflow.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/cli/task/readCommand.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/generator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/prompts/teams/squad/prompts/planner.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/entities/harness/lifecycle-events.ts": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -10,11 +2189,81 @@
         "count": 2
       }
     },
+    "services/backend/src/domain/entities/team.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/agent-exited.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/assert-machine-belongs-to-chatroom.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/get-agent-config-for-start.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/get-agent-config.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/list-chatroom-agent-overview.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "services/backend/src/domain/usecase/agent/restart-offline-agents-on-user-message.ts": {
-      "complexity_critical": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "services/backend/src/domain/usecase/agent/start-agent.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/stop-agent.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/auth/extensions/check-access.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/auth/extensions/validate-session.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/backlog/list-backlog-items.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/backlog/patch-backlog-item.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/chatroom/get-agent-statuses.ts": {
+      "crap_high": {
         "count": 1
       },
-      "crap_critical": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/chatroom/unread-status.ts": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -22,8 +2271,133 @@
       "crap_high": {
         "count": 1
       }
+    },
+    "services/backend/src/domain/usecase/machine/get-assigned-tasks.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/skills/activate-skill.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/task/promote-queued-message.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/task/read-task.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/task/release-tasks-on-agent-exit.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "services/backend/src/domain/usecase/task/task-counts.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/task/transition-task.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/team/update-team.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/src/output-encoding-browser.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
     }
   },
   "runtime_coverage_findings": [],
-  "target_keys": []
+  "target_keys": [
+    "services/backend/prompts/cli/roles/index.ts:dead code",
+    "apps/webapp/src/modules/chatroom/eventTypes/index.ts:dead code",
+    "services/backend/prompts/base/webapp/utils/config.ts:dead code",
+    "services/backend/prompts/cli/task-started/classification/index.ts:dead code",
+    "services/backend/prompts/policies/index.ts:dead code",
+    "services/backend/application/auth/requirePermission.ts:dead code",
+    "services/backend/prompts/config.ts:dead code",
+    "services/backend/src/domain/entities/backlog-item.ts:dead code",
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/InlineAgentCard.tsx:dead code",
+    "apps/webapp/src/application/auth/resolve.ts:dead code",
+    "services/backend/prompts/cli/roles/fromContext.ts:dead code",
+    "apps/webapp/src/modules/chatroom/hooks/useChatroomMessageStore.ts:dead code",
+    "services/backend/prompts/teams/squad/prompts/fromContext.ts:dead code",
+    "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.ts:dead code",
+    "services/backend/application/auth/resolve.ts:dead code",
+    "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
+    "packages/cli/src/domain/agent-lifecycle/entities/spawn-bracket.ts:dead code",
+    "services/backend/src/domain/entities/team-kind.ts:dead code",
+    "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
+    "services/backend/prompts/cli/index.ts:dead code",
+    "packages/cli/src/commands/auth-login/index.ts:dead code",
+    "packages/cli/src/infrastructure/auth/middleware.ts:dead code",
+    "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts:high impact",
+    "services/backend/prompts/teams/solo/prompts/fromContext.ts:dead code",
+    "services/backend/src/domain/entities/agent.ts:dead code",
+    "services/backend/prompts/base/webapp/utils/env.ts:dead code",
+    "services/backend/prompts/generator.ts:circular dependency",
+    "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
+    "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
+    "services/backend/convex/participants.ts:complexity",
+    "services/backend/modules/auth/accessControl.ts:dead code",
+    "packages/cli/src/infrastructure/machine/crash-loop-tracker.ts:dead code",
+    "services/backend/src/domain/types/skills.ts:dead code",
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
+    "services/backend/prompts/sections/role-guidance.ts:dead code",
+    "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
+    "services/backend/prompts/utils/config.ts:dead code",
+    "packages/cli/src/infrastructure/convex/client.ts:dead code",
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",
+    "packages/cli/src/utils/serialization/decode/index.ts:dead code",
+    "services/backend/convex/messages.ts:complexity",
+    "services/backend/prompts/review-guidelines/review.ts:dead code",
+    "services/backend/prompts/utils/env.ts:dead code",
+    "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
+    "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
+    "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
+    "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
+    "packages/cli/src/commands/handoff/index.ts:complexity",
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:untested risk",
+    "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",
+    "services/backend/convex/tasks/taskDelivery.ts:complexity",
+    "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
+    "services/backend/convex/lib/taskStateMachine.ts:complexity",
+    "apps/webapp/src/modules/presentation/presentation-controls.tsx:complexity",
+    "services/backend/convex/lib/backlogStateMachine.ts:complexity",
+    "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
+    "packages/cli/src/commands/context/index.ts:complexity",
+    "apps/webapp/src/modules/checklist/use-checklist-sync.ts:complexity",
+    "apps/webapp/src/modules/presentation/use-presentation-sync.ts:complexity",
+    "apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx:complexity",
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/useCommandPaletteCommands.tsx:complexity",
+    "services/backend/convex/lib/stdinDecoder.ts:complexity",
+    "services/backend/convex/chatroomCleanup.ts:complexity",
+    "services/backend/convex/auth/google.ts:complexity"
+  ]
 }

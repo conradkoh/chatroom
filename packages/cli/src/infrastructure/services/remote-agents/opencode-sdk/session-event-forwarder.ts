@@ -187,6 +187,58 @@ export function startSessionEventForwarder(
     return delta !== undefined && delta !== '' ? delta : text;
   }
 
+  function resolveToolState(
+    props: { state?: string },
+    part: { state?: { status?: string } }
+  ): string {
+    if (typeof props?.state === 'string') return props.state;
+    if (typeof part.state?.status === 'string') return part.state.status;
+    return 'started';
+  }
+
+  function formatCompletedToolPayload(
+    part: { state?: { input?: unknown; time?: { start?: number; end?: number } }; tool?: string },
+    state: string
+  ): string {
+    const start = part.state?.time?.start;
+    const end = part.state?.time?.end;
+    if (state !== 'completed' || start === undefined || end === undefined) {
+      return state;
+    }
+    const duration = ((end - start) / 1000).toFixed(1);
+    return `${state} (${duration}s)`;
+  }
+
+  async function handleTextPartUpdate(
+    props: { delta?: string },
+    part: { text?: string }
+  ): Promise<void> {
+    const chunk = resolvePartContent(props?.delta, part.text);
+    if (chunk) writeLogLine(target, options, 'text', chunk);
+  }
+
+  async function handleReasoningPartUpdate(
+    props: { delta?: string },
+    part: { text?: string }
+  ): Promise<void> {
+    const chunk = resolvePartContent(props?.delta, part.text);
+    if (chunk) writeLogLine(target, options, 'thinking', chunk);
+  }
+
+  async function handleToolPartUpdate(
+    part: {
+      type?: string;
+      tool?: string;
+      state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
+      callID?: string;
+    },
+    props: { state?: string },
+    toolStates: Map<string, string>
+  ): Promise<void> {
+    if (!part.tool) return;
+    await handleToolPart(part, props, toolStates);
+  }
+
   async function handlePartUpdated(props: {
     part?: {
       type?: string;
@@ -199,30 +251,16 @@ export function startSessionEventForwarder(
     delta?: string;
     state?: string;
   }): Promise<void> {
-    const part = props?.part;
-    if (!part) return;
+    const part = props.part;
+    const partType = part?.type;
+    if (!part || !partType) return;
 
-    if (part.type === 'text') {
-      writeTextContent(props, part);
-      return;
-    }
-    if (part.type === 'reasoning') {
-      writeThinkingContent(props, part);
-      return;
-    }
-    if (part.type === 'tool' && part.tool) {
-      await handleToolPart(part, props, seenToolStates);
-    }
-  }
-
-  function writeTextContent(props: { delta?: string }, part: { text?: string }): void {
-    const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) writeLogLine(target, options, 'text', chunk);
-  }
-
-  function writeThinkingContent(props: { delta?: string }, part: { text?: string }): void {
-    const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) writeLogLine(target, options, 'thinking', chunk);
+    const dispatch: Record<string, () => Promise<void>> = {
+      text: () => handleTextPartUpdate(props, part),
+      reasoning: () => handleReasoningPartUpdate(props, part),
+      tool: () => handleToolPartUpdate(part, props, seenToolStates),
+    };
+    await dispatch[partType]?.();
   }
 
   async function handleToolPart(
@@ -235,12 +273,7 @@ export function startSessionEventForwarder(
     props: { state?: string },
     toolStates: Map<string, string>
   ): Promise<void> {
-    const state =
-      typeof props?.state === 'string'
-        ? props.state
-        : typeof part.state?.status === 'string'
-          ? part.state.status
-          : 'started';
+    const state = resolveToolState(props, part);
 
     const payload = buildToolPayload(part, state);
     const callID = part.callID ?? 'unknown';
@@ -259,23 +292,20 @@ export function startSessionEventForwarder(
     part: { state?: { input?: unknown; time?: { start?: number; end?: number } }; tool?: string },
     state: string
   ): string {
-    let payload = state;
-    if (part.state?.input) {
-      payload = appendToolInputToPayload(payload, part.state.input, part.tool as string);
-    }
-    if (
-      state === 'completed' &&
-      part.state?.time?.start !== undefined &&
-      part.state?.time?.end !== undefined
-    ) {
-      const duration = ((part.state.time.end - part.state.time.start) / 1000).toFixed(1);
-      payload = appendToolInputToPayload(
-        `${state} (${duration}s)`,
-        part.state.input,
-        part.tool as string
-      );
-    }
-    return payload;
+    const basePayload = formatCompletedToolPayload(part, state);
+    if (!part.state?.input) return basePayload;
+    return appendToolInputToPayload(basePayload, part.state.input, part.tool as string);
+  }
+
+  function formatFilePayload(props: {
+    file?: string;
+    action?: string;
+    kind?: string;
+  }): string | undefined {
+    const { file, action, kind } = props;
+    const label = action ?? kind;
+    if (!label) return file;
+    return `${file} (${label})`;
   }
 
   async function handleFileEdited(props: {
@@ -283,9 +313,7 @@ export function startSessionEventForwarder(
     action?: string;
     kind?: string;
   }): Promise<void> {
-    const kind = props?.action ?? props?.kind;
-    const filePayload = kind ? `${props?.file} (${kind})` : props?.file;
-    writeLogLine(target, options, 'file', filePayload);
+    writeLogLine(target, options, 'file', formatFilePayload(props));
   }
 
   async function handleSessionIdle(): Promise<void> {
@@ -368,6 +396,16 @@ export function startSessionEventForwarder(
     return knownEventTypes.has(event.type);
   }
 
+  async function drainStreamEvents(stream: AsyncGenerator<OpenCodeEvent>): Promise<void> {
+    for await (const event of stream) {
+      if (cancelled) {
+        await stream.return?.(undefined);
+        break;
+      }
+      await handleEvent(event);
+    }
+  }
+
   async function run() {
     try {
       const result = await client.event.subscribe();
@@ -378,13 +416,7 @@ export function startSessionEventForwarder(
         return;
       }
 
-      for await (const event of stream) {
-        if (cancelled) {
-          await stream.return?.(undefined);
-          break;
-        }
-        await handleEvent(event);
-      }
+      await drainStreamEvents(stream);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       writeLogLine(errorTarget, options, 'error', message);

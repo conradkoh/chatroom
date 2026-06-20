@@ -6,18 +6,20 @@
  */
 
 import { ConvexError } from 'convex/values';
-import { Effect, Layer } from 'effect';
+import type { Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { TelegramDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -61,8 +63,8 @@ async function createDefaultDeps(): Promise<TelegramDeps> {
  * Build Effect Layer from TelegramDeps (for backward-compat with tests)
  */
 function layerFromDeps(deps: TelegramDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
+  return commandServicesLayerFromDeps({
+    backend: {
       query: async () => {
         throw new Error('Query not used in telegram commands');
       },
@@ -70,13 +72,9 @@ function layerFromDeps(deps: TelegramDeps): Layer.Layer<BackendService | Session
         throw new Error('Mutation not used in telegram commands');
       },
       action: deps.backend.action,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
+    },
+    session: deps.session,
+  });
 }
 
 // ─── Effect Programs ───────────────────────────────────────────────────────
@@ -90,36 +88,19 @@ export const sendMessageEffect = (
   options: TelegramSendMessageOptions
 ): Effect.Effect<void, SendMessageError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
     const { chatroomId, message, role } = options;
 
-    // Get Convex URL for authentication
-    const convexUrl = yield* session.getConvexUrl();
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
 
-    // Get session ID for authentication
-    const sessionId = yield* session.getSessionId();
-    if (!sessionId) {
-      const otherUrls = yield* session.getOtherSessionUrls();
-      return yield* Effect.fail<SendMessageError>({
-        _tag: 'NotAuthenticated',
-        convexUrl,
-        otherUrls,
-      });
-    }
-
-    // Validate chatroom ID format
-    if (
-      !chatroomId ||
-      typeof chatroomId !== 'string' ||
-      chatroomId.length < 20 ||
-      chatroomId.length > 40
-    ) {
-      return yield* Effect.fail<SendMessageError>({
-        _tag: 'InvalidChatroomId',
-        id: chatroomId,
-      });
-    }
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
 
     // Validate message is not empty
     if (!message || message.trim().length === 0) {

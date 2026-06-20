@@ -16,15 +16,49 @@ import { transitionAgentStatus } from '../agent/transition-agent-status';
 
 type TeamAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 
+type RunnableRemoteConfig = TeamAgentConfig & {
+  machineId: string;
+  agentHarness: NonNullable<TeamAgentConfig['agentHarness']>;
+  model: string;
+  workingDir: string;
+};
+
+function isRunnableRemoteConfig(config: TeamAgentConfig): config is RunnableRemoteConfig {
+  if (config.type !== 'remote') return false;
+  return Boolean(config.machineId && config.agentHarness && config.workingDir && config.model);
+}
+
+function shouldRestartForOfflineParticipant(
+  participant: Doc<'chatroom_participants'> | undefined,
+  spawnedAgentPid: number | undefined
+): boolean {
+  return isOfflineForUserMessageRestart({
+    lastStatus: participant?.lastStatus,
+    lastDesiredState: 'running',
+    lastSeenAction: participant?.lastSeenAction,
+    isAlive: isAgentAlive(spawnedAgentPid),
+  });
+}
+
+async function ensureRunningClosedCircuit(
+  ctx: MutationCtx,
+  config: TeamAgentConfig,
+  now: number
+): Promise<void> {
+  const needsDesiredState = config.desiredState !== 'running';
+  const needsCircuitClose = config.circuitState === 'open';
+  if (!needsDesiredState && !needsCircuitClose) return;
+  await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+    ...(needsDesiredState ? { desiredState: 'running' as const } : {}),
+    ...(needsCircuitClose ? { circuitState: 'closed' as const, circuitOpenedAt: undefined } : {}),
+    updatedAt: now,
+  });
+}
+
 async function emitOfflineUserMessageRestart(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
-  config: TeamAgentConfig & {
-    machineId: string;
-    agentHarness: NonNullable<TeamAgentConfig['agentHarness']>;
-    model: string;
-    workingDir: string;
-  },
+  config: RunnableRemoteConfig,
   now: number
 ): Promise<void> {
   await ctx.db.insert(
@@ -62,39 +96,13 @@ export async function restartOfflineAgentsOnUserMessage(
   const restartedRoles: string[] = [];
 
   for (const config of configs) {
-    if (config.type !== 'remote') continue;
-    if (!config.machineId || !config.agentHarness || !config.workingDir || !config.model) continue;
-
-    const { machineId, agentHarness, model, workingDir } = config;
+    if (!isRunnableRemoteConfig(config)) continue;
 
     const participant = participantByRole.get(config.role.toLowerCase());
-    if (
-      !isOfflineForUserMessageRestart({
-        lastStatus: participant?.lastStatus,
-        lastDesiredState: 'running',
-        lastSeenAction: participant?.lastSeenAction,
-        isAlive: isAgentAlive(config.spawnedAgentPid),
-      })
-    ) {
-      continue;
-    }
+    if (!shouldRestartForOfflineParticipant(participant, config.spawnedAgentPid)) continue;
 
-    if (config.desiredState !== 'running' || config.circuitState === 'open') {
-      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-        ...(config.desiredState !== 'running' ? { desiredState: 'running' as const } : {}),
-        ...(config.circuitState === 'open'
-          ? { circuitState: 'closed' as const, circuitOpenedAt: undefined }
-          : {}),
-        updatedAt: now,
-      });
-    }
-
-    await emitOfflineUserMessageRestart(
-      ctx,
-      chatroomId,
-      { ...config, machineId, agentHarness, model, workingDir },
-      now
-    );
+    await ensureRunningClosedCircuit(ctx, config, now);
+    await emitOfflineUserMessageRestart(ctx, chatroomId, config, now);
     restartedRoles.push(config.role);
   }
 

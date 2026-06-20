@@ -9,7 +9,7 @@
  * Phase 7: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 
 import type { TaskReadDeps } from './deps.js';
 import { renderTaskPrompt } from './render.js';
@@ -17,13 +17,13 @@ import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../../infrastructure/convex/client.js';
+import type { SessionService } from '../../../infrastructure/services/index.js';
 import {
   BackendService,
-  BackendServiceLive,
-  SessionService,
-  SessionServiceLive,
+  commandServicesLayerFromDeps,
+  requireSessionIdEffect,
+  validateChatroomIdEffect,
 } from '../../../infrastructure/services/index.js';
-import type { SessionServiceShape } from '../../../infrastructure/services/session.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -61,52 +61,7 @@ async function createDefaultDeps(): Promise<TaskReadDeps> {
   };
 }
 
-/**
- * Build Effect Layer from TaskReadDeps (for backward-compat with tests)
- */
-function layerFromDeps(deps: TaskReadDeps): Layer.Layer<BackendService | SessionService> {
-  return Layer.mergeAll(
-    BackendServiceLive({
-      query: deps.backend.query,
-      mutation: deps.backend.mutation,
-    }),
-    SessionServiceLive({
-      getSessionId: deps.session.getSessionId,
-      getConvexUrl: deps.session.getConvexUrl,
-      getOtherSessionUrls: deps.session.getOtherSessionUrls,
-    })
-  );
-}
-
 // ─── Effect Programs ───────────────────────────────────────────────────────
-
-function getSessionIdFromService(
-  session: SessionServiceShape
-): Effect.Effect<string, TaskReadError, never> {
-  return Effect.gen(function* () {
-    const maybeSessionId = yield* session.getSessionId();
-    if (maybeSessionId) return maybeSessionId;
-    const convexUrl = yield* session.getConvexUrl();
-    const otherUrls = yield* session.getOtherSessionUrls();
-    return yield* Effect.fail({
-      _tag: 'NotAuthenticated' as const,
-      convexUrl,
-      otherUrls,
-    } as TaskReadError);
-  });
-}
-
-function validateChatroomId(chatroomId: string): Effect.Effect<void, TaskReadError> {
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    return Effect.fail<TaskReadError>({ _tag: 'InvalidChatroomId', id: chatroomId });
-  }
-  return Effect.void;
-}
 
 function validateTaskId(taskId: string): Effect.Effect<void, TaskReadError> {
   if (!taskId || typeof taskId !== 'string' || taskId.length < 20 || taskId.length > 40) {
@@ -125,12 +80,18 @@ export const taskReadEffect = (
   options: TaskReadOptions
 ): Effect.Effect<void, TaskReadError, BackendService | SessionService> =>
   Effect.gen(function* () {
-    const session = yield* SessionService;
     const backend = yield* BackendService;
     const { role, taskId } = options;
 
-    const sessionId = yield* getSessionIdFromService(session);
-    yield* validateChatroomId(chatroomId);
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
     yield* validateTaskId(taskId);
 
     const result = yield* backend
@@ -237,7 +198,7 @@ export async function taskRead(
   deps?: TaskReadDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
-  const layer = layerFromDeps(d);
+  const layer = commandServicesLayerFromDeps(d);
 
   await Effect.runPromise(
     taskReadEffect(chatroomId, options).pipe(

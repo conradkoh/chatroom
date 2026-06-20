@@ -30,8 +30,9 @@ describe('getDaemonStatusesBatch', () => {
 
     expect(result.statuses).toHaveLength(2);
 
-    const status1 = result.statuses.find((s) => s.machineId === machineId1)!;
-    const status2 = result.statuses.find((s) => s.machineId === machineId2)!;
+    const status1 = result.statuses.find((s) => s.machineId === machineId1);
+    const status2 = result.statuses.find((s) => s.machineId === machineId2);
+    if (!status1 || !status2) throw new Error('expected statuses for both machines');
 
     expect(status1.connected).toBe(true);
     expect(status1.lastSeenAt).toBeTypeOf('number');
@@ -56,8 +57,9 @@ describe('getDaemonStatusesBatch', () => {
 
     expect(result.statuses).toHaveLength(2);
 
-    const ownedStatus = result.statuses.find((s) => s.machineId === ownedMachineId)!;
-    const unauthorizedStatus = result.statuses.find((s) => s.machineId === unauthorizedMachineId)!;
+    const ownedStatus = result.statuses.find((s) => s.machineId === ownedMachineId);
+    const unauthorizedStatus = result.statuses.find((s) => s.machineId === unauthorizedMachineId);
+    if (!ownedStatus || !unauthorizedStatus) throw new Error('expected statuses for both machines');
 
     expect(ownedStatus.connected).toBe(true);
 
