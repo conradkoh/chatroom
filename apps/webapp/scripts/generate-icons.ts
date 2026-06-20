@@ -36,6 +36,8 @@ const __dirname = dirname(__filename);
 // Icon sizes to generate (matching manifest.ts)
 const SIZES = [16, 32, 64, 96, 128, 192, 256, 384, 512, 1024] as const;
 
+const ICON_BACKGROUND = { r: 38, g: 38, b: 43, alpha: 1 }; // #26262B
+
 // Paths
 const SOURCE_FILE = join(__dirname, '../public/appicon-1024x1024.png');
 const PUBLIC_DIR = join(__dirname, '../public');
@@ -72,7 +74,7 @@ async function generateAppIcons(): Promise<boolean> {
       await sharp(SOURCE_FILE)
         .resize(size, size, {
           fit: 'contain',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
+          background: ICON_BACKGROUND,
         })
         .png()
         .toFile(outputFile);
