@@ -82,15 +82,20 @@ export function getEventBadgeTextColor(type: string): string {
   return EVENT_BADGE_TEXT_COLORS.info;
 }
 
-/** Format a Unix millisecond timestamp as HH:MM:SS (24-hour). */
+/** Format a Unix millisecond timestamp as MM/DD HH:MM:SS (24-hour). */
 export function formatTimestamp(ms: number): string {
   const date = new Date(ms);
-  return date.toLocaleTimeString('en-US', {
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
   });
+  return `${dateStr} ${timeStr}`;
 }
 
 /** Format a Unix millisecond timestamp with full date and time. */
