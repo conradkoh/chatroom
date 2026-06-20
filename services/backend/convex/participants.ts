@@ -1,7 +1,9 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
@@ -10,12 +12,29 @@ import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
 } from '../config/reliability';
-import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
+import {
+  NATIVE_TASK_INJECTED_ACTION,
+  NATIVE_WAITING_ACTION,
+  PARTICIPANT_EXITED_ACTION,
+  isActiveParticipant,
+} from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { findAcknowledgedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
+
+async function getParticipantByChatroomRole(
+  ctx: QueryCtx | MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+) {
+  return ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .unique();
+}
 
 /** Upserts a chatroom participant record.
  * Emits agent.waiting and enables queue promotion only when action is 'get-next-task:started',
@@ -35,6 +54,8 @@ export const join = mutation({
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
     // The CLI command/action that triggered this join
     action: v.optional(v.string()),
+    // Task associated with native lifecycle actions (native:task-injected)
+    taskId: v.optional(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
@@ -175,6 +196,35 @@ export const join = mutation({
       await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
     }
 
+    if (args.action === NATIVE_WAITING_ACTION) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.waiting',
+        chatroomId: args.chatroomId,
+        role: args.role,
+        timestamp: now,
+      });
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+    }
+
+    if (args.action === NATIVE_TASK_INJECTED_ACTION) {
+      const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        taskId: args.taskId,
+      });
+
+      if (acknowledgedTask) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'task.acknowledged',
+          chatroomId: args.chatroomId,
+          role: args.role,
+          taskId: acknowledgedTask._id,
+          timestamp: now,
+        });
+      }
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
+    }
+
     return participantId;
   },
 });
@@ -208,12 +258,7 @@ export const leave = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Find the participant
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
+    const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
 
     if (participant) {
       await ctx.db.patch('chatroom_participants', participant._id, {
@@ -233,13 +278,26 @@ export const updateTokenActivity = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
+    const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
     if (participant) {
+      if (participant.lastStatus === 'task.acknowledged') {
+        const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+          chatroomId: args.chatroomId,
+          role: args.role,
+        });
+
+        if (acknowledgedTask) {
+          const now = Date.now();
+          await ctx.db.insert('chatroom_eventStream', {
+            type: 'task.inProgress',
+            chatroomId: args.chatroomId,
+            role: args.role,
+            taskId: acknowledgedTask._id,
+            timestamp: now,
+          });
+          await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+        }
+      }
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenTokenAt: Date.now(),
       });
@@ -310,12 +368,7 @@ export const getConnectionId = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
+    const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
 
     return participant?.connectionId ?? null;
   },

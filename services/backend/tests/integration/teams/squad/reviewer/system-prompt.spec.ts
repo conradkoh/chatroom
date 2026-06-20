@@ -194,6 +194,8 @@ describe('Squad Team > Reviewer > System Prompt', () => {
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="reviewer"
       to see your current chatroom task context.
 
+      CLI harnesses do not support in-session compaction. After context is lost, the daemon performs a hard restart — you must run \`get-next-task\` again to rejoin the chatroom.
+
       ### Register Agent
       Register your agent type before starting work.
 

@@ -8,14 +8,13 @@
  */
 
 import type { AgentHarness } from '../agent';
-
 import { claudeCapabilities } from './claude.config';
 import { commandcodeCapabilities } from './commandcode.config';
 import { copilotCapabilities } from './copilot.config';
-import { cursorCapabilities } from './cursor.config';
 import { cursorSdkCapabilities } from './cursor-sdk.config';
-import { opencodeCapabilities } from './opencode.config';
+import { cursorCapabilities } from './cursor.config';
 import { opencodeSdkCapabilities } from './opencode-sdk.config';
+import { opencodeCapabilities } from './opencode.config';
 import { piCapabilities } from './pi.config';
 
 /** How the harness implementation hosts the agent runtime. */
@@ -63,6 +62,8 @@ export interface HarnessCapabilities {
    * and may use resumeFromDaemonMemory after stop→start.
    */
   supportsSessionResume: boolean;
+  /** Daemon injects tasks into session context — no get-next-task loop. */
+  supportsNativeIntegration: boolean;
   /** Lifecycle events this harness surfaces at the integration boundary. */
   lifecycle: HarnessLifecycleCapabilities;
   /**

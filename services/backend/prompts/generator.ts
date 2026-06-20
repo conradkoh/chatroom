@@ -29,12 +29,18 @@ import { reportProgressCommand } from './cli/report-progress/command';
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
 import { getHandoffTemplatesPreviewSection } from './cli/sections/handoff-templates-preview';
 import { getClassificationGuideSection } from './sections/classification-guide';
-import { getCommandsReferenceSection } from './sections/commands-reference';
+import {
+  getCommandsReferenceSection,
+  getNativeCommandsReferenceSection,
+} from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
-import { getGettingStartedSection } from './sections/getting-started';
+import {
+  getGettingStartedSection,
+  getNativeGettingStartedSection,
+} from './sections/getting-started';
 import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
-import { getNextStepSection } from './sections/next-step';
+import { getNextStepSection, getNativeNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
 import {
   getTeamHeaderSection,
@@ -42,6 +48,7 @@ import {
   getRoleDescriptionSection,
 } from './sections/role-identity';
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
+import { getSessionVsChatroomTaskNativeSection } from './sections/session-vs-chatroom-task-native';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
 import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
@@ -49,8 +56,14 @@ import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromConte
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
 import { getCliEnvPrefix } from './utils/index';
+import type { AgentHarness } from '../src/domain/entities/agent';
+import { getHarnessCapabilities } from '../src/domain/entities/harness/types';
 import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import type { TeamKind } from '../src/domain/entities/team-kind';
+
+function isNativeHarness(harness?: AgentHarness): boolean {
+  return harness != null && getHarnessCapabilities(harness).supportsNativeIntegration;
+}
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -93,6 +106,7 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 /**
  * Detect team type from team configuration
  */
+// fallow-ignore-next-line complexity
 function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unknown' {
   const normalizedName = (teamName || '').toLowerCase();
   if (normalizedName.includes('solo')) return 'solo';
@@ -143,6 +157,7 @@ export function buildSelectorContext(params: {
   chatroomId?: string;
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   agentType?: 'remote' | 'custom' | 'unset';
+  nativeIntegration?: boolean;
 }): SelectorContext {
   const entryPoint =
     getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ??
@@ -164,6 +179,7 @@ export function buildSelectorContext(params: {
     convexUrl: params.convexUrl,
     chatroomId: params.chatroomId,
     agentType: params.agentType ?? 'unset',
+    nativeIntegration: params.nativeIntegration,
   };
 }
 
@@ -285,6 +301,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
  *
  * Uses SelectorContext internally for team/role detection (Phase 4).
  */
+// fallow-ignore-next-line complexity
 export function generateTaskStartedReminder(
   role: string,
   classification: 'question' | 'new_feature' | 'follow_up',
@@ -566,6 +583,8 @@ export interface InitPromptInput {
   convexUrl: string; // Required Convex URL for env var prefix generation
   /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
   agentType?: 'remote' | 'custom' | 'unset';
+  /** Remote agent harness — determines native vs CLI init prompt sections */
+  agentHarness?: AgentHarness;
 }
 
 /**
@@ -599,6 +618,7 @@ export interface ComposedInitPrompt {
  */
 export function composeSystemPrompt(input: InitPromptInput): string {
   const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
+  const nativeIntegration = isNativeHarness(input.agentHarness);
 
   // Build SelectorContext for unified dispatching
   const selectorCtx = buildSelectorContext({
@@ -610,6 +630,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     convexUrl,
     chatroomId,
     agentType: input.agentType,
+    nativeIntegration,
   });
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
@@ -621,13 +642,19 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getTeamHeaderSection(teamName));
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
-  sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }));
+  sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId, nativeIntegration }));
 
   // Session model: explains Level A (session) vs Level B (chatroom task) — high salience
-  sections.push(getSessionVsChatroomTaskSection());
+  sections.push(
+    nativeIntegration ? getSessionVsChatroomTaskNativeSection() : getSessionVsChatroomTaskSection()
+  );
 
-  // Context-gaining: Getting Started commands (context read, get-next-task)
-  sections.push(getGettingStartedSection(selectorCtx));
+  // Context-gaining: Getting Started (native injection vs get-next-task loop)
+  sections.push(
+    nativeIntegration
+      ? getNativeGettingStartedSection(selectorCtx)
+      : getGettingStartedSection(selectorCtx)
+  );
 
   // Task classification / acknowledgement commands
   sections.push(getClassificationGuideSection(selectorCtx));
@@ -650,17 +677,19 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     })
   );
 
-  // Command reference (handoff, progress, get-next-task)
+  // Command reference (native: handoff + progress only; CLI: includes get-next-task)
   sections.push(
-    getCommandsReferenceSection({
-      chatroomId,
-      role,
-      convexUrl,
-    })
+    nativeIntegration
+      ? getNativeCommandsReferenceSection({ chatroomId, role, convexUrl })
+      : getCommandsReferenceSection({ chatroomId, role, convexUrl })
   );
 
   // Next step
-  sections.push(getNextStepSection({ chatroomId, role, convexUrl }));
+  sections.push(
+    nativeIntegration
+      ? getNativeNextStepSection()
+      : getNextStepSection({ chatroomId, role, convexUrl })
+  );
 
   return composeSections(sections);
 }
@@ -677,19 +706,29 @@ export function generateHandoffOutput(params: {
   nextRole: string;
   chatroomId: string;
   convexUrl?: string;
+  supportsNativeIntegration?: boolean;
 }): string {
-  const { role, nextRole, chatroomId, convexUrl } = params;
+  const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const lines: string[] = [];
   lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   lines.push('');
   lines.push('✅ Level B complete (chatroom task handed off).');
-  lines.push(
-    '⏳ Level A continues (session is still active) — run get-next-task to stay connected:'
-  );
-  lines.push('');
-  lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+
+  if (supportsNativeIntegration) {
+    lines.push(
+      '⏳ Level A continues (session is still active) — the next chatroom task will be injected automatically when ready.'
+    );
+    lines.push('');
+    lines.push('Wait for the next task to be injected into your session.');
+  } else {
+    lines.push(
+      '⏳ Level A continues (session is still active) — run get-next-task to stay connected:'
+    );
+    lines.push('');
+    lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+  }
 
   return lines.join('\n');
 }

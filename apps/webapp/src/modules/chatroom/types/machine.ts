@@ -110,6 +110,12 @@ export function harnessSupportsSessionResume(harness: AgentHarness): boolean {
   return getHarnessCapabilities(harness).supportsSessionResume;
 }
 
+/** Whether the harness receives tasks via direct session injection (no get-next-task loop). */
+// fallow-ignore-next-line unused-export
+export function harnessSupportsNativeIntegration(harness: AgentHarness): boolean {
+  return getHarnessCapabilities(harness).supportsNativeIntegration;
+}
+
 /** Check if a harness is the OpenCode SDK harness. */
 export function isOpenCodeSdkHarness(harness: string): boolean {
   return harness === 'opencode-sdk';

@@ -402,6 +402,7 @@ export class AgentProcessManager {
             chatroomId,
             role,
             convexUrl: this.deps.convexUrl,
+            supportsNativeIntegration: capabilities.supportsNativeIntegration,
           }),
         resumeTurn: async (pid, prompt) => {
           if (!service?.resumeTurn) {

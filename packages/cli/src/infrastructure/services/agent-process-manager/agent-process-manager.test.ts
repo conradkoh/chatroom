@@ -185,7 +185,8 @@ describe('AgentProcessManager', () => {
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
-      expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
+      expect(resumeTurn.mock.calls[0][1]).toContain('injected automatically');
+      expect(resumeTurn.mock.calls[0][1]).not.toContain('get-next-task');
       expect(deps.processes.kill).not.toHaveBeenCalled();
       const sessionResumedCalls = (
         deps.backend.mutation as ReturnType<typeof vi.fn>
@@ -271,7 +272,8 @@ describe('AgentProcessManager', () => {
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
-      expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
+      expect(resumeTurn.mock.calls[0][1]).toContain('injected automatically');
+      expect(resumeTurn.mock.calls[0][1]).not.toContain('get-next-task');
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 

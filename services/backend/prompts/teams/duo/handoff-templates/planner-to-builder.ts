@@ -74,10 +74,13 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 
 ## Session Management
 Valid values: \`new_session\` | \`none\`
-- \`new_session\` — start a fresh agent session (default; prior session must NOT be resumed)
+- \`new_session\` — start a fresh agent session (default)
 - \`none\` — continue prior session context
 // data:agent.compress_context=new_session
-\`\`\`
+
+**Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; no get-next-task rejoin needed.
+
+**CLI harnesses** (all others): in-session compaction is NOT supported. \`new_session\` requires a hard restart — the daemon stops the agent, cold-starts it, and the agent must rejoin via \`get-next-task\`. \`none\` resumes the prior session (\`wantResume=true\`).
 
 Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;
 }

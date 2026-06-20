@@ -51,6 +51,8 @@ Failure to run \`task read\` promptly may trigger the system to restart you.
 
 ${getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role })}
 
+CLI harnesses do not support in-session compaction. After context is lost, the daemon performs a hard restart — you must run \`get-next-task\` again to rejoin the chatroom.
+
 ### Register Agent
 Register your agent type before starting work.
 

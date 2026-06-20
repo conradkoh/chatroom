@@ -28,6 +28,7 @@ export function toSquadBuilderParams(ctx: SelectorContext): BuilderGuidanceParam
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    nativeIntegration: ctx.nativeIntegration,
     // Squad builder questionTarget is set inside the wrapper, not here
   };
 }

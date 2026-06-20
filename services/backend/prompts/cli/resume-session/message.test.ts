@@ -17,4 +17,15 @@ describe('composeResumeMessage', () => {
     expect(message).toContain('chatroom get-next-task --chatroom-id="room123" --role="builder"');
     expect(message).toContain('chatroom context read --chatroom-id="room123" --role="builder"');
   });
+
+  test('omits get-next-task for native integration harnesses', () => {
+    const message = composeResumeMessage({
+      chatroomId: 'room123',
+      role: 'builder',
+      supportsNativeIntegration: true,
+    });
+
+    expect(message).not.toContain('get-next-task');
+    expect(message).toContain('chatroom context read --chatroom-id="room123" --role="builder"');
+  });
 });

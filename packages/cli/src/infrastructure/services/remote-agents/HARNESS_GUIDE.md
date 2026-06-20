@@ -11,6 +11,35 @@ End-to-end steps for adding a new remote agent harness to the Chatroom CLI.
 
 Both kinds implement the same `RemoteAgentService` contract and register in `init-registry.ts`.
 
+### Native integration (`supportsNativeIntegration`)
+
+Some harnesses use **native integration**: the chatroom daemon injects tasks directly into the harness session context instead of relying on a blocking `get-next-task` listen loop.
+
+| Aspect               | CLI harness (default)                                                                            | Native integration harness                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| **Task delivery**    | Agent runs `get-next-task` in a foreground loop; backend claims and delivers via WebSocket       | Backend injects tasks into the in-process session when user messages or handoffs arrive  |
+| **Session start**    | System prompt + instructions to run `get-next-task`                                              | System prompt only — no `get-next-task` loop                                             |
+| **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; `startTask` → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first token → WORKING |
+
+**Distinction from `supportsSessionResume`:** session resume keeps the process alive between turns (`resumeTurn` after `lifecycle.turn.completed`). Native integration changes _how tasks are delivered_ — the agent never blocks on `get-next-task`. A harness can have both flags (`cursor-sdk`, `opencode-sdk`).
+
+**Current native harnesses:** `cursor-sdk`, `opencode-sdk` (`supportsNativeIntegration: true` in `types.ts`).
+
+**Participant heartbeat actions** (emitted by the daemon for native harnesses):
+
+- `native:waiting` — session is ready (after start or turn end); maps to `agent.waiting` / UI **WAITING**
+- `native:task-injected` — task delivered into session context; maps to `task.acknowledged` / UI **TASK RECEIVED**
+- First token via `updateTokenActivity` when `lastStatus` is `task.acknowledged` → `task.inProgress` / UI **WORKING**
+
+### Context compaction vs hard restart
+
+| Harness kind                                   | `compress_context=new_session` behavior                                                 | In-session compaction                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Native** (`supportsNativeIntegration: true`) | SDK compacts/summarizes context in-process; session stays alive; next task injected     | ✅ Supported                             |
+| **CLI** (default)                              | Daemon stop → cold start (`wantResume=false`); agent must run `get-next-task` to rejoin | ❌ Not supported — hard restart required |
+
+**Rule:** Only native harnesses can compact context without leaving the session. CLI harnesses always require a full process restart and get-next-task rejoin when starting a new session context.
+
 ---
 
 ## 1. The `RemoteAgentService` contract

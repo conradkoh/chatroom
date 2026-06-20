@@ -40,6 +40,8 @@ export interface SelectorContext {
   chatroomId?: string;
   /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
   agentType: 'remote' | 'custom' | 'unset';
+  /** True when harness uses native task injection (no listen loop) */
+  nativeIntegration?: boolean;
 }
 
 /**
@@ -70,6 +72,7 @@ export type SectionId =
   | 'role-description'
   // Getting Started
   | 'getting-started'
+  | 'getting-started-native'
   // Classification
   | 'classification-guide'
   | 'handoff-recipient-guide'
@@ -88,18 +91,21 @@ export type SectionId =
   | 'command-report-progress'
   | 'command-get-next-task'
   | 'commands-reference'
+  | 'commands-reference-native'
   // Actions (task delivery)
   | 'available-actions'
   // Policies
   | 'review-policies'
   // Next Step
   | 'next-step'
+  | 'next-step-native'
   // Get-next-task reminder
   | 'get-next-task-reminder'
   // Glossary
   | 'glossary'
   // Session model
-  | 'session-vs-chatroom-task';
+  | 'session-vs-chatroom-task'
+  | 'session-vs-chatroom-task-native';
 
 /**
  * Helper to create a PromptSection with type safety.
