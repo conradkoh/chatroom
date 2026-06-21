@@ -330,7 +330,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary

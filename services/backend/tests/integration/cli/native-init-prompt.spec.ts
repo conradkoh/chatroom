@@ -99,6 +99,34 @@ describe('Native init prompt', () => {
     expect(prompt).toContain('get-next-task');
   });
 
+  test('opencode-sdk planner init prompt omits get-next-task and uses injection language', async () => {
+    const { sessionId } = await createTestSession('test-native-init-opencode-sdk-planner');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      type: 'remote',
+      machineId: 'machine-native-opencode-sdk-planner',
+      agentHarness: 'opencode-sdk',
+      model: 'auto',
+      workingDir: '/test/workspace',
+    });
+
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    const prompt = initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
+    expect(prompt).not.toMatch(/run `get-next-task`/i);
+    expect(prompt.toLowerCase()).toMatch(/inject/);
+  });
+
   test('native handoff output omits get-next-task reminder', () => {
     const output = generateHandoffOutput({
       role: 'builder',

@@ -1,29 +1,14 @@
-import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
-import {
-  NATIVE_TASK_INJECTED_ACTION,
-  NATIVE_WAITING_ACTION,
-} from '@workspace/backend/src/domain/entities/participant.js';
 import type { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
-export { isNativeHarness };
+import {
+  isInjectableNativeAction as isInjectableAction,
+  isNativePendingAliveRunning,
+  isStaleNativeWaiting,
+  isStuckAfterNativeInject,
+} from '../../../domain/native-integration/predicates.js';
 
-const NATIVE_INJECTABLE_ACTIONS = [NATIVE_WAITING_ACTION] as const;
-
-function isNativePendingAliveRunning(task: AssignedTaskView): boolean {
-  const { agentConfig, status } = task;
-  return (
-    isNativeHarness(agentConfig.agentHarness) &&
-    status === 'pending' &&
-    agentConfig.spawnedAgentPid != null &&
-    agentConfig.desiredState === 'running'
-  );
-}
-
-function isInjectableAction(action: string | null | undefined): boolean {
-  if (action == null) return true;
-  return (NATIVE_INJECTABLE_ACTIONS as readonly string[]).includes(action);
-}
+export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
 /** True when daemon should inject a pending task into a live native session. */
 export function shouldInjectNativeTask(
@@ -35,21 +20,6 @@ export function shouldInjectNativeTask(
   return isInjectableAction(task.participant?.lastSeenAction);
 }
 
-function isStaleNativeWaiting(task: AssignedTaskView, now: number, thresholdMs: number): boolean {
-  return (
-    task.participant?.lastSeenAction === NATIVE_WAITING_ACTION && now - task.createdAt > thresholdMs
-  );
-}
-
-// fallow-ignore-next-line complexity
-function isStuckAfterInject(task: AssignedTaskView, now: number, thresholdMs: number): boolean {
-  return (
-    task.participant?.lastSeenAction === NATIVE_TASK_INJECTED_ACTION &&
-    task.participant?.lastStatus === 'task.acknowledged' &&
-    now - (task.participant?.lastSeenAt ?? 0) > thresholdMs
-  );
-}
-
 /** True when native agent has pending task but injection appears stuck. */
 export function shouldNudgeNativeInjection(
   task: AssignedTaskView,
@@ -59,7 +29,7 @@ export function shouldNudgeNativeInjection(
   if (!isNativePendingAliveRunning(task)) return false;
   return (
     isStaleNativeWaiting(task, now, pendingIdleThresholdMs) ||
-    isStuckAfterInject(task, now, pendingIdleThresholdMs)
+    isStuckAfterNativeInject(task, now, pendingIdleThresholdMs)
   );
 }
 

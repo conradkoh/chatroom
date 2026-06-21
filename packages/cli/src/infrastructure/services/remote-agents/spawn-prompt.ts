@@ -31,6 +31,10 @@ export type SpawnPrompt = string & { readonly [spawnPromptBrand]: true };
 export const DEFAULT_TRIGGER_PROMPT =
   'Please read your system prompt carefully and follow the Getting Started instructions.';
 
+/** Used when deferInitialTurn — minimal bootstrap, explicitly forbids get-next-task. */
+const NATIVE_BOOTSTRAP_PROMPT =
+  'Register your agent, then stop. Do not run get-next-task or any listen loop. Wait for the daemon to inject your next chatroom task.';
+
 /**
  * Construct a `SpawnPrompt` from arbitrary raw input.
  *
@@ -38,7 +42,13 @@ export const DEFAULT_TRIGGER_PROMPT =
  * `DEFAULT_TRIGGER_PROMPT`. Otherwise returns the trimmed input. The result
  * is guaranteed to satisfy `value.trim().length > 0`.
  */
-export function createSpawnPrompt(raw: string | undefined | null): SpawnPrompt {
+export function createSpawnPrompt(
+  raw: string | undefined | null,
+  opts?: { nativeBootstrap?: boolean }
+): SpawnPrompt {
+  if (opts?.nativeBootstrap) {
+    return NATIVE_BOOTSTRAP_PROMPT as SpawnPrompt;
+  }
   const trimmed = raw?.trim();
   return (trimmed && trimmed.length > 0 ? trimmed : DEFAULT_TRIGGER_PROMPT) as SpawnPrompt;
 }

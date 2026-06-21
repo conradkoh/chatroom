@@ -5,8 +5,9 @@ export function getHandoffTemplatesPreviewSection(params: {
   teamId?: string;
   role: string;
   handoffTargets: string[];
+  nativeIntegration?: boolean;
 }): PromptSection {
-  const { teamId, role, handoffTargets } = params;
+  const { teamId, role, handoffTargets, nativeIntegration } = params;
   const blocks: string[] = [
     '## Begin With the End in Mind',
     '',
@@ -14,7 +15,12 @@ export function getHandoffTemplatesPreviewSection(params: {
   ];
 
   for (const target of handoffTargets) {
-    const template = getHandoffTemplate({ teamId, fromRole: role, toRole: target });
+    const template = getHandoffTemplate({
+      teamId,
+      fromRole: role,
+      toRole: target,
+      nativeIntegration,
+    });
     if (!template) continue;
     blocks.push('');
     blocks.push(`### Handoff to \`${target}\``);

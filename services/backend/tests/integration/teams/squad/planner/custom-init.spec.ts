@@ -272,7 +272,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       **Delegation Guidelines:**
 
-      Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role="planner"\`.
+      Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id="test-squad-chatroom" --role="planner"\`.
 
       **Decision flow:**
       \`\`\`mermaid
@@ -301,11 +301,11 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
       - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-      **Optional: structured workflows (opt-in).** For genuinely multi-phase, interdependent efforts — or when the user explicitly asks for a tracked plan — activate the \`workflow\` skill to plan and track execution as a DAG: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id=<id> --role="planner"\`. The skill documents the full \`workflow create/specify/execute/status\` command set. Don't reach for it for simple, single-slice work.
+      **Optional: structured workflows (opt-in).** For genuinely multi-phase, interdependent efforts — or when the user explicitly asks for a tracked plan — activate the \`workflow\` skill to plan and track execution as a DAG: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id="test-squad-chatroom" --role="planner"\`. The skill documents the full \`workflow create/specify/execute/status\` command set. Don't reach for it for simple, single-slice work.
 
-      **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id=<id> --role="planner"\`.
+      **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-squad-chatroom" --role="planner"\`.
 
-      **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id=<id> --role="planner"\`.
+      **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="test-squad-chatroom" --role="planner"\`.
 
       **If stuck:** After 2 failed rework attempts → step back, replan the slice (or fall back to a structured workflow), or deliver partial results with a clear explanation.
 
@@ -316,7 +316,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       **Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
       - **To request review** → Hand off to \`reviewer\` with context about what to check

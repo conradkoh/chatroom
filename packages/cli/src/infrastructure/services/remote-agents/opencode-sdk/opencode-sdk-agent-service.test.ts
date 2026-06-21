@@ -589,6 +589,40 @@ describe('OpenCodeSdkAgentService', () => {
       });
     });
 
+    it('deferInitialTurn skips promptAsync on spawn', async () => {
+      const child = makeFakeChild(4321);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValue(child),
+      });
+      const sdk = stubSdkClient();
+      const service = new OpenCodeSdkAgentService(deps);
+
+      const spawnPromise = service.spawn({
+        ...spawnOptions({ systemPrompt: 'sys', prompt: 'bootstrap' }),
+        deferInitialTurn: true,
+      });
+      child.stdout.emit(
+        'data',
+        Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
+      );
+
+      const result = await spawnPromise;
+      expect(result.pid).toBe(4321);
+      expect(sdk.create).toHaveBeenCalledTimes(1);
+      expect(sdk.promptAsync).not.toHaveBeenCalled();
+
+      await service.resumeTurn(result.pid, 'injected task');
+      expect(sdk.promptAsync).toHaveBeenCalledTimes(1);
+      expect(sdk.promptAsync.mock.calls[0][0].body.system).toBe(
+        'BUILTIN_BUILD_PROMPT' + CHATROOM_PROMPT_SEPARATOR + 'sys'
+      );
+      expect(sdk.promptAsync.mock.calls[0][0].body.parts).toEqual([
+        { type: 'text', text: 'injected task' },
+      ]);
+
+      void service.stop(result.pid);
+    });
+
     it('always selects the build agent regardless of role (role context lives in the system prompt)', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });

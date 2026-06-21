@@ -42,6 +42,22 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
+  test('supportsNativeIntegration implies supportsSessionResume', () => {
+    for (const harness of AGENT_HARNESSES) {
+      const caps = getHarnessCapabilities(harness);
+      if (caps.supportsNativeIntegration) {
+        expect(caps.supportsSessionResume).toBe(true);
+      }
+    }
+  });
+
+  test('supportsNativeIntegration harnesses are exactly cursor-sdk and opencode-sdk', () => {
+    const native = AGENT_HARNESSES.filter(
+      (h) => getHarnessCapabilities(h).supportsNativeIntegration
+    );
+    expect(native.sort()).toEqual(['cursor-sdk', 'opencode-sdk']);
+  });
+
   test('SDK harnesses use runtimeKind sdk', () => {
     expect(getHarnessRuntimeKind('cursor-sdk')).toBe('sdk');
     expect(getHarnessRuntimeKind('opencode-sdk')).toBe('sdk');

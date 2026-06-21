@@ -53,3 +53,11 @@ ALL of the following must hold:
 ## What this smoke test does NOT cover
 
 This is a manual recipe — there is no integration test that boots a real `opencode serve` automatically. Recommended follow-up is to add one.
+
+## Automated coverage
+
+`packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/opencode-sdk-native-flow.integration.test.ts` exercises deferInitialTurn + resumeTurn against a live `opencode serve` with `opencode/big-pickle`. Skips automatically when `opencode` or the model is unavailable.
+
+```bash
+pnpm --filter chatroom-cli test:integration
+```

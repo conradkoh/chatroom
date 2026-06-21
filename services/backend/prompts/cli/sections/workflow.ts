@@ -8,6 +8,7 @@
  */
 
 import type { TeamCompositionConfig } from './team-composition';
+import { getWorkflowLoopFooter } from '../../native/session-continuity.js';
 
 /**
  * Select and return the correct workflow diagram for the given team config.
@@ -15,23 +16,27 @@ import type { TeamCompositionConfig } from './team-composition';
  * Used by `getPlannerGuidance` in the base role module where team
  * composition is derived at runtime from `teamRoles`.
  */
-export function getWorkflowSection(config: TeamCompositionConfig): string {
+export function getWorkflowSection(
+  config: TeamCompositionConfig,
+  nativeIntegration?: boolean
+): string {
   if (config.hasBuilder && config.hasReviewer) {
-    return getFullTeamWorkflow();
+    return getFullTeamWorkflow(nativeIntegration);
   }
   if (config.hasBuilder && !config.hasReviewer) {
-    return getPlannerPlusBuilderWorkflow();
+    return getPlannerPlusBuilderWorkflow(nativeIntegration);
   }
   if (!config.hasBuilder && config.hasReviewer) {
-    return getPlannerPlusReviewerWorkflow();
+    return getPlannerPlusReviewerWorkflow(nativeIntegration);
   }
-  return getPlannerSoloWorkflow();
+  return getPlannerSoloWorkflow(nativeIntegration);
 }
 
 /**
  * Full team workflow: Planner + Builder + Reviewer.
  */
-export function getFullTeamWorkflow(): string {
+export function getFullTeamWorkflow(nativeIntegration?: boolean): string {
+  const footer = getWorkflowLoopFooter(nativeIntegration);
   return `**Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
 \`\`\`mermaid
@@ -52,14 +57,15 @@ flowchart TD
     M -->|yes| F
     M -->|no| N[Verify: pnpm typecheck && pnpm test]
     N --> O[Deliver final result to user]
-    O --> P[Run get-next-task] --> B
+    O --> P[${footer}] --> B
 \`\`\``;
 }
 
 /**
  * Planner + Builder workflow (no reviewer — planner self-reviews).
  */
-export function getPlannerPlusBuilderWorkflow(): string {
+export function getPlannerPlusBuilderWorkflow(nativeIntegration?: boolean): string {
+  const footer = getWorkflowLoopFooter(nativeIntegration);
   return `**Current Workflow: Planner + Builder (no reviewer)**
 
 \`\`\`mermaid
@@ -79,14 +85,15 @@ flowchart TD
     L -->|yes| F
     L -->|no| M[Verify: pnpm typecheck && pnpm test]
     M --> N[Deliver final result to user]
-    N --> O[Run get-next-task] --> B
+    N --> O[${footer}] --> B
 \`\`\``;
 }
 
 /**
  * Planner + Reviewer workflow (no builder — reviewer acts as implementer).
  */
-export function getPlannerPlusReviewerWorkflow(): string {
+export function getPlannerPlusReviewerWorkflow(nativeIntegration?: boolean): string {
+  const footer = getWorkflowLoopFooter(nativeIntegration);
   return `**Current Workflow: Planner + Reviewer (no builder)**
 
 \`\`\`mermaid
@@ -105,14 +112,17 @@ flowchart TD
     K -->|yes| F
     K -->|no| L[Verify: pnpm typecheck && pnpm test]
     L --> M[Deliver final result to user]
-    M --> N[Run get-next-task] --> B
+    M --> N[${footer}] --> B
 \`\`\``;
 }
 
 /**
  * Planner solo workflow (no other team members).
  */
-export function getPlannerSoloWorkflow(): string {
+export function getPlannerSoloWorkflow(nativeIntegration?: boolean): string {
+  const continueStep = nativeIntegration
+    ? 'Wait for the next task to be injected to continue the session (Level A continues after Level B completes)'
+    : 'Run `get-next-task` to continue the session (Level A continues after Level B completes)';
   return `**Current Workflow: Planner Solo**
 
 1. Receive chatroom task from user
@@ -123,5 +133,5 @@ export function getPlannerSoloWorkflow(): string {
 6. Review your own work for quality
 7. Verify: \`pnpm typecheck && pnpm test\`
 8. Deliver to **user**
-9. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)`;
+9. ${continueStep}`;
 }

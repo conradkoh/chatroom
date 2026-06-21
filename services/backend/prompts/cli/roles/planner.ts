@@ -11,6 +11,7 @@
  * runtime conditionals.
  */
 
+import { getSessionContinuityLine } from '../../native/session-continuity.js';
 import type { PlannerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
 import { classifyCommand } from '../classify/command';
@@ -33,7 +34,7 @@ import {
  * `../sections/` directly with their hardcoded team config.
  */
 export function getPlannerGuidance(params: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role } = params;
+  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role, nativeIntegration } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
@@ -56,14 +57,14 @@ As the entry point, you receive user messages directly. When you receive a user 
 
   return `## Planner Workflow
 
-Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+${getSessionContinuityLine(nativeIntegration)}
 
 You are the team coordinator and the **single point of contact** for the user.
 ${classificationNote}
 
 ${getTeamAvailabilitySection(members)}
 
-${getWorkflowSection(teamConfig)}
+${getWorkflowSection(teamConfig, nativeIntegration)}
 
 ${getCoreResponsibilitiesSection(teamConfig)}
 
@@ -71,7 +72,7 @@ ${getDelegationAndDecompositionSection(teamConfig)}
 
 ${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role })}
 
-${getHandoffRulesSection(teamConfig)}
+${getHandoffRulesSection(teamConfig, nativeIntegration)}
 
 ${getWhenWorkComesBackSection(teamConfig)}`;
 }

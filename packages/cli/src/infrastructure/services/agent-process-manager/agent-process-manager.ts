@@ -47,6 +47,7 @@ import {
 } from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
+import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
@@ -1278,10 +1279,14 @@ export class AgentProcessManager {
     }
 
     if (!spawnResult) {
+      const { deferInitialTurn, prompt } = resolveNativeSpawnPolicy(
+        opts.agentHarness,
+        initPrompt.initialMessage
+      );
       try {
         spawnResult = await service.spawn({
           workingDir: opts.workingDir,
-          prompt: createSpawnPrompt(initPrompt.initialMessage),
+          prompt,
           systemPrompt: initPrompt.rolePrompt,
           model: opts.model,
           context: {
@@ -1290,6 +1295,7 @@ export class AgentProcessManager {
             role: opts.role,
           },
           resolvedConvexUrl: this.deps.convexUrl,
+          deferInitialTurn,
         });
       } catch (e) {
         this.resetSlotIdle(slot);

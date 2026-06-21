@@ -48,4 +48,11 @@ describe('createSpawnPrompt', () => {
     // Brand is structurally a string at runtime
     expect(typeof sp).toBe('string');
   });
+
+  it('returns native bootstrap prompt when nativeBootstrap is true', () => {
+    const bootstrap = createSpawnPrompt(undefined, { nativeBootstrap: true });
+    expect(createSpawnPrompt('custom message', { nativeBootstrap: true })).toBe(bootstrap);
+    expect(bootstrap.toLowerCase()).toMatch(/do not run get-next-task/);
+    expect(bootstrap.toLowerCase()).toMatch(/inject/);
+  });
 });

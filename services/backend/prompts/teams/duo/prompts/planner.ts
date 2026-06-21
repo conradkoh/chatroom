@@ -11,7 +11,7 @@
  * Team availability and workflow sections use teamRoles configuration.
  */
 
-import { classifyCommand } from '../../../cli/classify/command';
+import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import {
   getCoreResponsibilitiesSection,
   getDelegationAndDecompositionSection,
@@ -22,38 +22,31 @@ import {
   getPlannerPlusBuilderWorkflow,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
+import { getSessionContinuityLine } from '../../../native/session-continuity.js';
 import type { PlannerGuidanceParams } from '../../../types/cli';
-import { getCliEnvPrefix } from '../../../utils/env';
 
 /** Duo team always has a builder and no reviewer (fixed team composition) */
 const DUO_TEAM_CONFIG = { hasBuilder: true, hasReviewer: false } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role } = ctx;
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const classifyExample = classifyCommand({ cliEnvPrefix });
-
-  // Always use teamRoles — prompts assume all team members are available
-  const members = teamRoles;
-  const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
-
-  const classificationNote = isEntryPoint
-    ? `
-**Classification (Entry Point Role):**
-As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
-3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-4. Decompose the chatroom task into actionable work items if needed
-5. Delegate to the appropriate team member or handle it yourself`
-    : '';
+  const {
+    nativeIntegration,
+    classificationNote,
+    members,
+    builderOnline,
+    cliEnvPrefix,
+    chatroomId,
+    role,
+  } = getPlannerGuidanceContext(ctx);
 
   // Workflow diagram adapts to current availability
   const workflowGuidance = builderOnline
-    ? getPlannerPlusBuilderWorkflow()
-    : getPlannerSoloWorkflow();
+    ? getPlannerPlusBuilderWorkflow(nativeIntegration)
+    : getPlannerSoloWorkflow(nativeIntegration);
 
   return `## Planner Workflow
+
+${getSessionContinuityLine(nativeIntegration)}
 
 You are the team coordinator and the **single point of contact** for the user.
 ${classificationNote}
@@ -76,7 +69,7 @@ ${getDelegationAndDecompositionSection(DUO_TEAM_CONFIG)}
 
 ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, { cliEnvPrefix, chatroomId, role })}
 
-${getHandoffRulesSection(DUO_TEAM_CONFIG)}
+${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration)}
 
 ${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}`;
 }

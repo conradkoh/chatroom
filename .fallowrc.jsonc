@@ -74,6 +74,8 @@
       // Intentional parallel stdin delimiter decoders (CLI + Convex backend)
       "packages/cli/src/utils/serialization/decode/index.ts",
       "services/backend/convex/lib/stdinDecoder.ts",
+      // Shared opencode CLI binary harness base used by opencode-sdk
+      "packages/cli/src/infrastructure/services/remote-agents/opencode/binary-agent-service.ts",
     ],
   },
   "health": {

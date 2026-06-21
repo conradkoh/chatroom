@@ -119,25 +119,13 @@ const NATIVE_GLOSSARY_TERMS: GlossaryTerm[] = [
   ),
 ];
 
-/**
- * Generate the glossary section for the system prompt.
- * Lists all known terms with definitions and skill availability indicators,
- * followed by a Skills discovery line.
- */
-// fallow-ignore-next-line complexity
-export function getGlossarySection(params: GlossarySectionParams): PromptSection {
-  const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
-  const lines: string[] = ['# Glossary', ''];
-  const terms = params.nativeIntegration ? NATIVE_GLOSSARY_TERMS : GLOSSARY_TERMS;
+function formatGlossaryEntry(entry: GlossaryTerm): string[] {
+  const skillNote = entry.linkedSkillId ? ' (1 skill available)' : '';
+  return [`- \`${entry.term}\`${skillNote}`, `    - ${entry.definition}`, ''];
+}
 
-  for (const entry of terms) {
-    const skillNote = entry.linkedSkillId ? ' (1 skill available)' : '';
-    lines.push(`- \`${entry.term}\`${skillNote}`);
-    lines.push(`    - ${entry.definition}`);
-    lines.push('');
-  }
-
-  lines.push('# Skills', '');
+function buildSkillsSection(cliEnvPrefix: string): string[] {
+  const lines = ['# Skills', ''];
   lines.push(
     `Run \`${cliEnvPrefix}chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.`
   );
@@ -152,6 +140,24 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
   lines.push(
     "Don't wait for the user to ask — proactively activate the skill that matches the task."
   );
+  return lines;
+}
+
+/**
+ * Generate the glossary section for the system prompt.
+ * Lists all known terms with definitions and skill availability indicators,
+ * followed by a Skills discovery line.
+ */
+export function getGlossarySection(params: GlossarySectionParams): PromptSection {
+  const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
+  const lines: string[] = ['# Glossary', ''];
+  const terms = params.nativeIntegration ? NATIVE_GLOSSARY_TERMS : GLOSSARY_TERMS;
+
+  for (const entry of terms) {
+    lines.push(...formatGlossaryEntry(entry));
+  }
+
+  lines.push(...buildSkillsSection(cliEnvPrefix));
 
   return createSection('glossary', 'knowledge', lines.join('\n'));
 }

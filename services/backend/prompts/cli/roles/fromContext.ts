@@ -64,6 +64,7 @@ export function toPlannerParams(ctx: SelectorContext): PlannerGuidanceParams {
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 

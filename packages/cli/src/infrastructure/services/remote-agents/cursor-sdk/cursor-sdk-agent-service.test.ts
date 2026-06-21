@@ -176,6 +176,34 @@ describe('CursorSdkAgentService', () => {
         model: 'composer-2.5',
       });
     });
+
+    it('deferInitialTurn skips agent.send until resumeTurn', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).not.toHaveBeenCalled());
+
+      await service.resumeTurn(result.pid, 'injected task');
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
+      expect(sharedAgentSendFn.mock.calls[0][0]).toContain('you are helpful');
+      expect(sharedAgentSendFn.mock.calls[0][0]).toContain('injected task');
+
+      const exitInfo = vi.fn();
+      result.onExit(exitInfo);
+      void service.stop(result.pid);
+      await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+    });
   });
 
   describe('stop', () => {

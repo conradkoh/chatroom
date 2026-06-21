@@ -18,6 +18,7 @@ export interface HandoffTemplateQuery {
   fromRole: string;
   toRole: string;
   teamId?: string;
+  nativeIntegration?: boolean;
 }
 
 /**

@@ -94,8 +94,16 @@ function runNativeNudgeEffect(
   runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, session);
 }
 
-// fallow-ignore-next-line complexity
-function runCliNudgeEffect(
+function buildCliNudgeLogLine(task: AssignedTaskView): string {
+  const { chatroomId, agentConfig } = task;
+  const { role } = agentConfig;
+  const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
+  const compressMode = parseCompressContext(task.taskContent ?? '');
+  const wantResume = compressContextToWantResume(compressMode);
+  return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`;
+}
+
+function executeCliNudge(
   task: AssignedTaskView,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
@@ -106,13 +114,8 @@ function runCliNudgeEffect(
   const workingDir = agentConfig.workingDir;
   if (!workingDir) return;
 
-  const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
   const compressMode = parseCompressContext(task.taskContent ?? '');
   const wantResume = compressContextToWantResume(compressMode);
-
-  console.log(
-    `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`
-  );
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -137,6 +140,16 @@ function runCliNudgeEffect(
       )
     )
   );
+}
+
+function runCliNudgeEffect(
+  task: AssignedTaskView,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): void {
+  console.log(buildCliNudgeLogLine(task));
+  executeCliNudge(task, runtime, effectContext, agentMgr);
 }
 
 function runNudgeEffect(

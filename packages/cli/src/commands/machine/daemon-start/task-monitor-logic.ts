@@ -1,6 +1,10 @@
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
 import { isNativeHarness, shouldNudgeNativeInjection } from './native-task-injector-logic.js';
+import {
+  isCliIdleNotListening,
+  isStaleCliGetNextTaskWaiting,
+} from '../../../domain/native-integration/predicates.js';
 
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;
@@ -14,31 +18,15 @@ function isPendingAliveRunningTask(task: AssignedTaskView): boolean {
   );
 }
 
-function isIdleNotListening(
-  task: AssignedTaskView,
-  now: number,
-  pendingIdleThresholdMs: number
-): boolean {
-  const lastSeenAction = task.participant?.lastSeenAction;
-  if (lastSeenAction === 'get-next-task:started' || lastSeenAction == null) {
-    return false;
-  }
-  return now - task.createdAt > pendingIdleThresholdMs;
-}
-
-// fallow-ignore-next-line complexity
 function shouldNudgeCliPendingTask(
   task: AssignedTaskView,
   now: number,
   pendingIdleThresholdMs: number
 ): boolean {
   if (!isPendingAliveRunningTask(task)) return false;
-
-  const lastSeenAt = task.participant?.lastSeenAt ?? 0;
-  const staleWaiting =
-    task.participant?.lastSeenAction === 'get-next-task:started' && task.createdAt > lastSeenAt;
-
-  return staleWaiting || isIdleNotListening(task, now, pendingIdleThresholdMs);
+  return (
+    isStaleCliGetNextTaskWaiting(task) || isCliIdleNotListening(task, now, pendingIdleThresholdMs)
+  );
 }
 
 /** Returns true when a pending task should trigger an agent restart nudge. */
@@ -69,21 +57,26 @@ export class NudgeCooldown {
   }
 }
 
-// fallow-ignore-next-line complexity
+function isTaskReadyForNudge(
+  task: AssignedTaskView,
+  now: number,
+  cooldown: NudgeCooldown
+): boolean {
+  if (!shouldNudgePendingTask(task, now)) return false;
+  const { chatroomId, agentConfig } = task;
+  if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) return false;
+  if (!isNativeHarness(agentConfig.agentHarness) && !agentConfig.workingDir) return false;
+  return true;
+}
+
 export function listTasksReadyForNudge(
   tasks: AssignedTaskView[],
   now: number,
   cooldown: NudgeCooldown
 ): AssignedTaskView[] {
-  const ready: AssignedTaskView[] = [];
-  for (const task of tasks) {
-    if (!shouldNudgePendingTask(task, now)) continue;
-    const { chatroomId, agentConfig } = task;
-    if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) continue;
-    const native = isNativeHarness(agentConfig.agentHarness);
-    if (!native && !agentConfig.workingDir) continue;
-    cooldown.recordNudge(chatroomId, agentConfig.role, now);
-    ready.push(task);
-  }
-  return ready;
+  return tasks.filter((task) => {
+    if (!isTaskReadyForNudge(task, now, cooldown)) return false;
+    cooldown.recordNudge(task.chatroomId, task.agentConfig.role, now);
+    return true;
+  });
 }

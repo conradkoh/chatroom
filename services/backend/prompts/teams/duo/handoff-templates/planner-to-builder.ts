@@ -14,7 +14,13 @@
  * Every field is mandatory — when a section does not apply the planner writes
  * `Not Applicable` rather than omitting it, so the brief is never ambiguous.
  */
-export function getPlannerToBuilderHandoffTemplate(): string {
+export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): string {
+  const sessionManagement = nativeIntegration
+    ? `**Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; the session stays active and tasks continue via injection.`
+    : `**Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; no get-next-task rejoin needed.
+
+**CLI harnesses** (all others): in-session compaction is NOT supported. \`new_session\` requires a hard restart — the daemon stops the agent, cold-starts it, and the agent must rejoin via \`get-next-task\`. \`none\` resumes the prior session (\`wantResume=true\`).`;
+
   return `**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
 **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
@@ -78,9 +84,7 @@ Valid values: \`new_session\` | \`none\`
 - \`none\` — continue prior session context
 // data:agent.compress_context=new_session
 
-**Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; no get-next-task rejoin needed.
-
-**CLI harnesses** (all others): in-session compaction is NOT supported. \`new_session\` requires a hard restart — the daemon stops the agent, cold-starts it, and the agent must rejoin via \`get-next-task\`. \`none\` resumes the prior session (\`wantResume=true\`).
+${sessionManagement}
 
 Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;
 }

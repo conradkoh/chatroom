@@ -56,7 +56,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
@@ -97,7 +97,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
@@ -125,7 +125,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To request review** → Hand off to \`reviewer\` with context about what to check

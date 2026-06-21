@@ -10,21 +10,22 @@ import { getReviewerToUserReportTemplate } from './reviewer-to-user';
 export interface SquadHandoffTemplateQuery {
   fromRole: string;
   toRole: string;
+  nativeIntegration?: boolean;
 }
 
-const SQUAD_HANDOFF_TEMPLATES: Record<string, () => string> = {
+const SQUAD_HANDOFF_TEMPLATES: Record<string, (nativeIntegration?: boolean) => string> = {
   'planner:builder': getPlannerToBuilderHandoffTemplate,
-  'planner:user': getPlannerToUserReportTemplate,
-  'planner:reviewer': getPlannerToReviewerHandoffTemplate,
-  'builder:planner': getBuilderToPlannerHandoffTemplate,
-  'builder:reviewer': getBuilderToReviewerHandoffTemplate,
-  'reviewer:builder': getReviewerToBuilderHandoffTemplate,
-  'reviewer:planner': getReviewerToPlannerHandoffTemplate,
-  'reviewer:user': getReviewerToUserReportTemplate,
+  'planner:user': () => getPlannerToUserReportTemplate(),
+  'planner:reviewer': () => getPlannerToReviewerHandoffTemplate(),
+  'builder:planner': () => getBuilderToPlannerHandoffTemplate(),
+  'builder:reviewer': () => getBuilderToReviewerHandoffTemplate(),
+  'reviewer:builder': () => getReviewerToBuilderHandoffTemplate(),
+  'reviewer:planner': () => getReviewerToPlannerHandoffTemplate(),
+  'reviewer:user': () => getReviewerToUserReportTemplate(),
 };
 
 export function getSquadHandoffTemplate(query: SquadHandoffTemplateQuery): string | null {
   const getter =
     SQUAD_HANDOFF_TEMPLATES[`${query.fromRole.toLowerCase()}:${query.toRole.toLowerCase()}`];
-  return getter?.() ?? null;
+  return getter?.(query.nativeIntegration) ?? null;
 }

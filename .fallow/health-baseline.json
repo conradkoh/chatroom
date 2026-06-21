@@ -1297,11 +1297,6 @@
         "count": 2
       }
     },
-    "packages/cli/src/commands/artifact/index.ts": {
-      "crap_high": {
-        "count": 3
-      }
-    },
     "packages/cli/src/commands/auth-login/index.ts": {
       "complexity_critical": {
         "count": 1
@@ -1318,11 +1313,6 @@
         "count": 5
       },
       "crap_moderate": {
-        "count": 2
-      }
-    },
-    "packages/cli/src/commands/context/index.ts": {
-      "crap_high": {
         "count": 2
       }
     },
@@ -1451,6 +1441,11 @@
         "count": 2
       }
     },
+    "packages/cli/src/commands/machine/daemon-start/task-monitor-logic.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "packages/cli/src/commands/machine/daemon-start/workspace-cache.ts": {
       "crap_moderate": {
         "count": 1
@@ -1469,9 +1464,6 @@
     "packages/cli/src/commands/messages/index.ts": {
       "crap_high": {
         "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
       }
     },
     "packages/cli/src/commands/opencode-install/index.ts": {
@@ -1479,22 +1471,17 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/report-progress/index.ts": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "packages/cli/src/commands/skill/index.ts": {
       "crap_high": {
-        "count": 3
+        "count": 2
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "packages/cli/src/commands/task/read/index.ts": {
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "packages/cli/src/commands/telegram/index.ts": {
@@ -1502,9 +1489,6 @@
         "count": 1
       },
       "crap_critical": {
-        "count": 1
-      },
-      "crap_high": {
         "count": 1
       }
     },
@@ -1521,7 +1505,7 @@
         "count": 2
       },
       "crap_moderate": {
-        "count": 3
+        "count": 2
       }
     },
     "packages/cli/src/domain/agent-lifecycle/policies/preserve-session.ts": {
@@ -1537,6 +1521,11 @@
     "packages/cli/src/domain/agent-lifecycle/policies/slot-transitions.ts": {
       "crap_moderate": {
         "count": 3
+      }
+    },
+    "packages/cli/src/domain/native-integration/predicates.ts": {
+      "crap_moderate": {
+        "count": 2
       }
     },
     "packages/cli/src/events/daemon/agent/on-request-start-agent.ts": {
@@ -1636,7 +1625,7 @@
         "count": 8
       },
       "crap_moderate": {
-        "count": 16
+        "count": 17
       }
     },
     "packages/cli/src/infrastructure/services/harness-spawning/harness-spawning-service.ts": {
@@ -1660,12 +1649,12 @@
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/commandcode/command-code-agent-service.ts": {
-      "crap_critical": {
+      "crap_high": {
         "count": 1
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts": {
-      "crap_high": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -1683,10 +1672,13 @@
       },
       "crap_high": {
         "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
-      "crap_high": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -1701,11 +1693,8 @@
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/opencode-sdk-agent-service.ts": {
-      "crap_critical": {
-        "count": 2
-      },
       "crap_high": {
-        "count": 3
+        "count": 4
       },
       "crap_moderate": {
         "count": 1
@@ -1725,7 +1714,7 @@
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
-      "crap_high": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -1737,6 +1726,11 @@
     "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts": {
       "crap_moderate": {
         "count": 3
+      }
+    },
+    "packages/cli/src/infrastructure/services/remote-agents/spawn-prompt.ts": {
+      "crap_moderate": {
+        "count": 1
       }
     },
     "packages/cli/src/infrastructure/services/workspace/command-discovery.ts": {
@@ -2164,14 +2158,11 @@
       }
     },
     "services/backend/prompts/generator.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 2
-      },
       "crap_high": {
         "count": 1
+      },
+      "crap_moderate": {
+        "count": 5
       }
     },
     "services/backend/prompts/teams/squad/prompts/planner.ts": {
@@ -2360,41 +2351,45 @@
     "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts:high impact",
     "services/backend/prompts/teams/solo/prompts/fromContext.ts:dead code",
     "services/backend/src/domain/entities/agent.ts:dead code",
-    "services/backend/prompts/base/webapp/utils/env.ts:dead code",
     "services/backend/prompts/generator.ts:circular dependency",
+    "services/backend/prompts/base/webapp/utils/env.ts:dead code",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
-    "services/backend/convex/participants.ts:complexity",
     "services/backend/modules/auth/accessControl.ts:dead code",
+    "packages/cli/src/domain/native-integration/predicates.ts:high impact",
     "packages/cli/src/infrastructure/machine/crash-loop-tracker.ts:dead code",
     "services/backend/src/domain/types/skills.ts:dead code",
     "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "services/backend/prompts/sections/role-guidance.ts:dead code",
+    "services/backend/convex/participants.ts:complexity",
     "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
     "services/backend/prompts/utils/config.ts:dead code",
     "packages/cli/src/infrastructure/convex/client.ts:dead code",
     "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",
-    "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "services/backend/convex/messages.ts:complexity",
+    "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
     "services/backend/prompts/utils/env.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
+    "services/backend/src/domain/handoff/parse-compress-context.ts:high impact",
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
+    "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",
     "packages/cli/src/commands/handoff/index.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:untested risk",
-    "services/backend/prompts/cli/get-next-task/fullOutput.ts:complexity",
     "services/backend/convex/tasks/taskDelivery.ts:complexity",
+    "services/backend/src/domain/usecase/machine/get-assigned-tasks.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "apps/webapp/src/modules/presentation/presentation-controls.tsx:complexity",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
+    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
     "packages/cli/src/commands/context/index.ts:complexity",
     "apps/webapp/src/modules/checklist/use-checklist-sync.ts:complexity",
-    "apps/webapp/src/modules/presentation/use-presentation-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx:complexity",
+    "apps/webapp/src/modules/presentation/use-presentation-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/CommandPalette/useCommandPaletteCommands.tsx:complexity",
     "services/backend/convex/lib/stdinDecoder.ts:complexity",
     "services/backend/convex/chatroomCleanup.ts:complexity",

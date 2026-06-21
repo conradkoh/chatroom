@@ -117,6 +117,8 @@ export interface PlannerGuidanceParams extends BasePromptParams {
   isEntryPoint: boolean;
   /** Chatroom ID for generating exact CLI commands */
   chatroomId?: string;
+  /** True when harness uses native task injection instead of get-next-task */
+  nativeIntegration?: boolean;
 }
 
 /**
