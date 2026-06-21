@@ -16,7 +16,7 @@
  */
 
 import type { TeamCompositionConfig } from './team-composition';
-import { getHandoffContinuityRule } from '../../native/session-continuity.js';
+import { getHandoffContinuityRule } from '../../native/session-continuity';
 
 function buildHandoffRuleLines(config: TeamCompositionConfig): string {
   return [

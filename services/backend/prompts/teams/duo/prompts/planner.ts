@@ -22,7 +22,7 @@ import {
   getPlannerPlusBuilderWorkflow,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
-import { getSessionContinuityLine } from '../../../native/session-continuity.js';
+import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 
 /** Duo team always has a builder and no reviewer (fixed team composition) */

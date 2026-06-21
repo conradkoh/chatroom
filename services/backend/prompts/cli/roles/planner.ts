@@ -11,7 +11,7 @@
  * runtime conditionals.
  */
 
-import { getSessionContinuityLine } from '../../native/session-continuity.js';
+import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
 import { classifyCommand } from '../classify/command';

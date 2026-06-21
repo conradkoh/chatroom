@@ -8,7 +8,7 @@
  */
 
 import type { TeamCompositionConfig } from './team-composition';
-import { getWorkflowLoopFooter } from '../../native/session-continuity.js';
+import { getWorkflowLoopFooter } from '../../native/session-continuity';
 
 /**
  * Select and return the correct workflow diagram for the given team config.
