@@ -76,13 +76,13 @@ function readPublishManifest(): PublishPackageJson {
     devDependencies: undefined,
   };
 
-  // npm does not install transitive deps of bundled packages. @cursor/sdk needs
-  // sqlite3 at runtime (SqliteLocalAgentStore); promote it to a direct dependency
-  // so global installs always compile/download the native addon.
+  // npm does not install transitive deps of bundled packages. @cursor/sdk@1.0.19+
+  // dynamically imports @connectrpc/connect-node at runtime; promote it so global
+  // installs resolve the transport module.
   if (manifest.bundledDependencies?.includes('@cursor/sdk')) {
     manifest.dependencies = {
       ...manifest.dependencies,
-      sqlite3: manifest.dependencies?.sqlite3 ?? '5.1.7',
+      '@connectrpc/connect-node': manifest.dependencies?.['@connectrpc/connect-node'] ?? '^1.6.1',
     };
   }
 

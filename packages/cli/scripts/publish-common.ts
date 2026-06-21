@@ -3,17 +3,17 @@
  *
  * ## Why a custom publish pipeline exists
  *
- * `chatroom-cli` depends on `@cursor/sdk`, which is webpack-bundled and pins
- * native/runtime deps (notably `sqlite3`). Global installs broke when:
+ * `chatroom-cli` depends on `@cursor/sdk`, which pins runtime deps
+ * (`@connectrpc/connect-node`, `node:sqlite`). Global installs broke when:
  *
  * 1. **Hoisted SDK copies** — `npm install -g` could resolve a stale `@cursor/sdk`
  *    from a parent `node_modules` instead of the one shipped with chatroom-cli.
- * 2. **Broken webpack chunks** — SDK 1.0.17 referenced `745.index.js` but did not
- *    ship it; `Agent.create({ fast: false })` failed at runtime.
+ * 2. **Missing connect-node** — SDK 1.0.19+ dynamically imports
+ *    `@connectrpc/connect-node`; bundled SDK tarballs must ship it as a direct dep.
  *
  * We address (1) with `importBundledCursorSdk()` (scoped `require.resolve` from the
  * chatroom-cli install root) and (2) by exact-pinning `@cursor/sdk` and verifying
- * `745.index.js` before publish.
+ * runtime deps before publish.
  *
  * ## Why not `npm publish` directly from the pnpm workspace?
  *
