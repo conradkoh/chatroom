@@ -10,7 +10,7 @@ import { Context } from 'effect';
 
 import type { StopReason, AgentSlotSnapshot } from '../../../domain/agent-lifecycle/index.js';
 import type { AgentHarness } from '../../machine/types.js';
-import type { SpawnOptions, TryConsumeResult } from '../harness-spawning/index.js';
+import type { TryConsumeResult } from '../harness-spawning/index.js';
 import type { SpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Runtime Slot ──────────────────────────────────────────────────────────────
@@ -69,13 +69,7 @@ export interface HandleExitOpts {
 // ─── Ports ─────────────────────────────────────────────────────────────────────
 
 export interface SpawnPort {
-  shouldAllowSpawn: (
-    chatroomId: string,
-    reason: string,
-    options?: SpawnOptions
-  ) => TryConsumeResult;
-  recordSpawn: (chatroomId: string) => Effect.Effect<void>;
-  recordExit: (chatroomId: string) => Effect.Effect<void>;
+  shouldAllowSpawn: (chatroomId: string, reason: string) => TryConsumeResult;
 }
 
 export interface HarnessSpawnPort {

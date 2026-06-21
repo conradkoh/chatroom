@@ -23,7 +23,6 @@ import {
   transitionSlot,
   shouldIgnoreProcessExit,
   decideRestartAfterExit,
-  shouldBypassConcurrentLimit,
   resolveStopReason,
   idleSlot,
 } from '../../../domain/agent-lifecycle/index.js';
@@ -57,10 +56,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
       });
 
     // ── ensureRunning ────────────────────────────────────────────────────────
-    // Note: We do NOT use acquireRelease here because the spawned agent
-    // keeps running after ensureRunning returns. The bracket's release
-    // would fire immediately, decrementing the count prematurely.
-    // Instead, we call recordSpawn directly and recordExit in handleExit/stop.
 
     const spawnAndRegister = (
       key: string,
@@ -111,7 +106,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         }
         slot = succeededResult.slot;
 
-        yield* ports.spawn.recordSpawn(opts.chatroomId);
         yield* setSlotInRef(key, slot);
 
         if (spawnHandle) {
@@ -141,13 +135,7 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           };
         }
 
-        const bypass = shouldBypassConcurrentLimit(opts.reason);
-        const allowResult = ports.spawn.shouldAllowSpawn(
-          opts.chatroomId,
-          opts.reason,
-          bypass ? { bypassConcurrentLimit: true } : undefined
-        );
-
+        const allowResult = ports.spawn.shouldAllowSpawn(opts.chatroomId, opts.reason);
         if (!allowResult.allowed) {
           const error: OperationResult['error'] = allowResult.retryAfterMs
             ? 'rate_limited'
@@ -195,9 +183,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
             .pipe(Effect.ignore);
         }
 
-        // Always recordExit (fixes concurrent count leak)
-        yield* ports.spawn.recordExit(opts.chatroomId);
-
         // Transition to idle via stop_completed
         const completedResult = transitionSlot(stoppingSlot, {
           type: 'stop_completed',
@@ -210,8 +195,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
       });
 
     // ── handleExit ───────────────────────────────────────────────────────────
-    // Handles process exit: transitions slot, decides restart, calls recordExit.
-    // No acquireRelease — recordExit called directly (ensureRunning handles errors gracefully).
 
     const executeRestart = (
       slot: AgentLifecycleSlot,
@@ -225,7 +208,6 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           workingDir: slot.workingDir,
           wantResume: slot.wantResume ?? false,
           isPermanentFailure: false,
-          restartAllowed: true,
         });
 
         yield* dispatchRestartOutcome(restartOutcome, slot, chatroomId, role);
@@ -355,14 +337,11 @@ export const AgentLifecycleServiceLive: Layer.Layer<
           workingDir: slot.workingDir,
           wantResume: slot.wantResume ?? false,
           isPermanentFailure: false,
-          restartAllowed: true,
         });
 
         if (restartOutcome._tag === 'NoRestart') {
           yield* removeSlotFromRef(key);
         }
-
-        yield* ports.spawn.recordExit(opts.chatroomId);
       });
 
     // ── Public API ───────────────────────────────────────────────────────────

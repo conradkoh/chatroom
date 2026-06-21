@@ -58,8 +58,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
-      recordSpawn: vi.fn(),
-      recordExit: vi.fn(),
     },
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',

@@ -105,9 +105,6 @@ describe('DaemonSpawningService', () => {
   it('shouldAllowSpawn delegates to underlying SpawningOps and returns allowed=true', () => {
     const ops = {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
-      recordSpawn: vi.fn(),
-      recordExit: vi.fn(),
-      getConcurrentCount: vi.fn().mockReturnValue(0),
     };
 
     const layer = DaemonSpawningServiceLive(ops);
@@ -119,27 +116,7 @@ describe('DaemonSpawningService', () => {
     );
 
     expect(result).toEqual({ allowed: true });
-    expect(ops.shouldAllowSpawn).toHaveBeenCalledWith('room-spawn', 'user.start', undefined);
-  });
-
-  it('getConcurrentCount delegates to underlying SpawningOps', () => {
-    const ops = {
-      shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
-      recordSpawn: vi.fn(),
-      recordExit: vi.fn(),
-      getConcurrentCount: vi.fn().mockReturnValue(3),
-    };
-
-    const layer = DaemonSpawningServiceLive(ops);
-    const count = Effect.runSync(
-      Effect.gen(function* () {
-        const svc = yield* DaemonSpawningService;
-        return svc.getConcurrentCount('room-concurrent');
-      }).pipe(Effect.provide(layer))
-    );
-
-    expect(count).toBe(3);
-    expect(ops.getConcurrentCount).toHaveBeenCalledWith('room-concurrent');
+    expect(ops.shouldAllowSpawn).toHaveBeenCalledWith('room-spawn', 'user.start');
   });
 });
 
