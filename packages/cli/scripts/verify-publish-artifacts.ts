@@ -5,11 +5,9 @@
  * would only surface on end-user global installs:
  *
  * - **Exact @cursor/sdk pin** — caret ranges let npm resolve a newer broken SDK
- * - **745.index.js** — webpack chunk required by `Agent.create({ fast: false })`;
- *   missing in SDK 1.0.14–1.0.17 tarballs
- * - **sqlite3 native binary** — when `@cursor/sdk` is bundled, npm does not install
- *   the SDK's transitive deps; chatroom-cli must depend on `sqlite3` directly so
- *   the `.node` addon is built for the publish runner's platform
+ * - **SDK ESM entry** — @cursor/sdk@1.0.19+ ships dist/esm/index.js (no 745 chunk)
+ * - **@connectrpc/connect-node** — SDK dynamically imports this for agent streams;
+ *   when `@cursor/sdk` is bundled, npm does not install its transitive deps
  * - **Bundled tarball layout** — manual repack must place SDK under
  *   `package/node_modules/@cursor/sdk/` in the `.bundled.tgz`
  *
@@ -56,6 +54,7 @@ function verifyStagingDir(dir: string): void {
   const pkgPath = join(dir, 'package.json');
   assert(existsSync(pkgPath), `Missing package.json in ${dir}`);
   assert(existsSync(join(dir, 'dist', 'index.js')), `Missing dist/index.js in ${dir}`);
+  assert(existsSync(join(dir, 'dist', 'node-launch.js')), `Missing dist/node-launch.js in ${dir}`);
 
   const pkg = readJson(pkgPath);
   const sdkSpecifier = pkg.dependencies?.['@cursor/sdk'];
@@ -69,29 +68,22 @@ function verifyStagingDir(dir: string): void {
   const require = createRequire(join(dir, 'package.json'));
   const sdkEntry = require.resolve('@cursor/sdk', { paths: [dir] });
   const sdkDistDir = join(dirname(sdkEntry), '..', 'esm');
-  // Runtime smoke for the webpack chunk mismatch that broke cursor-sdk harness turns.
   assert(
-    existsSync(join(sdkDistDir, '745.index.js')),
-    '@cursor/sdk is missing dist/esm/745.index.js (broken publish)'
+    existsSync(join(sdkDistDir, 'index.js')),
+    '@cursor/sdk is missing dist/esm/index.js (broken publish)'
   );
 
   if (pkg.bundledDependencies?.includes('@cursor/sdk')) {
     assert(
-      pkg.dependencies?.sqlite3,
-      'When @cursor/sdk is bundled, sqlite3 must be a direct dependency of chatroom-cli'
+      pkg.dependencies?.['@connectrpc/connect-node'],
+      'When @cursor/sdk is bundled, @connectrpc/connect-node must be a direct dependency of chatroom-cli'
     );
-    const sqliteRoot = dirname(require.resolve('sqlite3/package.json', { paths: [dir] }));
-    const sqliteNode = join(sqliteRoot, 'build', 'Release', 'node_sqlite3.node');
-    // SDK imports sqlite3 as a native addon; bundling the SDK alone skips its dep tree.
-    assert(
-      existsSync(sqliteNode),
-      `sqlite3 native binary missing at ${sqliteNode} (run npm install in staging)`
-    );
+    require.resolve('@connectrpc/connect-node', { paths: [dir] });
   }
 
   console.log(`Publish artifacts OK (${dir})`);
   console.log(`  @cursor/sdk entry: ${sdkEntry}`);
-  console.log('  745.index.js: present');
+  console.log('  dist/esm/index.js: present');
 }
 
 function verifyTarball(tarball: string): void {
@@ -99,8 +91,12 @@ function verifyTarball(tarball: string): void {
   const output = execSync(`tar -tzf ${JSON.stringify(tarball)}`, { encoding: 'utf8' });
   assert(output.includes('package/dist/index.js'), 'Tarball missing package/dist/index.js');
   assert(
-    output.includes('package/node_modules/@cursor/sdk/dist/esm/745.index.js'),
-    'Tarball missing bundled @cursor/sdk chunk 745.index.js'
+    output.includes('package/dist/node-launch.js'),
+    'Tarball missing package/dist/node-launch.js'
+  );
+  assert(
+    output.includes('package/node_modules/@cursor/sdk/dist/esm/index.js'),
+    'Tarball missing bundled @cursor/sdk ESM entry'
   );
   console.log(`Tarball OK (${tarball})`);
 }

@@ -7,20 +7,19 @@
  * Run via: bun run build.config.ts
  */
 
-import type { BuildConfig } from 'bun';
 import { rmSync } from 'node:fs';
 
+import type { BuildConfig } from 'bun';
+
 const config: BuildConfig = {
-  entrypoints: ['src/index.ts'],
+  entrypoints: ['src/node-launch.ts', 'src/index.ts'],
   outdir: 'dist',
   target: 'node',
   format: 'esm',
   sourcemap: 'external',
   external: [
-    // @cursor/sdk uses sqlite3, a native .node addon. Bun cannot bundle native
-    // addons; if inlined, require('sqlite3') would resolve from dist/'s context
-    // where sqlite3 is unreachable due to pnpm isolation. Keeping the SDK
-    // external preserves its own node_modules resolution chain.
+    // @cursor/sdk is loaded at runtime via importBundledCursorSdk(). Keeping it
+    // external preserves resolution from the chatroom-cli install root.
     '@cursor/sdk',
   ],
 };

@@ -106,7 +106,9 @@ export async function importBundledCursorSdk(
     );
   }
 
-  return import(pathToFileURL(resolveSdkEsmImportPath(entryPath)).href);
+  const sdk = await import(pathToFileURL(resolveSdkEsmImportPath(entryPath)).href);
+  sdk.configureCursorSdk({ local: { useHttp1ForAgent: true } });
+  return sdk;
 }
 
 export function getBundledCursorSdkVersion(moduleRef: string = import.meta.url): string {

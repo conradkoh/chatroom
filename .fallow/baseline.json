@@ -581,7 +581,7 @@
     "services/backend/src/domain/usecase/workspace/list-workspaces-for-machine.ts:WorkspaceForMachineView"
   ],
   "private_type_leaks": [],
-  "unused_dependencies": ["packages/cli/package.json:sqlite3"],
+  "unused_dependencies": ["packages/cli/package.json:@connectrpc/connect-node"],
   "unused_dev_dependencies": [],
   "circular_dependencies": [
     "services/backend/prompts/generator.ts->services/backend/prompts/sections/role-guidance.ts"

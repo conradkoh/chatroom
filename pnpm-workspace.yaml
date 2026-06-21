@@ -8,6 +8,7 @@ packages:
 minimumReleaseAge: 1440 # minutes (24 hours)
 minimumReleaseAgeStrict: true
 # @cursor/sdk@1.0.17 is a broken publish (missing webpack chunks); 1.0.18 fixes it.
+# 1.0.19 fixes NGHTTP2_FRAME_SIZE_ERROR on tool-call streams (safe-connect-transport).
 minimumReleaseAgeExclude:
   - '@cursor/sdk'
   - '@cursor/sdk-darwin-arm64'
