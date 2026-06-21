@@ -11,15 +11,13 @@ const nextConfig: NextConfig = {
   // Enable typed routes for compile-time type safety (moved from experimental in Next.js 16)
   typedRoutes: true,
   // Fix Turbopack workspace root detection in monorepo
-  // Points to the monorepo root where pnpm-lock.yaml is located
-  // Use absolute path to ensure correct resolution
   turbopack: {
     root: path.resolve(__dirname, '../../'),
   },
   // Disable when `.next/dev/cache/turbopack` grows unbounded and compaction pegs CPU.
-  // Use: TURBOPACK_FS_CACHE=0 pnpm dev  (or apps/webapp `pnpm dev:clean` after stopping dev)
+  // Use: TURBOPACK_FS_CACHE=1 pnpm dev to opt in
   experimental: {
-    turbopackFileSystemCacheForDev: process.env.TURBOPACK_FS_CACHE !== '0',
+    turbopackFileSystemCacheForDev: process.env.TURBOPACK_FS_CACHE === '1',
   },
 };
 
