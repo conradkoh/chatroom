@@ -31,6 +31,7 @@ function createDeps(overrides?: Partial<HandleTurnCompletedDeps>): {
     emitResumeStormAborted: ReturnType<typeof vi.fn>;
     emitSessionResumed: ReturnType<typeof vi.fn>;
     emitSessionResumeFailed: ReturnType<typeof vi.fn>;
+    emitAgentStartFailed: ReturnType<typeof vi.fn>;
   };
 } {
   const backend = {
