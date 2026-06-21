@@ -41,6 +41,7 @@ import {
   type SessionMetadata,
   type SessionMetadataStore,
 } from './session-metadata-store.js';
+import { matchesTerminalProviderErrorText } from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
@@ -217,7 +218,12 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
-        emitLogLine(chunk.toString());
+        const text = chunk.toString();
+        emitLogLine(text);
+        const forwarder = this.forwarders.get(pid);
+        if (forwarder && matchesTerminalProviderErrorText(text)) {
+          forwarder.abortTerminalProviderError();
+        }
       });
     }
 

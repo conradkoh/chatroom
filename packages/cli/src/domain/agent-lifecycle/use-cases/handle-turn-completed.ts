@@ -1,5 +1,9 @@
 import type { TurnEndInput, TurnEndResult, TurnEndSlot } from '../entities/turn-end.js';
 import { tryAbortResumeStorm } from '../policies/abort-resume-storm.js';
+import {
+  formatTerminalProviderFailureMessage,
+  isTerminalProviderFailureInLogs,
+} from '../policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../ports/resume-storm-tracker.js';
 import type { TurnCompletedBackend } from '../ports/turn-completed-backend.js';
 
@@ -29,6 +33,21 @@ export async function handleTurnCompleted(
 
   if (await tryAbortResumeStorm(deps, input, slot)) {
     return { outcome: 'storm_aborted' };
+  }
+
+  if (isTerminalProviderFailureInLogs(slot?.recentLogLines ?? [])) {
+    const error = formatTerminalProviderFailureMessage(slot?.recentLogLines ?? []);
+    try {
+      await deps.backend.emitAgentStartFailed({
+        chatroomId: input.chatroomId,
+        role: input.role,
+        error,
+      });
+    } catch {
+      // Best-effort event emission
+    }
+    deps.killProcess(input.pid);
+    return { outcome: 'killed_terminal_provider_error' };
   }
 
   if (input.supportsSessionResume && input.wantResume) {

@@ -40,6 +40,10 @@ import {
   formatPermanentHarnessFailureMessage,
   isPermanentHarnessFailure,
 } from '../../../domain/agent-lifecycle/policies/classify-resume-storm-reason.js';
+import {
+  formatTerminalProviderFailureMessage,
+  isTerminalProviderFailureInLogs,
+} from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
 import { isProcessAlive } from '../../deps/process.js';
@@ -622,7 +626,9 @@ export class AgentProcessManager {
     opts: HandleExitOpts,
     recentLogLines: string[] | undefined
   ): void {
-    const error = formatPermanentHarnessFailureMessage(recentLogLines ?? []);
+    const error = isTerminalProviderFailureInLogs(recentLogLines ?? [])
+      ? formatTerminalProviderFailureMessage(recentLogLines ?? [])
+      : formatPermanentHarnessFailureMessage(recentLogLines ?? []);
     console.log(`[AgentProcessManager] ⛔ Skipping restart — ${error}`);
     this.deps.crashLoop.clear(opts.chatroomId, opts.role);
     const key = agentKey(opts.chatroomId, opts.role);

@@ -37,6 +37,7 @@ function createDeps(overrides?: Partial<HandleTurnCompletedDeps>): {
     emitResumeStormAborted: vi.fn().mockResolvedValue(undefined),
     emitSessionResumed: vi.fn().mockResolvedValue(undefined),
     emitSessionResumeFailed: vi.fn().mockResolvedValue(undefined),
+    emitAgentStartFailed: vi.fn().mockResolvedValue(undefined),
   };
   const deps: HandleTurnCompletedDeps = {
     resumeStormTracker: createTracker(),
@@ -180,6 +181,28 @@ describe('handleTurnCompleted', () => {
     });
   });
 
+  test('kills immediately on terminal provider rate limit without resuming', async () => {
+    const { deps, backend } = createDeps();
+    const slot: TurnEndSlot = {
+      state: 'running',
+      pid: 42,
+      recentLogLines: [
+        'message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
+      ],
+    };
+
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
+    expect(deps.resumeTurn).not.toHaveBeenCalled();
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+    expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      error: expect.stringContaining('non-retryable'),
+    });
+  });
+
   test('aborts storm, classifies reason, emits event, and stops agent', async () => {
     const tracker = createTracker(3);
     let tick = 1_000_000;
@@ -190,13 +213,14 @@ describe('handleTurnCompleted', () => {
     const slot: TurnEndSlot = {
       state: 'running',
       pid: 42,
-      recentLogLines: ['HTTP 429 rate limit exceeded'],
+      recentLogLines: ['agent_end'],
     };
 
     await handleTurnCompleted(deps, baseInput, slot);
     tick += 100;
     await handleTurnCompleted(deps, baseInput, slot);
     tick += 100;
+    slot.recentLogLines?.push('HTTP 429 rate limit exceeded');
     const result = await handleTurnCompleted(deps, baseInput, slot);
 
     expect(result).toEqual({ outcome: 'storm_aborted' });

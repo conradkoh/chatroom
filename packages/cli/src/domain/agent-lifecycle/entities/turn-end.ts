@@ -22,7 +22,12 @@ export interface TurnEndInput {
   wantResume: boolean;
 }
 
-export type TurnEndOutcome = 'storm_aborted' | 'skipped_duplicate' | 'resumed' | 'killed';
+export type TurnEndOutcome =
+  | 'storm_aborted'
+  | 'skipped_duplicate'
+  | 'resumed'
+  | 'killed'
+  | 'killed_terminal_provider_error';
 
 export interface TurnEndResult {
   outcome: TurnEndOutcome;

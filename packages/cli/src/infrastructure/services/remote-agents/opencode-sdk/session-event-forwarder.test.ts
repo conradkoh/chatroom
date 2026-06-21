@@ -395,6 +395,59 @@ describe('SessionEventForwarder', () => {
     );
   }, 10000);
 
+  it('session.status retry after rate limit log -> agent_end fired', async () => {
+    async function* retryAfterRateLimitStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'session.error',
+        properties: {
+          sessionID: 'sess-1',
+          error: {
+            name: 'AI_APICallError',
+            data: { message: 'Rate limit exceeded. Please try again later.' },
+          },
+        },
+      };
+      yield {
+        type: 'session.status',
+        properties: {
+          sessionID: 'sess-1',
+          status: { type: 'retry' },
+        },
+      };
+      await new Promise(() => {});
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(retryAfterRateLimitStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
+    );
+  }, 10000);
+
+  it('abortTerminalProviderError from stderr path -> agent_end fired once', async () => {
+    async function* idleStream(): AsyncGenerator<unknown> {
+      await new Promise(() => {});
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(idleStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    handle.abortTerminalProviderError();
+    handle.abortTerminalProviderError();
+    await vi.advanceTimersByTimeAsync(10);
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  }, 10000);
+
   it('file.edited forwarded', async () => {
     vi.useFakeTimers();
     const fakeClient = createMockClient(fileEditedStream());
