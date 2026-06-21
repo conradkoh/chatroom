@@ -54,8 +54,5 @@
     "dist/node-launch.js.map",
     "package.json",
     "README.md"
-  ],
-  "bundledDependencies": [
-    "@cursor/sdk"
   ]
 }

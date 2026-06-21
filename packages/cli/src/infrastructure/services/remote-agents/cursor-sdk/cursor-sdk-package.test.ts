@@ -43,11 +43,11 @@ describe('cursor-sdk-package', () => {
   it('formats chunk load failures with chatroom-cli reinstall guidance', () => {
     const message = formatCursorSdkLoadError(
       new Error(
-        "Cannot find module '/path/to/@cursor/sdk/dist/esm/745.index.js' imported from /path/to/index.js"
+        "Cannot find module '/path/to/@cursor/sdk/dist/esm/988.index.js' imported from /path/to/index.js"
       )
     );
 
-    expect(message).toContain('745.index.js');
+    expect(message).toContain('988.index.js');
     expect(message).toContain('npm install -g chatroom-cli@latest');
   });
 

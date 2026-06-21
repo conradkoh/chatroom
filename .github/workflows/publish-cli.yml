@@ -1,10 +1,10 @@
 # Publish chatroom-cli to npm when packages/cli/package.json version bumps on master.
 #
 # Do not run `npm publish` from packages/cli inside the pnpm workspace — it produces
-# broken tarballs (pnpm symlinks) and cannot bundle scoped @cursor/sdk. Instead:
+# broken tarballs (pnpm symlinks) and cannot install workspace:* deps. Instead:
 #   1. build + test in monorepo (pnpm/turbo)
-#   2. publish:prepare → flat npm staging + manual SDK bundle repack
-#   3. npm publish the .bundled.tgz from packages/cli/.npm-publish
+#   2. publish:prepare → flat npm staging + npm pack
+#   3. npm publish the .tgz from packages/cli/.npm-publish
 #
 # See packages/cli/scripts/publish-common.ts for full rationale.
 name: Publish CLI to npm
@@ -88,7 +88,7 @@ jobs:
       - name: Build and test CLI
         run: pnpm turbo run build test --filter=chatroom-cli
 
-      # Staging uses npm (flat node_modules) and bundles @cursor/sdk into .bundled.tgz.
+      # Staging uses npm (flat node_modules) and packs dist/ + dependencies into .tgz.
       - name: Prepare npm publish staging
         run: pnpm --filter chatroom-cli publish:prepare
 
@@ -98,11 +98,7 @@ jobs:
         run: |
           echo "Publishing version ${{ needs.check-version.outputs.local_version }}"
           echo "Previous npm version: ${{ needs.check-version.outputs.npm_version }}"
-          TARBALL="chatroom-cli-${{ needs.check-version.outputs.local_version }}.bundled.tgz"
-          if [ -f "$TARBALL" ]; then
-            npm publish "$TARBALL" --access public --ignore-scripts
-          else
-            npm publish --access public --ignore-scripts
-          fi
+          TARBALL="chatroom-cli-${{ needs.check-version.outputs.local_version }}.tgz"
+          npm publish "$TARBALL" --access public --ignore-scripts
         # Using trusted publishing - no NPM_TOKEN needed
         # Provenance is automatic with trusted publishing
