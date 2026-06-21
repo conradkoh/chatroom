@@ -7,9 +7,9 @@
  * (`@connectrpc/connect-node`, `node:sqlite`). Global installs broke when:
  *
  * 1. **Hoisted SDK copies** — `npm install -g` could resolve a stale `@cursor/sdk`
- *    from a parent `node_modules` instead of the one shipped with chatroom-cli.
+ *    from a parent `node_modules` instead of the one installed with chatroom-cli.
  * 2. **Missing connect-node** — SDK 1.0.19+ dynamically imports
- *    `@connectrpc/connect-node`; bundled SDK tarballs must ship it as a direct dep.
+ *    `@connectrpc/connect-node`; it must be a direct dependency of chatroom-cli.
  *
  * We address (1) with `importBundledCursorSdk()` (scoped `require.resolve` from the
  * chatroom-cli install root) and (2) by exact-pinning `@cursor/sdk` and verifying
@@ -19,15 +19,14 @@
  *
  * - `npm pack` from a pnpm tree embeds `../../node_modules/.pnpm/...` paths that
  *   cannot be extracted on install.
- * - `bundledDependencies` for scoped packages like `@cursor/sdk` fails silently on
- *   npm 11, so we manually repack the tarball in `prepare-npm-publish.ts`.
+ * - `devDependencies` use `workspace:*` (plain npm cannot install them).
  *
  * ## Pipeline overview
  *
  * 1. `guard-workspace-publish.ts` — block accidental publish from the workspace
- * 2. `prepare-npm-publish.ts` — stage flat `node_modules`, bundle SDK, verify
+ * 2. `prepare-npm-publish.ts` — stage flat `node_modules`, pack, verify
  * 3. `verify-publish-artifacts.ts` — preflight checks (also run standalone)
- * 4. `npm publish …bundled.tgz --ignore-scripts` from `.npm-publish/` (CI or local)
+ * 4. `npm publish chatroom-cli-<version>.tgz --ignore-scripts` from `.npm-publish/`
  *
  * Build + test run in the monorepo first; staging uses `npm install` only to produce
  * a publishable tree. `prepublishOnly` in the workspace package.json must not run
