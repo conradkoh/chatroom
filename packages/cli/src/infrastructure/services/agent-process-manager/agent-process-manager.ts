@@ -144,11 +144,8 @@ export interface AgentProcessManagerDeps {
   spawning: {
     shouldAllowSpawn: (
       chatroomId: string,
-      reason: string,
-      options?: { bypassConcurrentLimit?: boolean }
+      reason: string
     ) => { allowed: boolean; retryAfterMs?: number };
-    recordSpawn: (chatroomId: string) => void;
-    recordExit: (chatroomId: string) => void;
   };
   crashLoop: CrashLoopTracker;
   convexUrl: string;
@@ -451,7 +448,6 @@ export class AgentProcessManager {
     }
 
     const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
-    this.deps.spawning.recordExit(opts.chatroomId);
 
     const ctx = this.captureExitContext(slot, opts, stopReason);
     await this.preserveHarnessSessionOnExit(key, slot, ctx);
@@ -1101,9 +1097,7 @@ export class AgentProcessManager {
   }
 
   private checkRateLimitGate(opts: EnsureRunningOpts, slot: AgentSlot): OperationResult | null {
-    const spawnCheck = this.deps.spawning.shouldAllowSpawn(opts.chatroomId, opts.reason, {
-      bypassConcurrentLimit: opts.reason.startsWith('user.'),
-    });
+    const spawnCheck = this.deps.spawning.shouldAllowSpawn(opts.chatroomId, opts.reason);
     if (!spawnCheck.allowed) {
       this.resetSlotIdle(slot);
       return { success: false, error: 'rate_limited' };
@@ -1374,7 +1368,6 @@ export class AgentProcessManager {
   ): Promise<void> {
     const { pid } = spawnResult;
 
-    this.deps.spawning.recordSpawn(opts.chatroomId);
     this.assignRunningSlotState(key, slot, opts, spawnResult, wantResume, pid);
     this.emitSpawnedAgentUpdate(opts, spawnResult, pid);
 

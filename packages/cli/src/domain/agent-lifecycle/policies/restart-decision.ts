@@ -7,7 +7,6 @@ export type RestartOutcome =
       readonly _tag: 'RestartNow';
       readonly spawnReason: string;
       readonly wantResume: boolean;
-      readonly bypassConcurrentLimit: boolean;
     }
   | {
       readonly _tag: 'ScheduleRetry';
@@ -24,21 +23,17 @@ export interface RestartDecisionInput {
   readonly isPermanentFailure: boolean;
   readonly permanentFailureMessage?: string;
   readonly backoffWaitMs?: number; // from CrashLoopTracker when blocked
-  readonly restartAllowed: boolean; // from shouldAllowSpawn when not bypassing
 }
 
 export function decideRestartAfterExit(input: RestartDecisionInput): RestartOutcome {
-  // Rule: shouldAutoRestartAfterProcessExit === false → NoRestart
   if (!shouldAutoRestartAfterProcessExit(input.stopReason)) {
     return { _tag: 'NoRestart', reason: `Intentional stop: ${input.stopReason}` };
   }
 
-  // Rule: missing harness or workingDir → NoRestart
   if (!input.harness || !input.workingDir) {
     return { _tag: 'NoRestart', reason: 'Missing harness or workingDir' };
   }
 
-  // Rule: permanent failure → NoRestart (with reason message)
   if (input.isPermanentFailure) {
     return {
       _tag: 'NoRestart',
@@ -46,7 +41,6 @@ export function decideRestartAfterExit(input: RestartDecisionInput): RestartOutc
     };
   }
 
-  // Rule: backoffWaitMs > 0 → ScheduleRetry (fixes missing retry timer)
   if (input.backoffWaitMs && input.backoffWaitMs > 0) {
     return {
       _tag: 'ScheduleRetry',
@@ -56,11 +50,9 @@ export function decideRestartAfterExit(input: RestartDecisionInput): RestartOutc
     };
   }
 
-  // Otherwise → RestartNow with bypassConcurrentLimit true
   return {
     _tag: 'RestartNow',
     spawnReason: 'platform.crash_recovery',
     wantResume: input.wantResume,
-    bypassConcurrentLimit: true,
   };
 }

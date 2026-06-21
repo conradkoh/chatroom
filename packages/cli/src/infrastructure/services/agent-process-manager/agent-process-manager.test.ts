@@ -73,8 +73,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
-      recordSpawn: vi.fn(),
-      recordExit: vi.fn(),
     },
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
@@ -149,7 +147,6 @@ describe('AgentProcessManager', () => {
       // Verify backend interactions
       const service = deps.agentServices.get('opencode')!;
       expect(service.spawn).toHaveBeenCalledOnce();
-      expect(deps.spawning.recordSpawn).toHaveBeenCalledWith(CHATROOM_ID);
       expect(deps.persistence.persistAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
@@ -792,15 +789,9 @@ describe('AgentProcessManager', () => {
       expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
         1,
         CHATROOM_ID,
-        'platform.auto_restart_on_new_context',
-        expect.any(Object)
+        'platform.auto_restart_on_new_context'
       );
-      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
-        2,
-        CHATROOM_ID,
-        'platform.crash_recovery',
-        expect.any(Object)
-      );
+      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(2, CHATROOM_ID, 'platform.crash_recovery');
       expect(service.spawn).toHaveBeenCalledTimes(2);
     });
 
@@ -1700,8 +1691,6 @@ describe('AgentProcessManager', () => {
         },
         spawning: {
           shouldAllowSpawn,
-          recordSpawn: vi.fn(),
-          recordExit: vi.fn(),
         },
       });
       const localManager = new AgentProcessManager(localDeps);

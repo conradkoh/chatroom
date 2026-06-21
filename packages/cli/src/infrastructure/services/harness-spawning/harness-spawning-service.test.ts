@@ -1,9 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HarnessSpawningService } from './harness-spawning-service.js';
 import type { SpawnRateLimiter } from './rate-limiter.js';
-
-// ─── Helper: create a mock rate limiter ───────────────────────────────────────
 
 function createMockRateLimiter(allowed: boolean, retryAfterMs?: number): SpawnRateLimiter {
   return {
@@ -17,10 +15,8 @@ describe('HarnessSpawningService', () => {
     vi.restoreAllMocks();
   });
 
-  // ─── shouldAllowSpawn — rate limiter approves ─────────────────────────────
-
   describe('shouldAllowSpawn — rate limiter approves', () => {
-    it('returns allowed: true when rate limiter approves and concurrency limit is not hit', () => {
+    it('returns allowed: true when rate limiter approves', () => {
       const rateLimiter = createMockRateLimiter(true);
       const service = new HarnessSpawningService({ rateLimiter });
 
@@ -29,8 +25,6 @@ describe('HarnessSpawningService', () => {
       expect(rateLimiter.tryConsume).toHaveBeenCalledWith('room-1', 'platform.restart');
     });
   });
-
-  // ─── shouldAllowSpawn — rate limiter rejects ──────────────────────────────
 
   describe('shouldAllowSpawn — rate limiter rejects', () => {
     it('returns allowed: false when rate limiter rejects', () => {
@@ -51,142 +45,6 @@ describe('HarnessSpawningService', () => {
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Spawn blocked by rate limiter')
       );
-    });
-  });
-
-  // ─── Concurrent Agent Limit ───────────────────────────────────────────────
-
-  describe('concurrent agent limit enforcement', () => {
-    it('rejects spawn when concurrent limit is reached (10)', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-      const chatroomId = 'room-concurrent';
-
-      // Simulate 10 active agents
-      for (let i = 0; i < 10; i++) {
-        service.recordSpawn(chatroomId);
-      }
-
-      const result = service.shouldAllowSpawn(chatroomId, 'platform.restart');
-      expect(result.allowed).toBe(false);
-      // Rate limiter should NOT be consulted — we short-circuit before it
-      expect(rateLimiter.tryConsume).not.toHaveBeenCalled();
-    });
-
-    it('logs a warning when concurrent limit is hit', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-
-      service.recordSpawn('room-x');
-      service.recordSpawn('room-x');
-      service.recordSpawn('room-x');
-      for (let i = 0; i < 7; i++) {
-        service.recordSpawn('room-x');
-      }
-
-      service.shouldAllowSpawn('room-x', 'platform.restart');
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Concurrent agent limit reached')
-      );
-    });
-
-    it('allows spawn again after an agent exits (below limit)', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-      const chatroomId = 'room-exit';
-
-      for (let i = 0; i < 10; i++) {
-        service.recordSpawn(chatroomId);
-      }
-
-      // One exits
-      service.recordExit(chatroomId);
-
-      const result = service.shouldAllowSpawn(chatroomId, 'platform.restart');
-      expect(result.allowed).toBe(true);
-    });
-
-    it('allows spawn with bypassConcurrentLimit even at limit', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-      const chatroomId = 'room-bypass';
-
-      // Simulate 10 active agents (at limit)
-      for (let i = 0; i < 10; i++) {
-        service.recordSpawn(chatroomId);
-      }
-
-      // Should allow when bypass is requested (e.g., manual user action)
-      const result = service.shouldAllowSpawn(chatroomId, 'user.start', {
-        bypassConcurrentLimit: true,
-      });
-      expect(result.allowed).toBe(true);
-      // Rate limiter should still be consulted
-      expect(rateLimiter.tryConsume).toHaveBeenCalledWith('room-bypass', 'user.start');
-    });
-
-    it('still enforces rate limiter even when bypassConcurrentLimit is true', () => {
-      const rateLimiter = createMockRateLimiter(false, 60_000);
-      const service = new HarnessSpawningService({ rateLimiter });
-      const chatroomId = 'room-bypass-rate-limited';
-
-      // Simulate 10 active agents (at limit)
-      for (let i = 0; i < 10; i++) {
-        service.recordSpawn(chatroomId);
-      }
-
-      // Should still respect rate limiter even with bypassConcurrentLimit
-      const result = service.shouldAllowSpawn(chatroomId, 'user.start', {
-        bypassConcurrentLimit: true,
-      });
-      expect(result.allowed).toBe(false);
-      expect(result.retryAfterMs).toBe(60_000);
-    });
-  });
-
-  // ─── recordSpawn / recordExit ─────────────────────────────────────────────
-
-  describe('recordSpawn and recordExit tracking', () => {
-    it('increments concurrent count on recordSpawn', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-
-      expect(service.getConcurrentCount('room-1')).toBe(0);
-      service.recordSpawn('room-1');
-      expect(service.getConcurrentCount('room-1')).toBe(1);
-      service.recordSpawn('room-1');
-      expect(service.getConcurrentCount('room-1')).toBe(2);
-    });
-
-    it('decrements concurrent count on recordExit', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-
-      service.recordSpawn('room-1');
-      service.recordSpawn('room-1');
-      service.recordExit('room-1');
-      expect(service.getConcurrentCount('room-1')).toBe(1);
-    });
-
-    it('does not go below 0 on excess recordExit calls', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-
-      service.recordExit('room-1'); // no prior spawn
-      expect(service.getConcurrentCount('room-1')).toBe(0);
-    });
-
-    it('tracks counts independently per chatroom', () => {
-      const rateLimiter = createMockRateLimiter(true);
-      const service = new HarnessSpawningService({ rateLimiter });
-
-      service.recordSpawn('room-A');
-      service.recordSpawn('room-A');
-      service.recordSpawn('room-B');
-
-      expect(service.getConcurrentCount('room-A')).toBe(2);
-      expect(service.getConcurrentCount('room-B')).toBe(1);
     });
   });
 });

@@ -21,11 +21,8 @@ export interface AgentLifecyclePortAdapterDeps {
   readonly spawning: {
     readonly shouldAllowSpawn: (
       chatroomId: string,
-      reason: string,
-      options?: { bypassConcurrentLimit?: boolean }
+      reason: string
     ) => { allowed: boolean; retryAfterMs?: number };
-    readonly recordSpawn: (chatroomId: string) => void;
-    readonly recordExit: (chatroomId: string) => void;
   };
   readonly agentServices: Map<string, RemoteAgentService>;
   readonly sessionId: string;
@@ -44,16 +41,7 @@ export interface AgentLifecyclePortAdapterDeps {
 
 export function createSpawnPort(spawning: AgentLifecyclePortAdapterDeps['spawning']): SpawnPort {
   return {
-    shouldAllowSpawn: (chatroomId, reason, options) =>
-      spawning.shouldAllowSpawn(chatroomId, reason, options),
-    recordSpawn: (chatroomId) =>
-      Effect.sync(() => {
-        spawning.recordSpawn(chatroomId);
-      }),
-    recordExit: (chatroomId) =>
-      Effect.sync(() => {
-        spawning.recordExit(chatroomId);
-      }),
+    shouldAllowSpawn: (chatroomId, reason) => spawning.shouldAllowSpawn(chatroomId, reason),
   };
 }
 

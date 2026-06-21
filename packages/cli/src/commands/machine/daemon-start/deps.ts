@@ -19,7 +19,6 @@ import type {
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
-import type { SpawnOptions } from '../../../infrastructure/services/harness-spawning/harness-spawning-service.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
@@ -41,7 +40,9 @@ export interface MachineStateOps {
   /** List all persisted agent entries for a machine */
   listAgentEntries: (
     machineId: string
-  ) => Promise<{ chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]>;
+  ) => Promise<
+    { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[]
+  >;
   /** Persist the event stream cursor (last processed event ID) */
   persistEventCursor: (machineId: string, lastSeenEventId: string) => Promise<void>;
   /** Load the event stream cursor from persisted state. Returns null if absent. */
@@ -77,10 +78,7 @@ export interface StateRecoveryDeps {
  * mock objects without having to satisfy private class members.
  */
 export interface SpawningOps {
-  shouldAllowSpawn(chatroomId: string, reason: string, options?: SpawnOptions): TryConsumeResult;
-  recordSpawn(chatroomId: string): void;
-  recordExit(chatroomId: string): void;
-  getConcurrentCount(chatroomId: string): number;
+  shouldAllowSpawn(chatroomId: string, reason: string): TryConsumeResult;
 }
 
 // ─── Aggregated DaemonDeps ──────────────────────────────────────────────────
