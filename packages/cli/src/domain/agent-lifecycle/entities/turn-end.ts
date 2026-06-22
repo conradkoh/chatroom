@@ -11,6 +11,8 @@ export interface TurnEndSlot {
   harnessSessionId?: string;
   state?: TurnEndSlotState;
   pid?: number;
+  /** Set when turn-end handler already emitted startFailed for a provider rate limit. */
+  terminalProviderFailureHandled?: boolean;
 }
 
 export interface TurnEndInput {
@@ -22,7 +24,12 @@ export interface TurnEndInput {
   wantResume: boolean;
 }
 
-export type TurnEndOutcome = 'storm_aborted' | 'skipped_duplicate' | 'resumed' | 'killed';
+export type TurnEndOutcome =
+  | 'storm_aborted'
+  | 'skipped_duplicate'
+  | 'resumed'
+  | 'killed'
+  | 'killed_terminal_provider_error';
 
 export interface TurnEndResult {
   outcome: TurnEndOutcome;

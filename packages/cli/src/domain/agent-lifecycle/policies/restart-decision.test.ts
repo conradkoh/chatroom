@@ -34,23 +34,20 @@ describe('decideRestartAfterExit', () => {
       workingDir: '/tmp/work',
       wantResume: true,
       isPermanentFailure: false,
-      restartAllowed: true,
     });
     expect(getNoRestart(result)._tag).toBe('NoRestart');
   });
 
-  it('crash with harness+wd → RestartNow with bypassConcurrentLimit true', () => {
+  it('crash with harness+wd → RestartNow', () => {
     const result = decideRestartAfterExit({
       stopReason: 'agent_process.crashed',
       harness: 'opencode',
       workingDir: '/tmp/work',
       wantResume: true,
       isPermanentFailure: false,
-      restartAllowed: true,
     });
     const r = getRestartNow(result);
     expect(r._tag).toBe('RestartNow');
-    expect(r.bypassConcurrentLimit).toBe(true);
     expect(r.spawnReason).toBe('platform.crash_recovery');
     expect(r.wantResume).toBe(true);
   });
@@ -63,7 +60,6 @@ describe('decideRestartAfterExit', () => {
       wantResume: true,
       isPermanentFailure: true,
       permanentFailureMessage: 'Max retries exceeded',
-      restartAllowed: true,
     });
     expect(getNoRestart(result)._tag).toBe('NoRestart');
   });
@@ -76,7 +72,6 @@ describe('decideRestartAfterExit', () => {
       wantResume: true,
       isPermanentFailure: false,
       backoffWaitMs: 5000,
-      restartAllowed: true,
     });
     const r = getScheduleRetry(result);
     expect(r._tag).toBe('ScheduleRetry');
@@ -92,7 +87,6 @@ describe('decideRestartAfterExit', () => {
       workingDir: undefined,
       wantResume: true,
       isPermanentFailure: false,
-      restartAllowed: true,
     });
     expect(getNoRestart(result)._tag).toBe('NoRestart');
   });
@@ -104,7 +98,6 @@ describe('decideRestartAfterExit', () => {
       workingDir: '/tmp/work',
       wantResume: true,
       isPermanentFailure: false,
-      restartAllowed: true,
     });
     expect(getNoRestart(result)._tag).toBe('NoRestart');
   });
@@ -116,7 +109,6 @@ describe('decideRestartAfterExit', () => {
       workingDir: '/tmp/work',
       wantResume: true,
       isPermanentFailure: false,
-      restartAllowed: true,
     });
     expect(getNoRestart(result)._tag).toBe('NoRestart');
   });
@@ -128,11 +120,9 @@ describe('decideRestartAfterExit', () => {
       workingDir: '/tmp/work',
       wantResume: false,
       isPermanentFailure: false,
-      restartAllowed: true,
     });
     const r = getRestartNow(result);
     expect(r._tag).toBe('RestartNow');
-    expect(r.bypassConcurrentLimit).toBe(true);
     expect(r.wantResume).toBe(false);
   });
 });

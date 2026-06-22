@@ -73,8 +73,6 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
-      recordSpawn: vi.fn(),
-      recordExit: vi.fn(),
     },
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
@@ -149,7 +147,6 @@ describe('AgentProcessManager', () => {
       // Verify backend interactions
       const service = deps.agentServices.get('opencode')!;
       expect(service.spawn).toHaveBeenCalledOnce();
-      expect(deps.spawning.recordSpawn).toHaveBeenCalledWith(CHATROOM_ID);
       expect(deps.persistence.persistAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
@@ -792,15 +789,9 @@ describe('AgentProcessManager', () => {
       expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
         1,
         CHATROOM_ID,
-        'platform.auto_restart_on_new_context',
-        expect.any(Object)
+        'platform.auto_restart_on_new_context'
       );
-      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
-        2,
-        CHATROOM_ID,
-        'platform.crash_recovery',
-        expect.any(Object)
-      );
+      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(2, CHATROOM_ID, 'platform.crash_recovery');
       expect(service.spawn).toHaveBeenCalledTimes(2);
     });
 
@@ -1377,6 +1368,105 @@ describe('AgentProcessManager', () => {
       expect(startFailedCall).toBeDefined();
     });
 
+    test('onAgentEnd on provider rate limit emits startFailed once and skips exit re-emit', async () => {
+      const resumeTurn = vi.fn();
+      let agentEndCb: (() => void) | undefined;
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onLogLine: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            agentEndCb = cb;
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
+      ];
+
+      await triggerAgentEnd(manager, agentEndCb!);
+
+      expect(resumeTurn).not.toHaveBeenCalled();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(slot.terminalProviderFailureHandled).toBe(true);
+
+      const startFailedCalls = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.role === ROLE &&
+          args.chatroomId === CHATROOM_ID &&
+          typeof args.error === 'string' &&
+          args.error.includes('non-retryable')
+      );
+      expect(startFailedCalls).toHaveLength(1);
+
+      (resumableService.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: null,
+        signal: 'SIGTERM',
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(resumableService.spawn).not.toHaveBeenCalled();
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) => typeof args.error === 'string' && args.error.includes('non-retryable')
+        )
+      ).toHaveLength(0);
+    });
+
+    test('crash with provider rate limit emits startFailed once on exit path', async () => {
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
+      ];
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(service.spawn).not.toHaveBeenCalled();
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) => typeof args.error === 'string' && args.error.includes('non-retryable')
+        )
+      ).toHaveLength(1);
+    });
+
     test('exited_clean retains daemon memory and reconnects cursor-sdk via resumeFromDaemonMemory', async () => {
       const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
         pid: 100,
@@ -1700,8 +1790,6 @@ describe('AgentProcessManager', () => {
         },
         spawning: {
           shouldAllowSpawn,
-          recordSpawn: vi.fn(),
-          recordExit: vi.fn(),
         },
       });
       const localManager = new AgentProcessManager(localDeps);

@@ -23,7 +23,6 @@ import type {
   OperationResult,
   StopOpts,
 } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
-import type { SpawnOptions } from '../../../infrastructure/services/harness-spawning/harness-spawning-service.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 
@@ -68,17 +67,10 @@ export const DaemonMachineServiceLive = (ops: MachineStateOps): Layer.Layer<Daem
 
 // ─── DaemonSpawningService ──────────────────────────────────────────────────
 
-/** Effect service wrapping SpawningOps (rate-limiting, concurrent agent tracking). */
+/** Effect service wrapping SpawningOps (rate-limiting). */
 export interface DaemonSpawningServiceShape {
   /** Synchronous — returns the decision immediately without suspending. */
-  shouldAllowSpawn: (
-    chatroomId: string,
-    reason: string,
-    options?: SpawnOptions
-  ) => TryConsumeResult;
-  recordSpawn: (chatroomId: string) => void;
-  recordExit: (chatroomId: string) => void;
-  getConcurrentCount: (chatroomId: string) => number;
+  shouldAllowSpawn: (chatroomId: string, reason: string) => TryConsumeResult;
 }
 
 // fallow-ignore-next-line unused-export
@@ -89,11 +81,7 @@ export class DaemonSpawningService extends Context.Tag('DaemonSpawningService')<
 
 export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonSpawningService> =>
   Layer.succeed(DaemonSpawningService, {
-    shouldAllowSpawn: (chatroomId, reason, options) =>
-      ops.shouldAllowSpawn(chatroomId, reason, options),
-    recordSpawn: (chatroomId) => ops.recordSpawn(chatroomId),
-    recordExit: (chatroomId) => ops.recordExit(chatroomId),
-    getConcurrentCount: (chatroomId) => ops.getConcurrentCount(chatroomId),
+    shouldAllowSpawn: (chatroomId, reason) => ops.shouldAllowSpawn(chatroomId, reason),
   });
 
 // ─── DaemonAgentProcessManagerService ───────────────────────────────────────

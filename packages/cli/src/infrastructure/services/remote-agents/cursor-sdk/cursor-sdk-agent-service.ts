@@ -7,11 +7,11 @@
  * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
  * process so PID-based lifecycle management in the daemon continues to work.
  *
- * NOTE: @cursor/sdk depends on sqlite3, a native .node addon. To avoid crashing
- * the daemon on startup when sqlite3 native binaries fail to load (ABI mismatch,
- * wrong Node version, unsupported platform, etc.), the SDK is imported lazily at
- * runtime via loadSdk(). If the import fails, isInstalled() returns false and the
- * harness is hidden from the picker without affecting other harnesses.
+ * NOTE: @cursor/sdk@1.0.19+ imports `node:sqlite` at load time and dynamically
+ * imports `@connectrpc/connect-node` for agent streams. The CLI bin wrapper
+ * (`node-launch.js`) enables `--experimental-sqlite` before startup. SDK import
+ * is deferred via loadSdk() so load failures hide the harness instead of
+ * crashing the daemon.
  */
 
 import type { ChildProcess } from 'node:child_process';
@@ -57,9 +57,8 @@ type LoadedCursorSdk = typeof CursorSdkModule;
 const NO_SUBAGENT_DIRECTIVE = 'NEVER spawn subagents. Follow the chatroom instructions strictly.';
 
 // ─── Lazy SDK loader ───────────────────────────────────────────────────────────
-// @cursor/sdk loads sqlite3 (a native .node addon) on import. We defer the
-// import until first use so that sqlite3 binary failures are caught at call
-// sites (isInstalled / spawn / listModels) rather than at daemon startup.
+// Defer @cursor/sdk import until first use so SDK load failures are caught at
+// call sites (isInstalled / spawn / listModels) rather than at daemon startup.
 
 let _sdkCache: LoadedCursorSdk | undefined;
 let _sdkLoadError: unknown;
@@ -178,8 +177,8 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
   async isInstalled(): Promise<boolean> {
     if (!process.env.CURSOR_API_KEY?.trim()) return false;
-    // Verify package integrity and native deps (sqlite3) before exposing the
-    // harness. Failures hide the harness rather than crashing the daemon.
+    // Verify package integrity before exposing the harness. Failures hide the
+    // harness rather than crashing the daemon.
     try {
       await loadSdk();
       return true;
@@ -543,10 +542,14 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
 
             if (result.status === 'error') {
               exitCode = 2;
+              const detail =
+                typeof result.result === 'string' && result.result.trim().length > 0
+                  ? result.result.trim()
+                  : 'no error detail from SDK';
               const runErrorLine = formatAgentLogLine(
                 logPrefix,
                 'run-error',
-                `run ${result.id} failed`
+                `run ${result.id} failed: ${detail}`
               );
               process.stderr.write(`${runErrorLine}\n`);
               emitLogLine(runErrorLine);

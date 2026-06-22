@@ -82,7 +82,7 @@ function resolveSdkEsmImportPath(cjsEntryPath: string): string {
  * Resolve and import @cursor/sdk from this chatroom-cli install.
  *
  * Uses require.resolve(..., { paths: [chatroomCliRoot] }) so npm global installs
- * use the copy bundled with chatroom-cli, not a separately hoisted global package.
+ * use the copy installed with chatroom-cli, not a separately hoisted global package.
  */
 // fallow-ignore-next-line complexity
 export async function importBundledCursorSdk(
@@ -106,7 +106,9 @@ export async function importBundledCursorSdk(
     );
   }
 
-  return import(pathToFileURL(resolveSdkEsmImportPath(entryPath)).href);
+  const sdk = await import(pathToFileURL(resolveSdkEsmImportPath(entryPath)).href);
+  sdk.configureCursorSdk({ local: { useHttp1ForAgent: true } });
+  return sdk;
 }
 
 export function getBundledCursorSdkVersion(moduleRef: string = import.meta.url): string {

@@ -15,6 +15,7 @@ const sharedAgentSendFn = vi.fn();
 const sharedAgentCloseFn = vi.fn();
 
 vi.mock('@cursor/sdk', () => ({
+  configureCursorSdk: vi.fn(),
   Agent: {
     create: (...args: unknown[]) => sharedAgentCreateFn(...args),
     resume: (...args: unknown[]) => sharedAgentResumeFn(...args),
@@ -28,7 +29,7 @@ vi.mock('@cursor/sdk', () => ({
 
 vi.mock('./cursor-sdk-package.js', () => ({
   importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
-  getBundledCursorSdkVersion: vi.fn(() => '1.0.18'),
+  getBundledCursorSdkVersion: vi.fn(() => '1.0.19'),
   formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
 

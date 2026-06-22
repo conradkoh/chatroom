@@ -1,10 +1,10 @@
 {
   "name": "chatroom-cli",
-  "version": "1.56.0",
+  "version": "1.56.1",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
-    "chatroom": "./dist/index.js"
+    "chatroom": "./dist/node-launch.js"
   },
   "scripts": {
     "build": "bun run typecheck && bun run build.config.ts",
@@ -17,8 +17,8 @@
     "publish:verify": "bun run scripts/verify-publish-artifacts.ts"
   },
   "dependencies": {
-    "@cursor/sdk": "1.0.18",
-    "sqlite3": "5.1.7",
+    "@connectrpc/connect-node": "^1.6.1",
+    "@cursor/sdk": "1.0.19",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",
@@ -50,10 +50,9 @@
   "files": [
     "dist/index.js",
     "dist/index.js.map",
+    "dist/node-launch.js",
+    "dist/node-launch.js.map",
     "package.json",
     "README.md"
-  ],
-  "bundledDependencies": [
-    "@cursor/sdk"
   ]
 }
