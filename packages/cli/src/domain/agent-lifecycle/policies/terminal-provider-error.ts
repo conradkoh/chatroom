@@ -6,7 +6,7 @@
  * retried via resumeTurn or crash_recovery.
  */
 
-const TERMINAL_PROVIDER_ERROR_PHRASES = [
+const QUOTA_PHRASES = [
   'usagelimit',
   'usage limit',
   'enable usage from your available balance',
@@ -16,15 +16,29 @@ const TERMINAL_PROVIDER_ERROR_PHRASES = [
   'x-ratelimit-exceeded',
   'weekly rate limit',
   'exceeded your weekly',
-  'ai_apicallerror',
-  'ai_retryerror',
 ] as const;
 
-export function matchesTerminalProviderErrorText(blob: string): boolean {
+const PROVIDER_ERROR_NAMES = ['ai_apicallerror', 'ai_retryerror'] as const;
+
+const HARNESS_LOG_PREFIX = /^\[[^\]]+\] role:/;
+
+function matchesQuotaPhrase(blob: string): boolean {
   const text = blob.toLowerCase();
-  return TERMINAL_PROVIDER_ERROR_PHRASES.some((phrase) => text.includes(phrase));
+  return QUOTA_PHRASES.some((phrase) => text.includes(phrase));
 }
 
+function matchesStructuredProviderErrorText(blob: string): boolean {
+  const text = blob.toLowerCase();
+  const hasProviderName = PROVIDER_ERROR_NAMES.some((name) => text.includes(name));
+  return hasProviderName && matchesQuotaPhrase(blob);
+}
+
+/** Immediate match for stderr lines and unstructured error strings. */
+export function matchesTerminalProviderErrorText(blob: string): boolean {
+  return matchesQuotaPhrase(blob) || matchesStructuredProviderErrorText(blob);
+}
+
+// fallow-ignore-next-line complexity
 export function isTerminalProviderError(error: unknown): boolean {
   if (typeof error === 'string') {
     return matchesTerminalProviderErrorText(error);
@@ -32,22 +46,34 @@ export function isTerminalProviderError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
-  return matchesTerminalProviderErrorText(normalizeError(error));
+  const e = error as Record<string, unknown>;
+  if (typeof e.error === 'string' && matchesTerminalProviderErrorText(e.error)) {
+    return true;
+  }
+  const name = extractName(e);
+  const message = extractMessage(e);
+  return matchesQuotaPhrase(message) || matchesQuotaPhrase(`${name} ${message}`);
 }
 
 /** True when recent harness log lines indicate a non-retryable provider failure. */
+// fallow-ignore-next-line complexity
 export function isTerminalProviderFailureInLogs(logLines: readonly string[]): boolean {
-  const blob = logLines.join('\n');
-  if (!blob.trim()) return false;
-  if (blob.includes('provider_rate_limit')) return true;
-  return matchesTerminalProviderErrorText(blob);
+  for (const line of logLines) {
+    if (!isClassifiableHarnessLogLine(line)) continue;
+    if (line.includes('provider_rate_limit')) return true;
+    if (matchesTerminalProviderErrorText(line)) return true;
+  }
+  return false;
 }
 
-function normalizeError(error: unknown): string {
-  const e = error as Record<string, unknown>;
-  const name = extractName(e);
-  const message = extractMessage(e);
-  return `${name}\n${message}`;
+// fallow-ignore-next-line complexity
+function isClassifiableHarnessLogLine(line: string): boolean {
+  if (/\b(?:text|thinking)\]/.test(line)) return false;
+  if (line.includes('provider_rate_limit')) return true;
+  if (line.includes('agent_end]')) return true;
+  if (line.includes(' error]')) return true;
+  if (!HARNESS_LOG_PREFIX.test(line)) return true;
+  return false;
 }
 
 function extractName(e: Record<string, unknown>): string {

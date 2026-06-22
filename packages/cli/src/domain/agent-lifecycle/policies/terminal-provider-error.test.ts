@@ -8,16 +8,17 @@ import {
 } from './terminal-provider-error.js';
 
 describe('matchesTerminalProviderErrorText', () => {
-  test('matches rate limit phrases', () => {
+  test('matches quota phrases and structured provider errors', () => {
     expect(matchesTerminalProviderErrorText('Rate limit exceeded. Please try again later.')).toBe(
       true
     );
+    expect(matchesTerminalProviderErrorText('weekly rate limit')).toBe(true);
     expect(matchesTerminalProviderErrorText('AI_APICallError: Rate limit exceeded')).toBe(true);
-    expect(matchesTerminalProviderErrorText('AI_RetryError: Failed after 3 attempts')).toBe(true);
   });
 
-  test('does not match unrelated errors', () => {
+  test('does not match unrelated or retry-only errors', () => {
     expect(matchesTerminalProviderErrorText('ENOENT: file not found')).toBe(false);
+    expect(matchesTerminalProviderErrorText('AI_RetryError: Failed after 3 attempts')).toBe(false);
   });
 });
 
@@ -29,6 +30,15 @@ describe('isTerminalProviderError', () => {
         message: 'Rate limit exceeded. Please try again later.',
       })
     ).toBe(true);
+  });
+
+  test('rejects AI_RetryError without quota message', () => {
+    expect(
+      isTerminalProviderError({
+        name: 'AI_RetryError',
+        message: 'Failed after 3 attempts',
+      })
+    ).toBe(false);
   });
 
   test('matches nested error.error shape from opencode serve logs', () => {
@@ -53,6 +63,30 @@ describe('isTerminalProviderFailureInLogs', () => {
         'message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
       ])
     ).toBe(true);
+  });
+
+  test('matches harness error log lines', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
+      ])
+    ).toBe(true);
+  });
+
+  test('ignores agent text mentioning rate limits', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[ts] role:builder text] Please respect the rate limit when calling the API',
+      ])
+    ).toBe(false);
+  });
+
+  test('ignores thinking lines mentioning rate limits', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[ts] role:builder thinking] The provider rate limit is 100 rpm',
+      ])
+    ).toBe(false);
   });
 });
 

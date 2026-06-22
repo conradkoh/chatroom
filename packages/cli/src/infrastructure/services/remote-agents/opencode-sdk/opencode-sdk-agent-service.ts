@@ -41,6 +41,7 @@ import {
   type SessionMetadata,
   type SessionMetadataStore,
 } from './session-metadata-store.js';
+import { StderrLineBuffer } from './stderr-line-buffer.js';
 import { matchesTerminalProviderErrorText } from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
@@ -215,15 +216,20 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       });
     }
     if (childProcess.stderr) {
+      const stderrBuffer = new StderrLineBuffer((line) => {
+        emitLogLine(line);
+        const activeForwarder = this.forwarders.get(pid);
+        if (activeForwarder && matchesTerminalProviderErrorText(line)) {
+          activeForwarder.abortTerminalProviderError();
+        }
+      });
       childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
-        const text = chunk.toString();
-        emitLogLine(text);
-        const forwarder = this.forwarders.get(pid);
-        if (forwarder && matchesTerminalProviderErrorText(text)) {
-          forwarder.abortTerminalProviderError();
-        }
+        stderrBuffer.append(chunk.toString());
+      });
+      childProcess.on('exit', () => {
+        stderrBuffer.flush();
       });
     }
 

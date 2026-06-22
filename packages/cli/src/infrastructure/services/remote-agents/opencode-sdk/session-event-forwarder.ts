@@ -281,6 +281,7 @@ export function startSessionEventForwarder(
   }
 
   async function handleSessionIdle(): Promise<void> {
+    if (terminalAbortRequested) return;
     emitAgentEnd();
   }
 

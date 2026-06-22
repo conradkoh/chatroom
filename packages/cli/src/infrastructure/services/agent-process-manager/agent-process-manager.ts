@@ -90,6 +90,7 @@ interface ExitContext {
   wantResume: boolean | undefined;
   recentLogLines: string[] | undefined;
   stopReason: StopReason;
+  terminalProviderFailureHandled: boolean;
 }
 
 /** APM's internal slot — mirrors AgentLifecycleSlot with imperative-compatible fields. */
@@ -110,6 +111,8 @@ export interface AgentSlot {
   recentLogLines?: string[];
   /** User's persisted resume preference for this run; gates turn-resume & crash-recovery resume. */
   wantResume?: boolean;
+  /** Turn-end already emitted startFailed for a terminal provider error. */
+  terminalProviderFailureHandled?: boolean;
 }
 
 export interface AgentProcessManagerDeps {
@@ -440,6 +443,10 @@ export class AgentProcessManager {
       console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
     } else if (result.outcome === 'resumed') {
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`);
+    } else if (result.outcome === 'killed_terminal_provider_error') {
+      console.log(
+        `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
+      );
     }
   }
 
@@ -498,6 +505,7 @@ export class AgentProcessManager {
       wantResume: slot.wantResume,
       recentLogLines: slot.recentLogLines,
       stopReason,
+      terminalProviderFailureHandled: slot.terminalProviderFailureHandled === true,
     };
   }
 
@@ -604,7 +612,11 @@ export class AgentProcessManager {
     }
 
     if (isPermanentHarnessFailure(recentLogLines ?? [])) {
-      this.handlePermanentFailureForRestart(opts, recentLogLines);
+      this.handlePermanentFailureForRestart(
+        opts,
+        recentLogLines,
+        ctx.terminalProviderFailureHandled
+      );
       return;
     }
 
@@ -624,7 +636,8 @@ export class AgentProcessManager {
 
   private handlePermanentFailureForRestart(
     opts: HandleExitOpts,
-    recentLogLines: string[] | undefined
+    recentLogLines: string[] | undefined,
+    startFailedAlreadyEmitted: boolean
   ): void {
     const error = isTerminalProviderFailureInLogs(recentLogLines ?? [])
       ? formatTerminalProviderFailureMessage(recentLogLines ?? [])
@@ -633,6 +646,9 @@ export class AgentProcessManager {
     this.deps.crashLoop.clear(opts.chatroomId, opts.role);
     const key = agentKey(opts.chatroomId, opts.role);
     this.clearLastHarnessSession(key);
+    if (startFailedAlreadyEmitted) {
+      return;
+    }
     this.deps.backend
       .mutation(api.machines.emitAgentStartFailed, {
         sessionId: this.deps.sessionId,

@@ -195,6 +195,7 @@ describe('handleTurnCompleted', () => {
     const result = await handleTurnCompleted(deps, baseInput, slot);
 
     expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
+    expect(slot.terminalProviderFailureHandled).toBe(true);
     expect(deps.resumeTurn).not.toHaveBeenCalled();
     expect(deps.killProcess).toHaveBeenCalledWith(42);
     expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({

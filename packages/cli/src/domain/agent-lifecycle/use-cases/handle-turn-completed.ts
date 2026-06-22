@@ -36,6 +36,9 @@ export async function handleTurnCompleted(
   }
 
   if (isTerminalProviderFailureInLogs(slot?.recentLogLines ?? [])) {
+    if (slot) {
+      slot.terminalProviderFailureHandled = true;
+    }
     const error = formatTerminalProviderFailureMessage(slot?.recentLogLines ?? []);
     try {
       await deps.backend.emitAgentStartFailed({

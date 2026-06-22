@@ -11,6 +11,8 @@ export interface TurnEndSlot {
   harnessSessionId?: string;
   state?: TurnEndSlotState;
   pid?: number;
+  /** Set when turn-end handler already emitted startFailed for a provider rate limit. */
+  terminalProviderFailureHandled?: boolean;
 }
 
 export interface TurnEndInput {

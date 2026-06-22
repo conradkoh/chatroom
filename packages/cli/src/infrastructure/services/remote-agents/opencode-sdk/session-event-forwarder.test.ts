@@ -448,6 +448,39 @@ describe('SessionEventForwarder', () => {
     expect(onEnd).toHaveBeenCalledTimes(1);
   }, 10000);
 
+  it('session.idle after provider rate limit abort does not double agent_end', async () => {
+    async function* idleAfterRateLimitStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'session.error',
+        properties: {
+          sessionID: 'sess-1',
+          error: {
+            name: 'AI_APICallError',
+            data: { message: 'Rate limit exceeded. Please try again later.' },
+          },
+        },
+      };
+      yield {
+        type: 'session.idle',
+        properties: { sessionID: 'sess-1' },
+      };
+      await new Promise(() => {});
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(idleAfterRateLimitStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
+    );
+  }, 10000);
+
   it('file.edited forwarded', async () => {
     vi.useFakeTimers();
     const fakeClient = createMockClient(fileEditedStream());
