@@ -1,5 +1,7 @@
 import type { ResumeStormReason } from '@workspace/backend/src/domain/entities/resume-storm.js';
 
+import { isTerminalProviderFailureInLogs } from './terminal-provider-error.js';
+
 const CLASSIFICATION_RULES: readonly {
   reason: ResumeStormReason;
   patterns: readonly RegExp[];
@@ -70,10 +72,12 @@ export function classifyResumeStormReason(logLines: readonly string[]): ResumeSt
 
 /**
  * Whether recent harness logs indicate a failure that will not resolve on retry
- * (e.g. invalid API key, unsupported model). Rate limits are excluded — they
- * may clear after a backoff window.
+ * (e.g. invalid API key, unsupported model, provider rate limit).
  */
 export function isPermanentHarnessFailure(logLines: readonly string[]): boolean {
+  if (isTerminalProviderFailureInLogs(logLines)) {
+    return true;
+  }
   return PERMANENT_FAILURE_REASONS.has(classifyResumeStormReason(logLines));
 }
 

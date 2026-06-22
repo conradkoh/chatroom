@@ -1,5 +1,9 @@
 import type { Writable } from 'node:stream';
 
+import {
+  isTerminalProviderError,
+  isTerminalProviderFailureInLogs,
+} from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
 
 export interface SessionEventForwarderOptions {
@@ -21,6 +25,11 @@ export interface SessionEventForwarderHandle {
    * The AgentProcessManager uses this to terminate the process after a completed turn.
    */
   onAgentEnd: (cb: () => void) => void;
+  /**
+   * Abort the session after a fatal provider error (e.g. rate limit) detected outside
+   * the SSE stream — typically from opencode serve stderr logs.
+   */
+  abortTerminalProviderError(): void;
 }
 
 interface OpenCodeEvent {
@@ -47,75 +56,7 @@ function formatLogLine(
   return formatTimestampedLogLine(options.role, kind, payload, options.now);
 }
 
-function writeLogLine(
-  target: Writable,
-  options: SessionEventForwarderOptions,
-  kind: string,
-  payload?: string
-): void {
-  const line = formatLogLine(options, kind, payload);
-  target.write(`${line}\n`);
-  options.onLogLine?.(line);
-}
-
-/**
- * Detects fatal provider usage/rate-limit errors. OpenCode does NOT emit session.idle
- * after such an error, so the agent would otherwise hang forever waiting for its
- * turn to end. We treat these as a turn end and fire agent_end. Loose shape: the
- * error name/type and message can arrive under different keys across SDK versions.
- */
-function isTerminalProviderError(error: unknown): boolean {
-  if (typeof error === 'string') {
-    return matchesTerminalProviderErrorText(error);
-  }
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-  return matchesTerminalProviderErrorText(normalizeError(error));
-}
-
-function normalizeError(error: unknown): string {
-  const e = error as Record<string, unknown>;
-  const name = extractName(e);
-  const message = extractMessage(e);
-  return `${name}\n${message}`;
-}
-
-function extractName(e: Record<string, unknown>): string {
-  const name = e.name;
-  if (typeof name === 'string') return name.toLowerCase();
-  const type = e.type;
-  if (typeof type === 'string') return type.toLowerCase();
-  return '';
-}
-
-function extractMessage(e: Record<string, unknown>): string {
-  const data = e.data;
-  if (data && typeof data === 'object') {
-    const msg = (data as Record<string, unknown>).message;
-    if (typeof msg === 'string') return msg.toLowerCase();
-  }
-  const message = e.message;
-  if (typeof message === 'string') return message.toLowerCase();
-  const body = e.responseBody;
-  if (typeof body === 'string') return body.toLowerCase();
-  return '';
-}
-
-function matchesTerminalProviderErrorText(blob: string): boolean {
-  const text = blob.toLowerCase();
-  return (
-    text.includes('usagelimit') ||
-    text.includes('usage limit') ||
-    text.includes('enable usage from your available balance') ||
-    text.includes('rate limit') ||
-    text.includes('ratelimit') ||
-    text.includes('too many requests') ||
-    text.includes('x-ratelimit-exceeded') ||
-    text.includes('weekly rate limit') ||
-    text.includes('exceeded your weekly')
-  );
-}
+const RECENT_LOG_LINE_CAP = 20;
 
 function eventSessionId(event: OpenCodeEvent): string | undefined {
   const p = event.properties;
@@ -167,17 +108,40 @@ export function startSessionEventForwarder(
   let cancelled = false;
   let doneResolve: () => void;
   let sessionStarted = false;
+  let terminalAbortRequested = false;
   const seenToolStates = new Map<string, string>();
   let lastStatus: string | undefined;
   const agentEndCallbacks: (() => void)[] = [];
+  const recentLogLines: string[] = [];
 
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
   });
 
+  function recordRecentLogLine(line: string): void {
+    recentLogLines.push(line);
+    if (recentLogLines.length > RECENT_LOG_LINE_CAP) {
+      recentLogLines.shift();
+    }
+  }
+
+  function logLine(targetStream: Writable, kind: string, payload?: string): void {
+    const line = formatLogLine(options, kind, payload);
+    targetStream.write(`${line}\n`);
+    options.onLogLine?.(line);
+    recordRecentLogLine(line);
+  }
+
   function emitAgentEnd(reason?: string): void {
-    writeLogLine(target, options, 'agent_end', reason ? `reason: ${reason}` : undefined);
+    logLine(target, 'agent_end', reason ? `reason: ${reason}` : undefined);
     for (const cb of agentEndCallbacks) cb();
+  }
+
+  function abortTerminalProviderError(): void {
+    if (terminalAbortRequested) return;
+    terminalAbortRequested = true;
+    cancelled = true;
+    emitAgentEnd('provider_rate_limit');
   }
 
   function resolvePartContent(
@@ -214,7 +178,7 @@ export function startSessionEventForwarder(
     part: { text?: string }
   ): Promise<void> {
     const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) writeLogLine(target, options, 'text', chunk);
+    if (chunk) logLine(target, 'text', chunk);
   }
 
   async function handleReasoningPartUpdate(
@@ -222,7 +186,7 @@ export function startSessionEventForwarder(
     part: { text?: string }
   ): Promise<void> {
     const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) writeLogLine(target, options, 'thinking', chunk);
+    if (chunk) logLine(target, 'thinking', chunk);
   }
 
   async function handleToolPartUpdate(
@@ -281,7 +245,7 @@ export function startSessionEventForwarder(
 
     if (!toolStates.has(seenKey)) {
       toolStates.set(seenKey, payload);
-      writeLogLine(target, options, 'tool: ' + (part.tool as string), payload);
+      logLine(target, 'tool: ' + (part.tool as string), payload);
     }
     if (state === 'completed' || state === 'error') {
       toolStates.delete(seenKey);
@@ -313,23 +277,29 @@ export function startSessionEventForwarder(
     action?: string;
     kind?: string;
   }): Promise<void> {
-    writeLogLine(target, options, 'file', formatFilePayload(props));
+    logLine(target, 'file', formatFilePayload(props));
   }
 
   async function handleSessionIdle(): Promise<void> {
-    writeLogLine(target, options, 'agent_end');
-    for (const cb of agentEndCallbacks) cb();
+    if (terminalAbortRequested) return;
+    emitAgentEnd();
   }
 
   async function handleSessionCompacted(): Promise<void> {
-    writeLogLine(target, options, 'compacted');
+    logLine(target, 'compacted');
   }
 
   async function handleSessionStatus(props: { status?: { type?: string } }): Promise<void> {
     const currentStatus = props?.status?.type;
     if (currentStatus !== lastStatus) {
       lastStatus = currentStatus;
-      writeLogLine(target, options, 'status', currentStatus);
+      logLine(target, 'status', currentStatus);
+      if (
+        currentStatus === 'retry' &&
+        (terminalAbortRequested || isTerminalProviderFailureInLogs(recentLogLines))
+      ) {
+        abortTerminalProviderError();
+      }
     }
   }
 
@@ -342,9 +312,9 @@ export function startSessionEventForwarder(
     const errMsg = formatErrorName(err);
     const context = formatErrorContext(props);
     const payload = context ? `${errMsg} ${context}` : errMsg;
-    writeLogLine(errorTarget, options, 'error', payload);
+    logLine(errorTarget, 'error', payload);
     if (isTerminalProviderError(err)) {
-      emitAgentEnd('provider_rate_limit');
+      abortTerminalProviderError();
     }
   }
 
@@ -382,7 +352,7 @@ export function startSessionEventForwarder(
 
     if (!sessionStarted) {
       sessionStarted = true;
-      writeLogLine(target, options, 'session] Started', `role: ${options.role}`);
+      logLine(target, 'session] Started', `role: ${options.role}`);
     }
 
     const handler = eventHandlers[event.type];
@@ -419,9 +389,9 @@ export function startSessionEventForwarder(
       await drainStreamEvents(stream);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      writeLogLine(errorTarget, options, 'error', message);
+      logLine(errorTarget, 'error', message);
       if (isTerminalProviderError(err)) {
-        emitAgentEnd('provider_rate_limit');
+        abortTerminalProviderError();
       }
     } finally {
       doneResolve();
@@ -438,5 +408,6 @@ export function startSessionEventForwarder(
     onAgentEnd: (cb: () => void) => {
       agentEndCallbacks.push(cb);
     },
+    abortTerminalProviderError,
   };
 }

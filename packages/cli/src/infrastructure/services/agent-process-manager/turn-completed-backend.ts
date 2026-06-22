@@ -29,5 +29,12 @@ export function createTurnCompletedBackend(deps: {
         machineId: deps.machineId,
         ...args,
       }) as Promise<void>,
+
+    emitAgentStartFailed: (args) =>
+      deps.backend.mutation(api.machines.emitAgentStartFailed, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        ...args,
+      }) as Promise<void>,
   };
 }
