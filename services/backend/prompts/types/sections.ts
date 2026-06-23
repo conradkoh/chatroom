@@ -86,6 +86,7 @@ export type SectionId =
   | 'handoff-options'
   | 'handoff-restriction'
   | 'handoff-templates-preview'
+  | 'handoff-templates-native-builder'
   // Commands
   | 'command-handoff'
   | 'command-report-progress'
