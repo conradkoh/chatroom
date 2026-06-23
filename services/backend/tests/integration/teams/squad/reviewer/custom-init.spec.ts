@@ -192,8 +192,7 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task read
-      on chatroom task]
+          B -->|from builder or other agent| C[Run task read\\non chatroom task]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to planner]

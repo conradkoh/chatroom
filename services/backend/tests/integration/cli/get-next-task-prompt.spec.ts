@@ -374,10 +374,8 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task
-      notification]
-          B -->|from planner| C[Read chatroom task with
-      task read]
+          A([Start]) --> B[Receive chatroom task\\nnotification]
+          B -->|from planner| C[Read chatroom task with\\ntask read]
           C --> D[Implement changes]
           D --> E[Commit work]
           E --> F{Classification?}
@@ -1141,8 +1139,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task read
-      on chatroom task]
+          B -->|from builder or other agent| C[Run task read\\non chatroom task]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to user]

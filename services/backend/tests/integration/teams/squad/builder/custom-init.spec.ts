@@ -190,10 +190,8 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task
-      notification]
-          B -->|from user or reviewer| C[Read chatroom task with
-      task read]
+          A([Start]) --> B[Receive chatroom task\\nnotification]
+          B -->|from user or reviewer| C[Read chatroom task with\\ntask read]
           C --> D[Implement changes]
           D --> E[Commit work]
           E --> F{Classification?}

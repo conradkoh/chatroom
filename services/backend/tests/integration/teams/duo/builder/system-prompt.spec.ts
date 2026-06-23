@@ -234,10 +234,8 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task
-      notification]
-          B -->|from planner| C[Read chatroom task with
-      task read]
+          A([Start]) --> B[Receive chatroom task\\nnotification]
+          B -->|from planner| C[Read chatroom task with\\ntask read]
           C --> D[Implement changes]
           D --> E[Commit work]
           E --> F{Classification?}

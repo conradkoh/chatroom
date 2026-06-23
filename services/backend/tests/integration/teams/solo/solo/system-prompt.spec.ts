@@ -284,6 +284,8 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       ## Solo Workflow
 
+      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+
       You are an autonomous agent responsible for BOTH planning and implementing chatroom tasks independently.
 
       **Classification (Entry Point Role):**
