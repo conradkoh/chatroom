@@ -24,7 +24,9 @@ describe('ChatroomScenario — native prompt orchestration', () => {
 
     assertNativeDeliveryContract(delivery, { taskContent: 'hello', fromUser: true });
     assertNativeDeliveryContract(injection, { taskContent: 'hello', fromUser: true });
-    expect(injection).toContain('Delegate ONE slice to the builder');
+    expect(injection).not.toContain('Delegation Brief');
+    expect(injection).not.toContain('Report Template');
+    expect(injection).toMatch(/question.*greetings/i);
   });
 
   test('planner handoff to user returns native continuation output', async () => {

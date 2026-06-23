@@ -54,5 +54,6 @@ describe('createSpawnPrompt', () => {
     expect(createSpawnPrompt('custom message', { nativeBootstrap: true })).toBe(bootstrap);
     expect(bootstrap.toLowerCase()).toMatch(/do not run get-next-task/);
     expect(bootstrap.toLowerCase()).toMatch(/inject/);
+    expect(bootstrap.toLowerCase()).not.toMatch(/register/i);
   });
 });

@@ -235,7 +235,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       flowchart TD
           A([Start]) --> B[Receive chatroom task from user]
           B --> C[task read:
-      get content + mark in_progress]
+       get content + mark in_progress]
           C --> D[Classify with classify]
           D --> E[Decompose into phases]
           E --> F[Delegate ONE phase to builder]

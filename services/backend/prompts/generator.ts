@@ -27,7 +27,10 @@ import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
 import { reportProgressCommand } from './cli/report-progress/command';
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
-import { getHandoffTemplatesPreviewSection } from './cli/sections/handoff-templates-preview';
+import {
+  getHandoffTemplatesPreviewSection,
+  getNativeBuilderDelegationPreviewSection,
+} from './cli/sections/handoff-templates-preview';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import {
   getCommandsReferenceSection,
@@ -639,6 +642,7 @@ export interface ComposedInitPrompt {
  * because the CLI envelope (get-next-task.ts) already provides them in the
  * initialization header. Including them here would cause duplication.
  */
+// fallow-ignore-next-line complexity
 export function composeSystemPrompt(input: InitPromptInput): string {
   const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
   const nativeIntegration = isNativeHarness(input.agentHarness);
@@ -685,14 +689,23 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
 
-  sections.push(
-    getHandoffTemplatesPreviewSection({
-      teamId,
-      role,
-      handoffTargets,
-      nativeIntegration,
-    })
-  );
+  // Full handoff template previews are inlined on CLI delivery; native injection
+  // references templates from role guidance to keep init prompts lean.
+  if (!nativeIntegration) {
+    sections.push(
+      getHandoffTemplatesPreviewSection({
+        teamId,
+        role,
+        handoffTargets,
+        nativeIntegration,
+      })
+    );
+  } else {
+    const builderDelegation = getNativeBuilderDelegationPreviewSection({ teamId, role });
+    if (builderDelegation) {
+      sections.push(builderDelegation);
+    }
+  }
 
   // Handoff options
   sections.push(

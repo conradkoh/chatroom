@@ -35,6 +35,7 @@ describe('native session continuity', () => {
 
     expect(guidance).not.toMatch(/run `get-next-task`/i);
     expect(guidance.toLowerCase()).toMatch(/inject/);
+    expect(guidance).not.toMatch(/task read --chatroom-id/i);
   });
 
   test('builder guidance with nativeIntegration=true omits get-next-task', () => {
@@ -66,6 +67,10 @@ describe('native session continuity', () => {
 
     expect(prompt).not.toMatch(/get-next-task/i);
     expect(prompt.toLowerCase()).toMatch(/inject/);
+    expect(prompt).not.toContain('## Begin With the End in Mind');
+    expect(prompt).toContain('## Builder delegation brief');
+    expect(prompt).not.toMatch(/chatroom register-agent/i);
+    expect(prompt).toMatch(/do not run `register-agent`/i);
   });
 
   test('composeSystemPrompt native duo builder has no CLI listen loop', () => {

@@ -43,6 +43,8 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toContain('Context compacted?');
     expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('in_progress automatically');
+    expect(output).not.toContain('Delegation Brief');
+    expect(output).not.toContain('Report Template');
   });
 
   test('CLI mode still contains get-next-task (regression)', () => {
@@ -54,5 +56,21 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('get-next-task');
     expect(output).toContain('grace-period cooldowns');
     expect(output).not.toContain('injected into your native harness session');
+  });
+
+  test('native planner user message uses lightweight classification branches', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      role: 'planner',
+      isEntryPoint: true,
+      message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
+      availableHandoffTargets: ['builder', 'user'],
+      nativeIntegration: true,
+      task: { _id: 'task-id', content: 'hello' },
+    });
+
+    expect(output).not.toContain('Delegation Brief');
+    expect(output).not.toContain('Report Template');
+    expect(output).toMatch(/question.*greetings/i);
   });
 });

@@ -14,36 +14,34 @@
 
 import type { TeamCompositionConfig } from './team-composition';
 
-/**
- * Generate the Delegation Guidelines section.
- */
-export function getDelegationGuidelinesSection(
-  config: Pick<TeamCompositionConfig, 'hasBuilder'>,
-  options?: { cliEnvPrefix?: string; chatroomId?: string; role?: string }
-): string {
-  const feedingNote = config.hasBuilder
-    ? 'Feed slices to the builder incrementally — one at a time, not all at once'
-    : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
+type CmdHelper = (subcommand: string) => string;
 
-  const cliEnvPrefix = options?.cliEnvPrefix ?? '';
-  const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
-  const roleArg = options?.role ? `"${options.role}"` : '<role>';
-
-  // Full command helper
-  const cmd = (subcommand: string) =>
+function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: string): CmdHelper {
+  return (subcommand: string) =>
     `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
+}
 
-  // Solo planner (no builder): no delegation, just incremental self-implementation.
-  if (!config.hasBuilder) {
-    return `**Implementation Guidelines:**
+function getDelegationBriefReference(nativeIntegration?: boolean): string {
+  return nativeIntegration
+    ? 'Follow the **Builder delegation brief** section in your role guidance when delegating implementation work.'
+    : 'Use the **Handoff to `builder`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.';
+}
+
+function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): string {
+  return `**Implementation Guidelines:**
 
 Break complex features into small, focused slices. For architecture/SOLID guidance, activate the \`software-engineering\` skill: ${cmd('skill activate software-engineering')}.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - ${feedingNote}.`;
-  }
+}
 
+function getBuilderDelegationGuidelines(
+  cmd: CmdHelper,
+  feedingNote: string,
+  delegationBriefRef: string
+): string {
   return `**Delegation Guidelines:**
 
 Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: ${cmd('skill activate software-engineering')}.
@@ -63,7 +61,7 @@ flowchart TD
     H -->|No| I[Deliver to user]
 \`\`\`
 
-**Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.
+**Default: delegate with a Delegation Brief.** ${delegationBriefRef}
 
 **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
@@ -87,4 +85,37 @@ flowchart TD
 - Review completed work before moving to the next slice.
 - Send back with specific feedback if requirements aren't met.
 - ${feedingNote}.`;
+}
+
+/**
+ * Generate the Delegation Guidelines section.
+ */
+// fallow-ignore-next-line complexity
+export function getDelegationGuidelinesSection(
+  config: Pick<TeamCompositionConfig, 'hasBuilder'>,
+  options?: {
+    cliEnvPrefix?: string;
+    chatroomId?: string;
+    role?: string;
+    nativeIntegration?: boolean;
+  }
+): string {
+  const feedingNote = config.hasBuilder
+    ? 'Feed slices to the builder incrementally — one at a time, not all at once'
+    : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
+
+  const cliEnvPrefix = options?.cliEnvPrefix ?? '';
+  const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
+  const roleArg = options?.role ? `"${options.role}"` : '<role>';
+  const cmd = buildCmdHelper(cliEnvPrefix, chatroomIdArg, roleArg);
+
+  if (!config.hasBuilder) {
+    return getSoloImplementationGuidelines(cmd, feedingNote);
+  }
+
+  return getBuilderDelegationGuidelines(
+    cmd,
+    feedingNote,
+    getDelegationBriefReference(options?.nativeIntegration)
+  );
 }

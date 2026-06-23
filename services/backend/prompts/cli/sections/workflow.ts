@@ -10,6 +10,18 @@
 import type { TeamCompositionConfig } from './team-composition';
 import { getWorkflowLoopFooter } from '../../native/session-continuity';
 
+/** Mermaid nodes from task receipt through classify (native skips task read). */
+function getTaskIntakeThroughClassifyNodes(nativeIntegration?: boolean): string {
+  if (nativeIntegration) {
+    return `    A([Start]) --> B[Receive injected chatroom task]
+    B --> D[Classify with classify]`;
+  }
+  return `    A([Start]) --> B[Receive chatroom task from user]
+    B --> C[task read:
+ get content + mark in_progress]
+    C --> D[Classify with classify]`;
+}
+
 /**
  * Select and return the correct workflow diagram for the given team config.
  *
@@ -41,9 +53,7 @@ export function getFullTeamWorkflow(nativeIntegration?: boolean): string {
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive chatroom task from user]
-    B --> C[task read:\nget content + mark in_progress]
-    C --> D[Classify with classify]
+${getTaskIntakeThroughClassifyNodes(nativeIntegration)}
     D --> E[Decompose into phases]
     E --> F[Delegate ONE phase to builder]
     F --> G[Builder completes phase]
@@ -70,9 +80,7 @@ export function getPlannerPlusBuilderWorkflow(nativeIntegration?: boolean): stri
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive chatroom task from user]
-    B --> C[task read:\nget content + mark in_progress]
-    C --> D[Classify with classify]
+${getTaskIntakeThroughClassifyNodes(nativeIntegration)}
     D --> E[Decompose into phases]
     E --> F[Delegate ONE phase to builder]
     F --> G[Builder completes phase]
@@ -98,9 +106,7 @@ export function getPlannerPlusReviewerWorkflow(nativeIntegration?: boolean): str
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive chatroom task from user]
-    B --> C[task read:\nget content + mark in_progress]
-    C --> D[Classify with classify]
+${getTaskIntakeThroughClassifyNodes(nativeIntegration)}
     D --> E[Decompose into phases]
     E --> F[Delegate ONE phase to reviewer acts as builder]
     F --> G[Reviewer completes phase]
@@ -123,15 +129,20 @@ export function getPlannerSoloWorkflow(nativeIntegration?: boolean): string {
   const continueStep = nativeIntegration
     ? 'Wait for the next task to be injected to continue the session (Level A continues after Level B completes)'
     : 'Run `get-next-task` to continue the session (Level A continues after Level B completes)';
+  const intakeSteps = nativeIntegration
+    ? `1. Receive injected chatroom task (content inline — do not run task read)
+2. Classify with classify`
+    : `1. Receive chatroom task from user
+2. Run task read (get chatroom task content + mark in_progress)
+3. Classify with classify`;
+  const planStepNum = nativeIntegration ? 3 : 4;
   return `**Current Workflow: Planner Solo**
 
-1. Receive chatroom task from user
-2. Run task read (get chatroom task content + mark in_progress)
-3. Classify with classify
-4. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
-5. Implement the solution yourself (following workflow steps if created)
-6. Review your own work for quality
-7. Verify: \`pnpm typecheck && pnpm test\`
-8. Deliver to **user**
-9. ${continueStep}`;
+${intakeSteps}
+${planStepNum}. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
+${planStepNum + 1}. Implement the solution yourself (following workflow steps if created)
+${planStepNum + 2}. Review your own work for quality
+${planStepNum + 3}. Verify: \`pnpm typecheck && pnpm test\`
+${planStepNum + 4}. Deliver to **user**
+${planStepNum + 5}. ${continueStep}`;
 }

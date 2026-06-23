@@ -17,7 +17,8 @@ import {
   getNextTaskReminder,
   getCompactionRecoveryOneLiner,
 } from './reminder';
-import { classifyCommand } from '../classify/command';
+import { appendClassifyNextStepLines } from '../../native/classify-next-step';
+import { appendNativePlannerUserNextSteps } from '../../native/planner-user-next-steps';
 import { contextNewCommand, contextNewHint } from '../context/new';
 import { getHandoffTemplate } from '../handoff-templates';
 
@@ -272,69 +273,57 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
 
     const classifyStepNum = nativeIntegration ? 1 : 2;
-    const baseCmd = classifyCommand({
-      chatroomId,
-      role,
-      taskId: task._id,
-      classification: 'question',
-      cliEnvPrefix,
-    }).replace(
-      '--origin-message-classification=question',
-      '--origin-message-classification=<type>'
-    );
-    lines.push(`${classifyStepNum}. Classify → \`${baseCmd}\``);
-
-    // new_feature example
-    lines.push('');
-    lines.push('   new_feature example:');
-    lines.push(
-      `   ${classifyCommand({
-        chatroomId,
-        role,
-        taskId: task._id,
-        classification: 'new_feature',
-        title: '<title>',
-        description: '<description>',
-        techSpecs: '<tech-specs>',
-        cliEnvPrefix,
-      })}`
-    );
+    if (!(nativeIntegration && role === 'planner')) {
+      appendClassifyNextStepLines(
+        lines,
+        { chatroomId, role, taskId: task._id, cliEnvPrefix },
+        classifyStepNum
+      );
+    }
 
     if (role === 'planner') {
-      const contextStepNum = nativeIntegration ? 2 : 3;
-      const delegateStepNum = nativeIntegration ? 3 : 4;
-      const reportStepNum = nativeIntegration ? 4 : 5;
-      // Planner role receiving a new user task
-      lines.push('');
-      lines.push(
-        `${contextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
-      );
-      lines.push(contextNewHint());
-      lines.push(
-        `${delegateStepNum}. Delegate ONE slice to the builder (a structured workflow is optional, not required):`
-      );
-      lines.push('');
-      lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
-      lines.push('```');
-      lines.push(
-        `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
-      );
-      lines.push('---MESSAGE---');
-      lines.push('[Your delegation brief here]');
-      lines.push('EOF');
-      lines.push('```');
-      if (availableHandoffTargets.length > 0) {
-        lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+      if (nativeIntegration) {
+        appendNativePlannerUserNextSteps(lines, {
+          chatroomId,
+          role,
+          taskId: task._id,
+          cliEnvPrefix,
+          availableHandoffTargets,
+        });
+      } else {
+        const contextStepNum = 3;
+        const delegateStepNum = 4;
+        const reportStepNum = 5;
+        // Planner role receiving a new user task
+        lines.push('');
+        lines.push(
+          `${contextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
+        );
+        lines.push(contextNewHint());
+        lines.push(
+          `${delegateStepNum}. Delegate ONE slice to the builder (a structured workflow is optional, not required):`
+        );
+        lines.push('');
+        lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
+        lines.push('```');
+        lines.push(
+          `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
+        );
+        lines.push('---MESSAGE---');
+        lines.push('[Your delegation brief here]');
+        lines.push('EOF');
+        lines.push('```');
+        if (availableHandoffTargets.length > 0) {
+          lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+        }
+        lines.push('');
+        lines.push(
+          `${reportStepNum}. When the work is done, deliver to the user using this report template:`
+        );
+        maybeAddVerificationReminder(lines, availableHandoffTargets);
+        lines.push('');
+        lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
       }
-      // Eagerly deliver the report template so it shapes the final deliverable
-      // from the start — the user can only ever see the handoff-to-user message.
-      lines.push('');
-      lines.push(
-        `${reportStepNum}. When the work is done, deliver to the user using this report template:`
-      );
-      maybeAddVerificationReminder(lines, availableHandoffTargets);
-      lines.push('');
-      lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
     } else {
       // Non-coordinator role receiving a user message
       let nextStepNum = nativeIntegration ? 2 : 3;
