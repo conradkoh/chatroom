@@ -376,7 +376,7 @@ describe('CursorSdkAgentService', () => {
       await service.stop(result.pid);
     });
 
-    it('throws when session is not waiting for resume', async () => {
+    it('queues resumeTurn when session is mid-turn', async () => {
       const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
       const run = {
         id: 'run-1',
@@ -420,9 +420,7 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
 
-      await expect(service.resumeTurn(result.pid, 'prompt')).rejects.toThrow(
-        'not waiting for resume'
-      );
+      await expect(service.resumeTurn(result.pid, 'queued prompt')).resolves.toBeUndefined();
 
       await service.stop(result.pid);
     });

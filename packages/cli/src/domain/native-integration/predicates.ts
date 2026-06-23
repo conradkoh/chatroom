@@ -20,6 +20,17 @@ export function isInjectableNativeAction(action: string | null | undefined): boo
   return action === NATIVE_WAITING_ACTION;
 }
 
+/** Missed native:waiting after handoff — task completed but action still task-injected. */
+export function isNativeIdleAfterTaskComplete(participant: {
+  lastSeenAction?: string | null;
+  lastStatus?: string | null;
+}): boolean {
+  return (
+    participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION &&
+    participant.lastStatus === 'task.completed'
+  );
+}
+
 export function isStaleNativeWaiting(
   task: AssignedTaskView,
   now: number,
@@ -37,9 +48,14 @@ export function isStuckAfterNativeInject(
 ): boolean {
   const participant = task.participant;
   if (participant?.lastSeenAction !== NATIVE_TASK_INJECTED_ACTION) return false;
-  if (participant.lastStatus !== 'task.acknowledged') return false;
   const lastSeenAt = participant.lastSeenAt ?? 0;
-  return now - lastSeenAt > thresholdMs;
+  if (participant.lastStatus === 'task.acknowledged') {
+    return now - lastSeenAt > thresholdMs;
+  }
+  if (participant.lastStatus === 'task.completed') {
+    return now - lastSeenAt > thresholdMs;
+  }
+  return false;
 }
 
 export function isStaleCliGetNextTaskWaiting(task: AssignedTaskView): boolean {

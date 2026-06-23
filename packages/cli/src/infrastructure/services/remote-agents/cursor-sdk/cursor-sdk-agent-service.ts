@@ -111,6 +111,8 @@ interface SdkSession {
   resumeResolve?: (prompt: string) => void;
   /** Resolves when stop() aborts while waiting for resume. */
   abortResolve?: () => void;
+  /** Queued when resumeTurn runs before waitForResumeOrAbort registers a resolver. */
+  pendingResumePrompt?: string;
 }
 
 function buildAgentName(context: SpawnContext): string {
@@ -119,6 +121,12 @@ function buildAgentName(context: SpawnContext): string {
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
   if (session.aborted) return Promise.resolve(null);
+
+  const queued = session.pendingResumePrompt;
+  if (queued !== undefined) {
+    session.pendingResumePrompt = undefined;
+    return Promise.resolve(queued);
+  }
 
   return Promise.race([
     new Promise<string>((resolve) => {
@@ -225,13 +233,14 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     if (!session) {
       throw new Error(`No cursor-sdk session for pid=${pid}`);
     }
-    if (!session.resumeResolve) {
-      throw new Error(`cursor-sdk session pid=${pid} not waiting for resume`);
+    if (session.resumeResolve) {
+      const resolve = session.resumeResolve;
+      session.resumeResolve = undefined;
+      session.abortResolve = undefined;
+      resolve(prompt);
+      return;
     }
-    const resolve = session.resumeResolve;
-    session.resumeResolve = undefined;
-    session.abortResolve = undefined;
-    resolve(prompt);
+    session.pendingResumePrompt = prompt;
   }
 
   override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
@@ -590,6 +599,11 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                 exitSignal = 'SIGTERM';
               }
               break;
+            }
+
+            if (!resumePrompt.trim()) {
+              nextPrompt = null;
+              continue;
             }
 
             nextPrompt = resumePrompt;

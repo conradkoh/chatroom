@@ -212,6 +212,7 @@ describe('AgentProcessManager', () => {
 
       await triggerAgentEnd(manager, () => agentEndCb!());
 
+      expect(resumeTurn).toHaveBeenCalledWith(PID, '');
       const nativeWaitingCalls = getMutationCallsByArgs(
         deps,
         (args) => args.action === 'native:waiting'
@@ -332,8 +333,7 @@ describe('AgentProcessManager', () => {
 
       expect(resumeTurn).toHaveBeenCalledOnce();
       expect(resumeTurn.mock.calls[0][0]).toBe(PID);
-      expect(resumeTurn.mock.calls[0][1]).toContain('injected automatically');
-      expect(resumeTurn.mock.calls[0][1]).not.toContain('get-next-task');
+      expect(resumeTurn.mock.calls[0][1]).toBe('');
       expect(deps.processes.kill).not.toHaveBeenCalled();
     });
 

@@ -2,7 +2,8 @@ import type { parseCompressContext } from '@workspace/backend/src/domain/handoff
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
 import {
-  isInjectableNativeAction as isInjectableAction,
+  isInjectableNativeAction,
+  isNativeIdleAfterTaskComplete,
   isNativePendingAliveRunning,
   isStaleNativeWaiting,
   isStuckAfterNativeInject,
@@ -11,13 +12,17 @@ import {
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
 /** True when daemon should inject a pending task into a live native session. */
+// fallow-ignore-next-line complexity
 export function shouldInjectNativeTask(
   task: AssignedTaskView,
   opts?: { alreadyInjectedTaskIds?: { has(taskId: string): boolean } }
 ): boolean {
   if (!isNativePendingAliveRunning(task)) return false;
   if (opts?.alreadyInjectedTaskIds?.has(task.taskId)) return false;
-  return isInjectableAction(task.participant?.lastSeenAction);
+  return (
+    isInjectableNativeAction(task.participant?.lastSeenAction) ||
+    isNativeIdleAfterTaskComplete(task.participant ?? {})
+  );
 }
 
 /** True when native agent has pending task but injection appears stuck. */

@@ -106,6 +106,20 @@ describe('shouldInjectNativeTask', () => {
     expect(shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })).toBe(false);
   });
 
+  test('injects when task completed but lastSeenAction still task-injected', () => {
+    expect(
+      shouldInjectNativeTask(
+        makeTask({
+          participant: {
+            lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+            lastSeenAt: 1_000,
+            lastStatus: 'task.completed',
+          },
+        })
+      )
+    ).toBe(true);
+  });
+
   test('does not inject when lastSeenAction is non-injectable', () => {
     expect(
       shouldInjectNativeTask(

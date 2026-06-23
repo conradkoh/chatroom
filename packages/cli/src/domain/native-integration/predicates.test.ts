@@ -82,6 +82,17 @@ describe('isStuckAfterNativeInject', () => {
     });
     expect(isStuckAfterNativeInject(task, 16_001, 15_000)).toBe(true);
   });
+
+  test('true when task completed but native:waiting was never emitted', () => {
+    const task = makeTask({
+      participant: {
+        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+        lastSeenAt: 1_000,
+        lastStatus: 'task.completed',
+      },
+    });
+    expect(isStuckAfterNativeInject(task, 16_001, 15_000)).toBe(true);
+  });
 });
 
 describe('isStaleCliGetNextTaskWaiting', () => {

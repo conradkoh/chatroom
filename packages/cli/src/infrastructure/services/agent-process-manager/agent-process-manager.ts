@@ -47,6 +47,7 @@ import {
 } from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
+import { NATIVE_IDLE_RESUME_PROMPT } from '../../../domain/native-integration/idle-resume.js';
 import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
@@ -421,12 +422,14 @@ export class AgentProcessManager {
         backend: createTurnCompletedBackend(this.deps),
         now: () => this.deps.clock.now(),
         composeResumePrompt: ({ chatroomId, role }) =>
-          composeResumeMessage({
-            chatroomId,
-            role,
-            convexUrl: this.deps.convexUrl,
-            supportsNativeIntegration: capabilities.supportsNativeIntegration,
-          }),
+          opts.harness === 'cursor-sdk'
+            ? NATIVE_IDLE_RESUME_PROMPT
+            : composeResumeMessage({
+                chatroomId,
+                role,
+                convexUrl: this.deps.convexUrl,
+                supportsNativeIntegration: capabilities.supportsNativeIntegration,
+              }),
         resumeTurn: async (pid, prompt) => {
           if (!service?.resumeTurn) {
             throw new Error('Harness does not support resumeTurn');
@@ -466,6 +469,10 @@ export class AgentProcessManager {
       if (capabilities.supportsNativeIntegration) {
         await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.harness);
       }
+    } else if (result.outcome === 'killed') {
+      console.log(
+        `[AgentProcessManager] lifecycle.turn.completed: killed process for ${opts.role} (resume disabled or failed)`
+      );
     } else if (result.outcome === 'killed_terminal_provider_error') {
       console.log(
         `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
