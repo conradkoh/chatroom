@@ -31,9 +31,10 @@ describe('ChatroomScenario — native prompt orchestration', () => {
       handoffTarget: 'user',
     });
     expect(injection).toContain('<handoff-templates>');
-    expect(injection).toContain('handoff view-template --role="planner" --next-role="user"');
-    expect(injection).toContain('handoff view-template --role="planner" --next-role="builder"');
-    expect(injection).not.toContain('Report Template (Planner → User)');
+    expect(injection).toContain('Report Template (Planner → User)');
+    expect(injection).toContain('Delegation Brief (Planner → Builder)');
+    expect(injection).toContain('<next-steps>');
+    expect(injection).not.toContain('handoff view-template');
   });
 
   test('planner handoff to user returns minimal native output', async () => {
@@ -90,10 +91,10 @@ describe('ChatroomScenario — native prompt orchestration', () => {
       taskContent: 'Add dark mode toggle',
       handoffTarget: 'planner',
     });
-    expect(builderDelivery).toContain(
-      'handoff view-template --role="builder" --next-role="planner"'
-    );
-    expect(builderDelivery).not.toContain('Handoff Template (Builder → Planner)');
+    expect(builderDelivery).toContain('Handoff Template (Builder → Planner)');
+    expect(builderDelivery).toContain('<next-steps>');
+    expect(builderDelivery).toContain('--next-role="planner"');
+    expect(builderDelivery).not.toContain('handoff view-template');
     expect(builderInjection).toContain('Context was compacted');
     expect(builderInjection).toContain('Add dark mode toggle');
   });

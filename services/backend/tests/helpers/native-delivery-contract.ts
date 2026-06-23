@@ -26,6 +26,8 @@ export function assertNativeDeliveryContract(
   expect(output).not.toContain('Level A');
   expect(output).not.toContain('Level B');
   expect(output).toContain('<task>');
+  expect(output).toContain('<next-steps>');
+  expect(output).toContain('you MUST run the handoff command');
   expect(output).toContain('<handoffs>');
 
   if (options.taskContent) {

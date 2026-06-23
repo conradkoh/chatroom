@@ -89,8 +89,10 @@ describe('Native task delivery prompt', () => {
     expect(fullOutput).toContain('<task>');
     expect(fullOutput).toContain('<handoffs>');
     expect(fullOutput).toContain('<handoff-templates>');
-    expect(fullOutput).toContain('handoff view-template --role="builder" --next-role="planner"');
-    expect(fullOutput).not.toContain('Handoff Template (Builder → Planner)');
+    expect(fullOutput).toContain('Handoff Template (Builder → Planner)');
+    expect(fullOutput).toContain('<next-steps>');
+    expect(fullOutput).toContain('you MUST run the handoff command');
+    expect(fullOutput).toContain('--next-role="planner"');
     expect(fullOutput).toContain('Wire native task delivery');
     expect(fullOutput).not.toMatch(/inject/i);
   });

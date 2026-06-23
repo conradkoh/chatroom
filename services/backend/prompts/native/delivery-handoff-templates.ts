@@ -1,14 +1,15 @@
 /**
- * Lazy handoff template hints on native task delivery.
+ * Handoff templates eagerly inlined on native task delivery.
  *
- * Lists which templates apply to the current role and the CLI command to
- * fetch each — avoids repeating large templates on every injection.
+ * Gives each role the structures it needs before work starts — final user
+ * accountability, delegation format, or return handoffs — without CLI
+ * listen-loop framing.
  */
 
-import { handoffViewTemplateCommand } from '../cli/handoff/view-template';
+import { getHandoffTemplate } from '../cli/handoff-templates';
 
-/** Handoff targets whose templates are relevant per team:role on native delivery. */
-const NATIVE_LAZY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
+/** toRole targets to inline per team:role on native task delivery. */
+const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
   'solo:solo': ['user'],
   'duo:planner': ['user', 'builder'],
   'duo:builder': ['planner'],
@@ -17,43 +18,44 @@ const NATIVE_LAZY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
   'squad:reviewer': ['planner', 'builder'],
 };
 
-const TEMPLATE_HINTS: Record<string, string> = {
-  user: 'final report the user will see',
-  builder: 'delegation brief when assigning implementation',
-  planner: 'return completed work to the entry-point role',
-  reviewer: 'hand off for code review',
-};
-
-function getNativeLazyTemplateTargets(teamId: string | undefined, role: string): readonly string[] {
+function getNativeDeliveryTemplateTargets(
+  teamId: string | undefined,
+  role: string
+): readonly string[] {
   const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
-  return NATIVE_LAZY_TEMPLATE_TARGETS[key] ?? [];
+  return NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
 }
 
-export function appendNativeDeliveryHandoffTemplateHints(
+function renderNativeDeliveryTemplateBlock(
+  params: { teamId?: string; role: string },
+  toRole: string
+): string[] | null {
+  const template = getHandoffTemplate({
+    teamId: params.teamId,
+    fromRole: params.role,
+    toRole,
+    nativeIntegration: true,
+  });
+  if (!template) return null;
+  return [`### Handoff to \`${toRole}\``, template, ''];
+}
+
+export function appendNativeDeliveryHandoffTemplates(
   lines: string[],
-  params: { teamId?: string; role: string; cliEnvPrefix: string }
+  params: { teamId?: string; role: string }
 ): void {
-  const targets = getNativeLazyTemplateTargets(params.teamId, params.role);
-  if (targets.length === 0) return;
+  const targets = getNativeDeliveryTemplateTargets(params.teamId, params.role);
+  const blocks = targets.flatMap(
+    (toRole) => renderNativeDeliveryTemplateBlock(params, toRole) ?? []
+  );
+  if (blocks.length === 0) return;
 
   lines.push('');
   lines.push('<handoff-templates>');
   lines.push(
-    'Before handing off, run **view-template** once for your target — fetch the structure, then compose your handoff message.'
+    'Use these structures when handing off. The user only sees the final handoff-to-`user` message.'
   );
   lines.push('');
-
-  for (const toRole of targets) {
-    const hint = TEMPLATE_HINTS[toRole] ?? 'handoff structure';
-    const cmd = handoffViewTemplateCommand({
-      cliEnvPrefix: params.cliEnvPrefix,
-      role: params.role,
-      nextRole: toRole,
-      teamId: params.teamId,
-    });
-    lines.push(`- **${toRole}** (${hint}): \`${cmd}\``);
-  }
-
-  lines.push('');
+  lines.push(...blocks);
   lines.push('</handoff-templates>');
 }
