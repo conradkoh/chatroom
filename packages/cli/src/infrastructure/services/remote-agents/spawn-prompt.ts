@@ -31,9 +31,9 @@ export type SpawnPrompt = string & { readonly [spawnPromptBrand]: true };
 export const DEFAULT_TRIGGER_PROMPT =
   'Please read your system prompt carefully and follow the Getting Started instructions.';
 
-/** Used when deferInitialTurn — session starts idle; daemon injects tasks. */
+/** Used when deferInitialTurn — session starts idle until the system delivers a task. */
 const NATIVE_BOOTSTRAP_PROMPT =
-  'Your chatroom session is active. Do not run get-next-task or any listen loop. Wait for the daemon to inject your next chatroom task.';
+  'Focus on your role responsibilities. Complete each task via handoff.';
 
 /**
  * Construct a `SpawnPrompt` from arbitrary raw input.

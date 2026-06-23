@@ -22,14 +22,19 @@ describe('ChatroomScenario — native prompt orchestration', () => {
     const delivery = await scenario.deliveryPromptFor('planner', taskId);
     const injection = await scenario.nativeInjectionPromptFor('planner', taskId, 'hello');
 
-    assertNativeDeliveryContract(delivery, { taskContent: 'hello', fromUser: true });
-    assertNativeDeliveryContract(injection, { taskContent: 'hello', fromUser: true });
+    assertNativeDeliveryContract(delivery, {
+      taskContent: 'hello',
+      handoffTarget: 'user',
+    });
+    assertNativeDeliveryContract(injection, {
+      taskContent: 'hello',
+      handoffTarget: 'user',
+    });
     expect(injection).not.toContain('Delegation Brief');
     expect(injection).not.toContain('Report Template');
-    expect(injection).toMatch(/question.*greetings/i);
   });
 
-  test('planner handoff to user returns native continuation output', async () => {
+  test('planner handoff to user returns minimal native output', async () => {
     const scenario = await ChatroomScenario.create({ sessionKey: 'scenario-handoff-user' });
     await scenario.configureRole({ role: 'planner' });
 
@@ -45,9 +50,10 @@ describe('ChatroomScenario — native prompt orchestration', () => {
     expect(mutation.success).toBe(true);
     expect(mutation.supportsNativeIntegration).toBe(true);
     assertNativeHandoffOutput(cliOutput);
+    expect(cliOutput).toContain('handed off to user');
   });
 
-  test('planner → builder handoff creates injectable builder delivery', async () => {
+  test('planner → builder handoff creates builder delivery with handoffs', async () => {
     const scenario = await ChatroomScenario.create({
       sessionKey: 'scenario-planner-builder',
       team: 'duo-planner',
@@ -80,10 +86,10 @@ describe('ChatroomScenario — native prompt orchestration', () => {
 
     assertNativeDeliveryContract(builderDelivery, {
       taskContent: 'Add dark mode toggle',
-      fromAgent: 'planner',
+      handoffTarget: 'planner',
     });
-    expect(builderInjection).toContain('compress_context=new_session');
-    expect(builderInjection).toContain('handed off from planner');
+    expect(builderInjection).toContain('Context was compacted');
+    expect(builderInjection).toContain('Add dark mode toggle');
   });
 
   test('CLI harness delivery still references get-next-task (regression)', async () => {
@@ -94,6 +100,6 @@ describe('ChatroomScenario — native prompt orchestration', () => {
     const delivery = await scenario.deliveryPromptFor('planner', taskId);
 
     expect(delivery).toContain('get-next-task');
-    expect(delivery).not.toContain('<task-content>');
+    expect(delivery).not.toContain('<handoffs>');
   });
 });

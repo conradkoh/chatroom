@@ -10,11 +10,11 @@ import {
 } from '../../../prompts/native/session-continuity';
 
 describe('native session continuity', () => {
-  test('native mode omits get-next-task listen loop from continuity helpers', () => {
-    expect(getSessionContinuityLine(true)).not.toContain('get-next-task');
-    expect(getHandoffContinuityRule(true)).toMatch(/do not start a blocking listener/i);
+  test('native mode omits CLI listen-loop language from continuity helpers', () => {
+    expect(getSessionContinuityLine(true)).toBe('');
+    expect(getHandoffContinuityRule(true)).toBe('');
+    expect(getWorkflowLoopFooter(true)).toBe('Hand off when complete');
     expect(getWorkflowLoopFooter(true)).not.toContain('get-next-task');
-    expect(getSessionContinuityLine(true).toLowerCase()).toMatch(/inject/);
   });
 
   test('CLI mode retains get-next-task language', () => {
@@ -23,7 +23,7 @@ describe('native session continuity', () => {
     expect(getWorkflowLoopFooter(false)).toContain('get-next-task');
   });
 
-  test('planner guidance with nativeIntegration=true omits get-next-task listen loop', () => {
+  test('planner guidance with nativeIntegration=true omits get-next-task', () => {
     const guidance = getPlannerGuidance({
       role: 'planner',
       teamRoles: ['planner', 'builder'],
@@ -33,12 +33,12 @@ describe('native session continuity', () => {
       nativeIntegration: true,
     });
 
-    expect(guidance).not.toMatch(/run `get-next-task`/i);
-    expect(guidance.toLowerCase()).toMatch(/inject/);
+    expect(guidance).not.toMatch(/get-next-task/i);
+    expect(guidance).not.toContain('task injection');
     expect(guidance).not.toMatch(/task read --chatroom-id/i);
   });
 
-  test('builder guidance with nativeIntegration=true omits get-next-task', () => {
+  test('builder guidance with nativeIntegration=true omits get-next-task and Level A/B', () => {
     const guidance = getBuilderGuidance({
       role: 'builder',
       teamRoles: ['planner', 'builder'],
@@ -50,10 +50,11 @@ describe('native session continuity', () => {
     });
 
     expect(guidance).not.toMatch(/get-next-task/i);
-    expect(guidance.toLowerCase()).toMatch(/inject/);
+    expect(guidance).not.toContain('Level A');
+    expect(guidance).not.toContain('Level B');
   });
 
-  test('composeSystemPrompt native duo planner has no CLI listen loop', () => {
+  test('composeSystemPrompt native duo planner has no CLI listen loop or session model', () => {
     const prompt = composeSystemPrompt({
       chatroomId: 'test-room',
       role: 'planner',
@@ -66,10 +67,13 @@ describe('native session continuity', () => {
     });
 
     expect(prompt).not.toMatch(/get-next-task/i);
-    expect(prompt.toLowerCase()).toMatch(/inject/);
+    expect(prompt).not.toContain('task injection');
+    expect(prompt).not.toContain('Level A');
+    expect(prompt).not.toContain('Level B');
+    expect(prompt).not.toContain('Two-Level Model');
+    expect(prompt).not.toContain('## Getting Started');
     expect(prompt).not.toContain('## Begin With the End in Mind');
     expect(prompt).toContain('## Builder delegation brief');
-    expect(prompt).not.toMatch(/chatroom register-agent/i);
     expect(prompt).toMatch(/do not run `register-agent`/i);
   });
 
@@ -86,6 +90,6 @@ describe('native session continuity', () => {
     });
 
     expect(prompt).not.toMatch(/get-next-task/i);
-    expect(prompt.toLowerCase()).toMatch(/inject/);
+    expect(prompt).not.toContain('task injection');
   });
 });

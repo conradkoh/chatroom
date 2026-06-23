@@ -46,12 +46,7 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
 
   const classificationNote = isEntryPoint
     ? nativeIntegration
-      ? `
-**Classification (Entry Point Role):**
-As the entry point, you receive user messages directly. Task content is injected inline — do not run \`task read\`.
-1. Classify the message (\`question\`, \`new_feature\`, or \`follow_up\`)
-2. **question** (greetings, clarifications): hand off a brief reply to the user — skip context and delegation
-3. **new_feature** / **follow_up** with code work: set context if needed, decompose, delegate slices to the builder`
+      ? ''
       : `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:

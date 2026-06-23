@@ -1,50 +1,49 @@
 import { describe, expect, test } from 'vitest';
 
-import { appendNativePlannerUserNextSteps } from '../../../prompts/native/planner-user-next-steps';
+import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
 import {
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
 } from '../../../prompts/native/task-started-content';
 
 describe('native task-started content', () => {
-  test('entry point prompt omits task read and mentions inline injection', () => {
+  test('entry point prompt describes classifications without task read or injection', () => {
     const prompt = getNativeTaskStartedPrompt({
       chatroomId: 'room-id',
       role: 'planner',
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
     });
 
-    expect(prompt).not.toMatch(/after `task read`/i);
-    expect(prompt).toContain('inline with injection');
-    expect(prompt).toMatch(/question.*greetings/i);
+    expect(prompt).not.toMatch(/task read/i);
+    expect(prompt).not.toMatch(/inject/i);
+    expect(prompt).toMatch(/question/i);
     expect(prompt).not.toContain('view-template');
   });
 
-  test('handoff recipient prompt tells agent not to run task read', () => {
+  test('handoff recipient prompt is minimal', () => {
     const prompt = getNativeTaskStartedPromptForHandoffRecipient();
-    expect(prompt).toMatch(/do not run `task read`/i);
-    expect(prompt).toContain('in_progress');
+    expect(prompt).toContain('Begin immediately');
+    expect(prompt).not.toMatch(/task read/i);
   });
 });
 
-describe('native planner user next steps', () => {
-  test('uses classification branches without inlined delegation or report templates', () => {
-    const lines: string[] = [];
-    appendNativePlannerUserNextSteps(lines, {
+describe('native task delivery', () => {
+  test('includes task content and handoff commands only', () => {
+    const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
-      taskId: 'task-id',
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
       availableHandoffTargets: ['builder', 'user'],
     });
-    const output = lines.join('\n');
 
-    expect(output).toContain('Classify');
-    expect(output).toMatch(/question.*greetings/i);
-    expect(output).toContain('handoff');
-    expect(output).not.toContain('Delegation Brief');
-    expect(output).not.toContain('Report Template');
-    expect(output).not.toContain('context view-template');
-    expect(output).not.toContain('Delegate ONE slice');
+    expect(output).toContain('<task>');
+    expect(output).toContain('hello');
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**user**');
+    expect(output).toContain('**builder**');
+    expect(output).not.toMatch(/inject/i);
+    expect(output).not.toContain('Classify');
   });
 });

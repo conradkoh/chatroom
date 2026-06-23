@@ -136,8 +136,10 @@ describe('handoff', () => {
       await handoff(TEST_CHATROOM_ID, defaultOptions(), deps);
 
       const output = getAllLogOutput();
+      expect(output).toContain('handed off to builder');
       expect(output).not.toContain('get-next-task');
-      expect(output).toContain('injected automatically');
+      expect(output).not.toContain('Level A');
+      expect(output).not.toContain('injected automatically');
     });
   });
 

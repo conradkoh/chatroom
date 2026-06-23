@@ -27,6 +27,7 @@ import {
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { readTask } from '../src/domain/usecase/task/read-task';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
@@ -839,7 +840,7 @@ export const taskStarted = mutation({
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get the task to acknowledge
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    let task = await ctx.db.get('chatroom_tasks', args.taskId);
     if (!task) {
       throw new ConvexError({
         code: 'TASK_NOT_FOUND',
@@ -876,7 +877,23 @@ export const taskStarted = mutation({
       });
     }
 
-    // Verify task is in progress (startTask should have been called first)
+    // Auto-start acknowledged tasks so classify works without a separate task read
+    if (task.status === 'acknowledged') {
+      if (task.assignedTo?.toLowerCase() !== args.role.toLowerCase()) {
+        throw new ConvexError({
+          code: 'INVALID_TASK_STATUS',
+          message: `Task is assigned to ${task.assignedTo ?? 'unknown'}, not ${args.role}`,
+        });
+      }
+      await readTask(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        taskId: task._id,
+      });
+      task = (await ctx.db.get('chatroom_tasks', args.taskId)) ?? task;
+    }
+
+    // Verify task is in progress
     if (task.status !== 'in_progress') {
       throw new ConvexError({
         code: 'INVALID_TASK_STATUS',

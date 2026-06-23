@@ -39,7 +39,7 @@ As the entry point, you receive user messages directly. When you receive a user 
 
 ${
   nativeIntegration
-    ? 'Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, wait for the next task to be injected.'
+    ? ''
     : 'Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run `get-next-task` to continue.'
 }
 

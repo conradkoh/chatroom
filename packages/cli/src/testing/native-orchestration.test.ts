@@ -7,23 +7,15 @@ import { describe, expect, test } from 'vitest';
 import { NativeOrchestrationSimulator } from './native-orchestration-simulator.js';
 import { RecordingHarness } from './recording-harness.js';
 
-const PLANNER_DELIVERY = [
-  '<task>',
-  '<task-content>',
-  'hello',
-  '</task-content>',
-  'injected into your native harness session',
-  '</task>',
-].join('\n');
+const PLANNER_DELIVERY = ['<task>', 'hello', '</task>', '<handoffs>', '**user**'].join('\n');
 
 const BUILDER_DELIVERY = [
   '<task>',
-  '<task-content>',
   '## Goal',
   'Implement dark mode',
-  '</task-content>',
-  'handed off from planner',
   '</task>',
+  '<handoffs>',
+  '**planner**',
 ].join('\n');
 
 describe('RecordingHarness', () => {
@@ -92,7 +84,7 @@ describe('NativeOrchestrationSimulator', () => {
 
     expect(sim.harness.injections).toHaveLength(2);
     expect(sim.harness.promptsFor('planner')[0]).toContain('hello');
-    expect(sim.harness.promptsFor('builder')[0]).toContain('compress_context=new_session');
-    expect(sim.harness.promptsFor('builder')[0]).toContain('handed off from planner');
+    expect(sim.harness.promptsFor('builder')[0]).toContain('Context was compacted');
+    expect(sim.harness.promptsFor('builder')[0]).toContain('Implement dark mode');
   });
 });

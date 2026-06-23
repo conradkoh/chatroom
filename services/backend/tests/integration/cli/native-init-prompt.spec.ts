@@ -1,8 +1,8 @@
 /**
  * Native Init Prompt — Integration Tests
  *
- * Verifies that cursor-sdk / opencode-sdk init prompts omit get-next-task
- * and use native injection language, while CLI harnesses remain unchanged.
+ * Verifies that native harness init prompts omit get-next-task and session
+ * lifecycle framing, while CLI harnesses remain unchanged.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -44,7 +44,7 @@ async function joinParticipant(
 }
 
 describe('Native init prompt', () => {
-  test('cursor-sdk builder init prompt omits get-next-task and uses injection language', async () => {
+  test('cursor-sdk builder init prompt omits get-next-task and session model', async () => {
     const { sessionId } = await createTestSession('test-native-init-cursor-sdk');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -69,7 +69,11 @@ describe('Native init prompt', () => {
 
     const prompt = initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
     expect(prompt).not.toContain('get-next-task');
-    expect(prompt.toLowerCase()).toMatch(/inject/);
+    expect(prompt).not.toContain('task injection');
+    expect(prompt).not.toContain('injected automatically');
+    expect(prompt).not.toContain('Level A');
+    expect(prompt).not.toContain('Level B');
+    expect(prompt).not.toContain('Two-Level Model');
   });
 
   test('opencode CLI harness init prompt still contains get-next-task (regression)', async () => {
@@ -99,7 +103,7 @@ describe('Native init prompt', () => {
     expect(prompt).toContain('get-next-task');
   });
 
-  test('opencode-sdk planner init prompt omits get-next-task and uses injection language', async () => {
+  test('opencode-sdk planner init prompt omits get-next-task and session model', async () => {
     const { sessionId } = await createTestSession('test-native-init-opencode-sdk-planner');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -124,10 +128,11 @@ describe('Native init prompt', () => {
 
     const prompt = initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
     expect(prompt).not.toMatch(/run `get-next-task`/i);
-    expect(prompt.toLowerCase()).toMatch(/inject/);
+    expect(prompt).not.toContain('task injection');
+    expect(prompt).not.toContain('## Getting Started');
   });
 
-  test('native handoff output omits get-next-task reminder', () => {
+  test('native handoff output omits get-next-task and lifecycle framing', () => {
     const output = generateHandoffOutput({
       role: 'builder',
       nextRole: 'planner',
@@ -137,6 +142,8 @@ describe('Native init prompt', () => {
     });
 
     expect(output).not.toContain('get-next-task');
-    expect(output).toContain('injected automatically');
+    expect(output).not.toContain('task injection');
+    expect(output).not.toContain('Level A');
+    expect(output).toContain('handed off to planner');
   });
 });

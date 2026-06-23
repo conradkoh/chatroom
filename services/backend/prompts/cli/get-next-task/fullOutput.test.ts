@@ -28,21 +28,19 @@ const BASE_PARAMS = {
 };
 
 describe('generateFullCliOutput — nativeIntegration', () => {
-  test('native mode omits get-next-task and uses injection language', () => {
+  test('native mode returns task content and handoff commands only', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: true,
     });
 
-    expect(output).not.toMatch(/blocking `get-next-task`/i);
-    expect(output).toContain('injected into your native harness session');
-    expect(output).toContain('next task will be injected automatically');
-    expect(output).not.toContain('grace-period cooldowns');
-    expect(output).toContain('<task-content>');
+    expect(output).not.toContain('get-next-task');
+    expect(output).toContain('<task>');
     expect(output).toContain('Implement the feature');
-    expect(output).not.toContain('Context compacted?');
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('**planner**');
+    expect(output).not.toMatch(/inject/i);
     expect(output).not.toMatch(/task read --chatroom-id/i);
-    expect(output).toContain('in_progress automatically');
     expect(output).not.toContain('Delegation Brief');
     expect(output).not.toContain('Report Template');
   });
@@ -55,10 +53,10 @@ describe('generateFullCliOutput — nativeIntegration', () => {
 
     expect(output).toContain('get-next-task');
     expect(output).toContain('grace-period cooldowns');
-    expect(output).not.toContain('injected into your native harness session');
+    expect(output).not.toContain('<handoffs>');
   });
 
-  test('native planner user message uses lightweight classification branches', () => {
+  test('native planner user message lists handoff targets', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       role: 'planner',
@@ -69,8 +67,9 @@ describe('generateFullCliOutput — nativeIntegration', () => {
       task: { _id: 'task-id', content: 'hello' },
     });
 
-    expect(output).not.toContain('Delegation Brief');
-    expect(output).not.toContain('Report Template');
-    expect(output).toMatch(/question.*greetings/i);
+    expect(output).toContain('hello');
+    expect(output).toContain('**user**');
+    expect(output).toContain('**builder**');
+    expect(output).not.toContain('Classify');
   });
 });

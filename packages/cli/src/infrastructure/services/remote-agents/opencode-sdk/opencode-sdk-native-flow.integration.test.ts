@@ -85,7 +85,7 @@ describe.skipIf(SKIP)(
       tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencode-sdk-native-'));
 
       const bootstrap = createSpawnPrompt('', { nativeBootstrap: true });
-      expect(bootstrap.toLowerCase()).toMatch(/do not run get-next-task/);
+      expect(bootstrap.toLowerCase()).toMatch(/focus on your role/);
 
       const logLines: string[] = [];
       let agentEndCount = 0;

@@ -126,7 +126,7 @@ Keep the team informed: Send \`report-progress\` updates at milestones or when b
 
 **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
-**After \`handoff\`:** Your session stays active. The next chatroom task will be injected automatically when ready.
+**Do not run \`register-agent\`** — your session was registered when the harness started.
 
 **Reference commands:**
 - List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`

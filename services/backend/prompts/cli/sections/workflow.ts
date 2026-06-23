@@ -13,7 +13,7 @@ import { getWorkflowLoopFooter } from '../../native/session-continuity';
 /** Mermaid nodes from task receipt through classify (native skips task read). */
 function getTaskIntakeThroughClassifyNodes(nativeIntegration?: boolean): string {
   if (nativeIntegration) {
-    return `    A([Start]) --> B[Receive injected chatroom task]
+    return `    A([Start]) --> B[Receive user message]
     B --> D[Classify with classify]`;
   }
   return `    A([Start]) --> B[Receive chatroom task from user]
@@ -127,10 +127,10 @@ ${getTaskIntakeThroughClassifyNodes(nativeIntegration)}
  */
 export function getPlannerSoloWorkflow(nativeIntegration?: boolean): string {
   const continueStep = nativeIntegration
-    ? 'Wait for the next task to be injected to continue the session (Level A continues after Level B completes)'
+    ? 'Hand off when complete'
     : 'Run `get-next-task` to continue the session (Level A continues after Level B completes)';
   const intakeSteps = nativeIntegration
-    ? `1. Receive injected chatroom task (content inline — do not run task read)
+    ? `1. Receive user message
 2. Classify with classify`
     : `1. Receive chatroom task from user
 2. Run task read (get chatroom task content + mark in_progress)

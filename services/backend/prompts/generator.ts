@@ -37,13 +37,10 @@ import {
   getNativeCommandsReferenceSection,
 } from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
-import {
-  getGettingStartedSection,
-  getNativeGettingStartedSection,
-} from './sections/getting-started';
+import { getGettingStartedSection } from './sections/getting-started';
 import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
-import { getNextStepSection, getNativeNextStepSection } from './sections/next-step';
+import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
 import {
   getTeamHeaderSection,
@@ -51,7 +48,6 @@ import {
   getRoleDescriptionSection,
 } from './sections/role-identity';
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
-import { getSessionVsChatroomTaskNativeSection } from './sections/session-vs-chatroom-task-native';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
 import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
@@ -302,24 +298,7 @@ function buildPlannerReminder(
 ): string {
   switch (classification) {
     case 'question': {
-      const handoffToUserCmd = handoffCommand({
-        chatroomId,
-        role: 'planner',
-        nextRole: 'user',
-        cliEnvPrefix,
-      });
-      return `✅ Chatroom task acknowledged as QUESTION.
-
-**Next steps:**
-1. Answer the user's question
-2. When done, hand off to user:
-
-\`\`\`bash
-${handoffToUserCmd}
-\`\`\`
-
-💡 You're working on:
-Task ID: ${taskId}`;
+      return `✅ Classified as QUESTION. Answer the user, then hand off to \`user\`.`;
     }
     case 'new_feature': {
       const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
@@ -498,18 +477,7 @@ function buildSoloReminder(
 
   switch (classification) {
     case 'question':
-      return `✅ Chatroom task acknowledged as QUESTION.
-
-**Next steps:**
-1. Answer the user's question
-2. When done, hand off directly to user:
-
-\`\`\`bash
-${handoffToUserCmd}
-\`\`\`
-
-💡 You're working on:
-Task ID: ${taskId}`;
+      return `✅ Classified as QUESTION. Answer the user, then hand off to \`user\`.`;
     case 'new_feature':
       return `✅ Chatroom task acknowledged as NEW FEATURE.
 
@@ -671,17 +639,11 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getRoleDescriptionSection(selectorCtx));
   sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId, nativeIntegration }));
 
-  // Session model: explains Level A (session) vs Level B (chatroom task) — high salience
-  sections.push(
-    nativeIntegration ? getSessionVsChatroomTaskNativeSection() : getSessionVsChatroomTaskSection()
-  );
-
-  // Context-gaining: Getting Started (native injection vs get-next-task loop)
-  sections.push(
-    nativeIntegration
-      ? getNativeGettingStartedSection(selectorCtx)
-      : getGettingStartedSection(selectorCtx)
-  );
+  // Session model (CLI harnesses only — native agents focus on the task at hand)
+  if (!nativeIntegration) {
+    sections.push(getSessionVsChatroomTaskSection());
+    sections.push(getGettingStartedSection(selectorCtx));
+  }
 
   // Task classification / acknowledgement commands
   sections.push(getClassificationGuideSection(selectorCtx));
@@ -689,8 +651,8 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
 
-  // Full handoff template previews are inlined on CLI delivery; native injection
-  // references templates from role guidance to keep init prompts lean.
+  // Full handoff template previews are inlined on CLI delivery; native references
+  // templates from role guidance to keep init prompts lean.
   if (!nativeIntegration) {
     sections.push(
       getHandoffTemplatesPreviewSection({
@@ -721,12 +683,10 @@ export function composeSystemPrompt(input: InitPromptInput): string {
       : getCommandsReferenceSection({ chatroomId, role, convexUrl })
   );
 
-  // Next step
-  sections.push(
-    nativeIntegration
-      ? getNativeNextStepSection()
-      : getNextStepSection({ chatroomId, role, convexUrl })
-  );
+  // Next step (CLI harnesses only)
+  if (!nativeIntegration) {
+    sections.push(getNextStepSection({ chatroomId, role, convexUrl }));
+  }
 
   return composeSections(sections);
 }
@@ -750,16 +710,10 @@ export function generateHandoffOutput(params: {
 
   const lines: string[] = [];
   lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
-  lines.push('');
-  lines.push('✅ Level B complete (chatroom task handed off).');
 
-  if (supportsNativeIntegration) {
-    lines.push(
-      '⏳ Level A continues (session is still active) — the next chatroom task will be injected automatically when ready.'
-    );
+  if (!supportsNativeIntegration) {
     lines.push('');
-    lines.push('Wait for the next task to be injected into your session.');
-  } else {
+    lines.push('✅ Level B complete (chatroom task handed off).');
     lines.push(
       '⏳ Level A continues (session is still active) — run get-next-task to stay connected:'
     );

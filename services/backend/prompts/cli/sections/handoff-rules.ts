@@ -41,9 +41,8 @@ export function getHandoffRulesSection(
   nativeIntegration?: boolean
 ): string {
   const continuityRule = getHandoffContinuityRule(nativeIntegration);
+  const continuityBlock = continuityRule ? `${continuityRule}\n\n` : '';
   return `**Handoff Rules:**
 
-${continuityRule}
-
-${buildHandoffRuleLines(config)}`;
+${continuityBlock}${buildHandoffRuleLines(config)}`;
 }

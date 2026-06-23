@@ -37,24 +37,10 @@ describe('Squad Team > Planner > Classify Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('QUESTION');
-    expect(reminder).toContain('hand off to user');
+    expect(reminder).toContain('hand off to `user`');
 
     expect(reminder).toMatchInlineSnapshot(`
-      "✅ Chatroom task acknowledged as QUESTION.
-
-      **Next steps:**
-      1. Answer the user's question
-      2. When done, hand off to user:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="user" << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF
-      \`\`\`
-
-      💡 You're working on:
-      Task ID: test-task-id"
+      "✅ Classified as QUESTION. Answer the user, then hand off to \`user\`."
     `);
   });
 

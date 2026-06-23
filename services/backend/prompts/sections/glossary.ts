@@ -95,23 +95,11 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
 const NATIVE_GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'session',
-    definition:
-      'The entire agent invocation (one harness turn) — from harness startup to shutdown. ' +
-      'A session spans many chatroom tasks. Completing a chatroom task (handoff) does NOT end the session. ' +
-      'After every handoff, wait for the next task to be injected — your session stays active.',
+    definition: 'Your ongoing involvement in this chatroom across multiple tasks.',
   },
   {
     term: 'chatroom-task',
-    definition:
-      'One discrete unit of work delivered by daemon injection into your session context. ' +
-      'A chatroom task begins when the task appears in your context and ends when you run `handoff`. ' +
-      'Completing a chatroom task only closes Level B — the session (Level A) continues.',
-  },
-  {
-    term: 'task-injection',
-    definition:
-      'How native harnesses receive work: the daemon injects the next chatroom task into your session ' +
-      'after a handoff or when a user message is ready. Do not start a blocking listener — wait for injection.',
+    definition: 'One discrete unit of work. Complete it with `handoff`.',
   },
   ...GLOSSARY_TERMS.filter(
     (entry) =>

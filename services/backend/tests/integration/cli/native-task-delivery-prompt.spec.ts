@@ -1,8 +1,7 @@
 /**
  * Native Task Delivery Prompt — Integration Tests
  *
- * Verifies getTaskDeliveryPrompt for native harnesses omits get-next-task
- * and uses injection language, while CLI harnesses remain unchanged.
+ * Verifies getTaskDeliveryPrompt for native harnesses returns task + handoffs only.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -63,7 +62,7 @@ describe('Native task delivery prompt', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      content: 'Implement native task injection',
+      content: 'Implement native task delivery',
       targetRole: 'builder',
       type: 'message',
     });
@@ -71,7 +70,7 @@ describe('Native task delivery prompt', () => {
     const { taskId } = await t.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId,
-      content: 'Wire native task injection',
+      content: 'Wire native task delivery',
       createdBy: 'planner',
       sourceMessageId: messageId,
     });
@@ -87,8 +86,10 @@ describe('Native task delivery prompt', () => {
 
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
     expect(fullOutput).not.toContain('get-next-task');
-    expect(fullOutput.toLowerCase()).toMatch(/inject/);
-    expect(fullOutput).toContain('next task will be injected automatically');
+    expect(fullOutput).toContain('<task>');
+    expect(fullOutput).toContain('<handoffs>');
+    expect(fullOutput).toContain('Wire native task delivery');
+    expect(fullOutput).not.toMatch(/inject/i);
   });
 
   test('getTaskDeliveryPrompt without messageId resolves user message via task.sourceMessageId', async () => {
@@ -136,9 +137,9 @@ describe('Native task delivery prompt', () => {
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
     expect(fullOutput).not.toContain('No message found');
     expect(fullOutput).toContain('From: user');
-    expect(fullOutput).toContain('<task-content>');
     expect(fullOutput).toContain('checkout master and run git pull');
-    expect(fullOutput).toContain('Classify');
+    expect(fullOutput).toContain('<handoffs>');
+    expect(fullOutput).not.toContain('Classify');
   });
 
   test('getTaskDeliveryPrompt for CLI harness still contains get-next-task (regression)', async () => {
