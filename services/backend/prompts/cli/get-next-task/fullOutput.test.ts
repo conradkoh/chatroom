@@ -34,13 +34,15 @@ describe('generateFullCliOutput — nativeIntegration', () => {
       nativeIntegration: true,
     });
 
-    expect(output).not.toContain('get-next-task');
+    expect(output).not.toMatch(/blocking `get-next-task`/i);
     expect(output).toContain('injected into your native harness session');
     expect(output).toContain('next task will be injected automatically');
     expect(output).not.toContain('grace-period cooldowns');
     expect(output).toContain('<task-content>');
     expect(output).toContain('Implement the feature');
     expect(output).not.toContain('Context compacted?');
+    expect(output).not.toMatch(/task read --chatroom-id/i);
+    expect(output).toContain('in_progress automatically');
   });
 
   test('CLI mode still contains get-next-task (regression)', () => {

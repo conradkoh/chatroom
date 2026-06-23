@@ -248,6 +248,9 @@ describe('Participant Status Tracking', () => {
 
     const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
     expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('in_progress');
   });
 
   test('updateTokenActivity does not duplicate task.inProgress when already in progress', async () => {

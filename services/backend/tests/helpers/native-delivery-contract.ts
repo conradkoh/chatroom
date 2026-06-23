@@ -27,6 +27,9 @@ export function assertNativeDeliveryContract(
   expect(output).toContain('<task-content>');
   expect(output).toContain('next task will be injected automatically');
   expect(output).not.toContain('Context compacted?');
+  expect(output).not.toMatch(/Read chatroom task/i);
+  expect(output).not.toMatch(/task read --chatroom-id/i);
+  expect(output).not.toContain('REQUIRED FIRST STEP: Read the chatroom task');
 
   if (options.taskContent) {
     expect(output).toContain(options.taskContent);

@@ -219,15 +219,17 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(task.content);
     lines.push('</task-content>');
     lines.push('');
-    lines.push('⚠️ REQUIRED: Mark this chatroom task as in_progress:');
+    lines.push(
+      'Task content is delivered above. When you begin responding, the system marks this chatroom task as in_progress automatically — do not run `task read`.'
+    );
   } else {
     lines.push(`To read this chatroom task and mark it as in_progress, run:`);
+    lines.push('```');
+    lines.push(
+      `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
+    );
+    lines.push('```');
   }
-  lines.push('```');
-  lines.push(
-    `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
-  );
-  lines.push('```');
 
   // Attached messages from origin message (user-pinned messages as context)
   const attachedMessages = originMessage?.attachedMessages ?? [];
@@ -261,16 +263,15 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
 
   if (isUserMessage) {
-    // User message case: read task first, then classify
-    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
-    lines.push('');
+    if (!nativeIntegration) {
+      lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
+      lines.push('');
+      lines.push(
+        `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+      );
+    }
 
-    // Step 1: Read task
-    lines.push(
-      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
-    );
-
-    // Step 2: Classify
+    const classifyStepNum = nativeIntegration ? 1 : 2;
     const baseCmd = classifyCommand({
       chatroomId,
       role,
@@ -281,7 +282,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       '--origin-message-classification=question',
       '--origin-message-classification=<type>'
     );
-    lines.push(`2. Classify → \`${baseCmd}\``);
+    lines.push(`${classifyStepNum}. Classify → \`${baseCmd}\``);
 
     // new_feature example
     lines.push('');
@@ -300,14 +301,17 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     if (role === 'planner') {
+      const contextStepNum = nativeIntegration ? 2 : 3;
+      const delegateStepNum = nativeIntegration ? 3 : 4;
+      const reportStepNum = nativeIntegration ? 4 : 5;
       // Planner role receiving a new user task
       lines.push('');
       lines.push(
-        `3. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
+        `${contextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
       lines.push(contextNewHint());
       lines.push(
-        '4. Delegate ONE slice to the builder (a structured workflow is optional, not required):'
+        `${delegateStepNum}. Delegate ONE slice to the builder (a structured workflow is optional, not required):`
       );
       lines.push('');
       lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
@@ -325,13 +329,15 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       // Eagerly deliver the report template so it shapes the final deliverable
       // from the start — the user can only ever see the handoff-to-user message.
       lines.push('');
-      lines.push('5. When the work is done, deliver to the user using this report template:');
+      lines.push(
+        `${reportStepNum}. When the work is done, deliver to the user using this report template:`
+      );
       maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('');
       lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
     } else {
       // Non-coordinator role receiving a user message
-      let nextStepNum = 3;
+      let nextStepNum = nativeIntegration ? 2 : 3;
       if (isEntryPoint) {
         lines.push('');
         lines.push(
@@ -355,17 +361,19 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     }
   } else if (message) {
-    // Handoff case: read task first (marks in_progress), then work
-    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
-    lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
-    lines.push('');
+    if (!nativeIntegration) {
+      lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
+      lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
+      lines.push('');
+      lines.push(
+        `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+      );
+    } else {
+      lines.push(`handed off from ${message.senderRole} — start work immediately.`);
+      lines.push('');
+    }
 
-    // Step 1: Read task
-    lines.push(
-      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
-    );
-
-    let nextStepNum = 2;
+    let nextStepNum = nativeIntegration ? 1 : 2;
     if (isEntryPoint) {
       lines.push(
         `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`

@@ -1396,7 +1396,7 @@ export class AgentProcessManager {
     let lastReportedTokenAt = 0;
     spawnResult.onOutput(() => {
       const now = this.deps.clock.now();
-      if (now - lastReportedTokenAt >= 30_000) {
+      if (lastReportedTokenAt === 0 || now - lastReportedTokenAt >= 30_000) {
         lastReportedTokenAt = now;
         this.deps.backend
           .mutation(api.participants.updateTokenActivity, {

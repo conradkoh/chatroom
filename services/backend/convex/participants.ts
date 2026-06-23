@@ -24,6 +24,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { findAcknowledgedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
+import { readTask } from '../src/domain/usecase/task/read-task';
 
 async function getParticipantByChatroomRole(
   ctx: QueryCtx | MutationCtx,
@@ -286,16 +287,12 @@ export const updateTokenActivity = mutation({
           role: args.role,
         });
 
-        if (acknowledgedTask) {
-          const now = Date.now();
-          await ctx.db.insert('chatroom_eventStream', {
-            type: 'task.inProgress',
+        if (acknowledgedTask && acknowledgedTask.status === 'acknowledged') {
+          await readTask(ctx, {
             chatroomId: args.chatroomId,
             role: args.role,
             taskId: acknowledgedTask._id,
-            timestamp: now,
           });
-          await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
         }
       }
       await ctx.db.patch('chatroom_participants', participant._id, {

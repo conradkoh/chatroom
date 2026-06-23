@@ -24,22 +24,16 @@ export function getNativeContextGainingGuidance(params: ContextGainingParams): s
 flowchart LR
     A([Start]) --> B[register-agent]
     B --> C[wait for task injection]
-    C --> D[task read\nget chatroom task +\nmark in_progress]
-    D --> E[Do Work]
-    E --> F[handoff]
-    F --> C
+    C --> D[Do Work]
+    D --> E[handoff]
+    E --> C
 \`\`\`
 
 ### Native task delivery
 
 Your harness uses **native integration**: the chatroom daemon injects tasks directly into your session context. **Do not use a blocking listen loop** — tasks arrive via injection.
 
-When a chatroom task appears in your context, you **MUST** run \`task read\` immediately to:
-
-1. **Get the chatroom task content** — the full description
-2. **Mark it as in_progress** — signals you're working on it
-
-Failure to run \`task read\` promptly may trigger the system to restart you.
+When a chatroom task appears in your context, the **full task content is included in the injection**. Begin working from that message — when you start responding, the system marks the task as \`in_progress\` automatically. **Do not run \`task read\`** unless you need attached context or backlog details not shown in the injection.
 
 ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, wait for the next task to be injected — do not exit.
 
