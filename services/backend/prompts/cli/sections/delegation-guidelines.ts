@@ -23,7 +23,7 @@ function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: st
 
 function getDelegationBriefReference(nativeIntegration?: boolean): string {
   return nativeIntegration
-    ? 'Use the **Delegation Brief (Planner → Builder)** in `<handoff-templates>` on task delivery when delegating implementation work.'
+    ? 'Run `chatroom handoff view-template --role=<role> --next-role=builder` before delegating — follow that structure in your handoff message.'
     : 'Use the **Handoff to `builder`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.';
 }
 

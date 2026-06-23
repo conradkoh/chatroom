@@ -6,7 +6,7 @@
  * the agent completes it and hands off.
  */
 
-import { appendNativeDeliveryHandoffTemplates } from './delivery-handoff-templates';
+import { appendNativeDeliveryHandoffTemplateHints } from './delivery-handoff-templates';
 import { handoffCommand } from '../cli/handoff/command';
 
 export interface NativeTaskDeliveryParams {
@@ -68,7 +68,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
   }
 
   lines.push('</task>');
-  appendNativeDeliveryHandoffTemplates(lines, { teamId, role });
+  appendNativeDeliveryHandoffTemplateHints(lines, { teamId, role, cliEnvPrefix });
   appendHandoffTargets(lines, { chatroomId, role, cliEnvPrefix, availableHandoffTargets });
 
   return lines.join('\n').trim();

@@ -28,7 +28,7 @@ const BASE_PARAMS = {
 };
 
 describe('generateFullCliOutput — nativeIntegration', () => {
-  test('native mode returns task content, templates, and handoff commands', () => {
+  test('native mode returns task content, lazy template hints, and handoff commands', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       teamId: 'duo',
@@ -40,10 +40,11 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('Implement the feature');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**planner**');
-    expect(output).not.toMatch(/inject/i);
+    expect(output).not.toContain('task injection');
     expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Handoff Template (Builder → Planner)');
+    expect(output).toContain('handoff view-template --role="builder" --next-role="planner"');
+    expect(output).not.toContain('Handoff Template (Builder → Planner)');
   });
 
   test('CLI mode still contains get-next-task (regression)', () => {
@@ -57,7 +58,7 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toContain('<handoffs>');
   });
 
-  test('native planner user message lists handoff targets and templates', () => {
+  test('native planner user message lists handoff targets and lazy template hints', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       role: 'planner',
@@ -73,8 +74,9 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('**user**');
     expect(output).toContain('**builder**');
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Report Template (Planner → User)');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    expect(output).toContain('handoff view-template --role="planner" --next-role="user"');
+    expect(output).toContain('handoff view-template --role="planner" --next-role="builder"');
+    expect(output).not.toContain('Report Template (Planner → User)');
     expect(output).not.toContain('Classify');
   });
 });

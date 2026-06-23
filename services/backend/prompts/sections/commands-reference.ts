@@ -7,6 +7,7 @@
 import { getNextTaskCommand } from '../cli/get-next-task/command';
 import { getNextTaskReminder } from '../cli/get-next-task/reminder';
 import { handoffCommand } from '../cli/handoff/command';
+import { handoffViewTemplateCommand } from '../cli/handoff/view-template';
 import { reportProgressCommand } from '../cli/report-progress/command';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
@@ -125,6 +126,12 @@ ${progressCmd}
 Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
 
 **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
+**View handoff template** (run before composing a handoff message):
+
+\`\`\`bash
+${handoffViewTemplateCommand({ cliEnvPrefix, role: params.role, nextRole: '<target>' })}
+\`\`\`
 
 **Do not run \`register-agent\`** — your session was registered when the harness started.
 

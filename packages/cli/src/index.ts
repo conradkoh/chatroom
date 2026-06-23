@@ -220,9 +220,27 @@ program
     }
   );
 
-program
+const handoffCommandGroup = program
   .command('handoff')
-  .description('Complete your task and hand off to the next role')
+  .description('Complete your task and hand off to the next role');
+
+handoffCommandGroup
+  .command('view-template')
+  .description('Print the handoff message template for a role pair')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--next-role <nextRole>', 'Target role for the handoff')
+  .option('--team-id <teamId>', 'Team id (solo, duo, squad); defaults to duo')
+  .action(async (options: { role: string; nextRole: string; teamId?: string }) => {
+    const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
+    try {
+      printHandoffViewTemplate(options);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+handoffCommandGroup
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')

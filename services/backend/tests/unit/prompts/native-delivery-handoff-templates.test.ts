@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
 
+import {
+  handoffViewTemplateCommand,
+  viewHandoffTemplate,
+} from '../../../prompts/cli/handoff/view-template';
 import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
 
 const BASE = {
@@ -10,8 +14,41 @@ const BASE = {
   availableHandoffTargets: ['builder', 'user'],
 };
 
-describe('native delivery handoff templates', () => {
-  test('duo planner delivery includes user report and delegation brief', () => {
+describe('handoff view-template', () => {
+  test('resolves duo planner to user report', () => {
+    const template = viewHandoffTemplate({
+      role: 'planner',
+      nextRole: 'user',
+      teamId: 'duo',
+    });
+    expect(template).toContain('Report Template (Planner → User)');
+  });
+
+  test('resolves duo builder to planner handoff', () => {
+    const template = viewHandoffTemplate({
+      role: 'builder',
+      nextRole: 'planner',
+      teamId: 'duo',
+    });
+    expect(template).toContain('Handoff Template (Builder → Planner)');
+  });
+
+  test('command generator includes role pair and team', () => {
+    expect(
+      handoffViewTemplateCommand({
+        cliEnvPrefix: 'PREFIX ',
+        role: 'planner',
+        nextRole: 'user',
+        teamId: 'duo',
+      })
+    ).toBe(
+      'PREFIX chatroom handoff view-template --role="planner" --next-role="user" --team-id="duo"'
+    );
+  });
+});
+
+describe('native lazy handoff template hints', () => {
+  test('duo planner hints user and builder view-template commands without inline bodies', () => {
     const output = generateNativeTaskDeliveryOutput({
       ...BASE,
       role: 'planner',
@@ -19,13 +56,13 @@ describe('native delivery handoff templates', () => {
     });
 
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Report Template (Planner → User)');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
-    expect(output).toContain('<handoffs>');
-    expect(output).not.toContain('get-next-task');
+    expect(output).toContain('handoff view-template --role="planner" --next-role="user"');
+    expect(output).toContain('handoff view-template --role="planner" --next-role="builder"');
+    expect(output).not.toContain('Report Template (Planner → User)');
+    expect(output).not.toContain('Delegation Brief (Planner → Builder)');
   });
 
-  test('duo builder delivery includes builder to planner template', () => {
+  test('duo builder hints planner return template', () => {
     const output = generateNativeTaskDeliveryOutput({
       ...BASE,
       role: 'builder',
@@ -34,10 +71,11 @@ describe('native delivery handoff templates', () => {
       availableHandoffTargets: ['planner'],
     });
 
-    expect(output).toContain('Handoff Template (Builder → Planner)');
+    expect(output).toContain('handoff view-template --role="builder" --next-role="planner"');
+    expect(output).not.toContain('Handoff Template (Builder → Planner)');
   });
 
-  test('solo delivery includes solo to user report template', () => {
+  test('solo hints user report template', () => {
     const output = generateNativeTaskDeliveryOutput({
       ...BASE,
       role: 'solo',
@@ -45,10 +83,10 @@ describe('native delivery handoff templates', () => {
       availableHandoffTargets: ['user'],
     });
 
-    expect(output).toContain('Report Template (Solo → User)');
+    expect(output).toContain('handoff view-template --role="solo" --next-role="user"');
   });
 
-  test('squad planner delivery includes user, builder, and reviewer templates', () => {
+  test('squad planner hints user, builder, and reviewer', () => {
     const output = generateNativeTaskDeliveryOutput({
       ...BASE,
       role: 'planner',
@@ -56,12 +94,12 @@ describe('native delivery handoff templates', () => {
       availableHandoffTargets: ['builder', 'reviewer', 'user'],
     });
 
-    expect(output).toContain('Report Template (Planner → User)');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
-    expect(output).toContain('Review Request Brief (Planner → Reviewer)');
+    expect(output).toContain('--next-role="user"');
+    expect(output).toContain('--next-role="builder"');
+    expect(output).toContain('--next-role="reviewer"');
   });
 
-  test('squad builder delivery includes builder to reviewer template', () => {
+  test('squad builder hints reviewer template', () => {
     const output = generateNativeTaskDeliveryOutput({
       ...BASE,
       role: 'builder',
@@ -70,19 +108,6 @@ describe('native delivery handoff templates', () => {
       availableHandoffTargets: ['reviewer'],
     });
 
-    expect(output).toContain('Handoff Template (Builder → Reviewer)');
-  });
-
-  test('squad reviewer delivery includes planner and builder templates', () => {
-    const output = generateNativeTaskDeliveryOutput({
-      ...BASE,
-      role: 'reviewer',
-      teamId: 'squad',
-      message: { _id: 'msg-id', senderRole: 'builder' },
-      availableHandoffTargets: ['planner', 'builder'],
-    });
-
-    expect(output).toContain('Review Outcome (Reviewer → Planner)');
-    expect(output).toContain('Rework Feedback (Reviewer → Builder)');
+    expect(output).toContain('handoff view-template --role="builder" --next-role="reviewer"');
   });
 });

@@ -28,7 +28,7 @@ describe('native task-started content', () => {
 });
 
 describe('native task delivery', () => {
-  test('includes task content, handoff templates, and handoff commands', () => {
+  test('includes task content, lazy template hints, and handoff commands', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
@@ -42,8 +42,8 @@ describe('native task delivery', () => {
     expect(output).toContain('<task>');
     expect(output).toContain('hello');
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Report Template (Planner → User)');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    expect(output).toContain('handoff view-template');
+    expect(output).not.toContain('Report Template (Planner → User)');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
     expect(output).toContain('**builder**');

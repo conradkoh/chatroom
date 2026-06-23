@@ -648,7 +648,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
 
-  // Full handoff template previews on CLI init; native inlines templates on task delivery.
+  // Full handoff template previews on CLI init; native fetches templates via handoff view-template.
   if (!nativeIntegration) {
     sections.push(
       getHandoffTemplatesPreviewSection({
