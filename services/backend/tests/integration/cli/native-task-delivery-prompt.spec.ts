@@ -88,6 +88,8 @@ describe('Native task delivery prompt', () => {
     expect(fullOutput).not.toContain('get-next-task');
     expect(fullOutput).toContain('<task>');
     expect(fullOutput).toContain('<handoffs>');
+    expect(fullOutput).toContain('<handoff-templates>');
+    expect(fullOutput).toContain('Handoff Template (Builder → Planner)');
     expect(fullOutput).toContain('Wire native task delivery');
     expect(fullOutput).not.toMatch(/inject/i);
   });

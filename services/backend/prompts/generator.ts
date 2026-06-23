@@ -27,10 +27,7 @@ import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
 import { reportProgressCommand } from './cli/report-progress/command';
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
-import {
-  getHandoffTemplatesPreviewSection,
-  getNativeBuilderDelegationPreviewSection,
-} from './cli/sections/handoff-templates-preview';
+import { getHandoffTemplatesPreviewSection } from './cli/sections/handoff-templates-preview';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import {
   getCommandsReferenceSection,
@@ -651,8 +648,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
 
-  // Full handoff template previews are inlined on CLI delivery; native references
-  // templates from role guidance to keep init prompts lean.
+  // Full handoff template previews on CLI init; native inlines templates on task delivery.
   if (!nativeIntegration) {
     sections.push(
       getHandoffTemplatesPreviewSection({
@@ -662,11 +658,6 @@ export function composeSystemPrompt(input: InitPromptInput): string {
         nativeIntegration,
       })
     );
-  } else {
-    const builderDelegation = getNativeBuilderDelegationPreviewSection({ teamId, role });
-    if (builderDelegation) {
-      sections.push(builderDelegation);
-    }
   }
 
   // Handoff options

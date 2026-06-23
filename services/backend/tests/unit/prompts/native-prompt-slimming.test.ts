@@ -28,10 +28,11 @@ describe('native task-started content', () => {
 });
 
 describe('native task delivery', () => {
-  test('includes task content and handoff commands only', () => {
+  test('includes task content, handoff templates, and handoff commands', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
+      teamId: 'duo',
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
       task: { _id: 'task-id', content: 'hello' },
       message: { _id: 'msg-id', senderRole: 'user' },
@@ -40,10 +41,13 @@ describe('native task delivery', () => {
 
     expect(output).toContain('<task>');
     expect(output).toContain('hello');
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('Delegation Brief (Planner → Builder)');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
     expect(output).toContain('**builder**');
-    expect(output).not.toMatch(/inject/i);
+    expect(output).not.toContain('task injection');
     expect(output).not.toContain('Classify');
   });
 });

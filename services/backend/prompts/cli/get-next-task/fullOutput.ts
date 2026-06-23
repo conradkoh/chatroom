@@ -128,6 +128,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       chatroomId,
       role,
       cliEnvPrefix,
+      teamId,
       task,
       message: message ? { _id: message._id, senderRole: message.senderRole } : null,
       availableHandoffTargets,

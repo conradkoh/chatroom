@@ -28,9 +28,10 @@ const BASE_PARAMS = {
 };
 
 describe('generateFullCliOutput — nativeIntegration', () => {
-  test('native mode returns task content and handoff commands only', () => {
+  test('native mode returns task content, templates, and handoff commands', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
+      teamId: 'duo',
       nativeIntegration: true,
     });
 
@@ -41,8 +42,8 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('**planner**');
     expect(output).not.toMatch(/inject/i);
     expect(output).not.toMatch(/task read --chatroom-id/i);
-    expect(output).not.toContain('Delegation Brief');
-    expect(output).not.toContain('Report Template');
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Handoff Template (Builder → Planner)');
   });
 
   test('CLI mode still contains get-next-task (regression)', () => {
@@ -56,10 +57,11 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toContain('<handoffs>');
   });
 
-  test('native planner user message lists handoff targets', () => {
+  test('native planner user message lists handoff targets and templates', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       role: 'planner',
+      teamId: 'duo',
       isEntryPoint: true,
       message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
       availableHandoffTargets: ['builder', 'user'],
@@ -70,6 +72,9 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('hello');
     expect(output).toContain('**user**');
     expect(output).toContain('**builder**');
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('Delegation Brief (Planner → Builder)');
     expect(output).not.toContain('Classify');
   });
 });

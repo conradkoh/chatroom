@@ -109,7 +109,6 @@ describe('native session continuity', () => {
     expect(prompt).not.toContain('Two-Level Model');
     expect(prompt).not.toContain('## Getting Started');
     expect(prompt).not.toContain('## Begin With the End in Mind');
-    expect(prompt).toContain('## Builder delegation brief');
     expect(prompt).toMatch(/do not run `register-agent`/i);
   });
 

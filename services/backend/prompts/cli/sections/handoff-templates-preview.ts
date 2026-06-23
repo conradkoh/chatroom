@@ -29,35 +29,3 @@ export function getHandoffTemplatesPreviewSection(params: {
 
   return createSection('handoff-templates-preview', 'guidance', blocks.join('\n'));
 }
-
-/**
- * Native init: builder delegation brief only (user report template is injected when relevant).
- */
-export function getNativeBuilderDelegationPreviewSection(params: {
-  teamId?: string;
-  role: string;
-}): PromptSection | null {
-  if (params.role.toLowerCase() !== 'planner') {
-    return null;
-  }
-
-  const template = getHandoffTemplate({
-    teamId: params.teamId,
-    fromRole: 'planner',
-    toRole: 'builder',
-    nativeIntegration: true,
-  });
-  if (!template) {
-    return null;
-  }
-
-  const content = [
-    '## Builder delegation brief',
-    '',
-    'Use this template when classifying **new_feature** / **follow_up** work and delegating a slice to the builder:',
-    '',
-    template,
-  ].join('\n');
-
-  return createSection('handoff-templates-native-builder', 'guidance', content);
-}

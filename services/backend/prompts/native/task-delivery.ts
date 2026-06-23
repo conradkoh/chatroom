@@ -6,12 +6,14 @@
  * the agent completes it and hands off.
  */
 
+import { appendNativeDeliveryHandoffTemplates } from './delivery-handoff-templates';
 import { handoffCommand } from '../cli/handoff/command';
 
 export interface NativeTaskDeliveryParams {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
+  teamId?: string;
   task: { _id: string; content: string };
   message: { _id: string; senderRole: string } | null;
   availableHandoffTargets: string[];
@@ -50,6 +52,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     chatroomId,
     role,
     cliEnvPrefix,
+    teamId,
     task,
     message,
     availableHandoffTargets,
@@ -65,6 +68,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
   }
 
   lines.push('</task>');
+  appendNativeDeliveryHandoffTemplates(lines, { teamId, role });
   appendHandoffTargets(lines, { chatroomId, role, cliEnvPrefix, availableHandoffTargets });
 
   return lines.join('\n').trim();

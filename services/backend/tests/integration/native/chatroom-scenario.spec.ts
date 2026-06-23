@@ -30,8 +30,9 @@ describe('ChatroomScenario — native prompt orchestration', () => {
       taskContent: 'hello',
       handoffTarget: 'user',
     });
-    expect(injection).not.toContain('Delegation Brief');
-    expect(injection).not.toContain('Report Template');
+    expect(injection).toContain('<handoff-templates>');
+    expect(injection).toContain('Report Template (Planner → User)');
+    expect(injection).toContain('Delegation Brief (Planner → Builder)');
   });
 
   test('planner handoff to user returns minimal native output', async () => {
@@ -88,6 +89,7 @@ describe('ChatroomScenario — native prompt orchestration', () => {
       taskContent: 'Add dark mode toggle',
       handoffTarget: 'planner',
     });
+    expect(builderDelivery).toContain('Handoff Template (Builder → Planner)');
     expect(builderInjection).toContain('Context was compacted');
     expect(builderInjection).toContain('Add dark mode toggle');
   });
