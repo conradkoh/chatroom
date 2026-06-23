@@ -2,9 +2,39 @@
  * Builder role-specific guidance for agent initialization prompts.
  */
 
+import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { BuilderGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
 import { classifyCommand } from '../classify/command';
+
+function getBuilderFlowMermaid(
+  nativeIntegration: boolean | undefined,
+  hasReviewer: boolean,
+  codeChangesTarget: string,
+  questionTarget: string
+): string {
+  const handoffNodes = `    D --> E[Commit work]
+    E --> F{Classification?}
+    F -->|new_feature or code changes| G[Hand off to **${codeChangesTarget}**]
+    F -->|question| H[Hand off to **${questionTarget}**]`;
+
+  if (nativeIntegration) {
+    return `flowchart TD
+    A([Start]) --> B[Receive task]
+    B --> D[Implement changes]
+${handoffNodes}`;
+  }
+
+  const intakeEdge = hasReviewer
+    ? 'B -->|from user or reviewer| C[Read chatroom task with\\ntask read]'
+    : 'B -->|from planner| C[Read chatroom task with\\ntask read]';
+
+  return `flowchart TD
+    A([Start]) --> B[Receive chatroom task\\nnotification]
+    ${intakeEdge}
+    C --> D[Implement changes]
+${handoffNodes}`;
+}
 
 /**
  * Generate builder-specific guidance
@@ -24,24 +54,21 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
   // Use command generator with env prefix
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
-  const classificationNote = isEntryPoint
-    ? `
+  const classificationNote =
+    isEntryPoint && !nativeIntegration
+      ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
 2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. Then do your work
 4. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
-    : '';
+      : '';
 
   return `
 ## Builder Workflow
 
-${
-  nativeIntegration
-    ? ''
-    : 'Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run `get-next-task` to continue.'
-}
+${getSessionContinuityLine(nativeIntegration)}
 
 You are responsible for implementing code changes based on requirements.
 ${classificationNote}
@@ -49,14 +76,7 @@ ${classificationNote}
 **Typical Flow:**
 
 \`\`\`mermaid
-flowchart TD
-    A([Start]) --> B[Receive chatroom task\nnotification]
-    ${hasReviewer ? 'B -->|from user or reviewer| C[Read chatroom task with\ntask read]' : 'B -->|from planner| C[Read chatroom task with\ntask read]'}
-    C --> D[Implement changes]
-    D --> E[Commit work]
-    E --> F{Classification?}
-    F -->|new_feature or code changes| G[Hand off to **${codeChangesTarget}**]
-    F -->|question| H[Hand off to **${questionTarget}**]
+${getBuilderFlowMermaid(nativeIntegration, hasReviewer, codeChangesTarget, questionTarget)}
 \`\`\`
 
 **Handoff Rules:**

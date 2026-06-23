@@ -7,6 +7,30 @@ import type { ReviewerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
 import { handoffCommand } from '../handoff/command';
 
+function getReviewerFlowMermaid(
+  nativeIntegration: boolean | undefined,
+  approvalTarget: string
+): string {
+  const reviewOutcome = `    D --> E{Meets requirements?}
+    E -->|yes| F[Hand off to ${approvalTarget}]
+    F --> G([APPROVED ✅])
+    E -->|no| H[Hand off to builder]
+    H --> I([Provide specific feedback])`;
+
+  if (nativeIntegration) {
+    return `flowchart TD
+    A([Start]) --> B[Receive handoff]
+    B --> D[Review code changes]
+${reviewOutcome}`;
+  }
+
+  return `flowchart TD
+    A([Start]) --> B[Receive handoff]
+    B -->|from builder or other agent| C[Run task read\\non chatroom task]
+    C --> D[Review code changes]
+${reviewOutcome}`;
+}
+
 /**
  * Generate reviewer-specific guidance
  */
@@ -29,15 +53,7 @@ You receive handoffs from other agents containing work to review or validate.
 **Typical Flow:**
 
 \`\`\`mermaid
-flowchart TD
-    A([Start]) --> B[Receive handoff]
-    B -->|from builder or other agent| C[Run task read\non chatroom task]
-    C --> D[Review code changes]
-    D --> E{Meets requirements?}
-    E -->|yes| F[Hand off to ${approvalTarget}]
-    F --> G([APPROVED ✅])
-    E -->|no| H[Hand off to builder]
-    H --> I([Provide specific feedback])
+${getReviewerFlowMermaid(nativeIntegration, approvalTarget)}
 \`\`\`
 
 **Your Options After Review:**

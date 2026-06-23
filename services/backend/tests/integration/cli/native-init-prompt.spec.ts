@@ -66,10 +66,10 @@ interface NativeInitScenario {
 const NATIVE_INIT_SCENARIOS: NativeInitScenario[] = [
   { team: 'solo', role: 'solo', entryPoint: true, soloTeam: true, noTaskRead: true },
   { team: 'duo', role: 'planner', entryPoint: true, noTaskRead: true },
-  { team: 'duo', role: 'builder', entryPoint: false },
+  { team: 'duo', role: 'builder', entryPoint: false, noTaskRead: true },
   { team: 'squad', role: 'planner', entryPoint: true, noTaskRead: true },
-  { team: 'squad', role: 'builder', entryPoint: false },
-  { team: 'squad', role: 'reviewer', entryPoint: false },
+  { team: 'squad', role: 'builder', entryPoint: false, noTaskRead: true },
+  { team: 'squad', role: 'reviewer', entryPoint: false, noTaskRead: true },
 ];
 
 async function createTeamChatroom(

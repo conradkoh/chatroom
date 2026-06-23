@@ -56,6 +56,7 @@ describe('native session continuity', () => {
     expect(guidance).not.toMatch(/get-next-task/i);
     expect(guidance).not.toContain('Level A');
     expect(guidance).not.toContain('Level B');
+    expect(guidance).not.toMatch(/task read/i);
   });
 
   test('reviewer guidance with nativeIntegration=true omits get-next-task', () => {
@@ -71,6 +72,7 @@ describe('native session continuity', () => {
     expect(guidance).not.toMatch(/get-next-task/i);
     expect(guidance).not.toContain('Level A');
     expect(guidance).not.toContain('Level B');
+    expect(guidance).not.toMatch(/task read/i);
   });
 
   test('solo guidance with nativeIntegration=true omits get-next-task and task read', () => {
