@@ -2,12 +2,16 @@ import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../../prompts/cli/roles/builder';
 import { getPlannerGuidance } from '../../../prompts/cli/roles/planner';
+import { getReviewerGuidance } from '../../../prompts/cli/roles/reviewer';
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
   getSessionContinuityLine,
   getWorkflowLoopFooter,
 } from '../../../prompts/native/session-continuity';
+import { getSoloGuidance } from '../../../prompts/teams/solo/prompts/solo';
+import { NATIVE_AGENT_HARNESSES } from '../../helpers/native-harnesses';
+import { assertNativeInitContract } from '../../helpers/native-init-contract';
 
 describe('native session continuity', () => {
   test('native mode omits CLI listen-loop language from continuity helpers', () => {
@@ -54,6 +58,36 @@ describe('native session continuity', () => {
     expect(guidance).not.toContain('Level B');
   });
 
+  test('reviewer guidance with nativeIntegration=true omits get-next-task', () => {
+    const guidance = getReviewerGuidance({
+      role: 'reviewer',
+      teamRoles: ['planner', 'builder', 'reviewer'],
+      isEntryPoint: false,
+      convexUrl: 'http://127.0.0.1:3210',
+      approvalTarget: 'planner',
+      nativeIntegration: true,
+    });
+
+    expect(guidance).not.toMatch(/get-next-task/i);
+    expect(guidance).not.toContain('Level A');
+    expect(guidance).not.toContain('Level B');
+  });
+
+  test('solo guidance with nativeIntegration=true omits get-next-task and task read', () => {
+    const guidance = getSoloGuidance({
+      role: 'solo',
+      teamRoles: ['solo'],
+      isEntryPoint: true,
+      convexUrl: 'http://127.0.0.1:3210',
+      chatroomId: 'test-room',
+      nativeIntegration: true,
+    });
+
+    expect(guidance).not.toMatch(/get-next-task/i);
+    expect(guidance).not.toMatch(/task read/i);
+    expect(guidance).not.toContain('Classification (Entry Point Role)');
+  });
+
   test('composeSystemPrompt native duo planner has no CLI listen loop or session model', () => {
     const prompt = composeSystemPrompt({
       chatroomId: 'test-room',
@@ -92,4 +126,25 @@ describe('native session continuity', () => {
     expect(prompt).not.toMatch(/get-next-task/i);
     expect(prompt).not.toContain('task injection');
   });
+
+  for (const agentHarness of NATIVE_AGENT_HARNESSES) {
+    test(`composeSystemPrompt native solo (${agentHarness}) matches init contract`, () => {
+      const prompt = composeSystemPrompt({
+        chatroomId: 'test-room',
+        role: 'solo',
+        teamId: 'solo',
+        teamName: 'Solo Team',
+        teamRoles: ['solo'],
+        teamEntryPoint: 'solo',
+        convexUrl: 'http://127.0.0.1:3210',
+        agentHarness,
+      });
+
+      assertNativeInitContract(prompt, {
+        entryPoint: true,
+        soloTeam: true,
+        noTaskRead: true,
+      });
+    });
+  }
 });

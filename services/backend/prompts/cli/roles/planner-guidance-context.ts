@@ -9,11 +9,10 @@ export function getPlannerGuidanceContext(ctx: PlannerGuidanceParams) {
   const classifyExample = classifyCommand({ cliEnvPrefix });
   const members = teamRoles;
   const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
-  const classificationNote = buildPlannerEntryClassificationNote(
-    isEntryPoint,
-    cliEnvPrefix,
-    classifyExample
-  );
+  const classificationNote =
+    isEntryPoint && !ctx.nativeIntegration
+      ? buildPlannerEntryClassificationNote(isEntryPoint, cliEnvPrefix, classifyExample)
+      : '';
 
   return {
     ...ctx,

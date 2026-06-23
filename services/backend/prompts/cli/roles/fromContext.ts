@@ -51,6 +51,7 @@ export function toReviewerParams(ctx: SelectorContext): ReviewerGuidanceParams {
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 
@@ -99,6 +100,7 @@ export function toSoloParams(ctx: SelectorContext): PlannerGuidanceParams {
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 

@@ -15,6 +15,7 @@ import {
   getTeamAvailabilitySection,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
+import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 import { getCliEnvPrefix } from '../../../utils/env';
 
@@ -22,21 +23,24 @@ import { getCliEnvPrefix } from '../../../utils/env';
 const SOLO_TEAM_CONFIG = { hasBuilder: false, hasReviewer: false } as const;
 
 export function getSoloGuidance(ctx: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles } = ctx;
+  const { isEntryPoint, convexUrl, teamRoles, nativeIntegration } = ctx;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
-  const classificationNote = isEntryPoint
-    ? `
+  const classificationNote =
+    isEntryPoint && !nativeIntegration
+      ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
 2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
 4. Plan and implement the solution yourself`
-    : '';
+      : '';
 
   return `## Solo Workflow
+
+${getSessionContinuityLine(nativeIntegration)}
 
 You are an autonomous agent responsible for BOTH planning and implementing chatroom tasks independently.
 ${classificationNote}
@@ -50,7 +54,7 @@ ${classificationNote}
 
 ${getTeamAvailabilitySection(teamRoles)}
 
-${getPlannerSoloWorkflow()}
+${getPlannerSoloWorkflow(nativeIntegration)}
 
 ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
 
@@ -61,7 +65,7 @@ ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
 - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
 - Commit work with descriptive, atomic commit messages
 
-${getHandoffRulesSection(SOLO_TEAM_CONFIG)}
+${getHandoffRulesSection(SOLO_TEAM_CONFIG, nativeIntegration)}
 
 ${getWhenWorkComesBackSection(SOLO_TEAM_CONFIG)}`;
 }

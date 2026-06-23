@@ -2,7 +2,7 @@
  * Native Init Prompt — Integration Tests
  *
  * Verifies that native harness init prompts omit get-next-task and session
- * lifecycle framing, while CLI harnesses remain unchanged.
+ * lifecycle framing across all native harnesses, teams, and roles.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -12,6 +12,8 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { generateHandoffOutput } from '../../../prompts/generator';
 import { t } from '../../../test.setup';
+import { NATIVE_AGENT_HARNESSES, type NativeAgentHarness } from '../../helpers/native-harnesses';
+import { assertNativeInitContract } from '../../helpers/native-init-contract';
 
 async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
   const login = await t.mutation(api.auth.loginAnon, {
@@ -21,65 +23,143 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
   return { sessionId: sessionId as SessionId };
 }
 
-async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
-  return await t.mutation(api.chatrooms.create, {
-    sessionId,
+interface TeamConfig {
+  teamId: string;
+  teamName: string;
+  teamRoles: string[];
+  teamEntryPoint: string;
+  joinRoles: string[];
+}
+
+const TEAM_CONFIGS: Record<string, TeamConfig> = {
+  solo: {
+    teamId: 'solo',
+    teamName: 'Solo Team',
+    teamRoles: ['solo'],
+    teamEntryPoint: 'solo',
+    joinRoles: ['solo'],
+  },
+  duo: {
     teamId: 'duo',
     teamName: 'Duo Team',
     teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
+    joinRoles: ['planner', 'builder'],
+  },
+  squad: {
+    teamId: 'squad',
+    teamName: 'Squad Team',
+    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamEntryPoint: 'planner',
+    joinRoles: ['planner', 'builder', 'reviewer'],
+  },
+};
+
+interface NativeInitScenario {
+  team: keyof typeof TEAM_CONFIGS;
+  role: string;
+  entryPoint: boolean;
+  soloTeam?: boolean;
+  noTaskRead?: boolean;
+}
+
+const NATIVE_INIT_SCENARIOS: NativeInitScenario[] = [
+  { team: 'solo', role: 'solo', entryPoint: true, soloTeam: true, noTaskRead: true },
+  { team: 'duo', role: 'planner', entryPoint: true, noTaskRead: true },
+  { team: 'duo', role: 'builder', entryPoint: false },
+  { team: 'squad', role: 'planner', entryPoint: true, noTaskRead: true },
+  { team: 'squad', role: 'builder', entryPoint: false },
+  { team: 'squad', role: 'reviewer', entryPoint: false },
+];
+
+async function createTeamChatroom(
+  sessionId: SessionId,
+  team: keyof typeof TEAM_CONFIGS
+): Promise<Id<'chatroom_rooms'>> {
+  const config = TEAM_CONFIGS[team];
+  return await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: config.teamId,
+    teamName: config.teamName,
+    teamRoles: config.teamRoles,
+    teamEntryPoint: config.teamEntryPoint,
   });
 }
 
-async function joinParticipant(
+async function joinParticipants(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string
+  roles: string[]
 ): Promise<void> {
-  await t.mutation(api.participants.join, {
+  for (const role of roles) {
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role });
+  }
+}
+
+async function saveNativeAgentConfig(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  agentHarness: NativeAgentHarness,
+  machineSuffix: string
+): Promise<void> {
+  await t.mutation(api.machines.saveTeamAgentConfig, {
     sessionId,
     chatroomId,
     role,
+    type: 'remote',
+    machineId: `machine-native-${machineSuffix}`,
+    agentHarness,
+    model: 'auto',
+    workingDir: '/test/workspace',
   });
 }
 
-describe('Native init prompt', () => {
-  test('cursor-sdk builder init prompt omits get-next-task and session model', async () => {
-    const { sessionId } = await createTestSession('test-native-init-cursor-sdk');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-
-    await t.mutation(api.machines.saveTeamAgentConfig, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      type: 'remote',
-      machineId: 'machine-native-cursor-sdk',
-      agentHarness: 'cursor-sdk',
-      model: 'auto',
-      workingDir: '/test/workspace',
-    });
-
-    const initPrompt = await t.query(api.messages.getInitPrompt, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-
-    const prompt = initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
-    expect(prompt).not.toContain('get-next-task');
-    expect(prompt).not.toContain('task injection');
-    expect(prompt).not.toContain('injected automatically');
-    expect(prompt).not.toContain('Level A');
-    expect(prompt).not.toContain('Level B');
-    expect(prompt).not.toContain('Two-Level Model');
+async function getInitPromptText(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<string> {
+  const initPrompt = await t.query(api.messages.getInitPrompt, {
+    sessionId,
+    chatroomId,
+    role,
+    convexUrl: 'http://127.0.0.1:3210',
   });
+  return initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
+}
+
+describe('Native init prompt', () => {
+  for (const agentHarness of NATIVE_AGENT_HARNESSES) {
+    for (const scenario of NATIVE_INIT_SCENARIOS) {
+      test(`${agentHarness} ${scenario.team}/${scenario.role} omits CLI listen loop`, async () => {
+        const sessionKey = `test-native-init-${agentHarness}-${scenario.team}-${scenario.role}`;
+        const { sessionId } = await createTestSession(sessionKey);
+        const chatroomId = await createTeamChatroom(sessionId, scenario.team);
+        await joinParticipants(sessionId, chatroomId, TEAM_CONFIGS[scenario.team].joinRoles);
+        await saveNativeAgentConfig(
+          sessionId,
+          chatroomId,
+          scenario.role,
+          agentHarness,
+          `${agentHarness}-${scenario.team}-${scenario.role}`
+        );
+
+        const prompt = await getInitPromptText(sessionId, chatroomId, scenario.role);
+
+        assertNativeInitContract(prompt, {
+          entryPoint: scenario.entryPoint,
+          soloTeam: scenario.soloTeam,
+          noTaskRead: scenario.noTaskRead,
+        });
+      });
+    }
+  }
 
   test('opencode CLI harness init prompt still contains get-next-task (regression)', async () => {
     const { sessionId } = await createTestSession('test-native-init-opencode-cli');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['builder']);
 
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
@@ -92,44 +172,8 @@ describe('Native init prompt', () => {
       workingDir: '/test/workspace',
     });
 
-    const initPrompt = await t.query(api.messages.getInitPrompt, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-
-    const prompt = initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
+    const prompt = await getInitPromptText(sessionId, chatroomId, 'builder');
     expect(prompt).toContain('get-next-task');
-  });
-
-  test('opencode-sdk planner init prompt omits get-next-task and session model', async () => {
-    const { sessionId } = await createTestSession('test-native-init-opencode-sdk-planner');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'planner');
-
-    await t.mutation(api.machines.saveTeamAgentConfig, {
-      sessionId,
-      chatroomId,
-      role: 'planner',
-      type: 'remote',
-      machineId: 'machine-native-opencode-sdk-planner',
-      agentHarness: 'opencode-sdk',
-      model: 'auto',
-      workingDir: '/test/workspace',
-    });
-
-    const initPrompt = await t.query(api.messages.getInitPrompt, {
-      sessionId,
-      chatroomId,
-      role: 'planner',
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-
-    const prompt = initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
-    expect(prompt).not.toMatch(/run `get-next-task`/i);
-    expect(prompt).not.toContain('task injection');
-    expect(prompt).not.toContain('## Getting Started');
   });
 
   test('native handoff output omits get-next-task and lifecycle framing', () => {

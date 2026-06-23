@@ -39,6 +39,7 @@ export function toSquadReviewerParams(ctx: SelectorContext): ReviewerGuidancePar
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    nativeIntegration: ctx.nativeIntegration,
     // Squad reviewer approvalTarget is set inside the wrapper, not here
   };
 }

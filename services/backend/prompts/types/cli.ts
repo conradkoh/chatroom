@@ -106,6 +106,8 @@ export interface ReviewerGuidanceParams extends BasePromptParams {
   isEntryPoint: boolean;
   /** Override the default approval handoff target (default: 'user') */
   approvalTarget?: string;
+  /** True when harness uses native task injection instead of get-next-task */
+  nativeIntegration?: boolean;
 }
 
 /**

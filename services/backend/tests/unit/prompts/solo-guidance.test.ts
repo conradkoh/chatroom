@@ -38,6 +38,26 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).toContain('task read');
   });
 
+  test('native integration omits CLI classification note and get-next-task', () => {
+    const guidance = getSoloGuidance({
+      ...baseParams,
+      isEntryPoint: true,
+      nativeIntegration: true,
+    });
+    expect(guidance).not.toContain('Classification (Entry Point Role)');
+    expect(guidance).not.toMatch(/task read/i);
+    expect(guidance).not.toMatch(/get-next-task/i);
+    expect(guidance).toContain('Receive user message');
+    expect(guidance).toContain('Hand off when complete');
+    expect(guidance).not.toContain('After ANY handoff');
+  });
+
+  test('CLI mode still includes get-next-task in workflow and handoff rules', () => {
+    const guidance = getSoloGuidance({ ...baseParams, nativeIntegration: false });
+    expect(guidance).toContain('get-next-task');
+    expect(guidance).toContain('After ANY handoff');
+  });
+
   test('does not contain classification when not entry point', () => {
     const guidance = getSoloGuidance({ ...baseParams, isEntryPoint: false });
     expect(guidance).not.toContain('Classification (Entry Point Role)');

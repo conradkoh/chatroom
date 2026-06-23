@@ -2,6 +2,7 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
+import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { ReviewerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
 import { handoffCommand } from '../handoff/command';
@@ -10,7 +11,7 @@ import { handoffCommand } from '../handoff/command';
  * Generate reviewer-specific guidance
  */
 export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
-  const { teamRoles, convexUrl, approvalTarget: approvalTargetParam } = params;
+  const { teamRoles, convexUrl, approvalTarget: approvalTargetParam, nativeIntegration } = params;
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const approvalTarget = approvalTargetParam ?? 'user';
@@ -21,7 +22,7 @@ export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
   return `
 ## Reviewer Workflow
 
-Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+${getSessionContinuityLine(nativeIntegration)}
 
 You receive handoffs from other agents containing work to review or validate.
 
