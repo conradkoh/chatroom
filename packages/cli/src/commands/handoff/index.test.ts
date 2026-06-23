@@ -125,6 +125,20 @@ describe('handoff', () => {
       expect(output).toContain('Level A continues');
       expect(output).toContain('get-next-task');
     });
+
+    it('omits get-next-task when mutation reports native integration', async () => {
+      const deps = createMockDeps();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        supportsNativeIntegration: true,
+      });
+
+      await handoff(TEST_CHATROOM_ID, defaultOptions(), deps);
+
+      const output = getAllLogOutput();
+      expect(output).not.toContain('get-next-task');
+      expect(output).toContain('injected automatically');
+    });
   });
 
   describe('handoff restriction', () => {

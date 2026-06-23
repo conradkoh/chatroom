@@ -91,6 +91,56 @@ describe('Native task delivery prompt', () => {
     expect(fullOutput).toContain('next task will be injected automatically');
   });
 
+  test('getTaskDeliveryPrompt without messageId resolves user message via task.sourceMessageId', async () => {
+    const { sessionId } = await createTestSession('test-native-delivery-no-message-id');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      type: 'remote',
+      machineId: 'machine-native-delivery-planner',
+      agentHarness: 'opencode-sdk',
+      model: 'auto',
+      workingDir: '/test/workspace',
+    });
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'checkout master and run git pull',
+      targetRole: 'planner',
+      type: 'message',
+    });
+
+    const tasks = await t.query(api.tasks.listTasks, {
+      sessionId,
+      chatroomId,
+    });
+    const taskId = tasks.find(
+      (task: { sourceMessageId?: string }) => task.sourceMessageId === messageId
+    )?._id;
+    expect(taskId).toBeDefined();
+
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
+    expect(fullOutput).not.toContain('No message found');
+    expect(fullOutput).toContain('From: user');
+    expect(fullOutput).toContain('<task-content>');
+    expect(fullOutput).toContain('checkout master and run git pull');
+    expect(fullOutput).toContain('Classify');
+  });
+
   test('getTaskDeliveryPrompt for CLI harness still contains get-next-task (regression)', async () => {
     const { sessionId } = await createTestSession('test-native-delivery-opencode-cli');
     const chatroomId = await createDuoTeamChatroom(sessionId);

@@ -165,6 +165,7 @@ export const handoffEffect = (
           suggestedTarget?: string;
           suggestedTargets?: string[];
         };
+        supportsNativeIntegration?: boolean;
       }>(api.messages.handoff, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -201,7 +202,15 @@ export const handoffEffect = (
     const convexUrl = yield* session.getConvexUrl();
 
     yield* Effect.sync(() => {
-      console.log(generateHandoffOutput({ role, nextRole, chatroomId, convexUrl }));
+      console.log(
+        generateHandoffOutput({
+          role,
+          nextRole,
+          chatroomId,
+          convexUrl,
+          supportsNativeIntegration: result.supportsNativeIntegration,
+        })
+      );
 
       if (attachedArtifactIds.length > 0) {
         console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);

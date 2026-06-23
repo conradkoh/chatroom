@@ -82,5 +82,5 @@ export function getCompactionRecoveryOneLiner(params: {
  * Footer reminder for native-integration harnesses (task injection, no get-next-task loop).
  */
 export function getNativeInjectionReminder(): string {
-  return 'Wait for handoff to complete Level B; next task will be injected automatically.';
+  return 'Complete this chatroom task via handoff. After Level B completes, the next task will be injected automatically — do not start a blocking listener.';
 }

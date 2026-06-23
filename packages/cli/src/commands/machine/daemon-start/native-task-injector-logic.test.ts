@@ -176,6 +176,7 @@ describe('buildNativeInjectionPrompt', () => {
       compressMode: 'new_session',
     });
     expect(output).toContain('compress_context=new_session');
+    expect(output).toContain('only if role instructions are missing');
     expect(output).toContain('TASK BODY');
   });
 

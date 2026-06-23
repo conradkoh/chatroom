@@ -38,6 +38,9 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('injected into your native harness session');
     expect(output).toContain('next task will be injected automatically');
     expect(output).not.toContain('grace-period cooldowns');
+    expect(output).toContain('<task-content>');
+    expect(output).toContain('Implement the feature');
+    expect(output).not.toContain('Context compacted?');
   });
 
   test('CLI mode still contains get-next-task (regression)', () => {

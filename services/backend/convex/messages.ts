@@ -691,6 +691,13 @@ async function _handoffHandler(
     await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
   }
 
+  const agentConfigResult = await getAgentConfig(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.senderRole,
+  });
+  const supportsNativeIntegration =
+    agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
+
   return {
     success: true,
     error: null,
@@ -698,6 +705,7 @@ async function _handoffHandler(
     completedTaskIds,
     newTaskId,
     promotedTaskId,
+    supportsNativeIntegration,
   };
 }
 
@@ -1890,17 +1898,18 @@ export const getTaskDeliveryPrompt = query({
       });
     }
 
-    // Fetch the message if provided (could be in either table)
+    // Fetch the message: explicit messageId (CLI get-next-task) or task.sourceMessageId (native injection)
     let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
-    if (args.messageId) {
+    const messageIdToResolve = args.messageId ?? task.sourceMessageId;
+    if (messageIdToResolve) {
       // Try chatroom_messages first
       const regularMessage = await ctx.db
-        .get('chatroom_messages', args.messageId as Id<'chatroom_messages'>)
+        .get('chatroom_messages', messageIdToResolve as Id<'chatroom_messages'>)
         .catch(() => null);
       if (regularMessage) {
         message = regularMessage;
-      } else {
-        // Try chatroom_messageQueue
+      } else if (args.messageId) {
+        // Try chatroom_messageQueue (only when caller passed an explicit queue id)
         const queuedMessage = await ctx.db
           .get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>)
           .catch(() => null);

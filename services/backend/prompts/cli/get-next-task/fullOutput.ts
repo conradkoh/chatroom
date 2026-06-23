@@ -210,10 +210,19 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   }
 
-  // Task content — hidden; agent must call task read to get content (marks in_progress)
+  // Task content — CLI harnesses hide content behind task read; native injects inline
   lines.push('');
   lines.push('## Chatroom task');
-  lines.push(`To read this chatroom task and mark it as in_progress, run:`);
+  if (nativeIntegration) {
+    lines.push('');
+    lines.push('<task-content>');
+    lines.push(task.content);
+    lines.push('</task-content>');
+    lines.push('');
+    lines.push('⚠️ REQUIRED: Mark this chatroom task as in_progress:');
+  } else {
+    lines.push(`To read this chatroom task and mark it as in_progress, run:`);
+  }
   lines.push('```');
   lines.push(
     `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
@@ -397,7 +406,9 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push(SEP_EQUAL);
   lines.push(getReminderFooter(nativeIntegration));
-  lines.push(getCompactionRecoveryOneLiner({ cliEnvPrefix, chatroomId, role }));
+  if (!nativeIntegration) {
+    lines.push(getCompactionRecoveryOneLiner({ cliEnvPrefix, chatroomId, role }));
+  }
   lines.push(SEP_EQUAL);
 
   return lines.join('\n');

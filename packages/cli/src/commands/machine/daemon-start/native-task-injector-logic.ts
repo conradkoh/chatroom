@@ -41,8 +41,8 @@ export function buildNativeInjectionPrompt(params: {
   const { taskDeliveryOutput, compressMode } = params;
   if (compressMode === 'new_session') {
     return [
-      '⚠️ Session Management: compress_context=new_session — start fresh context within this same process.',
-      'Run `chatroom get-system-prompt` if you need to reload role instructions after compaction.',
+      '⚠️ Session Management: compress_context=new_session — context was compacted in this same process.',
+      'Your session stays active. Run `chatroom get-system-prompt` only if role instructions are missing from context.',
       '',
       taskDeliveryOutput,
     ].join('\n');
