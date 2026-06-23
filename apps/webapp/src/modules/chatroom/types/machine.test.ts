@@ -1,3 +1,4 @@
+import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -19,6 +20,7 @@ const ALL_KNOWN_HARNESSES: string[] = [
   'opencode',
   'opencode-sdk',
   'pi',
+  'pi-sdk',
   'cursor',
   'cursor-sdk',
   'commandcode',
@@ -45,6 +47,7 @@ describe('getHarnessDisplayName', () => {
     expect(getHarnessDisplayName('opencode')).toBe('OpenCode (CLI)');
     expect(getHarnessDisplayName('opencode-sdk')).toBe('OpenCode (SDK)');
     expect(getHarnessDisplayName('pi')).toBe('Pi');
+    expect(getHarnessDisplayName('pi-sdk')).toBe('Pi (SDK)');
     expect(getHarnessDisplayName('cursor')).toBe('Cursor (CLI)');
     expect(getHarnessDisplayName('cursor-sdk')).toBe('Cursor (SDK)');
     expect(getHarnessDisplayName('commandcode')).toBe('CommandCode');
@@ -72,23 +75,13 @@ describe('isCursorSdkHarness', () => {
 });
 
 describe('harnessSupportsSessionResume', () => {
-  it.each(['opencode-sdk', 'cursor-sdk', 'pi'] as const)(
-    'returns true for resumable harness "%s"',
-    (harness) => {
-      expect(harnessSupportsSessionResume(harness)).toBe(true);
-    }
-  );
-
-  it.each(['opencode', 'cursor', 'commandcode'] as const)(
-    'returns false for non-resumable harness "%s"',
-    (harness) => {
-      expect(harnessSupportsSessionResume(harness)).toBe(false);
-    }
-  );
+  it.each(ALL_KNOWN_HARNESSES)('returns false for harness "%s"', (harness) => {
+    expect(harnessSupportsSessionResume(harness as AgentHarness)).toBe(false);
+  });
 });
 
 describe('harnessSupportsNativeIntegration', () => {
-  it.each(['opencode-sdk', 'cursor-sdk'] as const)(
+  it.each(['opencode-sdk', 'cursor-sdk', 'pi-sdk'] as const)(
     'returns true for native integration harness "%s"',
     (harness) => {
       expect(harnessSupportsNativeIntegration(harness)).toBe(true);

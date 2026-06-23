@@ -2,7 +2,7 @@ import type { HarnessCapabilities } from './types';
 
 export const cursorSdkCapabilities: HarnessCapabilities = {
   runtimeKind: 'sdk',
-  supportsSessionResume: true,
+  supportsSessionResume: false,
   supportsNativeIntegration: true,
   lifecycle: {
     turnCompleted: true,

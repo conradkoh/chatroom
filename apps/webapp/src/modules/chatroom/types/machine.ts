@@ -95,6 +95,7 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   opencode: 'OpenCode (CLI)',
   'opencode-sdk': 'OpenCode (SDK)',
   pi: 'Pi',
+  'pi-sdk': 'Pi (SDK)',
   cursor: 'Cursor (CLI)',
   'cursor-sdk': 'Cursor (SDK)',
   commandcode: 'CommandCode',

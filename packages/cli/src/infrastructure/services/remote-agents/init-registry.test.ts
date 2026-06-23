@@ -34,6 +34,7 @@ describe('initHarnessRegistry', () => {
         'opencode',
         'opencode-sdk',
         'pi',
+        'pi-sdk',
       ].sort()
     );
   });

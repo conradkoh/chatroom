@@ -5,11 +5,12 @@ import type { StopReason } from '../entities/stop-reason.js';
  * Resume strategy when starting or restarting an agent (ensureRunning).
  */
 export function decideResumePathOnRestart(input: {
-  supportsSessionResume: boolean;
+  /** Harness implements resumeFromDaemonMemory for stop→start reconnect. */
+  supportsDaemonMemoryResume: boolean;
   wantResume: boolean;
   hasStoredSnapshot: boolean;
 }): ResumePath {
-  if (!input.supportsSessionResume) {
+  if (!input.supportsDaemonMemoryResume) {
     return 'cold';
   }
   if (input.wantResume && input.hasStoredSnapshot) {

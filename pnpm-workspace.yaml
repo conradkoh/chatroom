@@ -18,9 +18,12 @@ minimumReleaseAgeExclude:
   - '@cursor/sdk-win32-x64'
 
 allowBuilds:
+  '@google/genai': false
   '@sentry/cli': true
   bun: true
   esbuild: true
+  koffi: false
+  protobufjs: false
   sharp: true
   sqlite3: true
   tesseract.js: true

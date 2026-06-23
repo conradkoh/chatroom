@@ -15,6 +15,7 @@ import { cursorSdkCapabilities } from './cursor-sdk.config';
 import { cursorCapabilities } from './cursor.config';
 import { opencodeSdkCapabilities } from './opencode-sdk.config';
 import { opencodeCapabilities } from './opencode.config';
+import { piSdkCapabilities } from './pi-sdk.config';
 import { piCapabilities } from './pi.config';
 
 /** How the harness implementation hosts the agent runtime. */
@@ -41,7 +42,8 @@ export type HarnessWireEventKind =
   | 'sdk.cursor.message'
   | 'sdk.cursor.run.completed'
   | 'sdk.opencode.session.idle'
-  | 'sdk.opencode.session.event';
+  | 'sdk.opencode.session.event'
+  | 'sdk.pi.session.event';
 
 /** Which lifecycle callbacks a harness implements on `SpawnResult`. */
 export interface HarnessLifecycleCapabilities {
@@ -82,6 +84,7 @@ const HARNESS_CAPABILITIES: Record<AgentHarness, HarnessCapabilities> = {
   opencode: opencodeCapabilities,
   'opencode-sdk': opencodeSdkCapabilities,
   pi: piCapabilities,
+  'pi-sdk': piSdkCapabilities,
 };
 
 export function getHarnessCapabilities(harness: AgentHarness): HarnessCapabilities {

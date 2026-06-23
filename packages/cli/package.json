@@ -20,6 +20,7 @@
   "dependencies": {
     "@connectrpc/connect-node": "^1.6.1",
     "@cursor/sdk": "1.0.19",
+    "@earendil-works/pi-coding-agent": "0.74.2",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
     "commander": "^14.0.0",

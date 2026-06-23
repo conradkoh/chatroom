@@ -24,8 +24,12 @@ export function shouldRetainHarnessSessionForReconnect(reason: StopReason): bool
  */
 export function shouldPreserveHarnessTeardown(
   reason: StopReason,
-  supportsSessionResume: boolean,
+  supportsDaemonMemoryResume: boolean,
   hasHarnessSessionId: boolean
 ): boolean {
-  return hasHarnessSessionId && supportsSessionResume && shouldRetainHarnessSessionForReconnect(reason);
+  return (
+    hasHarnessSessionId &&
+    supportsDaemonMemoryResume &&
+    shouldRetainHarnessSessionForReconnect(reason)
+  );
 }

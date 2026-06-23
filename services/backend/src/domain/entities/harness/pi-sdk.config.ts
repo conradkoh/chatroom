@@ -1,6 +1,6 @@
 import type { HarnessCapabilities } from './types';
 
-export const opencodeSdkCapabilities: HarnessCapabilities = {
+export const piSdkCapabilities: HarnessCapabilities = {
   runtimeKind: 'sdk',
   supportsSessionResume: false,
   supportsNativeIntegration: true,
@@ -9,5 +9,5 @@ export const opencodeSdkCapabilities: HarnessCapabilities = {
     outputActivity: true,
     processExited: true,
   },
-  wireEvents: ['sdk.opencode.session.idle', 'sdk.opencode.session.event'],
+  wireEvents: ['sdk.pi.session.event', 'wire.log.agent_end'],
 };

@@ -406,7 +406,7 @@ describe('PiAgentService', () => {
 
       expect(result.pid).toBe(99);
       expect(result.harnessSessionId).toBe(SAMPLE_SESSION_ID);
-      expect(result.harnessReconnect).toEqual({ agentName: 'pi' });
+      expect(result.harnessReconnect).toBeUndefined();
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
     });
@@ -517,42 +517,6 @@ describe('PiAgentService', () => {
       }
     });
 
-    it('resumeTurn writes prompt JSON to stdin', async () => {
-      const child = makeChildProcess(77);
-      const spawnFn = vi.fn().mockReturnValue(child);
-      const deps = createMockDeps({ spawn: spawnFn as any });
-      const service = new PiAgentService(deps);
-
-      await service.spawn({
-        workingDir: '/tmp',
-        systemPrompt: 'system',
-        prompt: createSpawnPrompt('initial'),
-        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
-        resolvedConvexUrl: 'http://test:3210',
-      });
-
-      const writeWithCallback = vi.fn(
-        (_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
-          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
-          return true;
-        }
-      );
-      child.stdin.write = writeWithCallback;
-      await service.resumeTurn(77, 'resume message');
-
-      expect(writeWithCallback).toHaveBeenCalledOnce();
-      const written = writeWithCallback.mock.calls[0][0] as string;
-      const parsed = JSON.parse(written.trim()) as { type: string; message: string };
-      expect(parsed).toEqual({ type: 'prompt', message: 'resume message' });
-    });
-
-    it('resumeTurn throws when no tracked process', async () => {
-      const service = new PiAgentService(createMockDeps());
-      await expect(service.resumeTurn(999, 'prompt')).rejects.toThrow(
-        'No tracked pi process or stdin for pid=999'
-      );
-    });
-
     it('passes system prompt as CLI flag (no shell escaping needed)', async () => {
       const child = makeChildProcess(43);
       const spawnFn = vi.fn().mockReturnValue(child);
@@ -641,125 +605,6 @@ describe('PiAgentService', () => {
       expect(bashLine).toContain('npm run build');
 
       stdoutWrite.mockRestore();
-    });
-  });
-
-  describe('resumeFromDaemonMemory', () => {
-    function makeChildProcess(pid: number) {
-      const mockStdin = {
-        write: vi.fn((_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
-          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
-          return true;
-        }),
-        end: vi.fn(),
-      };
-      const mockStdout = new Readable({ read() {} });
-      const mockStderr = new Readable({ read() {} });
-
-      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
-      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
-
-      const child = Object.assign(new EventEmitter(), {
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        pid,
-        killed: false,
-        exitCode: null,
-      });
-
-      wireGetStateOnStdinWrite(child);
-      return child;
-    }
-
-    it('spawns with --session and returns stored harnessSessionId', async () => {
-      const child = makeChildProcess(88);
-      const spawnFn = vi.fn().mockReturnValue(child);
-      const deps = createMockDeps({ spawn: spawnFn as any });
-      const service = new PiAgentService(deps);
-
-      const result = await service.resumeFromDaemonMemory(
-        {
-          workingDir: '/tmp/ws',
-          systemPrompt: 'system',
-          prompt: createSpawnPrompt('resume prompt'),
-          model: 'anthropic/claude-3-5-sonnet',
-          context: { machineId: 'm', chatroomId: 'c', role: 'r' },
-          resolvedConvexUrl: 'http://test:3210',
-        },
-        {
-          harnessSessionId: 'stored-session-id',
-          agentName: 'pi',
-          workingDir: '/tmp/ws',
-        }
-      );
-
-      expect(spawnFn).toHaveBeenCalledWith(
-        'pi',
-        expect.arrayContaining([
-          '--session-dir',
-          getPiSessionDir('/tmp/ws'),
-          '--session',
-          'stored-session-id',
-        ]),
-        expect.any(Object)
-      );
-      expect(result.harnessSessionId).toBe('stored-session-id');
-      expect(result.harnessReconnect).toEqual({
-        agentName: 'pi',
-        model: 'anthropic/claude-3-5-sonnet',
-      });
-    });
-  });
-
-  describe('getHarnessReconnectContext', () => {
-    function makeChildProcess(pid: number) {
-      const mockStdin = {
-        write: vi.fn((_data: string | Buffer, encodingOrCb?: unknown, maybeCb?: unknown) => {
-          resolveWriteCallback(encodingOrCb, maybeCb)?.(null);
-          return true;
-        }),
-        end: vi.fn(),
-      };
-      const mockStdout = new Readable({ read() {} });
-      const mockStderr = new Readable({ read() {} });
-      mockStdout.pipe = vi.fn().mockReturnValue(mockStdout);
-      mockStderr.pipe = vi.fn().mockReturnValue(mockStderr);
-      const child = Object.assign(new EventEmitter(), {
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        pid,
-        killed: false,
-        exitCode: null,
-      });
-      wireGetStateOnStdinWrite(child);
-      return child;
-    }
-
-    it('returns agentName pi and model after spawn', async () => {
-      const child = makeChildProcess(70);
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) as any });
-      const service = new PiAgentService(deps);
-
-      await service.spawn({
-        workingDir: '/tmp',
-        systemPrompt: 'system',
-        prompt: createSpawnPrompt('go'),
-        model: 'openai/gpt-4o',
-        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
-        resolvedConvexUrl: 'http://test:3210',
-      });
-
-      expect(service.getHarnessReconnectContext(70)).toEqual({
-        agentName: 'pi',
-        model: 'openai/gpt-4o',
-      });
-    });
-
-    it('returns undefined for unknown pid', () => {
-      const service = new PiAgentService(createMockDeps());
-      expect(service.getHarnessReconnectContext(404)).toBeUndefined();
     });
   });
 });

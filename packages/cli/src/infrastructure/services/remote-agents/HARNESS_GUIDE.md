@@ -7,7 +7,7 @@ End-to-end steps for adding a new remote agent harness to the Chatroom CLI.
 | Kind          | When to use                                              | Examples                                                       |
 | ------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
 | **CLI-based** | The runtime is a subprocess with stdout/stderr you parse | `cursor`, `claude`, `pi`, `opencode`, `copilot`, `commandcode` |
-| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`                                   |
+| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`, `pi-sdk`                         |
 
 Both kinds implement the same `RemoteAgentService` contract and register in `init-registry.ts`.
 
@@ -21,9 +21,11 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 | **Session start**    | System prompt + instructions to run `get-next-task`                                              | System prompt only — no `get-next-task` loop                                             |
 | **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; `startTask` → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first token → WORKING |
 
-**Distinction from `supportsSessionResume`:** session resume keeps the process alive between turns (`resumeTurn` after `lifecycle.turn.completed`). Native integration changes _how tasks are delivered_ — the agent never blocks on `get-next-task`. A harness can have both flags (`cursor-sdk`, `opencode-sdk`).
+**Distinction from `supportsSessionResume`:** session resume (turn-end `resumeTurn` after `lifecycle.turn.completed`) is disabled for all harnesses. Native integration changes _how tasks are delivered_ — the agent never blocks on `get-next-task`. Native SDK harnesses use `resumeTurn` only for task injection.
 
-**Current native harnesses:** `cursor-sdk`, `opencode-sdk` (`supportsNativeIntegration: true` in `types.ts`).
+**Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk` (`supportsNativeIntegration: true` in `types.ts`).
+
+**Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn`. Task injection uses `resumeTurn` only when delivering user work.
 
 **Participant heartbeat actions** (emitted by the daemon for native harnesses):
 

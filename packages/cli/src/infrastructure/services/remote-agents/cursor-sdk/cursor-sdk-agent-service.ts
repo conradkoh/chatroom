@@ -583,30 +583,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               break;
             }
 
-            // Enter resume wait before finish() emits agent_end. handleAgentEnd
-            // calls resumeTurn synchronously from that callback; resumeResolve
-            // must already be registered or resumeTurn throws "not waiting for resume".
-            const resumePromise = waitForResumeOrAbort(session);
-
-            // finish() emits agent_end (wired to agentEndCallbacks) only after a
-            // successful run.wait(), so resumeTurn is not invoked mid-stream.
+            // finish() emits agent_end (wired to agentEndCallbacks) after a successful run.
             adapter.finish();
 
-            const resumePrompt = await resumePromise;
-            if (resumePrompt === null || session.aborted) {
-              if (session.aborted) {
-                exitCode = 1;
-                exitSignal = 'SIGTERM';
-              }
-              break;
-            }
-
-            if (!resumePrompt.trim()) {
-              nextPrompt = null;
-              continue;
-            }
-
-            nextPrompt = resumePrompt;
+            nextPrompt = null;
           } catch (turnErr) {
             exitCode = 1;
             writeSpawnError(logPrefix, turnErr, emitLogLine);
