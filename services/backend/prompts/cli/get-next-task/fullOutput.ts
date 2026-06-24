@@ -18,6 +18,7 @@ import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
 import { inferPrimaryHandoffTarget } from '../../utils/infer-primary-handoff-target';
 import { getUserVerificationReminder } from '../../utils/task-verification';
 import { contextNewCommand, contextNewHint } from '../context/new';
+import { handoffCommand } from '../handoff/command';
 import { getHandoffTemplate } from '../handoff-templates';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -269,13 +270,16 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(`${delegateStepNum}. Delegate ONE slice to the builder:`);
       lines.push('');
       lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
-      lines.push('```');
+      lines.push('```bash');
       lines.push(
-        `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
+        handoffCommand({
+          chatroomId,
+          role,
+          nextRole: 'builder',
+          cliEnvPrefix,
+          messagePlaceholder: '[Your delegation brief here]',
+        })
       );
-      lines.push('---MESSAGE---');
-      lines.push('[Your delegation brief here]');
-      lines.push('EOF');
       lines.push('```');
       if (availableHandoffTargets.length > 0) {
         lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
@@ -300,13 +304,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
       maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
-      lines.push('```');
-      lines.push(
-        `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
-      );
-      lines.push('---MESSAGE---');
-      lines.push('[Your message here]');
-      lines.push('EOF');
+      lines.push('```bash');
+      lines.push(handoffCommand({ chatroomId, role, cliEnvPrefix }));
       lines.push('```');
       if (availableHandoffTargets.length > 0) {
         lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
@@ -341,13 +340,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(tmpl);
       }
     }
-    lines.push('```');
-    lines.push(
-      `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
-    );
-    lines.push('---MESSAGE---');
-    lines.push('[Your message here]');
-    lines.push('EOF');
+    lines.push('```bash');
+    lines.push(handoffCommand({ chatroomId, role, cliEnvPrefix }));
     lines.push('```');
     if (availableHandoffTargets.length > 0) {
       lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);

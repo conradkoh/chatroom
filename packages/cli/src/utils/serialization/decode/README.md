@@ -121,19 +121,20 @@ All errors include:
 ### Handoff (Simple)
 
 ```bash
-chatroom handoff abc123 --role=builder --next-role=user << 'EOF'
+chatroom handoff abc123 --role=builder --next-role=user << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
 ## Summary
 Implemented authentication
 
 ## Testing
 All tests pass
-EOF
+CHATROOM_HANDOFF_END
 ```
 
 ### Classify (Structured)
 
 ```bash
-chatroom classify --chatroom-id=abc123 --role=builder --task-id=xyz --origin-message-classification=new_feature << 'PARAMS'
+chatroom classify --chatroom-id=abc123 --role=builder --task-id=xyz --origin-message-classification=new_feature << 'CHATROOM_CLASSIFY_END'
 ---TITLE---
 User Authentication
 ---DESCRIPTION---
@@ -141,7 +142,7 @@ Complete auth system with JWT tokens
 ---TECH_SPECS---
 - Bcrypt password hashing
 - 24h token expiry
-PARAMS
+CHATROOM_CLASSIFY_END
 ```
 
 ## Benefits

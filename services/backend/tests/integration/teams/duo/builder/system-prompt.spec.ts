@@ -290,10 +290,10 @@ describe('Duo Team > Builder > System Prompt', () => {
       **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
-      EOF
+      CHATROOM_HANDOFF_END
       \`\`\`
 
       Replace \`[Your message here]\` with:

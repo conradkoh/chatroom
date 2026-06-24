@@ -246,9 +246,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
       <summary of current focus>
-      EOF
+      CHATROOM_CONTEXT_END
       \`\`\`
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
@@ -340,10 +340,10 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
-      EOF
+      CHATROOM_HANDOFF_END
       \`\`\`
 
       Replace \`[Your message here]\` with:

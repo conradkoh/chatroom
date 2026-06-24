@@ -73,7 +73,7 @@ function appendNativeNextSteps(
     lines.push('```');
     lines.push('');
     lines.push(
-      'Fill in the message using the matching template in `<handoff-templates>` below. **Do not end your turn without running handoff.**'
+      'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Do not end your turn without running handoff.**'
     );
   } else {
     lines.push(

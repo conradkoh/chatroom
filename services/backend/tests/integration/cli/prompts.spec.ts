@@ -192,7 +192,7 @@ describe('Task intake prompt', () => {
 
 describe('Command Generators - Stdin Consistency', () => {
   describe('handoff command', () => {
-    test('already uses EOF format (baseline)', () => {
+    test('uses namespaced heredoc delimiter', () => {
       const command = handoffCommand({
         chatroomId: 'test-123',
         role: 'builder',
@@ -200,10 +200,10 @@ describe('Command Generators - Stdin Consistency', () => {
         cliEnvPrefix: '',
       });
 
-      // Verify handoff is already correct
-      expect(command).toContain("<< 'EOF'");
+      expect(command).toContain("<< 'CHATROOM_HANDOFF_END'");
       expect(command).toContain('[Your message here]');
-      expect(command).toContain('EOF');
+      expect(command).toContain('CHATROOM_HANDOFF_END');
+      expect(command).not.toContain("<< 'EOF'");
       expect(command).not.toContain('--message');
     });
   });

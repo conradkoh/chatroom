@@ -55,7 +55,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('targets: builder, user');
     // Should have delegate to builder instruction
     expect(output).toContain('Delegate ONE slice to the builder');
-    expect(output).toContain('--next-role=builder');
+    expect(output).toContain('--next-role="builder"');
     expect(output).not.toContain('Do the work → follow PROCESS above');
     // Eagerly delivered report template (proof + mermaid system design)
     expect(output).toContain('## Proof — files changed');

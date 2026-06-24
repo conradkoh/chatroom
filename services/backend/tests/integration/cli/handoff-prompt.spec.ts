@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
+import { HANDOFF_STDIN_DELIMITER } from '../../../prompts/cli/stdin-heredoc';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
@@ -26,9 +27,10 @@ describe('Handoff Command', () => {
     expect(command).toContain('--next-role="<target>"');
 
     // Should use HERE document format
-    expect(command).toContain("<< 'EOF'");
+    expect(command).toContain(`<< '${HANDOFF_STDIN_DELIMITER}'`);
     expect(command).toContain('[Your message here]');
-    expect(command).toContain('EOF');
+    expect(command).toContain(HANDOFF_STDIN_DELIMITER);
+    expect(command).not.toContain("<< 'EOF'");
   });
 
   test('generates handoff command with injected values', () => {
@@ -54,7 +56,7 @@ describe('Handoff Command', () => {
     expect(command).toContain('--next-role="planner"');
 
     // Should still use HERE document format
-    expect(command).toContain("<< 'EOF'");
+    expect(command).toContain(`<< '${HANDOFF_STDIN_DELIMITER}'`);
   });
 
   test('uses stdin HERE document format (not file-based)', () => {
@@ -68,7 +70,7 @@ describe('Handoff Command', () => {
     });
 
     // Should use HERE document, not file path
-    expect(command).toContain("<< 'EOF'");
+    expect(command).toContain(`<< '${HANDOFF_STDIN_DELIMITER}'`);
     expect(command).not.toContain('--file=');
     expect(command).not.toContain('.md');
   });

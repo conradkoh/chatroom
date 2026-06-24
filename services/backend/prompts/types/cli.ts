@@ -31,6 +31,8 @@ export interface HandoffParams extends CommandContext {
   chatroomId?: string;
   role?: string;
   nextRole?: string;
+  /** Placeholder text inside the heredoc body (default: [Your message here]). */
+  messagePlaceholder?: string;
 }
 
 // ============================================================================

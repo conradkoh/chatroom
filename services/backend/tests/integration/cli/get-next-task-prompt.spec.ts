@@ -299,9 +299,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
       <summary of current focus>
-      EOF
+      CHATROOM_CONTEXT_END
       \`\`\`
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
@@ -393,10 +393,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
-      EOF
+      CHATROOM_HANDOFF_END
       \`\`\`
 
       Replace \`[Your message here]\` with:
@@ -454,18 +454,18 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       1. Work on the task above.
 
-      2. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      2. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
       <summary of current focus>
-      EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
+      CHATROOM_CONTEXT_END\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       3. Hand off when complete:
 
       Before handing off to user: verify the codebase is in a good state — run \`pnpm typecheck && pnpm test\`.
-      \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
-      EOF
+      CHATROOM_HANDOFF_END
       \`\`\`
       (targets: planner, user)
       </next-steps>

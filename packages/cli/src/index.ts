@@ -209,8 +209,11 @@ handoffCommandGroup
 
       let message: string;
       try {
+        const { HANDOFF_STDIN_DELIMITER, validateStdinHeredocBody } =
+          await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
         const result = decode(stdinContent, { singleParam: 'message' });
         message = result.message;
+        validateStdinHeredocBody(message, HANDOFF_STDIN_DELIMITER);
       } catch (err) {
         console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
         process.exit(1);
@@ -289,6 +292,14 @@ backlogCommand
     } else {
       // Read content from stdin (heredoc support)
       const stdinContent = await readStdin();
+      const { BACKLOG_STDIN_DELIMITER, validateStdinHeredocBody } =
+        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+      try {
+        validateStdinHeredocBody(stdinContent, BACKLOG_STDIN_DELIMITER, 'Content');
+      } catch (err) {
+        console.error(`❌ ${(err as Error).message}`);
+        process.exit(1);
+      }
       content = stdinContent;
     }
 
@@ -297,9 +308,11 @@ backlogCommand
       console.error('❌ Content is empty. Provide content via --content-file or stdin (heredoc).');
       console.error('');
       console.error('   Example with heredoc:');
-      console.error("   chatroom backlog add --chatroom-id=<id> --role=<role> << 'EOF'");
+      console.error(
+        "   chatroom backlog add --chatroom-id=<id> --role=<role> << 'CHATROOM_BACKLOG_END'"
+      );
       console.error('   Your backlog item content here');
-      console.error('   EOF');
+      console.error('   CHATROOM_BACKLOG_END');
       process.exit(1);
     }
 
@@ -335,6 +348,14 @@ backlogCommand
         }
       } else {
         const stdinContent = await readStdin();
+        const { BACKLOG_STDIN_DELIMITER, validateStdinHeredocBody } =
+          await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+        try {
+          validateStdinHeredocBody(stdinContent, BACKLOG_STDIN_DELIMITER, 'Content');
+        } catch (err) {
+          console.error(`❌ ${(err as Error).message}`);
+          process.exit(1);
+        }
         content = stdinContent;
       }
 
@@ -345,10 +366,10 @@ backlogCommand
         console.error('');
         console.error('   Example with heredoc:');
         console.error(
-          "   chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'EOF'"
+          "   chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'CHATROOM_BACKLOG_END'"
         );
         console.error('   New content here');
-        console.error('   EOF');
+        console.error('   CHATROOM_BACKLOG_END');
         process.exit(1);
       }
 
@@ -563,6 +584,7 @@ messagesCommand
   .option('--since-message-id <messageId>', 'Get all messages since this message ID (inclusive)')
   .option('--limit <n>', 'Maximum number of messages to show')
   .option('--full', 'Show full message content without truncation')
+  // fallow-ignore-next-line complexity
   .action(
     async (options: {
       chatroomId: string;
@@ -655,12 +677,22 @@ contextCommand
         content = options.content.trim();
       } else {
         const stdinContent = await readStdin();
+        const { CONTEXT_STDIN_DELIMITER, validateStdinHeredocBody } =
+          await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
         if (!stdinContent.trim()) {
           console.error('❌ Context content cannot be empty.');
           console.error('   Provide content via --content="..." or stdin (heredoc):');
-          console.error("   chatroom context new --chatroom-id=<id> --role=<role> << 'EOF'");
+          console.error(
+            "   chatroom context new --chatroom-id=<id> --role=<role> << 'CHATROOM_CONTEXT_END'"
+          );
           console.error('   Your context summary here');
-          console.error('   EOF');
+          console.error('   CHATROOM_CONTEXT_END');
+          process.exit(1);
+        }
+        try {
+          validateStdinHeredocBody(stdinContent, CONTEXT_STDIN_DELIMITER, 'Context');
+        } catch (err) {
+          console.error(`❌ ${(err as Error).message}`);
           process.exit(1);
         }
         content = stdinContent.trim();
