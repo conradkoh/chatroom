@@ -24,10 +24,15 @@ import {
   shouldInjectNativeTask,
 } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
-import { listTasksReadyForNudge, NudgeCooldown } from './task-monitor-logic.js';
+import {
+  listTasksReadyForNudge,
+  listNativeTasksNeedingRevive,
+  NudgeCooldown,
+} from './task-monitor-logic.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type AssignedTasksResult = FunctionReturnType<typeof api.machines.getAssignedTasks>;
@@ -42,6 +47,10 @@ interface SessionDeps {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
+}
+
+function resolveTaskWantResume(task: AssignedTaskView): boolean {
+  return compressContextToWantResume(parseCompressContext(task.taskContent ?? ''));
 }
 
 function runNativeInjectionFork(
@@ -99,7 +108,7 @@ function buildCliNudgeLogLine(task: AssignedTaskView): string {
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
   const compressMode = parseCompressContext(task.taskContent ?? '');
-  const wantResume = compressContextToWantResume(compressMode);
+  const wantResume = resolveTaskWantResume(task);
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`;
 }
 
@@ -114,8 +123,7 @@ function executeCliNudge(
   const workingDir = agentConfig.workingDir;
   if (!workingDir) return;
 
-  const compressMode = parseCompressContext(task.taskContent ?? '');
-  const wantResume = compressContextToWantResume(compressMode);
+  const wantResume = resolveTaskWantResume(task);
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -135,6 +143,47 @@ function executeCliNudge(
         Effect.sync(() =>
           console.warn(
             `[TaskMonitor] nudge failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
+          )
+        )
+      )
+    )
+  );
+}
+
+function runNativeReviveEffect(
+  task: AssignedTaskView,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): void {
+  const { chatroomId, agentConfig } = task;
+  const { role } = agentConfig;
+  const workingDir = agentConfig.workingDir;
+  if (!workingDir) return;
+
+  const wantResume = resolveTaskWantResume(task);
+
+  console.log(
+    `[TaskMonitor] native revive ${role}@${chatroomId} — backend PID stale or missing locally for pending task ${task.taskId}`
+  );
+
+  Runtime.runFork(runtime)(
+    Effect.gen(function* () {
+      yield* agentMgr.ensureRunning({
+        chatroomId,
+        role,
+        agentHarness: agentConfig.agentHarness as AgentHarness,
+        model: agentConfig.model,
+        workingDir,
+        reason: 'platform.task_monitor_nudge',
+        wantResume,
+      });
+    }).pipe(
+      Effect.provide(effectContext),
+      Effect.catchAll((err) =>
+        Effect.sync(() =>
+          console.warn(
+            `[TaskMonitor] native revive failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
           )
         )
       )
@@ -167,6 +216,7 @@ function runNudgeEffect(
   runCliNudgeEffect(task, runtime, effectContext, agentMgr);
 }
 
+// fallow-ignore-next-line complexity
 function processTasksUpdate(
   tasks: AssignedTaskView[],
   runtime: TaskMonitorRuntime,
@@ -176,13 +226,23 @@ function processTasksUpdate(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: SessionDeps
 ): void {
+  const now = Date.now();
+  const localHealth = {
+    getSlot: (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role),
+    isPidAlive: (pid: number) => isProcessAlive((p) => process.kill(p, 0), pid),
+  };
+
+  for (const task of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
+    runNativeReviveEffect(task, runtime, effectContext, agentMgr);
+  }
+
   for (const task of tasks) {
     if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
       runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
     }
   }
 
-  const tasksToNudge = listTasksReadyForNudge(tasks, Date.now(), cooldown);
+  const tasksToNudge = listTasksReadyForNudge(tasks, now, cooldown);
   for (const task of tasksToNudge) {
     runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
   }

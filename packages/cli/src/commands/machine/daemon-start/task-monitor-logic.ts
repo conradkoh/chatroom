@@ -3,8 +3,10 @@ import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/mac
 import { isNativeHarness, shouldNudgeNativeInjection } from './native-task-injector-logic.js';
 import {
   isCliIdleNotListening,
+  isNativePendingAliveRunning,
   isStaleCliGetNextTaskWaiting,
 } from '../../../domain/native-integration/predicates.js';
+import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;
@@ -16,6 +18,48 @@ function isPendingAliveRunningTask(task: AssignedTaskView): boolean {
     agentConfig.spawnedAgentPid != null &&
     agentConfig.desiredState === 'running'
   );
+}
+
+export interface NativeAgentLocalHealth {
+  getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
+  isPidAlive: (pid: number) => boolean;
+}
+
+/** Backend still has a PID but the daemon has no live matching process — revive via cold start. */
+// fallow-ignore-next-line complexity
+function isNativeAgentLocallyUnavailable(
+  task: AssignedTaskView,
+  health: NativeAgentLocalHealth
+): boolean {
+  if (!isNativePendingAliveRunning(task)) return false;
+
+  const pid = task.agentConfig.spawnedAgentPid;
+  if (pid == null) return false;
+
+  const slot = health.getSlot(task.chatroomId, task.agentConfig.role);
+  if (!slot || slot.state === 'idle' || slot.state === 'stopping') {
+    return true;
+  }
+  if (slot.pid !== pid) {
+    return true;
+  }
+  return !health.isPidAlive(pid);
+}
+
+export function listNativeTasksNeedingRevive(
+  tasks: AssignedTaskView[],
+  health: NativeAgentLocalHealth,
+  now: number,
+  cooldown: NudgeCooldown
+): AssignedTaskView[] {
+  return tasks.filter((task) => {
+    if (!isNativeAgentLocallyUnavailable(task, health)) return false;
+    const { chatroomId, agentConfig } = task;
+    if (!agentConfig.workingDir) return false;
+    if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) return false;
+    cooldown.recordNudge(chatroomId, agentConfig.role, now);
+    return true;
+  });
 }
 
 function shouldNudgeCliPendingTask(

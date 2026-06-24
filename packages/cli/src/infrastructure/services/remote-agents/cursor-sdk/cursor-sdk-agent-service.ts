@@ -572,7 +572,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               const detail =
                 typeof result.result === 'string' && result.result.trim().length > 0
                   ? result.result.trim()
-                  : 'no error detail from SDK';
+                  : `no error detail from SDK (run ${result.id})`;
               const runErrorLine = formatAgentLogLine(
                 logPrefix,
                 'run-error',

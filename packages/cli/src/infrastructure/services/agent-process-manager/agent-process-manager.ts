@@ -43,6 +43,10 @@ import {
   isPermanentHarnessFailure,
 } from '../../../domain/agent-lifecycle/policies/classify-resume-storm-reason.js';
 import {
+  formatCursorSdkRunErrorMessage,
+  isCursorSdkRunErrorInLogs,
+} from '../../../domain/agent-lifecycle/policies/cursor-sdk-run-error.js';
+import {
   formatTerminalProviderFailureMessage,
   isTerminalProviderFailureInLogs,
 } from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
@@ -630,8 +634,12 @@ export class AgentProcessManager {
     slot: AgentSlot,
     ctx: ExitContext
   ): Promise<void> {
-    const { harness, harnessSessionId, stopReason } = ctx;
+    const { harness, harnessSessionId, stopReason, recentLogLines } = ctx;
     if (!harness || !harnessSessionId) {
+      return;
+    }
+    if (isCursorSdkRunErrorInLogs(recentLogLines ?? [])) {
+      this.clearLastHarnessSession(key);
       return;
     }
     const service = this.deps.agentServices.get(harness);
@@ -698,8 +706,10 @@ export class AgentProcessManager {
     this.maybeRestartAgent(opts, ctx);
   }
 
+  // fallow-ignore-next-line complexity
   private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
     const { harness, model, workingDir, recentLogLines } = ctx;
+    const key = agentKey(opts.chatroomId, opts.role);
 
     if (!harness || !workingDir) {
       console.log(
@@ -718,6 +728,14 @@ export class AgentProcessManager {
       return;
     }
 
+    const coldRestartAfterRunError = isCursorSdkRunErrorInLogs(recentLogLines ?? []);
+    if (coldRestartAfterRunError) {
+      console.log(
+        `[AgentProcessManager] cursor-sdk run-error — cold restarting ${opts.role}: ${formatCursorSdkRunErrorMessage(recentLogLines ?? [])}`
+      );
+      this.clearLastHarnessSession(key);
+    }
+
     void this.ensureRunning({
       chatroomId: opts.chatroomId,
       role: opts.role,
@@ -725,7 +743,7 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
-      wantResume: ctx.wantResume ?? true,
+      wantResume: coldRestartAfterRunError ? false : (ctx.wantResume ?? true),
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
       this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
@@ -1106,6 +1124,7 @@ export class AgentProcessManager {
       return spawnResult;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
+      this.clearLastHarnessSession(opts.key);
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
