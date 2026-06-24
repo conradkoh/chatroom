@@ -35,10 +35,14 @@ export function assertNativeInitContract(
 
   if (options.soloTeam) {
     expect(prompt).not.toContain('Classification (Entry Point Role)');
+    expect(prompt).not.toContain('chatroom classify');
     expect(prompt).toContain('Solo Operating Model');
   }
 
+  expect(prompt).not.toContain('chatroom classify');
+  expect(prompt).not.toMatch(/Classify with classify/i);
+
   if (options.noTaskRead) {
-    expect(prompt).not.toMatch(/task read/i);
+    expect(prompt).not.toMatch(/task read --chatroom-id/i);
   }
 }

@@ -7,7 +7,7 @@ import {
 } from '../../../prompts/native/task-started-content';
 
 describe('native task-started content', () => {
-  test('entry point prompt describes classifications without task read or injection', () => {
+  test('entry point prompt describes task intake without task read or injection', () => {
     const prompt = getNativeTaskStartedPrompt({
       chatroomId: 'room-id',
       role: 'planner',
@@ -16,8 +16,9 @@ describe('native task-started content', () => {
 
     expect(prompt).not.toMatch(/task read/i);
     expect(prompt).not.toMatch(/inject/i);
-    expect(prompt).toMatch(/question/i);
+    expect(prompt).toContain('Start working');
     expect(prompt).not.toContain('view-template');
+    expect(prompt).not.toContain('chatroom classify');
   });
 
   test('handoff recipient prompt is minimal', () => {

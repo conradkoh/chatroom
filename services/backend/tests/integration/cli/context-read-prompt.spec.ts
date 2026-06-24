@@ -95,13 +95,11 @@ describe('Context Read Command Output', () => {
     });
 
     // Classify the task
-    await t.mutation(api.messages.taskStarted, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'builder',
       taskId: startResult.taskId,
-      originMessageClassification: 'question',
-      convexUrl: 'http://127.0.0.1:3210',
     });
 
     // Builder hands off to user
@@ -124,9 +122,9 @@ describe('Context Read Command Output', () => {
     // ===== VERIFY BACKEND DATA =====
     // The backend should provide all necessary data for the CLI to format correctly
 
-    // Verify origin message exists
+    // Verify origin message exists (classification is optional — no longer set via classify CLI)
     expect(context.originMessage).toBeDefined();
-    expect(context.originMessage?.classification).toBe('question');
+    expect(context.originMessage?.classification).toBeUndefined();
 
     // Verify messages array has content
     expect(context.messages.length).toBeGreaterThan(0);
@@ -289,13 +287,11 @@ describe('Context Read Command Output', () => {
     });
 
     // Classify the task
-    await t.mutation(api.messages.taskStarted, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'builder',
       taskId: startResult.taskId,
-      originMessageClassification: 'question',
-      convexUrl: 'http://127.0.0.1:3210',
     });
 
     // Builder hands off to planner
@@ -335,13 +331,12 @@ describe('Context Read Command Output', () => {
 
     expect(normalizedContext).toMatchInlineSnapshot(`
       {
-        "classification": "question",
+        "classification": null,
         "currentContext": null,
         "messages": [
           {
             "_creationTime": 0,
             "_id": "[id]",
-            "classification": "question",
             "content": "Please implement feature X",
             "senderRole": "user",
             "targetRole": "builder",
@@ -354,7 +349,6 @@ describe('Context Read Command Output', () => {
         "originMessage": {
           "_creationTime": 0,
           "_id": "[id]",
-          "classification": "question",
           "content": "Please implement feature X",
           "senderRole": "user",
           "taskId": "[taskId]",
@@ -393,13 +387,11 @@ describe('Context Read Command Output', () => {
       role: 'builder',
     });
 
-    await t.mutation(api.messages.taskStarted, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'builder',
       taskId: startResult.taskId,
-      originMessageClassification: 'question',
-      convexUrl: 'http://127.0.0.1:3210',
     });
 
     // Builder hands off to planner

@@ -16,6 +16,7 @@ import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
   PARTICIPANT_EXITED_ACTION,
+  GET_NEXT_TASK_STOPPED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -279,7 +280,8 @@ export const leave = mutation({
   },
 });
 
-/** Updates lastSeenTokenAt for a participant to track live token output from the agent. */
+/** Updates lastSeenTokenAt and may start an acknowledged task when harness output is detected. */
+// fallow-ignore-next-line code-duplication
 export const updateTokenActivity = mutation({
   args: {
     ...SessionIdArg,
@@ -298,7 +300,8 @@ export const updateTokenActivity = mutation({
       const shouldStartTask =
         acknowledgedTask?.status === 'acknowledged' &&
         (participant.lastStatus === 'task.acknowledged' ||
-          participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION);
+          participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION ||
+          participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION);
 
       if (shouldStartTask) {
         await readTask(ctx, {

@@ -166,38 +166,29 @@ describe('getBuilderGuidance', () => {
 
       You are responsible for implementing code changes based on requirements.
 
-
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task\\nnotification]
-          B -->|from planner| C[Read chatroom task with\\ntask read]
-          C --> D[Implement changes]
+          A([Start]) --> B[Receive chatroom task]
+          B --> D[Implement changes]
           D --> E[Commit work]
-          E --> F{Classification?}
-          F -->|new_feature or code changes| G[Hand off to **planner**]
-          F -->|question| H[Hand off to **planner**]
+          E --> F{Code changes?}
+          F -->|yes| G[Hand off to **planner**]
+          F -->|no| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner review)
 
-      **Development Best Practices:**
-      - Write clean, maintainable code
-      - Add appropriate tests when applicable
-      - Document complex logic
-      - Follow existing code patterns and conventions
-      - Consider edge cases and error handling
-
-      **Git Workflow:**
-      - Use descriptive commit messages
-      - Create logical commits (one feature/change per commit)
-      - Keep the working directory clean between commits
-      - Use \`git status\`, \`git diff\` to review changes before committing
+      **Implementation Guidelines:**
+      - Write clean, maintainable, well-documented code
+      - Follow established patterns and best practices from the codebase
+      - Handle edge cases and error scenarios
+      - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
+      - Commit work with descriptive, atomic commit messages
       "
     `);
   });

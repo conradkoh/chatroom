@@ -1,7 +1,8 @@
 /**
- * Classification guidance for native-integration harnesses (init system prompt).
+ * Task intake guidance for native-integration harnesses (init system prompt).
  */
 
+import { getNativeTokenActivityInProgressNote } from '../base/shared/token-activity-note';
 import { contextNewCommand } from '../cli/context/new';
 
 export function getNativeTaskStartedPrompt(ctx: {
@@ -15,15 +16,11 @@ export function getNativeTaskStartedPrompt(ctx: {
     cliEnvPrefix: ctx.cliEnvPrefix,
   });
 
-  return `### Classify message
+  return `### Start working
 
-Entry-point roles classify incoming user messages before planning work.
+Entry-point roles receive user messages directly. ${getNativeTokenActivityInProgressNote()}
 
-- **question** — greetings, information requests, no code changes
-- **follow_up** — feedback on prior work
-- **new_feature** — new functionality (title, description, tech specs via classify stdin)
-
-Set context when starting substantive code work (\`new_feature\` / \`follow_up\`). Skip for simple **question** messages. Only the entry point role can set contexts:
+Set context when starting substantive code work. Skip for simple informational messages. Only the entry point role can set contexts:
 
 \`\`\`bash
 ${contextNewCmd}

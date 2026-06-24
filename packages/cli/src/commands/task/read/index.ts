@@ -1,11 +1,9 @@
 /**
- * Read a task and mark it as in_progress
+ * Read a task — optional recovery for backlog/context not shown in delivery.
  *
- * This command is the primary way to transition a task from acknowledged →in_progress.
- * It calls the backend readTask mutation which atomically:
- * 1. Validates the task exists and is assigned to the caller's role
- * 2. Transitions the task to in_progress
- * 3. Returns the task content
+ * Harness stdout tokens normally mark acknowledged tasks in_progress via
+ * participants.updateTokenActivity. Use this command when you need full
+ * task/backlog details outside the get-next-task or native injection output.
  * Phase 7: Migrated to Effect-TS services with typed error handling.
  */
 
@@ -46,6 +44,7 @@ export type TaskReadError =
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
+// fallow-ignore-next-line code-duplication
 async function createDefaultDeps(): Promise<TaskReadDeps> {
   const client = await getConvexClient();
   return {

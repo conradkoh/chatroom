@@ -5,6 +5,7 @@
  * The daemon registers remote SDK agents; agents do not run register-agent.
  */
 
+import { getNativeTokenActivityInProgressNote } from './token-activity-note';
 import { getCompactionRecoveryNote } from '../../cli/get-next-task/reminder';
 import type { ContextGainingParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/index';
@@ -32,7 +33,7 @@ flowchart LR
 
 Your harness uses **native integration**: the chatroom daemon injects tasks directly into your session context. **Do not use a blocking listen loop** — tasks arrive via injection.
 
-When a chatroom task appears in your context, the **full task content is included in the injection**. Begin working from that message — when you start responding, the system marks the task as \`in_progress\` automatically. **Do not run \`task read\`** unless you need attached context or backlog details not shown in the injection.
+When a chatroom task appears in your context, the **full task content is included in the injection**. ${getNativeTokenActivityInProgressNote()}
 
 **Do not run \`register-agent\`** — the daemon already registered this session when it started your harness.
 

@@ -254,23 +254,15 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      chatroom task notification]
-          C --> D[task read
-      get chatroom task +
-      mark in_progress]
-          D --> E[Do Work]
-          E --> F[handoff]
-          F --> C
+      chatroom task delivery]
+          C --> D[Do Work]
+          D --> E[handoff]
+          E --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the chatroom task immediately
+      ### Task delivery and activity
 
-      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
-
-      1. **Get the chatroom task content** — the full description
-      2. **Mark it as in_progress** — signals you're working on it
-
-      Failure to run \`task read\` promptly may trigger the system to restart you.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -301,39 +293,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
 
 
-      ### Classify message
+      ### Start working
 
-      Acknowledge and classify user messages after reading the chatroom task.
-
-      Run this after \`task read\` to classify the message type.
-
-      #### Question
-      User is asking for information or clarification.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
-      \`\`\`
-
-      #### Follow Up
-      User is responding to previous work or providing feedback.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
-      \`\`\`
-
-      #### New Feature
-      User wants new functionality. Requires title, description, and tech specs.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
-      ---TITLE---
-      [Feature title]
-      ---DESCRIPTION---
-      [Feature description]
-      ---TECH_SPECS---
-      [Technical specifications]
-      EOF
-      \`\`\`
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -358,44 +320,29 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       You are responsible for implementing code changes based on requirements.
 
-      **Classification (Entry Point Role):**
-      As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-      3. Then do your work
-      4. Hand off to planner for code changes, or directly to planner for questions
-
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task\\nnotification]
-          B -->|from planner| C[Read chatroom task with\\ntask read]
-          C --> D[Implement changes]
+          A([Start]) --> B[Receive chatroom task]
+          B --> D[Implement changes]
           D --> E[Commit work]
-          E --> F{Classification?}
-          F -->|new_feature or code changes| G[Hand off to **planner**]
-          F -->|question| H[Hand off to **planner**]
+          E --> F{Code changes?}
+          F -->|yes| G[Hand off to **planner**]
+          F -->|no| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner review)
 
-      **Development Best Practices:**
-      - Write clean, maintainable code
-      - Add appropriate tests when applicable
-      - Document complex logic
-      - Follow existing code patterns and conventions
-      - Consider edge cases and error handling
-
-      **Git Workflow:**
-      - Use descriptive commit messages
-      - Create logical commits (one feature/change per commit)
-      - Keep the working directory clean between commits
-      - Use \`git status\`, \`git diff\` to review changes before committing
+      **Implementation Guidelines:**
+      - Write clean, maintainable, well-documented code
+      - Follow established patterns and best practices from the codebase
+      - Handle edge cases and error scenarios
+      - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
+      - Commit work with descriptive, atomic commit messages
 
        
 
@@ -497,35 +444,21 @@ ${taskDeliveryPrompt.fullCliOutput}
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
 
       ## Chatroom task
-      To read this chatroom task and mark it as in_progress, run:
-      \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="000000000000010007chatroom_tasks"
-      \`\`\`
+      Can we add a backlog section to the available actions? Keep it concise and follow current format.
+
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
       </task>
 
       <next-steps>
       This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
 
-      ⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.
+      1. Work on the task above.
 
-      1. Read chatroom task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="000000000000010007chatroom_tasks"\`
-      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="000000000000010007chatroom_tasks" --origin-message-classification=<type>\`
-
-         new_feature example:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --task-id="000000000000010007chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
-      ---TITLE---
-      <title>
-      ---DESCRIPTION---
-      <description>
-      ---TECH_SPECS---
-      <tech-specs>
-      EOF
-
-      3. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      2. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
-      4. Hand off when complete:
+      3. Hand off when complete:
 
       ⚠️ Before delivering to user: Verify the codebase is in a good state.
          Run: pnpm typecheck && pnpm test
@@ -558,11 +491,9 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
-    // Should have classification section
-    expect(initPrompt?.prompt).toContain('### Classify message');
-    expect(initPrompt?.prompt).toContain('#### Question');
-    expect(initPrompt?.prompt).toContain('#### Follow Up');
-    expect(initPrompt?.prompt).toContain('#### New Feature');
+    // Should have task intake section
+    expect(initPrompt?.prompt).toContain('### Start working');
+    expect(initPrompt?.prompt).toContain('harness output (stdout tokens)');
 
     // Should have builder operating model instructions
     expect(initPrompt?.prompt).toContain('## Builder Operating Model');
@@ -696,7 +627,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(jsonContext.contextWindow.classification).toBeDefined();
   });
 
-  test('includes classification info for classify command', async () => {
+  test('includes classification info when message is tagged', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classification-info');
     const chatroomId = await createDuoTeamChatroom(sessionId);
@@ -733,22 +664,18 @@ ${taskDeliveryPrompt.fullCliOutput}
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Role prompt should include current classification info
-    expect(taskDeliveryPrompt.json.rolePrompt.currentClassification).toBeNull(); // New message, not yet classified
+    // Role prompt has no classification until message is tagged (legacy data model)
+    expect(taskDeliveryPrompt.json.rolePrompt.currentClassification).toBeNull();
 
-    // After classification, it should be available
-    await t.mutation(api.messages.taskStarted, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      taskId: startResult.taskId,
-      originMessageClassification: 'new_feature',
-      rawStdin: `---TITLE---
-User Authentication
----DESCRIPTION---
-Add login/logout functionality
----TECH_SPECS---
-Use JWT tokens, bcrypt for passwords`,
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', startResult.taskId));
+    expect(task?.sourceMessageId).toBeDefined();
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_messages', task!.sourceMessageId!, {
+        classification: 'new_feature',
+        featureTitle: 'User Authentication',
+        featureDescription: 'Add login/logout functionality',
+        featureTechSpecs: 'Use JWT tokens, bcrypt for passwords',
+      });
     });
 
     // Get updated prompt

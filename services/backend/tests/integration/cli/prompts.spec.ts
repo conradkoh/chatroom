@@ -11,13 +11,14 @@ import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-
 import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getAvailableActions } from '../../../prompts/cli/get-next-task/available-actions';
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
-import { getTaskStartedPrompt } from '../../../prompts/cli/task-started/main-prompt';
+import {
+  getTaskStartedPrompt,
+  getTaskStartedPromptForHandoffRecipient,
+} from '../../../prompts/cli/task-started/main-prompt';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
 const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
-const TEST_LOCALHOST_CONVEX_URL = 'http://localhost:3210';
-const TEST_PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 describe('Context Gaining Prompt', () => {
   test('generates Getting Started format with basic commands', () => {
@@ -161,8 +162,8 @@ describe('Available Actions (Task Delivery)', () => {
   });
 });
 
-describe('Task Classification Prompt', () => {
-  test('generates concise Classify message format with all classification types', () => {
+describe('Task intake prompt', () => {
+  test('generates start-working format with token activity note', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'test-chatroom-456',
@@ -170,79 +171,22 @@ describe('Task Classification Prompt', () => {
       cliEnvPrefix,
     });
 
-    // Should have Classify message header
-    expect(prompt).toContain('### Classify message');
-
-    // Should have all three classification types
-    expect(prompt).toContain('#### Question');
-    expect(prompt).toContain('#### Follow Up');
-    expect(prompt).toContain('#### New Feature');
+    expect(prompt).toContain('### Start working');
+    expect(prompt).toContain('harness output (stdout tokens)');
+    expect(prompt).not.toContain('chatroom classify');
+    expect(prompt).not.toMatch(/task read --chatroom-id/i);
   });
 
-  test('injects CHATROOM_CONVEX_URL prefix correctly', () => {
+  test('handoff recipient prompt describes inline task body', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
+    const prompt = getTaskStartedPromptForHandoffRecipient({
       chatroomId: 'my-chatroom',
       role: 'builder',
       cliEnvPrefix,
     });
 
-    // All commands should have the env prefix
-    expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify');
-  });
-
-  test('new_feature command uses EOF format for metadata', () => {
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCALHOST_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'feature-chatroom',
-      role: 'builder',
-      cliEnvPrefix,
-    });
-
-    // New feature should use heredoc format
-    expect(prompt).toContain("--origin-message-classification=new_feature << 'EOF'");
-    expect(prompt).toContain('---TITLE---');
-    expect(prompt).toContain('---DESCRIPTION---');
-    expect(prompt).toContain('---TECH_SPECS---');
-    expect(prompt).toContain('EOF');
-  });
-
-  test('question and follow_up commands are simple one-liners', () => {
-    // Use production URL which returns empty prefix
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'simple-chatroom',
-      role: 'planner',
-      cliEnvPrefix,
-    });
-
-    // Question command should be a simple command without heredoc
-    const questionMatch = prompt.match(/--origin-message-classification=question[^\n]*/);
-    expect(questionMatch).toBeTruthy();
-    expect(questionMatch?.[0]).not.toContain('EOF');
-
-    // Follow up command should be a simple command without heredoc
-    const followUpMatch = prompt.match(/--origin-message-classification=follow_up[^\n]*/);
-    expect(followUpMatch).toBeTruthy();
-    expect(followUpMatch?.[0]).not.toContain('EOF');
-  });
-
-  test('is concise without verbose classification guidance', () => {
-    // Use production URL which returns empty prefix
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'concise-test',
-      role: 'builder',
-      cliEnvPrefix,
-    });
-
-    // Should NOT contain verbose guidance sections
-    expect(prompt).not.toContain('Classification Types');
-    expect(prompt).not.toContain('When to use:');
-    expect(prompt).not.toContain('Characteristics:');
-    expect(prompt).not.toContain('Examples:');
-    expect(prompt).not.toContain('Workflow:');
-    expect(prompt).not.toContain('Handoff Rules:');
+    expect(prompt).toContain('task body contains your work description');
+    expect(prompt).toContain('harness output (stdout tokens)');
   });
 });
 

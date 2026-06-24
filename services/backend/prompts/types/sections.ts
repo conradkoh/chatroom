@@ -74,7 +74,7 @@ export type SectionId =
   | 'getting-started'
   | 'getting-started-native'
   // Classification
-  | 'classification-guide'
+  | 'task-intake-guide'
   | 'handoff-recipient-guide'
   // Team Context
   | 'team-context'

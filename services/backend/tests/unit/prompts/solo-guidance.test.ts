@@ -32,13 +32,18 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).toContain('autonomous agent');
   });
 
-  test('contains classification section when entry point', () => {
-    const guidance = getSoloGuidance({ ...baseParams, isEntryPoint: true });
-    expect(guidance).toContain('Classification');
-    expect(guidance).toContain('task read');
+  test('CLI operating model receives chatroom task from get-next-task', () => {
+    const guidance = getSoloGuidance({
+      ...baseParams,
+      isEntryPoint: true,
+      nativeIntegration: false,
+    });
+    expect(guidance).toContain('Receive chatroom task from get-next-task');
+    expect(guidance).not.toContain('chatroom classify');
+    expect(guidance).not.toMatch(/task read/i);
   });
 
-  test('native integration omits CLI classification note and get-next-task', () => {
+  test('native integration omits CLI task read note and get-next-task', () => {
     const guidance = getSoloGuidance({
       ...baseParams,
       isEntryPoint: true,
@@ -56,11 +61,6 @@ describe('solo > getSoloGuidance', () => {
     const guidance = getSoloGuidance({ ...baseParams, nativeIntegration: false });
     expect(guidance).toContain('get-next-task');
     expect(guidance).toContain('After ANY handoff');
-  });
-
-  test('does not contain classification when not entry point', () => {
-    const guidance = getSoloGuidance({ ...baseParams, isEntryPoint: false });
-    expect(guidance).not.toContain('Classification (Entry Point Role)');
   });
 
   test('contains key solo behaviors', () => {

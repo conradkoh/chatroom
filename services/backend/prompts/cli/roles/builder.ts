@@ -4,8 +4,6 @@
 
 import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { BuilderGuidanceParams } from '../../types/cli';
-import { getCliEnvPrefix } from '../../utils/env';
-import { classifyCommand } from '../classify/command';
 
 function getBuilderFlowMermaid(
   nativeIntegration: boolean | undefined,
@@ -13,9 +11,9 @@ function getBuilderFlowMermaid(
   questionTarget: string
 ): string {
   const handoffNodes = `    D --> E[Commit work]
-    E --> F{Classification?}
-    F -->|new_feature or code changes| G[Hand off to **${codeChangesTarget}**]
-    F -->|question| H[Hand off to **${questionTarget}**]`;
+    E --> F{Code changes?}
+    F -->|yes| G[Hand off to **${codeChangesTarget}**]
+    F -->|no| H[Hand off to **${questionTarget}**]`;
 
   if (nativeIntegration) {
     return `flowchart TD
@@ -25,9 +23,8 @@ ${handoffNodes}`;
   }
 
   return `flowchart TD
-    A([Start]) --> B[Receive chatroom task\\nnotification]
-    B -->|from planner| C[Read chatroom task with\\ntask read]
-    C --> D[Implement changes]
+    A([Start]) --> B[Receive chatroom task]
+    B --> D[Implement changes]
 ${handoffNodes}`;
 }
 
@@ -36,27 +33,12 @@ ${handoffNodes}`;
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
   const {
-    isEntryPoint,
-    convexUrl,
     questionTarget: questionTargetParam,
     codeChangesTarget: codeChangesTargetParam,
     nativeIntegration,
   } = params;
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const questionTarget = questionTargetParam ?? 'user';
   const codeChangesTarget = codeChangesTargetParam ?? 'planner';
-  const classifyExample = classifyCommand({ cliEnvPrefix });
-
-  const classificationNote =
-    isEntryPoint && !nativeIntegration
-      ? `
-**Classification (Entry Point Role):**
-As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
-3. Then do your work
-4. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
-      : '';
 
   return `
 ## Builder Operating Model
@@ -64,7 +46,6 @@ As the entry point, you receive user messages directly. When you receive a user 
 ${getSessionContinuityLine(nativeIntegration)}
 
 You are responsible for implementing code changes based on requirements.
-${classificationNote}
 
 **Typical Flow:**
 
@@ -76,19 +57,12 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
   ⚠️ If \`${questionTarget}\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-- **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip planner review)
 
-**Development Best Practices:**
-- Write clean, maintainable code
-- Add appropriate tests when applicable
-- Document complex logic
-- Follow existing code patterns and conventions
-- Consider edge cases and error handling
-
-**Git Workflow:**
-- Use descriptive commit messages
-- Create logical commits (one feature/change per commit)
-- Keep the working directory clean between commits
-- Use \`git status\`, \`git diff\` to review changes before committing
+**Implementation Guidelines:**
+- Write clean, maintainable, well-documented code
+- Follow established patterns and best practices from the codebase
+- Handle edge cases and error scenarios
+- Verify your work with \`pnpm typecheck && pnpm test\` before handing off
+- Commit work with descriptive, atomic commit messages
 `;
 }

@@ -445,7 +445,7 @@ export default function Home() {
                 <FeatureCard
                   icon={<RefreshCw className="w-4 h-4" strokeWidth={2} />}
                   title="Structured Handoffs"
-                  description="Typed handoffs between roles with message classification and progress updates. Delegate work and return results through a clear chain."
+                  description="Typed handoffs between roles with clear progress updates. Delegate work and return results through a structured chain."
                   delay={3700}
                 />
                 <FeatureCard

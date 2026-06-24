@@ -49,15 +49,17 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toContain('handoff view-template');
   });
 
-  test('CLI mode still contains get-next-task (regression)', () => {
+  test('CLI mode includes inline task content and get-next-task reminder', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: false,
     });
 
     expect(output).toContain('get-next-task');
+    expect(output).toContain('Implement the feature');
     expect(output).toContain('grace-period cooldowns');
     expect(output).not.toContain('<handoffs>');
+    expect(output).not.toMatch(/task read --chatroom-id/i);
   });
 
   test('native planner user message lists handoff targets and eager templates', () => {

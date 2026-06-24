@@ -175,13 +175,11 @@ describe('Context Read — Pinned Context', () => {
       role: 'planner',
     });
 
-    await t.mutation(api.messages.taskStarted, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'planner',
       taskId: startResult.taskId,
-      originMessageClassification: 'question',
-      convexUrl: 'http://127.0.0.1:3210',
     });
 
     // Planner creates a context WITH triggerMessageId pointing to message A

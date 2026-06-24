@@ -6,14 +6,14 @@
  * making the CLI a thin client that just prints the result.
  *
  * The output includes:
- * - Task section (IDs, context, task content, attached backlog, classification)
+ * - Task section (IDs, context, task content, attached backlog)
  * - Process section (step-by-step workflow)
- * - Next Steps section (directive classification or handoff instructions)
+ * - Next Steps section (handoff instructions)
  * - Reminder footer
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
-import { appendClassifyNextStepLines } from '../../native/classify-next-step';
+import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
 import { contextNewCommand, contextNewHint } from '../context/new';
 import { getHandoffTemplate } from '../handoff-templates';
@@ -215,15 +215,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   }
 
-  // Task content — CLI harnesses hide content behind task read
+  // Task content — inline (same as native injection; harness stdout marks in_progress)
   lines.push('');
   lines.push('## Chatroom task');
-  lines.push(`To read this chatroom task and mark it as in_progress, run:`);
-  lines.push('```');
-  lines.push(
-    `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
-  );
-  lines.push('```');
+  lines.push(task.content);
+  lines.push('');
+  lines.push(getTokenActivityInProgressNote());
 
   // Attached messages from origin message (user-pinned messages as context)
   const attachedMessages = originMessage?.attachedMessages ?? [];
@@ -240,13 +237,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   }
 
-  // Classification status
-  const existingClassification = originMessage?.classification;
-  if (existingClassification) {
-    lines.push('');
-    lines.push(`Classification: ${existingClassification.toUpperCase()}`);
-  }
-
   lines.push('</task>');
 
   // ── Next Steps ──────────────────────────────────────────────────────────
@@ -257,18 +247,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
 
   if (isUserMessage) {
-    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
-    lines.push('');
-    lines.push(
-      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
-    );
+    lines.push('1. Work on the task above.');
 
     if (role === 'planner') {
-      appendClassifyNextStepLines(lines, { chatroomId, role, taskId: task._id, cliEnvPrefix }, 2);
-
-      const contextStepNum = 3;
-      const delegateStepNum = 4;
-      const reportStepNum = 5;
+      const contextStepNum = 2;
+      const delegateStepNum = 3;
+      const reportStepNum = 4;
       // Planner role receiving a new user task
       lines.push('');
       lines.push(
@@ -297,9 +281,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push('');
       lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
     } else {
-      appendClassifyNextStepLines(lines, { chatroomId, role, taskId: task._id, cliEnvPrefix }, 2);
       // Non-coordinator role receiving a user message
-      let nextStepNum = 3;
+      let nextStepNum = 2;
       if (isEntryPoint) {
         lines.push('');
         lines.push(
@@ -323,12 +306,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     }
   } else if (message) {
-    lines.push('⚠️  REQUIRED FIRST STEP: Read the chatroom task to mark it as in_progress.');
+    lines.push('1. Work on the task above.');
     lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
-    lines.push('');
-    lines.push(
-      `1. Read chatroom task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
-    );
 
     let nextStepNum = 2;
     if (isEntryPoint) {

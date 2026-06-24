@@ -10,7 +10,6 @@ export {
   // Low-level generators
   generateGeneralInstructions,
   generateRolePrompt,
-  generateTaskStartedReminder,
   // Final output composers
   composeSystemPrompt,
   composeInitMessage,
@@ -25,13 +24,7 @@ export {
 } from './generator';
 
 // CLI-specific prompts
-export {
-  getCliPrompt,
-  getCliExamples,
-  getCliValidation,
-  getTaskStartedPrompt,
-  getClassificationGuidance,
-} from './cli/index';
+export { getCliPrompt, getCliExamples, getCliValidation, getTaskStartedPrompt } from './cli/index';
 
 // Team configurations
 export { duoTeamConfig, getDuoPlannerGuidance, getDuoBuilderGuidance } from './teams/index';

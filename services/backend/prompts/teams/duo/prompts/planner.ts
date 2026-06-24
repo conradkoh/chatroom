@@ -27,7 +27,7 @@ import type { PlannerGuidanceParams } from '../../../types/cli';
 const DUO_TEAM_CONFIG = { hasBuilder: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const { nativeIntegration, classificationNote, members, cliEnvPrefix, chatroomId, role } =
+  const { nativeIntegration, members, cliEnvPrefix, chatroomId, role } =
     getPlannerGuidanceContext(ctx);
 
   const operatingModelGuidance = getPlannerPlusBuilderOperatingModel(nativeIntegration);
@@ -37,7 +37,6 @@ export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
 ${getSessionContinuityLine(nativeIntegration)}
 
 You are the team coordinator and the **single point of contact** for the user.
-${classificationNote}
 
 **Duo Team Context:**
 - You are the entry point — you communicate directly with the user

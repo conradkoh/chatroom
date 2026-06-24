@@ -69,7 +69,7 @@ describe('Duo Team > Planner > System Prompt', () => {
     expect(prompt).toContain('## Your Role: PLANNER');
     expect(prompt).toContain('## Getting Started');
     // Planner is entry point — should have classification section
-    expect(prompt).toContain('### Classify message');
+    expect(prompt).toContain('### Start working');
     expect(prompt).toContain('## Planner Operating Model');
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
@@ -164,23 +164,15 @@ describe('Duo Team > Planner > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      chatroom task notification]
-          C --> D[task read
-      get chatroom task +
-      mark in_progress]
-          D --> E[Do Work]
-          E --> F[handoff]
-          F --> C
+      chatroom task delivery]
+          C --> D[Do Work]
+          D --> E[handoff]
+          E --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the chatroom task immediately
+      ### Task delivery and activity
 
-      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
-
-      1. **Get the chatroom task content** — the full description
-      2. **Mark it as in_progress** — signals you're working on it
-
-      Failure to run \`task read\` promptly may trigger the system to restart you.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -211,39 +203,9 @@ describe('Duo Team > Planner > System Prompt', () => {
       **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
 
 
-      ### Classify message
+      ### Start working
 
-      Acknowledge and classify user messages after reading the chatroom task.
-
-      Run this after \`task read\` to classify the message type.
-
-      #### Question
-      User is asking for information or clarification.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --task-id="<task-id>" --origin-message-classification=question
-      \`\`\`
-
-      #### Follow Up
-      User is responding to previous work or providing feedback.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --task-id="<task-id>" --origin-message-classification=follow_up
-      \`\`\`
-
-      #### New Feature
-      User wants new functionality. Requires title, description, and tech specs.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
-      ---TITLE---
-      [Feature title]
-      ---DESCRIPTION---
-      [Feature description]
-      ---TECH_SPECS---
-      [Technical specifications]
-      EOF
-      \`\`\`
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -258,14 +220,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
       You are the team coordinator and the **single point of contact** for the user.
-
-      **Classification (Entry Point Role):**
-      As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-      3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-      4. Decompose the chatroom task into actionable work items if needed
-      5. Delegate to the appropriate team member or handle it yourself
 
       **Duo Team Context:**
       - You are the entry point — you communicate directly with the user
@@ -285,11 +239,8 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task from user]
-          B --> C[task read:
-       get content + mark in_progress]
-          C --> D[Classify with classify]
-          D --> E[Decompose into phases]
+          A([Start]) --> B[Receive chatroom task from get-next-task]
+          B --> E[Decompose into phases]
           E --> F[Delegate ONE phase to builder]
           F --> G[Builder completes phase]
           G --> H[Builder hands off to planner]

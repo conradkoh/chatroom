@@ -8,16 +8,14 @@ import {
   getOperatingModelLoopFooter,
 } from '../../native/session-continuity';
 
-/** Mermaid nodes from task receipt through classify (native skips task read). */
-function getTaskIntakeThroughClassifyNodes(nativeIntegration?: boolean): string {
+/** Mermaid nodes from task receipt through planning. */
+function getTaskIntakeNodes(nativeIntegration?: boolean): string {
   if (nativeIntegration) {
     return `    A([Start]) --> B[Receive user message]
-    B --> D[Classify with classify]`;
+    B --> E[Decompose into phases]`;
   }
-  return `    A([Start]) --> B[Receive chatroom task from user]
-    B --> C[task read:
- get content + mark in_progress]
-    C --> D[Classify with classify]`;
+  return `    A([Start]) --> B[Receive chatroom task from get-next-task]
+    B --> E[Decompose into phases]`;
 }
 
 /**
@@ -47,8 +45,7 @@ ${delegationNote}
 
 \`\`\`mermaid
 flowchart TD
-${getTaskIntakeThroughClassifyNodes(nativeIntegration)}
-    D --> E[Decompose into phases]
+${getTaskIntakeNodes(nativeIntegration)}
     E --> F[Delegate ONE phase to builder]
     F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
@@ -73,18 +70,15 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
     : 'Run `get-next-task` to continue the session (Level A continues after Level B completes)';
   const intakeSteps = nativeIntegration
     ? `1. Receive user message
-2. Classify with classify`
-    : `1. Receive chatroom task from user
-2. Run task read (get chatroom task content + mark in_progress)
-3. Classify with classify`;
-  const planStepNum = nativeIntegration ? 3 : 4;
+2. Plan and implement`
+    : `1. Receive chatroom task from get-next-task
+2. Plan and implement`;
+  const verifyStepNum = nativeIntegration ? 3 : 4;
   return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-${planStepNum}. **Plan**: Outline the approach mentally or in scratch notes. Questions and simple tasks need no plan.
-${planStepNum + 1}. Implement the solution yourself
-${planStepNum + 2}. Review your own work for quality
-${planStepNum + 3}. Verify: \`pnpm typecheck && pnpm test\`
-${planStepNum + 4}. Deliver to **user**
-${planStepNum + 5}. ${continueStep}`;
+${verifyStepNum}. Review your own work for quality
+${verifyStepNum + 1}. Verify: \`pnpm typecheck && pnpm test\`
+${verifyStepNum + 2}. Deliver to **user**
+${verifyStepNum + 3}. ${continueStep}`;
 }

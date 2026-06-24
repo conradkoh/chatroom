@@ -162,64 +162,6 @@ program
     });
   });
 
-program
-  .command('classify')
-  .description("Classify a task's origin message (entry-point role only).")
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role (must be entry-point role)')
-  .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
-  .requiredOption(
-    '--origin-message-classification <type>',
-    'Original message classification: question, new_feature, or follow_up'
-  )
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      taskId: string;
-      originMessageClassification: string;
-    }) => {
-      await maybeRequireAuth();
-
-      // Validate classification type
-      const validClassifications = ['question', 'new_feature', 'follow_up'];
-      if (!validClassifications.includes(options.originMessageClassification)) {
-        console.error(
-          `❌ Invalid classification: ${
-            options.originMessageClassification
-          }. Must be one of: ${validClassifications.join(', ')}`
-        );
-        process.exit(1);
-      }
-
-      // For new_feature, read stdin and pass it directly to backend
-      let rawStdin: string | undefined;
-      if (options.originMessageClassification === 'new_feature') {
-        const stdinContent = await readStdin();
-
-        if (!stdinContent.trim()) {
-          console.error(
-            '❌ Stdin is empty. For new_feature classification, provide:\n---TITLE---\n[title]\n---DESCRIPTION---\n[description]\n---TECH_SPECS---\n[specs]'
-          );
-          process.exit(1);
-        }
-
-        rawStdin = stdinContent;
-      }
-
-      const { classify } = await import('./commands/classify/index.js');
-      await classify(options.chatroomId, {
-        role: options.role,
-        originMessageClassification: options.originMessageClassification as
-          | 'question'
-          | 'new_feature'
-          | 'follow_up',
-        taskId: options.taskId,
-        rawStdin,
-      });
-    }
-  );
-
 const handoffCommandGroup = program
   .command('handoff')
   .description('Complete your task and hand off to the next role');
@@ -566,7 +508,7 @@ const taskCommand = program.command('task').description('Manage tasks');
 
 taskCommand
   .command('read')
-  .description('Read a task and mark it as in_progress')
+  .description('Read task details (optional recovery; harness output marks tasks in_progress)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role in the chatroom')
   .requiredOption('--task-id <taskId>', 'Task ID to read')

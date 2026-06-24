@@ -6,11 +6,6 @@
  */
 
 /**
- * Classification types for classify command
- */
-export type MessageClassification = 'question' | 'new_feature' | 'follow_up';
-
-/**
  * Base interface for all prompt parameters that involve CLI command generation.
  * Ensures convexUrl is always provided for proper environment variable prefix handling.
  */
@@ -26,21 +21,6 @@ export interface BasePromptParams {
 export interface CommandContext {
   /** CLI environment prefix for non-production environments (empty string for production) */
   cliEnvPrefix: string;
-}
-
-// ============================================================================
-// classify command types
-// ============================================================================
-
-export interface ClassifyParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  taskId?: string;
-  classification?: MessageClassification;
-  /** Required for new_feature classification */
-  title?: string;
-  description?: string;
-  techSpecs?: string;
 }
 
 // ============================================================================

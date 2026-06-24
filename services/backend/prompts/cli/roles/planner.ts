@@ -14,7 +14,6 @@
 import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
-import { classifyCommand } from '../classify/command';
 import {
   getCoreResponsibilitiesSection,
   getDelegationAndDecompositionSection,
@@ -34,34 +33,19 @@ import {
  * `../sections/` directly with their hardcoded team config.
  */
 export function getPlannerGuidance(params: PlannerGuidanceParams): string {
-  const { isEntryPoint, convexUrl, teamRoles, chatroomId, role, nativeIntegration } = params;
+  const { convexUrl, teamRoles, chatroomId, role, nativeIntegration } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const classifyExample = classifyCommand({ cliEnvPrefix });
 
   // teamRoles is configured composition — not live agent presence
   const members = teamRoles;
   const hasBuilder = members.some((r) => r.toLowerCase() === 'builder');
   const teamConfig = { hasBuilder };
 
-  const classificationNote = isEntryPoint
-    ? nativeIntegration
-      ? ''
-      : `
-**Classification (Entry Point Role):**
-As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
-3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-4. Decompose the chatroom task into actionable work items if needed
-5. Delegate to the appropriate team member or handle it yourself`
-    : '';
-
   return `## Planner Operating Model
 
 ${getSessionContinuityLine(nativeIntegration)}
 
 You are the team coordinator and the **single point of contact** for the user.
-${classificationNote}
 
 ${getTeamCompositionSection(members)}
 

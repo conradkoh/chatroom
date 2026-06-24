@@ -8,6 +8,7 @@
  * task delivery flow, not in the context-gaining prompt.
  */
 
+import { getTokenActivityInProgressNote } from './token-activity-note';
 import { getCompactionRecoveryNote } from '../../cli/get-next-task/reminder';
 import type { ContextGainingParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/index';
@@ -29,21 +30,15 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 \`\`\`mermaid
 flowchart LR
     A([Start]) --> B[register-agent]
-    B --> C[get-next-task\nchatroom task notification]
-    C --> D[task read\nget chatroom task +\nmark in_progress]
-    D --> E[Do Work]
-    E --> F[handoff]
-    F --> C
+    B --> C[get-next-task\nchatroom task delivery]
+    C --> D[Do Work]
+    D --> E[handoff]
+    E --> C
 \`\`\`
 
-### ⚠️ CRITICAL: Read the chatroom task immediately
+### Task delivery and activity
 
-When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
-
-1. **Get the chatroom task content** — the full description
-2. **Mark it as in_progress** — signals you're working on it
-
-Failure to run \`task read\` promptly may trigger the system to restart you.
+When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. ${getTokenActivityInProgressNote()}
 
 ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 

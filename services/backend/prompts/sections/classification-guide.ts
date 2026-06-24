@@ -1,8 +1,7 @@
 /**
- * Classification Guide Section
+ * Task intake guide section.
  *
- * Task classification/acknowledgement instructions.
- * Entry point roles get full classification guide;
+ * Entry point roles get task-read / start-working guidance;
  * non-entry-point roles get handoff recipient acknowledgement.
  */
 
@@ -16,7 +15,7 @@ import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
 
 /**
- * Generate the classification guide section based on whether the role is an entry point.
+ * Generate the task intake guide section based on whether the role is an entry point.
  */
 // fallow-ignore-next-line complexity
 export function getClassificationGuideSection(ctx: SelectorContext): PromptSection {
@@ -27,7 +26,7 @@ export function getClassificationGuideSection(ctx: SelectorContext): PromptSecti
     const content = ctx.nativeIntegration
       ? getNativeTaskStartedPrompt({ chatroomId, role: ctx.role, cliEnvPrefix })
       : getTaskStartedPrompt({ chatroomId, role: ctx.role, cliEnvPrefix });
-    return createSection('classification-guide', 'knowledge', content);
+    return createSection('task-intake-guide', 'knowledge', content);
   }
 
   const content = ctx.nativeIntegration
