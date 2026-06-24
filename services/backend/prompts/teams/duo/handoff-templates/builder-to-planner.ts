@@ -2,12 +2,16 @@
  * Handoff template: Duo builder → planner (work complete / blocked).
  */
 
+import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+
 /**
  * Returns the markdown handoff template the builder uses when returning work
  * to the planner.
  */
 export function getBuilderToPlannerHandoffTemplate(): string {
-  return `**Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
+  return `${getHandoffRecipientVisibilityCallout('planner')}
+
+**Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
 
 \`\`\`markdown
 ## Summary

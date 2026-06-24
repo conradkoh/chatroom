@@ -350,7 +350,22 @@ describe('Solo Team > Solo > System Prompt', () => {
       Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
 
       ### Handoff to \`user\`
-      **Report Template (Solo → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown. Fill in EVERY section: if one does not apply, write \`Not Applicable\` (do not delete the section):
+      ---
+
+      ⚠️ **CRITICAL — Recipient visibility**
+
+      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
+
+      They **cannot** see:
+      - Anything you write in this agent session (including direct replies like "Hello!")
+      - Progress reports
+      - Tool output
+
+      Put your **complete** deliverable in the handoff message — not in session text.
+
+      ---
+
+      **Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
 
       \`\`\`markdown
       ## Summary

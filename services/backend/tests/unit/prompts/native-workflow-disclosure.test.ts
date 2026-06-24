@@ -52,10 +52,34 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
     expect(output).toContain('**user**');
   });
 
-  test('planner answering user gets user verification reminder in next-steps', () => {
+  test('planner answering user gets verification reminder in next-steps', () => {
     const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
     const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
+    expect(nextSteps).not.toContain('⚠️ **User visibility:**');
     expect(nextSteps).toContain('pnpm typecheck && pnpm test');
+  });
+
+  test('handoff templates include recipient visibility callout per target role', () => {
+    const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
+    const templates = output.slice(
+      output.indexOf('<handoff-templates>'),
+      output.indexOf('</handoff-templates>')
+    );
+    expect(templates).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(templates).toContain('handoff --next-role="user"');
+    expect(templates).toContain('handoff --next-role="builder"');
+    expect(templates).toContain('including direct replies like "Hello!"');
+  });
+
+  test('builder delivery includes planner visibility callout in handoff template', () => {
+    const output = deliver(getNativeDeliveryScenario('duo builder receives planner delegation'));
+    const templates = output.slice(
+      output.indexOf('<handoff-templates>'),
+      output.indexOf('</handoff-templates>')
+    );
+    expect(templates).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(templates).toContain('The `planner` agent');
+    expect(templates).toContain('handoff --next-role="planner"');
   });
 });
 

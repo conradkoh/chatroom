@@ -19,12 +19,16 @@
  *     structure (write "Not Applicable" for trivial changes).
  */
 
+import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+
 /**
  * Returns the markdown report template the planner uses when delivering the
  * final result to the user.
  */
 export function getPlannerToUserReportTemplate(): string {
-  return `**Report Template (Planner → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown. Fill in EVERY section: if one does not apply, write \`Not Applicable\` (do not delete the section):
+  return `${getHandoffRecipientVisibilityCallout('user')}
+
+**Report Template (Planner → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
 
 \`\`\`markdown
 ## Summary

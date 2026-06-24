@@ -49,9 +49,7 @@ export function appendNativeDeliveryHandoffTemplates(
 
   lines.push('');
   lines.push('<handoff-templates>');
-  lines.push(
-    'Use these structures when handing off. The user only sees the final handoff-to-`user` message.'
-  );
+  lines.push('Use these structures when handing off.');
   lines.push('');
   lines.push(...blocks);
   lines.push('</handoff-templates>');

@@ -87,6 +87,12 @@ describe('handoff-templates > planner → user report', () => {
   test('is markdown (fenced code block)', () => {
     expect(report).toContain('```markdown');
   });
+
+  test('includes recipient visibility callout for user', () => {
+    expect(report).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(report).toContain('handoff --next-role="user"');
+    expect(report).toContain('including direct replies like "Hello!"');
+  });
 });
 
 describe('handoff-templates > planner → builder delegation brief', () => {
@@ -137,6 +143,12 @@ describe('handoff-templates > planner → builder delegation brief', () => {
     expect(brief).toContain('CLI harnesses');
     expect(brief).not.toContain('## Restart new context');
   });
+
+  test('includes recipient visibility callout for builder', () => {
+    expect(brief).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(brief).toContain('The `builder` agent');
+    expect(brief).toContain('handoff --next-role="builder"');
+  });
 });
 
 describe('handoff-templates > builder → planner handoff', () => {
@@ -150,5 +162,11 @@ describe('handoff-templates > builder → planner handoff', () => {
   test('includes verification section', () => {
     expect(handoff).toContain('## Verification');
     expect(handoff).toContain('pnpm typecheck && pnpm test');
+  });
+
+  test('includes recipient visibility callout for planner', () => {
+    expect(handoff).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(handoff).toContain('The `planner` agent');
+    expect(handoff).toContain('handoff --next-role="planner"');
   });
 });

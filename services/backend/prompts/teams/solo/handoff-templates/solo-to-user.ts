@@ -2,8 +2,12 @@
  * Handoff template: Solo → user (final report).
  */
 
+import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+
 export function getSoloToUserReportTemplate(): string {
-  return `**Report Template (Solo → User)** — the user can ONLY see this handoff message, so make it a complete, standalone document in markdown. Fill in EVERY section: if one does not apply, write \`Not Applicable\` (do not delete the section):
+  return `${getHandoffRecipientVisibilityCallout('user')}
+
+**Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
 
 \`\`\`markdown
 ## Summary

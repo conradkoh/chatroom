@@ -43,9 +43,7 @@ export function assertNativePrimaryHandoffInNextSteps(
 
 export function assertNativeEagerHandoffTemplates(output: string, headings: string[]): void {
   expect(output).toContain('<handoff-templates>');
-  expect(output).toContain(
-    'Use these structures when handing off. The user only sees the final handoff-to-`user` message.'
-  );
+  expect(output).toContain('Use these structures when handing off.');
   for (const heading of headings) {
     expect(output, `missing eager template: ${heading}`).toContain(heading);
   }

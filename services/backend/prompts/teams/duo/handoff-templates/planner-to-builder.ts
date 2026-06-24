@@ -7,6 +7,8 @@
  * builder executes implementation, tool calls, and verification.
  */
 
+import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+
 /**
  * Returns the markdown delegation-brief template the planner uses when
  * handing a unit of work to the builder.
@@ -21,7 +23,9 @@ export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): s
 
 **CLI harnesses** (all others): in-session compaction is NOT supported. \`new_session\` requires a hard restart — the daemon stops the agent, cold-starts it, and the agent must rejoin via \`get-next-task\`. \`none\` resumes the prior session (\`wantResume=true\`).`;
 
-  return `**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+  return `${getHandoffRecipientVisibilityCallout('builder')}
+
+**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
 **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
 
