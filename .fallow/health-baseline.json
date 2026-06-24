@@ -1705,7 +1705,7 @@
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts": {
       "crap_moderate": {
-        "count": 10
+        "count": 11
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {

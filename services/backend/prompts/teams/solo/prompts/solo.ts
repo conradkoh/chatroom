@@ -49,7 +49,6 @@ ${classificationNote}
 - You communicate directly with the user (single point of contact)
 - There is no separate builder or planner — you fill all roles
 - You hand off directly to the user when work is complete
-- Report progress at milestones using \`report-progress\`
 
 ${getTeamCompositionSection(teamRoles)}
 

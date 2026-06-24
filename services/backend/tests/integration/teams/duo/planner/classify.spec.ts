@@ -66,16 +66,7 @@ describe('Duo Team > Planner > Classify Reminder', () => {
 
       **Next steps:**
       1. Decompose the chatroom task into clear, actionable work items
-      2. **Report progress to the user** before delegating — so they know work has started:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="planner" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      3. Delegate implementation to builder:
+      2. Delegate implementation to builder:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="builder" << 'EOF'
@@ -84,9 +75,8 @@ describe('Duo Team > Planner > Classify Reminder', () => {
       EOF
       \`\`\`
 
-      4. When work returns, send another \`report-progress\` update before reviewing
-      5. Review completed work before delivering to user
-      6. Hand back for rework if requirements are not met
+      3. Review completed work before delivering to user
+      4. Hand back for rework if requirements are not met
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -113,17 +103,8 @@ describe('Duo Team > Planner > Classify Reminder', () => {
 
       **Next steps:**
       1. Review the follow-up request against previous work
-      2. **Report progress to the user** so they know you're handling it:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="planner" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      3. Delegate to appropriate team member or handle yourself
-      4. Follow-up inherits the classification rules from the original chatroom task:
+      2. Delegate to appropriate team member or handle yourself
+      3. Follow-up inherits the classification rules from the original chatroom task:
          - If original was a QUESTION → handle and hand off to user when done
          - If original was a NEW FEATURE → delegate, review, and deliver to user
 

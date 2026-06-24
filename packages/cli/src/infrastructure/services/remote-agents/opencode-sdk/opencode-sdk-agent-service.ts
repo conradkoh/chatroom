@@ -166,6 +166,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     return childProcess;
   }
 
+  // fallow-ignore-next-line complexity
   private registerRunningSession(args: {
     childProcess: ChildProcess;
     pid: number;
@@ -178,6 +179,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     workingDir: string;
     logLineCallbacks: ((line: string) => void)[];
     deferredSystemPrompt?: string;
+    outputCallbacks?: (() => void)[];
   }): SpawnResult {
     const {
       childProcess,
@@ -213,7 +215,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     const entry = this.registerProcess(pid, context);
     if (forwarder) this.forwarders.set(pid, forwarder);
 
-    const outputCallbacks: (() => void)[] = [];
+    const outputCallbacks = args.outputCallbacks ?? [];
 
     forwardFiltered(childProcess.stdout ?? undefined, process.stdout, isInfoLine);
     forwardFiltered(childProcess.stderr ?? undefined, process.stderr, isInfoLine);
@@ -438,6 +440,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
 
     let forwarder: SessionEventForwarderHandle | undefined;
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
+    const outputCallbacks: (() => void)[] = [];
     try {
       const sessionInfo = await withTimeout(
         client.session.get({ path: { id: sessionId } }),
@@ -454,6 +457,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         sessionId,
         role: context.role,
         onLogLine: emitLogLine,
+        onActivity: () => {
+          for (const cb of outputCallbacks) cb();
+        },
       });
 
       const availableAgents = await this.listAvailableAgents(client);
@@ -488,6 +494,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       model: modelForSession,
       workingDir,
       logLineCallbacks,
+      outputCallbacks,
     });
   }
 
@@ -505,6 +512,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     let agentName: string | undefined;
     let deferredSystemPrompt: string | undefined;
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
+    const outputCallbacks: (() => void)[] = [];
     try {
       const sessionCreateResult = await withTimeout(
         client.session.create({ body: {} }),
@@ -522,6 +530,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         sessionId,
         role: context.role,
         onLogLine: emitLogLine,
+        onActivity: () => {
+          for (const cb of outputCallbacks) cb();
+        },
       });
 
       // Discover what agents this opencode server actually exposes. We compose
@@ -574,6 +585,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       workingDir: options.workingDir,
       logLineCallbacks,
       deferredSystemPrompt,
+      outputCallbacks,
     });
   }
 

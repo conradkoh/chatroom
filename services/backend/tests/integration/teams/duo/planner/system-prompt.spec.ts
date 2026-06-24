@@ -306,9 +306,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Core Responsibilities:**
       - **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.
-        - Use \`report-progress\` to keep the user informed at key milestones: when you start work, when you delegate phases, and when you receive results back.
-        - Example: before delegating → "Starting Phase 1: implementing the data model. Delegating to builder."
-        - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from progress reports.
+        - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from earlier session text.
       - **Quality Accountability**: You are ultimately accountable for all work. If the user's requirements are not met, hand work back to the builder for rework.
 
       **Delegation & Decomposition:**
@@ -529,19 +527,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **Summary**: Brief description of what was done
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
-
-      **Report progress on current chatroom task:**
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="000000000000010002chatroom_rooms" --role="planner" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
-
-      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

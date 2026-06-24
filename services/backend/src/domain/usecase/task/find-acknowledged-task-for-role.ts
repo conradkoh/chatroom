@@ -13,10 +13,12 @@ export async function findAcknowledgedTaskForRole(
   if (args.taskId) {
     return ctx.db.get('chatroom_tasks', args.taskId);
   }
-  return ctx.db
+  const normalizedRole = args.role.toLowerCase();
+  const tasks = await ctx.db
     .query('chatroom_tasks')
-    .withIndex('by_chatroom_status_assignedTo', (q) =>
-      q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged').eq('assignedTo', args.role)
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
     )
-    .first();
+    .collect();
+  return tasks.find((task) => task.assignedTo?.toLowerCase() === normalizedRole) ?? null;
 }

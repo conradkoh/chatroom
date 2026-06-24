@@ -54,7 +54,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
 }
 
 describe('runNativeInjectionEffect', () => {
-  test('claim → query → resumeTurn → join in order', async () => {
+  test('claim → query → join → resumeTurn in order', async () => {
     const deps = createDeps();
     const dedup = new NativeInjectionDedup();
     const task = makeTask();
@@ -78,7 +78,7 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, deps, dedup));
 
-    expect(calls).toEqual(['claim', 'query', 'resumeTurn', 'join']);
+    expect(calls).toEqual(['claim', 'query', 'join', 'resumeTurn']);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalledWith({
       chatroomId: task.chatroomId,
       role: 'builder',

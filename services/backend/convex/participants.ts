@@ -198,6 +198,15 @@ export const join = mutation({
     }
 
     if (args.action === NATIVE_WAITING_ACTION) {
+      const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+      });
+      // Do not downgrade to agent.waiting while a claimed task awaits first token output.
+      if (acknowledgedTask?.status === 'acknowledged') {
+        return participantId;
+      }
+
       await ctx.db.insert('chatroom_eventStream', {
         type: 'agent.waiting',
         chatroomId: args.chatroomId,
@@ -281,20 +290,24 @@ export const updateTokenActivity = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
     if (participant) {
-      if (participant.lastStatus === 'task.acknowledged') {
-        const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+      const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+      });
+
+      const shouldStartTask =
+        acknowledgedTask?.status === 'acknowledged' &&
+        (participant.lastStatus === 'task.acknowledged' ||
+          participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION);
+
+      if (shouldStartTask) {
+        await readTask(ctx, {
           chatroomId: args.chatroomId,
           role: args.role,
+          taskId: acknowledgedTask._id,
         });
-
-        if (acknowledgedTask && acknowledgedTask.status === 'acknowledged') {
-          await readTask(ctx, {
-            chatroomId: args.chatroomId,
-            role: args.role,
-            taskId: acknowledgedTask._id,
-          });
-        }
       }
+
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenTokenAt: Date.now(),
       });

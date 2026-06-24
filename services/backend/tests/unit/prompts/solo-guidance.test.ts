@@ -87,11 +87,6 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).toContain('user');
   });
 
-  test('contains progress reporting guidance', () => {
-    const guidance = getSoloGuidance(baseParams);
-    expect(guidance).toContain('report-progress');
-  });
-
   test('contains implementation guidelines', () => {
     const guidance = getSoloGuidance(baseParams);
     expect(guidance).toContain('Implementation Guidelines');

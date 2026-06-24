@@ -90,7 +90,7 @@ export function assertNativeInitTemplateDisclosure(
   options: { referencesDeliveryTemplates?: boolean } = {}
 ): void {
   expect(prompt).not.toContain('Begin With the End in Mind');
-  expect(prompt).toContain('handoff view-template');
+  expect(prompt).not.toContain('handoff view-template');
 
   if (options.referencesDeliveryTemplates) {
     expect(prompt).toContain('task delivery `<handoff-templates>` section');

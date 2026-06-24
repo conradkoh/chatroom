@@ -75,12 +75,12 @@ describe('Native init — templates deferred to task delivery', () => {
 });
 
 describe('Native init — commands reference', () => {
-  test('includes handoff, report-progress, and view-template (recovery)', () => {
+  test('includes handoff only (no view-template or get-next-task)', () => {
     const prompt = nativeInitPrompt('duo', 'builder');
     expect(prompt).toContain('### Commands');
     expect(prompt).toContain('chatroom handoff');
-    expect(prompt).toContain('report-progress');
-    expect(prompt).toContain('handoff view-template');
+    expect(prompt).not.toContain('report-progress');
+    expect(prompt).not.toContain('handoff view-template');
     expect(prompt).not.toContain('chatroom get-next-task');
   });
 });

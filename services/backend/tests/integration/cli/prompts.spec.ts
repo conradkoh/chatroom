@@ -11,7 +11,6 @@ import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-
 import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getAvailableActions } from '../../../prompts/cli/get-next-task/available-actions';
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
-import { reportProgressCommand } from '../../../prompts/cli/report-progress/command';
 import { getTaskStartedPrompt } from '../../../prompts/cli/task-started/main-prompt';
 import { getConfig } from '../../../prompts/config/index';
 
@@ -248,73 +247,6 @@ describe('Task Classification Prompt', () => {
 });
 
 describe('Command Generators - Stdin Consistency', () => {
-  describe('report-progress command', () => {
-    test('uses EOF format (stdin) instead of --message flag', () => {
-      const command = reportProgressCommand({
-        chatroomId: 'test-123',
-        role: 'builder',
-        cliEnvPrefix: '',
-      });
-
-      // Should use EOF format
-      expect(command).toContain("<< 'EOF'");
-      expect(command).toContain('EOF');
-
-      // Should NOT use --message flag
-      expect(command).not.toContain('--message');
-    });
-
-    test('includes placeholder for message content', () => {
-      const command = reportProgressCommand({
-        chatroomId: 'abc',
-        role: 'planner',
-        cliEnvPrefix: '',
-      });
-
-      // Should have placeholder text for message
-      expect(command).toMatch(/\[.*\]/); // Contains placeholder in brackets
-    });
-
-    test('injects environment prefix correctly', () => {
-      const command = reportProgressCommand({
-        chatroomId: 'test-123',
-        role: 'builder',
-        cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      });
-
-      expect(command).toContain(
-        'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress'
-      );
-    });
-
-    test('matches handoff command format consistency', () => {
-      const reportCmd = reportProgressCommand({
-        chatroomId: 'test',
-        role: 'builder',
-        cliEnvPrefix: '',
-      });
-
-      const handoffCmd = handoffCommand({
-        chatroomId: 'test',
-        role: 'builder',
-        nextRole: 'planner',
-        cliEnvPrefix: '',
-      });
-
-      // Both should use EOF format
-      expect(reportCmd).toContain("<< 'EOF'");
-      expect(handoffCmd).toContain("<< 'EOF'");
-
-      // Both should have similar structure
-      const reportLines = reportCmd.split('\n');
-      const handoffLines = handoffCmd.split('\n');
-
-      // Should be multiline with EOF wrapper
-      expect(reportLines.length).toBeGreaterThan(1);
-      expect(handoffLines.length).toBeGreaterThan(1);
-    });
-  });
-
   describe('handoff command', () => {
     test('already uses EOF format (baseline)', () => {
       const command = handoffCommand({

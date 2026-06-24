@@ -253,6 +253,72 @@ describe('Participant Status Tracking', () => {
     expect(task?.status).toBe('in_progress');
   });
 
+  test('native:waiting does not downgrade acknowledged task awaiting first token', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-waiting-guard');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.acknowledged');
+  });
+
+  test('updateTokenActivity starts task when native:task-injected but lastStatus was agent.waiting', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-token-race');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      if (participant) {
+        await ctx.db.patch('chatroom_participants', participant._id, {
+          lastStatus: 'agent.waiting',
+        });
+      }
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('in_progress');
+  });
+
   test('updateTokenActivity does not duplicate task.inProgress when already in progress', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-dedup');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

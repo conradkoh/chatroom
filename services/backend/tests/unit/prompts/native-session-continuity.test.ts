@@ -5,6 +5,8 @@ import { getPlannerGuidance } from '../../../prompts/cli/roles/planner';
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
+  getNativeHandoffTurnEndGuidance,
+  getNativePlannerDelegationWaitNote,
   getSessionContinuityLine,
   getOperatingModelLoopFooter,
 } from '../../../prompts/native/session-continuity';
@@ -39,6 +41,8 @@ describe('native session continuity', () => {
     expect(guidance).not.toMatch(/get-next-task/i);
     expect(guidance).not.toContain('task injection');
     expect(guidance).not.toMatch(/task read --chatroom-id/i);
+    expect(guidance).toMatch(/end your turn/i);
+    expect(guidance).toContain('messages list');
   });
 
   test('builder guidance with nativeIntegration=true omits get-next-task and Level A/B', () => {
@@ -131,4 +135,20 @@ describe('native session continuity', () => {
       });
     });
   }
+
+  test('getNativeHandoffTurnEndGuidance for agent handoff', () => {
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('End your turn now');
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('builder');
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages list');
+  });
+
+  test('getNativeHandoffTurnEndGuidance for user handoff', () => {
+    expect(getNativeHandoffTurnEndGuidance('user')).toContain('End your turn now');
+    expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages list');
+  });
+
+  test('getNativePlannerDelegationWaitNote', () => {
+    expect(getNativePlannerDelegationWaitNote()).toMatch(/end your turn/i);
+    expect(getNativePlannerDelegationWaitNote()).toContain('messages list');
+  });
 });

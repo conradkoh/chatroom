@@ -151,5 +151,23 @@ describe('Native init prompt (integration)', () => {
     expect(output).not.toContain('task injection');
     expect(output).not.toContain('Level A');
     expect(output).toContain('handed off to planner');
+    expect(output).toContain('End your turn now');
+    expect(output).toContain('messages list');
+  });
+
+  test('native planner handoff to builder tells agent to end turn and wait for handback', () => {
+    const output = generateHandoffOutput({
+      role: 'planner',
+      nextRole: 'builder',
+      chatroomId: 'test-chatroom-id',
+      convexUrl: 'http://127.0.0.1:3210',
+      supportsNativeIntegration: true,
+    });
+
+    expect(output).toContain('handed off to builder');
+    expect(output).toContain('End your turn now');
+    expect(output).toContain('builder');
+    expect(output).toContain('messages list');
+    expect(output).not.toContain('get-next-task');
   });
 });

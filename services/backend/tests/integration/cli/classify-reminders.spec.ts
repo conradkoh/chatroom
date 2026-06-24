@@ -119,8 +119,7 @@ Use React Context + CSS variables`,
 
       **Next steps:**
       1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to planner when complete:
+      2. Hand off to planner when complete:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
@@ -200,8 +199,7 @@ Use React Context + CSS variables`,
 
       **Next steps:**
       1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to planner when complete:
+      2. Hand off to planner when complete:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010014chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'
@@ -281,8 +279,7 @@ Use React Context + CSS variables`,
 
       **Next steps:**
       1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to planner when complete:
+      2. Hand off to planner when complete:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010026chatroom_rooms" --role="builder" --next-role="planner" << 'EOF'

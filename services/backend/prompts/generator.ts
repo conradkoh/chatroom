@@ -25,9 +25,9 @@
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
-import { reportProgressCommand } from './cli/report-progress/command';
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
 import { getHandoffTemplatesPreviewSection } from './cli/sections/handoff-templates-preview';
+import { getNativeHandoffTurnEndGuidance } from './native/session-continuity';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import {
   getCommandsReferenceSection,
@@ -290,19 +290,13 @@ function buildPlannerReminder(
           nextRole: 'user',
           cliEnvPrefix,
         });
-        const progressCmd = reportProgressCommand({
-          chatroomId,
-          role: 'planner',
-          cliEnvPrefix,
-        });
         return `✅ Chatroom task acknowledged as NEW FEATURE.
 
 **Next steps:**
 1. Decompose the chatroom task into clear, actionable work items
-2. **Report progress to the user** — \`${progressCmd}\`
-3. Implement the solution yourself
-4. Review your own work before delivering
-5. Hand off to user when complete:
+2. Implement the solution yourself
+3. Review your own work before delivering
+4. Hand off to user when complete:
 
 \`\`\`bash
 ${handoffToUserCmd}
@@ -317,52 +311,29 @@ Task ID: ${taskId}`;
         nextRole: 'builder',
         cliEnvPrefix,
       });
-      const progressCmd = reportProgressCommand({
-        chatroomId,
-        role: 'planner',
-        cliEnvPrefix,
-      });
       return `✅ Chatroom task acknowledged as NEW FEATURE.
 
 **Next steps:**
 1. Decompose the chatroom task into clear, actionable work items
-2. **Report progress to the user** before delegating — so they know work has started:
-
-\`\`\`bash
-${progressCmd}
-\`\`\`
-
-3. Delegate implementation to builder:
+2. Delegate implementation to builder:
 
 \`\`\`bash
 ${handoffToTeamCmd}
 \`\`\`
 
-4. When work returns, send another \`report-progress\` update before reviewing
-5. Review completed work before delivering to user
-6. Hand back for rework if requirements are not met
+3. Review completed work before delivering to user
+4. Hand back for rework if requirements are not met
 
 💡 You're working on:
 Task ID: ${taskId}`;
     }
     case 'follow_up': {
-      const progressCmdFollowUp = reportProgressCommand({
-        chatroomId,
-        role: 'planner',
-        cliEnvPrefix,
-      });
       return `✅ Chatroom task acknowledged as FOLLOW UP.
 
 **Next steps:**
 1. Review the follow-up request against previous work
-2. **Report progress to the user** so they know you're handling it:
-
-\`\`\`bash
-${progressCmdFollowUp}
-\`\`\`
-
-3. Delegate to appropriate team member or handle yourself
-4. Follow-up inherits the classification rules from the original chatroom task:
+2. Delegate to appropriate team member or handle yourself
+3. Follow-up inherits the classification rules from the original chatroom task:
    - If original was a QUESTION → handle and hand off to user when done
    - If original was a NEW FEATURE → delegate, review, and deliver to user
 
@@ -391,8 +362,7 @@ function buildBuilderReminder(
 
 **Next steps:**
 1. Implement the requested changes
-2. Send \`report-progress\` at milestones
-3. Hand off to planner when complete:
+2. Hand off to planner when complete:
 
 \`\`\`bash
 ${handoffCmd}
@@ -431,11 +401,6 @@ function buildSoloReminder(
     nextRole: 'user',
     cliEnvPrefix,
   });
-  const progressCmd = reportProgressCommand({
-    chatroomId,
-    role: 'solo',
-    cliEnvPrefix,
-  });
 
   switch (classification) {
     case 'question':
@@ -445,10 +410,9 @@ function buildSoloReminder(
 
 **Next steps:**
 1. **Plan**: Decompose the chatroom task into actionable work items
-2. **Report progress**: \`${progressCmd}\` — keep the user informed at milestones
-3. **Implement**: Build the solution yourself using best practices
-4. **Verify**: Run \`pnpm typecheck && pnpm test\` before delivering
-5. **Deliver**: Hand off to user with a clear summary of what was done
+2. **Implement**: Build the solution yourself using best practices
+3. **Verify**: Run \`pnpm typecheck && pnpm test\` before delivering
+4. **Deliver**: Hand off to user with a clear summary of what was done
 
 \`\`\`bash
 ${handoffToUserCmd}
@@ -460,10 +424,9 @@ Task ID: ${taskId}`;
 
 **Next steps:**
 1. Review the follow-up request against previous work
-2. **Report progress**: \`${progressCmd}\` — let the user know you're handling it
-3. Plan and implement the follow-up changes yourself
-4. \`pnpm typecheck && pnpm test\` before delivering
-5. Follow-up inherits classification rules from the original chatroom task
+2. Plan and implement the follow-up changes yourself
+3. \`pnpm typecheck && pnpm test\` before delivering
+4. Follow-up inherits classification rules from the original chatroom task
 
 💡 You're working on:
 Task ID: ${taskId}`;
@@ -654,7 +617,9 @@ export function generateHandoffOutput(params: {
   const lines: string[] = [];
   lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
 
-  if (!supportsNativeIntegration) {
+  if (supportsNativeIntegration) {
+    lines.push(getNativeHandoffTurnEndGuidance(nextRole));
+  } else {
     lines.push('');
     lines.push('✅ Level B complete (chatroom task handed off).');
     lines.push(

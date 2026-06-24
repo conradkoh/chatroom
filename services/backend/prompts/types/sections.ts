@@ -89,7 +89,6 @@ export type SectionId =
   | 'handoff-templates-native-builder'
   // Commands
   | 'command-handoff'
-  | 'command-report-progress'
   | 'command-get-next-task'
   | 'commands-reference'
   | 'commands-reference-native'
@@ -105,8 +104,7 @@ export type SectionId =
   // Glossary
   | 'glossary'
   // Session model
-  | 'session-vs-chatroom-task'
-  | 'session-vs-chatroom-task-native';
+  | 'session-vs-chatroom-task';
 
 /**
  * Helper to create a PromptSection with type safety.

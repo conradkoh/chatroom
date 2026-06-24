@@ -390,7 +390,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
-      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages
@@ -457,19 +456,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       - **Summary**: Brief description of what was done
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
-
-      **Report progress on current chatroom task:**
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="000000000000010002chatroom_rooms" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
-
-      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

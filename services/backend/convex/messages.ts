@@ -727,67 +727,6 @@ export const handoff = mutation({
   },
 });
 
-/** Sends a progress update message linked to the current in_progress task. */
-export const reportProgress = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    content: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Validate senderRole to prevent impersonation
-    const normalizedSenderRole = args.senderRole.toLowerCase();
-    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
-      throw new ConvexError({
-        code: 'INVALID_ROLE',
-        message: `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`,
-      });
-    }
-
-    // Validate content is not empty
-    if (!args.content || args.content.trim().length === 0) {
-      throw new ConvexError({
-        code: 'INVALID_CONTENT',
-        message: 'Progress message content cannot be empty',
-      });
-    }
-
-    // Find the current in-progress task for this role to link the progress message
-    const inProgressTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status_assignedTo', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .eq('status', 'in_progress')
-          .eq('assignedTo', args.senderRole)
-      )
-      .first();
-
-    // Create the progress message linked to the task (if found)
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      type: 'progress',
-      // Link to the in-progress task for inline rendering
-      ...(inProgressTask && { taskId: inProgressTask._id }),
-    });
-
-    // Update chatroom's lastActivityAt for sorting by recent activity
-    const now = Date.now();
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      lastActivityAt: now,
-    });
-
-    return { success: true, messageId };
-  },
-});
-
 /** Marks a task as started and classifies the originating user message. */
 export const taskStarted = mutation({
   args: {

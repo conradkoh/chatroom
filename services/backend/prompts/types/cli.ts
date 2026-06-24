@@ -66,16 +66,6 @@ export interface GetNextTaskParams extends CommandContext {
 export type WaitForTaskParams = GetNextTaskParams;
 
 // ============================================================================
-// report-progress command types
-// ============================================================================
-
-export interface ReportProgressParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  // message field removed - now uses stdin (EOF format) for all input
-}
-
-// ============================================================================
 // Role guidance parameter types
 // ============================================================================
 

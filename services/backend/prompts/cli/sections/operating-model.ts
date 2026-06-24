@@ -3,7 +3,10 @@
  */
 
 import type { TeamCompositionConfig } from './team-composition';
-import { getOperatingModelLoopFooter } from '../../native/session-continuity';
+import {
+  getNativePlannerDelegationWaitNote,
+  getOperatingModelLoopFooter,
+} from '../../native/session-continuity';
 
 /** Mermaid nodes from task receipt through classify (native skips task read). */
 function getTaskIntakeThroughClassifyNodes(nativeIntegration?: boolean): string {
@@ -35,9 +38,12 @@ export function getOperatingModelSection(
  */
 export function getPlannerPlusBuilderOperatingModel(nativeIntegration?: boolean): string {
   const footer = getOperatingModelLoopFooter(nativeIntegration);
+  const delegationNote = nativeIntegration
+    ? getNativePlannerDelegationWaitNote()
+    : 'Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.';
   return `**Operating model: Planner + Builder**
 
-Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.
+${delegationNote}
 
 \`\`\`mermaid
 flowchart TD

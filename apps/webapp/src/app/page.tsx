@@ -475,7 +475,7 @@ export default function Home() {
                 <FeatureCard
                   icon={<Terminal className="w-4 h-4" strokeWidth={2} />}
                   title="CLI Integration"
-                  description="Full CLI for agent integration: get-next-task, handoff, report-progress, backlog management, and more."
+                  description="Full CLI for agent integration: get-next-task, handoff, backlog management, and more."
                   delay={4200}
                 />
                 <FeatureCard

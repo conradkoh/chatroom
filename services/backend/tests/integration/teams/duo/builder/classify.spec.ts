@@ -47,8 +47,7 @@ describe('Duo Team > Builder > Classify Reminder', () => {
 
       **Next steps:**
       1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to planner when complete:
+      2. Hand off to planner when complete:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
@@ -85,8 +84,7 @@ describe('Duo Team > Builder > Classify Reminder', () => {
 
       **Next steps:**
       1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to planner when complete:
+      2. Hand off to planner when complete:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
@@ -123,8 +121,7 @@ describe('Duo Team > Builder > Classify Reminder', () => {
 
       **Next steps:**
       1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to planner when complete:
+      2. Hand off to planner when complete:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'

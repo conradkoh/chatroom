@@ -68,6 +68,18 @@ export function runNativeInjectionEffect(
       compressMode: parseCompressContext(taskContent),
     });
 
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.participants.join, {
+          sessionId: deps.sessionId,
+          chatroomId,
+          role,
+          action: NATIVE_TASK_INJECTED_ACTION,
+          taskId,
+        }),
+      catch: (err) => err,
+    });
+
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),
       catch: (err) => err,
@@ -80,18 +92,6 @@ export function runNativeInjectionEffect(
       );
       return;
     }
-
-    yield* Effect.tryPromise({
-      try: () =>
-        deps.backend.mutation(api.participants.join, {
-          sessionId: deps.sessionId,
-          chatroomId,
-          role,
-          action: NATIVE_TASK_INJECTED_ACTION,
-          taskId,
-        }),
-      catch: (err) => err,
-    });
 
     dedup.markInjected(taskId);
   });
