@@ -2,7 +2,7 @@
  * Comprehensive Review Guidelines for the Reviewer Agent
  *
  * This module provides the core review principles and process instructions
- * that the reviewer agent follows when validating code changes.
+ * Planner review guidelines — quality checks when validating code changes.
  */
 
 /**
@@ -11,7 +11,7 @@
 export const REVIEW_PRINCIPLES = `
 ## Review Principles
 
-As a reviewer, you serve as the quality guardian between implementation and delivery.
+When reviewing completed work, you serve as the quality guardian between implementation and delivery.
 
 ### Primary Goal: Maintainability & Extensibility
 

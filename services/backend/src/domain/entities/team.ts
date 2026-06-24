@@ -17,7 +17,7 @@
  * Use `toTeam()` to create a `Team` from a chatroom document.
  */
 export interface Team {
-  /** Template identifier — e.g. 'duo', 'squad', 'solo' */
+  /** Template identifier — e.g. 'duo', 'solo' */
   id: string;
   /** Human-readable display name — e.g. 'Duo Team' */
   name: string;
@@ -82,7 +82,7 @@ export function toTeam(chatroom: {
  * getTeamEntryPoint({ teamEntryPoint: 'planner', teamRoles: ['planner', 'builder'] })
  * // → 'planner'
  *
- * getTeamEntryPoint({ teamRoles: ['builder', 'reviewer'] })
+ * getTeamEntryPoint({ teamRoles: ['planner', 'builder'] })
  * // → 'builder'
  *
  * getTeamEntryPoint({})

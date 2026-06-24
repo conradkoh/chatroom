@@ -13,7 +13,7 @@ describe('team-agent-settings', () => {
 
   test('other roles do not support the setting yet', () => {
     expect(roleSupportsAutoRestartOnNewContextSetting('planner')).toBe(false);
-    expect(roleSupportsAutoRestartOnNewContextSetting('reviewer')).toBe(false);
+    expect(roleSupportsAutoRestartOnNewContextSetting('architect')).toBe(false);
     expect(roleSupportsAutoRestartOnNewContextSetting('solo')).toBe(false);
   });
 

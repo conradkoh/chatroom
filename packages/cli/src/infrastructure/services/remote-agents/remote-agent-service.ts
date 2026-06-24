@@ -47,6 +47,8 @@ export interface SpawnOptions {
    * Production children have NO `CHATROOM_CONVEX_URL` even if parent shell does.
    */
   resolvedConvexUrl: string;
+  /** When true, harness creates session but waits for resumeTurn before first user turn. */
+  deferInitialTurn?: boolean;
 }
 
 /** Harness-specific metadata needed to reconnect after stop (daemon memory only). */

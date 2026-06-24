@@ -9,12 +9,16 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
+import {
+  createTestSession,
+  createBuilderEntryDuoChatroom,
+  joinParticipant,
+} from '../helpers/integration';
 
 describe('Unread Status Tracking', () => {
   test('non-user message marks chatroom as unread', async () => {
     const { sessionId } = await createTestSession('test-unread-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Join as builder
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -45,7 +49,7 @@ describe('Unread Status Tracking', () => {
 
   test('markAsRead clears unread status', async () => {
     const { sessionId } = await createTestSession('test-unread-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Join as builder and send message
     await joinParticipant(sessionId, chatroomId, 'builder');

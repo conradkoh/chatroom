@@ -48,4 +48,12 @@ describe('createSpawnPrompt', () => {
     // Brand is structurally a string at runtime
     expect(typeof sp).toBe('string');
   });
+
+  it('returns native bootstrap prompt when nativeBootstrap is true', () => {
+    const bootstrap = createSpawnPrompt(undefined, { nativeBootstrap: true });
+    expect(createSpawnPrompt('custom message', { nativeBootstrap: true })).toBe(bootstrap);
+    expect(bootstrap.toLowerCase()).toMatch(/focus on your role/);
+    expect(bootstrap.toLowerCase()).toMatch(/handoff/);
+    expect(bootstrap.toLowerCase()).not.toMatch(/get-next-task/);
+  });
 });

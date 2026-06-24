@@ -2,86 +2,67 @@
  * Builder role-specific guidance for agent initialization prompts.
  */
 
+import { getSessionContinuityLine } from '../../native/session-continuity';
 import type { BuilderGuidanceParams } from '../../types/cli';
-import { getCliEnvPrefix } from '../../utils/env';
-import { classifyCommand } from '../classify/command';
+
+function getBuilderFlowMermaid(
+  nativeIntegration: boolean | undefined,
+  codeChangesTarget: string,
+  questionTarget: string
+): string {
+  const handoffNodes = `    D --> E[Commit work]
+    E --> F{Code changes?}
+    F -->|yes| G[Hand off to **${codeChangesTarget}**]
+    F -->|no| H[Hand off to **${questionTarget}**]`;
+
+  if (nativeIntegration) {
+    return `flowchart TD
+    A([Start]) --> B[Receive task]
+    B --> D[Implement changes]
+${handoffNodes}`;
+  }
+
+  return `flowchart TD
+    A([Start]) --> B[Receive chatroom task]
+    B --> D[Implement changes]
+${handoffNodes}`;
+}
 
 /**
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
   const {
-    isEntryPoint,
-    convexUrl,
     questionTarget: questionTargetParam,
     codeChangesTarget: codeChangesTargetParam,
+    nativeIntegration,
   } = params;
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const questionTarget = questionTargetParam ?? 'user';
-  const codeChangesTarget = codeChangesTargetParam ?? 'reviewer';
-  const hasReviewer = codeChangesTarget === 'reviewer';
-  // Use command generator with env prefix
-  const classifyExample = classifyCommand({ cliEnvPrefix });
-
-  const classificationNote = isEntryPoint
-    ? `
-**Classification (Entry Point Role):**
-As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
-3. Then do your work
-4. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
-    : '';
+  const codeChangesTarget = codeChangesTargetParam ?? 'planner';
 
   return `
-## Builder Workflow
+## Builder Operating Model
 
-Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+${getSessionContinuityLine(nativeIntegration)}
 
 You are responsible for implementing code changes based on requirements.
-${classificationNote}
 
 **Typical Flow:**
 
 \`\`\`mermaid
-flowchart TD
-    A([Start]) --> B[Receive chatroom task\nnotification]
-    ${hasReviewer ? 'B -->|from user or reviewer| C[Read chatroom task with\ntask read]' : 'B -->|from planner| C[Read chatroom task with\ntask read]'}
-    C --> D[Implement changes]
-    D --> E[Commit work]
-    E --> F{Classification?}
-    F -->|new_feature or code changes| G[Hand off to **${codeChangesTarget}**]
-    F -->|question| H[Hand off to **${questionTarget}**]
+${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 \`\`\`
 
 **Handoff Rules:**
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
   ⚠️ If \`${questionTarget}\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-- **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip ${hasReviewer ? 'review' : 'planner'})
-${
-  hasReviewer
-    ? `
-**When you receive handoffs from the reviewer:**
-You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
-`
-    : ''
-}
-**When working on a workflow step:**
-If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
-**Development Best Practices:**
-- Write clean, maintainable code
-- Add appropriate tests when applicable
-- Document complex logic
-- Follow existing code patterns and conventions
-- Consider edge cases and error handling
-- **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
-
-**Git Workflow:**
-- Use descriptive commit messages
-- Create logical commits (one feature/change per commit)
-- Keep the working directory clean between commits
-- Use \`git status\`, \`git diff\` to review changes before committing
+**Implementation Guidelines:**
+- Write clean, maintainable, well-documented code
+- Follow established patterns and best practices from the codebase
+- Handle edge cases and error scenarios
+- Verify your work with \`pnpm typecheck && pnpm test\` before handing off
+- Commit work with descriptive, atomic commit messages
 `;
 }

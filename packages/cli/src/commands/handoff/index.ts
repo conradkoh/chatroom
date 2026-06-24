@@ -45,7 +45,6 @@ export interface HandoffOptions {
   message: string;
   nextRole: string;
   attachedArtifactIds?: string[];
-  attachedWorkflowKeys?: string[];
 }
 
 // ─── Domain errors ─────────────────────────────────────────────────────────
@@ -55,7 +54,6 @@ export type HandoffError =
   | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
   | { readonly _tag: 'ArtifactsInvalid' }
   | { readonly _tag: 'ArtifactValidationFailed'; readonly cause: Error }
-  | { readonly _tag: 'WorkflowNotFound'; readonly workflowKey: string; readonly cause: Error }
   | {
       readonly _tag: 'HandoffFailed';
       readonly cause: Error;
@@ -103,13 +101,7 @@ export const handoffEffect = (
   Effect.gen(function* () {
     const session = yield* SessionService;
     const backend = yield* BackendService;
-    const {
-      role,
-      message,
-      nextRole,
-      attachedArtifactIds = [],
-      attachedWorkflowKeys = [],
-    } = options;
+    const { role, message, nextRole, attachedArtifactIds = [] } = options;
 
     const sessionId = yield* requireSessionIdEffect((a) => ({
       _tag: 'NotAuthenticated' as const,
@@ -138,23 +130,6 @@ export const handoffEffect = (
       }
     }
 
-    // Resolve workflow keys to IDs
-    const resolvedWorkflowIds: string[] = [];
-    for (const key of attachedWorkflowKeys) {
-      const result = yield* backend
-        .query<{ workflowId: string }>(api.workflows.resolveWorkflowId, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          workflowKey: key,
-        })
-        .pipe(
-          Effect.mapError(
-            (cause): HandoffError => ({ _tag: 'WorkflowNotFound', workflowKey: key, cause })
-          )
-        );
-      resolvedWorkflowIds.push(result.workflowId);
-    }
-
     // Execute handoff mutation
     const result = yield* backend
       .mutation<{
@@ -165,6 +140,7 @@ export const handoffEffect = (
           suggestedTarget?: string;
           suggestedTargets?: string[];
         };
+        supportsNativeIntegration?: boolean;
       }>(api.messages.handoff, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -173,9 +149,6 @@ export const handoffEffect = (
         targetRole: nextRole,
         ...(attachedArtifactIds.length > 0 && {
           attachedArtifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
-        }),
-        ...(resolvedWorkflowIds.length > 0 && {
-          attachedWorkflowIds: resolvedWorkflowIds as Id<'chatroom_workflows'>[],
         }),
       })
       .pipe(
@@ -201,7 +174,15 @@ export const handoffEffect = (
     const convexUrl = yield* session.getConvexUrl();
 
     yield* Effect.sync(() => {
-      console.log(generateHandoffOutput({ role, nextRole, chatroomId, convexUrl }));
+      console.log(
+        generateHandoffOutput({
+          role,
+          nextRole,
+          chatroomId,
+          convexUrl,
+          supportsNativeIntegration: result.supportsNativeIntegration,
+        })
+      );
 
       if (attachedArtifactIds.length > 0) {
         console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);
@@ -210,68 +191,6 @@ export const handoffEffect = (
         });
       }
     });
-
-    // Show attached workflow summaries (non-fatal if fails)
-    if (resolvedWorkflowIds.length > 0) {
-      for (const wfId of resolvedWorkflowIds) {
-        yield* Effect.gen(function* () {
-          const detail = yield* backend
-            .query<{
-              workflow: {
-                workflowKey: string;
-                status: string;
-              };
-              steps: {
-                stepKey: string;
-                status: string;
-                assigneeRole?: string;
-                dependsOn: string[];
-              }[];
-            }>(api.workflows.getWorkflowDetail, {
-              sessionId,
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              workflowId: wfId as Id<'chatroom_workflows'>,
-            })
-            .pipe(Effect.catchAll(() => Effect.succeed(null))); // Non-fatal: skip if fails
-
-          if (!detail) return;
-
-          const wf = detail.workflow;
-          console.log('');
-          console.log(
-            `📊 Attached Workflow: ${wf.workflowKey} (${wf.status}, ${detail.steps.length} steps)`
-          );
-
-          for (let i = 0; i < detail.steps.length; i++) {
-            const step = detail.steps[i];
-            const isLast = i === detail.steps.length - 1;
-            const prefix = isLast ? '└─' : '├─';
-            const statusEmoji =
-              step.status === 'completed'
-                ? '✅'
-                : step.status === 'in_progress'
-                  ? '🔄'
-                  : step.status === 'cancelled'
-                    ? '❌'
-                    : '⏳';
-            const roleLabel = step.assigneeRole ? ` [${step.assigneeRole}]` : '';
-            const deps =
-              step.dependsOn.length > 0 ? ` (depends: ${step.dependsOn.join(', ')})` : '';
-            console.log(
-              `   ${prefix} ${step.stepKey}${roleLabel} ${statusEmoji} ${step.status}${deps}`
-            );
-          }
-
-          console.log('');
-          console.log(
-            `   Inspect: chatroom workflow status --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey}`
-          );
-          console.log(
-            `   View step: chatroom workflow step-view --chatroom-id=${chatroomId} --workflow-key=${wf.workflowKey} --step-key=<key>`
-          );
-        });
-      }
-    }
   });
 
 // ─── Error Handlers ────────────────────────────────────────────────────────
@@ -298,11 +217,6 @@ function handleHandoffError(err: HandoffError): Effect.Effect<void> {
       process.exit(1);
     } else if (err._tag === 'ArtifactValidationFailed') {
       formatError('Failed to validate artifacts', [String(err.cause)]);
-      process.exit(1);
-    } else if (err._tag === 'WorkflowNotFound') {
-      formatError(`Workflow "${err.workflowKey}" not found`, [
-        'Check the workflow key and try again',
-      ]);
       process.exit(1);
     } else if (err._tag === 'HandoffFailed') {
       console.error(`\n❌ ERROR: Handoff failed`);
@@ -336,15 +250,13 @@ function handleHandoffError(err: HandoffError): Effect.Effect<void> {
     } else if (err._tag === 'HandoffRejected') {
       console.error(`\n❌ ERROR: ${err.error.message}`);
 
-      // For invalid target role, show available targets and workflow
+      // For invalid target role, show available targets
       if (err.error.code === 'INVALID_TARGET_ROLE' && err.error.suggestedTargets) {
         console.error(`\n📋 Available handoff targets for this team:`);
         for (const target of err.error.suggestedTargets) {
           console.error(`   • ${target}`);
         }
-        console.error(
-          `\n💡 Check your team's workflow in the system prompt for valid handoff paths.`
-        );
+        console.error(`\n💡 Check your team's handoff rules in the system prompt for valid paths.`);
       } else if (err.error.suggestedTarget) {
         console.error(`\n💡 Try this instead:`);
         console.error('```');

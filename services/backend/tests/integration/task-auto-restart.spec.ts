@@ -29,17 +29,6 @@ async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom
     teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
   });
-  // Create workflow for planner→builder handoffs
-  await t.run(async (ctx) => {
-    await ctx.db.insert('chatroom_workflows', {
-      chatroomId,
-      workflowKey: 'test-workflow',
-      status: 'active' as const,
-      createdBy: 'planner',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-  });
   return chatroomId;
 }
 
@@ -132,15 +121,15 @@ describe('Handoff target role validation', () => {
     const result = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      content: 'Handing off to reviewer',
+      content: 'Handing off to architect',
       senderRole: 'planner',
-      targetRole: 'reviewer',
+      targetRole: 'architect',
     });
 
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
     expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
-    expect(result.error?.message).toContain('Cannot hand off to "reviewer"');
+    expect(result.error?.message).toContain('Cannot hand off to "architect"');
     expect(result.error?.message).toContain('not part of the current team');
     expect(result.error?.suggestedTargets).toEqual(['user', 'planner', 'builder']);
   });

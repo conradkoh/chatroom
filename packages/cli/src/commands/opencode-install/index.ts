@@ -159,7 +159,7 @@ export default tool({
     role: tool.schema
       .string()
       .describe(
-        "Your role in the chatroom (e.g., 'builder', 'reviewer', 'architect'). This determines which tasks you'll receive and which agents you can hand off to."
+        "Your role in the chatroom (e.g., 'builder', 'planner', 'architect'). This determines which tasks you'll receive and which agents you can hand off to."
       ),
     session: tool.schema
       .number()
@@ -297,7 +297,7 @@ async function checkChatroomStatus(): Promise<{ installed: boolean; authenticate
 
 export default tool({
   description:
-    "Complete your task and hand off to the next role in a multi-agent chatroom. Use this to pass work to another agent (reviewer, architect, etc.) or back to the user. The message should summarize what you accomplished and any relevant context for the next agent.",
+    "Complete your task and hand off to the next role in a multi-agent chatroom. Use this to pass work to another agent (planner, architect, etc.) or back to the user. The message should summarize what you accomplished and any relevant context for the next agent.",
   args: {
     chatroomId: tool.schema
       .string()
@@ -307,7 +307,7 @@ export default tool({
     role: tool.schema
       .string()
       .describe(
-        "Your role in the chatroom (e.g., 'builder', 'reviewer', 'architect'). This identifies who is performing the handoff."
+        "Your role in the chatroom (e.g., 'builder', 'planner', 'architect'). This identifies who is performing the handoff."
       ),
     message: tool.schema
       .string()
@@ -317,7 +317,7 @@ export default tool({
     nextRole: tool.schema
       .string()
       .describe(
-        "The role to hand off to (e.g., 'reviewer', 'user', 'architect'). Use 'user' to return control to the user."
+        "The role to hand off to (e.g., 'planner', 'user', 'architect'). Use 'user' to return control to the user."
       ),
     webUrl: tool.schema
       .string()

@@ -19,6 +19,8 @@ export function toSoloParams(ctx: SelectorContext): PlannerGuidanceParams {
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    chatroomId: ctx.chatroomId,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 

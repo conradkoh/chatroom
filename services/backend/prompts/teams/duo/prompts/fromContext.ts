@@ -20,6 +20,7 @@ export function toDuoBuilderParams(ctx: SelectorContext): BuilderGuidanceParams 
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 
@@ -29,6 +30,8 @@ export function toDuoPlannerParams(ctx: SelectorContext): PlannerGuidanceParams 
     teamRoles: ctx.teamRoles,
     isEntryPoint: ctx.isEntryPoint,
     convexUrl: ctx.convexUrl,
+    chatroomId: ctx.chatroomId,
+    nativeIntegration: ctx.nativeIntegration,
   };
 }
 

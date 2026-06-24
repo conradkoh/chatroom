@@ -21,12 +21,12 @@ import { getTeamContextSection } from '../../prompts/sections/team-context';
 const CONVEX_URL = 'http://127.0.0.1:3210';
 
 describe('getTeamContextSection', () => {
-  describe('squad team', () => {
-    test('planner gets squad coordinator context', () => {
+  describe('duo team', () => {
+    test('planner gets duo coordinator context', () => {
       const ctx = buildSelectorContext({
         role: 'planner',
-        teamRoles: ['planner', 'builder', 'reviewer'],
-        teamName: 'Squad',
+        teamRoles: ['planner', 'builder'],
+        teamName: 'Duo',
         teamEntryPoint: 'planner',
         convexUrl: CONVEX_URL,
       });
@@ -34,54 +34,24 @@ describe('getTeamContextSection', () => {
       const section = getTeamContextSection(ctx);
       expect(section.id).toBe('team-context');
       expect(section.type).toBe('knowledge');
-      expect(section.content).toContain('Squad Team Context');
-      expect(section.content).toContain('ONLY role that communicates directly with the user');
-      expect(section.content).toContain('Team members may go offline');
+      expect(section.content).toContain('Duo Team Context');
+      expect(section.content).toContain('communicate directly with the user');
+      expect(section.content).toContain('Only you can hand off to');
     });
 
-    test('planner context is the same regardless of team composition', () => {
-      const ctx = buildSelectorContext({
-        role: 'planner',
-        teamRoles: ['planner', 'builder', 'reviewer'],
-        teamName: 'Squad',
-        teamEntryPoint: 'planner',
-        convexUrl: CONVEX_URL,
-      });
-
-      const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Squad Team Context');
-      expect(section.content).toContain('Team members may go offline');
-    });
-
-    test('builder gets squad builder context with user restriction', () => {
+    test('builder gets duo builder context with user restriction', () => {
       const ctx = buildSelectorContext({
         role: 'builder',
-        teamRoles: ['planner', 'builder', 'reviewer'],
-        teamName: 'Squad',
+        teamRoles: ['planner', 'builder'],
+        teamName: 'Duo',
         teamEntryPoint: 'planner',
         convexUrl: CONVEX_URL,
       });
 
       const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Squad Team Context');
+      expect(section.content).toContain('Duo Team Context');
       expect(section.content).toContain('do NOT communicate directly with the user');
       expect(section.content).toContain('NEVER hand off directly to');
-    });
-
-    test('reviewer gets squad reviewer context with user restriction', () => {
-      const ctx = buildSelectorContext({
-        role: 'reviewer',
-        teamRoles: ['planner', 'builder', 'reviewer'],
-        teamName: 'Squad',
-        teamEntryPoint: 'planner',
-        convexUrl: CONVEX_URL,
-      });
-
-      const section = getTeamContextSection(ctx);
-      expect(section.content).toContain('Squad Team Context');
-      expect(section.content).toContain('do NOT communicate directly with the user');
-      expect(section.content).toContain('NEVER hand off directly to');
-      expect(section.content).toContain('planner');
     });
   });
 
@@ -128,17 +98,17 @@ describe('getAvailableActions', () => {
 
 describe('role identity sections', () => {
   test('getTeamHeaderSection produces correct header', () => {
-    const section = getTeamHeaderSection('Squad Team');
+    const section = getTeamHeaderSection('Duo Team');
     expect(section.id).toBe('team-header');
     expect(section.type).toBe('knowledge');
-    expect(section.content).toBe('# Squad Team');
+    expect(section.content).toBe('# Duo Team');
   });
 
   test('getRoleTitleSection produces correct title for planner', () => {
     const ctx = buildSelectorContext({
       role: 'planner',
-      teamRoles: ['planner', 'builder', 'reviewer'],
-      teamName: 'Squad',
+      teamRoles: ['planner', 'builder'],
+      teamName: 'Duo',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
     });
@@ -152,9 +122,9 @@ describe('role identity sections', () => {
   test('getRoleTitleSection produces correct title for builder', () => {
     const ctx = buildSelectorContext({
       role: 'builder',
-      teamRoles: ['builder', 'reviewer'],
+      teamRoles: ['planner', 'builder'],
       teamName: 'Duo',
-      teamEntryPoint: 'builder',
+      teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
     });
 
@@ -165,8 +135,8 @@ describe('role identity sections', () => {
   test('getRoleDescriptionSection produces role description', () => {
     const ctx = buildSelectorContext({
       role: 'planner',
-      teamRoles: ['planner', 'builder', 'reviewer'],
-      teamName: 'Squad',
+      teamRoles: ['planner', 'builder'],
+      teamName: 'Duo',
       teamEntryPoint: 'planner',
       convexUrl: CONVEX_URL,
     });

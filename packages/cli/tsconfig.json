@@ -11,7 +11,7 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "scripts/**/*", "build.config.ts"],
+  "include": ["src/**/*", "scripts/**/*", "build.config.ts", "vitest.integration.config.ts"],
   "exclude": ["node_modules", "dist"],
   "noEmit": true
 }

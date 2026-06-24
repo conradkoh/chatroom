@@ -8,11 +8,7 @@
 import * as taskStarted from './task-started/index';
 
 // Re-export task-started functions
-export const {
-  getTaskStartedPrompt,
-  getTaskStartedPromptForHandoffRecipient,
-  getClassificationGuidance,
-} = taskStarted;
+export const { getTaskStartedPrompt, getTaskStartedPromptForHandoffRecipient } = taskStarted;
 
 // Re-export get-next-task functions (primary)
 export {

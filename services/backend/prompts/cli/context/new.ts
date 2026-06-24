@@ -2,6 +2,8 @@
  * Command generator for context new CLI command.
  */
 
+import { CONTEXT_STDIN_DELIMITER, formatStdinHeredocCommand } from '../stdin-heredoc';
+
 export interface ContextNewParams {
   chatroomId?: string;
   role?: string;
@@ -28,7 +30,10 @@ export function contextNewCommand(params: ContextNewParams): string {
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  return `${prefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --trigger-message-id="<userMessageId>" << 'EOF'
-<summary of current focus>
-EOF`;
+  const commandPrefix = `${prefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --trigger-message-id="<userMessageId>"`;
+  return formatStdinHeredocCommand(
+    commandPrefix,
+    CONTEXT_STDIN_DELIMITER,
+    '<summary of current focus>'
+  );
 }

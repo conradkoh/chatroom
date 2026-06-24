@@ -1,6 +1,5 @@
 'use client';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   Archive,
   CheckCircle2,
@@ -15,7 +14,6 @@ import { memo } from 'react';
 
 import type { Message, MessageClassification } from '../../types/message';
 import { MessageAttachmentChips } from '../MessageAttachmentChips';
-
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { BADGE_BASE, ICON_SIZE, TIMELINE_ROW_BORDER } from './timelineRowStyles';
@@ -102,7 +100,7 @@ interface TimelineUserMessageProps {
 
 export const TimelineUserMessage = memo(function TimelineUserMessage({
   message,
-  chatroomId,
+  chatroomId: _chatroomId,
 }: TimelineUserMessageProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
@@ -158,10 +156,7 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
       <div className="px-4 py-3">
         <TimelineMarkdownBody content={message.content} />
         <div className="mt-2 empty:hidden">
-          <MessageAttachmentChips
-            message={message}
-            chatroomId={chatroomId as Id<'chatroom_rooms'>}
-          />
+          <MessageAttachmentChips message={message} />
         </div>
         <TimelineMessageFooter message={message} />
       </div>

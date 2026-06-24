@@ -16,11 +16,12 @@ prompts/
 │   │   │   └── command.ts       # Command generator
 │   │   └── get-next-task/
 │   │       └── command.ts       # Command generator
-│   ├── roles/          # Role definitions (builder, reviewer)
+│   ├── roles/          # Role definitions (builder, planner)
 │   ├── workflows/      # Workflow definitions
 │   └── shared/         # Shared utilities
 ├── teams/              # Team-specific customizations
-│   └── pair/           # Pair team (builder + reviewer)
+│   ├── duo/            # Duo team (planner + builder)
+│   └── solo/           # Solo team
 └── generator.ts        # Prompt generator
 ```
 

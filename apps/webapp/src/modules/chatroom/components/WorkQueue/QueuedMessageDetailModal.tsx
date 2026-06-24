@@ -10,8 +10,9 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import type { Message } from '../../types/message';
-import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
+import { MessageAttachmentChips } from '../MessageAttachmentChips';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,18 +48,11 @@ interface QueuedMessageDetailModalProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 /** Inline helper: renders "Attachments (N)" header + the shared chip strip. */
-function QueuedMessageAttachmentsSection({
-  message,
-  chatroomId,
-}: {
-  message: Message;
-  chatroomId: Id<'chatroom_rooms'>;
-}) {
+function QueuedMessageAttachmentsSection({ message }: { message: Message }) {
   const taskCount = message.attachedTasks?.length ?? 0;
   const backlogCount = message.attachedBacklogItems?.length ?? 0;
-  const workflowCount = message.attachedWorkflows?.length ?? 0;
   const messageCount = message.attachedMessages?.length ?? 0;
-  const totalCount = taskCount + backlogCount + workflowCount + messageCount;
+  const totalCount = taskCount + backlogCount + messageCount;
 
   if (totalCount === 0) return null;
 
@@ -67,11 +61,10 @@ function QueuedMessageAttachmentsSection({
       <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
         Attachments ({totalCount})
       </div>
-      <MessageAttachmentChips message={message} chatroomId={chatroomId} />
+      <MessageAttachmentChips message={message} />
     </div>
   );
 }
-
 
 /**
  * Detail modal for a queued chatroom message.
@@ -86,7 +79,7 @@ function QueuedMessageAttachmentsSection({
  * - Error strip (mirrors `BacklogItemDetailModal` + `TaskDetailModal` patterns).
  */
 export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
-  chatroomId,
+  chatroomId: _chatroomId,
   message,
   isOpen,
   onClose,
@@ -252,7 +245,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
               >
                 {message.content}
               </Markdown>
-              <QueuedMessageAttachmentsSection message={message} chatroomId={chatroomId} />
+              <QueuedMessageAttachmentsSection message={message} />
             </div>
           )}
         </FixedModalBody>

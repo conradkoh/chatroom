@@ -13,7 +13,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { createBacklogItem as createBacklogItemUseCase } from '../../src/domain/usecase/backlog/create-backlog-item';
 import { t } from '../../test.setup';
-import { createDuoTeamChatroom, createTestSession } from '../helpers/integration';
+import { createBuilderEntryDuoChatroom, createTestSession } from '../helpers/integration';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ async function createBacklogItemViaMutation(
 describe('updateBacklogItem mutation (arg-validator path)', () => {
   test('happy path: updates content on a backlog item', async () => {
     const { sessionId } = await createTestSession('test-update-mutation-happy');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const itemId = await createBacklogItemViaMutation(sessionId, chatroomId);
 
     const result = await t.mutation(api.backlog.updateBacklogItem, {
@@ -56,7 +56,7 @@ describe('updateBacklogItem mutation (arg-validator path)', () => {
 
   test('trims content whitespace via mutation', async () => {
     const { sessionId } = await createTestSession('test-update-mutation-trim');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const itemId = await createBacklogItemViaMutation(sessionId, chatroomId);
 
     const result = await t.mutation(api.backlog.updateBacklogItem, {
@@ -78,7 +78,7 @@ describe('updateBacklogItem mutation (arg-validator path)', () => {
 
   test('rejects call missing chatroomId (arg-validator)', async () => {
     const { sessionId } = await createTestSession('test-update-mutation-no-chatroom');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const itemId = await createBacklogItemViaMutation(sessionId, chatroomId);
 
     // @ts-expect-error — intentionally omitting required chatroomId to test
@@ -97,8 +97,8 @@ describe('updateBacklogItem mutation (arg-validator path)', () => {
 
   test('rejects when backlog item belongs to a different chatroom', async () => {
     const { sessionId } = await createTestSession('test-update-mutation-wrong-room');
-    const chatroomId1 = await createDuoTeamChatroom(sessionId as any);
-    const chatroomId2 = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId1 = await createBuilderEntryDuoChatroom(sessionId as any);
+    const chatroomId2 = await createBuilderEntryDuoChatroom(sessionId as any);
     const itemId = await createBacklogItemViaMutation(sessionId, chatroomId1);
 
     await expect(
@@ -115,7 +115,7 @@ describe('updateBacklogItem mutation (arg-validator path)', () => {
 
   test('rejects when item does not exist', async () => {
     const { sessionId } = await createTestSession('test-update-mutation-notfound');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
 
     // Use a real content-created backlog item ID but from a different chatroom,
     // or use a valid-format ID that doesn't exist.
@@ -123,7 +123,7 @@ describe('updateBacklogItem mutation (arg-validator path)', () => {
     // For a truly non-existent valid ID, we'd need to generate one in a valid format.
     // Instead, test with an item from a different chatroom (already covered above).
     // Here we test that a call to a valid but non-existent itemId in a valid chatroom throws.
-    const { itemId: existingItemId } = await t.run(async (ctx) => {
+    await t.run(async (ctx) => {
       return createBacklogItemUseCase(ctx, {
         chatroomId,
         createdBy: 'test',
@@ -148,7 +148,7 @@ describe('updateBacklogItem mutation (arg-validator path)', () => {
 
   test('rejects update when item is closed', async () => {
     const { sessionId } = await createTestSession('test-update-mutation-closed');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const itemId = await createBacklogItemViaMutation(sessionId, chatroomId);
 
     // Close the item first

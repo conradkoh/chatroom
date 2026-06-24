@@ -20,7 +20,7 @@ describe('getTeamEntryPoint', () => {
   });
 
   test('falls back to first teamRole when no teamEntryPoint', () => {
-    expect(getTeamEntryPoint({ teamRoles: ['builder', 'reviewer'] })).toBe('builder');
+    expect(getTeamEntryPoint({ teamRoles: ['planner', 'builder'] })).toBe('planner');
   });
 
   test('falls back to first teamRole when teamEntryPoint is null', () => {
@@ -70,23 +70,23 @@ describe('toTeam', () => {
   test('falls back to first role when no teamEntryPoint', () => {
     const team = toTeam({
       teamId: 'duo',
-      teamRoles: ['builder', 'reviewer'],
+      teamRoles: ['planner', 'builder'],
     });
     expect(team).toEqual({
       id: 'duo',
       name: 'duo', // falls back to id when no name
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
     });
   });
 
   test('uses teamId as name fallback when teamName is missing', () => {
-    const team = toTeam({ teamId: 'squad', teamRoles: ['planner', 'builder', 'reviewer'] });
-    expect(team?.name).toBe('squad');
+    const team = toTeam({ teamId: 'acme', teamRoles: ['planner', 'builder', 'architect'] });
+    expect(team?.name).toBe('acme');
   });
 
   test('returns null when teamId is missing', () => {
-    expect(toTeam({ teamRoles: ['builder', 'reviewer'] })).toBeNull();
+    expect(toTeam({ teamRoles: ['planner', 'builder'] })).toBeNull();
   });
 
   test('returns null when teamRoles is missing', () => {

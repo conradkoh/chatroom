@@ -12,7 +12,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   getCommandEvents,
   registerMachineWithDaemon,
@@ -23,7 +23,7 @@ describe('sendCommand stop-agent reason', () => {
   test('defaults to user.stop when no reason is provided', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-cmd-stop-default-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-cmd-stop-default-1';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -52,7 +52,7 @@ describe('sendCommand stop-agent reason', () => {
   test('passes through explicit reason from caller', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-cmd-stop-reason-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-cmd-stop-reason-1';
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');

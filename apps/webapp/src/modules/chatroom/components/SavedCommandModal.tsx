@@ -7,7 +7,6 @@ import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
-import { exhaustive } from '@/lib/exhaustive';
 import type {
   SavedCommand,
   SavedCommandCreateInput,
@@ -15,6 +14,8 @@ import type {
   SavedCommandUpdateInput,
 } from '../types/savedCommand';
 import { SAVED_COMMAND_TYPE_LABELS, SAVED_COMMAND_TYPES } from '../types/savedCommand';
+
+import { exhaustive } from '@/lib/exhaustive';
 
 interface SavedCommandModalProps {
   isOpen: boolean;
@@ -74,9 +75,9 @@ export function SavedCommandModal({
 
   // Focus name input when modal opens
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => nameInputRef.current?.focus(), 50);
-    }
+    if (!isOpen) return;
+    const focusTimer = setTimeout(() => nameInputRef.current?.focus(), 50);
+    return () => clearTimeout(focusTimer);
   }, [isOpen]);
 
   // Handle Escape key to dismiss

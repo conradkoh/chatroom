@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
+import { generateRolePrompt, composeInitPrompt } from '../prompts';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -9,11 +9,11 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
-import { decodeStructured } from './lib/stdinDecoder';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
+import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -53,7 +53,6 @@ async function enrichMessageAttachments(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
-    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Resolve attached tasks
@@ -114,23 +113,11 @@ async function enrichMessageAttachments(
       }));
   }
 
-  // Resolve attached workflows
-  let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
-  if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
-    const workflows = await Promise.all(
-      msg.attachedWorkflowIds.map((wfId) => ctx.db.get('chatroom_workflows', wfId))
-    );
-    attachedWorkflows = workflows
-      .filter((w): w is NonNullable<typeof w> => w !== null)
-      .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
-  }
-
   return {
     ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
     ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
     ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
-    ...(attachedWorkflows && attachedWorkflows.length > 0 && { attachedWorkflows }),
   };
 }
 
@@ -464,7 +451,6 @@ async function _handoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
-    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -580,8 +566,6 @@ async function _handoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
-    ...(args.attachedWorkflowIds &&
-      args.attachedWorkflowIds.length > 0 && { attachedWorkflowIds: args.attachedWorkflowIds }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -690,6 +674,13 @@ async function _handoffHandler(
     await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
   }
 
+  const agentConfigResult = await getAgentConfig(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.senderRole,
+  });
+  const supportsNativeIntegration =
+    agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
+
   return {
     success: true,
     error: null,
@@ -697,6 +688,7 @@ async function _handoffHandler(
     completedTaskIds,
     newTaskId,
     promotedTaskId,
+    supportsNativeIntegration,
   };
 }
 
@@ -727,310 +719,9 @@ export const handoff = mutation({
     content: v.string(),
     targetRole: v.string(),
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
   },
   handler: async (ctx, args) => {
     return _handoffHandler(ctx, args);
-  },
-});
-
-/** Sends a progress update message linked to the current in_progress task. */
-export const reportProgress = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    content: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Validate senderRole to prevent impersonation
-    const normalizedSenderRole = args.senderRole.toLowerCase();
-    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
-      throw new ConvexError({
-        code: 'INVALID_ROLE',
-        message: `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`,
-      });
-    }
-
-    // Validate content is not empty
-    if (!args.content || args.content.trim().length === 0) {
-      throw new ConvexError({
-        code: 'INVALID_CONTENT',
-        message: 'Progress message content cannot be empty',
-      });
-    }
-
-    // Find the current in-progress task for this role to link the progress message
-    const inProgressTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status_assignedTo', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .eq('status', 'in_progress')
-          .eq('assignedTo', args.senderRole)
-      )
-      .first();
-
-    // Create the progress message linked to the task (if found)
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      type: 'progress',
-      // Link to the in-progress task for inline rendering
-      ...(inProgressTask && { taskId: inProgressTask._id }),
-    });
-
-    // Update chatroom's lastActivityAt for sorting by recent activity
-    const now = Date.now();
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      lastActivityAt: now,
-    });
-
-    return { success: true, messageId };
-  },
-});
-
-/** Marks a task as started and classifies the originating user message. */
-export const taskStarted = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    originMessageClassification: v.optional(
-      v.union(v.literal('question'), v.literal('new_feature'), v.literal('follow_up'))
-    ),
-    // Require taskId for task-started (for consistency)
-    taskId: v.id('chatroom_tasks'),
-
-    // ✅ ACTIVE: Raw stdin content (for new_feature - contains ---TITLE---, ---DESCRIPTION---, ---TECH_SPECS---)
-    // Requirement #4: Backend parsing of EOF format
-    // This is the preferred format - backend decodes stdin directly
-    rawStdin: v.optional(v.string()),
-
-    convexUrl: v.optional(v.string()),
-
-    // Skip classification for handoff recipients (message already classified by entry point)
-    skipClassification: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    // Validate that either skipClassification or originMessageClassification is provided
-    if (!args.skipClassification && !args.originMessageClassification) {
-      throw new ConvexError({
-        code: 'MISSING_CLASSIFICATION',
-        message: 'Either originMessageClassification or skipClassification must be provided',
-      });
-    }
-
-    // Validate session and check chatroom access
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get the task to acknowledge
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task) {
-      throw new ConvexError({
-        code: 'TASK_NOT_FOUND',
-        message: 'Task not found',
-      });
-    }
-
-    // Verify the task belongs to this chatroom
-    if (task.chatroomId !== args.chatroomId) {
-      throw new ConvexError({
-        code: 'INVALID_TASK',
-        message: 'Task does not belong to this chatroom',
-      });
-    }
-
-    // Get the associated message (user-originated tasks have sourceMessageId;
-    // system-generated tasks like skill activations may not)
-    let message: Doc<'chatroom_messages'> | null = null;
-
-    if (task.sourceMessageId) {
-      message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-    }
-    // System tasks without a sourceMessageId are allowed — they skip classification below
-
-    // Only allow classification of user messages (skip this check for system tasks or when not classifying)
-    if (
-      !args.skipClassification &&
-      message !== null &&
-      message.senderRole.toLowerCase() !== 'user'
-    ) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Can only classify user messages',
-      });
-    }
-
-    // Verify task is in progress (startTask should have been called first)
-    if (task.status !== 'in_progress') {
-      throw new ConvexError({
-        code: 'INVALID_TASK_STATUS',
-        message: `Task must be in_progress to classify (current status: ${task.status}). Call 'task read' first to transition task to in_progress.`,
-      });
-    }
-
-    // System tasks (no sourceMessageId) have no associated user message — skip classification entirely
-    if (!task.sourceMessageId) {
-      return {
-        success: true,
-        taskId: task._id,
-        chatroomId: task.chatroomId,
-        classification: 'question' as const, // System tasks are treated as questions
-        isSystemTask: true,
-      };
-    }
-
-    // Use existing classification if skipClassification is true
-    let finalClassification: 'question' | 'new_feature' | 'follow_up';
-    if (args.skipClassification) {
-      // For handoff recipients, the task's sourceMessage is the handoff message (not user message)
-      // We need to find the most recent classified user message in the chatroom
-      const recentUserMessages = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-        )
-        .order('desc')
-        .take(15);
-
-      let classifiedMessage = null;
-      for (const msg of recentUserMessages) {
-        if (msg.classification) {
-          classifiedMessage = msg;
-          break;
-        }
-      }
-
-      if (!classifiedMessage || !classifiedMessage.classification) {
-        throw new ConvexError({
-          code: 'MESSAGE_NOT_CLASSIFIED',
-          message: 'Cannot skip classification - no classified user message found in chatroom',
-        });
-      }
-      // TypeScript doesn't narrow the type through the check above, so we use a type assertion
-      // We know classification is non-null because we just checked it
-      finalClassification = classifiedMessage.classification as
-        | 'question'
-        | 'new_feature'
-        | 'follow_up';
-    } else {
-      if (args.originMessageClassification == null) {
-        throw new ConvexError({
-          code: 'CLASSIFICATION_REQUIRED',
-          message: 'originMessageClassification is required when skipClassification is false',
-        });
-      }
-      finalClassification = args.originMessageClassification;
-    }
-
-    // Parse raw stdin for new_feature classification (Requirement #4: backend parsing)
-    let featureTitle: string | undefined;
-    let featureDescription: string | undefined;
-    let featureTechSpecs: string | undefined;
-
-    if (!args.skipClassification && finalClassification === 'new_feature') {
-      if (!args.rawStdin) {
-        throw new ConvexError({
-          code: 'MISSING_STDIN',
-          message:
-            'new_feature classification requires rawStdin with TITLE, DESCRIPTION, and TECH_SPECS',
-        });
-      }
-
-      try {
-        const parsed = decodeStructured(args.rawStdin, ['TITLE', 'DESCRIPTION', 'TECH_SPECS']);
-
-        featureTitle = parsed.TITLE;
-        featureDescription = parsed.DESCRIPTION;
-        featureTechSpecs = parsed.TECH_SPECS;
-      } catch (error) {
-        throw new ConvexError({
-          code: 'INVALID_STDIN_FORMAT',
-          message: `Failed to parse raw stdin: ${error instanceof Error ? error.message : String(error)}`,
-        });
-      }
-    }
-
-    // Validate new_feature has required metadata
-    if (!args.skipClassification && finalClassification === 'new_feature') {
-      if (!featureTitle || !featureDescription || !featureTechSpecs) {
-        throw new ConvexError({
-          code: 'MISSING_FEATURE_METADATA',
-          message: 'new_feature classification requires TITLE, DESCRIPTION, and TECH_SPECS',
-        });
-      }
-    }
-
-    // Update the message with classification
-    if (!args.skipClassification && message && !message.classification) {
-      await ctx.db.patch('chatroom_messages', message._id, {
-        classification: finalClassification,
-        ...(featureTitle && { featureTitle }),
-        ...(featureDescription && { featureDescription }),
-        ...(featureTechSpecs && { featureTechSpecs }),
-      });
-    }
-
-    // Note: Attached backlog tasks remain in their current status when agent acknowledges.
-    // Agents explicitly use `chatroom backlog mark-for-review` for items they worked on.
-
-    // For follow-ups, link to the previous non-follow-up message
-    if (!args.skipClassification && finalClassification === 'follow_up' && message) {
-      // Find the most recent non-follow-up user message (optimized with limit)
-      const recentMessages = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .order('desc')
-        .take(100); // Limit to recent messages for performance
-
-      // Find the most recent classified message that is not a follow-up
-      let originMessage = null;
-      for (const msg of recentMessages) {
-        if (
-          msg._id !== message._id &&
-          msg.senderRole.toLowerCase() === 'user' &&
-          msg.classification &&
-          msg.classification !== 'follow_up'
-        ) {
-          originMessage = msg;
-          break;
-        }
-      }
-
-      if (originMessage && message) {
-        // Link this follow-up to the original message
-        await ctx.db.patch('chatroom_messages', message._id, {
-          taskOriginMessageId: originMessage._id,
-        });
-      }
-    }
-
-    // Generate a focused reminder for this role + classification
-    let reminder = '';
-    try {
-      reminder = generateTaskStartedReminder(
-        args.role,
-        finalClassification,
-        args.chatroomId,
-        message?._id?.toString(),
-        args.taskId.toString(),
-        args.convexUrl,
-        getTeamRolesFromChatroom(chatroom).teamRoles,
-        chatroom.teamName
-      );
-    } catch (error) {
-      console.error('Error generating task started reminder:', error);
-      // Provide a fallback reminder
-      reminder = `Task acknowledged. Classification: ${finalClassification}. You can now proceed with your work.`;
-    }
-
-    return { success: true, classification: finalClassification, reminder };
   },
 });
 
@@ -1836,6 +1527,7 @@ export const getInitPrompt = query({
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
+      agentHarness: existingAgentConfig?.agentHarness,
     };
 
     // Compose init prompt (system prompt + init message + combined)
@@ -1888,17 +1580,18 @@ export const getTaskDeliveryPrompt = query({
       });
     }
 
-    // Fetch the message if provided (could be in either table)
+    // Fetch the message: explicit messageId (CLI get-next-task) or task.sourceMessageId (native injection)
     let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
-    if (args.messageId) {
+    const messageIdToResolve = args.messageId ?? task.sourceMessageId;
+    if (messageIdToResolve) {
       // Try chatroom_messages first
       const regularMessage = await ctx.db
-        .get('chatroom_messages', args.messageId as Id<'chatroom_messages'>)
+        .get('chatroom_messages', messageIdToResolve as Id<'chatroom_messages'>)
         .catch(() => null);
       if (regularMessage) {
         message = regularMessage;
-      } else {
-        // Try chatroom_messageQueue
+      } else if (args.messageId) {
+        // Try chatroom_messageQueue (only when caller passed an explicit queue id)
         const queuedMessage = await ctx.db
           .get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>)
           .catch(() => null);
@@ -2173,11 +1866,25 @@ export const getTaskDeliveryPrompt = query({
     // Determine entry point status for context management
     const entryPoint = getTeamEntryPoint(chatroom);
     const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
+
+    const teamRoleKey = chatroom.teamId
+      ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
+      : null;
+    const existingAgentConfig = teamRoleKey
+      ? await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+          .first()
+      : null;
+    const agentHarness = existingAgentConfig?.agentHarness;
+    const nativeIntegration = isNativeHarness(agentHarness);
+
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
       chatroomId: args.chatroomId,
       role: args.role,
       cliEnvPrefix,
+      teamId: chatroom.teamId ?? 'duo',
       task: {
         _id: task._id,
         content: task.content,
@@ -2205,6 +1912,7 @@ export const getTaskDeliveryPrompt = query({
       originMessageCreatedAt: originMessage?._creationTime ?? null,
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
+      nativeIntegration,
     });
 
     return {

@@ -12,6 +12,11 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { QueuedMessageItem } from './QueuedMessageItem';
+import type { Message } from '../../types/message';
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -43,7 +48,15 @@ vi.mock('./QueuedMessageDetailModal', () => ({
 // Mock chip components to render a simple button with the content so we can
 // test click propagation without needing the real modal infrastructure.
 vi.mock('../MessageAttachmentChips', () => ({
-  MessageAttachmentChips: ({ message }: { message: { attachedTasks?: { _id: string; content: string }[]; attachedBacklogItems?: { id: string; content: string }[]; attachedWorkflows?: { _id: string; workflowKey: string }[]; attachedMessages?: { _id: string; content: string }[] } }) => (
+  MessageAttachmentChips: ({
+    message,
+  }: {
+    message: {
+      attachedTasks?: { _id: string; content: string }[];
+      attachedBacklogItems?: { id: string; content: string }[];
+      attachedMessages?: { _id: string; content: string }[];
+    };
+  }) => (
     <>
       {message.attachedTasks?.map((task: { _id: string; content: string }) => (
         <button key={task._id} type="button" data-testid="task-chip">
@@ -55,11 +68,6 @@ vi.mock('../MessageAttachmentChips', () => ({
           {item.content}
         </button>
       ))}
-      {message.attachedWorkflows?.map((wf: { _id: string; workflowKey: string }) => (
-        <button key={wf._id} type="button" data-testid="workflow-chip">
-          {wf.workflowKey}
-        </button>
-      ))}
       {message.attachedMessages?.map((msg: { _id: string; content: string }) => (
         <button key={msg._id} type="button" data-testid="message-chip">
           {msg.content}
@@ -68,11 +76,6 @@ vi.mock('../MessageAttachmentChips', () => ({
     </>
   ),
 }));
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-import { QueuedMessageItem } from './QueuedMessageItem';
-import type { Message } from '../../types/message';
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -179,14 +182,5 @@ describe('QueuedMessageItem', () => {
     renderItem(message);
     expect(screen.getByTestId('message-chip')).toBeInTheDocument();
     expect(screen.getByText('See this context')).toBeInTheDocument();
-  });
-
-  it('workflow attachment → workflow chip rendered in row strip', () => {
-    const message = makeMessage({
-      attachedWorkflows: [{ _id: 'wf-1', workflowKey: 'my-workflow', status: 'active' }],
-    });
-    renderItem(message);
-    expect(screen.getByTestId('workflow-chip')).toBeInTheDocument();
-    expect(screen.getByText('my-workflow')).toBeInTheDocument();
   });
 });

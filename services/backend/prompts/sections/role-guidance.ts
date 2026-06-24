@@ -12,7 +12,7 @@ import { createSection } from '../types/sections';
 /**
  * Generate the role guidance section using the SelectorContext dispatcher.
  *
- * This returns the full team-aware role guidance (squad builder, pair reviewer, etc.)
+ * This returns the full team-aware role guidance (duo builder, duo planner, etc.)
  * by delegating to getRoleGuidanceFromContext which follows the team → base fallback pattern.
  */
 export function getRoleGuidanceSection(ctx: SelectorContext): PromptSection {

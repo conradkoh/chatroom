@@ -97,6 +97,11 @@ export interface DaemonAgentProcessManagerServiceShape {
   listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
   /** Waits until any in-progress agent turn ends and the manager becomes idle. */
   whenTurnEndsIdle: () => Effect.Effect<void>;
+  resumeTurnForSlot: (args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+  }) => Effect.Effect<void>;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -114,6 +119,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
     listActive: () => mgr.listActive(),
     whenTurnEndsIdle: () => Effect.promise(() => mgr.whenTurnEndsIdle()),
+    resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
   });
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────

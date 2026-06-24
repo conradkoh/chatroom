@@ -10,7 +10,7 @@ describe('decideResumePathOnRestart', () => {
   it('uses daemon_memory when wantResume and snapshot exist', () => {
     expect(
       decideResumePathOnRestart({
-        supportsSessionResume: true,
+        supportsDaemonMemoryResume: true,
         wantResume: true,
         hasStoredSnapshot: true,
       })
@@ -20,21 +20,21 @@ describe('decideResumePathOnRestart', () => {
   it('falls back to cold spawn without snapshot or wantResume', () => {
     expect(
       decideResumePathOnRestart({
-        supportsSessionResume: true,
+        supportsDaemonMemoryResume: true,
         wantResume: true,
         hasStoredSnapshot: false,
       })
     ).toBe('cold');
     expect(
       decideResumePathOnRestart({
-        supportsSessionResume: true,
+        supportsDaemonMemoryResume: true,
         wantResume: false,
         hasStoredSnapshot: true,
       })
     ).toBe('cold');
     expect(
       decideResumePathOnRestart({
-        supportsSessionResume: false,
+        supportsDaemonMemoryResume: false,
         wantResume: true,
         hasStoredSnapshot: true,
       })

@@ -36,6 +36,9 @@ const __dirname = dirname(__filename);
 // Icon sizes to generate (matching manifest.ts)
 const SIZES = [16, 32, 64, 96, 128, 192, 256, 384, 512, 1024] as const;
 
+// Opaque background for iOS PWA icons (no alpha channel — iOS renders transparency as white matte)
+const ICON_BACKGROUND = { r: 255, g: 255, b: 255, alpha: 1 }; // #ffffff
+
 // Paths
 const SOURCE_FILE = join(__dirname, '../public/appicon-1024x1024.png');
 const PUBLIC_DIR = join(__dirname, '../public');
@@ -72,8 +75,10 @@ async function generateAppIcons(): Promise<boolean> {
       await sharp(SOURCE_FILE)
         .resize(size, size, {
           fit: 'contain',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
+          background: ICON_BACKGROUND,
         })
+        .flatten({ background: ICON_BACKGROUND })
+        .removeAlpha()
         .png()
         .toFile(outputFile);
 

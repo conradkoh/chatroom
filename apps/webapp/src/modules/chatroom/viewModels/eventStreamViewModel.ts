@@ -6,6 +6,8 @@
  * `src/domain/entities/event-stream-event.ts`.
  */
 
+import { DateTime } from 'luxon';
+
 import type { EventBadgeVariant } from '@/domain/entities/event-type';
 import { isSupportedEventType, SUPPORTED_EVENT_TYPES } from '@/domain/entities/event-type';
 
@@ -48,13 +50,6 @@ export type {
   TaskAcknowledgedEvent,
   TaskCompletedEvent,
   TaskInProgressEvent,
-  WorkflowCompletedEvent,
-  WorkflowCreatedEvent,
-  WorkflowSpecifiedEvent,
-  WorkflowStartedEvent,
-  WorkflowStepCancelledEvent,
-  WorkflowStepCompletedEvent,
-  WorkflowStepStartedEvent,
 } from '@/domain/entities/event-stream-event';
 
 const EVENT_BADGE_TEXT_COLORS: Record<EventBadgeVariant, string> = {
@@ -82,30 +77,31 @@ export function getEventBadgeTextColor(type: string): string {
   return EVENT_BADGE_TEXT_COLORS.info;
 }
 
-/** Format a Unix millisecond timestamp as HH:MM:SS (24-hour). */
-export function formatTimestamp(ms: number): string {
-  const date = new Date(ms);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
+/** e.g. 12 → "12th" */
+function ordinalDay(day: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = day % 100;
+  return `${day}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]}`;
 }
 
-/** Format a Unix millisecond timestamp with full date and time. */
+/** e.g. "12th June, 10:00pm" */
+function formatChatroomTimestamp(ms: number, includeYear: boolean): string {
+  const dt = DateTime.fromMillis(ms);
+  const datePart = includeYear
+    ? `${ordinalDay(dt.day)} ${dt.toFormat('MMMM yyyy')}`
+    : `${ordinalDay(dt.day)} ${dt.toFormat('MMMM')}`;
+  const timePart = dt.toFormat('h:mma').toLowerCase();
+  return `${datePart}, ${timePart}`;
+}
+
+/** Format a Unix millisecond timestamp for timeline rows (ordinal day, full month, 12-hour time). */
+export function formatTimestamp(ms: number): string {
+  const dt = DateTime.fromMillis(ms);
+  const includeYear = dt.year !== DateTime.now().year;
+  return formatChatroomTimestamp(ms, includeYear);
+}
+
+/** Format a Unix millisecond timestamp with year (detail panels). */
 export function formatTimestampFull(ms: number): string {
-  const date = new Date(ms);
-  const dateStr = date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const timeStr = date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-  return `${dateStr} ${timeStr}`;
+  return formatChatroomTimestamp(ms, true);
 }

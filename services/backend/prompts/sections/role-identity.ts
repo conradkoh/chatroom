@@ -14,7 +14,7 @@ import { createSection } from '../types/sections';
 
 /**
  * Generate the team header section.
- * E.g., "# Squad Team"
+ * E.g., "# Duo Team"
  */
 export function getTeamHeaderSection(teamName: string): PromptSection {
   return createSection('team-header', 'knowledge', `# ${teamName}`);

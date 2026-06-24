@@ -11,14 +11,14 @@ import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-
 import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getAvailableActions } from '../../../prompts/cli/get-next-task/available-actions';
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
-import { reportProgressCommand } from '../../../prompts/cli/report-progress/command';
-import { getTaskStartedPrompt } from '../../../prompts/cli/task-started/main-prompt';
+import {
+  getTaskStartedPrompt,
+  getTaskStartedPromptForHandoffRecipient,
+} from '../../../prompts/cli/task-started/main-prompt';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
 const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
-const TEST_LOCALHOST_CONVEX_URL = 'http://localhost:3210';
-const TEST_PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 describe('Context Gaining Prompt', () => {
   test('generates Getting Started format with basic commands', () => {
@@ -54,12 +54,12 @@ describe('Context Gaining Prompt', () => {
   test('includes get-next-task command', () => {
     const guidance = getContextGainingGuidance({
       chatroomId: 'abc123',
-      role: 'reviewer',
+      role: 'planner',
       convexUrl: 'http://localhost:3000',
       agentType: 'unset',
     });
 
-    expect(guidance).toContain('chatroom get-next-task --chatroom-id="abc123" --role="reviewer"');
+    expect(guidance).toContain('chatroom get-next-task --chatroom-id="abc123" --role="planner"');
   });
 
   test('defaults to <remote|custom> placeholder when agentType is not specified', () => {
@@ -103,8 +103,8 @@ describe('Webapp Agent Prompt', () => {
     const prompt = generateAgentPrompt({
       chatroomId: 'test-chatroom-456',
       role: 'planner',
-      teamName: 'Squad',
-      teamRoles: ['planner', 'builder', 'reviewer'],
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
       convexUrl: 'http://127.0.0.1:3210',
     });
 
@@ -117,8 +117,8 @@ describe('Webapp Agent Prompt', () => {
     const prompt = generateAgentPrompt({
       chatroomId: 'my-chatroom-id',
       role: 'builder',
-      teamName: 'Pair',
-      teamRoles: ['builder', 'reviewer'],
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
       convexUrl: 'http://127.0.0.1:3210',
     });
 
@@ -153,7 +153,7 @@ describe('Available Actions (Task Delivery)', () => {
   test('includes git log command', () => {
     const actions = getAvailableActions({
       chatroomId: 'abc123',
-      role: 'reviewer',
+      role: 'planner',
       convexUrl: 'http://localhost:3000',
       isEntryPoint: false,
     });
@@ -162,8 +162,8 @@ describe('Available Actions (Task Delivery)', () => {
   });
 });
 
-describe('Task Classification Prompt', () => {
-  test('generates concise Classify message format with all classification types', () => {
+describe('Task intake prompt', () => {
+  test('generates start-working format with token activity note', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'test-chatroom-456',
@@ -171,163 +171,39 @@ describe('Task Classification Prompt', () => {
       cliEnvPrefix,
     });
 
-    // Should have Classify message header
-    expect(prompt).toContain('### Classify message');
-
-    // Should have all three classification types
-    expect(prompt).toContain('#### Question');
-    expect(prompt).toContain('#### Follow Up');
-    expect(prompt).toContain('#### New Feature');
+    expect(prompt).toContain('### Start working');
+    expect(prompt).toContain('harness output (stdout tokens)');
+    expect(prompt).not.toContain('chatroom classify');
+    expect(prompt).not.toMatch(/task read --chatroom-id/i);
   });
 
-  test('injects CHATROOM_CONVEX_URL prefix correctly', () => {
+  test('handoff recipient prompt describes inline task body', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
+    const prompt = getTaskStartedPromptForHandoffRecipient({
       chatroomId: 'my-chatroom',
       role: 'builder',
       cliEnvPrefix,
     });
 
-    // All commands should have the env prefix
-    expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify');
-  });
-
-  test('new_feature command uses EOF format for metadata', () => {
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCALHOST_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'feature-chatroom',
-      role: 'builder',
-      cliEnvPrefix,
-    });
-
-    // New feature should use heredoc format
-    expect(prompt).toContain("--origin-message-classification=new_feature << 'EOF'");
-    expect(prompt).toContain('---TITLE---');
-    expect(prompt).toContain('---DESCRIPTION---');
-    expect(prompt).toContain('---TECH_SPECS---');
-    expect(prompt).toContain('EOF');
-  });
-
-  test('question and follow_up commands are simple one-liners', () => {
-    // Use production URL which returns empty prefix
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'simple-chatroom',
-      role: 'reviewer',
-      cliEnvPrefix,
-    });
-
-    // Question command should be a simple command without heredoc
-    const questionMatch = prompt.match(/--origin-message-classification=question[^\n]*/);
-    expect(questionMatch).toBeTruthy();
-    expect(questionMatch?.[0]).not.toContain('EOF');
-
-    // Follow up command should be a simple command without heredoc
-    const followUpMatch = prompt.match(/--origin-message-classification=follow_up[^\n]*/);
-    expect(followUpMatch).toBeTruthy();
-    expect(followUpMatch?.[0]).not.toContain('EOF');
-  });
-
-  test('is concise without verbose classification guidance', () => {
-    // Use production URL which returns empty prefix
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'concise-test',
-      role: 'builder',
-      cliEnvPrefix,
-    });
-
-    // Should NOT contain verbose guidance sections
-    expect(prompt).not.toContain('Classification Types');
-    expect(prompt).not.toContain('When to use:');
-    expect(prompt).not.toContain('Characteristics:');
-    expect(prompt).not.toContain('Examples:');
-    expect(prompt).not.toContain('Workflow:');
-    expect(prompt).not.toContain('Handoff Rules:');
+    expect(prompt).toContain('task body contains your work description');
+    expect(prompt).toContain('harness output (stdout tokens)');
   });
 });
 
 describe('Command Generators - Stdin Consistency', () => {
-  describe('report-progress command', () => {
-    test('uses EOF format (stdin) instead of --message flag', () => {
-      const command = reportProgressCommand({
-        chatroomId: 'test-123',
-        role: 'builder',
-        cliEnvPrefix: '',
-      });
-
-      // Should use EOF format
-      expect(command).toContain("<< 'EOF'");
-      expect(command).toContain('EOF');
-
-      // Should NOT use --message flag
-      expect(command).not.toContain('--message');
-    });
-
-    test('includes placeholder for message content', () => {
-      const command = reportProgressCommand({
-        chatroomId: 'abc',
-        role: 'reviewer',
-        cliEnvPrefix: '',
-      });
-
-      // Should have placeholder text for message
-      expect(command).toMatch(/\[.*\]/); // Contains placeholder in brackets
-    });
-
-    test('injects environment prefix correctly', () => {
-      const command = reportProgressCommand({
-        chatroomId: 'test-123',
-        role: 'builder',
-        cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      });
-
-      expect(command).toContain(
-        'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress'
-      );
-    });
-
-    test('matches handoff command format consistency', () => {
-      const reportCmd = reportProgressCommand({
-        chatroomId: 'test',
-        role: 'builder',
-        cliEnvPrefix: '',
-      });
-
-      const handoffCmd = handoffCommand({
-        chatroomId: 'test',
-        role: 'builder',
-        nextRole: 'reviewer',
-        cliEnvPrefix: '',
-      });
-
-      // Both should use EOF format
-      expect(reportCmd).toContain("<< 'EOF'");
-      expect(handoffCmd).toContain("<< 'EOF'");
-
-      // Both should have similar structure
-      const reportLines = reportCmd.split('\n');
-      const handoffLines = handoffCmd.split('\n');
-
-      // Should be multiline with EOF wrapper
-      expect(reportLines.length).toBeGreaterThan(1);
-      expect(handoffLines.length).toBeGreaterThan(1);
-    });
-  });
-
   describe('handoff command', () => {
-    test('already uses EOF format (baseline)', () => {
+    test('uses namespaced heredoc delimiter', () => {
       const command = handoffCommand({
         chatroomId: 'test-123',
         role: 'builder',
-        nextRole: 'reviewer',
+        nextRole: 'planner',
         cliEnvPrefix: '',
       });
 
-      // Verify handoff is already correct
-      expect(command).toContain("<< 'EOF'");
+      expect(command).toContain("<< 'CHATROOM_HANDOFF_END'");
       expect(command).toContain('[Your message here]');
-      expect(command).toContain('EOF');
+      expect(command).toContain('CHATROOM_HANDOFF_END');
+      expect(command).not.toContain("<< 'EOF'");
       expect(command).not.toContain('--message');
     });
   });

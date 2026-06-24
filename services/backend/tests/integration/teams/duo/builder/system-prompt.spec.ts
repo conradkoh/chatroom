@@ -68,7 +68,7 @@ describe('Duo Team > Builder > System Prompt', () => {
     expect(prompt).toContain('# Duo Team');
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('## Getting Started');
-    expect(prompt).toContain('## Builder Workflow');
+    expect(prompt).toContain('## Builder Operating Model');
     // Builder can hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toMatch(/Available targets:.*user/);
@@ -101,9 +101,6 @@ describe('Duo Team > Builder > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
-
       - \`development-workflow\` (1 skill available)
           - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
@@ -120,7 +117,6 @@ describe('Duo Team > Builder > System Prompt', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
@@ -163,23 +159,15 @@ describe('Duo Team > Builder > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      chatroom task notification]
-          C --> D[task read
-      get chatroom task +
-      mark in_progress]
-          D --> E[Do Work]
-          E --> F[handoff]
-          F --> C
+      chatroom task delivery]
+          C --> D[Do Work]
+          D --> E[handoff]
+          E --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the chatroom task immediately
+      ### Task delivery and activity
 
-      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
-
-      1. **Get the chatroom task content** — the full description
-      2. **Mark it as in_progress** — signals you're working on it
-
-      Failure to run \`task read\` promptly may trigger the system to restart you.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -190,6 +178,8 @@ describe('Duo Team > Builder > System Prompt', () => {
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"
       to see your current chatroom task context.
+
+      CLI harnesses do not support in-session compaction. After context is lost, the daemon performs a hard restart — you must run \`get-next-task\` again to rejoin the chatroom.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -210,7 +200,7 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       ### Start Working
 
-      After receiving a handoff, run \`task read\` to get the chatroom task content and mark it as \`in_progress\`.
+      The task body contains your work description. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
 
        **Duo Team Context:**
@@ -221,52 +211,76 @@ describe('Duo Team > Builder > System Prompt', () => {
        - **NEVER hand off directly to \`user\`** — always go through the planner
        
        
-      ## Builder Workflow
+      ## Builder Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
       You are responsible for implementing code changes based on requirements.
 
-
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task
-      notification]
-          B -->|from planner| C[Read chatroom task with
-      task read]
-          C --> D[Implement changes]
+          A([Start]) --> B[Receive chatroom task]
+          B --> D[Implement changes]
           D --> E[Commit work]
-          E --> F{Classification?}
-          F -->|new_feature or code changes| G[Hand off to **planner**]
-          F -->|question| H[Hand off to **planner**]
+          E --> F{Code changes?}
+          F -->|yes| G[Hand off to **planner**]
+          F -->|no| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
-      **When working on a workflow step:**
-      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
-
-      **Development Best Practices:**
-      - Write clean, maintainable code
-      - Add appropriate tests when applicable
-      - Document complex logic
-      - Follow existing code patterns and conventions
-      - Consider edge cases and error handling
-      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
-
-      **Git Workflow:**
-      - Use descriptive commit messages
-      - Create logical commits (one feature/change per commit)
-      - Keep the working directory clean between commits
-      - Use \`git status\`, \`git diff\` to review changes before committing
+      **Implementation Guidelines:**
+      - Write clean, maintainable, well-documented code
+      - Follow established patterns and best practices from the codebase
+      - Handle edge cases and error scenarios
+      - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
+      - Commit work with descriptive, atomic commit messages
 
        
+
+      ## Begin With the End in Mind
+
+      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
+
+      ### Handoff to \`planner\`
+      ---
+
+      ⚠️ **CRITICAL — Recipient visibility**
+
+      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
+
+      They **cannot** see:
+      - Anything you write in this agent session
+      - Progress reports
+      - Tool output
+
+      Put your **complete** deliverable in the handoff message — not in session text.
+
+      ---
+
+      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
+
+      \`\`\`markdown
+      ## Summary
+      <what was implemented or attempted, in plain terms>
+
+      ## Proof — files changed
+      - \`path/to/file.ts\` — <what changed and why>
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
+
+      ## Blockers / questions
+      <anything needing planner decision, or "Not Applicable">
+
+      ## Notes for review
+      <specific areas for planner to check, or "Not Applicable">
+      \`\`\`
 
       ### Handoff Options
       Available targets: planner, user
@@ -276,29 +290,16 @@ describe('Duo Team > Builder > System Prompt', () => {
       **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
-      EOF
+      CHATROOM_HANDOFF_END
       \`\`\`
 
       Replace \`[Your message here]\` with:
       - **Summary**: Brief description of what was done
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
-
-      **Report progress on current chatroom task:**
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="000000000000010002chatroom_rooms" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
-
-      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

@@ -7,6 +7,11 @@
  */
 
 import type { HandoffParams } from '../../types/cli';
+import {
+  formatStdinHeredocCommand,
+  HANDOFF_MESSAGE_MARKER,
+  HANDOFF_STDIN_DELIMITER,
+} from '../stdin-heredoc';
 
 /**
  * Generate a handoff command string using stdin.
@@ -15,23 +20,26 @@ import type { HandoffParams } from '../../types/cli';
  * @example
  * // Command with placeholders
  * handoffCommand({ cliEnvPrefix: '' })
- * // → "chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=<target> << 'EOF'\n[Your message here]\nEOF"
+ * // → "chatroom handoff ... << 'CHATROOM_HANDOFF_END'\n---MESSAGE---\n[Your message here]\nCHATROOM_HANDOFF_END"
  *
  * @example
  * // Command with real values
  * handoffCommand({
  *   chatroomId: 'abc123',
  *   role: 'builder',
- *   nextRole: 'reviewer',
+ *   nextRole: 'planner',
  * })
- * // → "chatroom handoff --chatroom-id=abc123 --role=builder --next-role=reviewer << 'EOF'\n[Your message here]\nEOF"
+ * // → "chatroom handoff --chatroom-id=abc123 --role=builder --next-role=planner << 'CHATROOM_HANDOFF_END'\n[Your message here]\nCHATROOM_HANDOFF_END"
  */
 export function handoffCommand(params: HandoffParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
   const nextRole = params.nextRole || '<target>';
+  const placeholder = params.messagePlaceholder ?? '[Your message here]';
 
-  // Modern approach: stdin using HERE document
-  return `${prefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role="${nextRole}" << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF`;
+  const commandPrefix = `${prefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role="${nextRole}"`;
+  return formatStdinHeredocCommand(commandPrefix, HANDOFF_STDIN_DELIMITER, placeholder, {
+    messageMarker: HANDOFF_MESSAGE_MARKER,
+  });
 }

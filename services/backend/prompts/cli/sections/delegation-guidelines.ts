@@ -6,45 +6,39 @@
  * incremental self-implementation (the planner's implementer metarole).
  *
  * Delegation is template-driven by default: the planner hands a focused
- * slice to the builder using the Delegation Brief. Structured workflows are
- * an OPT-IN tool (activate the `workflow` skill) for genuinely multi-phase,
- * interdependent efforts or when the user explicitly requests one — they are
- * no longer mandatory before delegating.
+ * slice to the builder using the Delegation Brief.
  */
 
-import { getPlannerToBuilderHandoffTemplate } from '../handoff-templates';
 import type { TeamCompositionConfig } from './team-composition';
 
-/**
- * Generate the Delegation Guidelines section.
- */
-export function getDelegationGuidelinesSection(
-  config: Pick<TeamCompositionConfig, 'hasBuilder'>,
-  options?: { cliEnvPrefix?: string; chatroomId?: string; role?: string }
-): string {
-  const feedingNote = config.hasBuilder
-    ? 'Feed slices to the builder incrementally — one at a time, not all at once'
-    : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
+type CmdHelper = (subcommand: string) => string;
 
-  const cliEnvPrefix = options?.cliEnvPrefix ?? '';
-  const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
-  const roleArg = options?.role ? `"${options.role}"` : '<role>';
-
-  // Full command helper
-  const cmd = (subcommand: string) =>
+function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: string): CmdHelper {
+  return (subcommand: string) =>
     `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
+}
 
-  // Solo planner (no builder): no delegation, just incremental self-implementation.
-  if (!config.hasBuilder) {
-    return `**Implementation Guidelines:**
+function getDelegationBriefReference(nativeIntegration?: boolean): string {
+  return nativeIntegration
+    ? 'Use the **Handoff to `builder`** template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.'
+    : 'Use the **Handoff to `builder`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.';
+}
+
+function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): string {
+  return `**Implementation Guidelines:**
 
 Break complex features into small, focused slices. For architecture/SOLID guidance, activate the \`software-engineering\` skill: ${cmd('skill activate software-engineering')}.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - ${feedingNote}.`;
-  }
+}
 
+function getBuilderDelegationGuidelines(
+  cmd: CmdHelper,
+  feedingNote: string,
+  delegationBriefRef: string
+): string {
   return `**Delegation Guidelines:**
 
 Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: ${cmd('skill activate software-engineering')}.
@@ -64,9 +58,7 @@ flowchart TD
     H -->|No| I[Deliver to user]
 \`\`\`
 
-**Default: delegate with a Delegation Brief.** A structured workflow is NOT required before handing off to the builder — a clear, self-contained brief is enough for most work.
-
-${getPlannerToBuilderHandoffTemplate()}
+**Default: delegate with a Delegation Brief.** ${delegationBriefRef}
 
 **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
@@ -78,16 +70,47 @@ ${getPlannerToBuilderHandoffTemplate()}
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-**Optional: structured workflows (opt-in).** For genuinely multi-phase, interdependent efforts — or when the user explicitly asks for a tracked plan — activate the \`workflow\` skill to plan and track execution as a DAG: ${cmd('skill activate workflow')}. The skill documents the full \`workflow create/specify/execute/status\` command set. Don't reach for it for simple, single-slice work.
-
 **Code review:** For code-producing work, review before delivering. Activate the review framework with: ${cmd('skill activate code-review')}.
 
 **Backlog items:** When the task originates from a backlog item, activate the backlog skill: ${cmd('skill activate backlog')}.
 
-**If stuck:** After 2 failed rework attempts → step back, replan the slice (or fall back to a structured workflow), or deliver partial results with a clear explanation.
+**If stuck:** After 2 failed rework attempts → step back, replan the slice, or deliver partial results with a clear explanation.
 
 **Review loop:**
 - Review completed work before moving to the next slice.
 - Send back with specific feedback if requirements aren't met.
 - ${feedingNote}.`;
+}
+
+/**
+ * Generate the Delegation Guidelines section.
+ */
+// fallow-ignore-next-line complexity
+export function getDelegationGuidelinesSection(
+  config: Pick<TeamCompositionConfig, 'hasBuilder'>,
+  options?: {
+    cliEnvPrefix?: string;
+    chatroomId?: string;
+    role?: string;
+    nativeIntegration?: boolean;
+  }
+): string {
+  const feedingNote = config.hasBuilder
+    ? 'Feed slices to the builder incrementally — one at a time, not all at once'
+    : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
+
+  const cliEnvPrefix = options?.cliEnvPrefix ?? '';
+  const chatroomIdArg = options?.chatroomId ? `"${options.chatroomId}"` : '<id>';
+  const roleArg = options?.role ? `"${options.role}"` : '<role>';
+  const cmd = buildCmdHelper(cliEnvPrefix, chatroomIdArg, roleArg);
+
+  if (!config.hasBuilder) {
+    return getSoloImplementationGuidelines(cmd, feedingNote);
+  }
+
+  return getBuilderDelegationGuidelines(
+    cmd,
+    feedingNote,
+    getDelegationBriefReference(options?.nativeIntegration)
+  );
 }

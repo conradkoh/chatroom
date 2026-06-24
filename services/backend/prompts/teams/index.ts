@@ -2,14 +2,6 @@
  * Team configurations exports
  */
 
-// Squad team
-export { squadTeamConfig } from './squad/index';
-export {
-  getPlannerGuidance as getSquadPlannerGuidance,
-  getBuilderGuidance as getSquadBuilderGuidance,
-  getReviewerGuidance as getSquadReviewerGuidance,
-} from './squad/index';
-
 // Duo team
 export { duoTeamConfig } from './duo/index';
 export {
@@ -19,6 +11,4 @@ export {
 
 // Solo team
 export { soloTeamConfig } from './solo/index';
-export {
-  getSoloGuidance as getSoloRoleGuidance,
-} from './solo/index';
+export { getSoloGuidance as getSoloRoleGuidance } from './solo/index';

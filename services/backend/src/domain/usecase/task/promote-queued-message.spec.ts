@@ -28,9 +28,9 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
   });
 }
 
@@ -42,7 +42,7 @@ async function createQueueRecord(
     return await ctx.db.insert('chatroom_messageQueue', {
       chatroomId,
       senderRole: 'user',
-      targetRole: 'builder',
+      targetRole: 'planner',
       content,
       type: 'message',
       queuePosition: 1,
@@ -76,7 +76,7 @@ describe('promoteQueuedMessage', () => {
     expect(message).toBeDefined();
     expect(message?.content).toBe('queued message content');
     expect(message?.senderRole).toBe('user');
-    expect(message?.targetRole).toBe('builder');
+    expect(message?.targetRole).toBe('planner');
   });
 
   test('creates a new task with status pending', async () => {
@@ -114,7 +114,7 @@ describe('promoteQueuedMessage', () => {
       return await ctx.db.get('chatroom_tasks', result!.taskId);
     });
 
-    expect(task?.assignedTo).toBe('builder');
+    expect(task?.assignedTo).toBe('planner');
   });
 
   test('links message and task bidirectionally', async () => {
@@ -171,7 +171,7 @@ describe('promoteQueuedMessage', () => {
       const id = await ctx.db.insert('chatroom_messageQueue', {
         chatroomId,
         senderRole: 'user',
-        targetRole: 'builder',
+        targetRole: 'planner',
         content: 'temp',
         type: 'message',
         queuePosition: 0,

@@ -45,7 +45,7 @@ describe('toParticipantPresence', () => {
 
   test('passes through present values unchanged', () => {
     const row = toParticipantPresence('room_2', {
-      role: 'reviewer',
+      role: 'architect',
       lastSeenAt: 1700000000000,
       lastSeenAction: 'get-next-task:started',
       lastStatus: 'task.inProgress',
@@ -54,7 +54,7 @@ describe('toParticipantPresence', () => {
 
     expect(row).toEqual({
       chatroomId: 'room_2',
-      role: 'reviewer',
+      role: 'architect',
       lastSeenAt: 1700000000000,
       lastSeenAction: 'get-next-task:started',
       lastStatus: 'task.inProgress',

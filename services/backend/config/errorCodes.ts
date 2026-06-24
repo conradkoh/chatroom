@@ -62,8 +62,6 @@ export type BackendErrorCode =
   // ── Messages ───────────────────────────────────────────────────────────
   | 'INVALID_ROLE'
   | 'INVALID_CONTENT'
-  | 'MISSING_CLASSIFICATION'
-  | 'MESSAGE_NOT_CLASSIFIED'
   | 'VALIDATION_ERROR'
   | 'UNKNOWN_PARAM'
   | 'INVALID_CONVERSION'
@@ -125,7 +123,6 @@ export type BackendErrorCode =
 
   // ── Skills ──────────────────────────────────────────────────────────
   | 'SKILL_NOT_FOUND_OR_DISABLED'
-  | 'MISSING_FEATURE_METADATA'
 
   // ── Saved Commands ──────────────────────────────────────────────────
   | 'COMMAND_NAME_EMPTY'
@@ -209,10 +206,6 @@ export const BACKEND_ERROR_CODES = {
   INVALID_ROLE: 'INVALID_ROLE',
   /** Message content is invalid or empty */
   INVALID_CONTENT: 'INVALID_CONTENT',
-  /** Classification is missing when required */
-  MISSING_CLASSIFICATION: 'MISSING_CLASSIFICATION',
-  /** Message has no classification */
-  MESSAGE_NOT_CLASSIFIED: 'MESSAGE_NOT_CLASSIFIED',
   /** Generic validation error */
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   /** Unknown parameter in request */
@@ -319,8 +312,6 @@ export const BACKEND_ERROR_CODES = {
   // ── Skills ────────────────────────────────────────────────────────────
   /** Skill not found or disabled */
   SKILL_NOT_FOUND_OR_DISABLED: 'SKILL_NOT_FOUND_OR_DISABLED',
-  /** Missing feature metadata */
-  MISSING_FEATURE_METADATA: 'MISSING_FEATURE_METADATA',
 
   // ── Saved Commands ──────────────────────────────────────────────────
   /** Command name must not be empty */
@@ -430,8 +421,6 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.REASON_EMPTY,
   BACKEND_ERROR_CODES.NAME_REQUIRED,
   BACKEND_ERROR_CODES.COMMAND_NAME_EMPTY,
-  BACKEND_ERROR_CODES.MISSING_CLASSIFICATION,
-  BACKEND_ERROR_CODES.MESSAGE_NOT_CLASSIFIED,
   BACKEND_ERROR_CODES.INVALID_CONTENT,
   BACKEND_ERROR_CODES.INVALID_ROLE,
   BACKEND_ERROR_CODES.INVALID_TASK,
@@ -453,7 +442,6 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.BACKLOG_MISSING_REQUIRED_FIELD,
   BACKEND_ERROR_CODES.BACKLOG_VALIDATION_FAILED,
   BACKEND_ERROR_CODES.SKILL_NOT_FOUND_OR_DISABLED,
-  BACKEND_ERROR_CODES.MISSING_FEATURE_METADATA,
   BACKEND_ERROR_CODES.MISSING_SPECIFICATION,
   BACKEND_ERROR_CODES.MISSING_STDIN,
   BACKEND_ERROR_CODES.UNKNOWN_PARAM,

@@ -95,6 +95,7 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   opencode: 'OpenCode (CLI)',
   'opencode-sdk': 'OpenCode (SDK)',
   pi: 'Pi',
+  'pi-sdk': 'Pi (SDK)',
   cursor: 'Cursor (CLI)',
   'cursor-sdk': 'Cursor (SDK)',
   commandcode: 'CommandCode',
@@ -108,6 +109,11 @@ export function getHarnessDisplayName(harness: string): string {
 /** Whether the harness supports resuming the agent session after agent_end. */
 export function harnessSupportsSessionResume(harness: AgentHarness): boolean {
   return getHarnessCapabilities(harness).supportsSessionResume;
+}
+
+/** Whether the harness receives tasks via direct session injection (no get-next-task loop). */
+export function harnessSupportsNativeIntegration(harness: AgentHarness): boolean {
+  return getHarnessCapabilities(harness).supportsNativeIntegration;
 }
 
 /** Check if a harness is the OpenCode SDK harness. */

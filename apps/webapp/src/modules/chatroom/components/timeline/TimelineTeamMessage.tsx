@@ -1,12 +1,10 @@
 'use client';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { memo } from 'react';
 
 import type { Message } from '../../types/message';
 import { MessageAttachmentChips } from '../MessageAttachmentChips';
-
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
@@ -39,7 +37,7 @@ export interface TimelineTeamMessageProps {
 
 export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   message,
-  chatroomId,
+  chatroomId: _chatroomId,
   machines,
   machineId,
 }: TimelineTeamMessageProps) {
@@ -95,10 +93,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 
       <TimelineMarkdownBody content={message.content} />
       <div className="mt-2 empty:hidden">
-        <MessageAttachmentChips
-          message={message}
-          chatroomId={chatroomId as Id<'chatroom_rooms'>}
-        />
+        <MessageAttachmentChips message={message} />
       </div>
       <TimelineMessageFooter message={message} />
     </div>

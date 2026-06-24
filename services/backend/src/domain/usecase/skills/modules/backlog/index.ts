@@ -1,3 +1,7 @@
+import {
+  backlogAddCommand,
+  backlogUpdateCommand,
+} from '../../../../../../prompts/cli/backlog/command';
 import type { SkillModule } from '../../registry';
 
 export const backlogSkill: SkillModule = {
@@ -31,9 +35,7 @@ Use \`history\` for finished work; use \`list\` for active backlog items.
 Content via **stdin / heredoc** or \`--content-file\`:
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> << 'EOF'
-Your backlog item content here
-EOF
+${backlogAddCommand({ cliEnvPrefix })}
 \`\`\`
 
 \`\`\`
@@ -44,9 +46,7 @@ ${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> --content-f
 Replace the **text content** of an existing item. Allowed only while the item is in \`backlog\` status. Same input pattern as **add** (stdin/heredoc or \`--content-file\`).
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'EOF'
-New content here
-EOF
+${backlogUpdateCommand({ cliEnvPrefix })}
 \`\`\`
 
 \`\`\`

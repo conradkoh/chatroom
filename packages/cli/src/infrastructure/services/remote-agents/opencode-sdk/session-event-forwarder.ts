@@ -14,6 +14,8 @@ export interface SessionEventForwarderOptions {
   now?: () => string;
   /** Human-readable log lines for resume-storm reason classification. */
   onLogLine?: (line: string) => void;
+  /** Fires on agent token/tool activity (drives task.in_progress via updateTokenActivity). */
+  onActivity?: () => void;
 }
 
 export interface SessionEventForwarderHandle {
@@ -125,11 +127,24 @@ export function startSessionEventForwarder(
     }
   }
 
+  function isAgentActivityKind(kind: string): boolean {
+    return (
+      kind === 'text' ||
+      kind === 'thinking' ||
+      kind === 'file' ||
+      kind === 'compacted' ||
+      kind.startsWith('tool:')
+    );
+  }
+
   function logLine(targetStream: Writable, kind: string, payload?: string): void {
     const line = formatLogLine(options, kind, payload);
     targetStream.write(`${line}\n`);
     options.onLogLine?.(line);
     recordRecentLogLine(line);
+    if (isAgentActivityKind(kind)) {
+      options.onActivity?.();
+    }
   }
 
   function emitAgentEnd(reason?: string): void {

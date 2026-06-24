@@ -50,7 +50,7 @@ git log --oneline -10
 \`\`\`
 
 ### Backlog
-For backlog commands and workflows, activate the backlog skill:
+For backlog commands, activate the backlog skill:
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --role="${role}"

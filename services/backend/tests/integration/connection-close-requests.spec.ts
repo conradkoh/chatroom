@@ -12,12 +12,12 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createDuoTeamChatroom, createTestSession } from '../helpers/integration';
+import { createBuilderEntryDuoChatroom, createTestSession } from '../helpers/integration';
 
 describe('connection close requests', () => {
   test('supersede appends a close-request row with reason "superseded"', async () => {
     const { sessionId } = await createTestSession('ccr-supersede-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Join with connectionId 'conn-A' and machineId 'machine-1'
     await t.mutation(api.participants.join, {
@@ -53,7 +53,7 @@ describe('connection close requests', () => {
 
   test('getPendingTasksForRole returns connection_closed for a live close request', async () => {
     const { sessionId } = await createTestSession('ccr-getnext-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Seed a live close request for 'conn-A'
     const now = Date.now();
@@ -80,7 +80,7 @@ describe('connection close requests', () => {
 
   test('getPendingTasksForRole ignores expired close requests', async () => {
     const { sessionId } = await createTestSession('ccr-expired-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Seed an EXPIRED close request for 'conn-X'
     const now = Date.now();
@@ -108,7 +108,7 @@ describe('connection close requests', () => {
 
   test('confirmConnectionClosed emits event and removes rows', async () => {
     const { sessionId } = await createTestSession('ccr-confirm-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     // Seed a close request for 'conn-A'
     const now = Date.now();
@@ -155,7 +155,7 @@ describe('connection close requests', () => {
 
   test('requestConnectionClose appends a row', async () => {
     const { sessionId } = await createTestSession('ccr-request-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.connections.requestConnectionClose, {
       sessionId,

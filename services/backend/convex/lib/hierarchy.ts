@@ -8,7 +8,6 @@ export interface RoleHierarchy {
 export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
   planner: 0,
   builder: 1,
-  reviewer: 2,
   user: 999,
 };
 

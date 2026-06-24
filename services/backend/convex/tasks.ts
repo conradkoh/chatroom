@@ -8,13 +8,16 @@ import {
 } from '../config/errorCodes';
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
-import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession } from './auth/session';
+import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
-import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
+import {
+  createTask as createTaskUsecase,
+  hasActiveTaskFromMaterializedCounts,
+} from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
@@ -27,7 +30,6 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
-import { hasActiveTaskFromMaterializedCounts } from '../src/domain/usecase/task/create-task';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -133,6 +135,12 @@ export const claimTask = mutation({
       }
       if (pendingTask.chatroomId !== args.chatroomId) {
         throw new Error('Task does not belong to this chatroom');
+      }
+      if (pendingTask.status === 'acknowledged') {
+        if (pendingTask.assignedTo?.toLowerCase() === normalizedRole) {
+          return { taskId: pendingTask._id, content: pendingTask.content };
+        }
+        throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
       }
       if (pendingTask.status !== 'pending') {
         throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);

@@ -11,7 +11,7 @@ import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { closeBacklogItem } from '../../src/domain/usecase/backlog/close-backlog-item';
 import { createBacklogItem } from '../../src/domain/usecase/backlog/create-backlog-item';
 import { t } from '../../test.setup';
-import { createDuoTeamChatroom, createTestSession } from '../helpers/integration';
+import { createBuilderEntryDuoChatroom, createTestSession } from '../helpers/integration';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ async function createAndFetchBacklogItem(
 describe('closeBacklogItem', () => {
   test('closes a backlog item from backlog status', async () => {
     const { sessionId } = await createTestSession('test-close-backlog-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
 
     await t.run(async (ctx) => {
@@ -54,7 +54,7 @@ describe('closeBacklogItem', () => {
 
   test('is a no-op when item is already closed (idempotent)', async () => {
     const { sessionId } = await createTestSession('test-close-backlog-idem-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
 
     // Close the item the first time
@@ -83,7 +83,7 @@ describe('closeBacklogItem', () => {
 
   test('skips transition when passed an already-closed item directly', async () => {
     const { sessionId } = await createTestSession('test-close-backlog-preclosed');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
 
     // Close the item via the FSM first

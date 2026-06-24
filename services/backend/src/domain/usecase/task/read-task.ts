@@ -88,8 +88,8 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
     throw new Error('Task does not belong to this chatroom');
   }
 
-  // 3. Validate: task is assigned to role
-  if (task.assignedTo !== role) {
+  // 3. Validate: task is assigned to role (case-insensitive — handoff may use different casing)
+  if (task.assignedTo && task.assignedTo.toLowerCase() !== role.toLowerCase()) {
     throw new Error(`Task is assigned to ${task.assignedTo}, not ${role}`);
   }
 
@@ -99,7 +99,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   //    This is a recovering agent picking up where a dead agent left off.
   //    Update assignedTo if needed, emit event, patch participant status.
   if (task.status === 'in_progress') {
-    if (task.assignedTo !== role) {
+    if (task.assignedTo && task.assignedTo.toLowerCase() !== role.toLowerCase()) {
       await ctx.db.patch('chatroom_tasks', taskId, {
         assignedTo: role,
         updatedAt: now,

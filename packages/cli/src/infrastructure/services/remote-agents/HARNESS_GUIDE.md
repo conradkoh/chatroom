@@ -7,9 +7,54 @@ End-to-end steps for adding a new remote agent harness to the Chatroom CLI.
 | Kind          | When to use                                              | Examples                                                       |
 | ------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
 | **CLI-based** | The runtime is a subprocess with stdout/stderr you parse | `cursor`, `claude`, `pi`, `opencode`, `copilot`, `commandcode` |
-| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`                                   |
+| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`, `pi-sdk`                         |
 
 Both kinds implement the same `RemoteAgentService` contract and register in `init-registry.ts`.
+
+### Native integration (`supportsNativeIntegration`)
+
+Some harnesses use **native integration**: the chatroom daemon injects tasks directly into the harness session context instead of relying on a blocking `get-next-task` listen loop.
+
+| Aspect               | CLI harness (default)                                                                                    | Native integration harness                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Task delivery**    | Agent runs `get-next-task` in a foreground loop; backend claims and delivers via WebSocket               | Backend injects tasks into the in-process session when user messages or handoffs arrive          |
+| **Session start**    | System prompt + instructions to run `get-next-task`                                                      | System prompt only — no `get-next-task` loop                                                     |
+| **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; first harness token → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first harness token → WORKING |
+
+**Distinction from `supportsSessionResume`:** session resume (turn-end `resumeTurn` after `lifecycle.turn.completed`) is disabled for all harnesses. Native integration changes _how tasks are delivered_ — the agent never blocks on `get-next-task`. Native SDK harnesses use `resumeTurn` only for task injection.
+
+**Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk` (`supportsNativeIntegration: true` in `types.ts`).
+
+**Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn`. Task injection uses `resumeTurn` only when delivering user work.
+
+**Participant heartbeat actions** (emitted by the daemon):
+
+- **CLI harnesses:** `get-next-task:started` → WAITING; `get-next-task:stopped` when a task is delivered → ACKNOWLEDGED (`task.acknowledged`)
+- **Native harnesses:** `native:waiting` → WAITING; `native:task-injected` when a task is injected → ACKNOWLEDGED (`task.acknowledged`)
+- **All harnesses:** first stdout/stderr token via `updateTokenActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
+
+CLI and native harnesses both wire `spawnResult.onOutput()` to `participants.updateTokenActivity` in `AgentProcessManager`. The first output fires immediately; subsequent calls are throttled (30s). Agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
+
+`task read` remains available as an optional recovery command (e.g. backlog attachments not shown in delivery).
+
+**Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
+
+The task monitor watches assigned tasks and, for native harnesses, injects pending work via `resumeTurn` on assignment updates (no injection nudge retries):
+
+1. `native-task-injector-logic.ts` — pure inject decisions (`shouldInjectNativeTask`)
+2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
+3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and idle turn-end resume
+
+CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
+
+### Context compaction vs hard restart
+
+| Harness kind                                   | `compress_context=new_session` behavior                                                 | In-session compaction                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Native** (`supportsNativeIntegration: true`) | SDK compacts/summarizes context in-process; session stays alive; next task injected     | ✅ Supported                             |
+| **CLI** (default)                              | Daemon stop → cold start (`wantResume=false`); agent must run `get-next-task` to rejoin | ❌ Not supported — hard restart required |
+
+**Rule:** Only native harnesses can compact context without leaving the session. CLI harnesses always require a full process restart and get-next-task rejoin when starting a new session context.
 
 ---
 

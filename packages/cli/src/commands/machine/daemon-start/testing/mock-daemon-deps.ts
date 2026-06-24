@@ -60,6 +60,7 @@ export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDep
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn().mockResolvedValue(undefined),
+      resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
     } as any,
   };
 

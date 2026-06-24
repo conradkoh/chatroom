@@ -29,6 +29,7 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#ffffff',
 };
 
 export const metadata: Metadata = {
@@ -64,6 +65,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="theme-color" content="#ffffff" />
         <Script id="theme-init" strategy="beforeInteractive">
           {themeScript}
         </Script>

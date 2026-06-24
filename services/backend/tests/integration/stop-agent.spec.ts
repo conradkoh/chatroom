@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { stopAgent } from '../../src/domain/usecase/agent/stop-agent';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   getCommandEvents,
   registerMachineWithDaemon,
@@ -20,7 +20,7 @@ describe('stopAgent', () => {
   test('dispatches an agent.requestStop event with correct payload', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-stop-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -51,7 +51,7 @@ describe('stopAgent', () => {
   test('returns empty result (no command ID needed for event-stream delivery)', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-stop-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-2';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -61,7 +61,7 @@ describe('stopAgent', () => {
       return stopAgent(ctx, {
         machineId,
         chatroomId,
-        role: 'reviewer',
+        role: 'planner',
         userId: user!._id,
         reason: 'test',
       });
@@ -75,7 +75,7 @@ describe('stopAgent', () => {
   test('multiple stop events can be dispatched independently', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-stop-3');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-3';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -93,7 +93,7 @@ describe('stopAgent', () => {
       await stopAgent(ctx, {
         machineId,
         chatroomId,
-        role: 'reviewer',
+        role: 'planner',
         userId: user!._id,
         reason: 'test',
       });
@@ -108,6 +108,6 @@ describe('stopAgent', () => {
       .filter((e) => e.type === 'agent.requestStop')
       .map((e) => (e as { role: string }).role)
       .sort();
-    expect(roles).toEqual(['builder', 'reviewer']);
+    expect(new Set(roles)).toEqual(new Set(['planner', 'builder']));
   });
 });

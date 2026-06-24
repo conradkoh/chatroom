@@ -7,7 +7,7 @@
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
  * Spawns agents using:
- *   pi --mode rpc --session-dir <dir> [--session <id>] [--model <model>] [--system-prompt <systemPrompt>]
+ *   pi --mode rpc --session-dir <dir> [--model <model>] [--system-prompt <systemPrompt>]
  *
  * The prompt is sent to the long-running process over stdin as a JSON command:
  *   {"type": "prompt", "message": "<prompt>"}
@@ -15,7 +15,9 @@
  * Pi streams events back on stdout as newline-delimited JSON, parsed by PiRpcReader.
  * Text and thinking deltas are buffered per-line and emitted with [pi text] /
  * [pi thinking] prefixes so PM2 / daemon logs capture them as distinct log lines.
- * The process stays alive after each turn so future prompts can be sent over stdin.
+ *
+ * Each turn ends with agent_end; the daemon kills the process (supportsSessionResume
+ * is false). Use `pi-sdk` for native task injection without get-next-task.
  *
  * Extends BaseCLIAgentService which handles all shared boilerplate:
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and
@@ -34,12 +36,7 @@ import {
   resolveBashCommandForLog,
 } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type {
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
-  SpawnOptions,
-  SpawnResult,
-} from '../remote-agent-service.js';
+import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { PiRpcReader } from './pi-rpc-reader.js';
 
 export type PiAgentServiceDeps = CLIAgentServiceDeps;
@@ -47,7 +44,6 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PI_COMMAND = 'pi';
-const PI_AGENT_NAME = 'pi';
 const GET_STATE_TIMEOUT_MS = 5_000;
 const SPAWN_READY_DELAY_MS = 500;
 
@@ -57,12 +53,6 @@ export function getPiSessionDir(workingDir: string): string {
   return join(workingDir, '.chatroom', 'pi-sessions');
 }
 
-interface PiTrackedSession {
-  harnessSessionId: string;
-  workingDir: string;
-  model?: string;
-}
-
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class PiAgentService extends BaseCLIAgentService {
@@ -70,75 +60,8 @@ export class PiAgentService extends BaseCLIAgentService {
   readonly displayName = 'Pi';
   readonly command = PI_COMMAND;
 
-  /** Child processes by PID — needed for resumeTurn stdin writes. */
-  private readonly childProcesses = new Map<number, ChildProcess>();
-  /** Session metadata for daemon-memory stop→start resume reconnect context. */
-  private readonly trackedSessions = new Map<number, PiTrackedSession>();
-
   constructor(deps?: Partial<PiAgentServiceDeps>) {
     super(deps);
-  }
-
-  override untrack(pid: number): void {
-    this.childProcesses.delete(pid);
-    this.trackedSessions.delete(pid);
-    super.untrack(pid);
-  }
-
-  getHarnessReconnectContext(pid: number): HarnessReconnectMetadata | undefined {
-    const session = this.trackedSessions.get(pid);
-    if (!session) {
-      return undefined;
-    }
-    return {
-      agentName: PI_AGENT_NAME,
-      ...(session.model ? { model: session.model } : {}),
-    };
-  }
-
-  async resumeFromDaemonMemory(
-    options: SpawnOptions,
-    stored: DaemonHarnessSessionContext
-  ): Promise<SpawnResult> {
-    const { prompt, systemPrompt, model, context } = options;
-    const modelForSession = model ?? stored.model;
-
-    let childProcess: ChildProcess | undefined;
-    try {
-      childProcess = this.spawnPiRpcProcess({
-        workingDir: stored.workingDir,
-        systemPrompt,
-        model: modelForSession,
-        sessionId: stored.harnessSessionId,
-        resolvedConvexUrl: options.resolvedConvexUrl,
-      });
-
-      await this.waitForSpawnReady(childProcess);
-      await this.writePrompt(childProcess, prompt);
-
-      return this.wireRpcProcess({
-        childProcess,
-        context,
-        workingDir: stored.workingDir,
-        model: modelForSession,
-        harnessSessionId: stored.harnessSessionId,
-      });
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
-      );
-      childProcess?.kill();
-      return this.spawn(options);
-    }
-  }
-
-  async resumeTurn(pid: number, prompt: string): Promise<void> {
-    const child = this.childProcesses.get(pid);
-    if (!child) {
-      throw new Error(`No tracked pi process or stdin for pid=${pid}`);
-    }
-    await this.writePrompt(child, prompt);
   }
 
   async isInstalled(): Promise<boolean> {
@@ -201,8 +124,6 @@ export class PiAgentService extends BaseCLIAgentService {
     return this.wireRpcProcess({
       childProcess,
       context,
-      workingDir,
-      model,
       harnessSessionId,
       reader,
     });
@@ -212,14 +133,9 @@ export class PiAgentService extends BaseCLIAgentService {
     workingDir: string;
     systemPrompt: string;
     model?: string;
-    sessionId?: string;
     resolvedConvexUrl: string;
   }): ChildProcess {
     const rpcArgs: string[] = ['--mode', 'rpc', '--session-dir', getPiSessionDir(args.workingDir)];
-
-    if (args.sessionId) {
-      rpcArgs.push('--session', args.sessionId);
-    }
 
     if (args.model) {
       rpcArgs.push('--model', args.model);
@@ -286,19 +202,14 @@ export class PiAgentService extends BaseCLIAgentService {
   private wireRpcProcess(args: {
     childProcess: ChildProcess;
     context: SpawnOptions['context'];
-    workingDir: string;
-    model?: string;
     harnessSessionId: string;
     reader?: PiRpcReader;
   }): SpawnResult {
-    const { childProcess, context, workingDir, model, harnessSessionId } = args;
+    const { childProcess, context, harnessSessionId } = args;
     const pid = childProcess.pid;
     if (pid == null) {
       throw new Error('Pi RPC process has no PID');
     }
-
-    this.childProcesses.set(pid, childProcess);
-    this.trackedSessions.set(pid, { harnessSessionId, workingDir, model });
 
     const entry = this.registerProcess(pid, context);
 
@@ -320,8 +231,6 @@ export class PiAgentService extends BaseCLIAgentService {
       }) => void
     ) => {
       childProcess.on('exit', (code, signal) => {
-        this.childProcesses.delete(pid);
-        this.trackedSessions.delete(pid);
         this.deleteProcess(pid);
         cb({ code, signal, context });
       });
@@ -342,10 +251,6 @@ export class PiAgentService extends BaseCLIAgentService {
     const baseResult: SpawnResult = {
       pid,
       harnessSessionId,
-      harnessReconnect: {
-        agentName: PI_AGENT_NAME,
-        ...(model ? { model } : {}),
-      },
       onExit,
       onOutput,
       onLogLine,

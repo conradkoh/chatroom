@@ -26,14 +26,14 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a Pair team chatroom
+ * Helper to create a Duo team chatroom
  */
-async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createBuilderEntryDuoChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair',
-    teamRoles: ['builder', 'reviewer'],
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
   return chatroomId;
@@ -60,8 +60,8 @@ describe('Task Workflow - Backlog Origin', () => {
   describe('Task Creation', () => {
     test('creates backlog item with status=backlog via createBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-backlog-create');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create backlog item using the new chatroom_backlog API
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -88,8 +88,8 @@ describe('Task Workflow - Backlog Origin', () => {
 
     test('creates chat task with status=pending via createTask', async () => {
       const { sessionId } = await createTestSession('test-chat-create');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create chat task (no longer uses isBacklog field)
       const result = await t.mutation(api.tasks.createTask, {
@@ -107,8 +107,8 @@ describe('Task Workflow - Backlog Origin', () => {
   describe('Backlog → Queue Transition', () => {
     test('backlog item can be created and then a task can be created from it', async () => {
       const { sessionId } = await createTestSession('test-backlog-to-queue');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a regular task to block the queue
       await t.mutation(api.tasks.createTask, {
@@ -141,8 +141,8 @@ describe('Task Workflow - Backlog Origin', () => {
   describe('Complete Task Flow', () => {
     test('completeTask transitions task to completed (chat task)', async () => {
       const { sessionId } = await createTestSession('test-complete-backlog');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a task via message
       await t.mutation(api.messages.sendMessage, {
@@ -186,8 +186,8 @@ describe('Task Workflow - Backlog Origin', () => {
 
     test('completeTask transitions chat task directly to completed', async () => {
       const { sessionId } = await createTestSession('test-complete-chat');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create chat task using createTask (no longer uses isBacklog field)
       const chatTask = await t.mutation(api.tasks.createTask, {
@@ -234,8 +234,8 @@ describe('Task Workflow - Backlog Origin', () => {
   describe('Pending User Review Actions', () => {
     test('backlog item can be marked complete via completeBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-mark-complete');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a backlog item and process it through to pending_user_review
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -276,8 +276,8 @@ describe('Task Workflow - Backlog Origin', () => {
 
     test('backlog item can be closed via closeBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-close-backlog');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -311,8 +311,8 @@ describe('Task Workflow - Backlog Origin', () => {
 
     test('backlog item can be sent back for rework via sendBacklogItemBackForRework', async () => {
       const { sessionId } = await createTestSession('test-send-back');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -353,8 +353,8 @@ describe('Task Workflow - Backlog Origin', () => {
 describe('Task Workflow - Cancel Actions', () => {
   test('backlog item can be closed via closeBacklogItem', async () => {
     const { sessionId } = await createTestSession('test-cancel-backlog');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create backlog item
     const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -386,8 +386,8 @@ describe('Task Workflow - Cancel Actions', () => {
 
   test('chat task can be force-completed via completeTaskById', async () => {
     const { sessionId } = await createTestSession('test-cancel-chat');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a chat task
     const chatTask = await t.mutation(api.tasks.createTask, {
@@ -410,8 +410,8 @@ describe('Task Workflow - Cancel Actions', () => {
 
   test('force-completing task does not delete source message', async () => {
     const { sessionId } = await createTestSession('test-cancel-cascade-message');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Send a user message to create a task with sourceMessageId
     const messageId = await t.mutation(api.messages.sendMessage, {
@@ -454,8 +454,8 @@ describe('Task Workflow - Cancel Actions', () => {
 describe('Task Counts', () => {
   test('getTaskCounts includes expected status counts', async () => {
     const { sessionId } = await createTestSession('test-counts');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     const counts = await t.query(api.tasks.getTaskCounts, {
       sessionId,
@@ -475,8 +475,8 @@ describe('Task Counts', () => {
 describe('Task Workflow - Race Conditions', () => {
   test('startTask throws error when no acknowledged task exists (FSM workflow)', async () => {
     const { sessionId } = await createTestSession('test-race-no-acknowledged');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Try to start a task when none is acknowledged - simulates race where another agent claimed it
     await expect(
@@ -490,8 +490,8 @@ describe('Task Workflow - Race Conditions', () => {
 
   test('second claimTask call fails when task already acknowledged', async () => {
     const { sessionId } = await createTestSession('test-race-double-claim');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a pending task
     await t.mutation(api.tasks.createTask, {
@@ -514,15 +514,15 @@ describe('Task Workflow - Race Conditions', () => {
       t.mutation(api.tasks.claimTask, {
         sessionId,
         chatroomId,
-        role: 'reviewer', // Different role trying to claim
+        role: 'planner', // Different role trying to claim
       })
     ).rejects.toThrow('No pending task to claim');
   });
 
   test('task start and message claim are independent operations', async () => {
     const { sessionId } = await createTestSession('test-task-message-lifecycle');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a task via message (simulates user sending message)
     const messageId = await t.mutation(api.messages.sendMessage, {

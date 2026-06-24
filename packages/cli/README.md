@@ -28,8 +28,8 @@ This opens your browser for authentication. Confirm in the browser to complete t
 
 In the web app, click **+ New** and select a team:
 
-- **Pair** - builder, reviewer
-- **Squad** - manager, architect, builder, frontend-designer, reviewer, tester
+- **Duo** - planner, builder
+- **Solo** - solo agent
 
 ### 5. Initialize Agents
 
@@ -127,11 +127,10 @@ Messages are routed by priority (lower = higher priority):
 | 1        | architect         |
 | 2        | builder           |
 | 3        | frontend-designer |
-| 4        | reviewer          |
-| 5        | tester            |
+| 4        | tester            |
 | 100      | user              |
 
-**Note:** User messages always go to the team's designated entry point role (e.g., `builder` for pair, `manager` for squad).
+**Note:** User messages always go to the team's designated entry point role (e.g., `planner` for duo, `solo` for solo).
 
 ### Workflow
 

@@ -11,6 +11,8 @@ export interface SessionMetadata {
   agentName: string;
   /** Model id string passed at spawn, if any (e.g. provider/model). */
   model?: string;
+  /** Composed system prompt deferred until first resumeTurn (idle native spawn). */
+  deferredSystemPrompt?: string;
   /** Display title synced from the harness (e.g. opencode session title). */
   title?: string;
   pid: number;

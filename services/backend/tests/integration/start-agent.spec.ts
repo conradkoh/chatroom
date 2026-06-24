@@ -12,7 +12,7 @@ import { api } from '../../convex/_generated/api';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   getCommandEvents,
   registerMachineWithDaemon,
@@ -24,7 +24,7 @@ describe('startAgent — config persistence', () => {
   test('creates team config on first start', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-persist-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-sa-persist-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -73,7 +73,7 @@ describe('startAgent — config persistence', () => {
   test('updates existing team config on subsequent start', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-persist-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-sa-persist-2';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -148,7 +148,7 @@ describe('startAgent — harness validation', () => {
   test('throws when harness is not available on machine', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-harness-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-sa-harness-1';
 
     // Register machine WITHOUT opencode harness
@@ -199,12 +199,12 @@ describe('startAgent — harness validation', () => {
 describe('startAgent — teamRoleKey collision regression', () => {
   test('two chatrooms with the same teamId but different _id produce different teamRoleKeys', async () => {
     // ===== SETUP =====
-    // Create two separate chatrooms both using the "pair" team type.
+    // Create two separate chatrooms both using the duo team type.
     // Before the fix, both would generate the same teamRoleKey because the key
-    // used chatroom.teamId ("pair") instead of chatroom._id (unique per chatroom).
+    // used chatroom.teamId ("duo") instead of chatroom._id (unique per chatroom).
     const { sessionId } = await createTestSession('test-sa-collision-1');
-    const chatroomId1 = await createDuoTeamChatroom(sessionId);
-    const chatroomId2 = await createDuoTeamChatroom(sessionId);
+    const chatroomId1 = await createBuilderEntryDuoChatroom(sessionId);
+    const chatroomId2 = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-sa-collision-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -279,7 +279,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
   test('teamRoleKey includes chatroom._id (not teamId) in its format', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-key-format-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-sa-key-format-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -339,13 +339,13 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
 
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-init-prompt-agenttype-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-init-prompt-agenttype-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
     // Join participants so getInitPrompt can read presence
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'reviewer' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     // ===== ACTION =====
     // Start a remote agent — this writes chatroom_teamAgentConfigs with type='remote'
@@ -392,10 +392,10 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
   test('agentType is unset when no config exists for chatroom+role', async () => {
     // Verifies the fallback path is still correct.
     const { sessionId } = await createTestSession('test-init-prompt-agenttype-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'reviewer' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
 
     const initPrompt = await t.query(api.messages.getInitPrompt, {
       sessionId,
@@ -416,7 +416,7 @@ describe('startAgent — command payload', () => {
   test('dispatched command payload matches the input exactly', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-payload-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-sa-payload-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -470,7 +470,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
     // Expected: agentHarness='pi' is preserved (not overwritten with undefined)
 
     const { sessionId } = await createTestSession('test-harness-preserve-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-harness-preserve-1';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -523,7 +523,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
   test('sets agentHarness on first registration when provided', async () => {
     // When no prior record exists and agentHarness is provided, it should be saved.
     const { sessionId } = await createTestSession('test-harness-preserve-2');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-harness-preserve-2';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -551,7 +551,7 @@ describe('saveTeamAgentConfig — agentHarness preservation', () => {
   test('leaves agentHarness undefined when never set', async () => {
     // When no agentHarness was ever written, it should remain absent.
     const { sessionId } = await createTestSession('test-harness-preserve-3');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-harness-preserve-3';
     await registerMachineWithDaemon(sessionId, machineId);
 

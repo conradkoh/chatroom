@@ -9,21 +9,25 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
+import {
+  createTestSession,
+  createBuilderEntryDuoChatroom,
+  joinParticipant,
+} from '../helpers/integration';
 
 describe('Participant Routing with Exited Participants', () => {
   test('getAllowedHandoffRoles excludes exited participants', async () => {
     const { sessionId } = await createTestSession('test-route-exited-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
-    await joinParticipant(sessionId, chatroomId, 'reviewer');
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     await t.run(async (ctx) => {
       const reviewer = await ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'reviewer')
+          q.eq('chatroomId', chatroomId).eq('role', 'planner')
         )
         .unique();
       await ctx.db.patch(reviewer!._id, { lastSeenAction: 'exited' });
@@ -35,15 +39,15 @@ describe('Participant Routing with Exited Participants', () => {
       role: 'builder',
     });
 
-    expect(result.availableRoles.some((r: string) => r === 'reviewer')).toBe(false);
+    expect(result.availableRoles.some((r: string) => r === 'planner')).toBe(false);
   });
 
   test('getAllowedHandoffRoles includes active participants', async () => {
     const { sessionId } = await createTestSession('test-route-active-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
-    await joinParticipant(sessionId, chatroomId, 'reviewer');
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     const result = await t.query(api.messages.getAllowedHandoffRoles, {
       sessionId,
@@ -51,12 +55,12 @@ describe('Participant Routing with Exited Participants', () => {
       role: 'builder',
     });
 
-    expect(result.availableRoles.some((r: string) => r === 'reviewer')).toBe(true);
+    expect(result.availableRoles.some((r: string) => r === 'planner')).toBe(true);
   });
 
   test('listByUserWithStatus excludes exited participants from agents array', async () => {
     const { sessionId } = await createTestSession('test-list-exited-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -79,7 +83,7 @@ describe('Participant Routing with Exited Participants', () => {
 
   test('listByUserWithStatus includes active participants in agents array', async () => {
     const { sessionId } = await createTestSession('test-list-active-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 

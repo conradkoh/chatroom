@@ -41,6 +41,7 @@ import {
 } from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
+import { withTimeout } from '../with-timeout.js';
 
 type Run = CursorSdkModule.Run;
 type SDKAgent = CursorSdkModule.SDKAgent;
@@ -94,20 +95,6 @@ function getSdkPackageVersion(): string {
   return cachedSdkPackageVersion;
 }
 
-async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      p,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
 interface SdkSession {
   agent: SDKAgent;
   run?: Run;
@@ -118,10 +105,14 @@ interface SdkSession {
   agentName: string;
   model?: string;
   workingDir: string;
+  /** System prompt prepended to the first injected turn when deferInitialTurn is set. */
+  storedSystemPrompt?: string;
   /** Resolves when resumeTurn delivers the next prompt. */
   resumeResolve?: (prompt: string) => void;
   /** Resolves when stop() aborts while waiting for resume. */
   abortResolve?: () => void;
+  /** Queued when resumeTurn runs before waitForResumeOrAbort registers a resolver. */
+  pendingResumePrompt?: string;
 }
 
 function buildAgentName(context: SpawnContext): string {
@@ -130,6 +121,12 @@ function buildAgentName(context: SpawnContext): string {
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
   if (session.aborted) return Promise.resolve(null);
+
+  const queued = session.pendingResumePrompt;
+  if (queued !== undefined) {
+    session.pendingResumePrompt = undefined;
+    return Promise.resolve(queued);
+  }
 
   return Promise.race([
     new Promise<string>((resolve) => {
@@ -236,13 +233,14 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     if (!session) {
       throw new Error(`No cursor-sdk session for pid=${pid}`);
     }
-    if (!session.resumeResolve) {
-      throw new Error(`cursor-sdk session pid=${pid} not waiting for resume`);
+    if (session.resumeResolve) {
+      const resolve = session.resumeResolve;
+      session.resumeResolve = undefined;
+      session.abortResolve = undefined;
+      resolve(prompt);
+      return;
     }
-    const resolve = session.resumeResolve;
-    session.resumeResolve = undefined;
-    session.abortResolve = undefined;
-    resolve(prompt);
+    session.pendingResumePrompt = prompt;
   }
 
   override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
@@ -369,6 +367,8 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     workingDir: string;
     initialPrompt: string;
     forceFirstTurn: boolean;
+    deferInitialTurn?: boolean;
+    storedSystemPrompt?: string;
   }): SpawnResult {
     const {
       pid,
@@ -380,6 +380,8 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       workingDir,
       initialPrompt,
       forceFirstTurn,
+      deferInitialTurn = false,
+      storedSystemPrompt,
     } = args;
 
     const entry = this.registerProcess(pid, context);
@@ -394,6 +396,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agentName,
       model,
       workingDir,
+      storedSystemPrompt,
     };
     this.sessions.set(pid, session);
 
@@ -426,6 +429,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       logPrefix,
       initialPrompt,
       forceFirstTurn,
+      deferInitialTurn,
       finishExit,
       outputCallbacks,
       agentEndCallbacks,
@@ -463,6 +467,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     logPrefix: string;
     initialPrompt: string;
     forceFirstTurn: boolean;
+    deferInitialTurn?: boolean;
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
@@ -474,6 +479,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       logPrefix,
       initialPrompt,
       forceFirstTurn,
+      deferInitialTurn = false,
       finishExit,
       entry,
       outputCallbacks,
@@ -486,12 +492,33 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     void (async () => {
       let exitCode: number | null = 0;
       let exitSignal: string | null = null;
-      let nextPrompt = initialPrompt;
+      let nextPrompt: string | null = deferInitialTurn ? null : initialPrompt;
       let isFirstTurn = forceFirstTurn;
+      let prependSystemOnNextResume = deferInitialTurn;
+      const storedSystemPrompt = session.storedSystemPrompt;
 
       try {
         while (!session.aborted) {
           try {
+            if (nextPrompt === null) {
+              const deferredResume = await waitForResumeOrAbort(session);
+              if (deferredResume === null || session.aborted) {
+                if (session.aborted) {
+                  exitCode = 1;
+                  exitSignal = 'SIGTERM';
+                }
+                break;
+              }
+              nextPrompt =
+                prependSystemOnNextResume && storedSystemPrompt
+                  ? `${storedSystemPrompt}\n\n${deferredResume}`
+                  : deferredResume;
+              prependSystemOnNextResume = false;
+              if (deferInitialTurn) {
+                isFirstTurn = true;
+              }
+            }
+
             const run = await withTimeout(
               agent.send(nextPrompt, {
                 local: { force: isFirstTurn },
@@ -545,7 +572,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               const detail =
                 typeof result.result === 'string' && result.result.trim().length > 0
                   ? result.result.trim()
-                  : 'no error detail from SDK';
+                  : `no error detail from SDK (run ${result.id})`;
               const runErrorLine = formatAgentLogLine(
                 logPrefix,
                 'run-error',
@@ -556,25 +583,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               break;
             }
 
-            // Enter resume wait before finish() emits agent_end. handleAgentEnd
-            // calls resumeTurn synchronously from that callback; resumeResolve
-            // must already be registered or resumeTurn throws "not waiting for resume".
-            const resumePromise = waitForResumeOrAbort(session);
-
-            // finish() emits agent_end (wired to agentEndCallbacks) only after a
-            // successful run.wait(), so resumeTurn is not invoked mid-stream.
+            // finish() emits agent_end (wired to agentEndCallbacks) after a successful run.
             adapter.finish();
 
-            const resumePrompt = await resumePromise;
-            if (resumePrompt === null || session.aborted) {
-              if (session.aborted) {
-                exitCode = 1;
-                exitSignal = 'SIGTERM';
-              }
-              break;
-            }
-
-            nextPrompt = resumePrompt;
+            nextPrompt = null;
           } catch (turnErr) {
             exitCode = 1;
             writeSpawnError(logPrefix, turnErr, emitLogLine);
@@ -618,6 +630,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       throw new Error('CURSOR_API_KEY is not set');
     }
 
+    const deferInitialTurn = options.deferInitialTurn ?? false;
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
@@ -627,7 +640,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
-    const fullPrompt = `${systemPrompt}\n\n${options.prompt}`;
+    const fullPrompt = deferInitialTurn ? '' : `${systemPrompt}\n\n${options.prompt}`;
 
     let agent: SDKAgent;
     try {
@@ -657,7 +670,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       model: options.model,
       workingDir: options.workingDir,
       initialPrompt: fullPrompt,
-      forceFirstTurn: true,
+      forceFirstTurn: !deferInitialTurn,
+      deferInitialTurn,
+      storedSystemPrompt: systemPrompt,
     });
   }
 }

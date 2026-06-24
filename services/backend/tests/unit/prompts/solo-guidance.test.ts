@@ -25,22 +25,42 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance.length).toBeGreaterThan(100);
   });
 
-  test('contains solo workflow and team context', () => {
+  test('contains solo operating model and team context', () => {
     const guidance = getSoloGuidance(baseParams);
-    expect(guidance).toContain('Solo Workflow');
+    expect(guidance).toContain('Solo Operating Model');
     expect(guidance).toContain('Solo Team Context');
     expect(guidance).toContain('autonomous agent');
   });
 
-  test('contains classification section when entry point', () => {
-    const guidance = getSoloGuidance({ ...baseParams, isEntryPoint: true });
-    expect(guidance).toContain('Classification');
-    expect(guidance).toContain('task read');
+  test('CLI operating model receives chatroom task from get-next-task', () => {
+    const guidance = getSoloGuidance({
+      ...baseParams,
+      isEntryPoint: true,
+      nativeIntegration: false,
+    });
+    expect(guidance).toContain('Receive chatroom task from get-next-task');
+    expect(guidance).not.toContain('chatroom classify');
+    expect(guidance).not.toMatch(/task read/i);
   });
 
-  test('does not contain classification when not entry point', () => {
-    const guidance = getSoloGuidance({ ...baseParams, isEntryPoint: false });
+  test('native integration omits CLI task read note and get-next-task', () => {
+    const guidance = getSoloGuidance({
+      ...baseParams,
+      isEntryPoint: true,
+      nativeIntegration: true,
+    });
     expect(guidance).not.toContain('Classification (Entry Point Role)');
+    expect(guidance).not.toMatch(/task read/i);
+    expect(guidance).not.toMatch(/get-next-task/i);
+    expect(guidance).toContain('Receive user message');
+    expect(guidance).toContain('Hand off when complete');
+    expect(guidance).not.toContain('After ANY handoff');
+  });
+
+  test('CLI mode still includes get-next-task in operating model and handoff rules', () => {
+    const guidance = getSoloGuidance({ ...baseParams, nativeIntegration: false });
+    expect(guidance).toContain('get-next-task');
+    expect(guidance).toContain('After ANY handoff');
   });
 
   test('contains key solo behaviors', () => {
@@ -48,7 +68,7 @@ describe('solo > getSoloGuidance', () => {
     // Must mention key solo responsibilities
     expect(guidance).toContain('plan');
     expect(guidance).toContain('implement');
-    expect(guidance).toContain('workflow');
+    expect(guidance).toContain('Operating model');
     expect(guidance).toContain('user');
   });
 
@@ -65,11 +85,6 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).toContain('Handoff Rules');
     // Solo can handoff directly to user
     expect(guidance).toContain('user');
-  });
-
-  test('contains progress reporting guidance', () => {
-    const guidance = getSoloGuidance(baseParams);
-    expect(guidance).toContain('report-progress');
   });
 
   test('contains implementation guidelines', () => {

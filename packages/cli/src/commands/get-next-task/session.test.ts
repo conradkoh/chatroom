@@ -328,6 +328,13 @@ describe('GetNextTaskSession', () => {
 
       expect(exitSpy).toHaveBeenCalledWith(0);
 
+      // Verify get-next-task:stopped is emitted before exit (markListeningStopped)
+      const stoppedCalls = params.client.mutation.mock.calls.filter(
+        (call: unknown[]) =>
+          (call[1] as { action?: string } | undefined)?.action === 'get-next-task:stopped'
+      );
+      expect(stoppedCalls.length).toBeGreaterThanOrEqual(1);
+
       // Verify claimTask was called (it's the first mutation call for pending tasks)
       expect(params.client.mutation).toHaveBeenCalled();
 
@@ -491,7 +498,7 @@ describe('GetNextTaskSession', () => {
     it('includes chatroom ID and role in reconnect command', async () => {
       const { callbacks } = await startSession({
         chatroomId: 'my_custom_chatroom_id_1234',
-        role: 'reviewer',
+        role: 'planner',
       });
 
       callbacks.onUpdate({ type: 'superseded', newConnectionId: 'new' });
@@ -501,7 +508,7 @@ describe('GetNextTaskSession', () => {
 
       const output = getAllLogOutput();
       expect(output).toContain('--chatroom-id=my_custom_chatroom_id_1234');
-      expect(output).toContain('--role=reviewer');
+      expect(output).toContain('--role=planner');
     });
   });
 });

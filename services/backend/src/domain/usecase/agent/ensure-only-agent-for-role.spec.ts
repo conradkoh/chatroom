@@ -28,9 +28,9 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
   });
 }
 

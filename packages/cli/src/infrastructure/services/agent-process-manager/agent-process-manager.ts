@@ -21,6 +21,7 @@
 
 import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
@@ -35,17 +36,23 @@ import {
   shouldPreserveHarnessTeardown,
   shouldRetainHarnessSessionForReconnect,
 } from '../../../domain/agent-lifecycle/index.js';
+import { tryAbortResumeStorm } from '../../../domain/agent-lifecycle/policies/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../../domain/agent-lifecycle/policies/append-recent-log-line.js';
 import {
   formatPermanentHarnessFailureMessage,
   isPermanentHarnessFailure,
 } from '../../../domain/agent-lifecycle/policies/classify-resume-storm-reason.js';
 import {
+  formatCursorSdkRunErrorMessage,
+  isCursorSdkRunErrorInLogs,
+} from '../../../domain/agent-lifecycle/policies/cursor-sdk-run-error.js';
+import {
   formatTerminalProviderFailureMessage,
   isTerminalProviderFailureInLogs,
 } from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
+import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
@@ -289,6 +296,23 @@ export class AgentProcessManager {
     return operation;
   }
 
+  async resumeTurnForSlot(args: {
+    chatroomId: string;
+    role: string;
+    prompt: string;
+  }): Promise<void> {
+    const key = agentKey(args.chatroomId, args.role);
+    const slot = this.slots.get(key);
+    if (!slot?.pid || !slot.harness) {
+      throw new Error(`No running agent for ${args.role}@${args.chatroomId}`);
+    }
+    const service = this.deps.agentServices.get(slot.harness);
+    if (!service?.resumeTurn) {
+      throw new Error(`Harness ${slot.harness} does not support resumeTurn`);
+    }
+    await service.resumeTurn(slot.pid, args.prompt);
+  }
+
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -396,6 +420,11 @@ export class AgentProcessManager {
       `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${supportsSessionResume}`
     );
 
+    if (capabilities.supportsNativeIntegration) {
+      await this.runHandleNativeTurnEnd(opts, slot);
+      return;
+    }
+
     const result = await handleTurnCompleted(
       {
         resumeStormTracker: this.deps.resumeStormTracker,
@@ -406,6 +435,7 @@ export class AgentProcessManager {
             chatroomId,
             role,
             convexUrl: this.deps.convexUrl,
+            supportsNativeIntegration: capabilities.supportsNativeIntegration,
           }),
         resumeTurn: async (pid, prompt) => {
           if (!service?.resumeTurn) {
@@ -443,11 +473,82 @@ export class AgentProcessManager {
       console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
     } else if (result.outcome === 'resumed') {
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`);
+    } else if (result.outcome === 'killed') {
+      console.log(
+        `[AgentProcessManager] lifecycle.turn.completed: killed process for ${opts.role} (resume disabled or failed)`
+      );
     } else if (result.outcome === 'killed_terminal_provider_error') {
       console.log(
         `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
       );
     }
+  }
+
+  private async runHandleNativeTurnEnd(
+    opts: {
+      chatroomId: string;
+      role: string;
+      pid: number;
+      harness: AgentHarness;
+    },
+    slot: AgentSlot | undefined
+  ): Promise<void> {
+    if (slot?.resumeInFlight) {
+      console.log(
+        `[AgentProcessManager] lifecycle.turn.completed: skipping duplicate native turn-end for ${opts.role}`
+      );
+      return;
+    }
+
+    if (
+      await tryAbortResumeStorm(
+        {
+          resumeStormTracker: this.deps.resumeStormTracker,
+          backend: createTurnCompletedBackend(this.deps),
+          now: () => this.deps.clock.now(),
+          stopAgent: (args) => this.stop(args),
+        },
+        {
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid: opts.pid,
+          supportsSessionResume: false,
+          wantResume: false,
+        },
+        slot
+      )
+    ) {
+      console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
+      return;
+    }
+
+    if (isTerminalProviderFailureInLogs(slot?.recentLogLines ?? [])) {
+      if (slot) {
+        slot.terminalProviderFailureHandled = true;
+      }
+      const error = formatTerminalProviderFailureMessage(slot?.recentLogLines ?? []);
+      try {
+        await createTurnCompletedBackend(this.deps).emitAgentStartFailed({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          error,
+        });
+      } catch {
+        // Best-effort event emission
+      }
+      try {
+        this.deps.processes.kill(-opts.pid, 'SIGTERM');
+      } catch {
+        // Process may already be dead
+      }
+      console.log(
+        `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
+      );
+      return;
+    }
+
+    await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.harness);
+    console.log(`[AgentProcessManager] ✅ Native harness idle for ${opts.role} (native:waiting)`);
   }
 
   async handleExit(opts: HandleExitOpts): Promise<void> {
@@ -533,11 +634,16 @@ export class AgentProcessManager {
     slot: AgentSlot,
     ctx: ExitContext
   ): Promise<void> {
-    const { harness, harnessSessionId, stopReason } = ctx;
+    const { harness, harnessSessionId, stopReason, recentLogLines } = ctx;
     if (!harness || !harnessSessionId) {
       return;
     }
-    if (!getHarnessCapabilities(harness).supportsSessionResume) {
+    if (isCursorSdkRunErrorInLogs(recentLogLines ?? [])) {
+      this.clearLastHarnessSession(key);
+      return;
+    }
+    const service = this.deps.agentServices.get(harness);
+    if (!service?.resumeFromDaemonMemory) {
       return;
     }
     if (!shouldRetainHarnessSessionForReconnect(stopReason)) {
@@ -600,8 +706,25 @@ export class AgentProcessManager {
     this.maybeRestartAgent(opts, ctx);
   }
 
+  private clearHarnessSessionAfterRunError(
+    key: string,
+    role: string,
+    recentLogLines: string[]
+  ): boolean {
+    if (!isCursorSdkRunErrorInLogs(recentLogLines)) {
+      return false;
+    }
+    console.log(
+      `[AgentProcessManager] cursor-sdk run-error — cold restarting ${role}: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
+    );
+    this.clearLastHarnessSession(key);
+    return true;
+  }
+
   private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
     const { harness, model, workingDir, recentLogLines } = ctx;
+    const key = agentKey(opts.chatroomId, opts.role);
+    const logs = recentLogLines ?? [];
 
     if (!harness || !workingDir) {
       console.log(
@@ -611,7 +734,7 @@ export class AgentProcessManager {
       return;
     }
 
-    if (isPermanentHarnessFailure(recentLogLines ?? [])) {
+    if (isPermanentHarnessFailure(logs)) {
       this.handlePermanentFailureForRestart(
         opts,
         recentLogLines,
@@ -620,6 +743,8 @@ export class AgentProcessManager {
       return;
     }
 
+    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, opts.role, logs);
+
     void this.ensureRunning({
       chatroomId: opts.chatroomId,
       role: opts.role,
@@ -627,7 +752,7 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
-      wantResume: ctx.wantResume ?? true,
+      wantResume: coldRestartAfterRunError ? false : (ctx.wantResume ?? true),
     }).catch((err: Error) => {
       console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
       this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
@@ -1008,6 +1133,7 @@ export class AgentProcessManager {
       return spawnResult;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
+      this.clearLastHarnessSession(opts.key);
       await this.emitSessionResumeFailed(
         opts.chatroomId,
         opts.role,
@@ -1026,11 +1152,6 @@ export class AgentProcessManager {
     workingDir: string;
     service: RemoteAgentService;
   }): string | null {
-    const capabilities = getHarnessCapabilities(opts.agentHarness);
-    if (!capabilities.supportsSessionResume) {
-      return null;
-    }
-
     const stored = this.lastHarnessSessions.get(opts.key);
     if (!stored) {
       return null;
@@ -1236,7 +1357,7 @@ export class AgentProcessManager {
 
     let spawnResult: SpawnResult | undefined;
     const resumePath = decideResumePathOnRestart({
-      supportsSessionResume: getHarnessCapabilities(opts.agentHarness).supportsSessionResume,
+      supportsDaemonMemoryResume: typeof service.resumeFromDaemonMemory === 'function',
       wantResume,
       hasStoredSnapshot: this.lastHarnessSessions.has(key),
     });
@@ -1256,10 +1377,14 @@ export class AgentProcessManager {
     }
 
     if (!spawnResult) {
+      const { deferInitialTurn, prompt } = resolveNativeSpawnPolicy(
+        opts.agentHarness,
+        initPrompt.initialMessage
+      );
       try {
         spawnResult = await service.spawn({
           workingDir: opts.workingDir,
-          prompt: createSpawnPrompt(initPrompt.initialMessage),
+          prompt,
           systemPrompt: initPrompt.rolePrompt,
           model: opts.model,
           context: {
@@ -1268,6 +1393,7 @@ export class AgentProcessManager {
             role: opts.role,
           },
           resolvedConvexUrl: this.deps.convexUrl,
+          deferInitialTurn,
         });
       } catch (e) {
         this.resetSlotIdle(slot);
@@ -1368,7 +1494,7 @@ export class AgentProcessManager {
     let lastReportedTokenAt = 0;
     spawnResult.onOutput(() => {
       const now = this.deps.clock.now();
-      if (now - lastReportedTokenAt >= 30_000) {
+      if (lastReportedTokenAt === 0 || now - lastReportedTokenAt >= 30_000) {
         lastReportedTokenAt = now;
         this.deps.backend
           .mutation(api.participants.updateTokenActivity, {
@@ -1406,6 +1532,25 @@ export class AgentProcessManager {
     }
 
     this.registerSpawnCallbacks(slot, opts, spawnResult, pid);
+    await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
+  }
+
+  private async emitNativeWaiting(
+    chatroomId: string,
+    role: string,
+    harness: AgentHarness
+  ): Promise<void> {
+    if (!getHarnessCapabilities(harness).supportsNativeIntegration) return;
+    try {
+      await this.deps.backend.mutation(api.participants.join, {
+        sessionId: this.deps.sessionId,
+        chatroomId,
+        role,
+        action: NATIVE_WAITING_ACTION,
+      });
+    } catch (err) {
+      console.log(`   ⚠️  Failed to emit native:waiting for ${role}: ${(err as Error).message}`);
+    }
   }
 
   private async doEnsureRunning(
@@ -1461,10 +1606,11 @@ export class AgentProcessManager {
 
   private shouldPreserveHarnessOnStop(slot: AgentSlot, opts: StopOpts): boolean {
     const harness = slot.harness;
-    const supportsResume = harness ? getHarnessCapabilities(harness).supportsSessionResume : false;
+    const service = harness ? this.deps.agentServices.get(harness) : undefined;
+    const supportsDaemonMemoryResume = typeof service?.resumeFromDaemonMemory === 'function';
     return shouldPreserveHarnessTeardown(
       opts.reason,
-      supportsResume,
+      supportsDaemonMemoryResume,
       Boolean(slot.harnessSessionId)
     );
   }

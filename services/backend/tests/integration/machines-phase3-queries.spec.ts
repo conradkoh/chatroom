@@ -34,7 +34,7 @@ describe('machines.getAgentStatus', () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result!.teamRoles).toEqual(['builder', 'reviewer']);
+    expect(result!.teamRoles).toEqual(['planner', 'builder']);
     expect(result!.agents).toHaveLength(2);
     for (const agent of result!.agents) {
       expect(agent).toHaveProperty('role');
