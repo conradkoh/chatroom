@@ -29,14 +29,30 @@ export async function createTestSession(sessionId: string): Promise<{ sessionId:
 }
 
 /**
- * Create a pair-team chatroom (builder + reviewer, entry point = builder).
+ * Create a duo team chatroom (planner + builder, entry point = planner).
  */
 export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
-    teamRoles: ['builder', 'reviewer'],
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'builder',
+  });
+}
+
+/**
+ * Duo team with builder as entry point — for tests that exercise builder task FSM
+ * without a planner handoff step.
+ */
+export async function createBuilderEntryDuoChatroom(
+  sessionId: SessionId
+): Promise<Id<'chatroom_rooms'>> {
+  return await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'duo',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
 }

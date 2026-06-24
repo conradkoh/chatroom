@@ -5,16 +5,15 @@
  * without exposing machine-level details.
  */
 
-import { describe, expect, test } from 'vitest';
-
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { listChatroomAgentOverview } from '../../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -42,7 +41,7 @@ async function getOwnerUserId(chatroomId: Id<'chatroom_rooms'>) {
 describe('listChatroomAgentOverview — no agents', () => {
   test('returns none status when no machine configs exist', async () => {
     const { sessionId } = await createTestSession('test-lcao-none-1');
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     const results = await t.run(async (ctx) => {
@@ -63,7 +62,7 @@ describe('listChatroomAgentOverview — running agent', () => {
     const { sessionId } = await createTestSession('test-lcao-running-1');
     const machineId = 'machine-lcao-running-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -94,7 +93,7 @@ describe('listChatroomAgentOverview — stopped agent', () => {
     const { sessionId } = await createTestSession('test-lcao-stopped-1');
     const machineId = 'machine-lcao-stopped-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -117,7 +116,7 @@ describe('listChatroomAgentOverview — no machine details leaked', () => {
     const { sessionId } = await createTestSession('test-lcao-noleak-1');
     const machineId = 'machine-lcao-noleak-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -160,7 +159,7 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
     const { sessionId } = await createTestSession('test-lcao-disconn-1');
     const machineId = 'machine-lcao-disconn-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');

@@ -19,8 +19,7 @@ import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 import { getCliEnvPrefix } from '../../../utils/env';
 
-/** Solo team has no builder, no reviewer — the solo agent does everything */
-const SOLO_TEAM_CONFIG = { hasBuilder: false, hasReviewer: false } as const;
+const SOLO_TEAM_CONFIG = { hasBuilder: false } as const;
 
 export function getSoloGuidance(ctx: PlannerGuidanceParams): string {
   const { isEntryPoint, convexUrl, teamRoles, nativeIntegration } = ctx;
@@ -48,7 +47,7 @@ ${classificationNote}
 **Solo Team Context:**
 - You are the ONLY team member — you plan, implement, and deliver
 - You communicate directly with the user (single point of contact)
-- There is no separate builder, planner, or reviewer — you fill all roles
+- There is no separate builder or planner — you fill all roles
 - You hand off directly to the user when work is complete
 - Report progress at milestones using \`report-progress\`
 

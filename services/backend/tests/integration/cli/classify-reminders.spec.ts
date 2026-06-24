@@ -24,14 +24,14 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a Pair team chatroom
+ * Helper to create a Duo team chatroom
  */
 async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
-    teamRoles: ['builder', 'reviewer'],
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
   return chatroomId;
@@ -59,7 +59,7 @@ describe('Classify Reminders', () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-classify-new-feature');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message
     await t.mutation(api.messages.sendMessage, {
@@ -147,7 +147,7 @@ Use React Context + CSS variables`,
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-classify-question');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message
     await t.mutation(api.messages.sendMessage, {
@@ -228,7 +228,7 @@ Use React Context + CSS variables`,
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-classify-follow-up');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends follow-up message
     await t.mutation(api.messages.sendMessage, {

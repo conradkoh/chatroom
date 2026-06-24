@@ -37,7 +37,7 @@ describe('Handoff Command', () => {
     const command = handoffCommand({
       chatroomId: 'my-chatroom-456',
       role: 'builder',
-      nextRole: 'reviewer',
+      nextRole: 'planner',
       cliEnvPrefix,
     });
 
@@ -51,7 +51,7 @@ describe('Handoff Command', () => {
     expect(command).toContain('--role="builder"');
 
     // Should inject next role
-    expect(command).toContain('--next-role="reviewer"');
+    expect(command).toContain('--next-role="planner"');
 
     // Should still use HERE document format
     expect(command).toContain("<< 'EOF'");
@@ -62,7 +62,7 @@ describe('Handoff Command', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
     const command = handoffCommand({
       chatroomId: 'test-123',
-      role: 'reviewer',
+      role: 'planner',
       nextRole: 'user',
       cliEnvPrefix,
     });

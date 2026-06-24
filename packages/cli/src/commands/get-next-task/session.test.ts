@@ -498,7 +498,7 @@ describe('GetNextTaskSession', () => {
     it('includes chatroom ID and role in reconnect command', async () => {
       const { callbacks } = await startSession({
         chatroomId: 'my_custom_chatroom_id_1234',
-        role: 'reviewer',
+        role: 'planner',
       });
 
       callbacks.onUpdate({ type: 'superseded', newConnectionId: 'new' });
@@ -508,7 +508,7 @@ describe('GetNextTaskSession', () => {
 
       const output = getAllLogOutput();
       expect(output).toContain('--chatroom-id=my_custom_chatroom_id_1234');
-      expect(output).toContain('--role=reviewer');
+      expect(output).toContain('--role=planner');
     });
   });
 });

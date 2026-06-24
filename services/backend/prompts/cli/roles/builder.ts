@@ -9,7 +9,6 @@ import { classifyCommand } from '../classify/command';
 
 function getBuilderFlowMermaid(
   nativeIntegration: boolean | undefined,
-  hasReviewer: boolean,
   codeChangesTarget: string,
   questionTarget: string
 ): string {
@@ -25,13 +24,9 @@ function getBuilderFlowMermaid(
 ${handoffNodes}`;
   }
 
-  const intakeEdge = hasReviewer
-    ? 'B -->|from user or reviewer| C[Read chatroom task with\\ntask read]'
-    : 'B -->|from planner| C[Read chatroom task with\\ntask read]';
-
   return `flowchart TD
     A([Start]) --> B[Receive chatroom task\\nnotification]
-    ${intakeEdge}
+    B -->|from planner| C[Read chatroom task with\\ntask read]
     C --> D[Implement changes]
 ${handoffNodes}`;
 }
@@ -49,9 +44,7 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
   } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const questionTarget = questionTargetParam ?? 'user';
-  const codeChangesTarget = codeChangesTargetParam ?? 'reviewer';
-  const hasReviewer = codeChangesTarget === 'reviewer';
-  // Use command generator with env prefix
+  const codeChangesTarget = codeChangesTargetParam ?? 'planner';
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
   const classificationNote =
@@ -76,22 +69,15 @@ ${classificationNote}
 **Typical Flow:**
 
 \`\`\`mermaid
-${getBuilderFlowMermaid(nativeIntegration, hasReviewer, codeChangesTarget, questionTarget)}
+${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 \`\`\`
 
 **Handoff Rules:**
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
   ⚠️ If \`${questionTarget}\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-- **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip ${hasReviewer ? 'review' : 'planner'})
-${
-  hasReviewer
-    ? `
-**When you receive handoffs from the reviewer:**
-You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
-`
-    : ''
-}
+- **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip planner review)
+
 **When working on a workflow step:**
 If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 

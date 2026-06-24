@@ -5,7 +5,7 @@
  * with the user. The planner delegates implementation to the builder and
  * delivers the final result back to the user.
  *
- * Team composition is fixed: planner + builder (no reviewer).
+ * Team composition is fixed: planner + builder.
  * Static sections (handoff rules, delegation guidelines, responsibilities,
  * when-work-comes-back) use this hardcoded config — no runtime conditionals.
  * Team availability and workflow sections use teamRoles configuration.
@@ -25,8 +25,7 @@ import {
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 
-/** Duo team always has a builder and no reviewer (fixed team composition) */
-const DUO_TEAM_CONFIG = { hasBuilder: true, hasReviewer: false } as const;
+const DUO_TEAM_CONFIG = { hasBuilder: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
   const {

@@ -47,7 +47,6 @@ import {
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
 import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
-import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
@@ -98,7 +97,6 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 function detectTeamTypeByName(teamName?: string): TeamKind | null {
   const normalizedName = (teamName || '').toLowerCase();
   if (normalizedName.includes('solo')) return 'solo';
-  if (normalizedName.includes('squad')) return 'squad';
   if (normalizedName.includes('duo')) return 'duo';
   return null;
 }
@@ -110,8 +108,7 @@ function isSoloTeamByRoles(teamRoles: string[]): boolean {
 function isDuoTeamByRoles(teamRoles: string[]): boolean {
   const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
-  const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
-  return hasPlanner && hasBuilder && !hasReviewer && teamRoles.length === 2;
+  return hasPlanner && hasBuilder && teamRoles.length === 2;
 }
 
 function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unknown' {
@@ -119,7 +116,6 @@ function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unk
   if (byName) return byName;
   if (isSoloTeamByRoles(teamRoles)) return 'solo';
   if (isDuoTeamByRoles(teamRoles)) return 'duo';
-  if (teamRoles.some((r) => r.toLowerCase() === 'planner')) return 'squad';
   return 'unknown';
 }
 
@@ -189,11 +185,6 @@ export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
       if (result !== null) return result;
     }
 
-    if (ctx.team === 'squad') {
-      const result = getSquadRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
-
     if (ctx.team === 'duo') {
       const result = getDuoRoleGuidanceFromContext(ctx);
       if (result !== null) return result;
@@ -219,13 +210,6 @@ export interface RolePromptContext {
   currentClassification?: 'question' | 'new_feature' | 'follow_up' | null;
   availableHandoffRoles: string[];
   convexUrl: string; // Required Convex URL for env var prefix generation
-  // User context for reviewers - the original request that needs to be validated
-  userContext?: {
-    originalRequest: string;
-    featureTitle?: string;
-    featureDescription?: string;
-    techSpecs?: string;
-  };
 }
 
 /**
@@ -299,11 +283,38 @@ function buildPlannerReminder(
     }
     case 'new_feature': {
       const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
-      const delegateTarget = hasBuilder ? 'builder' : 'reviewer';
+      if (!hasBuilder) {
+        const handoffToUserCmd = handoffCommand({
+          chatroomId,
+          role: 'planner',
+          nextRole: 'user',
+          cliEnvPrefix,
+        });
+        const progressCmd = reportProgressCommand({
+          chatroomId,
+          role: 'planner',
+          cliEnvPrefix,
+        });
+        return `✅ Chatroom task acknowledged as NEW FEATURE.
+
+**Next steps:**
+1. Decompose the chatroom task into clear, actionable work items
+2. **Report progress to the user** — \`${progressCmd}\`
+3. Implement the solution yourself
+4. Review your own work before delivering
+5. Hand off to user when complete:
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 You're working on:
+Task ID: ${taskId}`;
+      }
       const handoffToTeamCmd = handoffCommand({
         chatroomId,
         role: 'planner',
-        nextRole: delegateTarget,
+        nextRole: 'builder',
         cliEnvPrefix,
       });
       const progressCmd = reportProgressCommand({
@@ -321,7 +332,7 @@ function buildPlannerReminder(
 ${progressCmd}
 \`\`\`
 
-3. Delegate implementation to ${delegateTarget}:
+3. Delegate implementation to builder:
 
 \`\`\`bash
 ${handoffToTeamCmd}
@@ -366,36 +377,9 @@ function buildBuilderReminder(
   chatroomId: string,
   taskId: string | undefined,
   cliEnvPrefix: string,
-  teamRoles: string[],
-  isSquadTeam: boolean,
   isDuoTeam: boolean
 ): string {
   const label = classification.toUpperCase().replace('_', ' ');
-  if (isSquadTeam) {
-    const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
-    const handoffTarget = hasReviewer ? 'reviewer' : 'planner';
-    const handoffCmd = handoffCommand({
-      chatroomId,
-      role: 'builder',
-      nextRole: handoffTarget,
-      cliEnvPrefix,
-    });
-    return `✅ Chatroom task acknowledged as ${label}.
-
-**Next steps:**
-1. Implement the requested changes
-2. Send \`report-progress\` at milestones
-3. Hand off to ${handoffTarget} when complete:
-
-\`\`\`bash
-${handoffCmd}
-\`\`\`
-
-⚠️ In squad team, never hand off directly to user — go through the planner.
-
-💡 You're working on:
-Task ID: ${taskId}`;
-  }
   if (isDuoTeam) {
     const handoffCmd = handoffCommand({
       chatroomId,
@@ -433,25 +417,6 @@ ${handoffCmd}
 
 💡 You're working on:
 Task ID: ${taskId}`;
-}
-
-function buildReviewerReminder(taskId: string | undefined, isSquadTeam: boolean): string {
-  if (isSquadTeam) {
-    if (taskId) {
-      return `Review the completed work. If the work meets requirements, hand off to planner for user delivery. If changes are needed, hand off to builder with specific feedback.
-
-💡 You're reviewing:
-Task ID: ${taskId}`;
-    }
-    return `Review the work. Hand off to planner when approved, or to builder for rework.`;
-  }
-  if (taskId) {
-    return `Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
-
-💡 You're reviewing:
-Task ID: ${taskId}`;
-  }
-  return `Review the work and approve or request changes.`;
 }
 
 function buildSoloReminder(
@@ -533,25 +498,13 @@ export function generateTaskStartedReminder(
 
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const isSquadTeam = ctx.team === 'squad';
   const isDuoTeam = ctx.team === 'duo';
 
   if (normalizedRole === 'planner') {
     return buildPlannerReminder(classification, chatroomId, taskId, cliEnvPrefix, teamRoles);
   }
   if (normalizedRole === 'builder') {
-    return buildBuilderReminder(
-      classification,
-      chatroomId,
-      taskId,
-      cliEnvPrefix,
-      teamRoles,
-      isSquadTeam,
-      isDuoTeam
-    );
-  }
-  if (normalizedRole === 'reviewer') {
-    return buildReviewerReminder(taskId, isSquadTeam);
+    return buildBuilderReminder(classification, chatroomId, taskId, cliEnvPrefix, isDuoTeam);
   }
   if (normalizedRole === 'solo') {
     return buildSoloReminder(classification, chatroomId, taskId, cliEnvPrefix);

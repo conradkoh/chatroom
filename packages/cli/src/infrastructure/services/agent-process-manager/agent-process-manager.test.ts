@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy slot access in integration-style tests */
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -1734,12 +1733,12 @@ describe('AgentProcessManager', () => {
   describe('listActive', () => {
     test('returns running and spawning slots', async () => {
       await manager.ensureRunning(createOpts());
-      await manager.ensureRunning(createOpts({ chatroomId: 'other-room', role: 'reviewer' }));
+      await manager.ensureRunning(createOpts({ chatroomId: 'other-room', role: 'architect' }));
 
       const active = manager.listActive();
       expect(active).toHaveLength(2);
       expect(active.map((a) => a.role)).toContain('builder');
-      expect(active.map((a) => a.role)).toContain('reviewer');
+      expect(active.map((a) => a.role)).toContain('architect');
     });
 
     test('does not include idle slots', async () => {

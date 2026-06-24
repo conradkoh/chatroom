@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../../prompts/cli/roles/builder';
 import { getPlannerGuidance } from '../../../prompts/cli/roles/planner';
-import { getReviewerGuidance } from '../../../prompts/cli/roles/reviewer';
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
@@ -50,22 +49,6 @@ describe('native session continuity', () => {
       convexUrl: 'http://127.0.0.1:3210',
       codeChangesTarget: 'planner',
       questionTarget: 'planner',
-      nativeIntegration: true,
-    });
-
-    expect(guidance).not.toMatch(/get-next-task/i);
-    expect(guidance).not.toContain('Level A');
-    expect(guidance).not.toContain('Level B');
-    expect(guidance).not.toMatch(/task read/i);
-  });
-
-  test('reviewer guidance with nativeIntegration=true omits get-next-task', () => {
-    const guidance = getReviewerGuidance({
-      role: 'reviewer',
-      teamRoles: ['planner', 'builder', 'reviewer'],
-      isEntryPoint: false,
-      convexUrl: 'http://127.0.0.1:3210',
-      approvalTarget: 'planner',
       nativeIntegration: true,
     });
 

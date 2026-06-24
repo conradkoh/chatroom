@@ -66,7 +66,7 @@ export interface FullCliOutputParams {
   /** Whether this role is the team entry point (planner/coordinator). Only entry points can create contexts. */
   isEntryPoint: boolean;
 
-  /** Available handoff targets for this role (e.g. ['builder', 'reviewer', 'user']) */
+  /** Available handoff targets for this role (e.g. ['builder', 'planner', 'user']) */
   availableHandoffTargets: string[];
 
   /** When true, omit get-next-task language (native harness task injection). */

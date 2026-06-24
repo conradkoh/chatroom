@@ -136,7 +136,7 @@ describe('workspace removal cleanup', () => {
 
     // Create configs for both machines
     await setupRemoteAgentConfig(sid, chatroomId, machineIdA, 'builder');
-    await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'reviewer');
+    await setupRemoteAgentConfig(sid, chatroomId, machineIdB, 'architect');
 
     // Verify configs for both machines exist
     const configsBefore = await getTeamAgentConfigs(chatroomId);

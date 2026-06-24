@@ -235,7 +235,7 @@ describe('handleStopAgentEffect', () => {
       reason: 'user.stop' as const,
       payload: {
         chatroomId: 'room-xyz',
-        role: 'reviewer',
+        role: 'architect',
       },
     };
 
@@ -246,7 +246,7 @@ describe('handleStopAgentEffect', () => {
     expect(stopMock).toHaveBeenCalledWith(
       expect.objectContaining({
         chatroomId: 'room-xyz',
-        role: 'reviewer',
+        role: 'architect',
         reason: 'user.stop',
       })
     );

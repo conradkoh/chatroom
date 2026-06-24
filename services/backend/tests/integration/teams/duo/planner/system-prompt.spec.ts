@@ -281,7 +281,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Team Availability:** builder available.
 
-      **Current Workflow: Planner + Builder (no reviewer)**
+      **Current Workflow: Planner + Builder**
 
       \`\`\`mermaid
       flowchart TD
@@ -293,7 +293,7 @@ describe('Duo Team > Planner > System Prompt', () => {
           E --> F[Delegate ONE phase to builder]
           F --> G[Builder completes phase]
           G --> H[Builder hands off to planner]
-          H --> I[Review work yourself acting as reviewer]
+          H --> I[Review work yourself]
           I --> J{phase acceptable?}
           J -->|no| K[Hand back to builder with feedback]
           K --> F

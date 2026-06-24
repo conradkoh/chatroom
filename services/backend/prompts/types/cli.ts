@@ -89,23 +89,9 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   /** Override the default question/simple-task handoff target (default: 'user') */
   questionTarget?: string;
   /**
-   * Override the handoff target after code changes (default: 'reviewer').
-   * Set to 'planner' in teams where there is no reviewer (e.g. duo team).
+   * Override the handoff target after code changes (default: 'planner').
    */
   codeChangesTarget?: string;
-  /** True when harness uses native task injection instead of get-next-task */
-  nativeIntegration?: boolean;
-}
-
-/**
- * Parameters for reviewer guidance generation
- */
-export interface ReviewerGuidanceParams extends BasePromptParams {
-  role: string;
-  teamRoles: string[];
-  isEntryPoint: boolean;
-  /** Override the default approval handoff target (default: 'user') */
-  approvalTarget?: string;
   /** True when harness uses native task injection instead of get-next-task */
   nativeIntegration?: boolean;
 }

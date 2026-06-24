@@ -23,14 +23,14 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a Pair team chatroom
+ * Helper to create a Duo team chatroom
  */
-async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createBuilderEntryDuoChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair',
-    teamRoles: ['builder', 'reviewer'],
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
   return chatroomId;
@@ -58,8 +58,8 @@ describe('Features System', () => {
     test('stores feature metadata when classification is new_feature', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-feature-metadata');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // User sends a message
       // @ts-expect-error unused but needed for test flow
@@ -105,8 +105,8 @@ Use CSS custom properties for theming, store preference in localStorage`,
     test('does not require feature metadata for question classification', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-question-no-metadata');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // User sends a question
       // @ts-expect-error unused but needed for test flow
@@ -149,8 +149,8 @@ Use CSS custom properties for theming, store preference in localStorage`,
     test('returns features with metadata ordered by creation time', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-list-features');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create first feature
       // @ts-expect-error unused but needed for test flow
@@ -181,20 +181,20 @@ Description of feature one
 Tech specs for feature one`,
       });
 
-      // Complete first task via reviewer (new_feature must go through reviewer)
+      // Complete first task: builder → planner → user
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
         senderRole: 'builder',
-        content: 'Done with feature one, please review',
-        targetRole: 'reviewer',
+        content: 'Done with feature one, ready for delivery',
+        targetRole: 'planner',
       });
-      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'reviewer' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' });
+      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'planner' });
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
-        senderRole: 'reviewer',
+        senderRole: 'planner',
         content: 'Approved feature one',
         targetRole: 'user',
       });
@@ -248,8 +248,8 @@ Tech specs for feature two`,
     test('returns empty array when no features exist', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-no-features');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // List features (none exist)
       const features = await t.query(api.messages.listFeatures, {
@@ -266,8 +266,8 @@ Tech specs for feature two`,
     test('returns full feature details with conversation thread', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-inspect-feature');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create feature
       const userMessageId = await t.mutation(api.messages.sendMessage, {
@@ -303,16 +303,17 @@ Use JWT tokens, store in httpOnly cookies`,
         chatroomId,
         senderRole: 'builder',
         content: 'Implemented auth, please review',
-        targetRole: 'reviewer',
+        targetRole: 'planner',
       });
 
-      // Reviewer responds
-      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'reviewer' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' });
+      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'planner' });
+
+      // Planner delivers to user after builder handoff
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
-        senderRole: 'reviewer',
+        senderRole: 'planner',
         content: 'Looks good, approved!',
         targetRole: 'user',
       });
@@ -333,14 +334,14 @@ Use JWT tokens, store in httpOnly cookies`,
       // Verify thread has the conversation
       expect(result.thread.length).toBeGreaterThanOrEqual(2);
       expect(result.thread.some((m) => m.senderRole === 'builder')).toBe(true);
-      expect(result.thread.some((m) => m.senderRole === 'reviewer')).toBe(true);
+      expect(result.thread.some((m) => m.senderRole === 'planner')).toBe(true);
     });
 
     test('throws error for non-feature message', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-inspect-non-feature');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a question (not a feature)
       const userMessageId = await t.mutation(api.messages.sendMessage, {

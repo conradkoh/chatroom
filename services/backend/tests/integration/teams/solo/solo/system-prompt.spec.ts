@@ -91,7 +91,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     expect(prompt).toContain('### Commands');
 
     // Solo role identity — no handoff to other team members
-    // (Note: 'builder'/'planner'/'reviewer' may appear in global
+    // (Note: 'builder'/'planner' may appear in global
     // glossary/skill descriptions — those are not team-specific)
     expect(prompt).not.toContain('hand off to builder');
     expect(prompt).not.toContain('delegate to planner');
@@ -298,7 +298,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       **Solo Team Context:**
       - You are the ONLY team member — you plan, implement, and deliver
       - You communicate directly with the user (single point of contact)
-      - There is no separate builder, planner, or reviewer — you fill all roles
+      - There is no separate builder or planner — you fill all roles
       - You hand off directly to the user when work is complete
       - Report progress at milestones using \`report-progress\`
 

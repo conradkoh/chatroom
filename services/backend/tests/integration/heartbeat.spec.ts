@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
+import { createTestSession, createBuilderEntryDuoChatroom } from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -18,7 +18,7 @@ import { createTestSession, createDuoTeamChatroom } from '../helpers/integration
 describe('Participant Join', () => {
   test('join writes lastSeenAction when provided', async () => {
     const { sessionId } = await createTestSession('test-join-action');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -40,7 +40,7 @@ describe('Participant Join', () => {
 
   test('join without action does not set lastSeenAction', async () => {
     const { sessionId } = await createTestSession('test-join-no-action');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -60,7 +60,7 @@ describe('Participant Join', () => {
 
   test('rapid joins within throttle window do not update lastSeenAt', async () => {
     const { sessionId } = await createTestSession('test-join-throttle');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -99,7 +99,7 @@ describe('Participant Join', () => {
 
   test('join with action still updates lastSeenAction when lastSeenAt is throttled', async () => {
     const { sessionId } = await createTestSession('test-join-throttle-action');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -125,7 +125,7 @@ describe('Participant Join', () => {
 
   test('join with unchanged action does not patch within throttle window', async () => {
     const { sessionId } = await createTestSession('test-join-noop-action');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await t.mutation(api.participants.join, {
       sessionId,

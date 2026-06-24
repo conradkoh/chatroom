@@ -34,23 +34,12 @@ export {
 } from './cli/index';
 
 // Team configurations
-export {
-  squadTeamConfig,
-  getSquadPlannerGuidance,
-  getSquadBuilderGuidance,
-  getSquadReviewerGuidance,
-  duoTeamConfig,
-  getDuoPlannerGuidance,
-  getDuoBuilderGuidance,
-} from './teams/index';
+export { duoTeamConfig, getDuoPlannerGuidance, getDuoBuilderGuidance } from './teams/index';
 
 // Base prompts
-export {
-  getBuilderGuidance as getBaseBuilderGuidance,
-  getPlannerGuidance as getBasePlannerGuidance,
-  getReviewerGuidance as getBaseReviewerGuidance,
-  getRoleSpecificGuidance,
-} from './cli/roles/index';
+export { getBuilderGuidance as getBaseBuilderGuidance } from './cli/roles/builder';
+export { getPlannerGuidance as getBasePlannerGuidance } from './cli/roles/planner';
+export { getRoleSpecificGuidance } from './cli/roles/index';
 
 // Shared prompt components
 export { getContextGainingGuidance } from './base/shared/getting-started-content';

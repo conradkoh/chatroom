@@ -29,14 +29,14 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a Pair team chatroom
+ * Helper to create a Duo team chatroom
  */
-async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createBuilderEntryDuoChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair',
-    teamRoles: ['builder', 'reviewer'],
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
   return chatroomId;
@@ -64,8 +64,8 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
   describe('Chat Message Flow: pending → acknowledged → in_progress → completed', () => {
     test('complete user message workflow through FSM states', async () => {
       const { sessionId } = await createTestSession('test-fsm-user-message-flow');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Step 1: User sends a message, creates task in 'pending' status
       const messageId = await t.mutation(api.messages.sendMessage, {
@@ -151,8 +151,8 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 
     test('claimTask prevents duplicate task delivery', async () => {
       const { sessionId } = await createTestSession('test-fsm-claim-race');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a pending task
       await t.mutation(api.messages.sendMessage, {
@@ -176,15 +176,15 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
         t.mutation(api.tasks.claimTask, {
           sessionId,
           chatroomId,
-          role: 'reviewer',
+          role: 'planner',
         })
       ).rejects.toThrow('No pending task to claim');
     });
 
     test('startTask requires acknowledged status', async () => {
       const { sessionId } = await createTestSession('test-fsm-start-requires-acknowledged');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a pending task
       await t.mutation(api.messages.sendMessage, {
@@ -207,8 +207,8 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 
     test('startTask is idempotent when task is already in_progress (same role)', async () => {
       const { sessionId } = await createTestSession('test-fsm-start-idempotent-same');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create → send → claim → start → in_progress
       await t.mutation(api.messages.sendMessage, {
@@ -236,8 +236,8 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 
     test('startTask accepts in_progress task from a different role (recovering agent takes over)', async () => {
       const { sessionId } = await createTestSession('test-fsm-start-idempotent-diff');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create → send → claim by builder → start → in_progress assigned to builder
       await t.mutation(api.messages.sendMessage, {
@@ -279,8 +279,8 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 describe('FSM: Acknowledged to Pending User Review Transition', () => {
   test('acknowledged task can transition to pending_user_review via parentTaskAcknowledged', async () => {
     const { sessionId } = await createTestSession('test-fsm-acknowledged-to-pending-review');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a backlog item using the new chatroom_backlog API
     const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -333,8 +333,8 @@ describe('FSM Phase 2: Backlog Attachment Tracking', () => {
   describe('Backlog Flow: backlog item attached to message', () => {
     test('attaching backlog item to message creates parent task with backlog item reference', async () => {
       const { sessionId } = await createTestSession('test-fsm-backlog-attachment');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Step 1: Create backlog item using the new chatroom_backlog API
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -379,8 +379,8 @@ describe('FSM Phase 2: Backlog Attachment Tracking', () => {
 
     test('backlog item can be attached to multiple messages (many-to-many)', async () => {
       const { sessionId } = await createTestSession('test-fsm-backlog-many-to-many');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -443,8 +443,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
   describe('Queue Management', () => {
     test('sending a message creates a pending task directly (no queue when empty)', async () => {
       const { sessionId } = await createTestSession('test-fsm-move-to-queue');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Send a message — creates a pending task directly
       const messageId = await t.mutation(api.messages.sendMessage, {
@@ -468,8 +468,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('second message gets queued when first task is active', async () => {
       const { sessionId } = await createTestSession('test-fsm-move-pur-pending');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // First message creates a pending task
       await t.mutation(api.messages.sendMessage, {
@@ -500,8 +500,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('completing first task auto-promotes queued message', async () => {
       const { sessionId } = await createTestSession('test-fsm-move-pur-queued');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // First message creates pending task
       await t.mutation(api.messages.sendMessage, {
@@ -546,8 +546,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('promoteNextTask promotes queued message to pending task', async () => {
       const { sessionId } = await createTestSession('test-fsm-promote-next');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create first task (will be pending)
       await t.mutation(api.messages.sendMessage, {
@@ -605,8 +605,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
   describe('Backlog Actions', () => {
     test('backlog item can be marked for review via markBacklogItemForReview', async () => {
       const { sessionId } = await createTestSession('test-fsm-send-back');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -653,8 +653,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('backlog item can be completed via completeBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-fsm-mark-complete');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -692,8 +692,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('backlog item can be closed via closeBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-fsm-close-backlog');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -724,8 +724,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('closed backlog item can be reopened via reopenBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-fsm-reopen-backlog');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create and close a backlog item
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -763,10 +763,10 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('backlog mutations reject item when chatroomId does not match the item', async () => {
       const { sessionId } = await createTestSession('test-fsm-backlog-chatroom-mismatch');
-      const chatroomA = await createDuoTeamChatroom(sessionId);
-      const chatroomB = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomA, ['builder', 'reviewer']);
-      await joinParticipants(sessionId, chatroomB, ['builder', 'reviewer']);
+      const chatroomA = await createBuilderEntryDuoChatroom(sessionId);
+      const chatroomB = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomA, ['planner', 'builder']);
+      await joinParticipants(sessionId, chatroomB, ['planner', 'builder']);
 
       const itemInA = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
@@ -795,8 +795,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 
     test('closeBacklogItem rejects whitespace-only reason', async () => {
       const { sessionId } = await createTestSession('test-fsm-close-empty-reason');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
@@ -819,8 +819,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
   describe('Cancellation and Reset', () => {
     test('completeTaskById force-completes a pending task', async () => {
       const { sessionId } = await createTestSession('test-fsm-cancel');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a pending task
       await t.mutation(api.messages.sendMessage, {
@@ -860,8 +860,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
   describe('Force Completion', () => {
     test('completeTaskById uses FSM for force completing pending task', async () => {
       const { sessionId } = await createTestSession('test-fsm-force-complete');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
       // Create a pending task
       await t.mutation(api.messages.sendMessage, {
@@ -904,8 +904,8 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
 describe('FSM Error Handling', () => {
   test('FSM rejects invalid state transitions with clear error messages', async () => {
     const { sessionId } = await createTestSession('test-fsm-invalid-transition');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a backlog item
     const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {

@@ -98,12 +98,12 @@ ${fileBasedCmd} \\
 1. Classify as \`new_feature\` with complete metadata (title, description, tech-specs)
 2. Implement the requested changes
 3. Test the implementation
-4. **MUST hand off to \`reviewer\`** (cannot skip review)
-5. Address reviewer feedback if needed
+4. **MUST hand off to \`planner\`** for review (cannot skip review)
+5. Address planner feedback if needed
 6. Final approval and delivery
 
 **Handoff Rules:**
-- **ALWAYS** hand off to \`reviewer\` (no exceptions)
+- **ALWAYS** hand off to \`planner\` after implementation (no exceptions)
 - Include implementation summary in handoff
 - Provide testing instructions if applicable
 - Note any assumptions or limitations

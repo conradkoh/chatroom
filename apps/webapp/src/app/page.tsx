@@ -324,9 +324,8 @@ export default function Home() {
                   className="text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed opacity-0 animate-fadeIn"
                   style={{ animationDelay: '1200ms' }}
                 >
-                  Orchestrate AI agent teams that plan, build, and review code together. Define
-                  roles, queue tasks, and let agents collaborate with structured handoffs and
-                  quality gates.
+                  Orchestrate AI agents that collaborate on your work. Define roles, queue tasks,
+                  and coordinate with structured handoffs and shared context.
                 </p>
               </div>
 
@@ -336,16 +335,16 @@ export default function Home() {
                 style={{ animationDelay: '1800ms' }}
               >
                 <AgentStatusLine
-                  agent="planner"
-                  status="decomposing task into phases"
+                  agent="coordinator"
+                  status="routing task to the team"
                   delay={2000}
                 />
-                <AgentStatusLine agent="builder" status="implementing phase 2 of 3" delay={2400} />
                 <AgentStatusLine
-                  agent="reviewer"
-                  status="approved — merging to main"
-                  delay={2800}
+                  agent="implementer"
+                  status="working on phase 2 of 3"
+                  delay={2400}
                 />
+                <AgentStatusLine agent="lead" status="delivering results to user" delay={2800} />
               </div>
 
               {/* CTA */}
@@ -405,20 +404,20 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <StepCard
                   step={1}
-                  title="Define Your Team"
-                  description="Choose a template (Solo, Duo, Squad) or create custom roles. Each role gets its own system prompt, capabilities, and handoff targets."
+                  title="Configure Agents"
+                  description="Start from a layout or define your own roles. Each role gets its own system prompt, capabilities, and handoff targets."
                   delay={3000}
                 />
                 <StepCard
                   step={2}
                   title="Assign & Queue Tasks"
-                  description="Send tasks to your team and queue follow-ups while agents work. The backlog keeps everything organized with priorities and scoring."
+                  description="Send tasks to your agents and queue follow-ups while work is in flight. The backlog keeps everything organized with priorities and scoring."
                   delay={3200}
                 />
                 <StepCard
                   step={3}
                   title="Agents Collaborate"
-                  description="Agents hand off work, report progress, and create artifacts. Built-in review gates and context management ensure quality before shipping."
+                  description="Agents hand off work, report progress, and create artifacts. Context management and handoff templates keep everyone aligned."
                   delay={3400}
                 />
               </div>
@@ -446,7 +445,7 @@ export default function Home() {
                 <FeatureCard
                   icon={<RefreshCw className="w-4 h-4" strokeWidth={2} />}
                   title="Structured Handoffs"
-                  description="Typed handoffs between roles with message classification and review gates. Builders implement, reviewers verify."
+                  description="Typed handoffs between roles with message classification and progress updates. Delegate work and return results through a clear chain."
                   delay={3700}
                 />
                 <FeatureCard
@@ -497,31 +496,31 @@ export default function Home() {
                 style={{ animationDelay: '4400ms' }}
               >
                 <Users className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
-                <span>Built-in Roles</span>
+                <span>Example Roles</span>
               </h2>
               <p
                 className="text-xs text-zinc-500 mb-8 opacity-0 animate-fadeIn"
                 style={{ animationDelay: '4500ms' }}
               >
-                Pre-configured roles with customizable prompts — or define your own.
+                Mix and match — or define entirely custom roles for your workflow.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <RoleCard
                   role="Planner"
-                  description="Decomposes tasks, coordinates the team, communicates with the user."
+                  description="Entry point for user messages; coordinates work and delegates to other roles."
                   color="bg-amber-400"
                   delay={4600}
                 />
                 <RoleCard
                   role="Builder"
-                  description="Implements solutions, writes code, creates PRs, produces artifacts."
+                  description="Implements changes, writes code, and hands results back for delivery."
                   color="bg-emerald-400"
                   delay={4700}
                 />
                 <RoleCard
-                  role="Reviewer"
-                  description="Reviews code quality, provides feedback, approves merges."
+                  role="Custom"
+                  description="Name any role you need — solo agents, specialists, or multi-step pipelines."
                   color="bg-blue-400"
                   delay={4800}
                 />

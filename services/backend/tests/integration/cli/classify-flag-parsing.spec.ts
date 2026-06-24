@@ -24,14 +24,14 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a Pair team chatroom
+ * Helper to create a Duo team chatroom
  */
 async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
   return chatroomId;
@@ -59,7 +59,7 @@ describe('classify command flag parsing', () => {
     // Setup
     const { sessionId } = await createTestSession('test-classify-entry');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message
     await t.mutation(api.messages.sendMessage, {
@@ -101,7 +101,7 @@ describe('classify command flag parsing', () => {
     // Setup
     const { sessionId } = await createTestSession('test-no-classify-handoff');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message
     await t.mutation(api.messages.sendMessage, {
@@ -140,35 +140,34 @@ Use CSS variables`,
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Builder hands off to reviewer
+    // Builder hands off to planner
     await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'builder',
       content: 'Implemented dark mode',
-      targetRole: 'reviewer',
+      targetRole: 'planner',
     });
 
-    // Reviewer claims and starts the handoff task
+    // Planner claims and starts the handoff task
     await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
-      role: 'reviewer',
+      role: 'planner',
     });
 
-    const reviewerTaskResult = await t.mutation(api.tasks.startTask, {
+    const plannerTaskResult = await t.mutation(api.tasks.startTask, {
       sessionId,
       chatroomId,
-      role: 'reviewer',
+      role: 'planner',
     });
 
-    // Reviewer acknowledges without classifying (simulates --no-classify flag)
-    // This is the critical test: skipClassification should work
+    // Planner acknowledges without classifying (simulates --no-classify flag)
     const result = await t.mutation(api.messages.taskStarted, {
       sessionId,
       chatroomId,
-      role: 'reviewer',
-      taskId: reviewerTaskResult.taskId,
+      role: 'planner',
+      taskId: plannerTaskResult.taskId,
       skipClassification: true, // This simulates what happens when --no-classify is used
       convexUrl: 'http://127.0.0.1:3210',
     });
@@ -182,7 +181,7 @@ Use CSS variables`,
     // Setup
     const { sessionId } = await createTestSession('test-missing-both');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message
     await t.mutation(api.messages.sendMessage, {
@@ -223,7 +222,7 @@ Use CSS variables`,
     // Setup
     const { sessionId } = await createTestSession('test-both-provided');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message
     await t.mutation(api.messages.sendMessage, {

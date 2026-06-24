@@ -30,8 +30,8 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
 }
@@ -59,7 +59,7 @@ describe('transitionTask usecase — valid transitions', () => {
   test('pending → acknowledged via claimTask (sets acknowledgedAt + assignedTo)', async () => {
     const { sessionId } = await createTestSession('tt-valid-1');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a pending task via sendMessage
     await t.mutation(api.messages.sendMessage, {
@@ -89,7 +89,7 @@ describe('transitionTask usecase — valid transitions', () => {
   test('acknowledged → in_progress via startTask (sets startedAt)', async () => {
     const { sessionId } = await createTestSession('tt-valid-2');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -116,7 +116,7 @@ describe('transitionTask usecase — valid transitions', () => {
   test('in_progress → completed via completeTask (sets completedAt)', async () => {
     const { sessionId } = await createTestSession('tt-valid-3');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -153,7 +153,7 @@ describe('transitionTask usecase — valid transitions', () => {
   test('queued message → pending task via auto-promotion after task completes', async () => {
     const { sessionId } = await createTestSession('tt-valid-4');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // First task blocks queue
     await t.mutation(api.messages.sendMessage, {
@@ -217,7 +217,7 @@ describe('transitionTask usecase — invalid transitions are rejected', () => {
   test('cannot start a task that has not been claimed (no acknowledged task)', async () => {
     const { sessionId } = await createTestSession('tt-invalid-1');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -236,7 +236,7 @@ describe('transitionTask usecase — invalid transitions are rejected', () => {
   test('cannot complete a task that is still pending (must be in_progress)', async () => {
     const { sessionId } = await createTestSession('tt-invalid-2');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -268,7 +268,7 @@ describe('transitionTask usecase — invalid transitions are rejected', () => {
   test('cannot claim a task twice (second claim finds no pending tasks)', async () => {
     const { sessionId } = await createTestSession('tt-invalid-3');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -283,7 +283,7 @@ describe('transitionTask usecase — invalid transitions are rejected', () => {
 
     // Second claim should fail — task is no longer pending
     await expect(
-      t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' })
+      t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' })
     ).rejects.toThrow('No pending task to claim');
   });
 });
@@ -296,7 +296,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
   test('backlog item can be closed via closeBacklogItem', async () => {
     const { sessionId } = await createTestSession('tt-trigger-1');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a backlog item using the new chatroom_backlog API
     const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -338,7 +338,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
   test('pending_user_review backlog item can be reopened via reopenBacklogItem', async () => {
     const { sessionId } = await createTestSession('tt-trigger-2');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a backlog item using the new chatroom_backlog API
     const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
@@ -399,7 +399,7 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
   test('force-complete: task.completed event IS emitted with skipAgentStatusUpdate=true flag', async () => {
     const { sessionId } = await createTestSession('tt-skip-status-1');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create and start a task
     await t.mutation(api.messages.sendMessage, {
@@ -454,7 +454,7 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
   test('force-complete: participant lastStatus NOT updated when skipAgentStatusUpdate=true', async () => {
     const { sessionId } = await createTestSession('tt-skip-status-2');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create and start a task for builder
     await t.mutation(api.messages.sendMessage, {
@@ -511,7 +511,7 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
   test('normal completion: task.completed event emitted WITHOUT skipAgentStatusUpdate flag', async () => {
     const { sessionId } = await createTestSession('tt-skip-status-3');
     const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,

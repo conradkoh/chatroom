@@ -35,13 +35,6 @@ export const TEAM_CONFIGS: Record<string, TeamConfig> = {
     teamEntryPoint: 'planner',
     joinRoles: ['planner', 'builder'],
   },
-  squad: {
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
-    teamEntryPoint: 'planner',
-    joinRoles: ['planner', 'builder', 'reviewer'],
-  },
 };
 
 export interface NativeInitScenario {
@@ -65,15 +58,6 @@ export const NATIVE_INIT_SCENARIOS: NativeInitScenario[] = [
     referencesDeliveryTemplates: true,
   },
   { team: 'duo', role: 'builder', entryPoint: false, noTaskRead: true },
-  {
-    team: 'squad',
-    role: 'planner',
-    entryPoint: true,
-    noTaskRead: true,
-    referencesDeliveryTemplates: true,
-  },
-  { team: 'squad', role: 'builder', entryPoint: false, noTaskRead: true },
-  { team: 'squad', role: 'reviewer', entryPoint: false, noTaskRead: true },
 ];
 
 /**
@@ -135,44 +119,6 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     availableHandoffTargets: ['user'],
     primaryHandoffTarget: 'planner',
     eagerTemplateHeadings: ['Handoff Template (Builder → Planner)'],
-  },
-  {
-    label:
-      'squad planner receives user task → primary user; templates for builder and reviewer too',
-    teamId: 'squad',
-    role: 'planner',
-    senderRole: 'user',
-    availableHandoffTargets: ['builder', 'reviewer', 'user'],
-    primaryHandoffTarget: 'user',
-    eagerTemplateHeadings: [
-      'Report Template (Planner → User)',
-      'Delegation Brief (Planner → Builder)',
-      'Review Request Brief (Planner → Reviewer)',
-    ],
-    userVerificationInNextSteps: true,
-  },
-  {
-    label:
-      'squad builder receives planner delegation → return to planner; reviewer template for alternate path',
-    teamId: 'squad',
-    role: 'builder',
-    senderRole: 'planner',
-    availableHandoffTargets: ['reviewer', 'planner'],
-    primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Handoff Template (Builder → Reviewer)'],
-  },
-  {
-    label:
-      'squad reviewer receives builder handoff → return to builder; planner rework template available',
-    teamId: 'squad',
-    role: 'reviewer',
-    senderRole: 'builder',
-    availableHandoffTargets: ['builder', 'planner'],
-    primaryHandoffTarget: 'builder',
-    eagerTemplateHeadings: [
-      'Review Outcome (Reviewer → Planner)',
-      'Rework Feedback (Reviewer → Builder)',
-    ],
   },
 ];
 

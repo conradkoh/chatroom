@@ -34,7 +34,7 @@ export function getFollowUpClassificationGuidance(): string {
 
 **Handoff Rules:**
 - **Simple modifications**: May hand off directly to \`user\`
-- **Code changes**: Should hand off to \`reviewer\`
+- **Code changes**: Should hand off to \`planner\`
 - **Major changes**: Treat as \`new_feature\` (consider reclassification)
 
 **Context Management:**

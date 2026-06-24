@@ -100,14 +100,8 @@ const DELIVERY_INTEGRATION_FIXTURES: DeliveryFixture[] = [
     receivingRole: 'builder',
     senderRole: 'planner',
     taskContent: 'Builder implementation task',
-    scenarioMatch: 'duo builder receives planner delegation',
-  },
-  {
-    team: 'squad',
-    receivingRole: 'reviewer',
-    senderRole: 'builder',
-    taskContent: 'Reviewer code review task',
-    scenarioMatch: 'squad reviewer receives builder handoff',
+    scenarioMatch:
+      'duo builder receives planner task even when planner not in waiting-participants list',
   },
 ];
 

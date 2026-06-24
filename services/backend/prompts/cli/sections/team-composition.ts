@@ -7,5 +7,4 @@
  */
 export interface TeamCompositionConfig {
   hasBuilder: boolean;
-  hasReviewer: boolean;
 }

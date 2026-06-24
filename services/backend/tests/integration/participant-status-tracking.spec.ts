@@ -13,7 +13,7 @@ import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { stopAgent } from '../../src/domain/usecase/agent/stop-agent';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
   joinParticipant,
@@ -68,7 +68,7 @@ async function createAcknowledgedTask(
 describe('Participant Status Tracking', () => {
   test('agent.registered via recordRemoteAgentRegistered', async () => {
     const { sessionId } = await createTestSession('test-pst-registered');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-registered';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -86,7 +86,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.registered + lastDesiredState=running via saveTeamAgentConfig', async () => {
     const { sessionId } = await createTestSession('test-pst-save-config');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-save-config';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -109,7 +109,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.requestStart + lastDesiredState=running via start-agent use case', async () => {
     const { sessionId } = await createTestSession('test-pst-start');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-start';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -146,7 +146,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.started via updateSpawnedAgent', async () => {
     const { sessionId } = await createTestSession('test-pst-spawned');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-spawned';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -167,7 +167,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.waiting via join with get-next-task:started', async () => {
     const { sessionId } = await createTestSession('test-pst-waiting');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     await t.mutation(api.participants.join, {
@@ -183,7 +183,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.waiting via join with native:waiting', async () => {
     const { sessionId } = await createTestSession('test-pst-native-waiting');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     await t.mutation(api.participants.join, {
@@ -202,7 +202,7 @@ describe('Participant Status Tracking', () => {
 
   test('task.acknowledged via join with native:task-injected', async () => {
     const { sessionId } = await createTestSession('test-pst-native-injected');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
 
@@ -225,7 +225,7 @@ describe('Participant Status Tracking', () => {
 
   test('task.inProgress via updateTokenActivity when lastStatus is task.acknowledged', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-ack');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
 
@@ -255,7 +255,7 @@ describe('Participant Status Tracking', () => {
 
   test('updateTokenActivity does not duplicate task.inProgress when already in progress', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-dedup');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
 
@@ -288,7 +288,7 @@ describe('Participant Status Tracking', () => {
 
   test('task.acknowledged via claimTask', async () => {
     const { sessionId } = await createTestSession('test-pst-ack');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     const { taskId } = await t.mutation(api.tasks.createTask, {
@@ -311,7 +311,7 @@ describe('Participant Status Tracking', () => {
 
   test('task.inProgress via startTask', async () => {
     const { sessionId } = await createTestSession('test-pst-inprog');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     const { taskId } = await t.mutation(api.tasks.createTask, {
@@ -341,7 +341,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.exited via recordAgentExited', async () => {
     const { sessionId } = await createTestSession('test-pst-exited');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-exited';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -371,7 +371,7 @@ describe('Participant Status Tracking', () => {
 
   test('agent.exited + lastDesiredState=stopped via stop-agent use case (eager stop)', async () => {
     const { sessionId } = await createTestSession('test-pst-stop');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-stop';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -397,7 +397,7 @@ describe('Participant Status Tracking', () => {
 
   test('no-op when participant does not exist', async () => {
     const { sessionId } = await createTestSession('test-pst-noop');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-noop';
     await registerMachineWithDaemon(sessionId, machineId);
 
@@ -416,7 +416,7 @@ describe('Participant Status Tracking', () => {
 
   test('full lifecycle: registered → start → spawned → waiting → ack → inProgress → exited → stop', async () => {
     const { sessionId } = await createTestSession('test-pst-lifecycle');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-lifecycle';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -536,7 +536,7 @@ describe('Participant Status Tracking', () => {
 
   test('emitSessionResumed writes event stream row and updates lastStatus', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -565,7 +565,7 @@ describe('Participant Status Tracking', () => {
 
   test('emitSessionResumed persists harnessSessionId on event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed-harness');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed-harness';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -593,7 +593,7 @@ describe('Participant Status Tracking', () => {
 
   test('emitSessionResumeFailed persists harnessSessionId on event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-failed-harness');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-failed-harness';
     await registerMachineWithDaemon(sessionId, machineId);
     await joinParticipant(sessionId, chatroomId, 'builder');

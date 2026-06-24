@@ -118,7 +118,7 @@ program
   .command('register-agent')
   .description('Register agent type for a chatroom role')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Role to register as (e.g., builder, reviewer)')
+  .requiredOption('--role <role>', 'Role to register as (e.g., builder, planner)')
   .requiredOption('--type <type>', 'Agent type: remote or custom')
   .option(
     '--allow-type-change',
@@ -152,7 +152,7 @@ program
   .command('get-next-task')
   .description('Join a chatroom and get the next task')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
+  .requiredOption('--role <role>', 'Role to join as (e.g., builder, planner)')
   .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
     const { getNextTask } = await import('./commands/get-next-task/index.js');
@@ -229,7 +229,7 @@ handoffCommandGroup
   .description('Print the handoff message template for a role pair')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--next-role <nextRole>', 'Target role for the handoff')
-  .option('--team-id <teamId>', 'Team id (solo, duo, squad); defaults to duo')
+  .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
   .action(async (options: { role: string; nextRole: string; teamId?: string }) => {
     const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
     try {
@@ -864,7 +864,7 @@ messagesCommand
   .description('List messages by sender role or since a specific message')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .option('--sender-role <senderRole>', 'Filter by sender role (e.g., user, builder, reviewer)')
+  .option('--sender-role <senderRole>', 'Filter by sender role (e.g., user, builder, planner)')
   .option('--since-message-id <messageId>', 'Get all messages since this message ID (inclusive)')
   .option('--limit <n>', 'Maximum number of messages to show')
   .option('--full', 'Show full message content without truncation')
@@ -1108,7 +1108,7 @@ program
   .command('get-system-prompt')
   .description('Fetch the system prompt for your role in a chatroom')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role (e.g., planner, builder, reviewer)')
+  .requiredOption('--role <role>', 'Your role (e.g., planner, builder)')
   .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
     const { getSystemPrompt } = await import('./commands/get-system-prompt/index.js');

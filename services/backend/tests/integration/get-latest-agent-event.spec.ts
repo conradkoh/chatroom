@@ -10,13 +10,13 @@ import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createDuoTeamChatroom, createTestSession } from '../helpers/integration';
+import { createBuilderEntryDuoChatroom, createTestSession } from '../helpers/integration';
 
 // ─── Test 1: Returns null when no events exist ────────────────────────────────
 
 test('getLatestAgentEvent returns null when no events exist for role', async () => {
   const { sessionId } = await createTestSession('test-glae-empty');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
   const result = await t.query(api.machines.getLatestAgentEvent, {
     sessionId,
@@ -31,7 +31,7 @@ test('getLatestAgentEvent returns null when no events exist for role', async () 
 
 test('getLatestAgentEvent returns the most recent event for the role', async () => {
   const { sessionId } = await createTestSession('test-glae-latest');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
   // Insert agent.registered event (earlier)
   await t.run(async (ctx) => {
@@ -68,14 +68,14 @@ test('getLatestAgentEvent returns the most recent event for the role', async () 
 
 test('getLatestAgentEvent only returns events for the requested role', async () => {
   const { sessionId } = await createTestSession('test-glae-role-filter');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
   // Insert an event for 'reviewer' only
   await t.run(async (ctx) => {
     await ctx.db.insert('chatroom_eventStream', {
       type: 'agent.waiting',
       chatroomId,
-      role: 'reviewer',
+      role: 'planner',
       timestamp: Date.now(),
     });
   });
@@ -94,7 +94,7 @@ test('getLatestAgentEvent only returns events for the requested role', async () 
 
 test('getLatestAgentEvent returns null for unauthenticated session', async () => {
   const { sessionId: validSession } = await createTestSession('test-glae-auth-valid');
-  const chatroomId = await createDuoTeamChatroom(validSession);
+  const chatroomId = await createBuilderEntryDuoChatroom(validSession);
 
   // Insert an event
   await t.run(async (ctx) => {
@@ -120,7 +120,7 @@ test('getLatestAgentEvent returns null for unauthenticated session', async () =>
 
 test('after claimTask, getLatestAgentEvent returns task.acknowledged for the role', async () => {
   const { sessionId } = await createTestSession('test-glae-claim');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
   // Create a pending task
   await t.mutation(api.tasks.createTask, {
@@ -159,7 +159,7 @@ test('after claimTask, getLatestAgentEvent returns task.acknowledged for the rol
 
 test('after startTask, getLatestAgentEvent returns task.inProgress for the role', async () => {
   const { sessionId } = await createTestSession('test-glae-start');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
   // Create + claim a task
   const createResult = await t.mutation(api.tasks.createTask, {

@@ -36,7 +36,7 @@ describe('telegram api', () => {
     });
 
     test('agent roles use their role name as label', () => {
-      for (const role of ['planner', 'builder', 'reviewer']) {
+      for (const role of ['planner', 'builder', 'solo']) {
         const label = role === 'user' ? 'You' : role;
         expect(label).toBe(role);
       }
@@ -68,20 +68,20 @@ describe('telegram api', () => {
   describe('role filtering logic', () => {
     test('user role is allowed', () => {
       const senderRole = 'user';
-      const isAllowed = senderRole === 'user' || !!senderRole.match(/^(planner|builder|reviewer)$/);
+      const isAllowed = senderRole === 'user' || !!senderRole.match(/^(planner|builder|solo)$/);
       expect(isAllowed).toBe(true);
     });
 
     test('agent roles are allowed', () => {
-      for (const role of ['planner', 'builder', 'reviewer']) {
-        const isAllowed = role === 'user' || !!role.match(/^(planner|builder|reviewer)$/);
+      for (const role of ['planner', 'builder', 'solo']) {
+        const isAllowed = role === 'user' || !!role.match(/^(planner|builder|solo)$/);
         expect(isAllowed).toBe(true);
       }
     });
 
     test('system roles are filtered out', () => {
       for (const role of ['system', 'internal', 'bot', 'admin']) {
-        const isAllowed = role === 'user' || !!role.match(/^(planner|builder|reviewer)$/);
+        const isAllowed = role === 'user' || !!role.match(/^(planner|builder|solo)$/);
         expect(isAllowed).toBe(false);
       }
     });

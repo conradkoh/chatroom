@@ -22,9 +22,9 @@ import type { HandoffParams } from '../../types/cli';
  * handoffCommand({
  *   chatroomId: 'abc123',
  *   role: 'builder',
- *   nextRole: 'reviewer',
+ *   nextRole: 'planner',
  * })
- * // → "chatroom handoff --chatroom-id=abc123 --role=builder --next-role=reviewer << 'EOF'\n[Your message here]\nEOF"
+ * // → "chatroom handoff --chatroom-id=abc123 --role=builder --next-role=planner << 'EOF'\n[Your message here]\nEOF"
  */
 export function handoffCommand(params: HandoffParams): string {
   const prefix = params.cliEnvPrefix || '';

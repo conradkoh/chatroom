@@ -30,7 +30,7 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
       'Handle edge cases and error scenarios',
       'Provide clear summaries of what was built',
     ],
-    defaultHandoffTarget: 'reviewer',
+    defaultHandoffTarget: 'planner',
   },
 
   planner: {
@@ -47,21 +47,6 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
       'Hand back work for rework if requirements are not met',
     ],
     defaultHandoffTarget: 'builder',
-  },
-
-  reviewer: {
-    role: 'reviewer',
-    title: 'Reviewer',
-    description:
-      'You are the quality guardian responsible for reviewing and validating code changes.',
-    responsibilities: [
-      'Review code for correctness, style, and best practices',
-      'Identify bugs, security issues, and potential improvements',
-      'Verify requirements have been met',
-      'Provide constructive feedback',
-      'Approve work or request changes',
-    ],
-    defaultHandoffTarget: 'user',
   },
 
   architect: {

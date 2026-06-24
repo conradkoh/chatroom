@@ -12,14 +12,14 @@ import type { TeamKind } from '../../src/domain/entities/team-kind';
  * The three-dimensional context that determines which prompt sections to include.
  *
  * Every prompt section is selected based on these dimensions:
- * - role: what the agent does (builder, reviewer, planner)
- * - team: how the team is structured (duo, squad, solo, or custom)
+ * - role: what the agent does (builder, planner)
+ * - team: how the team is structured (duo, solo, or custom)
  * - workflow: what the team is doing (new_feature, question, follow_up)
  */
 export interface SelectorContext {
-  /** Agent role (e.g., 'builder', 'reviewer', 'planner') */
+  /** Agent role (e.g., 'builder', 'planner') */
   role: string;
-  /** Team type (e.g., 'duo', 'squad', 'solo', or custom team name) */
+  /** Team type (e.g., 'duo', 'solo', or custom team name) */
   team: TeamKind | 'unknown';
   /**
    * Full team configuration entity.

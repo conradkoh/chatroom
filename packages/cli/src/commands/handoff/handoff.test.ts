@@ -256,7 +256,7 @@ describe('handoffEffect', () => {
     const rejectionError = {
       message: 'Invalid target role',
       code: 'INVALID_TARGET_ROLE',
-      suggestedTargets: ['planner', 'reviewer'],
+      suggestedTargets: ['planner', 'architect'],
     };
     const testLayer = Layer.mergeAll(
       makeTestBackend({
@@ -282,7 +282,7 @@ describe('handoffEffect', () => {
       if (error?._tag === 'HandoffRejected') {
         expect(error.error.message).toBe('Invalid target role');
         expect(error.error.code).toBe('INVALID_TARGET_ROLE');
-        expect(error.error.suggestedTargets).toEqual(['planner', 'reviewer']);
+        expect(error.error.suggestedTargets).toEqual(['planner', 'architect']);
       }
     }
   });

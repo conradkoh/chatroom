@@ -15,9 +15,7 @@ export { getWhenWorkComesBackSection } from './when-work-comes-back';
 export { getTeamAvailabilitySection } from './team-availability';
 export {
   getWorkflowSection,
-  getFullTeamWorkflow,
   getPlannerPlusBuilderWorkflow,
-  getPlannerPlusReviewerWorkflow,
   getPlannerSoloWorkflow,
 } from './workflow';
 export type { TeamCompositionConfig } from './team-composition';

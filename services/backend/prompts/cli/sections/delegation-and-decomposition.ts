@@ -3,7 +3,7 @@
  *
  * High-level "why & when" companion to the detailed how-to in
  * delegation-guidelines.ts. Gated to multi-agent teams only
- * (hasBuilder || hasReviewer) — solo agents get no delegation guidance.
+ * (hasBuilder) — solo agents get no delegation guidance.
  */
 
 import type { TeamCompositionConfig } from './team-composition';
@@ -11,10 +11,10 @@ import type { TeamCompositionConfig } from './team-composition';
 /**
  * Generate the Delegation and Decomposition section.
  *
- * Returns empty string for solo teams (no builder, no reviewer).
+ * Returns empty string when the planner works alone (no builder).
  */
 export function getDelegationAndDecompositionSection(config: TeamCompositionConfig): string {
-  if (!config.hasBuilder && !config.hasReviewer) {
+  if (!config.hasBuilder) {
     return '';
   }
 

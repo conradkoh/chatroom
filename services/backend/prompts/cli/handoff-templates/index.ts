@@ -12,7 +12,6 @@
 
 import { getDuoHandoffTemplate } from '../../teams/duo/handoff-templates';
 import { getSoloHandoffTemplate } from '../../teams/solo/handoff-templates';
-import { getSquadHandoffTemplate } from '../../teams/squad/handoff-templates';
 
 export interface HandoffTemplateQuery {
   fromRole: string;
@@ -30,7 +29,6 @@ export interface HandoffTemplateQuery {
 export function getHandoffTemplate(query: HandoffTemplateQuery): string | null {
   const team = (query.teamId ?? 'duo').toLowerCase();
   if (team === 'duo') return getDuoHandoffTemplate(query);
-  if (team === 'squad') return getSquadHandoffTemplate(query);
   if (team === 'solo') return getSoloHandoffTemplate(query);
   return null;
 }

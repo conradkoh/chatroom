@@ -21,7 +21,7 @@ import { t } from '../../test.setup';
 
 const DEFAULT_CONVEX_URL = 'http://127.0.0.1:3210';
 
-export type ScenarioTeam = 'duo-planner' | 'squad';
+export type ScenarioTeam = 'duo-planner';
 
 export interface ChatroomScenarioOptions {
   /** Unique session id prefix for test isolation */
@@ -53,19 +53,9 @@ export interface HandoffResult {
 
 async function createTeamChatroom(
   sessionId: SessionId,
-  team: ScenarioTeam
+  _team: ScenarioTeam
 ): Promise<Id<'chatroom_rooms'>> {
-  if (team === 'duo-planner') {
-    return createPlannerBuilderDuoChatroom(sessionId);
-  }
-
-  return t.mutation(api.chatrooms.create, {
-    sessionId,
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
-    teamEntryPoint: 'planner',
-  });
+  return createPlannerBuilderDuoChatroom(sessionId);
 }
 
 /** Shape injected prompt: task delivery body + optional compaction header (mirrors CLI daemon). */

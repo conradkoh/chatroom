@@ -19,12 +19,14 @@ async function createTestSession(id: string) {
   return { sessionId: id as SessionId };
 }
 
-async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createBuilderEntryThreeRoleChatroom(
+  sessionId: SessionId
+): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'duo',
-    teamName: 'Pair Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamId: 'custom',
+    teamName: 'Custom Three-Role Team',
+    teamRoles: ['planner', 'builder', 'architect'],
     teamEntryPoint: 'builder',
   });
 }
@@ -51,7 +53,7 @@ async function seedAcknowledgedBuilderTask(
 describe('releaseTasksOnAgentExit', () => {
   test('retains assignedTo, sets pending, clears acknowledgedAt and startedAt', async () => {
     const { sessionId } = await createTestSession('release-exit-1');
-    const chatroomId = await createChatroom(sessionId);
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
     const taskId = await seedAcknowledgedBuilderTask(chatroomId);
 
     const released = await t.run(async (ctx) => {
@@ -69,7 +71,7 @@ describe('releaseTasksOnAgentExit', () => {
 
   test('planner cannot claim task released for builder', async () => {
     const { sessionId } = await createTestSession('release-exit-2');
-    const chatroomId = await createChatroom(sessionId);
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
     const taskId = await seedAcknowledgedBuilderTask(chatroomId);
 
     await t.run(async (ctx) => {
@@ -90,9 +92,9 @@ describe('releaseTasksOnAgentExit', () => {
 describe('reassignInFlightTasksOnTeamSwitch', () => {
   test('reassigns an already-pending task from a stale role to the new entry point', async () => {
     const { sessionId } = await createTestSession('team-switch-pending-1');
-    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId); // entry point 'builder'
 
-    // A pending task left assigned to 'reviewer' (a role being removed on switch).
+    // A pending task left assigned to 'architect' (a role being removed on switch).
     const now = Date.now();
     const taskId = await t.run(async (ctx) => {
       return await ctx.db.insert('chatroom_tasks', {
@@ -100,7 +102,7 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
         createdBy: 'user',
         content: 'stale pending task',
         status: 'pending',
-        assignedTo: 'reviewer',
+        assignedTo: 'architect',
         queuePosition: 0,
         createdAt: now,
         updatedAt: now,
@@ -128,7 +130,7 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
 
   test('leaves a pending task already assigned to the entry point unchanged', async () => {
     const { sessionId } = await createTestSession('team-switch-pending-2');
-    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId); // entry point 'builder'
 
     const now = Date.now();
     const taskId = await t.run(async (ctx) => {
@@ -156,17 +158,17 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
 
   test('moves an acknowledged task on a removed role to pending under the new entry point', async () => {
     const { sessionId } = await createTestSession('team-switch-ack-1');
-    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId); // entry point 'builder'
 
-    // An acknowledged task claimed by 'reviewer' — a role removed on the switch.
+    // An acknowledged task claimed by 'architect' — a role removed on the switch.
     const now = Date.now();
     const taskId = await t.run(async (ctx) => {
       return await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'user',
-        content: 'acknowledged reviewer task',
+        content: 'acknowledged architect task',
         status: 'acknowledged',
-        assignedTo: 'reviewer',
+        assignedTo: 'architect',
         acknowledgedAt: now,
         queuePosition: 0,
         createdAt: now,
@@ -196,17 +198,17 @@ describe('reassignInFlightTasksOnTeamSwitch', () => {
 
   test('moves an in_progress task on a removed role to pending under the new entry point', async () => {
     const { sessionId } = await createTestSession('team-switch-inprogress-1');
-    const chatroomId = await createChatroom(sessionId); // entry point 'builder'
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId); // entry point 'builder'
 
-    // An in_progress task being worked by 'reviewer' — a role removed on the switch.
+    // An in_progress task being worked by 'architect' — a role removed on the switch.
     const now = Date.now();
     const taskId = await t.run(async (ctx) => {
       return await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'user',
-        content: 'in-progress reviewer task',
+        content: 'in-progress architect task',
         status: 'in_progress',
-        assignedTo: 'reviewer',
+        assignedTo: 'architect',
         acknowledgedAt: now,
         startedAt: now,
         queuePosition: 0,

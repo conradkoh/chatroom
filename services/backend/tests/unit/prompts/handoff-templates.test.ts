@@ -49,26 +49,6 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'reviewer' })).toBeNull();
   });
 
-  test('resolves squad planner → reviewer to the review request brief', () => {
-    const template = getHandoffTemplate({
-      teamId: 'squad',
-      fromRole: 'planner',
-      toRole: 'reviewer',
-    });
-    expect(template).toContain('Review Request Brief (Planner → Reviewer)');
-    expect(template).toContain('## Files to review (exhaustive)');
-  });
-
-  test('resolves squad builder → reviewer to the implementation-ready template', () => {
-    const template = getHandoffTemplate({
-      teamId: 'squad',
-      fromRole: 'builder',
-      toRole: 'reviewer',
-    });
-    expect(template).toContain('Handoff Template (Builder → Reviewer)');
-    expect(template).toContain('## Review focus');
-  });
-
   test('resolves solo → user to the solo report template', () => {
     const template = getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user' });
     expect(template).toContain('Report Template (Solo → User)');

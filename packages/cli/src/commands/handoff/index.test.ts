@@ -170,17 +170,17 @@ describe('handoff', () => {
         error: {
           code: 'INVALID_TARGET_ROLE',
           message:
-            'Cannot hand off to "reviewer": this role is not part of the current team. Available targets: user, planner, builder.',
+            'Cannot hand off to "architect": this role is not part of the current team. Available targets: user, planner, builder.',
           suggestedTargets: ['user', 'planner', 'builder'],
         },
       });
 
-      await handoff(TEST_CHATROOM_ID, defaultOptions({ nextRole: 'reviewer' }), deps);
+      await handoff(TEST_CHATROOM_ID, defaultOptions({ nextRole: 'architect' }), deps);
 
       expect(exitSpy).toHaveBeenCalledWith(1);
 
       const errOutput = getAllErrorOutput();
-      expect(errOutput).toContain('Cannot hand off to "reviewer"');
+      expect(errOutput).toContain('Cannot hand off to "architect"');
       expect(errOutput).toContain('Available handoff targets for this team');
       expect(errOutput).toContain('• user');
       expect(errOutput).toContain('• planner');

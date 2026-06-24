@@ -54,12 +54,12 @@ describe('Context Gaining Prompt', () => {
   test('includes get-next-task command', () => {
     const guidance = getContextGainingGuidance({
       chatroomId: 'abc123',
-      role: 'reviewer',
+      role: 'planner',
       convexUrl: 'http://localhost:3000',
       agentType: 'unset',
     });
 
-    expect(guidance).toContain('chatroom get-next-task --chatroom-id="abc123" --role="reviewer"');
+    expect(guidance).toContain('chatroom get-next-task --chatroom-id="abc123" --role="planner"');
   });
 
   test('defaults to <remote|custom> placeholder when agentType is not specified', () => {
@@ -103,8 +103,8 @@ describe('Webapp Agent Prompt', () => {
     const prompt = generateAgentPrompt({
       chatroomId: 'test-chatroom-456',
       role: 'planner',
-      teamName: 'Squad',
-      teamRoles: ['planner', 'builder', 'reviewer'],
+      teamName: 'Duo',
+      teamRoles: ['planner', 'builder'],
       convexUrl: 'http://127.0.0.1:3210',
     });
 
@@ -117,8 +117,8 @@ describe('Webapp Agent Prompt', () => {
     const prompt = generateAgentPrompt({
       chatroomId: 'my-chatroom-id',
       role: 'builder',
-      teamName: 'Pair',
-      teamRoles: ['builder', 'reviewer'],
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
       convexUrl: 'http://127.0.0.1:3210',
     });
 
@@ -153,7 +153,7 @@ describe('Available Actions (Task Delivery)', () => {
   test('includes git log command', () => {
     const actions = getAvailableActions({
       chatroomId: 'abc123',
-      role: 'reviewer',
+      role: 'planner',
       convexUrl: 'http://localhost:3000',
       isEntryPoint: false,
     });
@@ -213,7 +213,7 @@ describe('Task Classification Prompt', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'simple-chatroom',
-      role: 'reviewer',
+      role: 'planner',
       cliEnvPrefix,
     });
 
@@ -267,7 +267,7 @@ describe('Command Generators - Stdin Consistency', () => {
     test('includes placeholder for message content', () => {
       const command = reportProgressCommand({
         chatroomId: 'abc',
-        role: 'reviewer',
+        role: 'planner',
         cliEnvPrefix: '',
       });
 
@@ -297,7 +297,7 @@ describe('Command Generators - Stdin Consistency', () => {
       const handoffCmd = handoffCommand({
         chatroomId: 'test',
         role: 'builder',
-        nextRole: 'reviewer',
+        nextRole: 'planner',
         cliEnvPrefix: '',
       });
 
@@ -320,7 +320,7 @@ describe('Command Generators - Stdin Consistency', () => {
       const command = handoffCommand({
         chatroomId: 'test-123',
         role: 'builder',
-        nextRole: 'reviewer',
+        nextRole: 'planner',
         cliEnvPrefix: '',
       });
 

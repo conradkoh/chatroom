@@ -158,7 +158,7 @@ export const forwardToTelegram = internalAction({
     if (args.sourcePlatform === 'telegram') return;
 
     // Skip non-user/agent messages (system messages, etc.)
-    if (args.senderRole !== 'user' && !args.senderRole.match(/^(planner|builder|reviewer)$/)) {
+    if (args.senderRole !== 'user' && !args.senderRole.match(/^(planner|builder|solo)$/)) {
       return;
     }
 

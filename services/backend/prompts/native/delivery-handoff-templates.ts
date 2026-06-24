@@ -13,9 +13,6 @@ const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
   'solo:solo': ['user'],
   'duo:planner': ['user', 'builder'],
   'duo:builder': ['planner'],
-  'squad:planner': ['user', 'builder', 'reviewer'],
-  'squad:builder': ['reviewer'],
-  'squad:reviewer': ['planner', 'builder'],
 };
 
 function getNativeDeliveryTemplateTargets(

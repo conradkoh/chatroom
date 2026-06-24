@@ -32,7 +32,7 @@ export function getQuestionClassificationGuidance(): string {
 
 **Handoff Rules:**
 - **Simple questions**: Can hand off directly to \`user\`
-- **Complex questions requiring implementation**: Should hand off to \`reviewer\`
+- **Complex questions requiring implementation**: Should hand off to \`planner\`
 - **Questions that reveal new feature needs**: May need reclassification
 `;
 }

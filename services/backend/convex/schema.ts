@@ -408,7 +408,7 @@ export default defineSchema({
     classification: v.optional(
       v.union(
         v.literal('question'), // Quick question - can hand directly back to user
-        v.literal('new_feature'), // New feature request - must go through reviewer
+        v.literal('new_feature'), // New feature request — planner reviews before delivery
         v.literal('follow_up') // Follow-up to previous message - part of same context
       )
     ),

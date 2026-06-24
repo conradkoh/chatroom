@@ -41,8 +41,7 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
   // Always use teamRoles — prompts assume all team members are available
   const members = teamRoles;
   const hasBuilder = members.some((r) => r.toLowerCase() === 'builder');
-  const hasReviewer = members.some((r) => r.toLowerCase() === 'reviewer');
-  const teamConfig = { hasBuilder, hasReviewer };
+  const teamConfig = { hasBuilder };
 
   const classificationNote = isEntryPoint
     ? nativeIntegration
