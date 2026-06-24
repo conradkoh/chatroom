@@ -35,7 +35,9 @@ export function getWorkflowSection(
  */
 export function getPlannerPlusBuilderWorkflow(nativeIntegration?: boolean): string {
   const footer = getWorkflowLoopFooter(nativeIntegration);
-  return `**Current Workflow: Planner + Builder**
+  return `**Workflow: Planner + Builder**
+
+Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.
 
 \`\`\`mermaid
 flowchart TD
@@ -70,7 +72,7 @@ export function getPlannerSoloWorkflow(nativeIntegration?: boolean): string {
 2. Run task read (get chatroom task content + mark in_progress)
 3. Classify with classify`;
   const planStepNum = nativeIntegration ? 3 : 4;
-  return `**Current Workflow: Planner Solo**
+  return `**Workflow: Planner Solo**
 
 ${intakeSteps}
 ${planStepNum}. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.

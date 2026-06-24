@@ -302,9 +302,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       - You hand off directly to the user when work is complete
       - Report progress at milestones using \`report-progress\`
 
-      **Team Availability:** solo available.
+      **Team composition:** Solo team — you handle planning and implementation yourself.
 
-      **Current Workflow: Planner Solo**
+      **Workflow: Planner Solo**
 
       1. Receive chatroom task from user
       2. Run task read (get chatroom task content + mark in_progress)

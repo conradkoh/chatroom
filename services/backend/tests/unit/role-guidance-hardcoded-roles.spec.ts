@@ -24,7 +24,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('Current Workflow: Planner + Builder');
+    expect(guidance).toContain('Workflow: Planner + Builder');
     expect(guidance).toContain('**To delegate implementation** → Hand off to `builder`');
     expect(guidance).not.toContain('reviewer');
   });
@@ -62,7 +62,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('Current Workflow: Planner Solo');
+    expect(guidance).toContain('Workflow: Planner Solo');
     expect(guidance).not.toContain('reviewer');
 
     const handoffRulesMatch = guidance.match(

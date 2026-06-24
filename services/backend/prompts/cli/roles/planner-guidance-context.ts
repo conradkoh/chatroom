@@ -8,7 +8,6 @@ export function getPlannerGuidanceContext(ctx: PlannerGuidanceParams) {
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
   const members = teamRoles;
-  const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
   const classificationNote =
     isEntryPoint && !ctx.nativeIntegration
       ? buildPlannerEntryClassificationNote(isEntryPoint, cliEnvPrefix, classifyExample)
@@ -19,7 +18,6 @@ export function getPlannerGuidanceContext(ctx: PlannerGuidanceParams) {
     cliEnvPrefix,
     classifyExample,
     members,
-    builderOnline,
     classificationNote,
     chatroomId,
     role,

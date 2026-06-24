@@ -8,7 +8,7 @@
  * Team composition is fixed: planner + builder.
  * Static sections (handoff rules, delegation guidelines, responsibilities,
  * when-work-comes-back) use this hardcoded config — no runtime conditionals.
- * Team availability and workflow sections use teamRoles configuration.
+ * Team composition and workflow sections use teamRoles configuration.
  */
 
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
@@ -18,9 +18,8 @@ import {
   getDelegationGuidelinesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
-  getTeamAvailabilitySection,
+  getTeamCompositionSection,
   getPlannerPlusBuilderWorkflow,
-  getPlannerSoloWorkflow,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
@@ -28,20 +27,10 @@ import type { PlannerGuidanceParams } from '../../../types/cli';
 const DUO_TEAM_CONFIG = { hasBuilder: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const {
-    nativeIntegration,
-    classificationNote,
-    members,
-    builderOnline,
-    cliEnvPrefix,
-    chatroomId,
-    role,
-  } = getPlannerGuidanceContext(ctx);
+  const { nativeIntegration, classificationNote, members, cliEnvPrefix, chatroomId, role } =
+    getPlannerGuidanceContext(ctx);
 
-  // Workflow diagram adapts to current availability
-  const workflowGuidance = builderOnline
-    ? getPlannerPlusBuilderWorkflow(nativeIntegration)
-    : getPlannerSoloWorkflow(nativeIntegration);
+  const workflowGuidance = getPlannerPlusBuilderWorkflow(nativeIntegration);
 
   return `## Planner Workflow
 
@@ -58,7 +47,7 @@ ${classificationNote}
 - After reviewing builder output, deliver results to the user
 - **Only you can hand off to \`user\`**
 
-${getTeamAvailabilitySection(members)}
+${getTeamCompositionSection(members)}
 
 ${workflowGuidance}
 

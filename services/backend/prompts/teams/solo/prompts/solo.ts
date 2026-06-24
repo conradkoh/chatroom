@@ -12,7 +12,7 @@ import {
   getCoreResponsibilitiesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
-  getTeamAvailabilitySection,
+  getTeamCompositionSection,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
@@ -51,7 +51,7 @@ ${classificationNote}
 - You hand off directly to the user when work is complete
 - Report progress at milestones using \`report-progress\`
 
-${getTeamAvailabilitySection(teamRoles)}
+${getTeamCompositionSection(teamRoles)}
 
 ${getPlannerSoloWorkflow(nativeIntegration)}
 

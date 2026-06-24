@@ -279,9 +279,13 @@ describe('Duo Team > Planner > System Prompt', () => {
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
-      **Team Availability:** builder available.
+      **Team composition:** Duo team — you coordinate with \`builder\` for implementation.
 
-      **Current Workflow: Planner + Builder**
+      **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate by handing off when appropriate; do not infer availability from team configuration or prior chat history. If blocked, implement yourself or report the situation to \`user\`.
+
+      **Workflow: Planner + Builder**
+
+      Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.
 
       \`\`\`mermaid
       flowchart TD

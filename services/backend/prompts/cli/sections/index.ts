@@ -12,7 +12,7 @@ export { getDelegationAndDecompositionSection } from './delegation-and-decomposi
 export { getDelegationGuidelinesSection } from './delegation-guidelines';
 export { getHandoffRulesSection } from './handoff-rules';
 export { getWhenWorkComesBackSection } from './when-work-comes-back';
-export { getTeamAvailabilitySection } from './team-availability';
+export { getTeamCompositionSection } from './team-composition';
 export {
   getWorkflowSection,
   getPlannerPlusBuilderWorkflow,

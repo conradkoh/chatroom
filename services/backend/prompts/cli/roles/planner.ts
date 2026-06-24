@@ -21,7 +21,7 @@ import {
   getDelegationGuidelinesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
-  getTeamAvailabilitySection,
+  getTeamCompositionSection,
   getWorkflowSection,
 } from '../sections';
 
@@ -38,7 +38,7 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const classifyExample = classifyCommand({ cliEnvPrefix });
 
-  // Always use teamRoles — prompts assume all team members are available
+  // teamRoles is configured composition — not live agent presence
   const members = teamRoles;
   const hasBuilder = members.some((r) => r.toLowerCase() === 'builder');
   const teamConfig = { hasBuilder };
@@ -63,7 +63,7 @@ ${getSessionContinuityLine(nativeIntegration)}
 You are the team coordinator and the **single point of contact** for the user.
 ${classificationNote}
 
-${getTeamAvailabilitySection(members)}
+${getTeamCompositionSection(members)}
 
 ${getWorkflowSection(teamConfig, nativeIntegration)}
 
