@@ -17,24 +17,27 @@ import { getCliEnvPrefix } from '../utils/index';
 /**
  * Generate the task intake guide section based on whether the role is an entry point.
  */
-// fallow-ignore-next-line complexity
-export function getClassificationGuideSection(ctx: SelectorContext): PromptSection {
+function getTaskIntakeContent(ctx: SelectorContext): string {
   const cliEnvPrefix = getCliEnvPrefix(ctx.convexUrl);
   const chatroomId = ctx.chatroomId ?? '';
 
   if (ctx.isEntryPoint) {
-    const content = ctx.nativeIntegration
+    return ctx.nativeIntegration
       ? getNativeTaskStartedPrompt({ chatroomId, role: ctx.role, cliEnvPrefix })
       : getTaskStartedPrompt({ chatroomId, role: ctx.role, cliEnvPrefix });
-    return createSection('task-intake-guide', 'knowledge', content);
   }
 
-  const content = ctx.nativeIntegration
+  return ctx.nativeIntegration
     ? getNativeTaskStartedPromptForHandoffRecipient()
     : getTaskStartedPromptForHandoffRecipient({
         chatroomId,
         role: ctx.role,
         cliEnvPrefix,
       });
-  return createSection('handoff-recipient-guide', 'knowledge', content);
+}
+
+export function getClassificationGuideSection(ctx: SelectorContext): PromptSection {
+  const content = getTaskIntakeContent(ctx);
+  const sectionId = ctx.isEntryPoint ? 'task-intake-guide' : 'handoff-recipient-guide';
+  return createSection(sectionId, 'knowledge', content);
 }

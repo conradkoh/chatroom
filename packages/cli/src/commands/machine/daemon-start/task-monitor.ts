@@ -216,7 +216,56 @@ function runNudgeEffect(
   runCliNudgeEffect(task, runtime, effectContext, agentMgr);
 }
 
-// fallow-ignore-next-line complexity
+function reviveNativeTasks(
+  tasks: AssignedTaskView[],
+  localHealth: {
+    getSlot: (
+      chatroomId: string,
+      role: string
+    ) => ReturnType<DaemonAgentProcessManagerServiceShape['getSlot']>;
+    isPidAlive: (pid: number) => boolean;
+  },
+  now: number,
+  cooldown: NudgeCooldown,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): void {
+  for (const task of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
+    runNativeReviveEffect(task, runtime, effectContext, agentMgr);
+  }
+}
+
+function injectNativeTasks(
+  tasks: AssignedTaskView[],
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  dedup: NativeInjectionDedup,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: SessionDeps
+): void {
+  for (const task of tasks) {
+    if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
+      runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
+    }
+  }
+}
+
+function nudgeStuckTasks(
+  tasks: AssignedTaskView[],
+  now: number,
+  cooldown: NudgeCooldown,
+  runtime: TaskMonitorRuntime,
+  effectContext: TaskMonitorContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  dedup: NativeInjectionDedup,
+  sessionDeps: SessionDeps
+): void {
+  for (const task of listTasksReadyForNudge(tasks, now, cooldown)) {
+    runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
+  }
+}
+
 function processTasksUpdate(
   tasks: AssignedTaskView[],
   runtime: TaskMonitorRuntime,
@@ -232,20 +281,9 @@ function processTasksUpdate(
     isPidAlive: (pid: number) => isProcessAlive((p) => process.kill(p, 0), pid),
   };
 
-  for (const task of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
-    runNativeReviveEffect(task, runtime, effectContext, agentMgr);
-  }
-
-  for (const task of tasks) {
-    if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
-      runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
-    }
-  }
-
-  const tasksToNudge = listTasksReadyForNudge(tasks, now, cooldown);
-  for (const task of tasksToNudge) {
-    runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
-  }
+  reviveNativeTasks(tasks, localHealth, now, cooldown, runtime, effectContext, agentMgr);
+  injectNativeTasks(tasks, runtime, effectContext, dedup, agentMgr, sessionDeps);
+  nudgeStuckTasks(tasks, now, cooldown, runtime, effectContext, agentMgr, dedup, sessionDeps);
 }
 
 export const startTaskMonitorSubscriptionEffect = (

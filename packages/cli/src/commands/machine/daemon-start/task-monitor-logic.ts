@@ -25,8 +25,21 @@ export interface NativeAgentLocalHealth {
   isPidAlive: (pid: number) => boolean;
 }
 
+function isSlotUnavailableForPid(
+  slot: AgentSlot | undefined,
+  pid: number,
+  isPidAlive: (pid: number) => boolean
+): boolean {
+  if (!slot || slot.state === 'idle' || slot.state === 'stopping') {
+    return true;
+  }
+  if (slot.pid !== pid) {
+    return true;
+  }
+  return !isPidAlive(pid);
+}
+
 /** Backend still has a PID but the daemon has no live matching process — revive via cold start. */
-// fallow-ignore-next-line complexity
 function isNativeAgentLocallyUnavailable(
   task: AssignedTaskView,
   health: NativeAgentLocalHealth
@@ -37,13 +50,7 @@ function isNativeAgentLocallyUnavailable(
   if (pid == null) return false;
 
   const slot = health.getSlot(task.chatroomId, task.agentConfig.role);
-  if (!slot || slot.state === 'idle' || slot.state === 'stopping') {
-    return true;
-  }
-  if (slot.pid !== pid) {
-    return true;
-  }
-  return !health.isPidAlive(pid);
+  return isSlotUnavailableForPid(slot, pid, health.isPidAlive);
 }
 
 export function listNativeTasksNeedingRevive(

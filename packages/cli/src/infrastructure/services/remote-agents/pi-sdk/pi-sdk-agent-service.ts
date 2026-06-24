@@ -163,7 +163,6 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     });
   }
 
-  // fallow-ignore-next-line unused-class-member
   async getVersion(): Promise<VersionInfo | null> {
     const match = getSdkPackageVersion().match(/^(\d+)\.(\d+)\.(\d+)/);
     if (!match) return null;
@@ -173,7 +172,6 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     };
   }
 
-  // fallow-ignore-next-line unused-class-member
   async listModels(): Promise<string[]> {
     try {
       const { ModelRegistry, AuthStorage } = await loadSdk();

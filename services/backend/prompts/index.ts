@@ -38,7 +38,7 @@ export { getRoleSpecificGuidance } from './cli/roles/index';
 export { getContextGainingGuidance } from './base/shared/getting-started-content';
 
 // Shared utilities
-export { HANDOFF_DIR, getHandoffFileSnippet } from './utils/index';
+export { getHandoffFileSnippet } from './utils/index';
 
 // Guidelines and policies
 export { getReviewGuidelines } from './review-guidelines';

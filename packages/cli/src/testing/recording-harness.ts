@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * RecordingHarness — test double for native harness resumeTurn injection.
  *
@@ -13,7 +12,6 @@ export interface RecordedInjection {
   at: number;
 }
 
-// fallow-ignore-next-line unused-export
 export class RecordingHarness {
   readonly injections: RecordedInjection[] = [];
 

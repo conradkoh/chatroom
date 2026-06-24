@@ -44,7 +44,6 @@ export type TaskReadError =
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
-// fallow-ignore-next-line code-duplication
 async function createDefaultDeps(): Promise<TaskReadDeps> {
   const client = await getConvexClient();
   return {

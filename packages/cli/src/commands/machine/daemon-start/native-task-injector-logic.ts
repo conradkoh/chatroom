@@ -12,7 +12,6 @@ import {
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
 /** True when daemon should inject a pending task into a live native session. */
-// fallow-ignore-next-line complexity
 export function shouldInjectNativeTask(
   task: AssignedTaskView,
   opts?: { alreadyInjectedTaskIds?: { has(taskId: string): boolean } }

@@ -706,10 +706,25 @@ export class AgentProcessManager {
     this.maybeRestartAgent(opts, ctx);
   }
 
-  // fallow-ignore-next-line complexity
+  private clearHarnessSessionAfterRunError(
+    key: string,
+    role: string,
+    recentLogLines: string[]
+  ): boolean {
+    if (!isCursorSdkRunErrorInLogs(recentLogLines)) {
+      return false;
+    }
+    console.log(
+      `[AgentProcessManager] cursor-sdk run-error — cold restarting ${role}: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
+    );
+    this.clearLastHarnessSession(key);
+    return true;
+  }
+
   private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
     const { harness, model, workingDir, recentLogLines } = ctx;
     const key = agentKey(opts.chatroomId, opts.role);
+    const logs = recentLogLines ?? [];
 
     if (!harness || !workingDir) {
       console.log(
@@ -719,7 +734,7 @@ export class AgentProcessManager {
       return;
     }
 
-    if (isPermanentHarnessFailure(recentLogLines ?? [])) {
+    if (isPermanentHarnessFailure(logs)) {
       this.handlePermanentFailureForRestart(
         opts,
         recentLogLines,
@@ -728,13 +743,7 @@ export class AgentProcessManager {
       return;
     }
 
-    const coldRestartAfterRunError = isCursorSdkRunErrorInLogs(recentLogLines ?? []);
-    if (coldRestartAfterRunError) {
-      console.log(
-        `[AgentProcessManager] cursor-sdk run-error — cold restarting ${opts.role}: ${formatCursorSdkRunErrorMessage(recentLogLines ?? [])}`
-      );
-      this.clearLastHarnessSession(key);
-    }
+    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, opts.role, logs);
 
     void this.ensureRunning({
       chatroomId: opts.chatroomId,

@@ -316,48 +316,28 @@ export interface ComposedInitPrompt {
  * because the CLI envelope (get-next-task.ts) already provides them in the
  * initialization header. Including them here would cause duplication.
  */
-// fallow-ignore-next-line complexity
-export function composeSystemPrompt(input: InitPromptInput): string {
-  const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
+function buildInitPromptSections(
+  input: InitPromptInput,
+  selectorCtx: SelectorContext
+): PromptSection[] {
+  const { chatroomId, role, teamId, teamRoles, convexUrl } = input;
   const nativeIntegration = isNativeHarness(input.agentHarness);
-
-  // Build SelectorContext for unified dispatching
-  const selectorCtx = buildSelectorContext({
-    role,
-    teamRoles,
-    teamId,
-    teamName,
-    teamEntryPoint,
-    convexUrl,
-    chatroomId,
-    agentType: input.agentType,
-    nativeIntegration,
-  });
-
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
   const handoffTargets = [...new Set([...otherRoles, 'user'])];
 
-  const sections: PromptSection[] = [];
+  const sections: PromptSection[] = [
+    getTeamHeaderSection(input.teamName),
+    getRoleTitleSection(selectorCtx),
+    getRoleDescriptionSection(selectorCtx),
+    getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId, nativeIntegration }),
+  ];
 
-  // Team header and role identity
-  sections.push(getTeamHeaderSection(teamName));
-  sections.push(getRoleTitleSection(selectorCtx));
-  sections.push(getRoleDescriptionSection(selectorCtx));
-  sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId, nativeIntegration }));
-
-  // Session model (CLI harnesses only — native agents focus on the task at hand)
   if (!nativeIntegration) {
-    sections.push(getSessionVsChatroomTaskSection());
-    sections.push(getGettingStartedSection(selectorCtx));
+    sections.push(getSessionVsChatroomTaskSection(), getGettingStartedSection(selectorCtx));
   }
 
-  // Task intake / acknowledgement commands
-  sections.push(getClassificationGuideSection(selectorCtx));
+  sections.push(getClassificationGuideSection(selectorCtx), getRoleGuidanceSection(selectorCtx));
 
-  // Role-specific guidance (team-aware workflow)
-  sections.push(getRoleGuidanceSection(selectorCtx));
-
-  // Full handoff template previews on CLI init; native inlines templates on task delivery.
   if (!nativeIntegration) {
     sections.push(
       getHandoffTemplatesPreviewSection({
@@ -369,26 +349,37 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     );
   }
 
-  // Handoff options
-  sections.push(
-    getHandoffOptionsSection({
-      availableHandoffRoles: handoffTargets,
-    })
-  );
+  sections.push(getHandoffOptionsSection({ availableHandoffRoles: handoffTargets }));
 
-  // Command reference (native: handoff + progress only; CLI: includes get-next-task)
   sections.push(
     nativeIntegration
       ? getNativeCommandsReferenceSection({ chatroomId, role, convexUrl })
       : getCommandsReferenceSection({ chatroomId, role, convexUrl })
   );
 
-  // Next step (CLI harnesses only)
   if (!nativeIntegration) {
     sections.push(getNextStepSection({ chatroomId, role, convexUrl }));
   }
 
-  return composeSections(sections);
+  return sections;
+}
+
+export function composeSystemPrompt(input: InitPromptInput): string {
+  const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
+
+  const selectorCtx = buildSelectorContext({
+    role,
+    teamRoles,
+    teamId,
+    teamName,
+    teamEntryPoint,
+    convexUrl,
+    chatroomId,
+    agentType: input.agentType,
+    nativeIntegration: isNativeHarness(input.agentHarness),
+  });
+
+  return composeSections(buildInitPromptSections(input, selectorCtx));
 }
 
 /**

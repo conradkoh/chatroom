@@ -48,6 +48,7 @@
     "**/test.setup.{ts,mts}",
     "**/test-utils.{ts,tsx}",
     "**/vitest.config.{ts,mts}",
+    "packages/cli/src/testing/**",
     "**/next.config.{ts,js,mjs}",
     "**/playwright.config.{ts,js}",
     "**/eslint.config.{ts,js,mjs}",

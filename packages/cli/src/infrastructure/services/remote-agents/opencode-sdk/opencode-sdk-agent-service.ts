@@ -166,7 +166,65 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     return childProcess;
   }
 
-  // fallow-ignore-next-line complexity
+  private buildSessionMetadata(args: {
+    sessionId: string;
+    context: SpawnContext;
+    agentName: string;
+    model: string | undefined;
+    deferredSystemPrompt?: string;
+    pid: number;
+    baseUrl: string;
+  }): SessionMetadata {
+    const { sessionId, context, agentName, model, deferredSystemPrompt, pid, baseUrl } = args;
+    return {
+      sessionId,
+      machineId: context.machineId,
+      chatroomId: context.chatroomId,
+      role: context.role,
+      agentName,
+      ...(model ? { model } : {}),
+      ...(deferredSystemPrompt ? { deferredSystemPrompt } : {}),
+      pid,
+      createdAt: new Date().toISOString(),
+      baseUrl,
+    };
+  }
+
+  private wireChildOutput(
+    childProcess: ChildProcess,
+    pid: number,
+    entry: { lastOutputAt: number },
+    emitLogLine: (line: string) => void,
+    outputCallbacks: (() => void)[]
+  ): void {
+    forwardFiltered(childProcess.stdout ?? undefined, process.stdout, isInfoLine);
+    forwardFiltered(childProcess.stderr ?? undefined, process.stderr, isInfoLine);
+
+    if (childProcess.stdout) {
+      childProcess.stdout.on('data', () => {
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+    }
+    if (childProcess.stderr) {
+      const stderrBuffer = new StderrLineBuffer((line) => {
+        emitLogLine(line);
+        const activeForwarder = this.forwarders.get(pid);
+        if (activeForwarder && matchesTerminalProviderErrorText(line)) {
+          activeForwarder.abortTerminalProviderError();
+        }
+      });
+      childProcess.stderr.on('data', (chunk: Buffer | string) => {
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+        stderrBuffer.append(chunk.toString());
+      });
+      childProcess.on('exit', () => {
+        stderrBuffer.flush();
+      });
+    }
+  }
+
   private registerRunningSession(args: {
     childProcess: ChildProcess;
     pid: number;
@@ -198,51 +256,23 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       for (const lineCb of logLineCallbacks) lineCb(line);
     };
 
-    const meta: SessionMetadata = {
-      sessionId,
-      machineId: context.machineId,
-      chatroomId: context.chatroomId,
-      role: context.role,
-      agentName,
-      ...(model ? { model } : {}),
-      ...(deferredSystemPrompt ? { deferredSystemPrompt } : {}),
-      pid,
-      createdAt: new Date().toISOString(),
-      baseUrl,
-    };
-    this.sessionStore.upsert(meta);
+    this.sessionStore.upsert(
+      this.buildSessionMetadata({
+        sessionId,
+        context,
+        agentName,
+        model,
+        deferredSystemPrompt,
+        pid,
+        baseUrl,
+      })
+    );
 
     const entry = this.registerProcess(pid, context);
     if (forwarder) this.forwarders.set(pid, forwarder);
 
     const outputCallbacks = args.outputCallbacks ?? [];
-
-    forwardFiltered(childProcess.stdout ?? undefined, process.stdout, isInfoLine);
-    forwardFiltered(childProcess.stderr ?? undefined, process.stderr, isInfoLine);
-
-    if (childProcess.stdout) {
-      childProcess.stdout.on('data', () => {
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-      });
-    }
-    if (childProcess.stderr) {
-      const stderrBuffer = new StderrLineBuffer((line) => {
-        emitLogLine(line);
-        const activeForwarder = this.forwarders.get(pid);
-        if (activeForwarder && matchesTerminalProviderErrorText(line)) {
-          activeForwarder.abortTerminalProviderError();
-        }
-      });
-      childProcess.stderr.on('data', (chunk: Buffer | string) => {
-        entry.lastOutputAt = Date.now();
-        for (const cb of outputCallbacks) cb();
-        stderrBuffer.append(chunk.toString());
-      });
-      childProcess.on('exit', () => {
-        stderrBuffer.flush();
-      });
-    }
+    this.wireChildOutput(childProcess, pid, entry, emitLogLine, outputCallbacks);
 
     return {
       pid,

@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * NativeOrchestrationSimulator — closed-loop native injection tests without a daemon.
  *
@@ -50,13 +49,13 @@ function makeBaseTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskVi
   };
 }
 
+function isClaimMutation(args: Record<string, unknown>): boolean {
+  return Boolean(args.taskId && args.role && args.chatroomId && !('action' in args));
+}
+
 function createBackendMock(deliveryOutput: string) {
-  // fallow-ignore-next-line complexity
   const mutation = async (_fn: unknown, args: Record<string, unknown>) => {
-    if (args.taskId && args.role && args.chatroomId && !('action' in args)) {
-      return undefined;
-    }
-    if (args.action === NATIVE_TASK_INJECTED_ACTION) {
+    if (isClaimMutation(args) || args.action === NATIVE_TASK_INJECTED_ACTION) {
       return undefined;
     }
     throw new Error(`Unexpected mutation call: ${JSON.stringify(Object.keys(args))}`);
@@ -73,7 +72,6 @@ export class NativeOrchestrationSimulator {
   readonly sessionId: string;
   readonly convexUrl: string;
 
-  // fallow-ignore-next-line complexity
   constructor(options?: { sessionId?: string; convexUrl?: string }) {
     this.sessionId = options?.sessionId ?? 'test-session';
     this.convexUrl = options?.convexUrl ?? 'http://127.0.0.1:3210';
@@ -90,7 +88,6 @@ export class NativeOrchestrationSimulator {
     });
   }
 
-  // fallow-ignore-next-line complexity
   async inject(options: SimulateInjectionOptions): Promise<string> {
     const { task, deliveryOutput } = options;
     const sessionId = options.sessionId ?? this.sessionId;

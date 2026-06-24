@@ -38,6 +38,33 @@ async function getParticipantByChatroomRole(
     .unique();
 }
 
+async function maybeStartAcknowledgedTaskFromTokenActivity(
+  ctx: MutationCtx,
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string },
+  participant: NonNullable<Awaited<ReturnType<typeof getParticipantByChatroomRole>>>
+): Promise<void> {
+  const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
+
+  const shouldStartTask =
+    acknowledgedTask?.status === 'acknowledged' &&
+    (participant.lastStatus === 'task.acknowledged' ||
+      participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION ||
+      participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION);
+
+  if (!shouldStartTask) {
+    return;
+  }
+
+  await readTask(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+    taskId: acknowledgedTask._id,
+  });
+}
+
 /** Upserts a chatroom participant record.
  * Emits agent.waiting and enables queue promotion only when action is 'get-next-task:started',
  * which is sent AFTER the WebSocket subscription is established (not before).
@@ -281,7 +308,6 @@ export const leave = mutation({
 });
 
 /** Updates lastSeenTokenAt and may start an acknowledged task when harness output is detected. */
-// fallow-ignore-next-line code-duplication
 export const updateTokenActivity = mutation({
   args: {
     ...SessionIdArg,
@@ -292,24 +318,7 @@ export const updateTokenActivity = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
     if (participant) {
-      const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
-        chatroomId: args.chatroomId,
-        role: args.role,
-      });
-
-      const shouldStartTask =
-        acknowledgedTask?.status === 'acknowledged' &&
-        (participant.lastStatus === 'task.acknowledged' ||
-          participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION ||
-          participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION);
-
-      if (shouldStartTask) {
-        await readTask(ctx, {
-          chatroomId: args.chatroomId,
-          role: args.role,
-          taskId: acknowledgedTask._id,
-        });
-      }
+      await maybeStartAcknowledgedTaskFromTokenActivity(ctx, args, participant);
 
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenTokenAt: Date.now(),

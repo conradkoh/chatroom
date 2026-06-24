@@ -29,14 +29,3 @@ export function getNextStepSection(params: NextStepParams): PromptSection {
   const content = `### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``;
   return createSection('next-step', 'guidance', content);
 }
-
-/**
- * Next step for native-integration harnesses — wait for injection, no get-next-task.
- */
-export function getNativeNextStepSection(): PromptSection {
-  const content = `### Next
-
-Your session is active. Wait for the next chatroom task to be injected into your context.`;
-
-  return createSection('next-step-native', 'guidance', content);
-}
