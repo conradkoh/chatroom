@@ -15,11 +15,11 @@ Both kinds implement the same `RemoteAgentService` contract and register in `ini
 
 Some harnesses use **native integration**: the chatroom daemon injects tasks directly into the harness session context instead of relying on a blocking `get-next-task` listen loop.
 
-| Aspect               | CLI harness (default)                                                                            | Native integration harness                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| **Task delivery**    | Agent runs `get-next-task` in a foreground loop; backend claims and delivers via WebSocket       | Backend injects tasks into the in-process session when user messages or handoffs arrive  |
-| **Session start**    | System prompt + instructions to run `get-next-task`                                              | System prompt only — no `get-next-task` loop                                             |
-| **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; `startTask` → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first token → WORKING |
+| Aspect               | CLI harness (default)                                                                                    | Native integration harness                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Task delivery**    | Agent runs `get-next-task` in a foreground loop; backend claims and delivers via WebSocket               | Backend injects tasks into the in-process session when user messages or handoffs arrive          |
+| **Session start**    | System prompt + instructions to run `get-next-task`                                                      | System prompt only — no `get-next-task` loop                                                     |
+| **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; first harness token → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first harness token → WORKING |
 
 **Distinction from `supportsSessionResume`:** session resume (turn-end `resumeTurn` after `lifecycle.turn.completed`) is disabled for all harnesses. Native integration changes _how tasks are delivered_ — the agent never blocks on `get-next-task`. Native SDK harnesses use `resumeTurn` only for task injection.
 
@@ -27,11 +27,15 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 
 **Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn`. Task injection uses `resumeTurn` only when delivering user work.
 
-**Participant heartbeat actions** (emitted by the daemon for native harnesses):
+**Participant heartbeat actions** (emitted by the daemon):
 
-- `native:waiting` — session is ready (after start or turn end); maps to `agent.waiting` / UI **WAITING**
-- `native:task-injected` — task delivered into session context; maps to `task.acknowledged` / UI **TASK RECEIVED**
-- First token via `updateTokenActivity` when `lastStatus` is `task.acknowledged` → `task.inProgress` / UI **WORKING**
+- **CLI harnesses:** `get-next-task:started` → WAITING; `get-next-task:stopped` when a task is delivered → ACKNOWLEDGED (`task.acknowledged`)
+- **Native harnesses:** `native:waiting` → WAITING; `native:task-injected` when a task is injected → ACKNOWLEDGED (`task.acknowledged`)
+- **All harnesses:** first stdout/stderr token via `updateTokenActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
+
+CLI and native harnesses both wire `spawnResult.onOutput()` to `participants.updateTokenActivity` in `AgentProcessManager`. The first output fires immediately; subsequent calls are throttled (30s). Agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
+
+`task read` remains available as an optional recovery command (e.g. backlog attachments not shown in delivery).
 
 **Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
 
