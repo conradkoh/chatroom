@@ -108,6 +108,53 @@ describe('runNativeInjectionEffect', () => {
     expect(deps.agentMgr.resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
+  test('skips claim when task is already acknowledged', async () => {
+    const deps = createDeps();
+    const dedup = new NativeInjectionDedup();
+    const task = makeTask({
+      status: 'acknowledged',
+      assignedTo: 'builder',
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, deps, dedup));
+
+    const claimCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === api.tasks.claimTask
+    );
+    expect(claimCalls).toHaveLength(0);
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
+    expect(dedup.has(task.taskId)).toBe(true);
+  });
+
+  test('concurrent injection only claims once', async () => {
+    const deps = createDeps();
+    const dedup = new NativeInjectionDedup();
+    const task = makeTask();
+    let claimCount = 0;
+
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_fn: unknown, args: Record<string, unknown>) => {
+        if (!('action' in args) && args.taskId) {
+          claimCount += 1;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        return undefined;
+      }
+    );
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+      fullCliOutput: 'DELIVERY OUTPUT',
+    });
+
+    await Promise.all([
+      Effect.runPromise(runNativeInjectionEffect(task, deps, dedup)),
+      Effect.runPromise(runNativeInjectionEffect(task, deps, dedup)),
+    ]);
+
+    expect(claimCount).toBe(1);
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalledTimes(1);
+    expect(dedup.has(task.taskId)).toBe(true);
+  });
+
   test('clears dedup and logs warning when resumeTurn throws', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const deps = createDeps({

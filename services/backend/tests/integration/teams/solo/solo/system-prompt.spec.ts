@@ -259,10 +259,10 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       1. Receive chatroom task from get-next-task
       2. Plan and implement
-      4. Review your own work for quality
-      5. Verify: \`pnpm typecheck && pnpm test\`
-      6. Deliver to **user**
-      7. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)
+      3. Review your own work for quality
+      4. Verify: \`pnpm typecheck && pnpm test\`
+      5. Deliver to **user**
+      6. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)
 
       **Core Responsibilities:**
       - **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.
@@ -287,7 +287,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → deliver to \`user\`
+      2. If requirements are met → deliver to \`user\` (run \`pnpm typecheck && pnpm test\` first **only if this slice changed the codebase** — skip for connectivity-only or no-code handbacks)
       3. If requirements are NOT met → revise your own implementation and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 

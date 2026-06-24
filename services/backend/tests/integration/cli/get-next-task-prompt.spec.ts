@@ -460,8 +460,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
       3. Hand off when complete:
 
-      ⚠️ Before delivering to user: Verify the codebase is in a good state.
-         Run: pnpm typecheck && pnpm test
+      Before handing off to user: verify the codebase is in a good state — run \`pnpm typecheck && pnpm test\`.
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---

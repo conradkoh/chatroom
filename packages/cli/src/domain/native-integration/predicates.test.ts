@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import {
   isCliIdleNotListening,
   isInjectableNativeAction,
+  isNativeInjectableAliveRunning,
   isNativePendingAliveRunning,
   isStaleCliGetNextTaskWaiting,
   isStaleNativeWaiting,
@@ -50,6 +51,25 @@ describe('isNativePendingAliveRunning', () => {
       isNativePendingAliveRunning(
         makeTask({ agentConfig: { ...makeTask().agentConfig, spawnedAgentPid: undefined } })
       )
+    ).toBe(false);
+  });
+
+  test('false when acknowledged', () => {
+    expect(isNativePendingAliveRunning(makeTask({ status: 'acknowledged' }))).toBe(false);
+  });
+});
+
+describe('isNativeInjectableAliveRunning', () => {
+  test('true for pending and acknowledged tasks owned by role', () => {
+    expect(isNativeInjectableAliveRunning(makeTask())).toBe(true);
+    expect(
+      isNativeInjectableAliveRunning(makeTask({ status: 'acknowledged', assignedTo: 'builder' }))
+    ).toBe(true);
+  });
+
+  test('false when acknowledged for a different role', () => {
+    expect(
+      isNativeInjectableAliveRunning(makeTask({ status: 'acknowledged', assignedTo: 'planner' }))
     ).toBe(false);
   });
 });

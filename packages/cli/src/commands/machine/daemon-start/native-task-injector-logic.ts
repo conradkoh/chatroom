@@ -3,8 +3,9 @@ import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/mac
 
 import {
   isInjectableNativeAction,
+  isNativeAcknowledgedInjectionRetry,
   isNativeIdleAfterTaskComplete,
-  isNativePendingAliveRunning,
+  isNativeInjectableAliveRunning,
   isStaleNativeWaiting,
   isStuckAfterNativeInject,
 } from '../../../domain/native-integration/predicates.js';
@@ -12,15 +13,17 @@ import {
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
 /** True when daemon should inject a pending task into a live native session. */
+// fallow-ignore-next-line complexity
 export function shouldInjectNativeTask(
   task: AssignedTaskView,
   opts?: { alreadyInjectedTaskIds?: { has(taskId: string): boolean } }
 ): boolean {
-  if (!isNativePendingAliveRunning(task)) return false;
+  if (!isNativeInjectableAliveRunning(task)) return false;
   if (opts?.alreadyInjectedTaskIds?.has(task.taskId)) return false;
   return (
     isInjectableNativeAction(task.participant?.lastSeenAction) ||
-    isNativeIdleAfterTaskComplete(task.participant ?? {})
+    isNativeIdleAfterTaskComplete(task.participant ?? {}) ||
+    isNativeAcknowledgedInjectionRetry(task)
   );
 }
 
@@ -30,7 +33,7 @@ export function shouldNudgeNativeInjection(
   now: number,
   pendingIdleThresholdMs = 15_000
 ): boolean {
-  if (!isNativePendingAliveRunning(task)) return false;
+  if (!isNativeInjectableAliveRunning(task)) return false;
   return (
     isStaleNativeWaiting(task, now, pendingIdleThresholdMs) ||
     isStuckAfterNativeInject(task, now, pendingIdleThresholdMs)
@@ -55,15 +58,30 @@ export function buildNativeInjectionPrompt(params: {
 
 export class NativeInjectionDedup {
   private readonly injected = new Set<string>();
-  markInjected(taskId: string): void {
-    if (!this.has(taskId)) {
-      this.injected.add(taskId);
+  private readonly inFlight = new Set<string>();
+
+  /** Reserve a task for injection; returns false if already injected or in flight. */
+  tryAcquire(taskId: string): boolean {
+    if (this.has(taskId) || this.inFlight.has(taskId)) {
+      return false;
     }
+    this.inFlight.add(taskId);
+    return true;
   }
+
+  markInjected(taskId: string): void {
+    this.inFlight.delete(taskId);
+    this.injected.add(taskId);
+  }
+
+  // Used by shouldInjectNativeTask via alreadyInjectedTaskIds duck typing.
   has(taskId: string): boolean {
     return this.injected.has(taskId);
   }
+
+  /** Release in-flight or completed injection so a retry can proceed. */
   clear(taskId: string): void {
+    this.inFlight.delete(taskId);
     this.injected.delete(taskId);
   }
 }

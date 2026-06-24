@@ -55,9 +55,11 @@ ${getTaskIntakeNodes(nativeIntegration)}
     K --> F
     J -->|yes| L{more phases?}
     L -->|yes| F
-    L -->|no| M[Verify: pnpm typecheck && pnpm test]
-    M --> N[Deliver final result to user]
-    N --> O[${footer}] --> B
+    L -->|no| M{codebase changed this slice?}
+    M -->|yes| N[Verify: pnpm typecheck && pnpm test]
+    M -->|no| O[Deliver final result to user]
+    N --> O
+    O --> P[${footer}] --> B
 \`\`\``;
 }
 
@@ -73,12 +75,21 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
 2. Plan and implement`
     : `1. Receive chatroom task from get-next-task
 2. Plan and implement`;
-  const verifyStepNum = nativeIntegration ? 3 : 4;
+
+  if (nativeIntegration) {
+    return `**Operating model: Planner Solo**
+
+${intakeSteps}
+3. Verify (\`pnpm typecheck && pnpm test\`) before user delivery **only when this slice changed the codebase**
+4. Deliver to **user**
+5. ${continueStep}`;
+  }
+
   return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-${verifyStepNum}. Review your own work for quality
-${verifyStepNum + 1}. Verify: \`pnpm typecheck && pnpm test\`
-${verifyStepNum + 2}. Deliver to **user**
-${verifyStepNum + 3}. ${continueStep}`;
+3. Review your own work for quality
+4. Verify: \`pnpm typecheck && pnpm test\`
+5. Deliver to **user**
+6. ${continueStep}`;
 }

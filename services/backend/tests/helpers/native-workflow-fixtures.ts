@@ -75,6 +75,8 @@ export interface NativeDeliveryScenario {
   primaryHandoffTarget: string;
   eagerTemplateHeadings: string[];
   userVerificationInNextSteps?: boolean;
+  /** Task body used in delivery tests (defaults to generic implementation text). */
+  taskContent?: string;
 }
 
 export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
@@ -119,6 +121,27 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     availableHandoffTargets: ['user'],
     primaryHandoffTarget: 'planner',
     eagerTemplateHeadings: ['Handoff Template (Builder → Planner)'],
+  },
+  {
+    label: 'duo planner receives builder handback → deliver to user',
+    teamId: 'duo',
+    role: 'planner',
+    senderRole: 'builder',
+    availableHandoffTargets: ['builder', 'user'],
+    primaryHandoffTarget: 'user',
+    eagerTemplateHeadings: [
+      'Report Template (Planner → User)',
+      'Delegation Brief (Planner → Builder)',
+    ],
+    userVerificationInNextSteps: false,
+    taskContent: [
+      '## Summary',
+      'Connectivity test passed.',
+      '## Proof — files changed',
+      'Not Applicable',
+      '## Verification',
+      'Not Applicable',
+    ].join('\n'),
   },
 ];
 

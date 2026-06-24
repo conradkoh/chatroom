@@ -8,6 +8,8 @@
 
 import { appendNativeDeliveryHandoffTemplates } from './delivery-handoff-templates';
 import { handoffCommand } from '../cli/handoff/command';
+import { inferPrimaryHandoffTarget } from '../utils/infer-primary-handoff-target';
+import { getUserVerificationReminder } from '../utils/task-verification';
 
 export interface NativeTaskDeliveryParams {
   chatroomId: string;
@@ -18,42 +20,42 @@ export interface NativeTaskDeliveryParams {
   message: { _id: string; senderRole: string } | null;
   availableHandoffTargets: string[];
   attachedMessages?: { _id: string; content: string; senderRole: string }[];
+  isEntryPoint?: boolean;
 }
 
-/** Primary handoff target: return work to the task sender, else first available target. */
-function inferPrimaryHandoffTarget(
-  senderRole: string | undefined,
-  role: string,
-  availableHandoffTargets: string[]
-): string | undefined {
-  if (senderRole && senderRole.toLowerCase() !== role.toLowerCase()) {
-    return senderRole;
+function maybeAddUserVerificationReminder(
+  lines: string[],
+  target: string | undefined,
+  taskContent: string
+): void {
+  if (target?.toLowerCase() !== 'user') {
+    return;
   }
-  return availableHandoffTargets[0];
-}
-
-function maybeAddUserVerificationReminder(lines: string[], target: string | undefined): void {
-  if (target?.toLowerCase() === 'user') {
-    lines.push('');
-    lines.push(
-      'Before handing off to user: verify the codebase is in a good state — run `pnpm typecheck && pnpm test`.'
-    );
-  }
+  lines.push('');
+  lines.push(getUserVerificationReminder(taskContent));
 }
 
 function appendNativeNextSteps(
   lines: string[],
   params: Pick<
     NativeTaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'message' | 'availableHandoffTargets'
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'message'
+    | 'availableHandoffTargets'
+    | 'task'
+    | 'isEntryPoint'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets } = params;
-  const primaryTarget = inferPrimaryHandoffTarget(
-    message?.senderRole,
+  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets, task, isEntryPoint } =
+    params;
+  const primaryTarget = inferPrimaryHandoffTarget({
+    senderRole: message?.senderRole,
     role,
-    availableHandoffTargets
-  );
+    availableHandoffTargets,
+    isEntryPoint,
+  });
 
   lines.push('');
   lines.push('<next-steps>');
@@ -64,7 +66,7 @@ function appendNativeNextSteps(
     lines.push(
       `2. **When complete, you MUST run the handoff command** — this completes your work and delivers it to \`${primaryTarget}\`${senderNote}:`
     );
-    maybeAddUserVerificationReminder(lines, primaryTarget);
+    maybeAddUserVerificationReminder(lines, primaryTarget, task.content);
     lines.push('');
     lines.push('```bash');
     lines.push(handoffCommand({ chatroomId, role, nextRole: primaryTarget, cliEnvPrefix }));
@@ -120,6 +122,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     message,
     availableHandoffTargets,
     attachedMessages = [],
+    isEntryPoint,
   } = params;
 
   const lines: string[] = [`<task>`, `Task ID: ${task._id}`];
@@ -137,6 +140,8 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     cliEnvPrefix,
     message,
     availableHandoffTargets,
+    task,
+    isEntryPoint,
   });
   appendNativeDeliveryHandoffTemplates(lines, { teamId, role });
   appendHandoffTargets(lines, { chatroomId, role, cliEnvPrefix, availableHandoffTargets });

@@ -32,26 +32,39 @@ export function runNativeInjectionEffect(
   deps: NativeInjectorDeps,
   dedup: NativeInjectionDedup
 ): Effect.Effect<void, unknown, never> {
+  // fallow-ignore-next-line complexity
   return Effect.gen(function* () {
     if (!shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
       return;
     }
 
-    const { chatroomId, taskId, taskContent, agentConfig } = task;
+    const { chatroomId, taskId, taskContent, agentConfig, status } = task;
     const { role } = agentConfig;
 
-    yield* Effect.tryPromise({
-      try: () =>
-        deps.backend.mutation(api.tasks.claimTask, {
-          sessionId: deps.sessionId,
-          chatroomId,
-          role,
-          taskId,
-        }),
-      catch: (err) => err,
-    });
+    if (!dedup.tryAcquire(taskId)) {
+      return;
+    }
 
-    const delivery = (yield* Effect.tryPromise({
+    // Pending tasks must be claimed before delivery; acknowledged tasks are already owned.
+    if (status === 'pending') {
+      const claimResult = yield* Effect.tryPromise({
+        try: () =>
+          deps.backend.mutation(api.tasks.claimTask, {
+            sessionId: deps.sessionId,
+            chatroomId,
+            role,
+            taskId,
+          }),
+        catch: (err) => err,
+      }).pipe(Effect.either);
+
+      if (claimResult._tag === 'Left') {
+        dedup.clear(taskId);
+        return yield* Effect.fail(claimResult.left);
+      }
+    }
+
+    const deliveryResult = yield* Effect.tryPromise({
       try: () =>
         deps.backend.query(api.messages.getTaskDeliveryPrompt, {
           sessionId: deps.sessionId,
@@ -61,7 +74,14 @@ export function runNativeInjectionEffect(
           convexUrl: deps.convexUrl,
         }) as Promise<{ fullCliOutput: string }>,
       catch: (err) => err,
-    })) as { fullCliOutput: string };
+    }).pipe(Effect.either);
+
+    if (deliveryResult._tag === 'Left') {
+      dedup.clear(taskId);
+      return yield* Effect.fail(deliveryResult.left);
+    }
+
+    const delivery = deliveryResult.right;
 
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
@@ -78,7 +98,7 @@ export function runNativeInjectionEffect(
           taskId,
         }),
       catch: (err) => err,
-    });
+    }).pipe(Effect.tapError(() => Effect.sync(() => dedup.clear(taskId))));
 
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),

@@ -181,6 +181,35 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
       ).rejects.toThrow('No pending task to claim');
     });
 
+    test('claimTask is idempotent when same role re-claims an acknowledged task by id', async () => {
+      const { sessionId } = await createTestSession('test-fsm-claim-idempotent');
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'Task for idempotent reclaim',
+        senderRole: 'user',
+        type: 'message',
+      });
+
+      const claim1 = await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const claim2 = await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        taskId: claim1.taskId,
+      });
+
+      expect(claim2.taskId).toBe(claim1.taskId);
+    });
+
     test('startTask requires acknowledged status', async () => {
       const { sessionId } = await createTestSession('test-fsm-start-requires-acknowledged');
       const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

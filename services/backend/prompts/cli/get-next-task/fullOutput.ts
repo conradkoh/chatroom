@@ -15,6 +15,8 @@
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
+import { inferPrimaryHandoffTarget } from '../../utils/infer-primary-handoff-target';
+import { getUserVerificationReminder } from '../../utils/task-verification';
 import { contextNewCommand, contextNewHint } from '../context/new';
 import { getHandoffTemplate } from '../handoff-templates';
 
@@ -80,12 +82,16 @@ export interface FullCliOutputParams {
  * reminder before the handoff command so the planner/coordinator verifies
  * the codebase before delivering to the user.
  */
-function maybeAddVerificationReminder(lines: string[], availableHandoffTargets: string[]): void {
-  if (availableHandoffTargets.includes('user')) {
-    lines.push('');
-    lines.push('⚠️ Before delivering to user: Verify the codebase is in a good state.');
-    lines.push('   Run: pnpm typecheck && pnpm test');
+function maybeAddVerificationReminder(
+  lines: string[],
+  availableHandoffTargets: string[],
+  taskContent: string
+): void {
+  if (!availableHandoffTargets.includes('user')) {
+    return;
   }
+  lines.push('');
+  lines.push(getUserVerificationReminder(taskContent));
 }
 
 function getNextStepsIntro(): string {
@@ -133,6 +139,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       message: message ? { _id: message._id, senderRole: message.senderRole } : null,
       availableHandoffTargets,
       attachedMessages,
+      isEntryPoint,
     });
   }
 
@@ -277,7 +284,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(
         `${reportStepNum}. When the work is done, deliver to the user using this report template:`
       );
-      maybeAddVerificationReminder(lines, availableHandoffTargets);
+      maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
       lines.push('');
       lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
     } else {
@@ -292,7 +299,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         nextStepNum++;
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
-      maybeAddVerificationReminder(lines, availableHandoffTargets);
+      maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
@@ -319,8 +326,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
 
     lines.push(`${nextStepNum}. Hand off when complete:`);
-    maybeAddVerificationReminder(lines, availableHandoffTargets);
-    const primaryTarget = availableHandoffTargets[0];
+    maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
+    const primaryTarget =
+      inferPrimaryHandoffTarget({
+        senderRole: message.senderRole,
+        role,
+        availableHandoffTargets,
+        isEntryPoint,
+      }) ?? availableHandoffTargets[0];
     if (primaryTarget) {
       const tmpl = getHandoffTemplate({ teamId, fromRole: role, toRole: primaryTarget });
       if (tmpl) {

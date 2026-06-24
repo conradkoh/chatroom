@@ -27,9 +27,10 @@ function deliver(scenario: (typeof NATIVE_DELIVERY_SCENARIOS)[number]): string {
     role: scenario.role,
     teamId: scenario.teamId,
     cliEnvPrefix: CLI_ENV,
-    task: { _id: 'task-id', content: 'Do the work' },
+    task: { _id: 'task-id', content: scenario.taskContent ?? 'Do the work' },
     message: { _id: 'msg-id', senderRole: scenario.senderRole },
     availableHandoffTargets: scenario.availableHandoffTargets,
+    isEntryPoint: scenario.role === 'planner' || scenario.role === 'solo',
   });
 }
 
@@ -57,6 +58,15 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
     const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
     expect(nextSteps).not.toContain('⚠️ **User visibility:**');
     expect(nextSteps).toContain('pnpm typecheck && pnpm test');
+  });
+
+  test('planner receiving builder handback skips verification when no code changed', () => {
+    const output = deliver(getNativeDeliveryScenario('planner receives builder handback'));
+    const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
+    expect(nextSteps).toContain('delivers it to `user`');
+    expect(nextSteps).toContain('task from `builder`');
+    expect(nextSteps).not.toContain('pnpm typecheck && pnpm test');
+    expect(nextSteps).toContain('No codebase verification needed');
   });
 
   test('handoff templates include recipient visibility callout per target role', () => {

@@ -120,6 +120,35 @@ describe('shouldInjectNativeTask', () => {
     ).toBe(true);
   });
 
+  test('injects when acknowledged task is owned by this role (retry after claim)', () => {
+    expect(
+      shouldInjectNativeTask(
+        makeTask({
+          status: 'acknowledged',
+          assignedTo: 'builder',
+          participant: {
+            lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+            lastSeenAt: 1_000,
+            lastStatus: 'task.acknowledged',
+          },
+        })
+      )
+    ).toBe(true);
+    expect(
+      shouldInjectNativeTask(
+        makeTask({
+          status: 'acknowledged',
+          assignedTo: 'builder',
+          participant: {
+            lastSeenAction: NATIVE_WAITING_ACTION,
+            lastSeenAt: 500,
+            lastStatus: 'agent.waiting',
+          },
+        })
+      )
+    ).toBe(true);
+  });
+
   test('does not inject when lastSeenAction is non-injectable', () => {
     expect(
       shouldInjectNativeTask(
@@ -160,6 +189,8 @@ describe('shouldNudgeNativeInjection', () => {
     expect(
       shouldNudgeNativeInjection(
         makeTask({
+          status: 'acknowledged',
+          assignedTo: 'builder',
           participant: {
             lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
             lastSeenAt,
@@ -212,5 +243,15 @@ describe('NativeInjectionDedup', () => {
     expect(dedup.has('task_a')).toBe(true);
     dedup.clear('task_a');
     expect(dedup.has('task_a')).toBe(false);
+  });
+
+  test('tryAcquire blocks duplicate concurrent injection', () => {
+    const dedup = new NativeInjectionDedup();
+    expect(dedup.tryAcquire('task_a')).toBe(true);
+    expect(dedup.tryAcquire('task_a')).toBe(false);
+    dedup.markInjected('task_a');
+    expect(dedup.tryAcquire('task_a')).toBe(false);
+    dedup.clear('task_a');
+    expect(dedup.tryAcquire('task_a')).toBe(true);
   });
 });

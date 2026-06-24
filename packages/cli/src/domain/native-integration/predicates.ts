@@ -15,6 +15,22 @@ export function isNativePendingAliveRunning(task: AssignedTaskView): boolean {
   );
 }
 
+/** Pending, or acknowledged and owned by this agent — eligible for native task injection. */
+// fallow-ignore-next-line complexity
+export function isNativeInjectableAliveRunning(task: AssignedTaskView): boolean {
+  const { agentConfig, status } = task;
+  if (!isNativeHarness(agentConfig.agentHarness)) return false;
+  if (agentConfig.spawnedAgentPid == null || agentConfig.desiredState !== 'running') {
+    return false;
+  }
+  if (status === 'pending') return true;
+  if (status === 'acknowledged') {
+    const assignedTo = task.assignedTo?.toLowerCase();
+    return assignedTo === agentConfig.role.toLowerCase();
+  }
+  return false;
+}
+
 export function isInjectableNativeAction(action: string | null | undefined): boolean {
   if (action == null) return true;
   return action === NATIVE_WAITING_ACTION;
@@ -31,6 +47,14 @@ export function isNativeIdleAfterTaskComplete(participant: {
   );
 }
 
+/** Injection retry after claim/join when resume did not complete. */
+export function isNativeAcknowledgedInjectionRetry(task: AssignedTaskView): boolean {
+  if (task.status !== 'acknowledged') return false;
+  const assignedTo = task.assignedTo?.toLowerCase();
+  if (assignedTo !== task.agentConfig.role.toLowerCase()) return false;
+  return task.participant?.lastSeenAction === NATIVE_TASK_INJECTED_ACTION;
+}
+
 export function isStaleNativeWaiting(
   task: AssignedTaskView,
   now: number,
@@ -41,6 +65,7 @@ export function isStaleNativeWaiting(
   );
 }
 
+// fallow-ignore-next-line complexity
 export function isStuckAfterNativeInject(
   task: AssignedTaskView,
   now: number,
@@ -58,6 +83,7 @@ export function isStuckAfterNativeInject(
   return false;
 }
 
+// fallow-ignore-next-line complexity
 export function isStaleCliGetNextTaskWaiting(task: AssignedTaskView): boolean {
   const lastSeenAt = task.participant?.lastSeenAt ?? 0;
   return (
