@@ -10,7 +10,6 @@ import {
   isNativeHarness,
   NativeInjectionDedup,
   shouldInjectNativeTask,
-  shouldNudgeNativeInjection,
 } from './native-task-injector-logic.js';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
@@ -159,56 +158,6 @@ describe('shouldInjectNativeTask', () => {
             lastStatus: 'agent.waiting',
           },
         })
-      )
-    ).toBe(false);
-  });
-});
-
-describe('shouldNudgeNativeInjection', () => {
-  test('nudges when native:waiting + pending >15s', () => {
-    const createdAt = 1_000;
-    const now = createdAt + 15_001;
-    expect(
-      shouldNudgeNativeInjection(
-        makeTask({
-          createdAt,
-          participant: {
-            lastSeenAction: NATIVE_WAITING_ACTION,
-            lastSeenAt: createdAt,
-            lastStatus: 'agent.waiting',
-          },
-        }),
-        now
-      )
-    ).toBe(true);
-  });
-
-  test('nudges when native:task-injected + acknowledged + stale >15s', () => {
-    const lastSeenAt = 1_000;
-    const now = lastSeenAt + 15_001;
-    expect(
-      shouldNudgeNativeInjection(
-        makeTask({
-          status: 'acknowledged',
-          assignedTo: 'builder',
-          participant: {
-            lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
-            lastSeenAt,
-            lastStatus: 'task.acknowledged',
-          },
-        }),
-        now
-      )
-    ).toBe(true);
-  });
-
-  test('does not nudge CLI harness', () => {
-    expect(
-      shouldNudgeNativeInjection(
-        makeTask({
-          agentConfig: { ...makeTask().agentConfig, agentHarness: 'opencode' },
-        }),
-        100_000
       )
     ).toBe(false);
   });

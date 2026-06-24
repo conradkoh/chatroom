@@ -1,6 +1,6 @@
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
-import { isNativeHarness, shouldNudgeNativeInjection } from './native-task-injector-logic.js';
+import { isNativeHarness } from './native-task-injector-logic.js';
 import {
   isCliIdleNotListening,
   isNativePendingAliveRunning,
@@ -80,14 +80,14 @@ function shouldNudgeCliPendingTask(
   );
 }
 
-/** Returns true when a pending task should trigger an agent restart nudge. */
+/** Returns true when a pending CLI task should trigger an agent restart nudge. */
 function shouldNudgePendingTask(
   task: AssignedTaskView,
   now: number,
   pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
 ): boolean {
   if (isNativeHarness(task.agentConfig.agentHarness)) {
-    return shouldNudgeNativeInjection(task, now, pendingIdleThresholdMs);
+    return false;
   }
   return shouldNudgeCliPendingTask(task, now, pendingIdleThresholdMs);
 }
@@ -116,7 +116,7 @@ function isTaskReadyForNudge(
   if (!shouldNudgePendingTask(task, now)) return false;
   const { chatroomId, agentConfig } = task;
   if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) return false;
-  if (!isNativeHarness(agentConfig.agentHarness) && !agentConfig.workingDir) return false;
+  if (!agentConfig.workingDir) return false;
   return true;
 }
 

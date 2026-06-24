@@ -39,13 +39,13 @@ CLI and native harnesses both wire `spawnResult.onOutput()` to `participants.upd
 
 **Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
 
-The task monitor watches assigned tasks and, for native harnesses, injects pending work via `resumeTurn` instead of cold-restart nudge:
+The task monitor watches assigned tasks and, for native harnesses, injects pending work via `resumeTurn` on assignment updates (no injection nudge retries):
 
-1. `native-task-injector-logic.ts` — pure inject/nudge decisions (`shouldInjectNativeTask`, `shouldNudgeNativeInjection`)
+1. `native-task-injector-logic.ts` — pure inject decisions (`shouldInjectNativeTask`)
 2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
 3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and idle turn-end resume
 
-CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path unchanged.
+CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
 
 ### Context compaction vs hard restart
 

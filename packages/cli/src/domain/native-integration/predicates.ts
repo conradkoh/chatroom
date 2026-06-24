@@ -55,34 +55,6 @@ export function isNativeAcknowledgedInjectionRetry(task: AssignedTaskView): bool
   return task.participant?.lastSeenAction === NATIVE_TASK_INJECTED_ACTION;
 }
 
-export function isStaleNativeWaiting(
-  task: AssignedTaskView,
-  now: number,
-  thresholdMs: number
-): boolean {
-  return (
-    task.participant?.lastSeenAction === NATIVE_WAITING_ACTION && now - task.createdAt > thresholdMs
-  );
-}
-
-// fallow-ignore-next-line complexity
-export function isStuckAfterNativeInject(
-  task: AssignedTaskView,
-  now: number,
-  thresholdMs: number
-): boolean {
-  const participant = task.participant;
-  if (participant?.lastSeenAction !== NATIVE_TASK_INJECTED_ACTION) return false;
-  const lastSeenAt = participant.lastSeenAt ?? 0;
-  if (participant.lastStatus === 'task.acknowledged') {
-    return now - lastSeenAt > thresholdMs;
-  }
-  if (participant.lastStatus === 'task.completed') {
-    return now - lastSeenAt > thresholdMs;
-  }
-  return false;
-}
-
 // fallow-ignore-next-line complexity
 export function isStaleCliGetNextTaskWaiting(task: AssignedTaskView): boolean {
   const lastSeenAt = task.participant?.lastSeenAt ?? 0;

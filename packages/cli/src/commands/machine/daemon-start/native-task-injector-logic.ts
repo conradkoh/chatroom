@@ -6,8 +6,6 @@ import {
   isNativeAcknowledgedInjectionRetry,
   isNativeIdleAfterTaskComplete,
   isNativeInjectableAliveRunning,
-  isStaleNativeWaiting,
-  isStuckAfterNativeInject,
 } from '../../../domain/native-integration/predicates.js';
 
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
@@ -24,19 +22,6 @@ export function shouldInjectNativeTask(
     isInjectableNativeAction(task.participant?.lastSeenAction) ||
     isNativeIdleAfterTaskComplete(task.participant ?? {}) ||
     isNativeAcknowledgedInjectionRetry(task)
-  );
-}
-
-/** True when native agent has pending task but injection appears stuck. */
-export function shouldNudgeNativeInjection(
-  task: AssignedTaskView,
-  now: number,
-  pendingIdleThresholdMs = 15_000
-): boolean {
-  if (!isNativeInjectableAliveRunning(task)) return false;
-  return (
-    isStaleNativeWaiting(task, now, pendingIdleThresholdMs) ||
-    isStuckAfterNativeInject(task, now, pendingIdleThresholdMs)
   );
 }
 

@@ -1,7 +1,4 @@
-import {
-  NATIVE_TASK_INJECTED_ACTION,
-  NATIVE_WAITING_ACTION,
-} from '@workspace/backend/src/domain/entities/participant.js';
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import { describe, expect, test } from 'vitest';
 
@@ -11,8 +8,6 @@ import {
   isNativeInjectableAliveRunning,
   isNativePendingAliveRunning,
   isStaleCliGetNextTaskWaiting,
-  isStaleNativeWaiting,
-  isStuckAfterNativeInject,
 } from './predicates.js';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
@@ -82,36 +77,6 @@ describe('isInjectableNativeAction', () => {
 
   test('get-next-task:started is not injectable', () => {
     expect(isInjectableNativeAction('get-next-task:started')).toBe(false);
-  });
-});
-
-describe('isStaleNativeWaiting', () => {
-  test('true when waiting longer than threshold', () => {
-    expect(isStaleNativeWaiting(makeTask({ createdAt: 1_000 }), 16_001, 15_000)).toBe(true);
-  });
-});
-
-describe('isStuckAfterNativeInject', () => {
-  test('true when injected task acknowledged but stale', () => {
-    const task = makeTask({
-      participant: {
-        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
-        lastSeenAt: 1_000,
-        lastStatus: 'task.acknowledged',
-      },
-    });
-    expect(isStuckAfterNativeInject(task, 16_001, 15_000)).toBe(true);
-  });
-
-  test('true when task completed but native:waiting was never emitted', () => {
-    const task = makeTask({
-      participant: {
-        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
-        lastSeenAt: 1_000,
-        lastStatus: 'task.completed',
-      },
-    });
-    expect(isStuckAfterNativeInject(task, 16_001, 15_000)).toBe(true);
   });
 });
 

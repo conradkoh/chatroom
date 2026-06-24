@@ -136,8 +136,8 @@ describe('NudgeCooldown', () => {
   });
 });
 
-describe('native nudge delegation', () => {
-  test('native harness uses shouldNudgeNativeInjection instead of CLI idle logic', () => {
+describe('native harness nudge exclusion', () => {
+  test('native harness is not nudged when injection appears stuck', () => {
     const createdAt = 1_000;
     const now = createdAt + 15_001;
     const nativeTask = makeTask({
@@ -153,7 +153,7 @@ describe('native nudge delegation', () => {
       },
     });
     expect(isNativeHarness(nativeTask.agentConfig.agentHarness)).toBe(true);
-    expectPendingNudge(nativeTask, now, true);
+    expectPendingNudge(nativeTask, now, false);
   });
 
   test('CLI harness still uses get-next-task stale waiting logic (regression)', () => {
@@ -175,7 +175,7 @@ describe('native nudge delegation', () => {
 });
 
 describe('listTasksReadyForNudge', () => {
-  test('includes native harness without workingDir', () => {
+  test('excludes native harness even without workingDir', () => {
     const createdAt = 1_000;
     const now = createdAt + 15_001;
     const nativeTask = makeTask({
@@ -192,9 +192,7 @@ describe('listTasksReadyForNudge', () => {
       },
     });
     const cooldown = new NudgeCooldown(60_000);
-    const ready = listTasksReadyForNudge([nativeTask], now, cooldown);
-    expect(ready).toHaveLength(1);
-    expect(ready[0].taskId).toBe(nativeTask.taskId);
+    expect(listTasksReadyForNudge([nativeTask], now, cooldown)).toHaveLength(0);
   });
 
   test('still excludes CLI harness without workingDir', () => {

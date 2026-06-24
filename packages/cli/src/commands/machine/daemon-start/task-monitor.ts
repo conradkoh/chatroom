@@ -1,10 +1,12 @@
 /**
  * Task Monitor — reactive subscription to assigned tasks for this machine.
  *
- * Restarts alive agents that have pending tasks but are not actively listening
+ * Restarts alive CLI agents that have pending tasks but are not actively listening
  * in the get-next-task loop (stale waiting or idle after delivery).
  *
- * For native harnesses, injects tasks via resumeTurn instead of cold-restart nudge.
+ * For native harnesses, injects tasks via resumeTurn on assignment updates.
+ * Native revive cold-starts when backend PID is stale locally; injection retries
+ * are not nudged (dedup + reactive inject only).
  */
 
 import {
@@ -18,11 +20,7 @@ import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
-import {
-  isNativeHarness,
-  NativeInjectionDedup,
-  shouldInjectNativeTask,
-} from './native-task-injector-logic.js';
+import { NativeInjectionDedup, shouldInjectNativeTask } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import {
   listTasksReadyForNudge,
@@ -84,23 +82,6 @@ function runNativeInjectionFork(
       )
     )
   );
-}
-
-function runNativeNudgeEffect(
-  task: AssignedTaskView,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
-  dedup: NativeInjectionDedup,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  session: SessionDeps
-): void {
-  const { chatroomId, agentConfig } = task;
-  const { role } = agentConfig;
-  console.log(
-    `[TaskMonitor] native nudge ${role}@${chatroomId} — retrying injection for pending task ${task.taskId}`
-  );
-  dedup.clear(task.taskId);
-  runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, session);
 }
 
 function buildCliNudgeLogLine(task: AssignedTaskView): string {
@@ -201,19 +182,17 @@ function runCliNudgeEffect(
   executeCliNudge(task, runtime, effectContext, agentMgr);
 }
 
-function runNudgeEffect(
-  task: AssignedTaskView,
+function nudgeStuckTasks(
+  tasks: AssignedTaskView[],
+  now: number,
+  cooldown: NudgeCooldown,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  dedup: NativeInjectionDedup,
-  session: SessionDeps
+  agentMgr: DaemonAgentProcessManagerServiceShape
 ): void {
-  if (isNativeHarness(task.agentConfig.agentHarness)) {
-    runNativeNudgeEffect(task, runtime, effectContext, dedup, agentMgr, session);
-    return;
+  for (const task of listTasksReadyForNudge(tasks, now, cooldown)) {
+    runCliNudgeEffect(task, runtime, effectContext, agentMgr);
   }
-  runCliNudgeEffect(task, runtime, effectContext, agentMgr);
 }
 
 function reviveNativeTasks(
@@ -251,21 +230,6 @@ function injectNativeTasks(
   }
 }
 
-function nudgeStuckTasks(
-  tasks: AssignedTaskView[],
-  now: number,
-  cooldown: NudgeCooldown,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  dedup: NativeInjectionDedup,
-  sessionDeps: SessionDeps
-): void {
-  for (const task of listTasksReadyForNudge(tasks, now, cooldown)) {
-    runNudgeEffect(task, runtime, effectContext, agentMgr, dedup, sessionDeps);
-  }
-}
-
 function processTasksUpdate(
   tasks: AssignedTaskView[],
   runtime: TaskMonitorRuntime,
@@ -283,7 +247,7 @@ function processTasksUpdate(
 
   reviveNativeTasks(tasks, localHealth, now, cooldown, runtime, effectContext, agentMgr);
   injectNativeTasks(tasks, runtime, effectContext, dedup, agentMgr, sessionDeps);
-  nudgeStuckTasks(tasks, now, cooldown, runtime, effectContext, agentMgr, dedup, sessionDeps);
+  nudgeStuckTasks(tasks, now, cooldown, runtime, effectContext, agentMgr);
 }
 
 export const startTaskMonitorSubscriptionEffect = (
