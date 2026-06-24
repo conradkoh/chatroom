@@ -12,12 +12,10 @@ export { getDelegationAndDecompositionSection } from './delegation-and-decomposi
 export { getDelegationGuidelinesSection } from './delegation-guidelines';
 export { getHandoffRulesSection } from './handoff-rules';
 export { getWhenWorkComesBackSection } from './when-work-comes-back';
-export { getTeamAvailabilitySection } from './team-availability';
+export { getTeamCompositionSection } from './team-composition';
 export {
-  getWorkflowSection,
-  getFullTeamWorkflow,
-  getPlannerPlusBuilderWorkflow,
-  getPlannerPlusReviewerWorkflow,
-  getPlannerSoloWorkflow,
-} from './workflow';
+  getOperatingModelSection,
+  getPlannerPlusBuilderOperatingModel,
+  getPlannerSoloOperatingModel,
+} from './operating-model';
 export type { TeamCompositionConfig } from './team-composition';

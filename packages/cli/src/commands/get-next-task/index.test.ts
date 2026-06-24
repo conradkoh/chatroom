@@ -76,8 +76,8 @@ describe('get-next-task — agent config ownership', () => {
         return {
           _id: TEST_CHATROOM_ID,
           teamName: 'Test Team',
-          teamRoles: ['builder', 'reviewer'],
-          teamEntryPoint: 'builder',
+          teamRoles: ['planner', 'builder'],
+          teamEntryPoint: 'planner',
         };
       }
       if (queryFn === 'participants:getByRole') {
@@ -105,7 +105,7 @@ describe('get-next-task — agent config ownership', () => {
           _id: TEST_CHATROOM_ID,
           teamName: 'Test',
           teamRoles: ['builder'],
-          teamEntryPoint: 'builder',
+          teamEntryPoint: 'planner',
         };
       }
       if (queryFn === 'machines:getTeamAgentConfigs') return [];

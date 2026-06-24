@@ -11,9 +11,6 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 
-/**
- * Helper to create a test session and authenticate
- */
 async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
   const login = await t.mutation(api.auth.loginAnon, {
     sessionId: sessionId as SessionId,
@@ -22,23 +19,17 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
   return { sessionId: sessionId as SessionId };
 }
 
-/**
- * Helper to create a Pair team chatroom
- */
-async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createBuilderEntryDuoChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair',
-    teamRoles: ['builder', 'reviewer'],
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
   return chatroomId;
 }
 
-/**
- * Helper to join participants to the chatroom with ready status
- */
 async function joinParticipants(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
@@ -53,108 +44,31 @@ async function joinParticipants(
   }
 }
 
-describe('Features System', () => {
-  describe('taskStarted with feature metadata', () => {
-    test('stores feature metadata when classification is new_feature', async () => {
-      // Setup
-      const { sessionId } = await createTestSession('test-feature-metadata');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
-
-      // User sends a message
-      // @ts-expect-error unused but needed for test flow
-      const _userMessageId = await t.mutation(api.messages.sendMessage, {
-        sessionId,
-        chatroomId,
-        senderRole: 'user',
-        content: 'Add dark mode support to the app',
-        type: 'message',
-      });
-
-      // Builder claims and starts task (FSM workflow)
-      await t.mutation(api.tasks.claimTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      const startResult = await t.mutation(api.tasks.startTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      const result = await t.mutation(api.messages.taskStarted, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        taskId: startResult.taskId,
-        originMessageClassification: 'new_feature',
-        rawStdin: `---TITLE---
-Dark Mode Support
----DESCRIPTION---
-Add a toggle to switch between light and dark themes
----TECH_SPECS---
-Use CSS custom properties for theming, store preference in localStorage`,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.classification).toBe('new_feature');
-    });
-
-    test('does not require feature metadata for question classification', async () => {
-      // Setup
-      const { sessionId } = await createTestSession('test-question-no-metadata');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
-
-      // User sends a question
-      // @ts-expect-error unused but needed for test flow
-      const _userMessageId = await t.mutation(api.messages.sendMessage, {
-        sessionId,
-        chatroomId,
-        senderRole: 'user',
-        content: 'How do I run the tests?',
-        type: 'message',
-      });
-
-      // Builder claims and starts task (FSM workflow)
-      await t.mutation(api.tasks.claimTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      const startResult = await t.mutation(api.tasks.startTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      const result = await t.mutation(api.messages.taskStarted, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        taskId: startResult.taskId,
-        originMessageClassification: 'question',
-        // No feature metadata
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.classification).toBe('question');
+async function setMessageClassification(
+  messageId: Id<'chatroom_messages'>,
+  classification: 'question' | 'new_feature' | 'follow_up',
+  feature?: { title: string; description: string; techSpecs: string }
+): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.patch('chatroom_messages', messageId, {
+      classification,
+      ...(feature && {
+        featureTitle: feature.title,
+        featureDescription: feature.description,
+        featureTechSpecs: feature.techSpecs,
+      }),
     });
   });
+}
 
+describe('Features System', () => {
   describe('listFeatures query', () => {
     test('returns features with metadata ordered by creation time', async () => {
-      // Setup
       const { sessionId } = await createTestSession('test-list-features');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-      // Create first feature
-      // @ts-expect-error unused but needed for test flow
-      const _msg1 = await t.mutation(api.messages.sendMessage, {
+      await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -167,41 +81,32 @@ Use CSS custom properties for theming, store preference in localStorage`,
         chatroomId,
         role: 'builder',
       });
-      await t.mutation(api.messages.taskStarted, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        taskId: start1.taskId,
-        originMessageClassification: 'new_feature',
-        rawStdin: `---TITLE---
-Feature One
----DESCRIPTION---
-Description of feature one
----TECH_SPECS---
-Tech specs for feature one`,
+      const task1 = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', start1.taskId));
+      expect(task1?.sourceMessageId).toBeDefined();
+      await setMessageClassification(task1!.sourceMessageId!, 'new_feature', {
+        title: 'Feature One',
+        description: 'Description of feature one',
+        techSpecs: 'Tech specs for feature one',
       });
 
-      // Complete first task via reviewer (new_feature must go through reviewer)
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
         senderRole: 'builder',
-        content: 'Done with feature one, please review',
-        targetRole: 'reviewer',
+        content: 'Done with feature one, ready for delivery',
+        targetRole: 'planner',
       });
-      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'reviewer' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' });
+      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'planner' });
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
-        senderRole: 'reviewer',
+        senderRole: 'planner',
         content: 'Approved feature one',
         targetRole: 'user',
       });
 
-      // Create second feature
-      // @ts-expect-error unused but needed for test flow
-      const _msg2 = await t.mutation(api.messages.sendMessage, {
+      await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -214,44 +119,33 @@ Tech specs for feature one`,
         chatroomId,
         role: 'builder',
       });
-      await t.mutation(api.messages.taskStarted, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        taskId: start2.taskId,
-        originMessageClassification: 'new_feature',
-        rawStdin: `---TITLE---
-Feature Two
----DESCRIPTION---
-Description of feature two that is longer than 100 characters so we can verify truncation works correctly in the preview text
----TECH_SPECS---
-Tech specs for feature two`,
+      const task2 = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', start2.taskId));
+      expect(task2?.sourceMessageId).toBeDefined();
+      await setMessageClassification(task2!.sourceMessageId!, 'new_feature', {
+        title: 'Feature Two',
+        description:
+          'Description of feature two that is longer than 100 characters so we can verify truncation works correctly in the preview text',
+        techSpecs: 'Tech specs for feature two',
       });
 
-      // List features
       const features = await t.query(api.messages.listFeatures, {
         sessionId,
         chatroomId,
         limit: 10,
       });
 
-      // Should have 2 features, most recent first
       expect(features).toHaveLength(2);
       expect(features[0].title).toBe('Feature Two');
       expect(features[1].title).toBe('Feature One');
-
-      // Verify description preview truncation
       expect(features[0].descriptionPreview).toContain('...');
-      expect(features[0].descriptionPreview!.length).toBeLessThanOrEqual(103); // 100 chars + "..."
+      expect(features[0].descriptionPreview!.length).toBeLessThanOrEqual(103);
     });
 
     test('returns empty array when no features exist', async () => {
-      // Setup
       const { sessionId } = await createTestSession('test-no-features');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-      // List features (none exist)
       const features = await t.query(api.messages.listFeatures, {
         sessionId,
         chatroomId,
@@ -264,13 +158,11 @@ Tech specs for feature two`,
 
   describe('inspectFeature query', () => {
     test('returns full feature details with conversation thread', async () => {
-      // Setup
       const { sessionId } = await createTestSession('test-inspect-feature');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-      // Create feature
-      const userMessageId = await t.mutation(api.messages.sendMessage, {
+      await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -283,67 +175,54 @@ Tech specs for feature two`,
         chatroomId,
         role: 'builder',
       });
-      await t.mutation(api.messages.taskStarted, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        taskId: startResult.taskId,
-        originMessageClassification: 'new_feature',
-        rawStdin: `---TITLE---
-User Authentication
----DESCRIPTION---
-Add login/logout functionality
----TECH_SPECS---
-Use JWT tokens, store in httpOnly cookies`,
+      const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', startResult.taskId));
+      const userMessageId = task!.sourceMessageId!;
+      await setMessageClassification(userMessageId, 'new_feature', {
+        title: 'User Authentication',
+        description: 'Add login/logout functionality',
+        techSpecs: 'Use JWT tokens, store in httpOnly cookies',
       });
 
-      // Add some conversation (handoff to reviewer)
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
         senderRole: 'builder',
         content: 'Implemented auth, please review',
-        targetRole: 'reviewer',
+        targetRole: 'planner',
       });
 
-      // Reviewer responds
-      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'reviewer' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'planner' });
+      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'planner' });
+
       await t.mutation(api.messages.handoff, {
         sessionId,
         chatroomId,
-        senderRole: 'reviewer',
+        senderRole: 'planner',
         content: 'Looks good, approved!',
         targetRole: 'user',
       });
 
-      // Inspect feature
       const result = await t.query(api.messages.inspectFeature, {
         sessionId,
         chatroomId,
         messageId: userMessageId,
       });
 
-      // Verify feature details
       expect(result.feature.title).toBe('User Authentication');
       expect(result.feature.description).toBe('Add login/logout functionality');
       expect(result.feature.techSpecs).toBe('Use JWT tokens, store in httpOnly cookies');
       expect(result.feature.content).toBe('Add user authentication');
-
-      // Verify thread has the conversation
       expect(result.thread.length).toBeGreaterThanOrEqual(2);
       expect(result.thread.some((m) => m.senderRole === 'builder')).toBe(true);
-      expect(result.thread.some((m) => m.senderRole === 'reviewer')).toBe(true);
+      expect(result.thread.some((m) => m.senderRole === 'planner')).toBe(true);
     });
 
     test('throws error for non-feature message', async () => {
-      // Setup
       const { sessionId } = await createTestSession('test-inspect-non-feature');
-      const chatroomId = await createDuoTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-      // Create a question (not a feature)
-      const userMessageId = await t.mutation(api.messages.sendMessage, {
+      await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -356,20 +235,14 @@ Use JWT tokens, store in httpOnly cookies`,
         chatroomId,
         role: 'builder',
       });
-      await t.mutation(api.messages.taskStarted, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        taskId: startResult.taskId,
-        originMessageClassification: 'question',
-      });
+      const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', startResult.taskId));
+      await setMessageClassification(task!.sourceMessageId!, 'question');
 
-      // Try to inspect as feature - should fail
       await expect(
         t.query(api.messages.inspectFeature, {
           sessionId,
           chatroomId,
-          messageId: userMessageId,
+          messageId: task!.sourceMessageId!,
         })
       ).rejects.toThrow('Message is not a feature');
     });

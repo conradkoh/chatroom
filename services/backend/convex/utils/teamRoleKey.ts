@@ -8,10 +8,10 @@ import type { MutationCtx } from '../_generated/server';
  * Format: `chatroom_<chatroomId>#team_<teamId>#role_<role.toLowerCase()>`
  *
  * Including teamId ensures that configs are invalidated when a chatroom switches team
- * structure (e.g., from 'duo' to 'squad'), since the role semantics differ between teams.
+ * structure (e.g., from 'duo' to 'solo'), since the role semantics differ between teams.
  *
  * @param chatroomId - The chatroom ID
- * @param teamId - The team type (e.g., 'duo', 'squad', 'solo'). Must not be empty — callers
+ * @param teamId - The team type (e.g., 'duo', 'solo'). Must not be empty — callers
  *   should throw if chatroom.teamId is undefined rather than passing a fallback value.
  * @param role - The agent role (e.g., 'planner', 'builder')
  */

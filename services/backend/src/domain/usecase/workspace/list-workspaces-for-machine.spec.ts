@@ -33,26 +33,38 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
     sessionId,
     teamId: 'duo',
     teamName: 'Test Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
   });
 }
 
 async function registerMachine(sessionId: SessionId, machineId: string) {
   try {
     await t.mutation(api.machines.register, {
-      sessionId, machineId, hostname: 'test-host',
-      os: 'linux', availableHarnesses: ['opencode'],
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'linux',
+      availableHarnesses: ['opencode'],
     });
-  } catch { /* may already exist */ }
+  } catch {
+    /* may already exist */
+  }
 }
 
 async function registerWorkspace(
-  sessionId: SessionId, chatroomId: Id<'chatroom_rooms'>, machineId: string, workingDir: string,
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
 ) {
   await t.mutation(api.workspaces.registerWorkspace, {
-    sessionId, chatroomId, machineId, workingDir,
-    hostname: 'test-host', registeredBy: 'builder',
+    sessionId,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'builder',
   });
 }
 
@@ -65,9 +77,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/recent');
     await t.mutation(api.chatrooms.recordChatroomObservation, { sessionId, chatroomId });
 
-    const result = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     expect(result).toHaveLength(1);
   });
 
@@ -85,9 +95,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
       });
     });
 
-    const result = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     expect(result).toHaveLength(0);
   });
 
@@ -98,9 +106,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     await registerMachine(sessionId, machineId);
     await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/unobserved');
 
-    const result = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     expect(result).toHaveLength(0);
   });
 
@@ -113,17 +119,13 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     await t.mutation(api.chatrooms.recordChatroomObservation, { sessionId, chatroomId });
 
     // Find and remove the workspace
-    const workspaces = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const workspaces = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     const ws = workspaces[0]!;
     await t.run(async (ctx) => {
       await ctx.db.patch('chatroom_workspaces', ws._id, { removedAt: FIXED_NOW - 1000 });
     });
 
-    const result = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     expect(result).toHaveLength(0);
   });
 
@@ -137,9 +139,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     await registerWorkspace(sessionId, chatroomId, otherMachineId, '/tmp/other');
     await t.mutation(api.chatrooms.recordChatroomObservation, { sessionId, chatroomId });
 
-    const result = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     expect(result).toHaveLength(0);
   });
 
@@ -152,9 +152,7 @@ describe('listWorkspacesForMachine (recency filter)', () => {
     await registerWorkspace(sessionId, chatroomId, machineId, '/tmp/ws2');
     await t.mutation(api.chatrooms.recordChatroomObservation, { sessionId, chatroomId });
 
-    const result = await t.run(async (ctx) =>
-      listWorkspacesForMachine(ctx, { machineId })
-    );
+    const result = await t.run(async (ctx) => listWorkspacesForMachine(ctx, { machineId }));
     expect(result).toHaveLength(2);
     const dirs = result.map((w) => w.workingDir).sort();
     expect(dirs).toEqual(['/tmp/ws1', '/tmp/ws2']);

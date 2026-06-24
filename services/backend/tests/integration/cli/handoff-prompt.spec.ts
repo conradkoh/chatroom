@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
+import { HANDOFF_STDIN_DELIMITER } from '../../../prompts/cli/stdin-heredoc';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
@@ -26,9 +27,10 @@ describe('Handoff Command', () => {
     expect(command).toContain('--next-role="<target>"');
 
     // Should use HERE document format
-    expect(command).toContain("<< 'EOF'");
+    expect(command).toContain(`<< '${HANDOFF_STDIN_DELIMITER}'`);
     expect(command).toContain('[Your message here]');
-    expect(command).toContain('EOF');
+    expect(command).toContain(HANDOFF_STDIN_DELIMITER);
+    expect(command).not.toContain("<< 'EOF'");
   });
 
   test('generates handoff command with injected values', () => {
@@ -37,7 +39,7 @@ describe('Handoff Command', () => {
     const command = handoffCommand({
       chatroomId: 'my-chatroom-456',
       role: 'builder',
-      nextRole: 'reviewer',
+      nextRole: 'planner',
       cliEnvPrefix,
     });
 
@@ -51,10 +53,10 @@ describe('Handoff Command', () => {
     expect(command).toContain('--role="builder"');
 
     // Should inject next role
-    expect(command).toContain('--next-role="reviewer"');
+    expect(command).toContain('--next-role="planner"');
 
     // Should still use HERE document format
-    expect(command).toContain("<< 'EOF'");
+    expect(command).toContain(`<< '${HANDOFF_STDIN_DELIMITER}'`);
   });
 
   test('uses stdin HERE document format (not file-based)', () => {
@@ -62,13 +64,13 @@ describe('Handoff Command', () => {
     const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
     const command = handoffCommand({
       chatroomId: 'test-123',
-      role: 'reviewer',
+      role: 'planner',
       nextRole: 'user',
       cliEnvPrefix,
     });
 
     // Should use HERE document, not file path
-    expect(command).toContain("<< 'EOF'");
+    expect(command).toContain(`<< '${HANDOFF_STDIN_DELIMITER}'`);
     expect(command).not.toContain('--file=');
     expect(command).not.toContain('.md');
   });

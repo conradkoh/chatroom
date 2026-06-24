@@ -36,7 +36,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 
 // Helper to create a typed SavedCommand for tests without importing Id
 const makeCmd = (overrides?: Partial<SavedCommand>): SavedCommand => ({
-   
   _id: 'cmd-abc' as any,
   type: 'prompt',
   name: 'Old Name',
@@ -81,7 +80,10 @@ describe('checkDuplicateName', () => {
 // ── Component Tests: SavedCommandModal ──────────────────────────────────────
 
 describe('SavedCommandModal component', () => {
+  let user: ReturnType<typeof userEvent.setup>;
+
   beforeEach(() => {
+    user = userEvent.setup();
     mockCreateSavedCommand.mockReset();
     mockUpdateSavedCommand.mockReset();
     mockCreateSavedCommand.mockResolvedValue(undefined);
@@ -100,10 +102,10 @@ describe('SavedCommandModal component', () => {
       />
     );
 
-    await userEvent.type(screen.getByLabelText(/^name$/i), 'My Command');
-    await userEvent.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
+    await user.type(screen.getByLabelText(/^name$/i), 'My Command');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
-    await userEvent.click(screen.getByRole('button', { name: /save command/i }));
+    await user.click(screen.getByRole('button', { name: /save command/i }));
 
     await waitFor(() => {
       expect(mockCreateSavedCommand).toHaveBeenCalledWith(
@@ -130,10 +132,10 @@ describe('SavedCommandModal component', () => {
     );
 
     const nameInput = screen.getByLabelText(/^name$/i);
-    await userEvent.clear(nameInput);
-    await userEvent.type(nameInput, 'New Name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'New Name');
 
-    await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(mockUpdateSavedCommand).toHaveBeenCalledWith(
@@ -170,16 +172,16 @@ describe('SavedCommandModal component', () => {
     const nameInput = screen.getByLabelText(/^name$/i);
     const promptInput = screen.getByLabelText(/^prompt$/i);
 
-    await userEvent.click(nameInput);
-    await userEvent.type(nameInput, 'foo');
-    await userEvent.click(promptInput);
-    await userEvent.type(promptInput, 'some prompt');
+    // Use change events so this test is not sensitive to focus races from the
+    // modal's delayed auto-focus or userEvent state from other parallel tests.
+    fireEvent.change(nameInput, { target: { value: 'foo' } });
+    fireEvent.change(promptInput, { target: { value: 'some prompt' } });
 
-    await userEvent.click(screen.getByRole('button', { name: /save command/i }));
+    const saveButton = screen.getByRole('button', { name: /save command/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
 
-    await waitFor(() => {
-      expect(screen.getByText(/already exists/i)).toBeInTheDocument();
-    });
+    expect(await screen.findByText('A command named "foo" already exists.')).toBeInTheDocument();
     expect(mockCreateSavedCommand).not.toHaveBeenCalled();
   });
 

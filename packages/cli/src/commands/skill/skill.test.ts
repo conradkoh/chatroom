@@ -82,7 +82,6 @@ describe('listSkillsEffect', () => {
   test('succeeds with valid inputs and skills', async () => {
     const mockSkills = [
       { skillId: 'backlog', name: 'Backlog', description: 'Manage backlog items', type: 'system' },
-      { skillId: 'workflow', name: 'Workflow', description: 'Create workflows', type: 'system' },
     ];
 
     const testLayer = Layer.mergeAll(

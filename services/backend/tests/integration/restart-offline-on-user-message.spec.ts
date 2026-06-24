@@ -10,7 +10,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createPlannerBuilderDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
@@ -37,7 +37,7 @@ async function getPendingTasks(sessionId: SessionId, chatroomId: Id<'chatroom_ro
 
 test('restarts offline builder on user sendMessage', async () => {
   const { sessionId } = await createTestSession('offline-restart-a');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-offline-restart-a';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -92,7 +92,7 @@ test('restarts offline builder on user sendMessage', async () => {
 
 test('does not restart when agent is waiting', async () => {
   const { sessionId } = await createTestSession('offline-restart-b');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-offline-restart-b';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -264,7 +264,7 @@ test('restarts after agent.startFailed left desiredState=stopped', async () => {
 
 test('does not restart when user message is queued behind active task', async () => {
   const { sessionId } = await createTestSession('offline-restart-queued');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-offline-restart-queued';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -327,7 +327,7 @@ test('does not restart when user message is queued behind active task', async ()
 
 test('restarts when circuit open on user message', async () => {
   const { sessionId } = await createTestSession('offline-restart-d');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-offline-restart-d';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -387,7 +387,7 @@ test('restarts when circuit open on user message', async () => {
 
 test('restarts when lastStatus is agent.waiting but spawnedAgentPid is cleared (stale state)', async () => {
   const { sessionId } = await createTestSession('offline-restart-stale');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-offline-restart-stale';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -616,7 +616,7 @@ test('restarts when lastStatus is task.inProgress but spawnedAgentPid is cleared
 
 test('restartOfflineAgentsFromConfig mutation works standalone', async () => {
   const { sessionId } = await createTestSession('offline-restart-e');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-offline-restart-e';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');

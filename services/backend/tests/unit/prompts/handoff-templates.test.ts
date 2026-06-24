@@ -8,16 +8,16 @@
  *    Design section, all in markdown, with no optional fields.
  *  - planner → builder delegation brief includes goal/scope/requirements and
  *    has no optional fields ("Not Applicable" convention).
+ *  - builder → planner handoff template for work completion.
  *  - unknown role pairs resolve to null (caller falls back to free-form).
  */
 
 import { describe, expect, test } from 'vitest';
 
-import {
-  getHandoffTemplate,
-  getPlannerToBuilderHandoffTemplate,
-  getPlannerToUserReportTemplate,
-} from '../../../prompts/cli/handoff-templates';
+import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
+import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
+import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
+import { getPlannerToUserReportTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-user';
 
 describe('handoff-templates > resolver', () => {
   test('resolves planner → builder to the delegation brief', () => {
@@ -32,6 +32,12 @@ describe('handoff-templates > resolver', () => {
     );
   });
 
+  test('resolves builder → planner to the work-complete template', () => {
+    expect(getHandoffTemplate({ fromRole: 'builder', toRole: 'planner' })).toBe(
+      getBuilderToPlannerHandoffTemplate()
+    );
+  });
+
   test('is case-insensitive on role names', () => {
     expect(getHandoffTemplate({ fromRole: 'Planner', toRole: 'USER' })).toBe(
       getPlannerToUserReportTemplate()
@@ -41,6 +47,12 @@ describe('handoff-templates > resolver', () => {
   test('returns null for role pairs without a specialized template', () => {
     expect(getHandoffTemplate({ fromRole: 'builder', toRole: 'user' })).toBeNull();
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'reviewer' })).toBeNull();
+  });
+
+  test('resolves solo → user to the solo report template', () => {
+    const template = getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user' });
+    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('## Proof — files changed');
   });
 });
 
@@ -74,6 +86,12 @@ describe('handoff-templates > planner → user report', () => {
 
   test('is markdown (fenced code block)', () => {
     expect(report).toContain('```markdown');
+  });
+
+  test('includes recipient visibility callout for user', () => {
+    expect(report).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(report).toContain('handoff --next-role="user"');
+    expect(report).toContain('including direct replies like "Hello!"');
   });
 });
 
@@ -115,5 +133,40 @@ describe('handoff-templates > planner → builder delegation brief', () => {
   test('requires what to avoid section', () => {
     expect(brief).toContain('## What to avoid');
     expect(brief).toMatch(/anti-patterns|recurring mistakes/i);
+  });
+
+  test('includes Session Management section with new_session default tag', () => {
+    expect(brief).toContain('## Session Management');
+    expect(brief).toContain('new_session');
+    expect(brief).toContain('data:agent.compress_context=new_session');
+    expect(brief).toContain('Native harnesses');
+    expect(brief).toContain('CLI harnesses');
+    expect(brief).not.toContain('## Restart new context');
+  });
+
+  test('includes recipient visibility callout for builder', () => {
+    expect(brief).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(brief).toContain('The `builder` agent');
+    expect(brief).toContain('handoff --next-role="builder"');
+  });
+});
+
+describe('handoff-templates > builder → planner handoff', () => {
+  const handoff = getBuilderToPlannerHandoffTemplate();
+
+  test('includes summary and proof sections', () => {
+    expect(handoff).toContain('## Summary');
+    expect(handoff).toContain('## Proof — files changed');
+  });
+
+  test('includes verification section', () => {
+    expect(handoff).toContain('## Verification');
+    expect(handoff).toContain('pnpm typecheck && pnpm test');
+  });
+
+  test('includes recipient visibility callout for planner', () => {
+    expect(handoff).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(handoff).toContain('The `planner` agent');
+    expect(handoff).toContain('handoff --next-role="planner"');
   });
 });

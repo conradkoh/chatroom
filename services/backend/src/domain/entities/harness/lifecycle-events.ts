@@ -8,15 +8,14 @@
  * Type definitions live in `types.ts`.
  */
 
-import type {
-  HarnessLifecycleEventKind,
-  HarnessRuntimeKind,
-  HarnessWireEventKind,
-} from './types.js';
+import type { HarnessLifecycleEventKind, HarnessRuntimeKind, HarnessWireEventKind } from './types';
 
 // ─── Runtime kind ─────────────────────────────────────────────────────────────
 
-export const HARNESS_RUNTIME_KINDS = ['cli', 'sdk'] as const satisfies readonly HarnessRuntimeKind[];
+export const HARNESS_RUNTIME_KINDS = [
+  'cli',
+  'sdk',
+] as const satisfies readonly HarnessRuntimeKind[];
 
 // ─── Daemon lifecycle events (integration boundary) ───────────────────────────
 
@@ -27,10 +26,7 @@ export const HARNESS_LIFECYCLE_EVENT_KINDS = [
 ] as const satisfies readonly HarnessLifecycleEventKind[];
 
 /** Human-readable descriptions for lifecycle events (docs, UI, logs). */
-export const HARNESS_LIFECYCLE_EVENT_DESCRIPTIONS: Record<
-  HarnessLifecycleEventKind,
-  string
-> = {
+export const HARNESS_LIFECYCLE_EVENT_DESCRIPTIONS: Record<HarnessLifecycleEventKind, string> = {
   'lifecycle.turn.completed':
     'One agent turn finished; daemon may call resumeTurn (resumable harnesses) or continue the turn loop.',
   'lifecycle.output.activity':
@@ -53,6 +49,7 @@ export const HARNESS_WIRE_EVENT_KINDS = [
   'sdk.cursor.run.completed',
   'sdk.opencode.session.idle',
   'sdk.opencode.session.event',
+  'sdk.pi.session.event',
 ] as const satisfies readonly HarnessWireEventKind[];
 
 export interface HarnessWireEventSpec {
@@ -132,6 +129,12 @@ export const HARNESS_WIRE_EVENT_SPECS: Record<HarnessWireEventKind, HarnessWireE
   'sdk.opencode.session.event': {
     kind: 'sdk.opencode.session.event',
     description: 'OpenCode SDK SSE session event (non-idle).',
+    emittedBy: ['sdk'],
+    cliOnly: false,
+  },
+  'sdk.pi.session.event': {
+    kind: 'sdk.pi.session.event',
+    description: 'Pi SDK AgentSessionEvent from session.subscribe().',
     emittedBy: ['sdk'],
     cliOnly: false,
   },

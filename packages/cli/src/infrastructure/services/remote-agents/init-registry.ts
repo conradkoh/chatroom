@@ -6,6 +6,7 @@ import { CursorSdkAgentService } from './cursor-sdk/index.js';
 import { OpenCodeAgentService } from './opencode/index.js';
 import { OpenCodeSdkAgentService } from './opencode-sdk/index.js';
 import { PiAgentService } from './pi/index.js';
+import { PiSdkAgentService } from './pi-sdk/index.js';
 import { registerHarness } from './registry.js';
 import { installDaemonFatalErrorGuard } from '../../daemon/fatal-error-guard.js';
 
@@ -18,6 +19,7 @@ export function initHarnessRegistry(): void {
   registerHarness(new OpenCodeAgentService());
   registerHarness(new OpenCodeSdkAgentService());
   registerHarness(new PiAgentService());
+  registerHarness(new PiSdkAgentService());
   registerHarness(new CursorAgentService());
   registerHarness(new CursorSdkAgentService());
   registerHarness(new ClaudeCodeAgentService());

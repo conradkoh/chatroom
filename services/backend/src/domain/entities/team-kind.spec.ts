@@ -18,7 +18,7 @@ import type { TeamKind } from './team-kind';
 
 describe('TeamKind', () => {
   test('WELL_KNOWN_TEAM_KINDS contains expected values', () => {
-    expect(WELL_KNOWN_TEAM_KINDS).toEqual(['pair', 'squad', 'duo', 'solo']);
+    expect(WELL_KNOWN_TEAM_KINDS).toEqual(['duo', 'solo']);
   });
 
   test('TeamKindEnum has entries for each kind', () => {
@@ -62,7 +62,7 @@ describe('TeamKind', () => {
     // to compile (unless the new kind is handled). We use a runtime assertion
     // that all known kinds pass isTeamKind.
     const allKnown: TeamKind[] = [...WELL_KNOWN_TEAM_KINDS];
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     const _exhaustive: TeamKind[] = allKnown;
     expect(allKnown.every(isTeamKind)).toBe(true);
   });
@@ -71,9 +71,7 @@ describe('TeamKind', () => {
     // Convex VUnion exposes its members at runtime. Each member is a VLiteral
     // whose `.value` is the literal it accepts. Sorting both sides because the
     // test asserts set-equality, not order (order is already asserted elsewhere).
-    const validatorMembers = (
-      teamKindValidator.members as readonly { value: TeamKind }[]
-    )
+    const validatorMembers = (teamKindValidator.members as readonly { value: TeamKind }[])
       .map((m) => m.value)
       .slice()
       .sort();

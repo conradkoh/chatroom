@@ -9,23 +9,6 @@ import {
   getEventBadgeTextColor,
 } from '../../viewModels/eventStreamViewModel';
 
-function getWorkflowEventDetail(event: EventStreamEvent): string | null {
-  switch (event.type) {
-    case 'workflow.created':
-    case 'workflow.started':
-      return `${event.stepCount} steps`;
-    case 'workflow.stepCompleted':
-    case 'workflow.stepStarted':
-    case 'workflow.stepCancelled':
-    case 'workflow.specified':
-      return event.stepKey;
-    case 'workflow.completed':
-      return event.finalStatus === 'completed' ? 'all steps done' : 'cancelled';
-    default:
-      return null;
-  }
-}
-
 export const TimelineLatestEventTicker = memo(function TimelineLatestEventTicker({
   event,
   onClick,
@@ -48,8 +31,6 @@ export const TimelineLatestEventTicker = memo(function TimelineLatestEventTicker
     );
   }
 
-  const workflowDetail = getWorkflowEventDetail(event);
-
   return (
     <button
       type="button"
@@ -62,11 +43,6 @@ export const TimelineLatestEventTicker = memo(function TimelineLatestEventTicker
         >
           {formatEventType(event.type)}
         </span>
-        {workflowDetail && (
-          <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
-            {workflowDetail}
-          </span>
-        )}
         {'role' in event && event.role && (
           <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold whitespace-nowrap truncate min-w-0">
             {event.role}

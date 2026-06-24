@@ -15,11 +15,12 @@
 For commands with only one text parameter (e.g., `handoff --message`):
 
 ```bash
-chatroom handoff <chatroomId> --role=<role> --next-role=<target> << 'EOF'
+chatroom handoff <chatroomId> --role=<role> --next-role=<target> << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
 Content goes here
 Can span multiple lines
 No escaping needed
-EOF
+CHATROOM_HANDOFF_END
 ```
 
 **Decoding**: Read entire stdin as single parameter.
@@ -29,7 +30,7 @@ EOF
 For commands with multiple text parameters (e.g., `classify` with title, description, techSpecs):
 
 ```bash
-chatroom classify --chatroom-id=<chatroomId> --role=<role> --task-id=<id> --origin-message-classification=new_feature << 'PARAMS_END'
+chatroom classify --chatroom-id=<chatroomId> --role=<role> --task-id=<id> --origin-message-classification=new_feature << 'CHATROOM_CLASSIFY_END'
 ---TITLE---
 User Authentication System
 ---DESCRIPTION---
@@ -40,7 +41,7 @@ This is a multi-line description that can contain anything.
 - Use bcrypt for password hashing
 - JWT tokens with 24h expiry
 - Store refresh tokens in DB
-PARAMS_END
+CHATROOM_CLASSIFY_END
 ```
 
 **Structure**:
@@ -71,12 +72,12 @@ PARAMS_END
 3. **If collision detected**, use a **prefixed delimiter format**:
 
 ```bash
-chatroom classify ... << 'PARAMS_END'
+chatroom classify ... << 'CHATROOM_CLASSIFY_END'
 ---(UUID:a1b2c3d4)TITLE---
 Content here that might contain ---TITLE---
 ---(UUID:a1b2c3d4)DESCRIPTION---
 More content
-PARAMS_END
+CHATROOM_CLASSIFY_END
 ```
 
 The UUID prefix makes collisions astronomically unlikely.
@@ -124,7 +125,8 @@ Future commands can define their own parameter names following the pattern:
 ### Example 1: Simple Handoff
 
 ```bash
-chatroom handoff j123abc456def --role=builder --next-role=user << 'EOF'
+chatroom handoff j123abc456def --role=builder --next-role=user << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
 ## Summary
 Implemented user authentication
 
@@ -136,7 +138,7 @@ Implemented user authentication
 ## Testing
 - All tests passing
 - Manually verified login flow
-EOF
+CHATROOM_HANDOFF_END
 ```
 
 **Decoded to**:
@@ -150,7 +152,7 @@ EOF
 ### Example 2: Classify with Multiple Parameters
 
 ```bash
-chatroom classify --chatroom-id=j123abc456def --role=builder --task-id=k789xyz --origin-message-classification=new_feature << 'PARAMS_END'
+chatroom classify --chatroom-id=j123abc456def --role=builder --task-id=k789xyz --origin-message-classification=new_feature << 'CHATROOM_CLASSIFY_END'
 ---TITLE---
 User Authentication System
 ---DESCRIPTION---
@@ -165,7 +167,7 @@ Users should be able to:
 - JWT tokens with 24h expiry
 - Refresh tokens stored in database
 - Rate limiting on auth endpoints (10 req/min)
-PARAMS_END
+CHATROOM_CLASSIFY_END
 ```
 
 **Decoded to**:
@@ -181,7 +183,8 @@ PARAMS_END
 ### Example 3: Content with Delimiter-Like Pattern (Edge Case)
 
 ```bash
-chatroom handoff j123abc456def --role=builder --next-role=user << 'EOF'
+chatroom handoff j123abc456def --role=builder --next-role=user << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
 ## Summary
 Fixed markdown rendering
 
@@ -191,7 +194,7 @@ The code was incorrectly parsing sections like:
 This should be treated as content, not a delimiter.
 
 Fixed by escaping in the parser.
-EOF
+CHATROOM_HANDOFF_END
 ```
 
 **Decoded to**:
@@ -211,14 +214,14 @@ EOF
 
 ```bash
 # This WILL cause a parse error because TITLE appears in content
-chatroom classify ... << 'PARAMS_END'
+chatroom classify ... << 'CHATROOM_CLASSIFY_END'
 ---TITLE---
 Fix delimiter handling
 ---DESCRIPTION---
 The old code had this pattern:
 ---TITLE---
 Which caused issues.
-PARAMS_END
+CHATROOM_CLASSIFY_END
 ```
 
 **Error message**:

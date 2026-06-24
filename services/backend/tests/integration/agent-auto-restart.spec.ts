@@ -18,7 +18,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -60,7 +60,7 @@ async function findExitedEvent(chatroomId: Id<'chatroom_rooms'>) {
 
 test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (crashed)', async () => {
   const { sessionId } = await createTestSession('test-ar-a');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ar-a';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -96,7 +96,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
 
 test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (exited_clean)', async () => {
   const { sessionId } = await createTestSession('test-ar-b');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ar-b';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -132,7 +132,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
 
 test('recordAgentExited clears spawnedAgentPid after exit', async () => {
   const { sessionId } = await createTestSession('test-ar-c');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ar-c';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');

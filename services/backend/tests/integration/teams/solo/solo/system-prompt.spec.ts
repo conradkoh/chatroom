@@ -77,10 +77,11 @@ describe('Solo Team > Solo > System Prompt', () => {
     expect(prompt).toContain('## Getting Started');
 
     // Solo is entry point — should have classification section
-    expect(prompt).toContain('### Classify message');
+    expect(prompt).toContain('### Start working');
 
-    // Solo workflow guidance
-    expect(prompt).toContain('Solo Workflow');
+    // Solo operating model guidance
+    expect(prompt).toContain('Solo Operating Model');
+    expect(prompt).toContain('Operating model: Planner Solo');
     expect(prompt).toContain('Solo Team Context');
 
     // Solo can hand off to user
@@ -91,7 +92,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     expect(prompt).toContain('### Commands');
 
     // Solo role identity — no handoff to other team members
-    // (Note: 'builder'/'planner'/'reviewer' may appear in global
+    // (Note: 'builder'/'planner' may appear in global
     // glossary/skill descriptions — those are not team-specific)
     expect(prompt).not.toContain('hand off to builder');
     expect(prompt).not.toContain('delegate to planner');
@@ -99,7 +100,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     // Implementation keywords
     expect(prompt).toContain('implement');
     expect(prompt).toContain('plan');
-    expect(prompt).toContain('workflow');
+    expect(prompt).toContain('development-workflow');
 
     // Should contain context view-template hint near context new commands
     expect(prompt).toContain('chatroom context view-template');
@@ -131,9 +132,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
-
       - \`development-workflow\` (1 skill available)
           - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
@@ -150,7 +148,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
@@ -193,23 +190,15 @@ describe('Solo Team > Solo > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      chatroom task notification]
-          C --> D[task read
-      get chatroom task +
-      mark in_progress]
-          D --> E[Do Work]
-          E --> F[handoff]
-          F --> C
+      chatroom task delivery]
+          C --> D[Do Work]
+          D --> E[handoff]
+          E --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Read the chatroom task immediately
+      ### Task delivery and activity
 
-      When you receive a chatroom task from \`get-next-task\`, the content is hidden. You **MUST** run \`task read\` immediately to:
-
-      1. **Get the chatroom task content** — the full description
-      2. **Mark it as in_progress** — signals you're working on it
-
-      Failure to run \`task read\` promptly may trigger the system to restart you.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -220,6 +209,8 @@ describe('Solo Team > Solo > System Prompt', () => {
       to reload your full system and role prompt. Then run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       to see your current chatroom task context.
+
+      CLI harnesses do not support in-session compaction. After context is lost, the daemon performs a hard restart — you must run \`get-next-task\` again to rejoin the chatroom.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -238,85 +229,44 @@ describe('Solo Team > Solo > System Prompt', () => {
       **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
 
 
-      ### Classify message
+      ### Start working
 
-      Acknowledge and classify user messages after reading the chatroom task.
-
-      Run this after \`task read\` to classify the message type.
-
-      #### Question
-      User is asking for information or clarification.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=question
-      \`\`\`
-
-      #### Follow Up
-      User is responding to previous work or providing feedback.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=follow_up
-      \`\`\`
-
-      #### New Feature
-      User wants new functionality. Requires title, description, and tech specs.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
-      ---TITLE---
-      [Feature title]
-      ---DESCRIPTION---
-      [Feature description]
-      ---TECH_SPECS---
-      [Technical specifications]
-      EOF
-      \`\`\`
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --trigger-message-id="<userMessageId>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
       <summary of current focus>
-      EOF
+      CHATROOM_CONTEXT_END
       \`\`\`
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
-      ## Solo Workflow
+      ## Solo Operating Model
+
+      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
       You are an autonomous agent responsible for BOTH planning and implementing chatroom tasks independently.
-
-      **Classification (Entry Point Role):**
-      As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the chatroom task content (auto-marks as in_progress)
-      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-      3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
-      4. Plan and implement the solution yourself
 
       **Solo Team Context:**
       - You are the ONLY team member — you plan, implement, and deliver
       - You communicate directly with the user (single point of contact)
-      - There is no separate builder, planner, or reviewer — you fill all roles
+      - There is no separate builder or planner — you fill all roles
       - You hand off directly to the user when work is complete
-      - Report progress at milestones using \`report-progress\`
 
-      **Team Availability:** solo available.
+      **Team composition:** Solo team — you handle planning and implementation yourself.
 
-      **Current Workflow: Planner Solo**
+      **Operating model: Planner Solo**
 
-      1. Receive chatroom task from user
-      2. Run task read (get chatroom task content + mark in_progress)
-      3. Classify with classify
-      4. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
-      5. Implement the solution yourself (following workflow steps if created)
-      6. Review your own work for quality
-      7. Verify: \`pnpm typecheck && pnpm test\`
-      8. Deliver to **user**
-      9. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)
+      1. Receive chatroom task from get-next-task
+      2. Plan and implement
+      3. Review your own work for quality
+      4. Verify: \`pnpm typecheck && pnpm test\`
+      5. Deliver to **user**
+      6. Run \`get-next-task\` to continue the session (Level A continues after Level B completes)
 
       **Core Responsibilities:**
       - **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.
-        - Use \`report-progress\` to keep the user informed at key milestones: when you start work, when you delegate phases, and when you receive results back.
-        - Example: before delegating → "Starting Phase 1: implementing the data model. Delegating to builder."
-        - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from progress reports.
+        - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from earlier session text.
       - **Quality Accountability**: You are ultimately accountable for all work. If the work doesn't meet requirements, revise it yourself before delivering.
 
       **Implementation Guidelines:**
@@ -328,7 +278,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
@@ -337,9 +287,63 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → deliver to \`user\`
+      2. If requirements are met → deliver to \`user\` (run \`pnpm typecheck && pnpm test\` first **only if this slice changed the codebase** — skip for connectivity-only or no-code handbacks)
       3. If requirements are NOT met → revise your own implementation and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
+
+      ## Begin With the End in Mind
+
+      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
+
+      ### Handoff to \`user\`
+      ---
+
+      ⚠️ **CRITICAL — Recipient visibility**
+
+      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
+
+      They **cannot** see:
+      - Anything you write in this agent session (including direct replies like "Hello!")
+      - Progress reports
+      - Tool output
+
+      Put your **complete** deliverable in the handoff message — not in session text.
+
+      ---
+
+      **Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+
+      \`\`\`markdown
+      ## Summary
+      <what was accomplished, in plain terms — no references to prior messages>
+
+      ## Proof — files changed
+      - \`path/to/file.ts\` — <what changed and why>
+      <list every file you modified; this is the evidence of work>
+
+      ## Key Technical Decisions
+      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
+
+      ## Key Tradeoffs
+      - <what was weighed against what, and why you chose this path, or "Not Applicable">
+
+      ## Tech Debt Observed
+      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
+
+      ## System Design
+      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
+
+      \`\`\`mermaid
+      flowchart TD
+          A[Component] --> B[Component]
+      \`\`\`
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <result>
+
+      ## Notes / Next steps
+      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
+      \`\`\`
 
       ### Handoff Options
       Available targets: user
@@ -349,29 +353,16 @@ describe('Solo Team > Solo > System Prompt', () => {
       **Complete chatroom task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --next-role="<target>" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
-      EOF
+      CHATROOM_HANDOFF_END
       \`\`\`
 
       Replace \`[Your message here]\` with:
       - **Summary**: Brief description of what was done
       - **Changes Made**: Key changes (bullets)
       - **Testing**: How to verify the work
-
-      **Report progress on current chatroom task:**
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="000000000000010002chatroom_rooms" --role="solo" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the chatroom task.
-
-      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

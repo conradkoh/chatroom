@@ -48,12 +48,14 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('<next-steps>');
     // Entry point should have context creation step
     expect(output).toContain('Set a new context per user message');
-    // User message should trigger classification flow
-    expect(output).toContain('Classify');
+    // User message should include inline task content and work-first next steps
+    expect(output).toContain('Work on the task above');
+    expect(output).toContain('Implement the feature as described');
+    expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('targets: builder, user');
     // Should have delegate to builder instruction
     expect(output).toContain('Delegate ONE slice to the builder');
-    expect(output).toContain('--next-role=builder');
+    expect(output).toContain('--next-role="builder"');
     expect(output).not.toContain('Do the work → follow PROCESS above');
     // Eagerly delivered report template (proof + mermaid system design)
     expect(output).toContain('## Proof — files changed');

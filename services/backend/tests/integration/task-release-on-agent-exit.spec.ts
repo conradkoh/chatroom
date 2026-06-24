@@ -8,7 +8,6 @@
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
@@ -23,7 +22,7 @@ test('recordAgentExited (crash) releases acknowledged task to pending — no gra
   const { sessionId } = await createTestSession('test-task-release-crash');
   const chatroomId = await createDuoTeamChatroom(sessionId);
   await joinParticipant(sessionId, chatroomId, 'builder');
-  await joinParticipant(sessionId, chatroomId, 'reviewer');
+  await joinParticipant(sessionId, chatroomId, 'planner');
 
   const machineId = 'machine-task-release-crash';
   await registerMachineWithDaemon(sessionId, machineId);
@@ -98,7 +97,7 @@ test('recordAgentExited (user.stop) releases acknowledged task to pending', asyn
   const { sessionId } = await createTestSession('test-task-release-user-stop');
   const chatroomId = await createDuoTeamChatroom(sessionId);
   await joinParticipant(sessionId, chatroomId, 'builder');
-  await joinParticipant(sessionId, chatroomId, 'reviewer');
+  await joinParticipant(sessionId, chatroomId, 'planner');
 
   const machineId = 'machine-task-release-user-stop';
   await registerMachineWithDaemon(sessionId, machineId);
@@ -161,7 +160,7 @@ test('recordAgentExited (daemon.shutdown) releases acknowledged task to pending'
   const { sessionId } = await createTestSession('test-task-release-daemon-shutdown');
   const chatroomId = await createDuoTeamChatroom(sessionId);
   await joinParticipant(sessionId, chatroomId, 'builder');
-  await joinParticipant(sessionId, chatroomId, 'reviewer');
+  await joinParticipant(sessionId, chatroomId, 'planner');
 
   const machineId = 'machine-task-release-daemon-shutdown';
   await registerMachineWithDaemon(sessionId, machineId);
@@ -216,7 +215,7 @@ test('recordAgentExited (crash) releases in_progress task to pending', async () 
   const { sessionId } = await createTestSession('test-task-release-in-progress');
   const chatroomId = await createDuoTeamChatroom(sessionId);
   await joinParticipant(sessionId, chatroomId, 'builder');
-  await joinParticipant(sessionId, chatroomId, 'reviewer');
+  await joinParticipant(sessionId, chatroomId, 'planner');
 
   const machineId = 'machine-task-release-in-progress';
   await registerMachineWithDaemon(sessionId, machineId);
@@ -282,9 +281,9 @@ test('updateTeam reassigns in-flight builder task to new entry point (planner)',
 
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamId: 'custom',
+    teamName: 'Custom Three-Role Team',
+    teamRoles: ['planner', 'builder', 'architect'],
     teamEntryPoint: 'builder',
   });
 

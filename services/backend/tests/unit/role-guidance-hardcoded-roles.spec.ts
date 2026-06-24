@@ -2,13 +2,9 @@
  * REGRESSION GUARD: Conditional role references in planner guidance.
  *
  * Ensures that the planner prompt uses metarole-aware language:
- * - When a named role (builder/reviewer) is absent, the prompt describes
- *   WHAT FUNCTION the planner fills, rather than silently omitting instructions.
- * - No blank lines in rendered sections due to empty conditional expressions.
- * - Handoff Rules, Delegation Guidelines, and Core Responsibilities are all
+ * - When builder is absent, the prompt describes WHAT FUNCTION the planner fills.
+ * - Handoff Rules, Delegation Guidelines, and Core Responsibilities are
  *   conditional on team composition.
- *
- * Uses inline snapshots to visualize rendered prompt content.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -19,12 +15,8 @@ import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
 
-// =============================================================================
-// Planner Guidance Tests
-// =============================================================================
-
 describe('getPlannerGuidance - Handoff Rules should be conditional on team members', () => {
-  test('duo team planner (builder only, no reviewer) should NOT mention reviewer in Handoff Rules', () => {
+  test('duo team planner should have builder delegation handoff rules', () => {
     const guidance = getPlannerGuidance({
       role: 'planner',
       teamRoles: ['planner', 'builder'],
@@ -32,11 +24,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    // The workflow section correctly shows "Planner + Builder (no reviewer)"
-    expect(guidance).toContain('Current Workflow: Planner + Builder (no reviewer)');
-
-    // Duo team (no reviewer) should NOT contain reviewer handoff rule
-    expect(guidance).not.toContain('**To request review** → Hand off to `reviewer`');
+    expect(guidance).toContain('Operating model: Planner + Builder');
+    expect(guidance).toContain('**To delegate implementation** → Hand off to `builder`');
+    expect(guidance).not.toContain('reviewer');
   });
 
   test('duo team planner - Handoff Rules snapshot', () => {
@@ -47,7 +37,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    // Extract just the Handoff Rules section
     const handoffRulesMatch = guidance.match(
       /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
     );
@@ -56,7 +45,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
@@ -65,20 +54,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     `);
   });
 
-  test('full team planner (builder + reviewer) SHOULD mention reviewer in Handoff Rules', () => {
-    const guidance = getPlannerGuidance({
-      role: 'planner',
-      teamRoles: ['planner', 'builder', 'reviewer'],
-      isEntryPoint: true,
-      convexUrl: CONVEX_URL,
-    });
-
-    expect(guidance).toContain('Current Workflow: Full Team (Planner + Builder + Reviewer)');
-    expect(guidance).toContain('**To request review** → Hand off to `reviewer`');
-    expect(guidance).toContain('**To delegate implementation** → Hand off to `builder`');
-  });
-
-  test('solo planner (no builder, no reviewer) should have simplified Handoff Rules', () => {
+  test('solo planner should have simplified Handoff Rules', () => {
     const guidance = getPlannerGuidance({
       role: 'planner',
       teamRoles: ['planner'],
@@ -86,9 +62,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('Current Workflow: Planner Solo');
+    expect(guidance).toContain('Operating model: Planner Solo');
+    expect(guidance).not.toContain('reviewer');
 
-    // Should NOT mention builder or reviewer — uses metarole language instead
     const handoffRulesMatch = guidance.match(
       /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
     );
@@ -97,7 +73,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
+      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
@@ -105,39 +81,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       - **For rework** → Revise your implementation directly and re-validate"
     `);
   });
-
-  test('planner + reviewer only (no builder) should NOT mention builder in Handoff Rules', () => {
-    const guidance = getPlannerGuidance({
-      role: 'planner',
-      teamRoles: ['planner', 'reviewer'],
-      isEntryPoint: true,
-      convexUrl: CONVEX_URL,
-    });
-
-    expect(guidance).toContain('Current Workflow: Planner + Reviewer (no builder)');
-
-    // Should NOT mention builder in handoff rules — uses metarole language instead
-    const handoffRulesMatch = guidance.match(
-      /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
-    );
-    const handoffRulesSection = handoffRulesMatch ? handoffRulesMatch[0] : '(not found)';
-
-    expect(handoffRulesSection).toMatchInlineSnapshot(`
-      "**Handoff Rules:**
-
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session. A handoff completes a **chatroom task** (Level B) — it does not end your **session** (Level A).
-
-      - **To implement** → Work on the chatroom task directly (you are acting as implementer)
-      - **To request review** → Hand off to \`reviewer\` with context about what to check
-      - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
-        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For rework** → Revise your implementation directly and re-validate"
-    `);
-  });
-
-  // ---------------------------------------------------------------------------
-  // Delegation Guidelines: metarole language
-  // ---------------------------------------------------------------------------
 
   test('duo team: Delegation Guidelines mentions builder-specific instruction', () => {
     const guidance = getPlannerGuidance({
@@ -162,21 +105,6 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(guidance).toContain('tackle one layer at a time');
     expect(guidance).not.toContain('Feed slices to the builder incrementally');
   });
-
-  test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
-    const guidance = getPlannerGuidance({
-      role: 'planner',
-      teamRoles: ['planner', 'reviewer'],
-      isEntryPoint: true,
-      convexUrl: CONVEX_URL,
-    });
-    expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Feed slices to the builder incrementally');
-  });
-
-  // ---------------------------------------------------------------------------
-  // Core Responsibilities: Quality Accountability metarole language
-  // ---------------------------------------------------------------------------
 
   test('duo team: Quality Accountability mentions builder for rework', () => {
     const guidance = getPlannerGuidance({
@@ -205,12 +133,8 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
   });
 });
 
-// =============================================================================
-// Builder Guidance Tests
-// =============================================================================
-
-describe('getBuilderGuidance - reviewer-related content should be conditional', () => {
-  test('duo builder (codeChangesTarget=planner) should NOT mention reviewer', () => {
+describe('getBuilderGuidance', () => {
+  test('duo builder defaults to planner handoff target', () => {
     const guidance = getBuilderGuidance({
       role: 'builder',
       teamRoles: ['planner', 'builder'],
@@ -220,12 +144,11 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       questionTarget: 'planner',
     });
 
-    // The "When you receive handoffs from the reviewer" section is correctly gated
-    expect(guidance).not.toContain('When you receive handoffs from the reviewer');
-    expect(guidance).not.toContain('hand back to the reviewer');
+    expect(guidance).not.toContain('reviewer');
+    expect(guidance).toContain('Hand off to `planner`');
   });
 
-  test('duo builder snapshot - should show planner as target, no reviewer mentions', () => {
+  test('duo builder snapshot', () => {
     const guidance = getBuilderGuidance({
       role: 'builder',
       teamRoles: ['planner', 'builder'],
@@ -237,76 +160,42 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
 
     expect(guidance).toMatchInlineSnapshot(`
       "
-      ## Builder Workflow
+      ## Builder Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
       You are responsible for implementing code changes based on requirements.
 
-
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive chatroom task
-      notification]
-          B -->|from planner| C[Read chatroom task with
-      task read]
-          C --> D[Implement changes]
+          A([Start]) --> B[Receive chatroom task]
+          B --> D[Implement changes]
           D --> E[Commit work]
-          E --> F{Classification?}
-          F -->|new_feature or code changes| G[Hand off to **planner**]
-          F -->|question| H[Hand off to **planner**]
+          E --> F{Code changes?}
+          F -->|yes| G[Hand off to **planner**]
+          F -->|no| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner)
 
-      **When working on a workflow step:**
-      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
-
-      **Development Best Practices:**
-      - Write clean, maintainable code
-      - Add appropriate tests when applicable
-      - Document complex logic
-      - Follow existing code patterns and conventions
-      - Consider edge cases and error handling
-      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
-
-      **Git Workflow:**
-      - Use descriptive commit messages
-      - Create logical commits (one feature/change per commit)
-      - Keep the working directory clean between commits
-      - Use \`git status\`, \`git diff\` to review changes before committing
+      **Implementation Guidelines:**
+      - Write clean, maintainable, well-documented code
+      - Follow established patterns and best practices from the codebase
+      - Handle edge cases and error scenarios
+      - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
+      - Commit work with descriptive, atomic commit messages
       "
     `);
   });
-
-  test('pair builder (codeChangesTarget=reviewer) SHOULD mention reviewer', () => {
-    const guidance = getBuilderGuidance({
-      role: 'builder',
-      teamRoles: ['builder', 'reviewer'],
-      isEntryPoint: false,
-      convexUrl: CONVEX_URL,
-      codeChangesTarget: 'reviewer',
-      questionTarget: 'user',
-    });
-
-    expect(guidance).toContain('When you receive handoffs from the reviewer');
-    expect(guidance).toContain('hand back to the reviewer');
-    expect(guidance).toContain('Hand off to `reviewer`');
-  });
 });
 
-// =============================================================================
-// Team-level role guidance tests via getRoleGuidanceFromContext
-// =============================================================================
-
-describe('getRoleGuidanceFromContext - duo team should produce correct guidance', () => {
-  test('duo planner should produce workflow without reviewer references in Handoff Rules', () => {
+describe('getRoleGuidanceFromContext - duo team', () => {
+  test('duo planner should produce duo-specific guidance', () => {
     const ctx = buildSelectorContext({
       role: 'planner',
       teamRoles: ['planner', 'builder'],
@@ -317,17 +206,12 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
 
     const guidance = getRoleGuidanceFromContext(ctx);
 
-    // Should show duo team context
     expect(guidance).toContain('Duo Team Context');
-
-    // Workflow should show builder-only flow
-    expect(guidance).toContain('Planner + Builder (no reviewer)');
-
-    // No reviewer in duo team — should not appear in Handoff Rules
-    expect(guidance).not.toContain('**To request review** → Hand off to `reviewer`');
+    expect(guidance).toContain('Planner + Builder');
+    expect(guidance).not.toContain('reviewer');
   });
 
-  test('duo builder should produce guidance without reviewer references', () => {
+  test('duo builder should produce duo-specific guidance', () => {
     const ctx = buildSelectorContext({
       role: 'builder',
       teamRoles: ['planner', 'builder'],
@@ -338,27 +222,7 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
 
     const guidance = getRoleGuidanceFromContext(ctx);
 
-    // Should show duo team context
     expect(guidance).toContain('Duo Team Context');
-
-    // Should not mention reviewer (no reviewer in duo)
-    expect(guidance).not.toContain('When you receive handoffs from the reviewer');
-  });
-
-  test('squad planner (full team) guidance snapshot - Handoff Rules section', () => {
-    const ctx = buildSelectorContext({
-      role: 'planner',
-      teamRoles: ['planner', 'builder', 'reviewer'],
-      teamName: 'Squad',
-      teamEntryPoint: 'planner',
-      convexUrl: CONVEX_URL,
-    });
-
-    const guidance = getRoleGuidanceFromContext(ctx);
-
-    // Full team should have all three handoff rules
-    expect(guidance).toContain('**To delegate implementation** → Hand off to `builder`');
-    expect(guidance).toContain('**To request review** → Hand off to `reviewer`');
-    expect(guidance).toContain('**To deliver to user** → Hand off to `user`');
+    expect(guidance).not.toContain('reviewer');
   });
 });

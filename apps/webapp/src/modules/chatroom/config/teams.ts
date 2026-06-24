@@ -19,12 +19,6 @@ export const TEAMS_CONFIG: TeamsConfig = {
       roles: ['planner', 'builder'],
       entryPoint: 'planner',
     },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
     solo: {
       name: 'Solo',
       description: 'A single agent working independently',

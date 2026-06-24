@@ -23,9 +23,9 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
   });
 }
 
@@ -181,7 +181,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
       sessionId,
       chatroomId,
       senderRole: 'builder',
-      targetRole: 'reviewer',
+      targetRole: 'planner',
       content: 'handoff message',
       type: 'handoff',
     });
@@ -487,7 +487,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
       chatroomId,
       senderRole: 'builder',
       content: 'ready for review',
-      targetRole: 'reviewer',
+      targetRole: 'planner',
     });
 
     // Verify NO explicit promotion (queued task stays queued)

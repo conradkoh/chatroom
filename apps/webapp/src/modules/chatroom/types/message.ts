@@ -58,8 +58,6 @@ export interface Message {
   attachedArtifacts?: ArtifactMeta[];
   /** Attached chatroom messages for context */
   attachedMessages?: AttachedMessage[];
-  /** Attached workflows for visualizer */
-  attachedWorkflows?: { _id: string; workflowKey: string; status: string }[];
   /** Latest progress message for inline display */
   latestProgress?: {
     content: string;

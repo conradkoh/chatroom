@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy slot access in integration-style tests */
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -156,95 +155,108 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('onAgentEnd calls resumeTurn instead of kill for resumable harness', async () => {
-      const resumeTurn = vi.fn().mockResolvedValue(undefined);
-      const resumableService = {
+    test('ensureRunning cursor-sdk emits native:waiting after spawn', async () => {
+      const cursorSdkService = {
         ...createMockService(),
-        id: 'opencode-sdk',
-        resumeTurn,
+        id: 'cursor-sdk',
         spawn: vi.fn().mockResolvedValue({
           pid: PID,
-          harnessSessionId: 'sess-opencode-1',
           onExit: vi.fn(),
           onOutput: vi.fn(),
-          onAgentEnd: vi.fn((cb: () => void) => {
-            cb();
-          }),
+          onAgentEnd: vi.fn(),
         }),
       };
-      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
       manager = new AgentProcessManager(deps);
 
       await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
-      await manager.whenTurnEndsIdle();
 
-      expect(resumeTurn).toHaveBeenCalledOnce();
-      expect(resumeTurn.mock.calls[0][0]).toBe(PID);
-      expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
-      expect(deps.processes.kill).not.toHaveBeenCalled();
-      const sessionResumedCalls = (
-        deps.backend.mutation as ReturnType<typeof vi.fn>
-      ).mock.calls.filter(
-        (call: unknown[]) =>
-          call.length >= 2 &&
-          (call[1] as Record<string, unknown>)?.reason === undefined &&
-          (call[1] as Record<string, unknown>)?.role === ROLE
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
       );
-      expect(sessionResumedCalls.length).toBeGreaterThan(0);
-      expect(
-        getMutationCallsByArgs(
-          deps,
-          (args) =>
-            args.role === ROLE &&
-            args.chatroomId === CHATROOM_ID &&
-            args.harnessSessionId === 'sess-opencode-1' &&
-            args.reason === undefined
-        )
-      ).toHaveLength(1);
-    });
-
-    test('onAgentEnd emits sessionResumeFailed and kills when resumeTurn fails', async () => {
-      const resumeTurn = vi.fn().mockRejectedValue(new Error('session not found'));
-      const resumableService = {
-        ...createMockService(),
-        id: 'opencode-sdk',
-        resumeTurn,
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          harnessSessionId: 'sess-opencode-1',
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn((cb: () => void) => {
-            cb();
-          }),
-        }),
-      };
-      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-      await manager.whenTurnEndsIdle();
-
-      expect(resumeTurn).toHaveBeenCalledOnce();
-      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
-      const sessionResumeFailedCalls = (
-        deps.backend.mutation as ReturnType<typeof vi.fn>
-      ).mock.calls.filter(
-        (call: unknown[]) =>
-          call.length >= 2 && (call[1] as Record<string, unknown>)?.reason === 'session not found'
-      );
-      expect(sessionResumeFailedCalls).toHaveLength(1);
-      expect(sessionResumeFailedCalls[0][1]).toMatchObject({
-        harnessSessionId: 'sess-opencode-1',
+      expect(nativeWaitingCalls).toHaveLength(1);
+      expect(nativeWaitingCalls[0]).toMatchObject({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        action: 'native:waiting',
       });
     });
 
-    test('onAgentEnd calls resumeTurn for cursor-sdk without harnessSessionId', async () => {
+    test('turn-end for cursor-sdk emits native:waiting without resumeTurn', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      let agentEndCb: (() => void) | undefined;
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            agentEndCb = cb;
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      await triggerAgentEnd(manager, () => agentEndCb!());
+
+      expect(resumeTurn).not.toHaveBeenCalled();
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
+    });
+
+    test('onAgentEnd for native opencode-sdk emits native:waiting without resumeTurn', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      let agentEndCb: (() => void) | undefined;
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            agentEndCb = cb;
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      await triggerAgentEnd(manager, () => agentEndCb!());
+
+      expect(resumeTurn).not.toHaveBeenCalled();
+      expect(deps.processes.kill).not.toHaveBeenCalled();
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
+    });
+
+    test('onAgentEnd for cursor-sdk emits native:waiting without resumeTurn', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      let agentEndCb: (() => void) | undefined;
       const resumableService = {
         ...createMockService(),
         id: 'cursor-sdk',
@@ -254,7 +266,7 @@ describe('AgentProcessManager', () => {
           onExit: vi.fn(),
           onOutput: vi.fn(),
           onAgentEnd: vi.fn((cb: () => void) => {
-            cb();
+            agentEndCb = cb;
           }),
         }),
       };
@@ -264,15 +276,19 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(
         createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
-      await manager.whenTurnEndsIdle();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      await triggerAgentEnd(manager, () => agentEndCb!());
 
-      expect(resumeTurn).toHaveBeenCalledOnce();
-      expect(resumeTurn.mock.calls[0][0]).toBe(PID);
-      expect(resumeTurn.mock.calls[0][1]).toContain('get-next-task');
+      expect(resumeTurn).not.toHaveBeenCalled();
       expect(deps.processes.kill).not.toHaveBeenCalled();
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
     });
 
-    test('onAgentEnd kills (no resume) for resumable harness when wantResume is false', async () => {
+    test('onAgentEnd for native harness still emits native:waiting when wantResume is false', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       const onAgentEndRegistrar = vi.fn();
       const resumableService = {
@@ -296,12 +312,18 @@ describe('AgentProcessManager', () => {
           wantResume: false,
         })
       );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
 
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(manager, agentEndCb);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(deps.processes.kill).not.toHaveBeenCalled();
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
     });
 
     test('onAgentEnd kills process for non-resumable harness', async () => {
@@ -458,30 +480,16 @@ describe('AgentProcessManager', () => {
       );
     });
 
-    test('pi wantResume reconnects via resumeFromDaemonMemory after user.stop', async () => {
-      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
-        pid: PID,
-        harnessSessionId: 'pi-sess-1',
-        harnessReconnect: { agentName: 'pi', model: 'anthropic/claude-3-5-sonnet' },
-        onExit: vi.fn(),
-        onOutput: vi.fn(),
-        onAgentEnd: vi.fn(),
-      });
+    test('pi wantResume cold spawns after user.stop (no daemon-memory resume)', async () => {
       const piService = {
         ...createMockService(),
         id: 'pi',
         spawn: vi.fn().mockResolvedValue({
           pid: PID,
           harnessSessionId: 'pi-sess-1',
-          harnessReconnect: { agentName: 'pi', model: 'anthropic/claude-3-5-sonnet' },
           onExit: vi.fn(),
           onOutput: vi.fn(),
           onAgentEnd: vi.fn(),
-        }),
-        resumeFromDaemonMemory,
-        getHarnessReconnectContext: vi.fn().mockReturnValue({
-          agentName: 'pi',
-          model: 'anthropic/claude-3-5-sonnet',
         }),
       };
       deps.agentServices = new Map([['pi', piService]]);
@@ -499,19 +507,8 @@ describe('AgentProcessManager', () => {
       );
 
       expect(result).toEqual({ success: true, pid: PID });
-      expect(piService.spawn).toHaveBeenCalledOnce();
-      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(piService.spawn).toHaveBeenCalledTimes(2);
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe('pi-sess-1');
-
-      const sessionResumedArgs = getMutationCallsByArgs(
-        deps,
-        (args) =>
-          args.chatroomId === CHATROOM_ID &&
-          args.role === ROLE &&
-          args.reason === undefined &&
-          args.harnessSessionId !== undefined
-      );
-      expect(sessionResumedArgs.some((args) => args.harnessSessionId === 'pi-sess-1')).toBe(true);
     });
 
     test('wantResume with no daemon memory spawns fresh without sessionResumeFailed', async () => {
@@ -953,6 +950,7 @@ describe('AgentProcessManager', () => {
           agentName: 'build',
           model: 'anthropic/claude-sonnet-4',
         }),
+        resumeFromDaemonMemory: vi.fn(),
       };
       const localDeps = {
         ...createDeps(),
@@ -1621,15 +1619,22 @@ describe('AgentProcessManager', () => {
       const slot = localManager.getSlot(CHATROOM_ID, ROLE)!;
       expect(slot.wantResume).toBe(false);
 
+      (localDeps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
       // 2. Trigger agent_end (turn completion)
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(localManager, agentEndCb);
 
-      // 3. Verify: resumeTurn was NOT called (turn-resume path disabled)
+      // 3. Verify: resumeTurn was NOT called; native harness idles in-process
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(localDeps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(localDeps.processes.kill).not.toHaveBeenCalled();
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        localDeps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(1);
 
-      // 4. Clear kill mock for next phase
+      // 4. Clear mocks for next phase
       (localDeps.processes.kill as ReturnType<typeof vi.fn>).mockClear();
       (opencodeSdkService.spawn as ReturnType<typeof vi.fn>).mockClear();
 
@@ -1728,12 +1733,12 @@ describe('AgentProcessManager', () => {
   describe('listActive', () => {
     test('returns running and spawning slots', async () => {
       await manager.ensureRunning(createOpts());
-      await manager.ensureRunning(createOpts({ chatroomId: 'other-room', role: 'reviewer' }));
+      await manager.ensureRunning(createOpts({ chatroomId: 'other-room', role: 'architect' }));
 
       const active = manager.listActive();
       expect(active).toHaveLength(2);
       expect(active.map((a) => a.role)).toContain('builder');
-      expect(active.map((a) => a.role)).toContain('reviewer');
+      expect(active.map((a) => a.role)).toContain('architect');
     });
 
     test('does not include idle slots', async () => {

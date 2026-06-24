@@ -60,6 +60,8 @@ function registerListeners(
         getSlot: (chatroomId, role) => init.agentProcessManager.getSlot(chatroomId, role),
         listActive: () => init.agentProcessManager.listActive(),
         whenTurnEndsIdle: () => Effect.promise(() => init.agentProcessManager.whenTurnEndsIdle()),
+        resumeTurnForSlot: (args) =>
+          Effect.promise(() => init.agentProcessManager.resumeTurnForSlot(args)),
       })
     )
   );

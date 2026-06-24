@@ -15,6 +15,13 @@
  */
 export const PARTICIPANT_EXITED_ACTION = 'exited';
 
+/** Participant heartbeat action when a native harness session is ready for task injection. */
+export const NATIVE_WAITING_ACTION = 'native:waiting';
+
+/** Participant heartbeat action when a task has been injected into a native harness session. */
+export const NATIVE_TASK_INJECTED_ACTION = 'native:task-injected';
+export const GET_NEXT_TASK_STOPPED_ACTION = 'get-next-task:stopped';
+
 /**
  * Returns true if the participant is in an active (non-exited) state.
  * Use this to filter participant lists for routing, handoff, and queue promotion.

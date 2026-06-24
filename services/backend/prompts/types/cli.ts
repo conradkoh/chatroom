@@ -6,11 +6,6 @@
  */
 
 /**
- * Classification types for classify command
- */
-export type MessageClassification = 'question' | 'new_feature' | 'follow_up';
-
-/**
  * Base interface for all prompt parameters that involve CLI command generation.
  * Ensures convexUrl is always provided for proper environment variable prefix handling.
  */
@@ -29,21 +24,6 @@ export interface CommandContext {
 }
 
 // ============================================================================
-// classify command types
-// ============================================================================
-
-export interface ClassifyParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  taskId?: string;
-  classification?: MessageClassification;
-  /** Required for new_feature classification */
-  title?: string;
-  description?: string;
-  techSpecs?: string;
-}
-
-// ============================================================================
 // handoff command types
 // ============================================================================
 
@@ -51,6 +31,8 @@ export interface HandoffParams extends CommandContext {
   chatroomId?: string;
   role?: string;
   nextRole?: string;
+  /** Placeholder text inside the heredoc body (default: [Your message here]). */
+  messagePlaceholder?: string;
 }
 
 // ============================================================================
@@ -66,16 +48,6 @@ export interface GetNextTaskParams extends CommandContext {
 export type WaitForTaskParams = GetNextTaskParams;
 
 // ============================================================================
-// report-progress command types
-// ============================================================================
-
-export interface ReportProgressParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  // message field removed - now uses stdin (EOF format) for all input
-}
-
-// ============================================================================
 // Role guidance parameter types
 // ============================================================================
 
@@ -89,21 +61,11 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   /** Override the default question/simple-task handoff target (default: 'user') */
   questionTarget?: string;
   /**
-   * Override the handoff target after code changes (default: 'reviewer').
-   * Set to 'planner' in teams where there is no reviewer (e.g. duo team).
+   * Override the handoff target after code changes (default: 'planner').
    */
   codeChangesTarget?: string;
-}
-
-/**
- * Parameters for reviewer guidance generation
- */
-export interface ReviewerGuidanceParams extends BasePromptParams {
-  role: string;
-  teamRoles: string[];
-  isEntryPoint: boolean;
-  /** Override the default approval handoff target (default: 'user') */
-  approvalTarget?: string;
+  /** True when harness uses native task injection instead of get-next-task */
+  nativeIntegration?: boolean;
 }
 
 /**
@@ -115,6 +77,8 @@ export interface PlannerGuidanceParams extends BasePromptParams {
   isEntryPoint: boolean;
   /** Chatroom ID for generating exact CLI commands */
   chatroomId?: string;
+  /** True when harness uses native task injection instead of get-next-task */
+  nativeIntegration?: boolean;
 }
 
 /**

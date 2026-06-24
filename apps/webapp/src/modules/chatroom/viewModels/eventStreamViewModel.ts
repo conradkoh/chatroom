@@ -50,13 +50,6 @@ export type {
   TaskAcknowledgedEvent,
   TaskCompletedEvent,
   TaskInProgressEvent,
-  WorkflowCompletedEvent,
-  WorkflowCreatedEvent,
-  WorkflowSpecifiedEvent,
-  WorkflowStartedEvent,
-  WorkflowStepCancelledEvent,
-  WorkflowStepCompletedEvent,
-  WorkflowStepStartedEvent,
 } from '@/domain/entities/event-stream-event';
 
 const EVENT_BADGE_TEXT_COLORS: Record<EventBadgeVariant, string> = {

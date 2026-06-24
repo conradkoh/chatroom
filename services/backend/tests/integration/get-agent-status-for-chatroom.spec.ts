@@ -19,12 +19,12 @@ import {
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
-function createSquadChatroom(sessionId: string) {
+function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
     sessionId: sessionId as any,
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamId: 'custom',
+    teamName: 'Custom Three-Role Team',
+    teamRoles: ['planner', 'builder', 'architect'],
     teamEntryPoint: 'planner',
   });
 }
@@ -48,12 +48,12 @@ async function runStatusQuery(chatroomId: Id<'chatroom_rooms'>) {
 describe('getAgentStatusForChatroom — fresh team', () => {
   test('returns all team roles with stopped state when no agents configured', async () => {
     const { sessionId } = await createTestSession('test-gas-fresh-1');
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     const result = await runStatusQuery(chatroomId);
 
     expect(result).not.toBeNull();
-    expect(result!.teamRoles).toEqual(['planner', 'builder', 'reviewer']);
+    expect(result!.teamRoles).toEqual(['planner', 'builder', 'architect']);
     expect(result!.agents).toHaveLength(3);
     for (const agent of result!.agents) {
       expect(agent.state).toBe('stopped');
@@ -170,11 +170,11 @@ describe('getAgentStatusForChatroom — stale role exclusion', () => {
     const { sessionId } = await createTestSession('test-gas-stale-1');
     const machineId = 'machine-gas-stale-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'reviewer');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'architect');
 
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,

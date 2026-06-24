@@ -13,7 +13,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
 } from '../helpers/integration';
@@ -71,7 +71,7 @@ async function setupAgentAndSeedMetrics(opts: {
 
 test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', async () => {
   const { sessionId } = await createTestSession('metrics-q-machine-1');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-mq-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -103,8 +103,8 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
 
 test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data", async () => {
   const { sessionId } = await createTestSession('metrics-q-chatroom-1');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
-  const chatroomId2 = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+  const chatroomId2 = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-cq-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -186,7 +186,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
 
 test('getAgentRestartMetrics workingDir scope filters to that workspace', async () => {
   const { sessionId } = await createTestSession('metrics-q-workspace-1');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-wq-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
@@ -231,7 +231,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
 
 test('getAgentRestartMetrics groups multiple models within the same hour', async () => {
   const { sessionId } = await createTestSession('metrics-q-multimodel-1');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-mm-1';
   await registerMachineWithDaemon(sessionId, machineId);
 

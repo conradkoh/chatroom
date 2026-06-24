@@ -1,14 +1,12 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import type { Message } from '../types/message';
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
-import { AttachedWorkflowChip } from './AttachedWorkflowChip';
+import type { Message } from '../types/message';
 
 interface MessageAttachmentChipsProps {
   message: Message;
-  chatroomId: Id<'chatroom_rooms'>;
 }
 
 /**
@@ -16,20 +14,18 @@ interface MessageAttachmentChipsProps {
  * (`QueuedMessageItem`) and the queued-message detail modal
  * (`QueuedMessageDetailModal`).
  *
- * Renders all four attachment kinds (tasks → backlog items → workflows →
- * messages) in a single flat row. Returns `null` when there are no
- * attachments.
+ * Renders attachment kinds (tasks → backlog items → messages) in a single flat
+ * row. Returns `null` when there are no attachments.
  *
  * Callers are responsible for wrapping this component with their own header
  * text, top-border, margin, and event-stopping containers.
  */
-export function MessageAttachmentChips({ message, chatroomId }: MessageAttachmentChipsProps) {
+export function MessageAttachmentChips({ message }: MessageAttachmentChipsProps) {
   const taskCount = message.attachedTasks?.length ?? 0;
   const backlogCount = message.attachedBacklogItems?.length ?? 0;
-  const workflowCount = message.attachedWorkflows?.length ?? 0;
   const messageCount = message.attachedMessages?.length ?? 0;
 
-  if (taskCount + backlogCount + workflowCount + messageCount === 0) return null;
+  if (taskCount + backlogCount + messageCount === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -47,15 +43,6 @@ export function MessageAttachmentChips({ message, chatroomId }: MessageAttachmen
           mode="view"
           itemId={item.id as Id<'chatroom_backlog'>}
           content={item.content}
-        />
-      ))}
-      {message.attachedWorkflows?.map((wf) => (
-        <AttachedWorkflowChip
-          key={wf._id}
-          chatroomId={chatroomId}
-          workflowId={wf._id as Id<'chatroom_workflows'>}
-          workflowKey={wf.workflowKey}
-          status={wf.status}
         />
       ))}
       {message.attachedMessages?.map((msg) => (

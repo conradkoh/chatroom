@@ -29,14 +29,30 @@ export async function createTestSession(sessionId: string): Promise<{ sessionId:
 }
 
 /**
- * Create a pair-team chatroom (builder + reviewer, entry point = builder).
+ * Create a duo team chatroom (planner + builder, entry point = planner).
  */
 export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
-    teamRoles: ['builder', 'reviewer'],
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'builder',
+  });
+}
+
+/**
+ * Duo team with builder as entry point — for tests that exercise builder task FSM
+ * without a planner handoff step.
+ */
+export async function createBuilderEntryDuoChatroom(
+  sessionId: SessionId
+): Promise<Id<'chatroom_rooms'>> {
+  return await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'duo',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'builder',
   });
 }
@@ -48,15 +64,13 @@ export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'c
 export async function createPlannerBuilderDuoChatroom(
   sessionId: SessionId
 ): Promise<Id<'chatroom_rooms'>> {
-  const chatroomId = await t.mutation(api.chatrooms.create, {
+  return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
     teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
   });
-  await createTestWorkflow(chatroomId);
-  return chatroomId;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,24 +160,4 @@ export async function getCommandEvents(sessionId: SessionId, machineId: string) 
     machineId,
   });
   return result.events;
-}
-
-/**
- * Create a minimal active workflow in a chatroom.
- * Used by tests that need planner→builder handoffs.
- */
-export async function createTestWorkflow(
-  chatroomId: Id<'chatroom_rooms'>,
-  workflowKey = 'test-workflow'
-): Promise<void> {
-  await t.run(async (ctx) => {
-    await ctx.db.insert('chatroom_workflows', {
-      chatroomId,
-      workflowKey,
-      status: 'active',
-      createdBy: 'planner',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-  });
 }

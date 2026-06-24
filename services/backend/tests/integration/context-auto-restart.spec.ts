@@ -9,7 +9,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
-  createDuoTeamChatroom,
+  createBuilderEntryDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
@@ -44,7 +44,7 @@ async function findNewContextRestartEvents(chatroomId: Id<'chatroom_rooms'>) {
 
 test('createContext emits agent.requestStart for builder with autoRestartOnNewContext enabled', async () => {
   const { sessionId } = await createTestSession('ctx-restart-a');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ctx-restart-a';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -83,7 +83,7 @@ test('createContext emits agent.requestStart for builder with autoRestartOnNewCo
 
 test('createContext does not restart builder when autoRestartOnNewContext is disabled', async () => {
   const { sessionId } = await createTestSession('ctx-restart-b');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ctx-restart-b';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
@@ -101,7 +101,7 @@ test('createContext does not restart builder when autoRestartOnNewContext is dis
 
 test('setAutoRestartOnNewContext rejects non-builder roles', async () => {
   const { sessionId } = await createTestSession('ctx-restart-c');
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
   await expect(
     t.mutation(api.machines.setAutoRestartOnNewContext, {

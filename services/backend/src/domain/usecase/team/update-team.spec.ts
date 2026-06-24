@@ -18,12 +18,12 @@ import {
   setupRemoteAgentConfig,
 } from '../../../../tests/helpers/integration';
 
-function createSquadChatroom(sessionId: string) {
+function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
     sessionId: sessionId as any,
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamId: 'custom',
+    teamName: 'Custom Three-Role Team',
+    teamRoles: ['planner', 'builder', 'architect'],
     teamEntryPoint: 'planner',
   });
 }
@@ -31,7 +31,7 @@ function createSquadChatroom(sessionId: string) {
 describe('updateTeam use case', () => {
   test('updates chatroom team fields', async () => {
     const { sessionId } = await createTestSession('test-utu-fields-1');
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await t.run(async (ctx) => {
       return updateTeam(ctx, {
@@ -53,7 +53,7 @@ describe('updateTeam use case', () => {
     const { sessionId } = await createTestSession('test-utu-delete-1');
     const machineId = 'machine-utu-delete-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -82,7 +82,7 @@ describe('updateTeam use case', () => {
     const { sessionId } = await createTestSession('test-utu-stop-1');
     const machineId = 'machine-utu-stop-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -104,7 +104,7 @@ describe('updateTeam use case', () => {
     const { sessionId } = await createTestSession('test-utu-pid-clear-1');
     const machineId = 'machine-utu-pid-clear-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     // Set up agent config and simulate a running agent by setting spawnedAgentPid
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');

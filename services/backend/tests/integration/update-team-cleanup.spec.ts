@@ -16,12 +16,12 @@ import {
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
-function createSquadChatroom(sessionId: string) {
+function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
     sessionId: sessionId as any,
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamId: 'custom',
+    teamName: 'Custom Three-Role Team',
+    teamRoles: ['planner', 'builder', 'architect'],
     teamEntryPoint: 'planner',
   });
 }
@@ -33,7 +33,7 @@ describe('updateTeam — teamAgentConfigs', () => {
     const { sessionId } = await createTestSession('test-ut-tac-1');
     const machineId = 'machine-ut-tac-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -64,7 +64,7 @@ describe('updateTeam — stop events', () => {
     const { sessionId } = await createTestSession('test-ut-stop-1');
     const machineId = 'machine-ut-stop-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -101,7 +101,7 @@ describe('updateTeam — stop events', () => {
 describe('updateTeam — chatroom fields', () => {
   test('updates teamId, teamName, teamRoles, teamEntryPoint', async () => {
     const { sessionId } = await createTestSession('test-ut-fields-1');
-    const chatroomId = await createSquadChatroom(sessionId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
@@ -128,17 +128,17 @@ describe('updateTeam — chatroom fields', () => {
 describe('updateTeam — active task reassignment (end-to-end)', () => {
   test('moves ALL active tasks (pending/acknowledged/in_progress) on a removed role to pending under the new entry point', async () => {
     const { sessionId } = await createTestSession('test-ut-tasks-1');
-    const chatroomId = await createSquadChatroom(sessionId); // entry 'planner', roles planner/builder/reviewer
+    const chatroomId = await createThreeRoleChatroom(sessionId); // entry 'planner', roles planner/builder/architect
 
-    // Seed one task per active status, all assigned to 'reviewer' (a role removed on switch).
+    // Seed one task per active status, all assigned to 'architect' (a role removed on switch).
     const now = Date.now();
     const taskIds = await t.run(async (ctx) => {
       const pendingId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'user',
-        content: 'pending reviewer task',
+        content: 'pending architect task',
         status: 'pending',
-        assignedTo: 'reviewer',
+        assignedTo: 'architect',
         queuePosition: 0,
         createdAt: now,
         updatedAt: now,
@@ -146,9 +146,9 @@ describe('updateTeam — active task reassignment (end-to-end)', () => {
       const ackId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'user',
-        content: 'acknowledged reviewer task',
+        content: 'acknowledged architect task',
         status: 'acknowledged',
-        assignedTo: 'reviewer',
+        assignedTo: 'architect',
         acknowledgedAt: now,
         queuePosition: 1,
         createdAt: now,
@@ -157,9 +157,9 @@ describe('updateTeam — active task reassignment (end-to-end)', () => {
       const inProgressId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'user',
-        content: 'in-progress reviewer task',
+        content: 'in-progress architect task',
         status: 'in_progress',
-        assignedTo: 'reviewer',
+        assignedTo: 'architect',
         acknowledgedAt: now,
         startedAt: now,
         queuePosition: 2,
@@ -169,7 +169,7 @@ describe('updateTeam — active task reassignment (end-to-end)', () => {
       return { pendingId, ackId, inProgressId };
     });
 
-    // Switch to a team WITHOUT 'reviewer', with a different entry point ('builder').
+    // Switch to a team WITHOUT 'architect', with a different entry point ('builder').
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
       chatroomId,
@@ -187,7 +187,7 @@ describe('updateTeam — active task reassignment (end-to-end)', () => {
       ]);
     });
 
-    // No task is left on the removed 'reviewer' role; all are pending under the new entry point.
+    // No task is left on the removed 'architect' role; all are pending under the new entry point.
     for (const task of tasks) {
       expect(task?.status).toBe('pending');
       expect(task?.assignedTo).toBe('builder');

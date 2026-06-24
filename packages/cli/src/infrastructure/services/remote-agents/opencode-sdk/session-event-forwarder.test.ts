@@ -221,12 +221,17 @@ describe('SessionEventForwarder', () => {
 
   it('text deltas forwarded', async () => {
     vi.useFakeTimers();
+    const onActivity = vi.fn();
     const fakeClient = createMockClient(textDeltaStream());
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const handle = startSessionEventForwarder(fakeClient as never, {
+      ...baseOptions,
+      onActivity,
+    });
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder text] hello\n');
+    expect(onActivity).toHaveBeenCalled();
   }, 10000);
 
   it('text snapshots (part.text) forwarded when no delta', async () => {

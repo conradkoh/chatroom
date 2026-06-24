@@ -176,6 +176,34 @@ describe('CursorSdkAgentService', () => {
         model: 'composer-2.5',
       });
     });
+
+    it('deferInitialTurn skips agent.send until resumeTurn', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).not.toHaveBeenCalled());
+
+      await service.resumeTurn(result.pid, 'injected task');
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
+      expect(sharedAgentSendFn.mock.calls[0][0]).toContain('you are helpful');
+      expect(sharedAgentSendFn.mock.calls[0][0]).toContain('injected task');
+
+      const exitInfo = vi.fn();
+      result.onExit(exitInfo);
+      void service.stop(result.pid);
+      await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+    });
   });
 
   describe('stop', () => {
@@ -312,43 +340,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentSendFn.mock.calls[1][0]).toBe('resume prompt');
     });
 
-    it('accepts resumeTurn from agent_end callback (daemon handleAgentEnd path)', async () => {
-      stubSdkAgent();
-      const child = makeFakeChild(8889);
-      const deps = createMockDeps({
-        spawn: vi.fn().mockReturnValue(child),
-        kill: vi.fn((_pid: number, signal: number | string) => {
-          if (signal === 0) throw new Error('process not found');
-          return true;
-        }),
-      });
-      const service = new CursorSdkAgentService(deps);
-
-      const result = await service.spawn({
-        workingDir: '/tmp/work',
-        prompt: createSpawnPrompt('do work'),
-        systemPrompt: 'system',
-        context: SPAWN_CONTEXT,
-        resolvedConvexUrl: 'http://test:3210',
-      });
-
-      let agentEndCount = 0;
-      // AgentProcessManager calls resumeTurn inside onAgentEnd — same turn, no await.
-      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
-      result.onAgentEnd(() => {
-        agentEndCount++;
-        if (agentEndCount === 1) {
-          void service.resumeTurn(result.pid, 'daemon resume prompt');
-        }
-      });
-
-      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(2));
-      expect(sharedAgentSendFn.mock.calls[1][0]).toBe('daemon resume prompt');
-
-      await service.stop(result.pid);
-    });
-
-    it('throws when session is not waiting for resume', async () => {
+    it('queues resumeTurn when session is mid-turn', async () => {
       const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
       const run = {
         id: 'run-1',
@@ -392,9 +384,7 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
 
-      await expect(service.resumeTurn(result.pid, 'prompt')).rejects.toThrow(
-        'not waiting for resume'
-      );
+      await expect(service.resumeTurn(result.pid, 'queued prompt')).resolves.toBeUndefined();
 
       await service.stop(result.pid);
     });

@@ -10,12 +10,16 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import { areAllAgentsWaiting } from '../../convex/lib/chatroomUtils';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom, joinParticipant } from '../helpers/integration';
+import {
+  createTestSession,
+  createBuilderEntryDuoChatroom,
+  joinParticipant,
+} from '../helpers/integration';
 
 describe('Participant Persistence', () => {
   test('agent rejoins after exit — participant record is reactivated', async () => {
     const { sessionId } = await createTestSession('test-pp-rejoin');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -52,10 +56,10 @@ describe('Participant Persistence', () => {
 
   test('multiple agents exit independently — all records persist', async () => {
     const { sessionId } = await createTestSession('test-pp-multi-exit');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
-    await joinParticipant(sessionId, chatroomId, 'reviewer');
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     await t.run(async (ctx) => {
       const participants = await ctx.db
@@ -80,15 +84,15 @@ describe('Participant Persistence', () => {
 
   test('exited participant does not block queue promotion when entry point joins', async () => {
     const { sessionId } = await createTestSession('test-pp-queue-promo');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
-    await joinParticipant(sessionId, chatroomId, 'reviewer');
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     await t.run(async (ctx) => {
       const reviewer = await ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'reviewer')
+          q.eq('chatroomId', chatroomId).eq('role', 'planner')
         )
         .unique();
       await ctx.db.patch(reviewer!._id, { lastSeenAction: 'exited', connectionId: undefined });
@@ -114,7 +118,7 @@ describe('Participant Persistence', () => {
 
   test('exited agent lastSeenAt is preserved across multiple exit-rejoin cycles', async () => {
     const { sessionId } = await createTestSession('test-pp-lsa-cycles');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
     await joinParticipant(sessionId, chatroomId, 'builder');
 

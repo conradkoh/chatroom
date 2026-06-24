@@ -143,41 +143,34 @@ describe('generateFullCliOutput — backlog items excluded (moved to task-read)'
   });
 });
 
-describe('generateFullCliOutput — task content is hidden', () => {
-  test('does not include task content in output', () => {
+describe('generateFullCliOutput — task content is inline', () => {
+  test('includes task content in output', () => {
     const params = baseParams();
     const output = generateFullCliOutput(params);
 
-    // The task content must NOT appear in the CLI output
-    // Agents must use `task read` to fetch it
-    expect(output).not.toContain(params.task.content);
+    expect(output).toContain(params.task.content);
+    expect(output).toContain('harness output (stdout tokens)');
+    expect(output).not.toMatch(/task read --chatroom-id/i);
   });
 
-  test('does not include message content in output', () => {
-    const params = {
-      ...baseParams(),
-      message: {
-        _id: 'msg-id-456',
-        senderRole: 'user',
-        content: 'Add a new feature with secret implementation details',
-      },
-    };
-    const output = generateFullCliOutput(params);
-
-    // Message content must NOT appear in CLI output
-    expect(output).not.toContain('Add a new feature with secret implementation details');
-  });
-
-  test('includes task read command with task ID', () => {
+  test('does not duplicate message content when it matches task content', () => {
     const params = baseParams();
     const output = generateFullCliOutput(params);
 
-    // Must show how to fetch the task content
-    expect(output).toContain('chatroom task read');
-    expect(output).toContain(params.task._id);
+    // Task body is shown once under ## Chatroom task
+    expect(output).toContain('Fix the dark mode toggle');
+    expect(output).not.toContain('REQUIRED FIRST STEP');
   });
 
-  test('includes task read command for handoff messages', () => {
+  test('next steps start with work on the task above', () => {
+    const params = baseParams();
+    const output = generateFullCliOutput(params);
+
+    expect(output).toContain('1. Work on the task above.');
+    expect(output).not.toContain('chatroom task read');
+  });
+
+  test('handoff delivery includes task content inline', () => {
     const params = {
       ...baseParams(),
       message: {
@@ -185,12 +178,15 @@ describe('generateFullCliOutput — task content is hidden', () => {
         senderRole: 'builder',
         content: 'Completed implementation of the feature. Changes: ...',
       },
+      task: {
+        _id: 'task-id-123',
+        content: 'Implement the dark mode toggle per spec',
+      },
     };
     const output = generateFullCliOutput(params);
 
-    // Even for handoffs, content must be hidden and task read must be shown
-    expect(output).not.toContain('Completed implementation of the feature');
-    expect(output).toContain('chatroom task read');
-    expect(output).toContain(params.task._id);
+    expect(output).toContain('Implement the dark mode toggle per spec');
+    expect(output).toContain('handed off from builder');
+    expect(output).not.toContain('chatroom task read');
   });
 });

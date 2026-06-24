@@ -17,7 +17,9 @@ import type { ChildProcess } from 'node:child_process';
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
 import { buildAgentSpawnEnv } from '../../../convex/spawn-env.js';
-import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
+import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
 import type {
   SpawnContext,
@@ -48,7 +50,6 @@ export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
 };
 
-const OPENCODE_COMMAND = 'opencode';
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
@@ -56,26 +57,46 @@ const SESSION_ABORT_TIMEOUT_MS = 5_000;
 const SESSION_GET_TIMEOUT_MS = 10_000;
 const AGENTS_LIST_TIMEOUT_MS = 10_000;
 
-async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      p,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+type OpencodeClient = ReturnType<typeof createOpencodeClient>;
+
+interface DisabledToolsPromptBody {
+  agent: string;
+  system?: string;
+  parts: [{ type: 'text'; text: string }];
+  model?: ReturnType<typeof parseModelId>;
+  tools: {
+    task: false;
+    question: false;
+    external_directory: false;
+  };
 }
 
-export class OpenCodeSdkAgentService extends BaseCLIAgentService {
+function buildDisabledToolsPromptBody(args: {
+  agentName: string;
+  prompt: string;
+  composedSystem?: string;
+  model?: string;
+}): DisabledToolsPromptBody {
+  const modelParts = args.model ? parseModelId(args.model) : undefined;
+  return {
+    agent: args.agentName,
+    ...(args.composedSystem ? { system: args.composedSystem } : {}),
+    parts: [{ type: 'text', text: args.prompt }],
+    ...(modelParts ? { model: modelParts } : {}),
+    tools: {
+      task: false,
+      question: false,
+      external_directory: false,
+    },
+  };
+}
+
+export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   /** Per-pid agent_end callbacks — preserved across in-turn session fallback. */
   private readonly agentEndCallbacksByPid = new Map<number, (() => void)[]>();
   readonly id = 'opencode-sdk';
   readonly displayName = 'OpenCode (SDK)';
-  readonly command = OPENCODE_COMMAND;
+  protected readonly listModelsHarnessId = 'opencode-sdk';
   private readonly sessionStore: SessionMetadataStore;
   private readonly forwarders = new Map<number, SessionEventForwarderHandle>();
 
@@ -84,32 +105,17 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     this.sessionStore = deps?.sessionMetadataStore ?? new FileSessionMetadataStore();
   }
 
-  async isInstalled(): Promise<boolean> {
-    // The SDK is a runtime dependency of this CLI package (declared in our
-    // package.json), so it's guaranteed to be present whenever this code
-    // executes. The only meaningful gate is the `opencode` binary itself.
-    //
-    // Historical note: an earlier version called `require.resolve('@opencode-ai/sdk')`,
-    // which throws ReferenceError in pure ESM (this CLI is `"type": "module"`),
-    // silently returning false from the catch and hiding the harness from the
-    // picker. The runtime check is unnecessary — the dependency contract handles it.
-    return this.checkInstalled(OPENCODE_COMMAND);
+  override async isInstalled(): Promise<boolean> {
+    // SDK dependency is guaranteed at runtime; only the `opencode` binary gates availability.
+    return super.isInstalled();
   }
 
-  async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
-    return this.checkVersion(OPENCODE_COMMAND);
+  override async getVersion(): Promise<Awaited<ReturnType<typeof this.checkVersion>>> {
+    return super.getVersion();
   }
 
-  async listModels(): Promise<string[]> {
-    // Fall back to CLI
-    const output = await this.runListCommand('opencode-sdk', `${OPENCODE_COMMAND} models`);
-
-    if (output === null) return [];
-
-    return output
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+  override async listModels(): Promise<string[]> {
+    return super.listModels();
   }
 
   override async stop(pid: number, options?: AgentStopOptions): Promise<void> {
@@ -160,52 +166,37 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     return childProcess;
   }
 
-  private registerRunningSession(args: {
-    childProcess: ChildProcess;
-    pid: number;
+  private buildSessionMetadata(args: {
     sessionId: string;
     context: SpawnContext;
-    forwarder: SessionEventForwarderHandle | undefined;
-    baseUrl: string;
     agentName: string;
     model: string | undefined;
-    workingDir: string;
-    logLineCallbacks: ((line: string) => void)[];
-  }): SpawnResult {
-    const {
-      childProcess,
-      pid,
-      sessionId,
-      context,
-      forwarder,
-      baseUrl,
-      agentName,
-      model,
-      logLineCallbacks,
-    } = args;
-
-    const emitLogLine = (line: string) => {
-      for (const lineCb of logLineCallbacks) lineCb(line);
-    };
-
-    const meta: SessionMetadata = {
+    deferredSystemPrompt?: string;
+    pid: number;
+    baseUrl: string;
+  }): SessionMetadata {
+    const { sessionId, context, agentName, model, deferredSystemPrompt, pid, baseUrl } = args;
+    return {
       sessionId,
       machineId: context.machineId,
       chatroomId: context.chatroomId,
       role: context.role,
       agentName,
       ...(model ? { model } : {}),
+      ...(deferredSystemPrompt ? { deferredSystemPrompt } : {}),
       pid,
       createdAt: new Date().toISOString(),
       baseUrl,
     };
-    this.sessionStore.upsert(meta);
+  }
 
-    const entry = this.registerProcess(pid, context);
-    if (forwarder) this.forwarders.set(pid, forwarder);
-
-    const outputCallbacks: (() => void)[] = [];
-
+  private wireChildOutput(
+    childProcess: ChildProcess,
+    pid: number,
+    entry: { lastOutputAt: number },
+    emitLogLine: (line: string) => void,
+    outputCallbacks: (() => void)[]
+  ): void {
     forwardFiltered(childProcess.stdout ?? undefined, process.stdout, isInfoLine);
     forwardFiltered(childProcess.stderr ?? undefined, process.stderr, isInfoLine);
 
@@ -232,6 +223,56 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         stderrBuffer.flush();
       });
     }
+  }
+
+  private registerRunningSession(args: {
+    childProcess: ChildProcess;
+    pid: number;
+    sessionId: string;
+    context: SpawnContext;
+    forwarder: SessionEventForwarderHandle | undefined;
+    baseUrl: string;
+    agentName: string;
+    model: string | undefined;
+    workingDir: string;
+    logLineCallbacks: ((line: string) => void)[];
+    deferredSystemPrompt?: string;
+    outputCallbacks?: (() => void)[];
+  }): SpawnResult {
+    const {
+      childProcess,
+      pid,
+      sessionId,
+      context,
+      forwarder,
+      baseUrl,
+      agentName,
+      model,
+      logLineCallbacks,
+      deferredSystemPrompt,
+    } = args;
+
+    const emitLogLine = (line: string) => {
+      for (const lineCb of logLineCallbacks) lineCb(line);
+    };
+
+    this.sessionStore.upsert(
+      this.buildSessionMetadata({
+        sessionId,
+        context,
+        agentName,
+        model,
+        deferredSystemPrompt,
+        pid,
+        baseUrl,
+      })
+    );
+
+    const entry = this.registerProcess(pid, context);
+    if (forwarder) this.forwarders.set(pid, forwarder);
+
+    const outputCallbacks = args.outputCallbacks ?? [];
+    this.wireChildOutput(childProcess, pid, entry, emitLogLine, outputCallbacks);
 
     return {
       pid,
@@ -279,6 +320,71 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         for (const cb of logLineCallbacks) cb(line);
       },
     };
+  }
+
+  private async startServeAndClient(
+    workingDir: string,
+    resolvedConvexUrl: string
+  ): Promise<{
+    childProcess: ChildProcess;
+    pid: number;
+    baseUrl: string;
+    client: OpencodeClient;
+  }> {
+    const childProcess = this.spawnServeProcess(workingDir, resolvedConvexUrl);
+    const pid = childProcess.pid;
+    if (pid == null) {
+      throw new Error('Failed to spawn opencode serve process');
+    }
+
+    const baseUrl = await waitForListeningUrl(childProcess, {
+      timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
+    }).catch((err) => {
+      childProcess.kill();
+      throw err;
+    });
+
+    return { childProcess, pid, baseUrl, client: createOpencodeClient({ baseUrl }) };
+  }
+
+  private async listAvailableAgents(client: OpencodeClient) {
+    const agentsResponse = await withTimeout(
+      client.app.agents(),
+      AGENTS_LIST_TIMEOUT_MS,
+      'app.agents'
+    );
+    return agentsResponse.data ?? [];
+  }
+
+  private async promptSessionAsync(
+    client: OpencodeClient,
+    sessionId: string,
+    body: DisabledToolsPromptBody
+  ): Promise<void> {
+    await withTimeout(
+      client.session.promptAsync({
+        path: { id: sessionId },
+        body,
+      }),
+      PROMPT_ASYNC_TIMEOUT_MS,
+      'session.promptAsync'
+    );
+  }
+
+  private writeRoleError(role: string, label: string, err: unknown, suffix?: string): void {
+    const reason = err instanceof Error ? err.message : String(err);
+    const tail = suffix ? ` ${suffix}` : '';
+    process.stderr.write(`[${new Date().toISOString()}] role:${role} ${label}] ${reason}${tail}\n`);
+  }
+
+  private tearDownFailedSpawn(args: {
+    forwarder: SessionEventForwarderHandle | undefined;
+    childProcess: ChildProcess;
+    sessionId?: string;
+  }): void {
+    args.forwarder?.stop();
+    args.childProcess.kill();
+    if (args.sessionId) this.sessionStore.remove(args.sessionId);
   }
 
   /**
@@ -336,23 +442,14 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       baseUrl: args.baseUrl,
     });
 
-    const modelParts = args.model ? parseModelId(args.model) : undefined;
-    await withTimeout(
-      client.session.promptAsync({
-        path: { id: newSessionId },
-        body: {
-          agent: args.agentName,
-          parts: [{ type: 'text', text: args.prompt }],
-          ...(modelParts ? { model: modelParts } : {}),
-          tools: {
-            task: false,
-            question: false,
-            external_directory: false,
-          },
-        },
-      }),
-      PROMPT_ASYNC_TIMEOUT_MS,
-      'session.promptAsync'
+    await this.promptSessionAsync(
+      client,
+      newSessionId,
+      buildDisabledToolsPromptBody({
+        agentName: args.agentName,
+        prompt: args.prompt,
+        model: args.model,
+      })
     );
   }
 
@@ -366,23 +463,14 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     const modelForSession = model ?? session.model;
     const workingDir = session.workingDir;
 
-    const childProcess = this.spawnServeProcess(workingDir, options.resolvedConvexUrl);
-    const pid = childProcess.pid;
-    if (pid == null) {
-      throw new Error('Failed to spawn opencode serve process');
-    }
-
-    const baseUrl = await waitForListeningUrl(childProcess, {
-      timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
-    }).catch((err) => {
-      childProcess.kill();
-      throw err;
-    });
-
-    const client = createOpencodeClient({ baseUrl });
+    const { childProcess, pid, baseUrl, client } = await this.startServeAndClient(
+      workingDir,
+      options.resolvedConvexUrl
+    );
 
     let forwarder: SessionEventForwarderHandle | undefined;
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
+    const outputCallbacks: (() => void)[] = [];
     try {
       const sessionInfo = await withTimeout(
         client.session.get({ path: { id: sessionId } }),
@@ -399,41 +487,27 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         sessionId,
         role: context.role,
         onLogLine: emitLogLine,
+        onActivity: () => {
+          for (const cb of outputCallbacks) cb();
+        },
       });
 
-      const agentsResponse = await withTimeout(
-        client.app.agents(),
-        AGENTS_LIST_TIMEOUT_MS,
-        'app.agents'
-      );
-      const availableAgents = agentsResponse.data ?? [];
+      const availableAgents = await this.listAvailableAgents(client);
       const agentDef = availableAgents.find((a) => a.name === agentName);
       const composedSystem = composeSystemPrompt(agentDef?.prompt, systemPrompt);
 
-      const modelParts = modelForSession ? parseModelId(modelForSession) : undefined;
-      await withTimeout(
-        client.session.promptAsync({
-          path: { id: sessionId },
-          body: {
-            agent: agentName,
-            ...(composedSystem ? { system: composedSystem } : {}),
-            parts: [{ type: 'text', text: prompt }],
-            ...(modelParts ? { model: modelParts } : {}),
-            tools: {
-              task: false,
-              question: false,
-              external_directory: false,
-            },
-          },
-        }),
-        PROMPT_ASYNC_TIMEOUT_MS,
-        'session.promptAsync'
+      await this.promptSessionAsync(
+        client,
+        sessionId,
+        buildDisabledToolsPromptBody({
+          agentName,
+          prompt,
+          composedSystem,
+          model: modelForSession,
+        })
       );
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
-      );
+      this.writeRoleError(context.role, 'daemon-resume-fallback', err, '— cold spawning');
       forwarder?.stop();
       childProcess.kill();
       return this.spawn(options);
@@ -450,33 +524,25 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       model: modelForSession,
       workingDir,
       logLineCallbacks,
+      outputCallbacks,
     });
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const { prompt, systemPrompt, model, context } = options;
+    const deferInitialTurn = options.deferInitialTurn ?? false;
 
-    const childProcess = this.spawnServeProcess(options.workingDir, options.resolvedConvexUrl);
-    const pid = childProcess.pid;
-    if (pid == null) {
-      throw new Error('Failed to spawn opencode serve process');
-    }
-
-    const baseUrl = await waitForListeningUrl(childProcess, {
-      timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
-    }).catch((err) => {
-      childProcess.kill();
-      throw err;
-    });
-
-    const client = createOpencodeClient({
-      baseUrl,
-    });
+    const { childProcess, pid, baseUrl, client } = await this.startServeAndClient(
+      options.workingDir,
+      options.resolvedConvexUrl
+    );
 
     let sessionId: string | undefined;
     let forwarder: SessionEventForwarderHandle | undefined;
     let agentName: string | undefined;
+    let deferredSystemPrompt: string | undefined;
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
+    const outputCallbacks: (() => void)[] = [];
     try {
       const sessionCreateResult = await withTimeout(
         client.session.create({ body: {} }),
@@ -494,57 +560,42 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
         sessionId,
         role: context.role,
         onLogLine: emitLogLine,
+        onActivity: () => {
+          for (const cb of outputCallbacks) cb();
+        },
       });
 
       // Discover what agents this opencode server actually exposes. We compose
       // against the runtime list rather than hard-coding names because (a) the
       // server caches its registry at startup, so client.config.update is a no-op
       // for runtime registration, and (b) the agent set is user-configurable.
-      const agentsResponse = await withTimeout(
-        client.app.agents(),
-        AGENTS_LIST_TIMEOUT_MS,
-        'app.agents'
-      );
-      const availableAgents = agentsResponse.data ?? [];
+      const availableAgents = await this.listAvailableAgents(client);
       const selected = selectAgent(availableAgents);
       agentName = selected.name;
       const composedSystem = composeSystemPrompt(selected.prompt, systemPrompt);
+      if (deferInitialTurn) {
+        deferredSystemPrompt = composedSystem;
+      }
 
-      const modelParts = model ? parseModelId(model) : undefined;
-      await withTimeout(
-        client.session.promptAsync({
-          path: { id: sessionId },
-          body: {
-            agent: selected.name,
-            ...(composedSystem ? { system: composedSystem } : {}),
-            parts: [{ type: 'text', text: prompt }],
-            ...(modelParts ? { model: modelParts } : {}),
-            // Disable sub-agent spawning (task), questioning (question), and
-            // external tool delegation (external_directory) for the SDK-based
-            // opencode harness. These tools are not supported in the current
-            // integration and would fail or behave unexpectedly if enabled.
-            tools: {
-              task: false,
-              question: false,
-              external_directory: false,
-            },
-          },
-        }),
-        PROMPT_ASYNC_TIMEOUT_MS,
-        'session.promptAsync'
-      );
+      if (!deferInitialTurn) {
+        await this.promptSessionAsync(
+          client,
+          sessionId,
+          buildDisabledToolsPromptBody({
+            agentName: selected.name,
+            prompt,
+            composedSystem,
+            model,
+          })
+        );
+      }
     } catch (err) {
       // Surface a human-readable, role-prefixed reason to the daemon log before
       // tearing down. The daemon already pipes our stderr through; we match the
       // formatting style used by SessionEventForwarder so operators see one
       // consistent log shape regardless of failure source.
-      const reason = err instanceof Error ? err.message : String(err);
-      process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} spawn-error] ${reason}\n`
-      );
-      forwarder?.stop();
-      childProcess.kill();
-      if (sessionId) this.sessionStore.remove(sessionId);
+      this.writeRoleError(context.role, 'spawn-error', err);
+      this.tearDownFailedSpawn({ forwarder, childProcess, sessionId });
       throw err;
     }
 
@@ -563,6 +614,8 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
       model,
       workingDir: options.workingDir,
       logLineCallbacks,
+      deferredSystemPrompt,
+      outputCallbacks,
     });
   }
 
@@ -587,7 +640,7 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     }
 
     const client = createOpencodeClient({ baseUrl: meta.baseUrl });
-    const modelParts = meta.model ? parseModelId(meta.model) : undefined;
+    const deferredSystem = meta.deferredSystemPrompt;
     const context: SpawnContext = {
       machineId: meta.machineId,
       chatroomId: meta.chatroomId,
@@ -595,28 +648,21 @@ export class OpenCodeSdkAgentService extends BaseCLIAgentService {
     };
 
     try {
-      await withTimeout(
-        client.session.promptAsync({
-          path: { id: meta.sessionId },
-          body: {
-            agent: meta.agentName,
-            parts: [{ type: 'text', text: prompt }],
-            ...(modelParts ? { model: modelParts } : {}),
-            tools: {
-              task: false,
-              question: false,
-              external_directory: false,
-            },
-          },
-        }),
-        PROMPT_ASYNC_TIMEOUT_MS,
-        'session.promptAsync'
+      await this.promptSessionAsync(
+        client,
+        meta.sessionId,
+        buildDisabledToolsPromptBody({
+          agentName: meta.agentName,
+          prompt,
+          composedSystem: deferredSystem,
+          model: meta.model,
+        })
       );
+      if (deferredSystem) {
+        this.sessionStore.upsert({ ...meta, deferredSystemPrompt: undefined });
+      }
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      process.stderr.write(
-        `[${new Date().toISOString()}] role:${meta.role} resume-fallback] ${reason} — starting fresh session\n`
-      );
+      this.writeRoleError(meta.role, 'resume-fallback', err, '— starting fresh session');
       await this.startFreshSessionOnServe({
         pid,
         baseUrl: meta.baseUrl,

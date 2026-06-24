@@ -28,14 +28,14 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a Squad team chatroom (planner can create contexts)
+ * Helper to create a duo planner chatroom (planner can create contexts)
  */
-async function createSquadTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createDuoPlannerChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
+    teamId: 'duo',
+    teamName: 'Duo Team',
+    teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
   });
   return chatroomId;
@@ -62,8 +62,8 @@ describe('Context Read — Pinned Context', () => {
   test('includes pinned context in response even when no messages exist', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-pinned-context-no-messages');
-    const chatroomId = await createSquadTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
+    const chatroomId = await createDuoPlannerChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a context (this pins it to the chatroom)
     await t.mutation(api.contexts.createContext, {
@@ -91,8 +91,8 @@ describe('Context Read — Pinned Context', () => {
   test('includes pinned context even when all messages are filtered out', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-pinned-context-all-filtered');
-    const chatroomId = await createSquadTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
+    const chatroomId = await createDuoPlannerChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // Create a context
     await t.mutation(api.contexts.createContext, {
@@ -132,8 +132,8 @@ describe('Context Read — Pinned Context', () => {
   test('returns null currentContext when no context has been pinned', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-no-pinned-context');
-    const chatroomId = await createSquadTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
+    const chatroomId = await createDuoPlannerChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // ===== QUERY CONTEXT (no context created) =====
     const context = await t.query(api.messages.getContextForRole, {
@@ -150,8 +150,8 @@ describe('Context Read — Pinned Context', () => {
   test('uses triggerMessageId from pinned context as the message window anchor', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-trigger-message-id-anchor');
-    const chatroomId = await createSquadTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
+    const chatroomId = await createDuoPlannerChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
     // User sends message A (this will be the anchor)
     const messageAId = await t.mutation(api.messages.sendMessage, {
@@ -175,13 +175,11 @@ describe('Context Read — Pinned Context', () => {
       role: 'planner',
     });
 
-    await t.mutation(api.messages.taskStarted, {
+    await t.mutation(api.tasks.readTask, {
       sessionId,
       chatroomId,
       role: 'planner',
       taskId: startResult.taskId,
-      originMessageClassification: 'question',
-      convexUrl: 'http://127.0.0.1:3210',
     });
 
     // Planner creates a context WITH triggerMessageId pointing to message A

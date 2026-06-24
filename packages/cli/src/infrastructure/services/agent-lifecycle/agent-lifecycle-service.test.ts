@@ -29,6 +29,7 @@ function createMockHarnessPort(): HarnessSpawnPort {
       | 'opencode'
       | 'opencode-sdk'
       | 'pi'
+      | 'pi-sdk'
       | 'cursor'
       | 'cursor-sdk'
       | 'claude'

@@ -178,51 +178,13 @@ chatroom/
 <chatroom>
 ## CHATROOM INTEGRATION
 
-### Workflow Loop
+**Native harnesses** (`cursor-sdk`, `opencode-sdk`): tasks are injected by the daemon. Do NOT run `get-next-task`. After handoff, wait for injection.
 
-**Level A (session)** = the outer loop. **Level B (chatroom task)** = one iteration.
+**CLI harnesses**: use the foreground listen loop:
 
 ```
 get-next-task → do work → handoff → get-next-task → repeat
 ```
 
-1. **Run `get-next-task`** immediately via `bash` — a blocking tool call that resolves when the user or team message is ready, delivered as a chatroom task; infer what to do from that message (numbered next-steps in delivery are hints, not a rigid script)
-2. **Process** the task
-3. **Run `handoff`** to signal completion
-4. **Run `get-next-task`** again to wait for the next message
-
-### Session Model (Level A vs Level B)
-
-A session (Level A) processes many chatroom tasks (Level B). Completing one chatroom task does NOT end the session.
-
-**Explicit rule:** After EVERY handoff — even to `user` — you MUST run `get-next-task` in the foreground to continue the session. The workflow loop above never ends: each handoff completes Level B, and `get-next-task` keeps Level A alive.
-
-### Reliability
-
-Always add these as the **last two todo items** for every task:
-
-1. **Handoff item** — contains the full handoff command (see Command Reference)
-2. **Get-next-task item** — contains the full get-next-task command (see Command Reference)
-
-This ensures you never forget to pass control back — just copy the command from the todo item and run it via `bash`.
-
-### Command Reference
-
-**Production (default):** omit `CHATROOM_CONVEX_URL` — the CLI connects to chatroom cloud automatically. Do not look up the Convex URL from `.env`.
-
-| Action                                   | Command                                                                |
-| ---------------------------------------- | ---------------------------------------------------------------------- |
-| Fetch next task                          | `chatroom get-next-task --chatroom-id=<id> --role=<role>`              |
-| Pass control                             | `chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>` |
-| Refresh system prompt (after compaction) | `chatroom get-system-prompt --chatroom-id=<id> --role=<role>`          |
-
-**Non-production only** (local dev, preview): prefix commands with `CHATROOM_CONVEX_URL=<convex-url> ` (e.g. `CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task ...`).
-
-### Context Recovery
-
-If you suspect compaction (context starts with "Summary of:", or you're unsure of your role):
-
-1. Run `get-system-prompt` to reload full instructions
-2. Check todo list for last known step
-3. Resume with `get-next-task` or `handoff`
-   </chatroom>
+If your system prompt describes native task injection, follow those instructions — they override this section.
+</chatroom>

@@ -95,7 +95,6 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   const hasAttachments =
     (message.attachedTasks?.length ?? 0) > 0 ||
     (message.attachedBacklogItems?.length ?? 0) > 0 ||
-    (message.attachedWorkflows?.length ?? 0) > 0 ||
     (message.attachedMessages?.length ?? 0) > 0;
 
   return (
@@ -117,11 +116,8 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
           <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
           {/* Attachment chip strip — stopPropagation so clicks open chip preview, not the row modal */}
           {hasAttachments && (
-            <div
-              className="flex flex-wrap gap-1.5 mt-1"
-              onClick={stopRowClick}
-            >
-              <MessageAttachmentChips message={message} chatroomId={chatroomId} />
+            <div className="flex flex-wrap gap-1.5 mt-1" onClick={stopRowClick}>
+              <MessageAttachmentChips message={message} />
             </div>
           )}
         </div>

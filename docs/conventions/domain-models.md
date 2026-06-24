@@ -7,18 +7,18 @@ When defining a well-known set of string-literal values in the domain layer (e.g
 1. Define a zod enum schema — this is the source of truth:
 
 ```ts
-export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
+export const teamKindSchema = z.enum(['duo', 'solo']);
 ```
 
 2. Derive all needed shapes:
 
-| Shape | Derivation | Purpose |
-|-------|-----------|---------|
-| **Type** | `z.infer<typeof teamKindSchema>` | Compile-time union for function signatures |
-| **Tuple** | `teamKindSchema.options` | Iterable readonly tuple |
-| **Enum object** | `teamKindSchema.enum` | Runtime lookup (`TeamKindEnum.pair`) |
-| **Convex validator** | `v.union(...(options.map(v.literal))` via `VLiteralsOf` helper | Mutation/query arg validation |
-| **Runtime guard** | `teamKindSchema.safeParse(value).success` | Narrowing in conditionals |
+| Shape                | Derivation                                                     | Purpose                                    |
+| -------------------- | -------------------------------------------------------------- | ------------------------------------------ |
+| **Type**             | `z.infer<typeof teamKindSchema>`                               | Compile-time union for function signatures |
+| **Tuple**            | `teamKindSchema.options`                                       | Iterable readonly tuple                    |
+| **Enum object**      | `teamKindSchema.enum`                                          | Runtime lookup (`TeamKindEnum.duo`)        |
+| **Convex validator** | `v.union(...(options.map(v.literal))` via `VLiteralsOf` helper | Mutation/query arg validation              |
+| **Runtime guard**    | `teamKindSchema.safeParse(value).success`                      | Narrowing in conditionals                  |
 
 3. Convex validator uses the shared helper (import from `_shared/v-literals-of`) to preserve literal types through `v.union(...)`:
 
@@ -50,18 +50,22 @@ See `services/backend/src/domain/entities/team-kind.ts` for the canonical implem
 ## Anti-patterns
 
 ❌ Hand-writing the union type separately:
+
 ```ts
 // BAD — add a new kind here and forget to update the validator
-export type TeamKind = 'pair' | 'squad' | 'duo' | 'solo';
-export const teamKindValidator = v.union(v.literal('pair'), v.literal('squad'));
+export type TeamKind = 'duo' | 'solo';
+export const teamKindValidator = v.union(v.literal('duo'), v.literal('solo'));
 ```
 
 ✅ Deriving from source:
+
 ```ts
 // GOOD — single edit updates everything
-export const teamKindSchema = z.enum(['pair', 'squad', 'duo', 'solo']);
+export const teamKindSchema = z.enum(['duo', 'solo']);
 export type TeamKind = z.infer<typeof teamKindSchema>;
 export const teamKindValidator = v.union(
-  ...(teamKindSchema.options.map(k => v.literal(k)) as unknown as VLiteralsOf<typeof teamKindSchema.options>)
+  ...(teamKindSchema.options.map((k) => v.literal(k)) as unknown as VLiteralsOf<
+    typeof teamKindSchema.options
+  >)
 );
 ```

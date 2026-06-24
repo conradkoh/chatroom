@@ -2,7 +2,7 @@
  * Shared utilities for prompt generation
  */
 
-export const HANDOFF_DIR = 'tmp/chatroom';
+const HANDOFF_DIR = 'tmp/chatroom';
 
 /**
  * Generate a unique file path for handoff or other temporary files.

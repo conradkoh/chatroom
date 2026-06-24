@@ -21,7 +21,6 @@ const SKILLS = {
   backlog: { customizationType: null },
   'software-engineering': { customizationType: null },
   'code-review': { customizationType: null },
-  workflow: { customizationType: null },
   'development-workflow': { customizationType: 'development_workflow' as const },
 } as const satisfies Record<string, { customizationType: string | null }>;
 
