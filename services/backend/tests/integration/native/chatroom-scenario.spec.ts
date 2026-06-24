@@ -1,8 +1,8 @@
 /**
  * ChatroomScenario — native prompt orchestration integration tests.
  *
- * Closed-loop scenarios: user message → delivery prompt → handoff → next delivery.
- * No daemon, harness, or LLM required.
+ * Closed-loop scenarios exercising init → delivery → handoff → next delivery.
+ * Scenario tables: tests/helpers/native-workflow-fixtures.ts
  */
 
 import { describe, expect, test } from 'vitest';
@@ -12,6 +12,8 @@ import {
   assertNativeDeliveryContract,
   assertNativeHandoffOutput,
 } from '../../helpers/native-delivery-contract';
+import { assertNativeDeliveryScenario } from '../../helpers/native-workflow-assertions';
+import { getNativeDeliveryScenario } from '../../helpers/native-workflow-fixtures';
 
 describe('ChatroomScenario — native prompt orchestration', () => {
   test('user greeting → planner native delivery contract', async () => {
@@ -26,15 +28,13 @@ describe('ChatroomScenario — native prompt orchestration', () => {
       taskContent: 'hello',
       handoffTarget: 'user',
     });
-    assertNativeDeliveryContract(injection, {
-      taskContent: 'hello',
-      handoffTarget: 'user',
+    const plannerScenario = getNativeDeliveryScenario('duo planner receives user task');
+    assertNativeDeliveryScenario(delivery, plannerScenario, {
+      alternateHandoffTargets: ['user'],
     });
-    expect(injection).toContain('<handoff-templates>');
-    expect(injection).toContain('Report Template (Planner → User)');
-    expect(injection).toContain('Delegation Brief (Planner → Builder)');
-    expect(injection).toContain('<next-steps>');
-    expect(injection).not.toContain('handoff view-template');
+    assertNativeDeliveryScenario(injection, plannerScenario, {
+      alternateHandoffTargets: ['user'],
+    });
   });
 
   test('planner handoff to user returns minimal native output', async () => {
@@ -87,14 +87,8 @@ describe('ChatroomScenario — native prompt orchestration', () => {
       builderContent
     );
 
-    assertNativeDeliveryContract(builderDelivery, {
-      taskContent: 'Add dark mode toggle',
-      handoffTarget: 'planner',
-    });
-    expect(builderDelivery).toContain('Handoff Template (Builder → Planner)');
-    expect(builderDelivery).toContain('<next-steps>');
-    expect(builderDelivery).toContain('--next-role="planner"');
-    expect(builderDelivery).not.toContain('handoff view-template');
+    const builderScenario = getNativeDeliveryScenario('duo builder receives planner delegation');
+    assertNativeDeliveryScenario(builderDelivery, builderScenario);
     expect(builderInjection).toContain('Context was compacted');
     expect(builderInjection).toContain('Add dark mode toggle');
   });

@@ -1,7 +1,8 @@
 /**
  * Native Task Delivery Prompt — Integration Tests
  *
- * Verifies getTaskDeliveryPrompt for native harnesses returns task + handoffs only.
+ * End-to-end getTaskDeliveryPrompt for native harnesses. Scenario matrix
+ * detail is documented in tests/unit/prompts/native-workflow-disclosure.test.ts.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -10,6 +11,14 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { t } from '../../../test.setup';
+import { assertNativeDeliveryContract } from '../../helpers/native-delivery-contract';
+import { assertNativeDeliveryScenario } from '../../helpers/native-workflow-assertions';
+import {
+  getNativeDeliveryScenario,
+  NATIVE_AGENT_HARNESSES,
+  TEAM_CONFIGS,
+  type NativeAgentHarness,
+} from '../../helpers/native-workflow-fixtures';
 
 async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
   const login = await t.mutation(api.auth.loginAnon, {
@@ -19,99 +28,144 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
   return { sessionId: sessionId as SessionId };
 }
 
-async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createTeamChatroom(
+  sessionId: SessionId,
+  team: keyof typeof TEAM_CONFIGS
+): Promise<Id<'chatroom_rooms'>> {
+  const config = TEAM_CONFIGS[team];
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'duo',
-    teamName: 'Duo Team',
-    teamRoles: ['planner', 'builder'],
-    teamEntryPoint: 'planner',
+    teamId: config.teamId,
+    teamName: config.teamName,
+    teamRoles: config.teamRoles,
+    teamEntryPoint: config.teamEntryPoint,
   });
 }
 
-async function joinParticipant(
+async function joinParticipants(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string
+  roles: string[]
 ): Promise<void> {
-  await t.mutation(api.participants.join, {
+  for (const role of roles) {
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role });
+  }
+}
+
+async function saveNativeAgentConfig(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  agentHarness: NativeAgentHarness
+): Promise<void> {
+  await t.mutation(api.machines.saveTeamAgentConfig, {
     sessionId,
     chatroomId,
     role,
+    type: 'remote',
+    machineId: `machine-native-delivery-${role}`,
+    agentHarness,
+    model: 'auto',
+    workingDir: '/test/workspace',
   });
 }
 
-describe('Native task delivery prompt', () => {
-  test('getTaskDeliveryPrompt for cursor-sdk builder omits get-next-task', async () => {
-    const { sessionId } = await createTestSession('test-native-delivery-cursor-sdk');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
+interface DeliveryFixture {
+  team: keyof typeof TEAM_CONFIGS;
+  receivingRole: string;
+  senderRole: string;
+  taskContent: string;
+  /** Substring matched against NATIVE_DELIVERY_SCENARIOS[].label */
+  scenarioMatch: string;
+}
 
-    await t.mutation(api.machines.saveTeamAgentConfig, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      type: 'remote',
-      machineId: 'machine-native-delivery',
-      agentHarness: 'cursor-sdk',
-      model: 'auto',
-      workingDir: '/test/workspace',
-    });
+/** Integration fixtures aligned with NATIVE_DELIVERY_SCENARIOS rows. */
+const DELIVERY_INTEGRATION_FIXTURES: DeliveryFixture[] = [
+  {
+    team: 'solo',
+    receivingRole: 'solo',
+    senderRole: 'user',
+    taskContent: 'Solo user task',
+    scenarioMatch: 'solo receives user task',
+  },
+  {
+    team: 'duo',
+    receivingRole: 'planner',
+    senderRole: 'user',
+    taskContent: 'Planner user task',
+    scenarioMatch: 'duo planner receives user task',
+  },
+  {
+    team: 'duo',
+    receivingRole: 'builder',
+    senderRole: 'planner',
+    taskContent: 'Builder implementation task',
+    scenarioMatch: 'duo builder receives planner delegation',
+  },
+  {
+    team: 'squad',
+    receivingRole: 'reviewer',
+    senderRole: 'builder',
+    taskContent: 'Reviewer code review task',
+    scenarioMatch: 'squad reviewer receives builder handoff',
+  },
+];
 
-    const messageId = await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'planner',
-      content: 'Implement native task delivery',
-      targetRole: 'builder',
-      type: 'message',
-    });
+function findScenario(match: string) {
+  return getNativeDeliveryScenario(match);
+}
 
-    const { taskId } = await t.mutation(api.tasks.createTask, {
-      sessionId,
-      chatroomId,
-      content: 'Wire native task delivery',
-      createdBy: 'planner',
-      sourceMessageId: messageId,
-    });
+describe('Native task delivery prompt (integration)', () => {
+  for (const agentHarness of NATIVE_AGENT_HARNESSES) {
+    for (const fixture of DELIVERY_INTEGRATION_FIXTURES) {
+      test(`${agentHarness} ${fixture.team}/${fixture.receivingRole} ← ${fixture.senderRole}`, async () => {
+        const sessionKey = `native-delivery-${agentHarness}-${fixture.team}-${fixture.receivingRole}`;
+        const { sessionId } = await createTestSession(sessionKey);
+        const chatroomId = await createTeamChatroom(sessionId, fixture.team);
+        await joinParticipants(sessionId, chatroomId, TEAM_CONFIGS[fixture.team].joinRoles);
+        await saveNativeAgentConfig(sessionId, chatroomId, fixture.receivingRole, agentHarness);
 
-    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      taskId,
-      messageId,
-      convexUrl: 'http://127.0.0.1:3210',
-    });
+        const messageId = await t.mutation(api.messages.sendMessage, {
+          sessionId,
+          chatroomId,
+          senderRole: fixture.senderRole,
+          content: fixture.taskContent,
+          targetRole: fixture.receivingRole,
+          type: 'message',
+        });
 
-    const fullOutput = taskDeliveryPrompt.fullCliOutput;
-    expect(fullOutput).not.toContain('get-next-task');
-    expect(fullOutput).toContain('<task>');
-    expect(fullOutput).toContain('<handoffs>');
-    expect(fullOutput).toContain('<handoff-templates>');
-    expect(fullOutput).toContain('Handoff Template (Builder → Planner)');
-    expect(fullOutput).toContain('<next-steps>');
-    expect(fullOutput).toContain('you MUST run the handoff command');
-    expect(fullOutput).toContain('--next-role="planner"');
-    expect(fullOutput).toContain('Wire native task delivery');
-    expect(fullOutput).not.toMatch(/inject/i);
-  });
+        const { taskId } = await t.mutation(api.tasks.createTask, {
+          sessionId,
+          chatroomId,
+          content: fixture.taskContent,
+          createdBy: fixture.senderRole,
+          sourceMessageId: messageId,
+        });
 
-  test('getTaskDeliveryPrompt without messageId resolves user message via task.sourceMessageId', async () => {
+        const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+          sessionId,
+          chatroomId,
+          role: fixture.receivingRole,
+          taskId,
+          messageId,
+          convexUrl: 'http://127.0.0.1:3210',
+        });
+
+        const scenario = findScenario(fixture.scenarioMatch);
+        assertNativeDeliveryContract(fullCliOutput, {
+          taskContent: fixture.taskContent,
+          handoffTarget: scenario.primaryHandoffTarget,
+        });
+        assertNativeDeliveryScenario(fullCliOutput, scenario);
+      });
+    }
+  }
+
+  test('resolves user message via task.sourceMessageId when messageId omitted', async () => {
     const { sessionId } = await createTestSession('test-native-delivery-no-message-id');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'planner');
-
-    await t.mutation(api.machines.saveTeamAgentConfig, {
-      sessionId,
-      chatroomId,
-      role: 'planner',
-      type: 'remote',
-      machineId: 'machine-native-delivery-planner',
-      agentHarness: 'opencode-sdk',
-      model: 'auto',
-      workingDir: '/test/workspace',
-    });
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['planner']);
+    await saveNativeAgentConfig(sessionId, chatroomId, 'planner', 'opencode-sdk');
 
     const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -122,16 +176,13 @@ describe('Native task delivery prompt', () => {
       type: 'message',
     });
 
-    const tasks = await t.query(api.tasks.listTasks, {
-      sessionId,
-      chatroomId,
-    });
+    const tasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
     const taskId = tasks.find(
       (task: { sourceMessageId?: string }) => task.sourceMessageId === messageId
     )?._id;
     expect(taskId).toBeDefined();
 
-    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
       sessionId,
       chatroomId,
       role: 'planner',
@@ -139,18 +190,15 @@ describe('Native task delivery prompt', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    const fullOutput = taskDeliveryPrompt.fullCliOutput;
-    expect(fullOutput).not.toContain('No message found');
-    expect(fullOutput).toContain('From: user');
-    expect(fullOutput).toContain('checkout master and run git pull');
-    expect(fullOutput).toContain('<handoffs>');
-    expect(fullOutput).not.toContain('Classify');
+    expect(fullCliOutput).toContain('From: user');
+    expect(fullCliOutput).toContain('checkout master and run git pull');
+    expect(fullCliOutput).not.toContain('Classify');
   });
 
-  test('getTaskDeliveryPrompt for CLI harness still contains get-next-task (regression)', async () => {
+  test('CLI harness delivery still contains get-next-task (regression)', async () => {
     const { sessionId } = await createTestSession('test-native-delivery-opencode-cli');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['builder']);
 
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,
@@ -180,7 +228,7 @@ describe('Native task delivery prompt', () => {
       sourceMessageId: messageId,
     });
 
-    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
       sessionId,
       chatroomId,
       role: 'builder',
@@ -189,6 +237,7 @@ describe('Native task delivery prompt', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    expect(taskDeliveryPrompt.fullCliOutput).toContain('get-next-task');
+    expect(fullCliOutput).toContain('get-next-task');
+    expect(fullCliOutput).not.toContain('<handoffs>');
   });
 });

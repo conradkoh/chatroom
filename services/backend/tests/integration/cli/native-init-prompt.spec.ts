@@ -1,8 +1,9 @@
 /**
  * Native Init Prompt — Integration Tests
  *
- * Verifies that native harness init prompts omit get-next-task and session
- * lifecycle framing across all native harnesses, teams, and roles.
+ * Verifies getInitPrompt for configured native harnesses matches the slim
+ * init contract. Unit-level disclosure detail lives in
+ * tests/unit/prompts/native-init-disclosure.test.ts.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -12,8 +13,14 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { generateHandoffOutput } from '../../../prompts/generator';
 import { t } from '../../../test.setup';
-import { NATIVE_AGENT_HARNESSES, type NativeAgentHarness } from '../../helpers/native-harnesses';
 import { assertNativeInitContract } from '../../helpers/native-init-contract';
+import { assertNativeInitTemplateDisclosure } from '../../helpers/native-workflow-assertions';
+import {
+  NATIVE_AGENT_HARNESSES,
+  NATIVE_INIT_SCENARIOS,
+  TEAM_CONFIGS,
+  type NativeAgentHarness,
+} from '../../helpers/native-workflow-fixtures';
 
 async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
   const login = await t.mutation(api.auth.loginAnon, {
@@ -22,55 +29,6 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
   expect(login.success).toBe(true);
   return { sessionId: sessionId as SessionId };
 }
-
-interface TeamConfig {
-  teamId: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint: string;
-  joinRoles: string[];
-}
-
-const TEAM_CONFIGS: Record<string, TeamConfig> = {
-  solo: {
-    teamId: 'solo',
-    teamName: 'Solo Team',
-    teamRoles: ['solo'],
-    teamEntryPoint: 'solo',
-    joinRoles: ['solo'],
-  },
-  duo: {
-    teamId: 'duo',
-    teamName: 'Duo Team',
-    teamRoles: ['planner', 'builder'],
-    teamEntryPoint: 'planner',
-    joinRoles: ['planner', 'builder'],
-  },
-  squad: {
-    teamId: 'squad',
-    teamName: 'Squad Team',
-    teamRoles: ['planner', 'builder', 'reviewer'],
-    teamEntryPoint: 'planner',
-    joinRoles: ['planner', 'builder', 'reviewer'],
-  },
-};
-
-interface NativeInitScenario {
-  team: keyof typeof TEAM_CONFIGS;
-  role: string;
-  entryPoint: boolean;
-  soloTeam?: boolean;
-  noTaskRead?: boolean;
-}
-
-const NATIVE_INIT_SCENARIOS: NativeInitScenario[] = [
-  { team: 'solo', role: 'solo', entryPoint: true, soloTeam: true, noTaskRead: true },
-  { team: 'duo', role: 'planner', entryPoint: true, noTaskRead: true },
-  { team: 'duo', role: 'builder', entryPoint: false, noTaskRead: true },
-  { team: 'squad', role: 'planner', entryPoint: true, noTaskRead: true },
-  { team: 'squad', role: 'builder', entryPoint: false, noTaskRead: true },
-  { team: 'squad', role: 'reviewer', entryPoint: false, noTaskRead: true },
-];
 
 async function createTeamChatroom(
   sessionId: SessionId,
@@ -129,10 +87,10 @@ async function getInitPromptText(
   return initPrompt?.rolePrompt ?? initPrompt?.prompt ?? '';
 }
 
-describe('Native init prompt', () => {
+describe('Native init prompt (integration)', () => {
   for (const agentHarness of NATIVE_AGENT_HARNESSES) {
     for (const scenario of NATIVE_INIT_SCENARIOS) {
-      test(`${agentHarness} ${scenario.team}/${scenario.role} omits CLI listen loop`, async () => {
+      test(`${agentHarness} ${scenario.team}/${scenario.role} matches slim init contract`, async () => {
         const sessionKey = `test-native-init-${agentHarness}-${scenario.team}-${scenario.role}`;
         const { sessionId } = await createTestSession(sessionKey);
         const chatroomId = await createTeamChatroom(sessionId, scenario.team);
@@ -151,6 +109,9 @@ describe('Native init prompt', () => {
           entryPoint: scenario.entryPoint,
           soloTeam: scenario.soloTeam,
           noTaskRead: scenario.noTaskRead,
+        });
+        assertNativeInitTemplateDisclosure(prompt, {
+          referencesDeliveryTemplates: scenario.referencesDeliveryTemplates,
         });
       });
     }
@@ -174,9 +135,10 @@ describe('Native init prompt', () => {
 
     const prompt = await getInitPromptText(sessionId, chatroomId, 'builder');
     expect(prompt).toContain('get-next-task');
+    expect(prompt).toContain('Begin With the End in Mind');
   });
 
-  test('native handoff output omits get-next-task and lifecycle framing', () => {
+  test('native handoff confirmation omits get-next-task reminder', () => {
     const output = generateHandoffOutput({
       role: 'builder',
       nextRole: 'planner',
