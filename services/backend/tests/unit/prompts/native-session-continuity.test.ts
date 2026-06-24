@@ -6,7 +6,7 @@ import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
   getSessionContinuityLine,
-  getWorkflowLoopFooter,
+  getOperatingModelLoopFooter,
 } from '../../../prompts/native/session-continuity';
 import { getSoloGuidance } from '../../../prompts/teams/solo/prompts/solo';
 import { NATIVE_AGENT_HARNESSES } from '../../helpers/native-harnesses';
@@ -16,14 +16,14 @@ describe('native session continuity', () => {
   test('native mode omits CLI listen-loop language from continuity helpers', () => {
     expect(getSessionContinuityLine(true)).toBe('');
     expect(getHandoffContinuityRule(true)).toBe('');
-    expect(getWorkflowLoopFooter(true)).toBe('Hand off when complete');
-    expect(getWorkflowLoopFooter(true)).not.toContain('get-next-task');
+    expect(getOperatingModelLoopFooter(true)).toBe('Hand off when complete');
+    expect(getOperatingModelLoopFooter(true)).not.toContain('get-next-task');
   });
 
   test('CLI mode retains get-next-task language', () => {
     expect(getSessionContinuityLine(false)).toContain('get-next-task');
     expect(getHandoffContinuityRule(false)).toContain('get-next-task');
-    expect(getWorkflowLoopFooter(false)).toContain('get-next-task');
+    expect(getOperatingModelLoopFooter(false)).toContain('get-next-task');
   });
 
   test('planner guidance with nativeIntegration=true omits get-next-task', () => {

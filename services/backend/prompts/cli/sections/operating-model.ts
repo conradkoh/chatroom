@@ -1,9 +1,9 @@
 /**
- * Workflow diagram section builders for the planner role.
+ * Operating-model diagram section builders for the planner role.
  */
 
 import type { TeamCompositionConfig } from './team-composition';
-import { getWorkflowLoopFooter } from '../../native/session-continuity';
+import { getOperatingModelLoopFooter } from '../../native/session-continuity';
 
 /** Mermaid nodes from task receipt through classify (native skips task read). */
 function getTaskIntakeThroughClassifyNodes(nativeIntegration?: boolean): string {
@@ -18,24 +18,24 @@ function getTaskIntakeThroughClassifyNodes(nativeIntegration?: boolean): string 
 }
 
 /**
- * Select and return the correct workflow diagram for the given team config.
+ * Select and return the correct operating-model diagram for the given team config.
  */
-export function getWorkflowSection(
+export function getOperatingModelSection(
   config: TeamCompositionConfig,
   nativeIntegration?: boolean
 ): string {
   if (config.hasBuilder) {
-    return getPlannerPlusBuilderWorkflow(nativeIntegration);
+    return getPlannerPlusBuilderOperatingModel(nativeIntegration);
   }
-  return getPlannerSoloWorkflow(nativeIntegration);
+  return getPlannerSoloOperatingModel(nativeIntegration);
 }
 
 /**
- * Planner + Builder workflow (planner reviews builder output before delivery).
+ * Planner + Builder operating model (planner reviews builder output before delivery).
  */
-export function getPlannerPlusBuilderWorkflow(nativeIntegration?: boolean): string {
-  const footer = getWorkflowLoopFooter(nativeIntegration);
-  return `**Workflow: Planner + Builder**
+export function getPlannerPlusBuilderOperatingModel(nativeIntegration?: boolean): string {
+  const footer = getOperatingModelLoopFooter(nativeIntegration);
+  return `**Operating model: Planner + Builder**
 
 Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.
 
@@ -59,9 +59,9 @@ ${getTaskIntakeThroughClassifyNodes(nativeIntegration)}
 }
 
 /**
- * Planner solo workflow (no other team members).
+ * Planner solo operating model (no other team members).
  */
-export function getPlannerSoloWorkflow(nativeIntegration?: boolean): string {
+export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): string {
   const continueStep = nativeIntegration
     ? 'Hand off when complete'
     : 'Run `get-next-task` to continue the session (Level A continues after Level B completes)';
@@ -72,11 +72,11 @@ export function getPlannerSoloWorkflow(nativeIntegration?: boolean): string {
 2. Run task read (get chatroom task content + mark in_progress)
 3. Classify with classify`;
   const planStepNum = nativeIntegration ? 3 : 4;
-  return `**Workflow: Planner Solo**
+  return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-${planStepNum}. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
-${planStepNum + 1}. Implement the solution yourself (following workflow steps if created)
+${planStepNum}. **Plan**: Outline the approach mentally or in scratch notes. Questions and simple tasks need no plan.
+${planStepNum + 1}. Implement the solution yourself
 ${planStepNum + 2}. Review your own work for quality
 ${planStepNum + 3}. Verify: \`pnpm typecheck && pnpm test\`
 ${planStepNum + 4}. Deliver to **user**

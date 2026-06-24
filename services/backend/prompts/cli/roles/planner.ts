@@ -22,7 +22,7 @@ import {
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
   getTeamCompositionSection,
-  getWorkflowSection,
+  getOperatingModelSection,
 } from '../sections';
 
 /**
@@ -56,7 +56,7 @@ As the entry point, you receive user messages directly. When you receive a user 
 5. Delegate to the appropriate team member or handle it yourself`
     : '';
 
-  return `## Planner Workflow
+  return `## Planner Operating Model
 
 ${getSessionContinuityLine(nativeIntegration)}
 
@@ -65,7 +65,7 @@ ${classificationNote}
 
 ${getTeamCompositionSection(members)}
 
-${getWorkflowSection(teamConfig, nativeIntegration)}
+${getOperatingModelSection(teamConfig, nativeIntegration)}
 
 ${getCoreResponsibilitiesSection(teamConfig)}
 

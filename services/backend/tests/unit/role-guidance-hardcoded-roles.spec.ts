@@ -24,7 +24,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('Workflow: Planner + Builder');
+    expect(guidance).toContain('Operating model: Planner + Builder');
     expect(guidance).toContain('**To delegate implementation** → Hand off to `builder`');
     expect(guidance).not.toContain('reviewer');
   });
@@ -62,7 +62,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('Workflow: Planner Solo');
+    expect(guidance).toContain('Operating model: Planner Solo');
     expect(guidance).not.toContain('reviewer');
 
     const handoffRulesMatch = guidance.match(
@@ -160,7 +160,7 @@ describe('getBuilderGuidance', () => {
 
     expect(guidance).toMatchInlineSnapshot(`
       "
-      ## Builder Workflow
+      ## Builder Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -185,9 +185,6 @@ describe('getBuilderGuidance', () => {
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner review)
-
-      **When working on a workflow step:**
-      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
       **Development Best Practices:**
       - Write clean, maintainable code

@@ -79,8 +79,9 @@ describe('Solo Team > Solo > System Prompt', () => {
     // Solo is entry point — should have classification section
     expect(prompt).toContain('### Classify message');
 
-    // Solo workflow guidance
-    expect(prompt).toContain('Solo Workflow');
+    // Solo operating model guidance
+    expect(prompt).toContain('Solo Operating Model');
+    expect(prompt).toContain('Operating model: Planner Solo');
     expect(prompt).toContain('Solo Team Context');
 
     // Solo can hand off to user
@@ -99,7 +100,7 @@ describe('Solo Team > Solo > System Prompt', () => {
     // Implementation keywords
     expect(prompt).toContain('implement');
     expect(prompt).toContain('plan');
-    expect(prompt).toContain('workflow');
+    expect(prompt).toContain('development-workflow');
 
     // Should contain context view-template hint near context new commands
     expect(prompt).toContain('chatroom context view-template');
@@ -131,9 +132,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
-
       - \`development-workflow\` (1 skill available)
           - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
@@ -150,7 +148,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
@@ -282,7 +279,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
-      ## Solo Workflow
+      ## Solo Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -304,13 +301,13 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Team composition:** Solo team — you handle planning and implementation yourself.
 
-      **Workflow: Planner Solo**
+      **Operating model: Planner Solo**
 
       1. Receive chatroom task from user
       2. Run task read (get chatroom task content + mark in_progress)
       3. Classify with classify
-      4. **Plan**: Outline the approach mentally or in scratch notes — solo has no formal workflow tooling requirement. Questions and simple tasks need no plan.
-      5. Implement the solution yourself (following workflow steps if created)
+      4. **Plan**: Outline the approach mentally or in scratch notes. Questions and simple tasks need no plan.
+      5. Implement the solution yourself
       6. Review your own work for quality
       7. Verify: \`pnpm typecheck && pnpm test\`
       8. Deliver to **user**

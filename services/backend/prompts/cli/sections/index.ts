@@ -14,8 +14,8 @@ export { getHandoffRulesSection } from './handoff-rules';
 export { getWhenWorkComesBackSection } from './when-work-comes-back';
 export { getTeamCompositionSection } from './team-composition';
 export {
-  getWorkflowSection,
-  getPlannerPlusBuilderWorkflow,
-  getPlannerSoloWorkflow,
-} from './workflow';
+  getOperatingModelSection,
+  getPlannerPlusBuilderOperatingModel,
+  getPlannerSoloOperatingModel,
+} from './operating-model';
 export type { TeamCompositionConfig } from './team-composition';

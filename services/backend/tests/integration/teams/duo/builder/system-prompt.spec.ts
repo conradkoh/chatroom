@@ -68,7 +68,7 @@ describe('Duo Team > Builder > System Prompt', () => {
     expect(prompt).toContain('# Duo Team');
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('## Getting Started');
-    expect(prompt).toContain('## Builder Workflow');
+    expect(prompt).toContain('## Builder Operating Model');
     // Builder can hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toMatch(/Available targets:.*user/);
@@ -101,9 +101,6 @@ describe('Duo Team > Builder > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
-
       - \`development-workflow\` (1 skill available)
           - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
@@ -120,7 +117,6 @@ describe('Duo Team > Builder > System Prompt', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
@@ -223,7 +219,7 @@ describe('Duo Team > Builder > System Prompt', () => {
        - **NEVER hand off directly to \`user\`** — always go through the planner
        
        
-      ## Builder Workflow
+      ## Builder Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -248,9 +244,6 @@ describe('Duo Team > Builder > System Prompt', () => {
       - **For simple questions** → Can hand off directly to \`planner\`
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner review)
-
-      **When working on a workflow step:**
-      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
       **Development Best Practices:**
       - Write clean, maintainable code

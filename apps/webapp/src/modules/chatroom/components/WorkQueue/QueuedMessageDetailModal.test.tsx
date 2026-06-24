@@ -12,6 +12,11 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
+import type { Message } from '../../types/message';
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -23,9 +28,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
       updateQueuedMessage: 'messages:updateQueuedMessage',
-    },
-    workflows: {
-      getWorkflowDetail: 'workflows:getWorkflowDetail',
     },
   },
 }));
@@ -60,12 +62,9 @@ vi.mock('@/components/ui/fixed-modal', () => ({
     closeOnBackdrop?: boolean;
   }) => (isOpen ? <div role="dialog">{children}</div> : null),
   FixedModalContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FixedModalHeader: ({
-    children,
-  }: {
-    children: React.ReactNode;
-    onClose?: () => void;
-  }) => <div>{children}</div>,
+  FixedModalHeader: ({ children }: { children: React.ReactNode; onClose?: () => void }) => (
+    <div>{children}</div>
+  ),
   FixedModalTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
   FixedModalBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -76,11 +75,6 @@ vi.mock('../AttachedMessageChip', () => ({
     <div data-testid="attached-message-chip">{content}</div>
   ),
 }));
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
-import type { Message } from '../../types/message';
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -204,16 +198,7 @@ describe('QueuedMessageDetailModal', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('workflow attachment renders simple chip with workflowKey', () => {
-    const message = makeMessage({
-      attachedWorkflows: [{ _id: 'wf-1', workflowKey: 'my-workflow', status: 'active' }],
-    });
-    renderModal(message);
-    expect(screen.getByText('Attachments (1)')).toBeInTheDocument();
-    expect(screen.getByText('my-workflow')).toBeInTheDocument();
-  });
-
-  it('clicking a task attachment chip opens the full preview modal', () => {
+  it('modal closed → nothing rendered', () => {
     const message = makeMessage({
       attachedTasks: [{ _id: 'task-1', content: 'Fix the bug' }],
     });

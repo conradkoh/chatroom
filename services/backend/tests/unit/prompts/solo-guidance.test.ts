@@ -25,9 +25,9 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance.length).toBeGreaterThan(100);
   });
 
-  test('contains solo workflow and team context', () => {
+  test('contains solo operating model and team context', () => {
     const guidance = getSoloGuidance(baseParams);
-    expect(guidance).toContain('Solo Workflow');
+    expect(guidance).toContain('Solo Operating Model');
     expect(guidance).toContain('Solo Team Context');
     expect(guidance).toContain('autonomous agent');
   });
@@ -52,7 +52,7 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).not.toContain('After ANY handoff');
   });
 
-  test('CLI mode still includes get-next-task in workflow and handoff rules', () => {
+  test('CLI mode still includes get-next-task in operating model and handoff rules', () => {
     const guidance = getSoloGuidance({ ...baseParams, nativeIntegration: false });
     expect(guidance).toContain('get-next-task');
     expect(guidance).toContain('After ANY handoff');
@@ -68,7 +68,7 @@ describe('solo > getSoloGuidance', () => {
     // Must mention key solo responsibilities
     expect(guidance).toContain('plan');
     expect(guidance).toContain('implement');
-    expect(guidance).toContain('workflow');
+    expect(guidance).toContain('Operating model');
     expect(guidance).toContain('user');
   });
 

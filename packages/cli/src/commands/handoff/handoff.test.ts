@@ -201,34 +201,6 @@ describe('handoffEffect', () => {
     }
   });
 
-  test('fails with WorkflowNotFound when workflow resolution fails', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ queryResponse: new Error('Workflow not found') }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const optionsWithWorkflows: HandoffOptions = {
-      ...validOptions,
-      attachedWorkflowKeys: ['workflow-key-1'],
-    };
-
-    const exit = await Effect.runPromiseExit(
-      handoffEffect(validChatroomId, optionsWithWorkflows).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as HandoffError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('WorkflowNotFound');
-      if (error?._tag === 'WorkflowNotFound') {
-        expect(error.workflowKey).toBe('workflow-key-1');
-      }
-    }
-  });
-
   test('fails with HandoffFailed when handoff mutation throws', async () => {
     const testLayer = Layer.mergeAll(
       makeTestBackend({ mutationResponse: new Error('Handoff mutation failed') }),
@@ -318,30 +290,6 @@ describe('handoffEffect', () => {
 
     const exit = await Effect.runPromiseExit(
       handoffEffect(validChatroomId, optionsWithArtifacts).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Success');
-  });
-
-  test('succeeds with workflows when resolution succeeds', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({
-        queryResponses: [
-          { workflowId: 'workflow-id-123' }, // First query: workflow resolution
-          null, // Second query: workflow detail (non-fatal if fails)
-        ],
-        mutationResponse: { success: true },
-      }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const optionsWithWorkflows: HandoffOptions = {
-      ...validOptions,
-      attachedWorkflowKeys: ['workflow-key-1'],
-    };
-
-    const exit = await Effect.runPromiseExit(
-      handoffEffect(validChatroomId, optionsWithWorkflows).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Success');

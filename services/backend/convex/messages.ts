@@ -55,7 +55,6 @@ async function enrichMessageAttachments(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
-    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Resolve attached tasks
@@ -116,23 +115,11 @@ async function enrichMessageAttachments(
       }));
   }
 
-  // Resolve attached workflows
-  let attachedWorkflows: { _id: string; workflowKey: string; status: string }[] | undefined;
-  if (msg.attachedWorkflowIds && msg.attachedWorkflowIds.length > 0) {
-    const workflows = await Promise.all(
-      msg.attachedWorkflowIds.map((wfId) => ctx.db.get('chatroom_workflows', wfId))
-    );
-    attachedWorkflows = workflows
-      .filter((w): w is NonNullable<typeof w> => w !== null)
-      .map((w) => ({ _id: w._id, workflowKey: w.workflowKey, status: w.status }));
-  }
-
   return {
     ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
     ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
     ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
-    ...(attachedWorkflows && attachedWorkflows.length > 0 && { attachedWorkflows }),
   };
 }
 
@@ -466,7 +453,6 @@ async function _handoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
-    attachedWorkflowIds?: Id<'chatroom_workflows'>[];
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -582,8 +568,6 @@ async function _handoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
-    ...(args.attachedWorkflowIds &&
-      args.attachedWorkflowIds.length > 0 && { attachedWorkflowIds: args.attachedWorkflowIds }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -737,7 +721,6 @@ export const handoff = mutation({
     content: v.string(),
     targetRole: v.string(),
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-    attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
   },
   handler: async (ctx, args) => {
     return _handoffHandler(ctx, args);

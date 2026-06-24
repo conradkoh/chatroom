@@ -6,10 +6,7 @@
  * incremental self-implementation (the planner's implementer metarole).
  *
  * Delegation is template-driven by default: the planner hands a focused
- * slice to the builder using the Delegation Brief. Structured workflows are
- * an OPT-IN tool (activate the `workflow` skill) for genuinely multi-phase,
- * interdependent efforts or when the user explicitly requests one — they are
- * no longer mandatory before delegating.
+ * slice to the builder using the Delegation Brief.
  */
 
 import type { TeamCompositionConfig } from './team-composition';
@@ -73,13 +70,11 @@ flowchart TD
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-**Optional: structured workflows (opt-in).** For genuinely multi-phase, interdependent efforts — or when the user explicitly asks for a tracked plan — activate the \`workflow\` skill to plan and track execution as a DAG: ${cmd('skill activate workflow')}. The skill documents the full \`workflow create/specify/execute/status\` command set. Don't reach for it for simple, single-slice work.
-
 **Code review:** For code-producing work, review before delivering. Activate the review framework with: ${cmd('skill activate code-review')}.
 
 **Backlog items:** When the task originates from a backlog item, activate the backlog skill: ${cmd('skill activate backlog')}.
 
-**If stuck:** After 2 failed rework attempts → step back, replan the slice (or fall back to a structured workflow), or deliver partial results with a clear explanation.
+**If stuck:** After 2 failed rework attempts → step back, replan the slice, or deliver partial results with a clear explanation.
 
 **Review loop:**
 - Review completed work before moving to the next slice.

@@ -2,9 +2,7 @@
  * Barrel + resolver for role-specific handoff templates.
  *
  * Handoff templates provide good structure for how a role hands work off to
- * the next role. They replace the previous rule that forced all delegation
- * through structured workflows — structured workflows are now an opt-in tool
- * the user (or planner) can request via the `workflow` skill.
+ * the next role.
  *
  * Team-specific templates live under prompts/teams/{team}/handoff-templates/.
  * This module resolves templates by team and re-exports duo getters for tests.

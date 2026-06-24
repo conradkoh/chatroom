@@ -7,10 +7,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import {
-  generateTaskStartedReminder,
-  composeSystemPrompt,
-} from '../../../prompts/generator';
+import { generateTaskStartedReminder, composeSystemPrompt } from '../../../prompts/generator';
 
 // Test solo detection through public APIs that exercise it indirectly:
 // generateTaskStartedReminder and composeSystemPrompt both use
@@ -34,7 +31,6 @@ describe('generator > solo team detection', () => {
     expect(reminder).toContain('Implement');
     expect(reminder).toContain('Verify');
     expect(reminder).toContain('typecheck');
-    expect(reminder).toContain('workflow skill');
     expect(reminder).toContain('Deliver');
   });
 

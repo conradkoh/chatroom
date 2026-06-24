@@ -263,89 +263,6 @@ export interface CommandStopEvent extends EventStreamEventBase {
  * Union of all event types. Use this as the canonical event type
  * for event stream entries.
  */
-// ─── Workflow Event Types ──────────────────────────────────────────────────────
-
-export interface WorkflowStartedEvent extends EventStreamEventBase {
-  type: 'workflow.started';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  createdBy: string;
-  stepCount: number;
-  steps?: {
-    stepKey: string;
-    description: string;
-    assigneeRole?: string;
-    dependsOn: string[];
-    order: number;
-  }[];
-}
-
-export interface WorkflowStepCompletedEvent extends EventStreamEventBase {
-  type: 'workflow.stepCompleted';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  stepKey: string;
-  stepDescription?: string;
-  completedBy?: string;
-}
-
-export interface WorkflowStepCancelledEvent extends EventStreamEventBase {
-  type: 'workflow.stepCancelled';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  stepKey: string;
-  stepDescription?: string;
-  cancelledBy?: string;
-  reason: string;
-}
-
-export interface WorkflowCompletedEvent extends EventStreamEventBase {
-  type: 'workflow.completed';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  finalStatus: 'completed' | 'cancelled';
-}
-
-export interface WorkflowCreatedEvent extends EventStreamEventBase {
-  type: 'workflow.created';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  createdBy: string;
-  stepCount: number;
-  steps?: {
-    stepKey: string;
-    description: string;
-    assigneeRole?: string;
-    dependsOn: string[];
-    order: number;
-  }[];
-}
-
-export interface WorkflowSpecifiedEvent extends EventStreamEventBase {
-  type: 'workflow.specified';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  stepKey: string;
-}
-
-export interface WorkflowStepStartedEvent extends EventStreamEventBase {
-  type: 'workflow.stepStarted';
-  chatroomId: string;
-  workflowKey: string;
-  workflowId: string;
-  stepKey: string;
-  stepDescription?: string;
-  assigneeRole?: string;
-}
-
-// ─── Combined Event Union ─────────────────────────────────────────────────────
-
 export type EventStreamEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -372,11 +289,4 @@ export type EventStreamEvent =
   | DaemonRefreshCapabilitiesEvent
   | DaemonLocalActionEvent
   | CommandRunEvent
-  | CommandStopEvent
-  | WorkflowStartedEvent
-  | WorkflowStepCompletedEvent
-  | WorkflowStepCancelledEvent
-  | WorkflowCompletedEvent
-  | WorkflowCreatedEvent
-  | WorkflowSpecifiedEvent
-  | WorkflowStepStartedEvent;
+  | CommandStopEvent;

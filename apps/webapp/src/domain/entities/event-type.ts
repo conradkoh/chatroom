@@ -44,13 +44,6 @@ export const SUPPORTED_EVENT_TYPES = {
   'daemon.refreshCapabilities': { label: 'Capabilities Refresh', badge: 'muted' },
   'daemon.localAction': { label: 'Local Action', badge: 'muted' },
   'config.requestRemoval': { label: 'Config Request Removal', badge: 'warning' },
-  'workflow.started': { label: 'Workflow Started', badge: 'info' },
-  'workflow.stepCompleted': { label: 'Workflow Step Completed', badge: 'info' },
-  'workflow.stepCancelled': { label: 'Workflow Step Cancelled', badge: 'warning' },
-  'workflow.completed': { label: 'Workflow Completed', badge: 'info' },
-  'workflow.created': { label: 'Workflow Created', badge: 'info' },
-  'workflow.specified': { label: 'Workflow Specified', badge: 'info' },
-  'workflow.stepStarted': { label: 'Workflow Step Started', badge: 'info' },
   'command.run': { label: 'Command Run', badge: 'warning' },
   'command.stop': { label: 'Command Stop', badge: 'error' },
 } as const satisfies Record<string, SupportedEventTypeMeta>;

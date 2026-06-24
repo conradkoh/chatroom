@@ -14,6 +14,6 @@ export function getHandoffContinuityRule(nativeIntegration?: boolean): string {
   return '⚠️ After ANY handoff (including to `user`), you must run `get-next-task` to stay in the session.';
 }
 
-export function getWorkflowLoopFooter(nativeIntegration?: boolean): string {
+export function getOperatingModelLoopFooter(nativeIntegration?: boolean): string {
   return nativeIntegration ? 'Hand off when complete' : 'Run get-next-task';
 }

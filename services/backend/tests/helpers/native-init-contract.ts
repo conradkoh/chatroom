@@ -35,7 +35,7 @@ export function assertNativeInitContract(
 
   if (options.soloTeam) {
     expect(prompt).not.toContain('Classification (Entry Point Role)');
-    expect(prompt).toContain('Solo Workflow');
+    expect(prompt).toContain('Solo Operating Model');
   }
 
   if (options.noTaskRead) {

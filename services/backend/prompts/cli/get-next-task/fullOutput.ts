@@ -275,9 +275,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `${contextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
       );
       lines.push(contextNewHint());
-      lines.push(
-        `${delegateStepNum}. Delegate ONE slice to the builder (a structured workflow is optional, not required):`
-      );
+      lines.push(`${delegateStepNum}. Delegate ONE slice to the builder:`);
       lines.push('');
       lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
       lines.push('```');

@@ -69,13 +69,6 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
     linkedSkillId: 'code-review',
   },
   {
-    term: 'workflow',
-    definition:
-      'DAG-based structured workflows for planning and executing multi-step tasks, including release management. ' +
-      'Agents use the `chatroom workflow` CLI command group to create, specify, execute, and track workflows.',
-    linkedSkillId: 'workflow',
-  },
-  {
     term: 'development-workflow',
     definition:
       'Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. ' +

@@ -102,8 +102,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     expect(rolePrompt).toContain('#### Follow Up');
     expect(rolePrompt).toContain('#### New Feature');
 
-    // Should have builder workflow instructions
-    expect(rolePrompt).toContain('## Builder Workflow');
+    // Should have builder operating model instructions
+    expect(rolePrompt).toContain('## Builder Operating Model');
 
     // Should have commands section
     expect(rolePrompt).toContain('### Commands');
@@ -145,9 +145,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
-
       - \`development-workflow\` (1 skill available)
           - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
@@ -164,7 +161,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
@@ -305,7 +301,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
        - **NEVER hand off directly to \`user\`** — always go through the planner
        
        
-      ## Builder Workflow
+      ## Builder Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -337,9 +333,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
         ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For \`new_feature\` classification** → MUST hand off to \`planner\` (cannot skip planner review)
 
-      **When working on a workflow step:**
-      If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
-
       **Development Best Practices:**
       - Write clean, maintainable code
       - Add appropriate tests when applicable
@@ -361,6 +354,21 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
 
       ### Handoff to \`planner\`
+      ---
+
+      ⚠️ **CRITICAL — Recipient visibility**
+
+      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
+
+      They **cannot** see:
+      - Anything you write in this agent session
+      - Progress reports
+      - Tool output
+
+      Put your **complete** deliverable in the handoff message — not in session text.
+
+      ---
+
       **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
 
       \`\`\`markdown

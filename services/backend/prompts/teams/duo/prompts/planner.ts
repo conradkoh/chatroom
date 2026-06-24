@@ -19,7 +19,7 @@ import {
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
   getTeamCompositionSection,
-  getPlannerPlusBuilderWorkflow,
+  getPlannerPlusBuilderOperatingModel,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
@@ -30,9 +30,9 @@ export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
   const { nativeIntegration, classificationNote, members, cliEnvPrefix, chatroomId, role } =
     getPlannerGuidanceContext(ctx);
 
-  const workflowGuidance = getPlannerPlusBuilderWorkflow(nativeIntegration);
+  const operatingModelGuidance = getPlannerPlusBuilderOperatingModel(nativeIntegration);
 
-  return `## Planner Workflow
+  return `## Planner Operating Model
 
 ${getSessionContinuityLine(nativeIntegration)}
 
@@ -49,7 +49,7 @@ ${classificationNote}
 
 ${getTeamCompositionSection(members)}
 
-${workflowGuidance}
+${operatingModelGuidance}
 
 ${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG)}
 

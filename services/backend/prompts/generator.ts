@@ -362,7 +362,7 @@ ${progressCmdFollowUp}
 \`\`\`
 
 3. Delegate to appropriate team member or handle yourself
-4. Follow-up inherits the workflow rules from the original chatroom task:
+4. Follow-up inherits the classification rules from the original chatroom task:
    - If original was a QUESTION → handle and hand off to user when done
    - If original was a NEW FEATURE → delegate, review, and deliver to user
 
@@ -454,7 +454,6 @@ function buildSoloReminder(
 ${handoffToUserCmd}
 \`\`\`
 
-💡 Use the workflow skill for multi-step tasks. You're working on:
 Task ID: ${taskId}`;
     case 'follow_up':
       return `✅ Chatroom task acknowledged as FOLLOW UP.
@@ -464,7 +463,7 @@ Task ID: ${taskId}`;
 2. **Report progress**: \`${progressCmd}\` — let the user know you're handling it
 3. Plan and implement the follow-up changes yourself
 4. \`pnpm typecheck && pnpm test\` before delivering
-5. Follow-up inherits workflow rules from the original chatroom task
+5. Follow-up inherits classification rules from the original chatroom task
 
 💡 You're working on:
 Task ID: ${taskId}`;

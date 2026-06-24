@@ -70,7 +70,7 @@ describe('Duo Team > Planner > System Prompt', () => {
     expect(prompt).toContain('## Getting Started');
     // Planner is entry point — should have classification section
     expect(prompt).toContain('### Classify message');
-    expect(prompt).toContain('## Planner Workflow');
+    expect(prompt).toContain('## Planner Operating Model');
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain('Available targets: builder, user');
@@ -106,9 +106,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`workflow\` (1 skill available)
-          - DAG-based structured workflows for planning and executing multi-step tasks, including release management. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
-
       - \`development-workflow\` (1 skill available)
           - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
@@ -125,7 +122,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **workflow**: DAG-based structured workflows for planning and executing multi-step tasks. Create workflows with dependencies, assign steps to roles, and track progress.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
@@ -257,7 +253,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       \`\`\`
       REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
 
-      ## Planner Workflow
+      ## Planner Operating Model
 
       Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
 
@@ -283,7 +279,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate by handing off when appropriate; do not infer availability from team configuration or prior chat history. If blocked, implement yourself or report the situation to \`user\`.
 
-      **Workflow: Planner + Builder**
+      **Operating model: Planner + Builder**
 
       Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.
 
@@ -317,13 +313,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Delegation & Decomposition:**
 
-      Break complex tasks into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below). A structured workflow is not required to delegate.
-
-      For genuinely multi-phase, interdependent work — or when the user asks for a tracked plan — you can optionally activate the workflow skill to plan and track execution as a DAG:
-
-      \`\`\`bash
-      chatroom skill activate workflow --chatroom-id=<id> --role=planner
-      \`\`\`
+      Break complex tasks into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below).
 
       **Delegation Guidelines:**
 
@@ -356,13 +346,11 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
       - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-      **Optional: structured workflows (opt-in).** For genuinely multi-phase, interdependent efforts — or when the user explicitly asks for a tracked plan — activate the \`workflow\` skill to plan and track execution as a DAG: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate workflow --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. The skill documents the full \`workflow create/specify/execute/status\` command set. Don't reach for it for simple, single-slice work.
-
       **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
       **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
-      **If stuck:** After 2 failed rework attempts → step back, replan the slice (or fall back to a structured workflow), or deliver partial results with a clear explanation.
+      **If stuck:** After 2 failed rework attempts → step back, replan the slice, or deliver partial results with a clear explanation.
 
       **Review loop:**
       - Review completed work before moving to the next slice.

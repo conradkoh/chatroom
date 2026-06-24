@@ -123,7 +123,7 @@ describe('Duo Team > Planner > Classify Reminder', () => {
       \`\`\`
 
       3. Delegate to appropriate team member or handle yourself
-      4. Follow-up inherits the workflow rules from the original chatroom task:
+      4. Follow-up inherits the classification rules from the original chatroom task:
          - If original was a QUESTION → handle and hand off to user when done
          - If original was a NEW FEATURE → delegate, review, and deliver to user
 

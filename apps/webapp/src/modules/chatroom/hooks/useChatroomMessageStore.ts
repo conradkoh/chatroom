@@ -58,7 +58,6 @@ export function toMessage(m: any): Message {
     attachedBacklogItems: m.attachedBacklogItems,
     attachedArtifacts: m.attachedArtifacts,
     attachedMessages: m.attachedMessages,
-    attachedWorkflows: m.attachedWorkflows,
     latestProgress: m.latestProgress,
     isQueued: m.isQueued,
   };

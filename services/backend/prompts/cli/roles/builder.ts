@@ -59,7 +59,7 @@ As the entry point, you receive user messages directly. When you receive a user 
       : '';
 
   return `
-## Builder Workflow
+## Builder Operating Model
 
 ${getSessionContinuityLine(nativeIntegration)}
 
@@ -77,9 +77,6 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
   ⚠️ If \`${questionTarget}\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
 - **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip planner review)
-
-**When working on a workflow step:**
-If the planner delegates a workflow step to you, they will include the \`step-view\` command in their handoff message. Run that command to see the step's full specification (goal, skills, requirements, warnings). **If skills are listed, activate them before starting work** — the step-view output includes the activation commands. Complete the work as described, then hand off back to the planner. Do NOT run \`step-complete\` yourself — the planner manages the workflow lifecycle.
 
 **Development Best Practices:**
 - Write clean, maintainable code

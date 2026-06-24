@@ -13,7 +13,7 @@ import {
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
   getTeamCompositionSection,
-  getPlannerSoloWorkflow,
+  getPlannerSoloOperatingModel,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
@@ -37,7 +37,7 @@ As the entry point, you receive user messages directly. When you receive a user 
 4. Plan and implement the solution yourself`
       : '';
 
-  return `## Solo Workflow
+  return `## Solo Operating Model
 
 ${getSessionContinuityLine(nativeIntegration)}
 
@@ -53,7 +53,7 @@ ${classificationNote}
 
 ${getTeamCompositionSection(teamRoles)}
 
-${getPlannerSoloWorkflow(nativeIntegration)}
+${getPlannerSoloOperatingModel(nativeIntegration)}
 
 ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
 

@@ -19,7 +19,6 @@ import { daemonEventDefinitions } from './daemonEvents';
 import { initRegistry } from './registry';
 import { skillEventDefinitions } from './skillEvents';
 import { taskEventDefinitions } from './taskEvents';
-import { workflowEventDefinitions } from './workflowEvents';
 
 // Re-export registry query functions
 export { getEventTypeDefinition, getRegisteredEventTypes } from './registry';
@@ -50,7 +49,6 @@ export function initializeEventTypes(): void {
     ...daemonEventDefinitions,
     ...skillEventDefinitions,
     ...configEventDefinitions,
-    ...workflowEventDefinitions,
     ...commandEventDefinitions,
   });
 }

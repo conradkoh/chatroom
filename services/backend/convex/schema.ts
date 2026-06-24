@@ -438,8 +438,8 @@ export default defineSchema({
     // User can attach existing messages as context for a new message
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
 
-    // Attached workflows for context
-    // Agents can attach workflow IDs to messages for visualizer display
+    // DEPRECATED: Legacy DAG workflow attachments. Feature removed — not written by
+    // current app code. Retained so existing documents continue to validate.
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
 
     // Message lifecycle tracking
@@ -497,7 +497,7 @@ export default defineSchema({
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Attached chatroom messages for context
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
-    // Attached workflows for context
+    // DEPRECATED: Legacy DAG workflow attachments (see chatroom_messages.attachedWorkflowIds).
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
@@ -1244,6 +1244,8 @@ export default defineSchema({
         reason: v.string(),
         timestamp: v.number(),
       }),
+      // DEPRECATED: workflow.* events — DAG workflow feature removed. Variants retained
+      // so existing chatroom_eventStream documents continue to validate.
       // Workflow started (draft → active)
       v.object({
         type: v.literal('workflow.started'),
@@ -1881,11 +1883,11 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir', ['machineId', 'workingDir']),
 
-  // ─── Structured Workflows ────────────────────────────────────────────────────
-  // DAG-based workflows that agents create and execute step-by-step.
-  // Workflows block user handoff until completed or explicitly exited.
+  // ─── Structured Workflows (DEPRECATED) ─────────────────────────────────────
+  // DAG workflow feature removed. Tables retained for deployment/data compatibility.
+  // Do not write new rows; drop after a one-time data cleanup migration.
 
-  /** Workflow definitions - one per workflowKey per chatroom. */
+  /** @deprecated Workflow definitions — feature removed; table retained for existing data. */
   chatroom_workflows: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     workflowKey: v.string(), // User-provided unique key within chatroom
@@ -1906,7 +1908,7 @@ export default defineSchema({
     .index('by_chatroom_workflowKey', ['chatroomId', 'workflowKey'])
     .index('by_chatroom_status', ['chatroomId', 'status']),
 
-  /** Steps within a workflow - nodes of the DAG. */
+  /** @deprecated Workflow steps — feature removed; table retained for existing data. */
   chatroom_workflow_steps: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     workflowId: v.id('chatroom_workflows'),
