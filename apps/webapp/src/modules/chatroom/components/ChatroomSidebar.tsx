@@ -10,6 +10,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { groupChatroomsByRecency } from '../utils/groupChatroomsByRecency';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 import {
@@ -177,13 +178,42 @@ interface ChatroomSidebarProps {
   activeChatroomId?: string;
 }
 
+const RECENCY_SECTIONS = [
+  { key: 'lastWeek' as const, label: 'Last Week' },
+  { key: 'lastMonth' as const, label: 'Last Month' },
+  { key: 'older' as const, label: 'Older' },
+];
+
+function SidebarSectionHeader({
+  label,
+  withTopBorder = false,
+  indicatorClassName,
+}: {
+  label: string;
+  withTopBorder?: boolean;
+  indicatorClassName?: string;
+}) {
+  return (
+    <div
+      className={`px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary ${withTopBorder ? 'border-t border-chatroom-border' : ''}`}
+    >
+      {indicatorClassName ? (
+        <span className={`w-1.5 h-1.5 flex-shrink-0 ${indicatorClassName}`} />
+      ) : null}
+      <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Dense sidebar showing all chatrooms with status and unread indicators.
  * Designed for desktop use within the chatroom view to allow quick switching.
  *
  * Sections:
  * - Active: Chatrooms with chatStatus 'working' or 'active' (agents present and engaged)
- * - Recent: Top 50 most recently active non-active chatrooms
+ * - Last Week / Last Month / Older: Non-active chatrooms grouped by last activity
  * - Completed: Collapsible section for completed chatrooms
  *
  * Favorites are indicated by a star icon on the chatroom item rather than a separate section.
@@ -196,8 +226,14 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
   // Compute sections
-  const { activeChatrooms, recent, completed } = useMemo(() => {
-    if (!chatrooms) return { activeChatrooms: [], recent: [], completed: [] };
+  const { activeChatrooms, recentByRecency, completed } = useMemo(() => {
+    if (!chatrooms) {
+      return {
+        activeChatrooms: [],
+        recentByRecency: groupChatroomsByRecency([]),
+        completed: [],
+      };
+    }
 
     // Completed chatrooms
     const completedChatrooms = chatrooms.filter((c) => c.chatStatus === 'completed');
@@ -208,24 +244,20 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
       .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
       .sort((a, b) => a._creationTime - b._creationTime);
 
-    // Recent: Top 50 by lastActivityAt, excluding active and completed chatrooms
+    // Non-active, non-completed chatrooms grouped by recency
     const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
     const remainingChatrooms = chatrooms.filter(
       (c) => !engagedIds.has(c._id) && c.chatStatus !== 'completed'
     );
-    const sortedByActivity = [...remainingChatrooms].sort((a, b) => {
-      const aTime = a.lastActivityAt || a._creationTime;
-      const bTime = b.lastActivityAt || b._creationTime;
-      return bTime - aTime || a._id.localeCompare(b._id); // stable tiebreaker
-    });
-    const recentChatrooms = sortedByActivity.slice(0, 50);
 
     return {
       activeChatrooms: engagedChatrooms,
-      recent: recentChatrooms,
+      recentByRecency: groupChatroomsByRecency(remainingChatrooms),
       completed: completedChatrooms,
     };
   }, [chatrooms]);
+
+  const hasRecentChatrooms = RECENCY_SECTIONS.some(({ key }) => recentByRecency[key].length > 0);
 
   const handleSelect = (chatroomId: string) => {
     if (chatroomId === activeChatroomId) return;
@@ -262,12 +294,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
         {/* Active Section - chatrooms with agents present and engaged */}
         {activeChatrooms.length > 0 && (
           <>
-            <div className="px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary">
-              <span className="w-1.5 h-1.5 bg-chatroom-status-success flex-shrink-0" />
-              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                Active
-              </span>
-            </div>
+            <SidebarSectionHeader label="Active" indicatorClassName="bg-chatroom-status-success" />
             {activeChatrooms.map((chatroom) => (
               <ChatroomSidebarItem
                 key={chatroom._id}
@@ -279,26 +306,28 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
           </>
         )}
 
-        {/* Recent Section */}
-        {recent.length > 0 && (
-          <>
-            <div
-              className={`px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary ${activeChatrooms.length > 0 ? 'border-t border-chatroom-border' : ''}`}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                Recent
-              </span>
-            </div>
-            {recent.map((chatroom) => (
-              <ChatroomSidebarItem
-                key={chatroom._id}
-                chatroom={chatroom}
-                isActive={chatroom._id === activeChatroomId}
-                onSelect={handleSelect}
-              />
-            ))}
-          </>
-        )}
+        {hasRecentChatrooms &&
+          RECENCY_SECTIONS.map(({ key, label }, index) => {
+            const sectionChatrooms = recentByRecency[key];
+            if (sectionChatrooms.length === 0) return null;
+
+            return (
+              <React.Fragment key={key}>
+                <SidebarSectionHeader
+                  label={label}
+                  withTopBorder={activeChatrooms.length > 0 || index > 0}
+                />
+                {sectionChatrooms.map((chatroom) => (
+                  <ChatroomSidebarItem
+                    key={chatroom._id}
+                    chatroom={chatroom}
+                    isActive={chatroom._id === activeChatroomId}
+                    onSelect={handleSelect}
+                  />
+                ))}
+              </React.Fragment>
+            );
+          })}
 
         {/* Completed Section - Collapsible */}
         {completed.length > 0 && (
