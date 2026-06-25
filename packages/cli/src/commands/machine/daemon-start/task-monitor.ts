@@ -20,7 +20,8 @@ import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
-import { NativeInjectionDedup, shouldInjectNativeTask } from './native-task-injector-logic.js';
+import { getNativeInjectionDedup } from './native-injection-dedup-registry.js';
+import { type NativeInjectionDedup, shouldInjectNativeTask } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import {
   listTasksReadyForNudge,
@@ -93,18 +94,37 @@ function buildCliNudgeLogLine(task: AssignedTaskView): string {
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`;
 }
 
+function resolveTaskRunnerContext(task: AssignedTaskView):
+  | {
+      chatroomId: string;
+      agentConfig: AssignedTaskView['agentConfig'];
+      role: string;
+      workingDir: string;
+      wantResume: boolean;
+    }
+  | undefined {
+  const { chatroomId, agentConfig } = task;
+  const { role } = agentConfig;
+  const workingDir = agentConfig.workingDir;
+  if (!workingDir) return undefined;
+  return {
+    chatroomId,
+    agentConfig,
+    role,
+    workingDir,
+    wantResume: resolveTaskWantResume(task),
+  };
+}
+
 function executeCliNudge(
   task: AssignedTaskView,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape
 ): void {
-  const { chatroomId, agentConfig } = task;
-  const { role } = agentConfig;
-  const workingDir = agentConfig.workingDir;
-  if (!workingDir) return;
-
-  const wantResume = resolveTaskWantResume(task);
+  const ctx = resolveTaskRunnerContext(task);
+  if (!ctx) return;
+  const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -137,12 +157,9 @@ function runNativeReviveEffect(
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape
 ): void {
-  const { chatroomId, agentConfig } = task;
-  const { role } = agentConfig;
-  const workingDir = agentConfig.workingDir;
-  if (!workingDir) return;
-
-  const wantResume = resolveTaskWantResume(task);
+  const ctx = resolveTaskRunnerContext(task);
+  if (!ctx) return;
+  const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
 
   console.log(
     `[TaskMonitor] native revive ${role}@${chatroomId} — backend PID stale or missing locally for pending task ${task.taskId}`
@@ -219,7 +236,7 @@ function injectNativeTasks(
   tasks: AssignedTaskView[],
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  dedup: NativeInjectionDedup,
+  dedup: ReturnType<typeof getNativeInjectionDedup>,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: SessionDeps
 ): void {
@@ -270,7 +287,7 @@ export const startTaskMonitorSubscriptionEffect = (
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor subscription (reactive)`);
 
     const cooldown = new NudgeCooldown();
-    const dedup = new NativeInjectionDedup();
+    const dedup = getNativeInjectionDedup();
     let stopped = false;
 
     const sessionDeps: SessionDeps = {

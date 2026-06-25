@@ -3,6 +3,10 @@ import { parseCompressContext } from '@workspace/backend/src/domain/handoff/pars
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import { Effect } from 'effect';
 
+import {
+  clearNativeTaskInjection,
+  markNativeTaskInjected,
+} from './native-injection-dedup-registry.js';
 import type { NativeInjectionDedup } from './native-task-injector-logic.js';
 import {
   buildNativeInjectionPrompt,
@@ -59,7 +63,7 @@ export function runNativeInjectionEffect(
       }).pipe(Effect.either);
 
       if (claimResult._tag === 'Left') {
-        dedup.clear(taskId);
+        clearNativeTaskInjection(dedup, taskId);
         return yield* Effect.fail(claimResult.left);
       }
     }
@@ -77,7 +81,7 @@ export function runNativeInjectionEffect(
     }).pipe(Effect.either);
 
     if (deliveryResult._tag === 'Left') {
-      dedup.clear(taskId);
+      clearNativeTaskInjection(dedup, taskId);
       return yield* Effect.fail(deliveryResult.left);
     }
 
@@ -98,7 +102,7 @@ export function runNativeInjectionEffect(
           taskId,
         }),
       catch: (err) => err,
-    }).pipe(Effect.tapError(() => Effect.sync(() => dedup.clear(taskId))));
+    }).pipe(Effect.tapError(() => Effect.sync(() => clearNativeTaskInjection(dedup, taskId))));
 
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),
@@ -106,13 +110,13 @@ export function runNativeInjectionEffect(
     }).pipe(Effect.either);
 
     if (resumeResult._tag === 'Left') {
-      dedup.clear(taskId);
+      clearNativeTaskInjection(dedup, taskId);
       console.warn(
         `[NativeTaskInjector] resumeTurn failed for ${role}@${chatroomId}: ${getErrorMessage(resumeResult.left)}`
       );
       return;
     }
 
-    dedup.markInjected(taskId);
+    markNativeTaskInjected(dedup, taskId, { chatroomId, role });
   });
 }

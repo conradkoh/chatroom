@@ -28,6 +28,7 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import { clearNativeInjectionDedupForAgent } from '../../../commands/machine/daemon-start/native-injection-dedup-registry.js';
 import type { HarnessSessionSnapshot, StopReason } from '../../../domain/agent-lifecycle/index.js';
 import {
   decideResumePathOnRestart,
@@ -708,6 +709,7 @@ export class AgentProcessManager {
 
   private clearHarnessSessionAfterRunError(
     key: string,
+    chatroomId: string,
     role: string,
     recentLogLines: string[]
   ): boolean {
@@ -718,6 +720,7 @@ export class AgentProcessManager {
       `[AgentProcessManager] cursor-sdk run-error — cold restarting ${role}: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
     );
     this.clearLastHarnessSession(key);
+    clearNativeInjectionDedupForAgent(chatroomId, role);
     return true;
   }
 
@@ -743,7 +746,12 @@ export class AgentProcessManager {
       return;
     }
 
-    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, opts.role, logs);
+    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(
+      key,
+      opts.chatroomId,
+      opts.role,
+      logs
+    );
 
     void this.ensureRunning({
       chatroomId: opts.chatroomId,
@@ -753,10 +761,18 @@ export class AgentProcessManager {
       workingDir,
       reason: 'platform.crash_recovery',
       wantResume: coldRestartAfterRunError ? false : (ctx.wantResume ?? true),
-    }).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
-      this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
-    });
+    })
+      .then((result) => {
+        if (!result.success) {
+          console.log(
+            `[AgentProcessManager] ⚠️  Agent restart did not complete for ${opts.role}: ${result.error ?? 'unknown'}`
+          );
+        }
+      })
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
+        this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
+      });
   }
 
   private handlePermanentFailureForRestart(
