@@ -32,8 +32,17 @@ export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): s
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
 \`\`\`markdown
+## Summary
+<brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+
 ## Goal
 <one sentence: the outcome this slice delivers>
+
+## Key Knowledge for High Quality Bar
+<details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
+
+## Force Multipliers
+<choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
 
 ## Files to implement (exhaustive, file-level)
 List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
