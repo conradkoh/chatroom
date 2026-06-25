@@ -45,7 +45,7 @@ import {
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
-import { acquireLock, releaseLock } from '../pid.js';
+import { acquireLockWithRetry, releaseLock } from '../pid.js';
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
@@ -56,6 +56,34 @@ import { formatConvexUrlMismatchWarning } from '../../../infrastructure/convex/s
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
 /**
+ * Discover available models from a single harness.
+ * Returns installed=false when the harness is not present on the machine.
+ */
+export async function discoverModelsForHarness(
+  harness: string,
+  service: RemoteAgentService
+): Promise<{ harness: string; models: string[]; installed: boolean }> {
+  const installed = await service.isInstalled();
+  if (!installed) {
+    return { harness, models: [], installed: false };
+  }
+
+  try {
+    const models = await service.listModels();
+    return { harness, models, installed: true };
+  } catch (reason) {
+    console.warn(
+      JSON.stringify({
+        event: 'discover-models-error',
+        harness,
+        reason: getErrorMessage(reason),
+      })
+    );
+    return { harness, models: [], installed: true };
+  }
+}
+
+/**
  * Discover available models from all installed remote agent services.
  * Non-critical: returns empty record on failure per harness.
  */
@@ -64,28 +92,12 @@ const discoverModelsEffect = (
 ): Effect.Effect<Record<string, string[]>, never, never> =>
   Effect.gen(function* () {
     const discoverOne = ([harness, service]: [string, RemoteAgentService]) =>
-      Effect.promise(() => service.isInstalled()).pipe(
-        Effect.flatMap((installed) => {
-          if (!installed) {
-            return Effect.succeed(undefined);
+      Effect.promise(() => discoverModelsForHarness(harness, service)).pipe(
+        Effect.map((result) => {
+          if (!result.installed) {
+            return undefined;
           }
-
-          return Effect.tryPromise({
-            try: () => service.listModels(),
-            catch: (reason) => reason,
-          }).pipe(
-            Effect.map((models) => ({ harness, models })),
-            Effect.catchAll((reason) => {
-              console.warn(
-                JSON.stringify({
-                  event: 'discover-models-error',
-                  harness,
-                  reason: getErrorMessage(reason),
-                })
-              );
-              return Effect.succeed({ harness, models: [] as string[] });
-            })
-          );
+          return { harness: result.harness, models: result.models };
         })
       );
 
@@ -262,38 +274,131 @@ const setupMachineEffect = (): Effect.Effect<MachineConfig, unknown, never> =>
     return config;
   });
 
-/** Register capabilities with the backend — non-critical, warns on failure. */
-const registerCapabilitiesEffect = (
+/** Register machine metadata with the backend — models are refreshed in the background. */
+const registerMachineEffect = (
   client: ConvexHttpClient,
   sessionId: SessionId,
-  config: MachineConfig,
-  agentServices: Map<string, RemoteAgentService>
+  config: MachineConfig
+): Effect.Effect<void, never, never> =>
+  Effect.catchAll(
+    Effect.tryPromise(() =>
+      client.mutation(api.machines.register, {
+        sessionId,
+        machineId: config.machineId,
+        hostname: config.hostname,
+        os: config.os,
+        availableHarnesses: config.availableHarnesses,
+        harnessVersions: config.harnessVersions,
+      })
+    ),
+    (error) =>
+      Effect.sync(() => {
+        console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
+      })
+  );
+
+const fetchCachedMachineModelsEffect = (
+  client: ConvexHttpClient,
+  sessionId: SessionId,
+  machineId: string
 ): Effect.Effect<Record<string, string[]>, never, never> =>
+  Effect.tryPromise({
+    try: () => client.query(api.machines.getMachineModels, { sessionId, machineId }),
+    catch: (e) => e,
+  }).pipe(
+    Effect.map((result) => result?.availableModels ?? {}),
+    Effect.catchAll(() => Effect.succeed({} as Record<string, string[]>))
+  );
+
+type ConnectOnceResult = {
+  typedSessionId: SessionId;
+  config: MachineConfig;
+  machineId: string;
+  agentServices: Map<string, RemoteAgentService>;
+  cachedModels: Record<string, string[]>;
+};
+
+const connectOnceEffect = (
+  client: ConvexHttpClient,
+  sessionId: string,
+  convexUrl: string
+): Effect.Effect<ConnectOnceResult, unknown, never> =>
   Effect.gen(function* () {
+    const typedSessionId = yield* validateSessionEffect(client, sessionId as SessionId, convexUrl);
+    const config = yield* setupMachineEffect();
     const { machineId } = config;
 
-    const availableModels = yield* discoverModelsEffect(agentServices);
-
-    yield* Effect.catchAll(
-      Effect.tryPromise(() =>
-        client.mutation(api.machines.register, {
-          sessionId,
-          machineId,
-          hostname: config.hostname,
-          os: config.os,
-          availableHarnesses: config.availableHarnesses,
-          harnessVersions: config.harnessVersions,
-          availableModels,
-        })
-      ),
-      (error) =>
-        Effect.sync(() => {
-          console.warn(`⚠️  Machine registration update failed: ${getErrorMessage(error)}`);
-        })
+    initHarnessRegistry();
+    const agentServices = new Map<string, RemoteAgentService>(
+      getAllHarnesses().map((s) => [s.id, s])
     );
 
-    return availableModels;
+    yield* registerMachineEffect(client, typedSessionId, config);
+    const cachedModels = yield* fetchCachedMachineModelsEffect(client, typedSessionId, machineId);
+    yield* connectDaemonEffect(client, typedSessionId, machineId);
+
+    return { typedSessionId, config, machineId, agentServices, cachedModels };
   });
+
+function assembleDaemonSessionInit(args: {
+  client: ConvexHttpClient;
+  typedSessionId: SessionId;
+  machineId: string;
+  config: MachineConfig;
+  convexUrl: string;
+  agentServices: Map<string, RemoteAgentService>;
+  cachedModels: Record<string, string[]>;
+  deps: DaemonDeps;
+}): DaemonSessionInit {
+  const {
+    client,
+    typedSessionId,
+    machineId,
+    config,
+    convexUrl,
+    agentServices,
+    cachedModels,
+    deps,
+  } = args;
+
+  deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
+  deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+  deps.agentProcessManager = new AgentProcessManager({
+    agentServices,
+    backend: deps.backend,
+    sessionId: typedSessionId,
+    machineId,
+    processes: deps.processes,
+    clock: deps.clock,
+    fs: deps.fs,
+    persistence: deps.machine,
+    spawning: deps.spawning,
+    crashLoop: new CrashLoopTracker(),
+    convexUrl,
+  });
+
+  return {
+    client,
+    sessionId: typedSessionId,
+    machineId,
+    config,
+    convexUrl,
+    backend: deps.backend,
+    fs: deps.fs,
+    machine: deps.machine,
+    spawning: deps.spawning,
+    agentProcessManager: deps.agentProcessManager,
+    events: new DaemonEventBus(),
+    agentServices,
+    lastPushedGitState: new Map(),
+    lastPushedModels: Object.keys(cachedModels).length > 0 ? cachedModels : null,
+    lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
+      config.availableHarnesses,
+      config.harnessVersions as Record<string, unknown>
+    ),
+    logger: console,
+  };
+}
 
 /** Connect the daemon to the backend by updating daemon status. */
 const connectDaemonEffect = (
@@ -393,14 +498,7 @@ class NetworkRetryError {
 
 // ─── Connection Retry ────────────────────────────────────────────────────────
 
-type ConnectResult = {
-  typedSessionId: SessionId;
-  config: MachineConfig;
-  machineId: string;
-  agentServices: Map<string, RemoteAgentService>;
-  availableModels: Record<string, string[]>;
-  attempt: number;
-};
+type ConnectResult = ConnectOnceResult & { attempt: number };
 
 const connectWithRetryEffect = (
   client: ConvexHttpClient,
@@ -413,30 +511,7 @@ const connectWithRetryEffect = (
 
     const connectOnce = Effect.gen(function* () {
       yield* Ref.update(attemptRef, (n) => n + 1);
-      const typedSessionId = yield* validateSessionEffect(
-        client,
-        sessionId as SessionId,
-        convexUrl
-      );
-
-      const config = yield* setupMachineEffect();
-      const { machineId } = config;
-
-      initHarnessRegistry();
-      const agentServices = new Map<string, RemoteAgentService>(
-        getAllHarnesses().map((s) => [s.id, s])
-      );
-
-      const availableModels = yield* registerCapabilitiesEffect(
-        client,
-        typedSessionId,
-        config,
-        agentServices
-      );
-
-      yield* connectDaemonEffect(client, typedSessionId, machineId);
-
-      return { typedSessionId, config, machineId, agentServices, availableModels };
+      return yield* connectOnceEffect(client, sessionId, convexUrl);
     }).pipe(
       Effect.catchAll((error) =>
         Effect.flatMap(Ref.get(attemptRef), (currentAttempt) =>
@@ -487,7 +562,11 @@ const connectWithRetryEffect = (
  */
 export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> = Effect.gen(
   function* () {
-    if (!acquireLock()) {
+    const lockAcquired = yield* Effect.tryPromise({
+      try: () => acquireLockWithRetry(),
+      catch: (e) => e,
+    });
+    if (!lockAcquired) {
       return yield* Effect.sync(() => {
         process.exit(1);
       });
@@ -516,52 +595,22 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
       catch: (e) => e,
     });
 
-    const { typedSessionId, config, machineId, agentServices, availableModels } =
+    const { typedSessionId, config, machineId, agentServices, cachedModels } =
       yield* connectWithRetryEffect(client, sessionId, convexUrl);
 
-    const deps = createDefaultDeps();
-    deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
-    deps.backend.query = (endpoint, args) => client.query(endpoint, args);
-
-    deps.agentProcessManager = new AgentProcessManager({
-      agentServices,
-      backend: deps.backend,
-      sessionId: typedSessionId,
-      machineId,
-      processes: deps.processes,
-      clock: deps.clock,
-      fs: deps.fs,
-      persistence: deps.machine,
-      spawning: deps.spawning,
-      crashLoop: new CrashLoopTracker(),
-      convexUrl,
-    });
-
-    const events = new DaemonEventBus();
-    const init: DaemonSessionInit = {
+    const init = assembleDaemonSessionInit({
       client,
-      sessionId: typedSessionId,
+      typedSessionId,
       machineId,
       config,
       convexUrl,
-      backend: deps.backend,
-      fs: deps.fs,
-      machine: deps.machine,
-      spawning: deps.spawning,
-      agentProcessManager: deps.agentProcessManager,
-      events,
       agentServices,
-      lastPushedGitState: new Map(),
-      lastPushedModels: availableModels,
-      lastPushedHarnessFingerprint: harnessCapabilitiesFingerprint(
-        config.availableHarnesses,
-        config.harnessVersions as Record<string, unknown>
-      ),
-      logger: console,
-    };
+      cachedModels,
+      deps: createDefaultDeps(),
+    });
 
     yield* registerEventListenersEffect().pipe(Effect.provide(daemonSessionToLayers(init)));
-    yield* logStartupEffect(availableModels).pipe(Effect.provide(daemonSessionToLayers(init)));
+    yield* logStartupEffect(cachedModels).pipe(Effect.provide(daemonSessionToLayers(init)));
     yield* recoverStateEffect(init);
 
     return init;

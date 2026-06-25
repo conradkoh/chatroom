@@ -218,7 +218,7 @@ export const register = mutation({
         os: args.os,
         availableHarnesses: args.availableHarnesses,
         harnessVersions: args.harnessVersions,
-        availableModels: args.availableModels,
+        ...(args.availableModels !== undefined ? { availableModels: args.availableModels } : {}),
         lastSeenAt: now,
       });
 

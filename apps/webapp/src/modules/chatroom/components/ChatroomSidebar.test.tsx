@@ -186,6 +186,40 @@ describe('ChatroomSidebar', () => {
     });
   });
 
+  it('groups idle chatrooms into Last Week, Last Month, and Older sections', () => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    renderSidebar([
+      makeChatroom({
+        _id: 'week',
+        name: 'Week Chat',
+        chatStatus: 'idle',
+        lastActivityAt: now - 2 * dayMs,
+      }),
+      makeChatroom({
+        _id: 'month',
+        name: 'Month Chat',
+        chatStatus: 'idle',
+        lastActivityAt: now - 10 * dayMs,
+      }),
+      makeChatroom({
+        _id: 'older',
+        name: 'Older Chat',
+        chatStatus: 'idle',
+        lastActivityAt: now - 40 * dayMs,
+      }),
+    ]);
+
+    expect(screen.getByText('Last Week')).toBeInTheDocument();
+    expect(screen.getByText('Last Month')).toBeInTheDocument();
+    expect(screen.getByText('Older')).toBeInTheDocument();
+    expect(screen.getByText('Week Chat')).toBeInTheDocument();
+    expect(screen.getByText('Month Chat')).toBeInTheDocument();
+    expect(screen.getByText('Older Chat')).toBeInTheDocument();
+    expect(screen.queryByText('Recent')).not.toBeInTheDocument();
+  });
+
   it('context menu does not appear for completed chatrooms in completed section', async () => {
     const activeChatroom = makeChatroom();
     const completedChatroom = makeCompletedChatroom();

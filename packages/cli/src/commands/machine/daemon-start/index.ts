@@ -11,6 +11,7 @@ import { Effect } from 'effect';
 import { startCommandLoopEffect } from './command-loop.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
 import { initDaemon } from './init.js';
+import { startBackgroundModelDiscoveryEffect } from './models-refresh.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
@@ -19,7 +20,9 @@ import { initDaemon } from './init.js';
  */
 export async function daemonStart(): Promise<void> {
   const init = await initDaemon();
-  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(daemonSessionToLayers(init))));
+  const layers = daemonSessionToLayers(init);
+  Effect.runFork(startBackgroundModelDiscoveryEffect.pipe(Effect.provide(layers)));
+  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────

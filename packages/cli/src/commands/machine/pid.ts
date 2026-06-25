@@ -136,21 +136,88 @@ export function isDaemonRunning(): { running: boolean; pid: number | null } {
   return { running: false, pid: null };
 }
 
+/** Default interval between lock acquisition retries during daemon restart. */
+const LOCK_RETRY_INTERVAL_MS = 500;
+
+/** Max time to wait for a previous daemon instance to release the lock on restart. */
+const LOCK_RETRY_MAX_WAIT_MS = 15_000;
+
 /**
- * Acquire the daemon lock (write PID file)
- *
- * @returns true if lock acquired, false if daemon already running
+ * Attempt to acquire the daemon lock without logging.
  */
-export function acquireLock(): boolean {
-  const { running, pid } = isDaemonRunning();
+function tryAcquireLock(): boolean {
+  const { running } = isDaemonRunning();
 
   if (running) {
-    console.error(`❌ Daemon already running for ${getConvexUrl()} (PID: ${pid})`);
     return false;
   }
 
   writePid();
   return true;
+}
+
+function logWaitingForShutdown(pid: number): void {
+  console.error(
+    `⏳ Waiting for previous daemon to shut down for ${getConvexUrl()} (PID: ${pid})...`
+  );
+}
+
+function logDaemonAlreadyRunning(pid: number | null): void {
+  console.error(`❌ Daemon already running for ${getConvexUrl()} (PID: ${pid})`);
+}
+
+// fallow-ignore-next-line complexity
+async function waitForLockOrTimeout(
+  deadline: number,
+  intervalMs: number,
+  sleep: (ms: number) => Promise<void>
+): Promise<boolean> {
+  let loggedWait = false;
+
+  while (Date.now() < deadline) {
+    if (tryAcquireLock()) {
+      return true;
+    }
+
+    const { pid } = isDaemonRunning();
+    if (pid !== null && !loggedWait) {
+      logWaitingForShutdown(pid);
+      loggedWait = true;
+    }
+
+    await sleep(intervalMs);
+  }
+
+  return false;
+}
+
+/**
+ * Acquire the daemon lock, retrying while a previous instance shuts down.
+ *
+ * On PM2/process-manager restart the old daemon may still hold the PID file
+ * briefly. Retrying avoids a burst of duplicate "already running" errors.
+ *
+ * @returns true if lock acquired, false if still held after max wait
+ */
+// fallow-ignore-next-line complexity
+export async function acquireLockWithRetry(options?: {
+  intervalMs?: number;
+  maxWaitMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}): Promise<boolean> {
+  const intervalMs = options?.intervalMs ?? LOCK_RETRY_INTERVAL_MS;
+  const maxWaitMs = options?.maxWaitMs ?? LOCK_RETRY_MAX_WAIT_MS;
+  const sleep =
+    options?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const deadline = Date.now() + maxWaitMs;
+
+  if (await waitForLockOrTimeout(deadline, intervalMs, sleep)) {
+    return true;
+  }
+
+  const { pid } = isDaemonRunning();
+  logDaemonAlreadyRunning(pid);
+  return false;
 }
 
 /**

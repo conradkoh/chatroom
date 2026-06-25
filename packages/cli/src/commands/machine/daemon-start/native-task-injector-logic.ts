@@ -1,6 +1,7 @@
 import type { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 
+import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   isInjectableNativeAction,
   isNativeAcknowledgedInjectionRetry,
@@ -10,14 +11,15 @@ import {
 
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
-/** True when daemon should inject a pending task into a live native session. */
+/** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line complexity
-export function shouldInjectNativeTask(
+export function shouldDeliverNativeTask(
   task: AssignedTaskView,
-  opts?: { alreadyInjectedTaskIds?: { has(taskId: string): boolean } }
+  opts: { ledger: NativeDeliveryLedger; harnessSessionId: string | undefined }
 ): boolean {
   if (!isNativeInjectableAliveRunning(task)) return false;
-  if (opts?.alreadyInjectedTaskIds?.has(task.taskId)) return false;
+  if (!opts.harnessSessionId) return false;
+  if (opts.ledger.isDelivered(task.taskId, opts.harnessSessionId)) return false;
   return (
     isInjectableNativeAction(task.participant?.lastSeenAction) ||
     isNativeIdleAfterTaskComplete(task.participant ?? {}) ||
@@ -39,34 +41,4 @@ export function buildNativeInjectionPrompt(params: {
     ].join('\n');
   }
   return taskDeliveryOutput;
-}
-
-export class NativeInjectionDedup {
-  private readonly injected = new Set<string>();
-  private readonly inFlight = new Set<string>();
-
-  /** Reserve a task for injection; returns false if already injected or in flight. */
-  tryAcquire(taskId: string): boolean {
-    if (this.has(taskId) || this.inFlight.has(taskId)) {
-      return false;
-    }
-    this.inFlight.add(taskId);
-    return true;
-  }
-
-  markInjected(taskId: string): void {
-    this.inFlight.delete(taskId);
-    this.injected.add(taskId);
-  }
-
-  // Used by shouldInjectNativeTask via alreadyInjectedTaskIds duck typing.
-  has(taskId: string): boolean {
-    return this.injected.has(taskId);
-  }
-
-  /** Release in-flight or completed injection so a retry can proceed. */
-  clear(taskId: string): void {
-    this.inFlight.delete(taskId);
-    this.injected.delete(taskId);
-  }
 }

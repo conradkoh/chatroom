@@ -11,7 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { CONNECTION_RETRY_INTERVAL_MS, initDaemon, discoverModels } from './init.js';
+import {
+  CONNECTION_RETRY_INTERVAL_MS,
+  initDaemon,
+  discoverModels,
+  discoverModelsForHarness,
+} from './init.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import {
@@ -19,14 +24,14 @@ import {
   loadMachineConfig,
 } from '../../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
-import { acquireLock, releaseLock } from '../pid.js';
+import { acquireLockWithRetry, releaseLock } from '../pid.js';
 
 // ---------------------------------------------------------------------------
 // Module Mocks — must be declared before imports
 // ---------------------------------------------------------------------------
 
 vi.mock('../pid.js', () => ({
-  acquireLock: vi.fn().mockReturnValue(true),
+  acquireLockWithRetry: vi.fn().mockResolvedValue(true),
   releaseLock: vi.fn(),
 }));
 
@@ -152,7 +157,7 @@ beforeEach(() => {
   // Re-establish default return values for all module mocks.
   // vi.restoreAllMocks() clears implementations set by tests, so we
   // need to set them here to get predictable defaults.
-  vi.mocked(acquireLock).mockReturnValue(true);
+  vi.mocked(acquireLockWithRetry).mockResolvedValue(true);
   vi.mocked(getSessionId).mockResolvedValue('session-123' as never);
   vi.mocked(getOtherSessionUrls).mockResolvedValue([]);
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
@@ -422,13 +427,29 @@ describe('discoverModels', () => {
   });
 });
 
+describe('discoverModelsForHarness', () => {
+  it('returns installed=false without calling listModels when harness is missing', async () => {
+    const mockService = {
+      isInstalled: vi.fn().mockResolvedValue(false),
+      listModels: vi.fn(),
+    } as any;
+
+    await expect(discoverModelsForHarness('pi', mockService)).resolves.toEqual({
+      harness: 'pi',
+      models: [],
+      installed: false,
+    });
+    expect(mockService.listModels).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // initDaemon
 // ---------------------------------------------------------------------------
 
 describe('initDaemon', () => {
   it('exits when lock cannot be acquired', async () => {
-    vi.mocked(acquireLock).mockReturnValue(false);
+    vi.mocked(acquireLockWithRetry).mockResolvedValue(false);
 
     await initDaemon();
 
@@ -521,14 +542,14 @@ describe('initDaemon', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
-    // 1st mutation: registerCapabilities succeeds
+    // 1st mutation: registerMachine succeeds
     // 2nd mutation: connectDaemon fails with network error
-    // 3rd mutation: registerCapabilities succeeds (retry)
+    // 3rd mutation: registerMachine succeeds (retry)
     // 4th mutation: connectDaemon succeeds (retry)
     mockClient.mutation
-      .mockResolvedValueOnce(undefined) // registerCapabilities
+      .mockResolvedValueOnce(undefined) // registerMachine
       .mockRejectedValueOnce(networkError) // connectDaemon (fail)
-      .mockResolvedValueOnce(undefined) // registerCapabilities (retry)
+      .mockResolvedValueOnce(undefined) // registerMachine (retry)
       .mockResolvedValueOnce(undefined) // connectDaemon (retry success)
       .mockResolvedValueOnce({ clearedCount: 0 })
       .mockResolvedValueOnce({ reapedCount: 0 });
@@ -562,6 +583,17 @@ describe('initDaemon', () => {
     // Should continue and return context (not exit)
     expect(ctx).toBeDefined();
     expect(ctx.machineId).toBe('machine-abc');
+  });
+
+  it('loads cached models from the backend for lastPushedModels', async () => {
+    const mockClient = await getMockClient();
+    mockClient.query
+      .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' })
+      .mockResolvedValueOnce({ availableModels: { opencode: ['opencode/model-a'] } });
+
+    const ctx = await initDaemon();
+
+    expect(ctx.lastPushedModels).toEqual({ opencode: ['opencode/model-a'] });
   });
 
   it('returns a valid DaemonSessionInit on successful initialization', async () => {

@@ -10,10 +10,8 @@ import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/mac
 import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
-import {
-  buildNativeInjectionPrompt,
-  NativeInjectionDedup,
-} from '../commands/machine/daemon-start/native-task-injector-logic.js';
+import { NativeDeliveryLedger } from '../commands/machine/daemon-start/native-delivery-ledger.js';
+import { buildNativeInjectionPrompt } from '../commands/machine/daemon-start/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from '../commands/machine/daemon-start/native-task-injector.js';
 
 export interface SimulateInjectionOptions {
@@ -68,13 +66,15 @@ function createBackendMock(deliveryOutput: string) {
 
 export class NativeOrchestrationSimulator {
   readonly harness = new RecordingHarness();
-  readonly dedup = new NativeInjectionDedup();
+  readonly ledger = new NativeDeliveryLedger();
+  readonly harnessSessionId: string;
   readonly sessionId: string;
   readonly convexUrl: string;
 
-  constructor(options?: { sessionId?: string; convexUrl?: string }) {
+  constructor(options?: { sessionId?: string; convexUrl?: string; harnessSessionId?: string }) {
     this.sessionId = options?.sessionId ?? 'test-session';
     this.convexUrl = options?.convexUrl ?? 'http://127.0.0.1:3210';
+    this.harnessSessionId = options?.harnessSessionId ?? 'test-harness-session';
   }
 
   static makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
@@ -98,13 +98,14 @@ export class NativeOrchestrationSimulator {
     await Effect.runPromise(
       runNativeInjectionEffect(
         task,
+        this.harnessSessionId,
         {
           sessionId,
           convexUrl,
           backend,
           agentMgr: this.harness,
         },
-        this.dedup
+        this.ledger
       )
     );
 

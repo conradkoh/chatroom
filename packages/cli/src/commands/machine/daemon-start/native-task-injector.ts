@@ -3,10 +3,10 @@ import { parseCompressContext } from '@workspace/backend/src/domain/handoff/pars
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import { Effect } from 'effect';
 
-import type { NativeInjectionDedup } from './native-task-injector-logic.js';
+import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   buildNativeInjectionPrompt,
-  shouldInjectNativeTask,
+  shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -29,19 +29,20 @@ export interface NativeInjectorDeps {
 
 export function runNativeInjectionEffect(
   task: AssignedTaskView,
+  harnessSessionId: string,
   deps: NativeInjectorDeps,
-  dedup: NativeInjectionDedup
+  ledger: NativeDeliveryLedger
 ): Effect.Effect<void, unknown, never> {
   // fallow-ignore-next-line complexity
   return Effect.gen(function* () {
-    if (!shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
+    if (!shouldDeliverNativeTask(task, { ledger, harnessSessionId })) {
       return;
     }
 
     const { chatroomId, taskId, taskContent, agentConfig, status } = task;
     const { role } = agentConfig;
 
-    if (!dedup.tryAcquire(taskId)) {
+    if (!ledger.tryAcquire(taskId, harnessSessionId)) {
       return;
     }
 
@@ -59,7 +60,7 @@ export function runNativeInjectionEffect(
       }).pipe(Effect.either);
 
       if (claimResult._tag === 'Left') {
-        dedup.clear(taskId);
+        ledger.clearDelivery(taskId, harnessSessionId);
         return yield* Effect.fail(claimResult.left);
       }
     }
@@ -77,7 +78,7 @@ export function runNativeInjectionEffect(
     }).pipe(Effect.either);
 
     if (deliveryResult._tag === 'Left') {
-      dedup.clear(taskId);
+      ledger.clearDelivery(taskId, harnessSessionId);
       return yield* Effect.fail(deliveryResult.left);
     }
 
@@ -98,7 +99,9 @@ export function runNativeInjectionEffect(
           taskId,
         }),
       catch: (err) => err,
-    }).pipe(Effect.tapError(() => Effect.sync(() => dedup.clear(taskId))));
+    }).pipe(
+      Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
+    );
 
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),
@@ -106,13 +109,13 @@ export function runNativeInjectionEffect(
     }).pipe(Effect.either);
 
     if (resumeResult._tag === 'Left') {
-      dedup.clear(taskId);
+      ledger.clearDelivery(taskId, harnessSessionId);
       console.warn(
         `[NativeTaskInjector] resumeTurn failed for ${role}@${chatroomId}: ${getErrorMessage(resumeResult.left)}`
       );
       return;
     }
 
-    dedup.markInjected(taskId);
+    ledger.markDelivered(taskId, harnessSessionId);
   });
 }

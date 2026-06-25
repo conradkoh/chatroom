@@ -28,6 +28,7 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import { notifyNativeHarnessSessionLostOnExit } from '../../../commands/machine/daemon-start/native-harness-session-exit.js';
 import type { HarnessSessionSnapshot, StopReason } from '../../../domain/agent-lifecycle/index.js';
 import {
   decideResumePathOnRestart,
@@ -562,6 +563,17 @@ export class AgentProcessManager {
     const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
 
     const ctx = this.captureExitContext(slot, opts, stopReason);
+    notifyNativeHarnessSessionLostOnExit({
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      harness: ctx.harness,
+      harnessSessionId: ctx.harnessSessionId,
+      stopReason: ctx.stopReason,
+      recentLogLines: ctx.recentLogLines,
+      supportsDaemonMemoryResume: Boolean(
+        ctx.harness && this.deps.agentServices.get(ctx.harness)?.resumeFromDaemonMemory
+      ),
+    });
     await this.preserveHarnessSessionOnExit(key, slot, ctx);
 
     const lifecyclePromise = this.lifecycle.runPromise(
@@ -706,16 +718,12 @@ export class AgentProcessManager {
     this.maybeRestartAgent(opts, ctx);
   }
 
-  private clearHarnessSessionAfterRunError(
-    key: string,
-    role: string,
-    recentLogLines: string[]
-  ): boolean {
+  private clearHarnessSessionAfterRunError(key: string, recentLogLines: string[]): boolean {
     if (!isCursorSdkRunErrorInLogs(recentLogLines)) {
       return false;
     }
     console.log(
-      `[AgentProcessManager] cursor-sdk run-error — cold restarting ${role}: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
+      `[AgentProcessManager] cursor-sdk run-error — cold restarting ${key}: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
     );
     this.clearLastHarnessSession(key);
     return true;
@@ -743,7 +751,7 @@ export class AgentProcessManager {
       return;
     }
 
-    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, opts.role, logs);
+    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, logs);
 
     void this.ensureRunning({
       chatroomId: opts.chatroomId,
@@ -753,10 +761,18 @@ export class AgentProcessManager {
       workingDir,
       reason: 'platform.crash_recovery',
       wantResume: coldRestartAfterRunError ? false : (ctx.wantResume ?? true),
-    }).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
-      this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
-    });
+    })
+      .then((result) => {
+        if (!result.success) {
+          console.log(
+            `[AgentProcessManager] ⚠️  Agent restart did not complete for ${opts.role}: ${result.error ?? 'unknown'}`
+          );
+        }
+      })
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
+        this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
+      });
   }
 
   private handlePermanentFailureForRestart(
