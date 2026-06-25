@@ -1,14 +1,6 @@
 /**
  * Subscribes to unprocessed user messages via Convex WS and dispatches them
  * to the harness session.
- *
- * No prompt lifecycle (submit/claim/complete). The daemon reads user messages
- * directly from the turn stream using cursor-based turn-seq tracking:
- *   1. Query `messages.pendingForMachine` for user turns with
- *      turnSeq > session.lastProcessedTurnSeq
- *   2. For each session with new messages, resolve the handle (lazy resume if
- *      the daemon restarted) and call session.prompt()
- *   3. Mark the turn processed via turns.markTurnProcessed
  */
 
 import type { ConvexClient } from 'convex/browser';
@@ -21,12 +13,12 @@ import type { BoundHarness } from '../../../../domain/direct-harness/entities/bo
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
+import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import {
-  startOpencodeSdkHarness,
-  createOpencodeSdkChunkExtractor,
-} from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
-
-// ─── Convex shape types ──────────────────────────────────────────────────────
+  createChunkExtractor,
+  startBoundHarness,
+  type NativeDirectHarnessName,
+} from '../../../../infrastructure/harnesses/registry.js';
 
 interface PendingMessage {
   harnessSessionId: string;
@@ -34,11 +26,10 @@ interface PendingMessage {
   seq: number;
 }
 
-/** Shape of a pending session from pendingForMachine. */
 interface PendingSessionInfo {
   _id: string;
   workspaceId: string;
-  /** Set once the daemon has associated the SDK session. Undefined while still pending. */
+  harnessName: string;
   opencodeSessionId: string | undefined;
   lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
 }
@@ -47,16 +38,12 @@ interface WorkspaceInfo {
   workingDir: string;
 }
 
-// ─── Deps ────────────────────────────────────────────────────────────────────
-
 export interface MessageSubscriberDeps {
   readonly activeSessions: Map<string, ActiveSession>;
   readonly harnesses: Map<string, BoundHarness>;
   readonly sessionRepository: SessionRepository;
   readonly journalFactory: JournalFactory;
 }
-
-// ─── Subscriber ──────────────────────────────────────────────────────────────
 
 export function startMessageSubscriber(
   session: DirectHarnessSession,
@@ -86,10 +73,7 @@ export function startMessageSubscriber(
   return { stop: unsub };
 }
 
-// ─── Drain loop ──────────────────────────────────────────────────────────────
-
 async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps): Promise<void> {
-  // Fetch all pending user messages grouped by session
   const pending = (await session.backend.query(
     api.daemon.directHarness.messages.pendingForMachine,
     { sessionId: session.sessionId, machineId: session.machineId }
@@ -100,7 +84,6 @@ async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps)
 
   if (!pending || pending.messages.length === 0) return;
 
-  // Group messages by session for batch processing
   const bySession = new Map<string, PendingMessage[]>();
   for (const msg of pending.messages) {
     const list = bySession.get(msg.harnessSessionId);
@@ -111,13 +94,11 @@ async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps)
     }
   }
 
-  // Build a session-info lookup
   const sessionInfo = new Map<string, PendingSessionInfo>();
   for (const s of pending.sessions) {
     sessionInfo.set(s._id, s);
   }
 
-  // Process each session's messages
   for (const [rowId, messages] of bySession) {
     try {
       await processSessionMessages(session, deps, rowId, messages, sessionInfo.get(rowId));
@@ -129,8 +110,6 @@ async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps)
     }
   }
 }
-
-// ─── Process messages for a single session ───────────────────────────────────
 
 async function resumeSessionHandle(
   session: DirectHarnessSession,
@@ -145,15 +124,17 @@ async function resumeSessionHandle(
   }
 
   const workspaceId = info.workspaceId;
+  const harnessName = info.harnessName;
   if (!workspaceId) {
     console.warn(`[direct-harness] Cannot resume session ${rowId}: no workspace info`);
     return null;
   }
 
-  let harness = deps.harnesses.get(workspaceId);
+  const key = makeHarnessKey(workspaceId, harnessName);
+  let harness = deps.harnesses.get(key);
   if (harness && !harness.isAlive()) {
     harness.close().catch(() => {});
-    deps.harnesses.delete(workspaceId);
+    deps.harnesses.delete(key);
     harness = undefined;
   }
   if (!harness) {
@@ -167,13 +148,13 @@ async function resumeSessionHandle(
       return null;
     }
 
-    harness = await startOpencodeSdkHarness({
-      type: 'opencode',
+    harness = await startBoundHarness({
+      harnessName: harnessName as NativeDirectHarnessName,
       workingDir: workspace.workingDir,
       workspaceId,
       resolvedConvexUrl: session.convexUrl,
     });
-    deps.harnesses.set(workspaceId, harness);
+    deps.harnesses.set(key, harness);
   }
 
   try {
@@ -181,9 +162,9 @@ async function resumeSessionHandle(
       {
         harness,
         journalFactory: deps.journalFactory,
-        chunkExtractor: createOpencodeSdkChunkExtractor(),
+        chunkExtractor: createChunkExtractor(harness.type),
       },
-      { harnessSessionId: rowId, opencodeSessionId, workspaceId }
+      { harnessSessionId: rowId, opencodeSessionId, workspaceId, harnessName }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -254,7 +235,9 @@ async function deliverPendingMessages(
       );
       await deps.sessionRepository.markIdle(rowId).catch(() => {});
       deps.activeSessions.delete(rowId);
-      if (info?.workspaceId) deps.harnesses.delete(info.workspaceId);
+      if (info?.workspaceId && info.harnessName) {
+        deps.harnesses.delete(makeHarnessKey(info.workspaceId, info.harnessName));
+      }
       return;
     }
   }
