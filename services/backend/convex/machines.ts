@@ -2558,7 +2558,7 @@ export const emitAgentStartFailed = mutation({
   },
 });
 
-/** Emits an agent.sessionResumed event when resumeTurn succeeds after agent_end. */
+/** Emits an agent.sessionResumed event when stop→start daemon-memory reconnect succeeds. */
 export const emitSessionResumed = mutation({
   args: {
     ...SessionIdArg,
@@ -2594,7 +2594,7 @@ export const emitSessionResumed = mutation({
   },
 });
 
-/** Emits an agent.sessionResumeFailed event when resumeTurn fails after agent_end. */
+/** Emits an agent.sessionResumeFailed event when stop→start daemon-memory reconnect fails. */
 export const emitSessionResumeFailed = mutation({
   args: {
     ...SessionIdArg,

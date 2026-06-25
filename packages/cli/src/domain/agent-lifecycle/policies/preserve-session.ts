@@ -5,7 +5,7 @@ import type { StopReason } from '../entities/stop-reason.js';
  * (resumeFromDaemonMemory) after this stop or process exit.
  *
  * Intentional platform/daemon stops clear memory; user.stop and automated process
- * outcomes retain it when the harness supports session resume.
+ * outcomes retain it when the harness supports daemon-memory resume.
  */
 export function shouldRetainHarnessSessionForReconnect(reason: StopReason): boolean {
   switch (reason) {

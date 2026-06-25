@@ -106,9 +106,9 @@ export function getHarnessDisplayName(harness: string): string {
   return HARNESS_DISPLAY_NAMES[harness] ?? harness.charAt(0).toUpperCase() + harness.slice(1);
 }
 
-/** Whether the harness supports resuming the agent session after agent_end. */
-export function harnessSupportsSessionResume(harness: AgentHarness): boolean {
-  return getHarnessCapabilities(harness).supportsSessionResume;
+/** Whether stop→start can reconnect to the daemon's preserved session on this machine. */
+export function harnessSupportsDaemonMemoryResume(harness: AgentHarness): boolean {
+  return getHarnessCapabilities(harness).supportsDaemonMemoryResume;
 }
 
 /** Whether the harness receives tasks via direct session injection (no get-next-task loop). */

@@ -21,7 +21,7 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 | **Session start**    | System prompt + instructions to run `get-next-task`                                                      | System prompt only — no `get-next-task` loop                                                     |
 | **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; first harness token → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first harness token → WORKING |
 
-**Distinction from `supportsSessionResume`:** session resume (turn-end `resumeTurn` after `lifecycle.turn.completed`) is disabled for all harnesses. Native integration changes _how tasks are delivered_ — the agent never blocks on `get-next-task`. Native SDK harnesses use `resumeTurn` only for task injection.
+**Task injection:** Native SDK harnesses use `resumeTurn` only when the daemon injects user work — not for turn-end auto-resume.
 
 **Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk` (`supportsNativeIntegration: true` in `types.ts`).
 
@@ -43,7 +43,7 @@ The task monitor watches assigned tasks and, for native harnesses, injects pendi
 
 1. `native-task-injector-logic.ts` — pure inject decisions (`shouldInjectNativeTask`)
 2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
-3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and idle turn-end resume
+3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and native turn-end idle
 
 CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
 
@@ -89,7 +89,7 @@ Defined in `remote-agent-service.ts`. Every harness must provide:
 - `onExit(cb)` — fires when the harness turn ends
 - `onOutput(cb)` — fires on new stdout/stderr activity (updates `lastOutputAt`)
 - `onAgentEnd?(cb)` — optional; fires when the agent completes a turn (see capabilities)
-- `onLogLine?(cb)` — **required when `supportsSessionResume` is true**; human-readable log lines for resume-storm reason classification (see §3.5)
+- `onLogLine?(cb)` — human-readable log lines for resume-storm reason classification on native SDK harnesses (see §3.5)
 
 ### Lifecycle vs wire events
 
@@ -171,27 +171,26 @@ Readers typically expose `onText`, `onAgentEnd`, `onToolCall`, etc., and write p
 
 Implement `onAgentEnd` when the daemon should restart the process between turns.
 
-### 3.5 In-process resume harnesses (`onLogLine`)
+### 3.5 Log lines for resume-storm classification (`onLogLine`)
 
-Harnesses with `supportsSessionResume: true` (`pi`, `opencode-sdk`, `cursor-sdk`) keep the process alive between turns. When the agent hits API/auth/config errors, it may end turns in rapid succession and trigger a **resume storm** abort.
+Native SDK harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`) idle in-process between turns. When the agent hits API/auth/config errors, it may end turns in rapid succession and trigger a **resume storm** abort.
 
 `AgentProcessManager` registers `spawnResult.onLogLine` and keeps the last ~100 lines per agent slot. On storm abort, `classifyResumeStormReason()` scans those lines for rate-limit, auth, and config patterns.
 
-**Requirements for session-resume harnesses:**
+**Requirements for harnesses that emit `onLogLine`:**
 
 1. Return `onLogLine` from `spawn()` (and `resumeFromDaemonMemory()` when applicable).
 2. Emit the **same formatted strings** you write to stdout/stderr (prefix + kind + payload), one line per callback — include error paths (`spawn-error`, `session.error`, stderr chunks).
-3. Do not emit `onLogLine` for duplicate in-flight `agent_end` skips; the daemon handles that at the turn layer.
 
 Reference implementations:
 
 | Harness        | Where log lines are emitted                                                                                    |
 | -------------- | -------------------------------------------------------------------------------------------------------------- |
-| `pi`           | `pi-agent-service.ts` — `writeFormattedLogLine`, stderr `onStderrData`                                         |
 | `opencode-sdk` | `session-event-forwarder.ts` — `writeLogLine`; serve stderr in `registerRunningSession`                        |
 | `cursor-sdk`   | `cursor-sdk-stream-adapter.ts` — `writeLine`; `writeSpawnError` / `run-error` in `cursor-sdk-agent-service.ts` |
+| `pi-sdk`       | `pi-sdk-stream-adapter.ts` — formatted log lines from session events                                           |
 
-Non-resume harnesses (kill-and-respawn per turn) do **not** need `onLogLine`.
+Single-shot CLI harnesses (kill-and-respawn per turn) do **not** need `onLogLine`.
 
 ---
 
@@ -257,7 +256,7 @@ void (async () => {
 return { pid, onExit, onOutput, onAgentEnd, onLogLine };
 ```
 
-Collect callbacks in arrays (`exitCallbacks`, `outputCallbacks`, `logLineCallbacks`) and invoke them from the IIFE when events occur. If `supportsSessionResume` is true for your harness, wire `onLogLine` per §3.5.
+Collect callbacks in arrays (`exitCallbacks`, `outputCallbacks`, `logLineCallbacks`) and invoke them from the IIFE when events occur. Wire `onLogLine` for native SDK harnesses per §3.5.
 
 ### 4.4 Stream adapter
 
@@ -401,11 +400,12 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 | `commandcode`  | Direct `cmd` child       | Long-lived headless (`--max-turns`) | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 | `copilot`      | Direct `copilot` child   | Single-shot CLI                     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 
-**Resumable harnesses** (`pi`, `opencode-sdk`, `cursor-sdk`): after a normal turn, `handleAgentEnd` always calls `resumeTurn` instead of kill. On stop→start (same daemon), `wantResume` on `agent.requestStart` controls whether the daemon tries daemon-memory reconnect:
+**Daemon-memory reconnect on stop→start** (`supportsDaemonMemoryResume: true` for `opencode-sdk` and `cursor-sdk`): `wantResume` on `agent.requestStart` controls whether the daemon tries `resumeFromDaemonMemory` when session metadata was preserved:
 
 - **opencode-sdk**: `user.stop` with an active harness session uses `preserveForResume` (skips `session.abort`). `AgentProcessManager.lastHarnessSessions` stores reconnect metadata in daemon memory on spawn and on preserve-for-resume stop; non-preserve stop clears the entry. The next start with `wantResume` calls `OpenCodeSdkAgentService.resumeFromDaemonMemory` (new `opencode serve`, `session.get`, `session.promptAsync` on the same `sessionId`). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to `spawn`. Daemon restart loses memory → fresh spawn (no failure event). A different `workingDir` clears memory, emits `working directory changed`, then fresh spawn.
 - **cursor-sdk**: Same daemon-memory model as opencode-sdk. `spawn` returns `harnessSessionId` (`agent.agentId`) and `harnessReconnect` metadata. `user.stop` with `preserveForResume` skips `agent.close()` so the Cursor agent stays resumable. The next start with `wantResume` calls `CursorSdkAgentService.resumeFromDaemonMemory` (`Agent.resume(agentId)`, then `agent.send` with the spawn prompt). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to `spawn`. Daemon restart loses memory → fresh spawn (no failure event).
-- **pi**: Same daemon-memory model as opencode-sdk. `spawn` returns `harnessSessionId` from RPC `get_state` (sessions under `{workingDir}/.chatroom/pi-sessions`). `user.stop` with `preserveForResume` keeps session files on disk for in-daemon stop→start resume only. The next start with `wantResume` calls `PiAgentService.resumeFromDaemonMemory` (`pi --session <id>`, same session-dir, prompt over stdin). Success emits `agent.sessionResumed`; failure emits `agent.sessionResumeFailed` and falls back to `spawn`. **Pi session files on disk do not enable cross-daemon-restart resume** — after daemon restart, `lastHarnessSessions` is empty and Chatroom spawns fresh even if `.chatroom/pi-sessions` still exists. In-turn `resumeTurn` still handles agent_end without restart.
+
+Native harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`) idle in-process after each turn; the daemon injects tasks via `resumeTurnForSlot` instead of turn-end auto-resume.
 
 A **requestStart replace** always kills via `doStop` regardless of resume state.
 

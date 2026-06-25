@@ -13,13 +13,14 @@ describe('RemoteAgentAdvancedSettings', () => {
     onAutoRestartOnNewContextChange: vi.fn(),
   };
 
-  it('hides Resume session when harness does not support session resume', () => {
+  it('shows Resume session for daemon-memory-capable harnesses', () => {
     render(<RemoteAgentAdvancedSettings {...baseProps} disabled />);
 
-    expect(screen.queryByText('Resume session')).not.toBeInTheDocument();
+    expect(screen.getByText('Resume session')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Resume session' })).toBeDisabled();
   });
 
-  it('hides Resume session for CLI harnesses', () => {
+  it('hides Resume session for harnesses without daemon-memory resume', () => {
     render(<RemoteAgentAdvancedSettings {...baseProps} agentHarness="cursor" />);
 
     expect(screen.queryByText('Resume session')).not.toBeInTheDocument();

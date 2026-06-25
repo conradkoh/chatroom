@@ -19,7 +19,6 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
-import { SessionResumeBadge } from './SessionResumeBadge';
 import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useSetupNaming } from '../context/SetupNamingContext';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
@@ -34,7 +33,6 @@ import {
   getHarnessDisplayName,
   getModelDisplayLabel,
   getMachineDisplayName,
-  harnessSupportsSessionResume,
 } from '../types/machine';
 import type { Workspace } from '../types/workspace';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
@@ -905,9 +903,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                 displayHarnessVersionsForMachine[displayHarness]
                               )
                             : 'Harness...'}
-                          {displayHarness && harnessSupportsSessionResume(displayHarness) && (
-                            <SessionResumeBadge />
-                          )}
                         </span>
                         <ChevronDown
                           size={10}
@@ -939,9 +934,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                 >
                                   <span className="truncate flex items-center min-w-0">
                                     {label}
-                                    {harnessSupportsSessionResume(harness) && (
-                                      <SessionResumeBadge />
-                                    )}
                                   </span>
                                   {displayHarness === harness && (
                                     <span className="ml-2 flex-shrink-0 text-chatroom-accent">

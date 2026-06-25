@@ -19,7 +19,6 @@
  * Phase 1: standalone, no caller changes. Built and tested in isolation.
  */
 
-import { composeResumeMessage } from '@workspace/backend/prompts/generator.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
@@ -106,18 +105,16 @@ export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
   harness?: AgentHarness;
-  /** Harness-native session ID when supportsSessionResume is true. */
+  /** Harness-native session ID for daemon-memory reconnect metadata. */
   harnessSessionId?: string;
   model?: string;
   workingDir?: string;
   startedAt?: number;
   /** Promise that resolves when a pending spawn or stop completes */
   pendingOperation?: Promise<OperationResult>;
-  /** Guards against overlapping resumeTurn + emit cycles from duplicate agent_end signals. */
-  resumeInFlight?: boolean;
   /** Recent harness log lines for resume-storm reason classification. */
   recentLogLines?: string[];
-  /** User's persisted resume preference for this run; gates turn-resume & crash-recovery resume. */
+  /** User's persisted reconnect-on-start preference for this run. */
   wantResume?: boolean;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean;
@@ -246,7 +243,6 @@ export class AgentProcessManager {
         model: slot.model,
         workingDir: slot.workingDir,
         startedAt: slot.startedAt,
-        resumeInFlight: slot.resumeInFlight,
         recentLogLines: slot.recentLogLines,
         wantResume: slot.wantResume,
       });
@@ -399,10 +395,7 @@ export class AgentProcessManager {
     harness: AgentHarness;
   }): Promise<void> {
     const slot = this.slots.get(agentKey(opts.chatroomId, opts.role));
-    const service = this.deps.agentServices.get(opts.harness);
     const capabilities = getHarnessCapabilities(opts.harness);
-    const supportsSessionResume =
-      capabilities.supportsSessionResume && typeof service?.resumeTurn === 'function';
 
     this.updateSlotsMirror(opts.chatroomId, opts.role, {
       state: slot?.state ?? 'idle',
@@ -412,13 +405,12 @@ export class AgentProcessManager {
       model: slot?.model,
       workingDir: slot?.workingDir,
       startedAt: slot?.startedAt,
-      resumeInFlight: slot?.resumeInFlight,
       recentLogLines: slot?.recentLogLines,
       wantResume: slot?.wantResume,
     });
 
     console.log(
-      `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness} supportsResume=${supportsSessionResume}`
+      `[AgentProcessManager] lifecycle.turn.completed: role=${opts.role} pid=${opts.pid} harness=${opts.harness}`
     );
 
     if (capabilities.supportsNativeIntegration) {
@@ -431,19 +423,6 @@ export class AgentProcessManager {
         resumeStormTracker: this.deps.resumeStormTracker,
         backend: createTurnCompletedBackend(this.deps),
         now: () => this.deps.clock.now(),
-        composeResumePrompt: ({ chatroomId, role }) =>
-          composeResumeMessage({
-            chatroomId,
-            role,
-            convexUrl: this.deps.convexUrl,
-            supportsNativeIntegration: capabilities.supportsNativeIntegration,
-          }),
-        resumeTurn: async (pid, prompt) => {
-          if (!service?.resumeTurn) {
-            throw new Error('Harness does not support resumeTurn');
-          }
-          await service.resumeTurn(pid, prompt);
-        },
         killProcess: (pid) => {
           try {
             this.deps.processes.kill(-pid, 'SIGTERM');
@@ -457,26 +436,15 @@ export class AgentProcessManager {
         chatroomId: opts.chatroomId,
         role: opts.role,
         pid: opts.pid,
-        supportsSessionResume,
-        // User's resume preference captured at spawn. When enabled → resume
-        // turn in-process (same PID); when disabled → kill and cold-restart.
-        // Defaults to true for backward compatibility when slot is missing.
-        wantResume: slot?.wantResume ?? true,
       },
       slot
     );
 
-    if (result.outcome === 'skipped_duplicate') {
-      console.log(
-        `[AgentProcessManager] lifecycle.turn.completed: skipping duplicate resume for ${opts.role} (resume already in flight)`
-      );
-    } else if (result.outcome === 'storm_aborted') {
+    if (result.outcome === 'storm_aborted') {
       console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
-    } else if (result.outcome === 'resumed') {
-      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${opts.role}`);
     } else if (result.outcome === 'killed') {
       console.log(
-        `[AgentProcessManager] lifecycle.turn.completed: killed process for ${opts.role} (resume disabled or failed)`
+        `[AgentProcessManager] lifecycle.turn.completed: killed process for ${opts.role}`
       );
     } else if (result.outcome === 'killed_terminal_provider_error') {
       console.log(
@@ -485,6 +453,7 @@ export class AgentProcessManager {
     }
   }
 
+  // fallow-ignore-next-line complexity
   private async runHandleNativeTurnEnd(
     opts: {
       chatroomId: string;
@@ -494,13 +463,6 @@ export class AgentProcessManager {
     },
     slot: AgentSlot | undefined
   ): Promise<void> {
-    if (slot?.resumeInFlight) {
-      console.log(
-        `[AgentProcessManager] lifecycle.turn.completed: skipping duplicate native turn-end for ${opts.role}`
-      );
-      return;
-    }
-
     if (
       await tryAbortResumeStorm(
         {
@@ -513,8 +475,6 @@ export class AgentProcessManager {
           chatroomId: opts.chatroomId,
           role: opts.role,
           pid: opts.pid,
-          supportsSessionResume: false,
-          wantResume: false,
         },
         slot
       )

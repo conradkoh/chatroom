@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { memo } from 'react';
 
 import type { AgentHarness } from '../../types/machine';
-import { harnessSupportsSessionResume } from '../../types/machine';
+import { harnessSupportsDaemonMemoryResume } from '../../types/machine';
 
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -32,9 +32,8 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
   onAutoRestartOnNewContextChange,
 }: RemoteAgentAdvancedSettingsProps) {
   const showResumeSessionSetting =
-    agentHarness != null && harnessSupportsSessionResume(agentHarness);
-  const showStartNewSessionOnNewContextSetting =
-    roleSupportsAutoRestartOnNewContextSetting(role);
+    agentHarness != null && harnessSupportsDaemonMemoryResume(agentHarness);
+  const showStartNewSessionOnNewContextSetting = roleSupportsAutoRestartOnNewContextSetting(role);
 
   if (!showResumeSessionSetting && !showStartNewSessionOnNewContextSetting) {
     return null;
