@@ -118,6 +118,32 @@ Give a concise, factual reason (e.g. \`User confirmed: shipped in PR #119\`).
 
 ---
 
+## Lifecycle
+
+Backlog items move through explicit statuses. **When you raise a PR for user review, use \`mark-for-review\` — not \`complete\`.** Only mark \`complete\` after the PR is merged and verified (or the user confirms).
+
+\`\`\`mermaid
+stateDiagram-v2
+    [*] --> backlog: user creates
+    backlog --> pending_user_review: agent raises PR (mark-for-review)
+    pending_user_review --> closed: user confirms / PR merged (complete)
+    backlog --> closed: stale/superseded (close)
+    closed --> backlog: reopen
+\`\`\`
+
+### Command decision table
+
+| Situation | Command |
+|-----------|---------|
+| Fix PR opened, awaiting user review/merge | \`mark-for-review\` |
+| PR merged and verified | \`complete\` |
+| Stale/duplicate/won't fix | \`close --reason=...\` |
+| Mistakenly completed early | \`reopen\` then \`mark-for-review\` |
+
+Reference: \`docs/plans/backlog-item-lifecycle-and-attachments.md\`
+
+---
+
 ## Workflows
 
 ### 1. Score Unscored Items
@@ -136,16 +162,17 @@ flowchart TD
 
 An item is "already scored" if the list output shows "Score: complexity=... | value=... | priority=...".
 
-### 2. After Completing a Backlog Task
+### 2. After Completing a Backlog Task (PR raised)
 
 \`\`\`mermaid
 flowchart TD
-  A([Task complete]) --> B[Mark for review]
-  B --> C[Hand off to user with summary]
-  C --> D([Done])
+  A([Implementation complete]) --> B[Open PR for user review]
+  B --> C["mark-for-review (NOT complete)"]
+  C --> D[Hand off to user with PR link + summary]
+  D --> E([User reviews in Pending Review section])
 \`\`\`
 
-Marks item as \`pending_user_review\`. User confirms completion or sends back for rework.
+Moves item to \`pending_user_review\`. User confirms completion (\`complete\`) or sends back for rework (\`reopen\`).
 
 ### 3. Continuous Backlog Execution
 
