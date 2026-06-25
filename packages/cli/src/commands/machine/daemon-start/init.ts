@@ -45,7 +45,7 @@ import {
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
-import { acquireLock, releaseLock } from '../pid.js';
+import { acquireLockWithRetry, releaseLock } from '../pid.js';
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
@@ -487,7 +487,11 @@ const connectWithRetryEffect = (
  */
 export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> = Effect.gen(
   function* () {
-    if (!acquireLock()) {
+    const lockAcquired = yield* Effect.tryPromise({
+      try: () => acquireLockWithRetry(),
+      catch: (e) => e,
+    });
+    if (!lockAcquired) {
       return yield* Effect.sync(() => {
         process.exit(1);
       });

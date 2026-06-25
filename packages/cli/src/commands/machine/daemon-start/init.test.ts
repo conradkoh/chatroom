@@ -19,14 +19,14 @@ import {
   loadMachineConfig,
 } from '../../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
-import { acquireLock, releaseLock } from '../pid.js';
+import { acquireLockWithRetry, releaseLock } from '../pid.js';
 
 // ---------------------------------------------------------------------------
 // Module Mocks — must be declared before imports
 // ---------------------------------------------------------------------------
 
 vi.mock('../pid.js', () => ({
-  acquireLock: vi.fn().mockReturnValue(true),
+  acquireLockWithRetry: vi.fn().mockResolvedValue(true),
   releaseLock: vi.fn(),
 }));
 
@@ -152,7 +152,7 @@ beforeEach(() => {
   // Re-establish default return values for all module mocks.
   // vi.restoreAllMocks() clears implementations set by tests, so we
   // need to set them here to get predictable defaults.
-  vi.mocked(acquireLock).mockReturnValue(true);
+  vi.mocked(acquireLockWithRetry).mockResolvedValue(true);
   vi.mocked(getSessionId).mockResolvedValue('session-123' as never);
   vi.mocked(getOtherSessionUrls).mockResolvedValue([]);
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
@@ -428,7 +428,7 @@ describe('discoverModels', () => {
 
 describe('initDaemon', () => {
   it('exits when lock cannot be acquired', async () => {
-    vi.mocked(acquireLock).mockReturnValue(false);
+    vi.mocked(acquireLockWithRetry).mockResolvedValue(false);
 
     await initDaemon();
 
