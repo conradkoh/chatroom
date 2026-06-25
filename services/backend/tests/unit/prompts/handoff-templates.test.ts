@@ -3,7 +3,7 @@
  *
  * Covers the resolver dispatch and the structural guarantees the backlog
  * item requires:
- *  - planner → user report includes Proof (files changed), Key technical
+ *  - planner → user report includes Proof of Principle, Proof of Completion,
  *    decisions, Key tradeoffs, Tech debt observed, and a mermaid System
  *    Design section, all in markdown, with no optional fields.
  *  - planner → builder delegation brief includes goal/scope/requirements and
@@ -59,8 +59,11 @@ describe('handoff-templates > resolver', () => {
 describe('handoff-templates > planner → user report', () => {
   const report = getPlannerToUserReportTemplate();
 
-  test('requires a proof / files-changed section', () => {
-    expect(report).toContain('## Proof — files changed');
+  test('requires proof of principle and proof of completion sections', () => {
+    expect(report).toContain('## Proof of Principle');
+    expect(report).toContain('## Proof of Completion');
+    expect(report).toContain('Organization & Maintainability');
+    expect(report).toContain('Static Evaluability and Provability');
   });
 
   test('requires a mermaid system design section', () => {
@@ -98,8 +101,11 @@ describe('handoff-templates > planner → user report', () => {
 describe('handoff-templates > planner → builder delegation brief', () => {
   const brief = getPlannerToBuilderHandoffTemplate();
 
-  test('includes goal, file-level scope, and acceptance criteria', () => {
+  test('includes summary, goal, quality bar, force multipliers, file-level scope, and acceptance criteria', () => {
+    expect(brief).toContain('## Summary');
     expect(brief).toContain('## Goal');
+    expect(brief).toContain('## Key Knowledge for High Quality Bar');
+    expect(brief).toContain('## Force Multipliers');
     expect(brief).toContain('## Files to implement (exhaustive, file-level)');
     expect(brief).toContain('## Requirements (acceptance criteria)');
     expect(brief).toMatch(/every file|exhaustive/i);

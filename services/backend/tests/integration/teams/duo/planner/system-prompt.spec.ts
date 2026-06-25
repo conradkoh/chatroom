@@ -350,8 +350,17 @@ describe('Duo Team > Planner > System Prompt', () => {
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
       \`\`\`markdown
+      ## Summary
+      <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+
       ## Goal
       <one sentence: the outcome this slice delivers>
+
+      ## Key Knowledge for High Quality Bar
+      <details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
+
+      ## Force Multipliers
+      <choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
 
       ## Files to implement (exhaustive, file-level)
       List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
@@ -434,9 +443,16 @@ describe('Duo Team > Planner > System Prompt', () => {
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
-      ## Proof — files changed
+      ## Proof of Principle
+      <!-- Demonstrate adherence to:
+      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
+      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
+      -->
+      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+
+      ## Proof of Completion
       - \`path/to/file.ts\` — <what changed and why>
-      <list every file you (or the builder) modified; this is the evidence of work>
+      <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">

@@ -11,11 +11,13 @@
  * Every section is mandatory — when one does not apply the planner writes
  * `Not Applicable` rather than omitting it. The report captures not just what
  * changed but the reasoning behind it:
- *  1. Proof — the concrete list of files that were modified.
- *  2. Key technical decisions — schema design, modules, interfaces, entities.
- *  3. Key tradeoffs — what was weighed and why this path was chosen.
- *  4. Tech debt observed — issues left intentionally out of scope.
- *  5. System design — a mermaid diagram when the change has non-trivial
+ *  1. Proof of principle — how the work adhered to organization/maintainability
+ *     and static evaluability/provability principles.
+ *  2. Proof of completion — evidence the goal was met (files changed).
+ *  3. Key technical decisions — schema design, modules, interfaces, entities.
+ *  4. Key tradeoffs — what was weighed and why this path was chosen.
+ *  5. Tech debt observed — issues left intentionally out of scope.
+ *  6. System design — a mermaid diagram when the change has non-trivial
  *     structure (write "Not Applicable" for trivial changes).
  */
 
@@ -34,9 +36,16 @@ export function getPlannerToUserReportTemplate(): string {
 ## Summary
 <what was accomplished, in plain terms — no references to prior messages>
 
-## Proof — files changed
+## Proof of Principle
+<!-- Demonstrate adherence to:
+- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
+- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
+-->
+<how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+
+## Proof of Completion
 - \`path/to/file.ts\` — <what changed and why>
-<list every file you (or the builder) modified; this is the evidence of work>
+<evidence the goal was met — list every file you (or the builder) modified>
 
 ## Key Technical Decisions
 - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
