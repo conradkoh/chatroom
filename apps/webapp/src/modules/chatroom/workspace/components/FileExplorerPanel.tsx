@@ -2,8 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MoreHorizontal, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 import {
   DropdownMenu,
@@ -11,8 +13,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 /** Event name dispatched to request a file explorer refresh (e.g. from command palette) */
 export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
@@ -49,6 +49,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   onToggleSync,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
 
   // When sync is enabled, the active tab path becomes the effective reveal/select target.
@@ -135,6 +136,21 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         </div>
       </div>
 
+      {/* Filename filter */}
+      <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-sm">
+          <Search size={12} className="text-chatroom-text-muted shrink-0" />
+          <input
+            type="search"
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            placeholder="Filter files…"
+            aria-label="Filter files in explorer"
+            className="w-full bg-transparent text-[12px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none"
+          />
+        </div>
+      </div>
+
       {/* Tree content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <WorkspaceFileExplorer
@@ -146,6 +162,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
           onFileDoubleClick={onFileDoubleClick}
           revealPath={effectiveRevealPath}
           selectedPath={effectiveSelectedPath}
+          filterQuery={filterQuery}
         />
       </div>
     </div>
