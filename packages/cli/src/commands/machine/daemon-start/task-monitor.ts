@@ -6,7 +6,7 @@
  *
  * For native harnesses, injects tasks via resumeTurn on assignment updates.
  * Native revive cold-starts when backend PID is stale locally; injection retries
- * are not nudged (dedup + reactive inject only).
+ * are not nudged (delivery ledger + reactive inject only).
  */
 
 import {
@@ -20,9 +20,10 @@ import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
-import { getNativeInjectionDedup } from './native-injection-dedup-registry.js';
-import { type NativeInjectionDedup, shouldInjectNativeTask } from './native-task-injector-logic.js';
-import { runNativeInjectionEffect } from './native-task-injector.js';
+import {
+  getNativeTaskDeliveryCoordinator,
+  type NativeTaskDeliverySessionDeps,
+} from './native-task-delivery-coordinator.js';
 import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
@@ -39,50 +40,8 @@ type AssignedTasksResult = FunctionReturnType<typeof api.machines.getAssignedTas
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
-interface SessionDeps {
-  sessionId: string;
-  convexUrl: string;
-  backend: {
-    mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-    query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
-  };
-}
-
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
   return compressContextToWantResume(parseCompressContext(task.taskContent ?? ''));
-}
-
-function runNativeInjectionFork(
-  task: AssignedTaskView,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
-  dedup: NativeInjectionDedup,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  session: SessionDeps
-): void {
-  Runtime.runFork(runtime)(
-    runNativeInjectionEffect(
-      task,
-      {
-        sessionId: session.sessionId,
-        backend: session.backend,
-        agentMgr: {
-          resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
-        },
-        convexUrl: session.convexUrl,
-      },
-      dedup
-    ).pipe(
-      Effect.provide(effectContext),
-      Effect.catchAll((err) =>
-        Effect.sync(() =>
-          console.warn(
-            `[TaskMonitor] native injection failed for ${task.agentConfig.role}@${task.chatroomId}: ${getErrorMessage(err)}`
-          )
-        )
-      )
-    )
-  );
 }
 
 function buildCliNudgeLogLine(task: AssignedTaskView): string {
@@ -232,29 +191,13 @@ function reviveNativeTasks(
   }
 }
 
-function injectNativeTasks(
-  tasks: AssignedTaskView[],
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
-  dedup: ReturnType<typeof getNativeInjectionDedup>,
-  agentMgr: DaemonAgentProcessManagerServiceShape,
-  sessionDeps: SessionDeps
-): void {
-  for (const task of tasks) {
-    if (shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })) {
-      runNativeInjectionFork(task, runtime, effectContext, dedup, agentMgr, sessionDeps);
-    }
-  }
-}
-
 function processTasksUpdate(
   tasks: AssignedTaskView[],
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  dedup: NativeInjectionDedup,
   cooldown: NudgeCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
-  sessionDeps: SessionDeps
+  sessionDeps: NativeTaskDeliverySessionDeps
 ): void {
   const now = Date.now();
   const localHealth = {
@@ -263,7 +206,13 @@ function processTasksUpdate(
   };
 
   reviveNativeTasks(tasks, localHealth, now, cooldown, runtime, effectContext, agentMgr);
-  injectNativeTasks(tasks, runtime, effectContext, dedup, agentMgr, sessionDeps);
+  getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+    tasks,
+    runtime,
+    effectContext,
+    agentMgr,
+    sessionDeps,
+  });
   nudgeStuckTasks(tasks, now, cooldown, runtime, effectContext, agentMgr);
 }
 
@@ -287,10 +236,9 @@ export const startTaskMonitorSubscriptionEffect = (
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor subscription (reactive)`);
 
     const cooldown = new NudgeCooldown();
-    const dedup = getNativeInjectionDedup();
     let stopped = false;
 
-    const sessionDeps: SessionDeps = {
+    const sessionDeps: NativeTaskDeliverySessionDeps = {
       sessionId: session.sessionId,
       convexUrl: session.convexUrl,
       backend: {
@@ -302,15 +250,7 @@ export const startTaskMonitorSubscriptionEffect = (
 
     const onTasksUpdate = (result: AssignedTasksResult | undefined): void => {
       if (stopped || !result?.tasks?.length) return;
-      processTasksUpdate(
-        result.tasks,
-        runtime,
-        effectContext,
-        dedup,
-        cooldown,
-        agentMgr,
-        sessionDeps
-      );
+      processTasksUpdate(result.tasks, runtime, effectContext, cooldown, agentMgr, sessionDeps);
     };
 
     const unsubscribe = wsClient.onUpdate(
