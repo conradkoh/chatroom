@@ -58,6 +58,11 @@ import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
 import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
+import {
+  buildExplorerSelectionMessage,
+  dispatchComposerPrefill,
+  type ComposerPrefillTarget,
+} from './workspace/components/composerPrefill';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
@@ -290,6 +295,7 @@ interface ExplorerContentProps {
   activeWorkspace: { machineId: string | null; workingDir: string | null } | null;
   onOpenPreview: (filePath: string) => void;
   onOpenTableView: (filePath: string) => void;
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
 }
 
 const ExplorerContent = memo(function ExplorerContent({
@@ -297,6 +303,7 @@ const ExplorerContent = memo(function ExplorerContent({
   activeWorkspace,
   onOpenPreview,
   onOpenTableView,
+  onSendSelectionToComposer,
 }: ExplorerContentProps) {
   return (
     <>
@@ -327,6 +334,7 @@ const ExplorerContent = memo(function ExplorerContent({
               machineId={activeWorkspace.machineId}
               workingDir={activeWorkspace.workingDir}
               filePath={fileTabs.activeTabPath}
+              onSendSelectionToComposer={onSendSelectionToComposer}
               onOpenPreview={onOpenPreview}
               onOpenTableView={onOpenTableView}
             />
@@ -504,6 +512,27 @@ export function ChatroomDashboard({
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
   }, []);
+
+  const handleExplorerSelectionToComposer = useCallback(
+    ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
+      const text = buildExplorerSelectionMessage(filePath, selectedText);
+
+      if (!explorerSplitViewEnabled && activeView === 'explorer') {
+        setExplorerSplitViewEnabled(true);
+      }
+
+      const target: ComposerPrefillTarget =
+        splitMode === 'direct-harness' ? 'direct-harness' : 'messages';
+
+      dispatchComposerPrefill({ text, target });
+      toast.message(
+        target === 'direct-harness'
+          ? 'Selection added to Direct Harness composer'
+          : 'Selection added to Messages composer'
+      );
+    },
+    [explorerSplitViewEnabled, splitMode, activeView, setExplorerSplitViewEnabled]
+  );
 
   const handleActivityViewChange = useCallback(
     (view: ActivityView) => {
@@ -1573,6 +1602,7 @@ export function ChatroomDashboard({
                         activeWorkspace={activeWorkspace}
                         onOpenPreview={handleOpenPreview}
                         onOpenTableView={handleOpenTableView}
+                        onSendSelectionToComposer={handleExplorerSelectionToComposer}
                       />
                     </div>
 
@@ -1655,6 +1685,7 @@ export function ChatroomDashboard({
                     activeWorkspace={activeWorkspace}
                     onOpenPreview={handleOpenPreview}
                     onOpenTableView={handleOpenTableView}
+                    onSendSelectionToComposer={handleExplorerSelectionToComposer}
                   />
                 )}
               </div>

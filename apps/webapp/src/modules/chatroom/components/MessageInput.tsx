@@ -3,8 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
 import { AttachedMessageChip } from './AttachedMessageChip';
@@ -20,6 +20,7 @@ import {
 import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
+import { subscribeComposerPrefill } from '../workspace/components/composerPrefill';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,14 @@ export function MessageInput({
     });
   }, [onRegisterFocus]);
 
+  // Prefill from explorer Cmd+I selection
+  useEffect(() => {
+    return subscribeComposerPrefill('messages', (text) => {
+      setMessage(text);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    });
+  }, []);
+
   // ── Draft persistence ──────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
@@ -337,7 +346,8 @@ export function MessageInput({
           autocomplete.state.selectedIndex < autocomplete.state.results.length
         ) {
           e.preventDefault();
-          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
+          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex];
+          if (!selectedItem) return;
           const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
           setMessage(newText);
           autoResize();

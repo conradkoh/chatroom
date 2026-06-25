@@ -3,10 +3,11 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
-import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useRef } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
+import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
+import { useExplorerSelectionKeyboard } from '../hooks/useExplorerSelectionKeyboard';
 import { useFileContent } from '../hooks/useFileContent';
 
 import { cn } from '@/lib/utils';
@@ -17,6 +18,8 @@ interface FileContentViewerProps {
   machineId: string;
   workingDir: string;
   filePath: string;
+  /** Called when user presses Cmd+I with a text selection in the file viewer */
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   /** Called when user clicks "Preview" on a markdown file */
   onOpenPreview?: (filePath: string) => void;
   /** Called when user clicks "View" on a CSV file */
@@ -29,6 +32,7 @@ export const FileContentViewer = memo(function FileContentViewer({
   machineId,
   workingDir,
   filePath,
+  onSendSelectionToComposer,
   onOpenPreview,
   onOpenTableView,
 }: FileContentViewerProps) {
@@ -48,6 +52,7 @@ export const FileContentViewer = memo(function FileContentViewer({
       machineId={machineId}
       workingDir={workingDir}
       filePath={filePath}
+      onSendSelectionToComposer={onSendSelectionToComposer}
       onOpenPreview={onOpenPreview}
       onOpenTableView={onOpenTableView}
     />
@@ -60,9 +65,14 @@ const FileContentInner = memo(function FileContentInner({
   machineId,
   workingDir,
   filePath,
+  onSendSelectionToComposer,
   onOpenPreview,
   onOpenTableView,
 }: FileContentViewerProps) {
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+
+  useExplorerSelectionKeyboard(contentContainerRef, filePath, onSendSelectionToComposer);
+
   // Request file content from daemon
   const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
@@ -143,7 +153,7 @@ const FileContentInner = memo(function FileContentInner({
       )}
 
       {/* File content — source only */}
-      <div className="flex-1 overflow-auto">
+      <div ref={contentContainerRef} className="flex-1 overflow-auto">
         <SyntaxHighlighter
           code={content.content}
           path={filePath}

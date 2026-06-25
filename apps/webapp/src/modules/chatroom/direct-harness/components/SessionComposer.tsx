@@ -6,14 +6,15 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Send } from 'lucide-react';
 import { useRef, useState } from 'react';
 
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { useCreateSession } from '../hooks/useCreateSession';
-import { useSendMessage } from '../hooks/useSendMessage';
-import { useHarnessConfig } from '../hooks/useHarnessConfig';
-import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
 import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
 import type { SessionStatus } from './StatusDot';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
+import { useDirectHarnessComposerPrefill } from '../../workspace/components/composerPrefill';
+import { useCreateSession } from '../hooks/useCreateSession';
+import { useHarnessConfig } from '../hooks/useHarnessConfig';
+import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
+import { useSendMessage } from '../hooks/useSendMessage';
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────
 
@@ -50,6 +51,8 @@ export function NewSessionComposer({
   });
 
   const { resolvedAgent, resolvedModel } = config;
+
+  useDirectHarnessComposerPrefill(textareaRef, setText);
 
   const trimmed = text.trim();
   const canSend = !!trimmed && !isCreating && !!resolvedModel;
@@ -156,6 +159,9 @@ export function SessionComposer({
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { send, isSending } = useSendMessage();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useDirectHarnessComposerPrefill(textareaRef, setText);
 
   const capabilities = useSessionQuery(
     api.web.directHarness.capabilities.listForWorkspace,
@@ -217,6 +223,7 @@ export function SessionComposer({
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex gap-2 items-end">
         <Textarea
+          ref={textareaRef}
           rows={3}
           className="flex-1 resize-none text-sm"
           placeholder="Message… (Enter to send, Shift+Enter for new line)"
