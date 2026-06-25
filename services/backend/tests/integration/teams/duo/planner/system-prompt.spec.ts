@@ -443,6 +443,9 @@ describe('Duo Team > Planner > System Prompt', () => {
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
+      ## Template Disclosure Confirmation
+      - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
+
       ## Proof of Principle
       <!-- Demonstrate adherence to:
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.

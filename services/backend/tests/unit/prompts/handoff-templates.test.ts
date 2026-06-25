@@ -59,6 +59,13 @@ describe('handoff-templates > resolver', () => {
 describe('handoff-templates > planner → user report', () => {
   const report = getPlannerToUserReportTemplate();
 
+  test('requires template disclosure confirmation section', () => {
+    expect(report).toContain('## Template Disclosure Confirmation');
+    expect(report).toContain(
+      'I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team'
+    );
+  });
+
   test('requires proof of principle and proof of completion sections', () => {
     expect(report).toContain('## Proof of Principle');
     expect(report).toContain('## Proof of Completion');
