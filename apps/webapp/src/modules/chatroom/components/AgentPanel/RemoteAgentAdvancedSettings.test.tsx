@@ -13,15 +13,16 @@ describe('RemoteAgentAdvancedSettings', () => {
     onAutoRestartOnNewContextChange: vi.fn(),
   };
 
-  it('hides Resume session when harness does not support session resume', () => {
+  it('shows reconnect toggle for daemon-memory-capable harnesses', () => {
     render(<RemoteAgentAdvancedSettings {...baseProps} disabled />);
 
-    expect(screen.queryByText('Resume session')).not.toBeInTheDocument();
+    expect(screen.getByText('Reconnect to last session')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Reconnect to last session' })).toBeDisabled();
   });
 
-  it('hides Resume session for CLI harnesses', () => {
+  it('hides reconnect toggle for harnesses without daemon-memory resume', () => {
     render(<RemoteAgentAdvancedSettings {...baseProps} agentHarness="cursor" />);
 
-    expect(screen.queryByText('Resume session')).not.toBeInTheDocument();
+    expect(screen.queryByText('Reconnect to last session')).not.toBeInTheDocument();
   });
 });

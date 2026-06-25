@@ -59,11 +59,10 @@ export interface HarnessCapabilities {
   /** CLI subprocess vs in-process SDK (+ keeper PID). */
   runtimeKind: HarnessRuntimeKind;
   /**
-   * Whether this harness supports resuming a session after lifecycle.turn.completed
-   * (instead of a full cold restart). When true, the daemon calls resumeTurn in-process
-   * and may use resumeFromDaemonMemory after stop→start.
+   * Whether stop→start can reconnect via `resumeFromDaemonMemory` when `wantResume`
+   * is true and the daemon retained session metadata from the prior run.
    */
-  supportsSessionResume: boolean;
+  supportsDaemonMemoryResume: boolean;
   /** Daemon injects tasks into session context — no get-next-task loop. */
   supportsNativeIntegration: boolean;
   /** Lifecycle events this harness surfaces at the integration boundary. */

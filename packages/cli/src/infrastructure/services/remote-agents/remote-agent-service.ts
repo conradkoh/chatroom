@@ -78,18 +78,18 @@ export interface SpawnResult {
   onOutput: (cb: () => void) => void;
   /**
    * Human-readable log lines for resume-storm reason classification.
-   * Required when the harness has `supportsSessionResume: true` (see HARNESS_GUIDE.md §3.5).
+   * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
    */
   onLogLine?: (cb: (line: string) => void) => void;
   /**
-   * `lifecycle.turn.completed` — one agent turn finished; daemon may call `resumeTurn`.
+   * `lifecycle.turn.completed` — one agent turn finished.
    *
    * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):
    * - CLI: e.g. Pi NDJSON `wire.ndjson.agent_end` (SDK harnesses never emit this).
    * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
    */
   onAgentEnd?: (cb: () => void) => void;
-  /** Session ID for harnesses that support session resume. Undefined if not applicable. */
+  /** Harness session ID for daemon-memory reconnect metadata. Undefined if not applicable. */
   harnessSessionId?: string;
   /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */
   harnessReconnect?: HarnessReconnectMetadata;
@@ -136,15 +136,14 @@ export interface RemoteAgentService {
   spawn(options: SpawnOptions): Promise<SpawnResult>;
 
   /**
-   * Resume an ongoing session after `lifecycle.turn.completed`.
-   * Only implement on harnesses where supportsSessionResume = true.
-   * Called by AgentProcessManager instead of killing and re-spawning.
+   * Send a prompt into a live in-process session (native task injection).
+   * Native SDK harnesses implement this; CLI harnesses typically omit it.
    */
   resumeTurn?(pid: number, prompt: string): Promise<void>;
 
   /**
    * Reconnect after user.stop preserved session state (daemon memory only).
-   * Only implement on harnesses where supportsSessionResume = true (e.g. opencode-sdk, cursor-sdk, pi).
+   * Implement when `supportsDaemonMemoryResume` is true (e.g. opencode-sdk, cursor-sdk).
    */
   resumeFromDaemonMemory?(
     options: SpawnOptions,

@@ -10,18 +10,5 @@ export interface TurnCompletedBackend {
     harnessSessionId?: string;
   }): Promise<void>;
 
-  emitSessionResumed(args: {
-    chatroomId: string;
-    role: string;
-    harnessSessionId?: string;
-  }): Promise<void>;
-
-  emitSessionResumeFailed(args: {
-    chatroomId: string;
-    role: string;
-    reason: string;
-    harnessSessionId?: string;
-  }): Promise<void>;
-
   emitAgentStartFailed(args: { chatroomId: string; role: string; error: string }): Promise<void>;
 }
