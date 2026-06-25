@@ -1,6 +1,4 @@
 /**
- * How the daemon resumes agent work after a turn or process exit.
- *
- * Maps to existing RemoteAgentService hooks — names are stable for callers.
+ * How the daemon resumes agent work after a process exit or explicit start.
  */
-export type ResumePath = 'in_process' | 'daemon_memory' | 'cold' | 'none';
+export type ResumePath = 'daemon_memory' | 'cold';

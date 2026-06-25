@@ -1,11 +1,7 @@
 'use client';
 
 import { NativeIntegrationBadge } from '../../../components/NativeIntegrationBadge';
-import { SessionResumeBadge } from '../../../components/SessionResumeBadge';
-import {
-  harnessSupportsNativeIntegration,
-  harnessSupportsSessionResume,
-} from '../../../types/machine';
+import { harnessSupportsNativeIntegration } from '../../../types/machine';
 import type { AgentHarness } from '../../../types/machine';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -36,7 +32,6 @@ export function HarnessHarnessSelect({
             <SelectItem key={h.name} value={h.name} className="text-xs">
               <span className="flex items-center min-w-0">
                 {h.displayName}
-                {harnessSupportsSessionResume(h.name as AgentHarness) && <SessionResumeBadge />}
                 {harnessSupportsNativeIntegration(h.name as AgentHarness) && (
                   <NativeIntegrationBadge />
                 )}

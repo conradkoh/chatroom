@@ -447,8 +447,3 @@ export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {
 
   return { systemPrompt, initMessage, initPrompt };
 }
-
-export {
-  composeResumeMessage,
-  type ComposeResumeMessageParams,
-} from './cli/resume-session/message';

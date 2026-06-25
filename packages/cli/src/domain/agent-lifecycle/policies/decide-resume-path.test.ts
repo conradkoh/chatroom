@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   decideResumePathOnRestart,
-  resumePathAfterTurnCompleted,
   shouldAutoRestartAfterProcessExit,
 } from './decide-resume-path.js';
 
@@ -53,14 +52,5 @@ describe('shouldAutoRestartAfterProcessExit', () => {
     expect(shouldAutoRestartAfterProcessExit('daemon.shutdown')).toBe(false);
     expect(shouldAutoRestartAfterProcessExit('daemon.respawn')).toBe(false);
     expect(shouldAutoRestartAfterProcessExit('platform.resume_storm')).toBe(false);
-  });
-});
-
-describe('resumePathAfterTurnCompleted', () => {
-  it('returns in_process only when resumable AND wantResume', () => {
-    expect(resumePathAfterTurnCompleted(true, true)).toBe('in_process');
-    expect(resumePathAfterTurnCompleted(true, false)).toBe('none');
-    expect(resumePathAfterTurnCompleted(false, true)).toBe('none');
-    expect(resumePathAfterTurnCompleted(false, false)).toBe('none');
   });
 });

@@ -90,6 +90,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigHarness: agentRoleView?.agentHarness,
     teamConfigMachineId: agentRoleView?.machineId,
     teamAutoRestartOnNewContext: agentRoleView?.autoRestartOnNewContext,
+    teamWantResume: agentRoleView?.wantResume,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
   });

@@ -2,7 +2,7 @@ import type { HarnessCapabilities } from './types';
 
 export const claudeCapabilities: HarnessCapabilities = {
   runtimeKind: 'cli',
-  supportsSessionResume: false,
+  supportsDaemonMemoryResume: false,
   supportsNativeIntegration: false,
   lifecycle: {
     turnCompleted: false,

@@ -134,3 +134,27 @@ describe('sendCommand start-agent wantResume', () => {
     }
   });
 });
+
+describe('setWantResume mutation', () => {
+  test('persists wantResume on team agent config without starting the agent', async () => {
+    const { sessionId } = await createTestSession('test-set-want-resume-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    await t.mutation(api.machines.setWantResume, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      wantResume: false,
+    });
+
+    const config = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('role'), 'builder'))
+        .first();
+    });
+
+    expect(config?.wantResume).toBe(false);
+  });
+});

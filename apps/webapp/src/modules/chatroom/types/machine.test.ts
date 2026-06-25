@@ -1,11 +1,10 @@
-import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent';
 import { describe, expect, it } from 'vitest';
 
 import {
   HARNESS_DISPLAY_NAMES,
   getHarnessDisplayName,
   getModelDisplayLabel,
-  harnessSupportsSessionResume,
+  harnessSupportsDaemonMemoryResume,
   harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
@@ -74,9 +73,12 @@ describe('isCursorSdkHarness', () => {
   });
 });
 
-describe('harnessSupportsSessionResume', () => {
-  it.each(ALL_KNOWN_HARNESSES)('returns false for harness "%s"', (harness) => {
-    expect(harnessSupportsSessionResume(harness as AgentHarness)).toBe(false);
+describe('harnessSupportsDaemonMemoryResume', () => {
+  it('returns true only for cursor-sdk and opencode-sdk', () => {
+    expect(harnessSupportsDaemonMemoryResume('cursor-sdk')).toBe(true);
+    expect(harnessSupportsDaemonMemoryResume('opencode-sdk')).toBe(true);
+    expect(harnessSupportsDaemonMemoryResume('cursor')).toBe(false);
+    expect(harnessSupportsDaemonMemoryResume('pi-sdk')).toBe(false);
   });
 });
 

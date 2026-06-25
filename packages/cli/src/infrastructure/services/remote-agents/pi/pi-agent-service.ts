@@ -16,8 +16,8 @@
  * Text and thinking deltas are buffered per-line and emitted with [pi text] /
  * [pi thinking] prefixes so PM2 / daemon logs capture them as distinct log lines.
  *
- * Each turn ends with agent_end; the daemon kills the process (supportsSessionResume
- * is false). Use `pi-sdk` for native task injection without get-next-task.
+ * Each turn ends with agent_end; the daemon kills the process. Use `pi-sdk` for native
+ * task injection without get-next-task.
  *
  * Extends BaseCLIAgentService which handles all shared boilerplate:
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and

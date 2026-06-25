@@ -1957,6 +1957,67 @@ export const setAutoRestartOnNewContext = mutation({
   },
 });
 
+/** Persist reconnect-on-start preference for a team agent config. */
+export const setWantResume = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    wantResume: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
+    }
+
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    }
+    if (chatroom.ownerId !== auth.userId) {
+      throw new ConvexError({
+        code: 'UNAUTHORIZED',
+        message: 'Not authorized to modify team agent configs for this chatroom',
+      });
+    }
+    if (!chatroom.teamId) {
+      throw new ConvexError({
+        code: 'CHATROOM_NO_TEAM_ID',
+        message: 'Chatroom has no teamId — cannot build agent config key',
+      });
+    }
+
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+    const existing = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
+        wantResume: args.wantResume,
+        updatedAt: now,
+      });
+    } else {
+      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey,
+        chatroomId: args.chatroomId,
+        role: args.role,
+        type: 'remote',
+        wantResume: args.wantResume,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return { success: true, wantResume: args.wantResume };
+  },
+});
+
 /** Restart offline remote agents using persisted team config. Called when user sends a message. */
 export const restartOfflineAgentsFromConfig = mutation({
   args: {
@@ -2558,7 +2619,45 @@ export const emitAgentStartFailed = mutation({
   },
 });
 
-/** Emits an agent.sessionResumed event when resumeTurn succeeds after agent_end. */
+/** Emits an agent.sessionResumeRequested event when stop→start daemon-memory reconnect begins. */
+export const emitSessionResumeRequested = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentHarness: v.string(),
+    harnessSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionResumeRequested',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      agentHarness: args.agentHarness,
+      harnessSessionId: args.harnessSessionId,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeRequested');
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.sessionResumed event when stop→start daemon-memory reconnect succeeds. */
 export const emitSessionResumed = mutation({
   args: {
     ...SessionIdArg,
@@ -2594,7 +2693,7 @@ export const emitSessionResumed = mutation({
   },
 });
 
-/** Emits an agent.sessionResumeFailed event when resumeTurn fails after agent_end. */
+/** Emits an agent.sessionResumeFailed event when stop→start daemon-memory reconnect fails. */
 export const emitSessionResumeFailed = mutation({
   args: {
     ...SessionIdArg,

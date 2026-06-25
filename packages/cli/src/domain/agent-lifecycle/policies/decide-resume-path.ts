@@ -33,13 +33,3 @@ const NO_AUTO_RESTART_STOP_REASONS = new Set<StopReason>([
 export function shouldAutoRestartAfterProcessExit(stopReason: StopReason): boolean {
   return !NO_AUTO_RESTART_STOP_REASONS.has(stopReason);
 }
-
-/**
- * In-process turn resume (resumeTurn) — same PID, lifecycle.turn.completed.
- */
-export function resumePathAfterTurnCompleted(
-  supportsSessionResume: boolean,
-  wantResume: boolean
-): ResumePath {
-  return supportsSessionResume && wantResume ? 'in_process' : 'none';
-}
