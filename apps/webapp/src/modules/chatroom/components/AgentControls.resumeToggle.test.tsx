@@ -90,12 +90,12 @@ describe('AgentControls resume toggle persistence', () => {
     vi.clearAllMocks();
   });
 
-  it('does not render Resume session when harness lacks supportsSessionResume', async () => {
+  it('renders reconnect toggle for daemon-memory-capable harnesses', async () => {
     render(<Harness agentConfigs={[mkRunningConfig(true)]} />);
 
     await waitFor(() => {
       expect(screen.getByTitle('Stop Agent')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('switch', { name: 'Resume session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Reconnect to last session' })).toBeInTheDocument();
   });
 });

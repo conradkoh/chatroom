@@ -25,9 +25,6 @@ export async function tryAbortResumeStorm(
   }
 
   deps.resumeStormTracker.reset(input.chatroomId, input.role);
-  if (slot) {
-    slot.resumeInFlight = false;
-  }
 
   try {
     await deps.backend.emitResumeStormAborted({

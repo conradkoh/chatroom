@@ -9,7 +9,6 @@ export {
 export {
   decideResumePathOnRestart,
   shouldAutoRestartAfterProcessExit,
-  resumePathAfterTurnCompleted,
 } from './policies/decide-resume-path.js';
 
 // Phase 1: Pure domain state machine + invariants

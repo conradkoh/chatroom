@@ -14,6 +14,7 @@ import type {
   AgentWaitingEvent,
   AgentStartFailedEvent,
   AgentRestartLimitReachedEvent,
+  AgentSessionResumeRequestedEvent,
   AgentSessionResumedEvent,
   AgentSessionResumeFailedEvent,
   AgentResumeStormAbortedEvent,
@@ -455,6 +456,52 @@ function renderAgentResumeStormAbortedDetails(
   );
 }
 
+// ─── Agent Session Resume Requested ───────────────────────────────────────────
+
+function renderAgentSessionResumeRequestedCell(
+  event: AgentSessionResumeRequestedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const truncatedSessionId = event.harnessSessionId
+    ? event.harnessSessionId.length > 60
+      ? event.harnessSessionId.substring(0, 57) + '...'
+      : event.harnessSessionId
+    : event.agentHarness;
+
+  return (
+    <EventRow
+      type="agent.sessionResumeRequested"
+      badgeText="Reconnect Requested"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={truncatedSessionId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionResumeRequestedDetails(
+  event: AgentSessionResumeRequestedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Reconnect Requested"
+      timestamp={event.timestamp}
+      type="agent.sessionResumeRequested"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Harness" value={event.agentHarness} />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Agent Session Resumed ────────────────────────────────────────────────────
 
 function renderAgentSessionResumedCell(
@@ -470,7 +517,7 @@ function renderAgentSessionResumedCell(
   return (
     <EventRow
       type="agent.sessionResumed"
-      badgeText="Session Resumed"
+      badgeText="Session Reconnected"
       badgeColor="success"
       primaryInfo={event.role}
       secondaryInfo={truncatedSessionId}
@@ -484,7 +531,7 @@ function renderAgentSessionResumedDetails(event: AgentSessionResumedEvent): Reac
   return (
     <EventDetails
       eventId={event._id}
-      title="Session Resumed"
+      title="Session Reconnected"
       timestamp={event.timestamp}
       type="agent.sessionResumed"
     >
@@ -509,7 +556,7 @@ function renderAgentSessionResumeFailedCell(
   return (
     <EventRow
       type="agent.sessionResumeFailed"
-      badgeText="Resume Failed"
+      badgeText="Reconnect Failed"
       badgeColor="warning"
       primaryInfo={event.role}
       secondaryInfo={truncatedReason}
@@ -525,7 +572,7 @@ function renderAgentSessionResumeFailedDetails(
   return (
     <EventDetails
       eventId={event._id}
-      title="Session Resume Failed"
+      title="Session Reconnect Failed"
       timestamp={event.timestamp}
       type="agent.sessionResumeFailed"
     >
@@ -589,6 +636,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.waiting'
   | 'agent.startFailed'
   | 'agent.restartLimitReached'
+  | 'agent.sessionResumeRequested'
   | 'agent.sessionResumed'
   | 'agent.sessionResumeFailed'
   | 'agent.resumeStormAborted'
@@ -629,6 +677,10 @@ export const agentEventDefinitions: Pick<
   'agent.restartLimitReached': {
     cellRenderer: renderAgentRestartLimitReachedCell,
     detailsRenderer: renderAgentRestartLimitReachedDetails,
+  },
+  'agent.sessionResumeRequested': {
+    cellRenderer: renderAgentSessionResumeRequestedCell,
+    detailsRenderer: renderAgentSessionResumeRequestedDetails,
   },
   'agent.sessionResumed': {
     cellRenderer: renderAgentSessionResumedCell,

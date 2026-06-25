@@ -29,23 +29,17 @@ function createDeps(overrides?: Partial<HandleTurnCompletedDeps>): {
   deps: HandleTurnCompletedDeps;
   backend: {
     emitResumeStormAborted: ReturnType<typeof vi.fn>;
-    emitSessionResumed: ReturnType<typeof vi.fn>;
-    emitSessionResumeFailed: ReturnType<typeof vi.fn>;
     emitAgentStartFailed: ReturnType<typeof vi.fn>;
   };
 } {
   const backend = {
     emitResumeStormAborted: vi.fn().mockResolvedValue(undefined),
-    emitSessionResumed: vi.fn().mockResolvedValue(undefined),
-    emitSessionResumeFailed: vi.fn().mockResolvedValue(undefined),
     emitAgentStartFailed: vi.fn().mockResolvedValue(undefined),
   };
   const deps: HandleTurnCompletedDeps = {
     resumeStormTracker: createTracker(),
     backend,
     now: () => 1_000_000,
-    composeResumePrompt: () => 'resume-prompt',
-    resumeTurn: vi.fn().mockResolvedValue(undefined),
     killProcess: vi.fn(),
     stopAgent: vi.fn().mockResolvedValue({ success: true }),
     ...overrides,
@@ -57,105 +51,38 @@ const baseInput = {
   chatroomId: 'room-1',
   role: 'builder',
   pid: 42,
-  supportsSessionResume: true,
-  wantResume: true,
 };
 
 describe('handleTurnCompleted', () => {
-  test('resumes when harness supports in-process resume', async () => {
+  test('kills the process after a normal turn end', async () => {
+    const { deps } = createDeps();
+
+    const result = await handleTurnCompleted(deps, baseInput, undefined);
+
+    expect(result).toEqual({ outcome: 'killed' });
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+  });
+
+  test('kills immediately on terminal provider rate limit', async () => {
     const { deps, backend } = createDeps();
-    const slot: TurnEndSlot = { harnessSessionId: 'sess-1', state: 'running', pid: 42 };
+    const slot: TurnEndSlot = {
+      state: 'running',
+      pid: 42,
+      recentLogLines: [
+        'message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
+      ],
+    };
 
     const result = await handleTurnCompleted(deps, baseInput, slot);
 
-    expect(result).toEqual({ outcome: 'resumed' });
-    expect(deps.resumeTurn).toHaveBeenCalledWith(42, 'resume-prompt');
-    expect(backend.emitSessionResumed).toHaveBeenCalledWith({
+    expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
+    expect(slot.terminalProviderFailureHandled).toBe(true);
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+    expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'builder',
-      harnessSessionId: 'sess-1',
+      error: expect.stringContaining('non-retryable'),
     });
-    expect(deps.killProcess).not.toHaveBeenCalled();
-  });
-
-  test('kills when harness does not support resume', async () => {
-    const { deps } = createDeps();
-
-    const result = await handleTurnCompleted(
-      deps,
-      { ...baseInput, supportsSessionResume: false },
-      undefined
-    );
-
-    expect(result).toEqual({ outcome: 'killed' });
-    expect(deps.resumeTurn).not.toHaveBeenCalled();
-    expect(deps.killProcess).toHaveBeenCalledWith(42);
-  });
-
-  test('kills instead of resuming when wantResume is false', async () => {
-    const { deps } = createDeps();
-    const slot: TurnEndSlot = { harnessSessionId: 'sess-1', state: 'running', pid: 42 };
-
-    const result = await handleTurnCompleted(deps, { ...baseInput, wantResume: false }, slot);
-
-    expect(result).toEqual({ outcome: 'killed' });
-    expect(deps.resumeTurn).not.toHaveBeenCalled();
-    expect(deps.killProcess).toHaveBeenCalledWith(42);
-  });
-
-  test('kills after resumeTurn failure', async () => {
-    const { deps, backend } = createDeps({
-      resumeTurn: vi.fn().mockRejectedValue(new Error('session not found')),
-    });
-
-    const result = await handleTurnCompleted(deps, baseInput, { resumeInFlight: false });
-
-    expect(result).toEqual({ outcome: 'killed' });
-    expect(backend.emitSessionResumeFailed).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      reason: 'session not found',
-    });
-    expect(deps.killProcess).toHaveBeenCalledWith(42);
-  });
-
-  test('skips duplicate resume when one is already in flight', async () => {
-    const { deps } = createDeps();
-    const slot: TurnEndSlot = { resumeInFlight: true };
-
-    const result = await handleTurnCompleted(deps, baseInput, slot);
-
-    expect(result).toEqual({ outcome: 'skipped_duplicate' });
-    expect(deps.resumeTurn).not.toHaveBeenCalled();
-    expect(deps.killProcess).not.toHaveBeenCalled();
-  });
-
-  test('duplicate agent_end during in-flight resume does not count toward storm', async () => {
-    const tracker = createTracker(3);
-    let tick = 1_000_000;
-    const { deps } = createDeps({
-      resumeStormTracker: tracker,
-      now: () => tick,
-    });
-    const slot: TurnEndSlot = { state: 'running', pid: 42, resumeInFlight: false };
-
-    await handleTurnCompleted(deps, baseInput, slot);
-    tick += 100;
-    await handleTurnCompleted(deps, baseInput, slot);
-    tick += 100;
-
-    slot.resumeInFlight = true;
-    for (let i = 0; i < 10; i++) {
-      const duplicate = await handleTurnCompleted(deps, baseInput, slot);
-      expect(duplicate).toEqual({ outcome: 'skipped_duplicate' });
-      tick += 10;
-    }
-
-    slot.resumeInFlight = false;
-    const result = await handleTurnCompleted(deps, baseInput, slot);
-
-    expect(result).toEqual({ outcome: 'storm_aborted' });
-    expect(deps.resumeTurn).toHaveBeenCalledTimes(2);
   });
 
   test('stops agent when emitResumeStormAborted fails', async () => {
@@ -182,29 +109,6 @@ describe('handleTurnCompleted', () => {
     });
   });
 
-  test('kills immediately on terminal provider rate limit without resuming', async () => {
-    const { deps, backend } = createDeps();
-    const slot: TurnEndSlot = {
-      state: 'running',
-      pid: 42,
-      recentLogLines: [
-        'message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
-      ],
-    };
-
-    const result = await handleTurnCompleted(deps, baseInput, slot);
-
-    expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
-    expect(slot.terminalProviderFailureHandled).toBe(true);
-    expect(deps.resumeTurn).not.toHaveBeenCalled();
-    expect(deps.killProcess).toHaveBeenCalledWith(42);
-    expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      error: expect.stringContaining('non-retryable'),
-    });
-  });
-
   test('aborts storm, classifies reason, emits event, and stops agent', async () => {
     const tracker = createTracker(3);
     let tick = 1_000_000;
@@ -226,7 +130,6 @@ describe('handleTurnCompleted', () => {
     const result = await handleTurnCompleted(deps, baseInput, slot);
 
     expect(result).toEqual({ outcome: 'storm_aborted' });
-    expect(deps.resumeTurn).toHaveBeenCalledTimes(2);
     expect(backend.emitResumeStormAborted).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       role: 'builder',

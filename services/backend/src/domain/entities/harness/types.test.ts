@@ -15,10 +15,11 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
-  test('no harness supports session resume (turn-end resume removed)', () => {
-    for (const harness of AGENT_HARNESSES) {
-      expect(getHarnessCapabilities(harness).supportsSessionResume).toBe(false);
-    }
+  test('only cursor-sdk and opencode-sdk support daemon-memory resume on start', () => {
+    const withDaemonMemory = AGENT_HARNESSES.filter(
+      (h) => getHarnessCapabilities(h).supportsDaemonMemoryResume
+    );
+    expect(withDaemonMemory.sort()).toEqual(['cursor-sdk', 'opencode-sdk']);
   });
 
   test('cursor-sdk, opencode-sdk, and pi-sdk support native integration', () => {

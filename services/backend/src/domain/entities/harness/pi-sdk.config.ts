@@ -2,7 +2,7 @@ import type { HarnessCapabilities } from './types';
 
 export const piSdkCapabilities: HarnessCapabilities = {
   runtimeKind: 'sdk',
-  supportsSessionResume: false,
+  supportsDaemonMemoryResume: false,
   supportsNativeIntegration: true,
   lifecycle: {
     turnCompleted: true,
