@@ -75,7 +75,7 @@ describe('generateFullCliOutput — backlog items excluded (moved to task-read)'
     expect(output).not.toContain('Implement dark mode toggle component');
     expect(output).not.toContain('backlog-item-id-001');
     expect(output).not.toContain('<system-info>');
-    expect(output).not.toContain('mark-for-review');
+    // Handoff template may reference mark-for-review; attached item content must not leak here.
   });
 
   test('does not render legacy attachedTasks in fullOutput', () => {

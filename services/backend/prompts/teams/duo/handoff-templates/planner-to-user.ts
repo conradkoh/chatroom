@@ -16,10 +16,13 @@
  *  2. Proof of principle — how the work adhered to organization/maintainability
  *     and static evaluability/provability principles.
  *  3. Proof of completion — evidence the goal was met (files changed).
- *  4. Key technical decisions — schema design, modules, interfaces, entities.
- *  5. Key tradeoffs — what was weighed and why this path was chosen.
- *  6. Tech debt observed — issues left intentionally out of scope.
- *  7. System design — a mermaid diagram when the change has non-trivial
+ *  4. Backlog tasks implemented — backlog items addressed by this work.
+ *  5. Backlog pending user review confirmation — attestation that implemented
+ *     backlog items were moved to pending_user_review when a PR was raised.
+ *  6. Key technical decisions — schema design, modules, interfaces, entities.
+ *  7. Key tradeoffs — what was weighed and why this path was chosen.
+ *  8. Tech debt observed — issues left intentionally out of scope.
+ *  9. System design — a mermaid diagram when the change has non-trivial
  *     structure (write "Not Applicable" for trivial changes).
  */
 
@@ -51,6 +54,15 @@ export function getPlannerToUserReportTemplate(): string {
 ## Proof of Completion
 - \`path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you (or the builder) modified>
+
+## Backlog Tasks Implemented
+- \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
+<List every backlog item this work implemented. Write \`Not Applicable\` if no backlog items were in scope.>
+
+## Backlog Pending User Review Confirmation
+- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
+- PR URL(s): <link to PR(s), or \`Not Applicable\` if no PR was raised>
+- If no backlog items apply, write \`Not Applicable\` for the checkbox and explain in one line
 
 ## Key Technical Decisions
 - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">

@@ -457,6 +457,15 @@ describe('Duo Team > Planner > System Prompt', () => {
       - \`path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>
 
+      ## Backlog Tasks Implemented
+      - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
+      <List every backlog item this work implemented. Write \`Not Applicable\` if no backlog items were in scope.>
+
+      ## Backlog Pending User Review Confirmation
+      - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
+      - PR URL(s): <link to PR(s), or \`Not Applicable\` if no PR was raised>
+      - If no backlog items apply, write \`Not Applicable\` for the checkbox and explain in one line
+
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
 
