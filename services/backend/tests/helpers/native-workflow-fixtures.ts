@@ -137,7 +137,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     taskContent: [
       '## Summary',
       'Connectivity test passed.',
-      '## Proof — files changed',
+      '## Proof of Completion',
       'Not Applicable',
       '## Verification',
       'Not Applicable',

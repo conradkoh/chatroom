@@ -8,7 +8,8 @@
  *    Design section, all in markdown, with no optional fields.
  *  - planner → builder delegation brief includes goal/scope/requirements and
  *    has no optional fields ("Not Applicable" convention).
- *  - builder → planner handoff template for work completion.
+ *  - builder → planner handoff template includes template disclosure,
+ *    proof of principle, proof of completion, verification, and blockers.
  *  - unknown role pairs resolve to null (caller falls back to free-form).
  */
 
@@ -167,9 +168,19 @@ describe('handoff-templates > planner → builder delegation brief', () => {
 describe('handoff-templates > builder → planner handoff', () => {
   const handoff = getBuilderToPlannerHandoffTemplate();
 
-  test('includes summary and proof sections', () => {
+  test('requires template disclosure confirmation', () => {
+    expect(handoff).toContain('## Template Disclosure Confirmation');
+    expect(handoff).toContain(
+      'I confirm that I have seen this template at the start of this task, before implementing or modifying any code'
+    );
+  });
+
+  test('requires proof of principle and proof of completion sections', () => {
     expect(handoff).toContain('## Summary');
-    expect(handoff).toContain('## Proof — files changed');
+    expect(handoff).toContain('## Proof of Principle');
+    expect(handoff).toContain('## Proof of Completion');
+    expect(handoff).toContain('Organization & Maintainability');
+    expect(handoff).toContain('Static Evaluability and Provability');
   });
 
   test('includes verification section', () => {
