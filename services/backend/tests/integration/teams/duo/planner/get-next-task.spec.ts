@@ -58,7 +58,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('--next-role="builder"');
     expect(output).not.toContain('Do the work → follow PROCESS above');
     // Eagerly delivered report template (proof + mermaid system design)
-    expect(output).toContain('## Proof — files changed');
+    expect(output).toContain('## Proof of Principle');
+    expect(output).toContain('## Proof of Completion');
     expect(output).toContain('## System Design');
     expect(output).toContain('```mermaid');
   });
