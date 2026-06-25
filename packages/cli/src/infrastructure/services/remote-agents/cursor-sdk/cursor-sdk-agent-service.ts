@@ -84,7 +84,7 @@ const DEFAULT_MODEL = 'composer-2.5';
 const AGENT_CREATE_TIMEOUT_MS = 60_000;
 const SEND_TIMEOUT_MS = 60_000;
 const RUN_WAIT_TIMEOUT_MS = 3_600_000;
-const MODELS_LIST_TIMEOUT_MS = 10_000;
+const MODELS_LIST_TIMEOUT_MS = 60_000;
 const RUN_CANCEL_TIMEOUT_MS = 5_000;
 
 let cachedSdkPackageVersion: string | undefined;
