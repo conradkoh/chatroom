@@ -2619,6 +2619,44 @@ export const emitAgentStartFailed = mutation({
   },
 });
 
+/** Emits an agent.sessionResumeRequested event when stop→start daemon-memory reconnect begins. */
+export const emitSessionResumeRequested = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentHarness: v.string(),
+    harnessSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionResumeRequested',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      agentHarness: args.agentHarness,
+      harnessSessionId: args.harnessSessionId,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeRequested');
+
+    return { success: true };
+  },
+});
+
 /** Emits an agent.sessionResumed event when stop→start daemon-memory reconnect succeeds. */
 export const emitSessionResumed = mutation({
   args: {

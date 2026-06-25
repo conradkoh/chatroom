@@ -127,6 +127,16 @@ export type AgentStartFailedEvent = {
   timestamp: number;
 };
 
+export type AgentSessionResumeRequestedEvent = {
+  type: 'agent.sessionResumeRequested';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  agentHarness: AgentHarness;
+  harnessSessionId?: string;
+  timestamp: number;
+};
+
 export type AgentSessionResumedEvent = {
   type: 'agent.sessionResumed';
   chatroomId: Id<'chatroom_rooms'>;
@@ -224,6 +234,7 @@ export type ChatroomEvent =
   | DaemonPongEvent
   | SkillActivatedEvent
   | AgentStartFailedEvent
+  | AgentSessionResumeRequestedEvent
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent
   | AgentRestartLimitReachedEvent;

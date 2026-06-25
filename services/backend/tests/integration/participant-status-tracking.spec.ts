@@ -641,6 +641,41 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('stopped');
   });
 
+  test('emitSessionResumeRequested writes event stream row and updates lastStatus', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-resume-requested');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-pst-session-resume-requested';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.emitSessionResumeRequested, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      agentHarness: 'cursor-sdk',
+      harnessSessionId: 'harness-sess-requested-xyz',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const requested = events.filter((e) => e.type === 'agent.sessionResumeRequested');
+    expect(requested).toHaveLength(1);
+    expect(requested[0]).toMatchObject({
+      agentHarness: 'cursor-sdk',
+      harnessSessionId: 'harness-sess-requested-xyz',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('agent.sessionResumeRequested');
+  });
+
   test('emitSessionResumed writes event stream row and updates lastStatus', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

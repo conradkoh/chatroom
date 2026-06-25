@@ -1188,7 +1188,17 @@ export default defineSchema({
         error: v.string(),
         timestamp: v.number(),
       }),
-      // Agent session resumed successfully after agent_end
+      // Daemon-memory reconnect attempted on stop→start (wantResume + stored snapshot)
+      v.object({
+        type: v.literal('agent.sessionResumeRequested'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        agentHarness: v.string(),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Daemon-memory reconnect succeeded on stop→start
       v.object({
         type: v.literal('agent.sessionResumed'),
         chatroomId: v.id('chatroom_rooms'),
@@ -1197,7 +1207,7 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
-      // Agent session resume attempted but failed (graceful fallback follows)
+      // Daemon-memory reconnect failed; daemon falls back to cold spawn
       v.object({
         type: v.literal('agent.sessionResumeFailed'),
         chatroomId: v.id('chatroom_rooms'),

@@ -1079,13 +1079,18 @@ export class AgentProcessManager {
     if (!stored) {
       return null;
     }
-    const resumeFromDaemonMemory = opts.service.resumeFromDaemonMemory;
-    if (!resumeFromDaemonMemory) {
+    if (!opts.service.resumeFromDaemonMemory) {
       return null;
     }
 
     try {
-      const spawnResult = await resumeFromDaemonMemory(
+      await this.emitSessionResumeRequested(
+        opts.chatroomId,
+        opts.role,
+        opts.agentHarness,
+        stored.harnessSessionId
+      );
+      const spawnResult = await opts.service.resumeFromDaemonMemory(
         {
           workingDir: stored.workingDir,
           prompt: createSpawnPrompt(opts.initPrompt),
@@ -1168,6 +1173,27 @@ export class AgentProcessManager {
     }
 
     return null;
+  }
+
+  private async emitSessionResumeRequested(
+    chatroomId: string,
+    role: string,
+    agentHarness: AgentHarness,
+    harnessSessionId?: string
+  ): Promise<void> {
+    try {
+      await this.deps.backend.mutation(api.machines.emitSessionResumeRequested, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        agentHarness,
+        ...(harnessSessionId ? { harnessSessionId } : {}),
+      });
+      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeRequested for ${role}`);
+    } catch (err) {
+      console.log(`   ⚠️  Failed to emit sessionResumeRequested event: ${(err as Error).message}`);
+    }
   }
 
   private async emitSessionResumed(
