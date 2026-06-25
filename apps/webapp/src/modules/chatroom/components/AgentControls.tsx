@@ -216,6 +216,7 @@ export function useAgentControls({
   teamConfigHarness,
   teamConfigMachineId,
   teamAutoRestartOnNewContext,
+  teamWantResume,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
 }: {
@@ -233,6 +234,8 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** Persisted auto-restart-on-new-context preference from team agent config. */
   teamAutoRestartOnNewContext?: boolean;
+  /** Persisted reconnect-on-start preference from team agent config. */
+  teamWantResume?: boolean;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
@@ -248,13 +251,13 @@ export function useAgentControls({
     Partial<Record<AgentHarness, string>>
   >({});
   const [workingDir, setWorkingDir] = useState<string>('');
-  const [resumeSession, setResumeSession] = useState(true);
   const teamBehavior = useTeamAgentBehaviorSettings({
     chatroomId,
     role,
     teamAutoRestartOnNewContext,
+    teamWantResume,
   });
-  const { seedFromTeamConfig } = teamBehavior;
+  const { seedFromTeamConfig, syncWantResume, effectiveWantResume } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -323,10 +326,9 @@ export function useAgentControls({
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
     setWorkingDir(wd);
-    // Seed the resume toggle from the persisted config so a stopped-on-load agent
-    // shows its last-started value instead of the bare `true` default.
-    setResumeSession(deriveInitialResumeSession(machine, roleConfigs, runningAgentConfig));
-    seedFromTeamConfig();
+    seedFromTeamConfig({
+      wantResume: deriveInitialResumeSession(machine, roleConfigs, runningAgentConfig),
+    });
     setIsInitialized(true);
   }, [
     isInitialized,
@@ -352,9 +354,9 @@ export function useAgentControls({
   const runningWantResume = runningAgentConfig?.wantResume;
   useEffect(() => {
     if (runningWantResume !== undefined) {
-      setResumeSession(runningWantResume);
+      syncWantResume(runningWantResume);
     }
-  }, [runningWantResume]);
+  }, [runningWantResume, syncWantResume]);
 
   // Available models from the selected machine filtered by selected harness
   const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
@@ -457,7 +459,7 @@ export function useAgentControls({
             model: selectedModel || undefined,
             agentHarness: selectedHarness,
             workingDir: workingDir.trim() || undefined,
-            wantResume: resumeSession,
+            wantResume: effectiveWantResume,
             ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
           },
         });
@@ -474,7 +476,7 @@ export function useAgentControls({
       selectedHarness,
       selectedModel,
       workingDir,
-      resumeSession,
+      effectiveWantResume,
       sendCommand,
       chatroomId,
       role,
@@ -544,7 +546,7 @@ export function useAgentControls({
           // Use the authoritative persisted value (what the toggle displays while
           // running), not raw local form state, so a restart round-trips exactly
           // what the UI shows. Falls back to local state for pre-field configs.
-          wantResume: runningAgentConfig.wantResume ?? resumeSession,
+          wantResume: runningAgentConfig.wantResume ?? effectiveWantResume,
         },
       });
       setSuccess('Restart command sent!');
@@ -555,7 +557,7 @@ export function useAgentControls({
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, selectedModel, resumeSession, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, effectiveWantResume, sendCommand, chatroomId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -571,7 +573,7 @@ export function useAgentControls({
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory,
-  // and does NOT reset resumeSession so the user's preference persists across harness switches.
+  // and does NOT reset wantResume so the user's preference persists across harness switches.
   const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
     setSelectedHarness(harness);
   }, []);
@@ -603,8 +605,6 @@ export function useAgentControls({
     selectedHarness,
     selectedModel,
     workingDir,
-    resumeSession,
-    setResumeSession,
     teamBehavior,
     isStarting,
     isStopping,
@@ -685,8 +685,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
-    resumeSession,
-    setResumeSession,
     teamBehavior,
     rehomeConfirmOpen,
     rehomeDialogLabels,
@@ -708,7 +706,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   // (from the backend config). Falls back to local form state for older configs
   // that predate the persisted field, or while not running.
   const displayResumeSession =
-    runningConfig?.wantResume !== undefined ? runningConfig.wantResume : resumeSession;
+    runningConfig?.wantResume !== undefined
+      ? runningConfig.wantResume
+      : teamBehavior.effectiveWantResume;
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -1207,7 +1207,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
             disabled={isBusy || isAgentRunning}
             isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}
-            onResumeSessionChange={setResumeSession}
+            isSavingWantResume={teamBehavior.isSavingWantResume}
+            onResumeSessionChange={(checked) => void teamBehavior.updateWantResume(checked)}
             onAutoRestartOnNewContextChange={(checked) =>
               void teamBehavior.updateAutoRestartOnNewContext(checked)
             }

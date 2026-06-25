@@ -17,10 +17,12 @@ export interface RemoteAgentAdvancedSettingsProps {
   autoRestartOnNewContext: boolean;
   disabled?: boolean;
   isSavingAutoRestartOnNewContext?: boolean;
+  isSavingWantResume?: boolean;
   onResumeSessionChange: (enabled: boolean) => void;
   onAutoRestartOnNewContextChange: (enabled: boolean) => void;
 }
 
+// fallow-ignore-next-line complexity
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
   role,
   agentHarness,
@@ -28,6 +30,7 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
   autoRestartOnNewContext,
   disabled = false,
   isSavingAutoRestartOnNewContext = false,
+  isSavingWantResume = false,
   onResumeSessionChange,
   onAutoRestartOnNewContextChange,
 }: RemoteAgentAdvancedSettingsProps) {
@@ -55,24 +58,30 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
                 <TooltipTrigger asChild>
                   <div className="min-w-0 cursor-default">
                     <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">
-                      Resume session
+                      Reconnect to last session
                     </p>
                     <p className="text-[10px] text-chatroom-text-secondary mt-0.5">
-                      Continue from the last session instead of starting fresh
+                      On Start, reuse the daemon&apos;s preserved session instead of a cold start
                     </p>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[240px] text-xs">
-                  Applies on Start when a prior session is available in the daemon on this machine.
+                  Applies when you Start after stopping this agent on the same machine. The daemon
+                  must still have session metadata in memory.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Switch
-              checked={resumeSession}
-              disabled={disabled}
-              onCheckedChange={onResumeSessionChange}
-              aria-label="Resume session"
-            />
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isSavingWantResume && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-chatroom-text-muted" />
+              )}
+              <Switch
+                checked={resumeSession}
+                disabled={disabled || isSavingWantResume}
+                onCheckedChange={onResumeSessionChange}
+                aria-label="Reconnect to last session"
+              />
+            </div>
           </li>
         )}
 

@@ -18,21 +18,28 @@ export interface UseTeamAgentBehaviorSettingsOptions {
   role: string;
   /** Restored from getAgentStatus / AgentRoleView */
   teamAutoRestartOnNewContext?: boolean;
+  /** Restored from getAgentStatus / AgentRoleView (defaults to true when absent). */
+  teamWantResume?: boolean;
 }
 
+// fallow-ignore-next-line complexity
 export function useTeamAgentBehaviorSettings({
   chatroomId,
   role,
   teamAutoRestartOnNewContext,
+  teamWantResume,
 }: UseTeamAgentBehaviorSettingsOptions) {
   const setAutoRestartOnNewContextMutation = useSessionMutation(
     api.machines.setAutoRestartOnNewContext
   );
+  const setWantResumeMutation = useSessionMutation(api.machines.setWantResume);
 
   const [autoRestartOnNewContext, setAutoRestartOnNewContext] = useState(
     teamAutoRestartOnNewContext ?? false
   );
+  const [wantResume, setWantResume] = useState(teamWantResume ?? true);
   const [isSavingAutoRestartOnNewContext, setIsSavingAutoRestartOnNewContext] = useState(false);
+  const [isSavingWantResume, setIsSavingWantResume] = useState(false);
 
   useEffect(() => {
     if (!isSavingAutoRestartOnNewContext && teamAutoRestartOnNewContext !== undefined) {
@@ -40,14 +47,26 @@ export function useTeamAgentBehaviorSettings({
     }
   }, [teamAutoRestartOnNewContext, isSavingAutoRestartOnNewContext]);
 
+  useEffect(() => {
+    if (!isSavingWantResume && teamWantResume !== undefined) {
+      setWantResume(teamWantResume);
+    }
+  }, [teamWantResume, isSavingWantResume]);
+
   const seedFromTeamConfig = useCallback(
-    (values?: { autoRestartOnNewContext?: boolean }) => {
+    // fallow-ignore-next-line complexity
+    (values?: { autoRestartOnNewContext?: boolean; wantResume?: boolean }) => {
       setAutoRestartOnNewContext(
         values?.autoRestartOnNewContext ?? teamAutoRestartOnNewContext ?? false
       );
+      setWantResume(values?.wantResume ?? teamWantResume ?? true);
     },
-    [teamAutoRestartOnNewContext]
+    [teamAutoRestartOnNewContext, teamWantResume]
   );
+
+  const syncWantResume = useCallback((value: boolean) => {
+    setWantResume(value);
+  }, []);
 
   const updateAutoRestartOnNewContext = useCallback(
     async (checked: boolean) => {
@@ -61,14 +80,32 @@ export function useTeamAgentBehaviorSettings({
         });
       } catch (err) {
         setAutoRestartOnNewContext(teamAutoRestartOnNewContext ?? false);
-        toast.error(
-          err instanceof Error ? err.message : 'Failed to update auto-restart setting'
-        );
+        toast.error(err instanceof Error ? err.message : 'Failed to update auto-restart setting');
       } finally {
         setIsSavingAutoRestartOnNewContext(false);
       }
     },
     [chatroomId, role, setAutoRestartOnNewContextMutation, teamAutoRestartOnNewContext]
+  );
+
+  const updateWantResume = useCallback(
+    async (checked: boolean) => {
+      setWantResume(checked);
+      setIsSavingWantResume(true);
+      try {
+        await setWantResumeMutation({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          wantResume: checked,
+        });
+      } catch (err) {
+        setWantResume(teamWantResume ?? true);
+        toast.error(err instanceof Error ? err.message : 'Failed to update resume setting');
+      } finally {
+        setIsSavingWantResume(false);
+      }
+    },
+    [chatroomId, role, setWantResumeMutation, teamWantResume]
   );
 
   return {
@@ -77,5 +114,10 @@ export function useTeamAgentBehaviorSettings({
     updateAutoRestartOnNewContext,
     seedFromTeamConfig,
     isSavingAutoRestartOnNewContext,
+    wantResume,
+    effectiveWantResume: teamWantResume ?? wantResume,
+    updateWantResume,
+    syncWantResume,
+    isSavingWantResume,
   };
 }
