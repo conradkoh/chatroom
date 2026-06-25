@@ -20,6 +20,7 @@ import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -157,7 +158,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     return (
       <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
         <div className="flex flex-col items-center justify-center gap-4 py-12">
-          <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+          <ChatroomLoader size="md" />
           <span className="text-chatroom-text-muted text-sm">Loading chatrooms...</span>
         </div>
       </div>

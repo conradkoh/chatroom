@@ -80,6 +80,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1490,7 +1491,7 @@ export function ChatroomDashboard({
   if (chatroom === undefined || lifecycle === undefined || isSmallScreen === undefined) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
-        <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+        <ChatroomLoader size="md" />
       </div>
     );
   }
