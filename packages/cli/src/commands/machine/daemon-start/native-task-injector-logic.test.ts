@@ -5,12 +5,14 @@ import {
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
 import { describe, expect, test } from 'vitest';
 
+import { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   buildNativeInjectionPrompt,
   isNativeHarness,
-  NativeInjectionDedup,
-  shouldInjectNativeTask,
+  shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
+
+const HARNESS_SESSION_ID = 'sess_1';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
   return {
@@ -50,42 +52,66 @@ describe('isNativeHarness', () => {
   });
 });
 
-describe('shouldInjectNativeTask', () => {
-  test('injects when native + pending + alive + native:waiting', () => {
-    expect(shouldInjectNativeTask(makeTask())).toBe(true);
+describe('shouldDeliverNativeTask', () => {
+  test('delivers when native + pending + alive + native:waiting', () => {
+    const ledger = new NativeDeliveryLedger();
+    expect(
+      shouldDeliverNativeTask(makeTask(), {
+        ledger,
+        harnessSessionId: HARNESS_SESSION_ID,
+      })
+    ).toBe(true);
   });
 
-  test('injects when native + pending + alive + lastSeenAction=null (fresh spawn)', () => {
+  test('delivers when native + pending + alive + lastSeenAction=null (fresh spawn)', () => {
+    const ledger = new NativeDeliveryLedger();
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(
         makeTask({
           participant: {
             lastSeenAction: null,
             lastSeenAt: null,
             lastStatus: null,
           },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(true);
   });
 
-  test('does not inject when no PID', () => {
+  test('does not deliver when no PID', () => {
+    const ledger = new NativeDeliveryLedger();
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(
         makeTask({
           agentConfig: { ...makeTask().agentConfig, spawnedAgentPid: undefined },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(false);
   });
 
-  test('does not inject when status is in_progress', () => {
-    expect(shouldInjectNativeTask(makeTask({ status: 'in_progress' }))).toBe(false);
+  test('does not deliver when harness session is missing', () => {
+    const ledger = new NativeDeliveryLedger();
+    expect(shouldDeliverNativeTask(makeTask(), { ledger, harnessSessionId: undefined })).toBe(
+      false
+    );
   });
 
-  test('does not inject CLI harness', () => {
+  test('does not deliver when status is in_progress', () => {
+    const ledger = new NativeDeliveryLedger();
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(makeTask({ status: 'in_progress' }), {
+        ledger,
+        harnessSessionId: HARNESS_SESSION_ID,
+      })
+    ).toBe(false);
+  });
+
+  test('does not deliver CLI harness', () => {
+    const ledger = new NativeDeliveryLedger();
+    expect(
+      shouldDeliverNativeTask(
         makeTask({
           agentConfig: { ...makeTask().agentConfig, agentHarness: 'opencode' },
           participant: {
@@ -93,35 +119,48 @@ describe('shouldInjectNativeTask', () => {
             lastSeenAt: 500,
             lastStatus: 'agent.waiting',
           },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(false);
   });
 
-  test('deduplicates duplicate subscription events', () => {
-    const dedup = new NativeInjectionDedup();
+  test('deduplicates duplicate subscription events for same harness session', () => {
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask();
-    dedup.markInjected(task.taskId);
-    expect(shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })).toBe(false);
+    ledger.markDelivered(task.taskId, HARNESS_SESSION_ID);
+    expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
+      false
+    );
   });
 
-  test('injects when task completed but lastSeenAction still task-injected', () => {
+  test('allows delivery again when harness session generation changes', () => {
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask();
+    ledger.markDelivered(task.taskId, 'sess_old');
+    expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: 'sess_new' })).toBe(true);
+  });
+
+  test('delivers when task completed but lastSeenAction still task-injected', () => {
+    const ledger = new NativeDeliveryLedger();
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(
         makeTask({
           participant: {
             lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
             lastSeenAt: 1_000,
             lastStatus: 'task.completed',
           },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(true);
   });
 
-  test('injects when acknowledged task is owned by this role (retry after claim)', () => {
+  test('delivers when acknowledged task is owned by this role (retry after claim)', () => {
+    const ledger = new NativeDeliveryLedger();
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(
         makeTask({
           status: 'acknowledged',
           assignedTo: 'builder',
@@ -130,11 +169,12 @@ describe('shouldInjectNativeTask', () => {
             lastSeenAt: 1_000,
             lastStatus: 'task.acknowledged',
           },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(true);
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(
         makeTask({
           status: 'acknowledged',
           assignedTo: 'builder',
@@ -143,21 +183,24 @@ describe('shouldInjectNativeTask', () => {
             lastSeenAt: 500,
             lastStatus: 'agent.waiting',
           },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(true);
   });
 
-  test('does not inject when lastSeenAction is non-injectable', () => {
+  test('does not deliver when lastSeenAction is non-injectable', () => {
+    const ledger = new NativeDeliveryLedger();
     expect(
-      shouldInjectNativeTask(
+      shouldDeliverNativeTask(
         makeTask({
           participant: {
             lastSeenAction: 'get-next-task:started',
             lastSeenAt: 500,
             lastStatus: 'agent.waiting',
           },
-        })
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
       )
     ).toBe(false);
   });
@@ -181,26 +224,5 @@ describe('buildNativeInjectionPrompt', () => {
     });
     expect(output).toBe('TASK BODY');
     expect(output).not.toContain('Session Management');
-  });
-});
-
-describe('NativeInjectionDedup', () => {
-  test('tracks injected task IDs', () => {
-    const dedup = new NativeInjectionDedup();
-    expect(dedup.has('task_a')).toBe(false);
-    dedup.markInjected('task_a');
-    expect(dedup.has('task_a')).toBe(true);
-    dedup.clear('task_a');
-    expect(dedup.has('task_a')).toBe(false);
-  });
-
-  test('tryAcquire blocks duplicate concurrent injection', () => {
-    const dedup = new NativeInjectionDedup();
-    expect(dedup.tryAcquire('task_a')).toBe(true);
-    expect(dedup.tryAcquire('task_a')).toBe(false);
-    dedup.markInjected('task_a');
-    expect(dedup.tryAcquire('task_a')).toBe(false);
-    dedup.clear('task_a');
-    expect(dedup.tryAcquire('task_a')).toBe(true);
   });
 });

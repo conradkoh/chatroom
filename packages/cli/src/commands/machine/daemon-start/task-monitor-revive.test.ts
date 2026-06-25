@@ -90,4 +90,43 @@ describe('listNativeTasksNeedingRevive', () => {
     expect(ready).toHaveLength(1);
     expect(cooldown.canNudge('room_1', 'planner', now + 1)).toBe(false);
   });
+
+  test('revives acknowledged task when agent slot is idle after crash', () => {
+    const task = makeNativeTask({
+      status: 'acknowledged',
+      agentConfig: {
+        ...makeNativeTask().agentConfig,
+        spawnedAgentPid: undefined,
+      },
+    });
+    const ready = listNativeTasksNeedingRevive(
+      [task],
+      {
+        getSlot: () => ({ state: 'idle' }),
+        isPidAlive: () => false,
+      },
+      1_000_000,
+      new NudgeCooldown(60_000)
+    );
+    expect(ready).toHaveLength(1);
+  });
+
+  test('skips revive while agent is spawning', () => {
+    const task = makeNativeTask({
+      agentConfig: {
+        ...makeNativeTask().agentConfig,
+        spawnedAgentPid: undefined,
+      },
+    });
+    const ready = listNativeTasksNeedingRevive(
+      [task],
+      {
+        getSlot: () => ({ state: 'spawning' }),
+        isPidAlive: () => false,
+      },
+      1_000_000,
+      new NudgeCooldown(60_000)
+    );
+    expect(ready).toHaveLength(0);
+  });
 });

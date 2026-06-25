@@ -4,13 +4,15 @@ import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/mac
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
+import { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   buildNativeInjectionPrompt,
-  NativeInjectionDedup,
-  shouldInjectNativeTask,
+  shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
 import { api } from '../../../api.js';
+
+const HARNESS_SESSION_ID = 'sess_1';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
   return {
@@ -56,7 +58,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
 describe('runNativeInjectionEffect', () => {
   test('claim → query → join → resumeTurn in order', async () => {
     const deps = createDeps();
-    const dedup = new NativeInjectionDedup();
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask();
     const calls: string[] = [];
 
@@ -76,7 +78,7 @@ describe('runNativeInjectionEffect', () => {
       calls.push('resumeTurn');
     });
 
-    await Effect.runPromise(runNativeInjectionEffect(task, deps, dedup));
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
     expect(calls).toEqual(['claim', 'query', 'join', 'resumeTurn']);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalledWith({
@@ -94,15 +96,15 @@ describe('runNativeInjectionEffect', () => {
         taskId: task.taskId,
       })
     );
-    expect(dedup.has(task.taskId)).toBe(true);
+    expect(ledger.isDelivered(task.taskId, HARNESS_SESSION_ID)).toBe(true);
   });
 
-  test('skips when shouldInjectNativeTask is false', async () => {
+  test('skips when shouldDeliverNativeTask is false', async () => {
     const deps = createDeps();
-    const dedup = new NativeInjectionDedup();
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask({ status: 'in_progress' });
 
-    await Effect.runPromise(runNativeInjectionEffect(task, deps, dedup));
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
     expect(deps.backend.mutation).not.toHaveBeenCalled();
     expect(deps.agentMgr.resumeTurnForSlot).not.toHaveBeenCalled();
@@ -110,25 +112,25 @@ describe('runNativeInjectionEffect', () => {
 
   test('skips claim when task is already acknowledged', async () => {
     const deps = createDeps();
-    const dedup = new NativeInjectionDedup();
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask({
       status: 'acknowledged',
       assignedTo: 'builder',
     });
 
-    await Effect.runPromise(runNativeInjectionEffect(task, deps, dedup));
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
     const claimCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
       (call) => call[0] === api.tasks.claimTask
     );
     expect(claimCalls).toHaveLength(0);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
-    expect(dedup.has(task.taskId)).toBe(true);
+    expect(ledger.isDelivered(task.taskId, HARNESS_SESSION_ID)).toBe(true);
   });
 
   test('concurrent injection only claims once', async () => {
     const deps = createDeps();
-    const dedup = new NativeInjectionDedup();
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask();
     let claimCount = 0;
 
@@ -146,39 +148,43 @@ describe('runNativeInjectionEffect', () => {
     });
 
     await Promise.all([
-      Effect.runPromise(runNativeInjectionEffect(task, deps, dedup)),
-      Effect.runPromise(runNativeInjectionEffect(task, deps, dedup)),
+      Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger)),
+      Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger)),
     ]);
 
     expect(claimCount).toBe(1);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalledTimes(1);
-    expect(dedup.has(task.taskId)).toBe(true);
+    expect(ledger.isDelivered(task.taskId, HARNESS_SESSION_ID)).toBe(true);
   });
 
-  test('clears dedup and logs warning when resumeTurn throws', async () => {
+  test('clears ledger and logs warning when resumeTurn throws', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const deps = createDeps({
       agentMgr: {
         resumeTurnForSlot: vi.fn().mockRejectedValue(new Error('resume failed')),
       },
     });
-    const dedup = new NativeInjectionDedup();
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask();
 
-    await Effect.runPromise(runNativeInjectionEffect(task, deps, dedup));
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
-    expect(dedup.has(task.taskId)).toBe(false);
+    expect(ledger.isDelivered(task.taskId, HARNESS_SESSION_ID)).toBe(false);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
   });
 });
 
-describe('shouldInjectNativeTask integration with dedup', () => {
-  test('inject once per taskId across duplicate events', () => {
-    const dedup = new NativeInjectionDedup();
+describe('shouldDeliverNativeTask integration with ledger', () => {
+  test('deliver once per taskId per harness session across duplicate events', () => {
+    const ledger = new NativeDeliveryLedger();
     const task = makeTask();
-    expect(shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })).toBe(true);
-    dedup.markInjected(task.taskId);
-    expect(shouldInjectNativeTask(task, { alreadyInjectedTaskIds: dedup })).toBe(false);
+    expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
+      true
+    );
+    ledger.markDelivered(task.taskId, HARNESS_SESSION_ID);
+    expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
+      false
+    );
   });
 });
