@@ -10,3 +10,6 @@ else
   BASE="master"
 fi
 fallow audit --base "$BASE" --dead-code-baseline .fallow/baseline.json --health-baseline .fallow/health-baseline.json --quiet --gate-marker pre-commit
+
+# Convex insights audit (warn-only — requires cloud deployment auth)
+pnpm convex:insights || true

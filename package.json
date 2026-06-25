@@ -17,6 +17,7 @@
     "format:fix": "prettier --write .",
     "typecheck": "turbo run typecheck",
     "typecheck:scripts": "tsc --project scripts/tsconfig.json",
+    "convex:insights": "bash scripts/convex-insights-audit.sh",
     "find-deadcode": "fallow dead-code --baseline .fallow/baseline.json",
     "audit": "fallow audit --dead-code-baseline .fallow/baseline.json",
     "code-quality": "fallow",
