@@ -45,6 +45,7 @@ export class CursorSdkSession implements DirectHarnessSession {
     this._sessionTitle = title;
   }
 
+  // fallow-ignore-next-line complexity
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
 

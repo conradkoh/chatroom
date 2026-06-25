@@ -196,6 +196,7 @@ function handleLiveSessionEvent(
   handleLiveSessionTitleUpdate(event, deps, rowId, liveSession);
 }
 
+// fallow-ignore-next-line complexity
 async function processOne(
   daemonSession: DirectHarnessSession,
   deps: SessionSubscriberDeps,

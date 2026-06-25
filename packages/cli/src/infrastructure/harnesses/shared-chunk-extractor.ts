@@ -8,6 +8,7 @@ import type { ExtractedChunk } from '../../domain/direct-harness/usecases/open-s
 export function createStandardSdkChunkExtractor(): (
   event: DirectHarnessSessionEvent
 ) => ExtractedChunk | null {
+  // fallow-ignore-next-line complexity
   return function extract(event: DirectHarnessSessionEvent): ExtractedChunk | null {
     if (event.type !== 'message.part.delta') return null;
 

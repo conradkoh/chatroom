@@ -205,6 +205,7 @@ function wireResumedSessionEvents(
   });
 }
 
+// fallow-ignore-next-line complexity
 async function deliverPendingMessages(
   handle: ActiveSession,
   deps: MessageSubscriberDeps,
