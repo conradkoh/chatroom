@@ -407,6 +407,34 @@ input,
     height: var(--header-height);
   }
 
+  /* Chatroom loader — four squares cycling grey → black/white shades */
+  .chatroom-loader-square {
+    animation: chatroom-loader-square-fade 1.8s ease-in-out infinite;
+  }
+
+  @keyframes chatroom-loader-square-fade {
+    0%,
+    100% {
+      background-color: var(--chatroom-text-muted);
+    }
+    25% {
+      background-color: var(--chatroom-text-secondary);
+    }
+    50% {
+      background-color: var(--chatroom-text-primary);
+    }
+    75% {
+      background-color: var(--chatroom-accent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chatroom-loader-square {
+      animation: none;
+      background-color: var(--chatroom-text-secondary);
+    }
+  }
+
   /* Compact card styling for mobile */
   .card-mobile {
     @apply p-3 sm:p-6 space-y-2 sm:space-y-4;
