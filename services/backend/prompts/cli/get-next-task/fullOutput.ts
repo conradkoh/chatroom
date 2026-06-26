@@ -13,6 +13,8 @@
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
+import type { DeliveryAttachmentsInput } from '../../../src/domain/entities/message-attachments.js';
+import { renderDeliveryAttachmentsBlock } from '../../attachments/render-delivery-attachments.js';
 import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
 import { inferPrimaryHandoffTarget } from '../../utils/infer-primary-handoff-target';
@@ -74,6 +76,9 @@ export interface FullCliOutputParams {
 
   /** When true, omit get-next-task language (native harness task injection). */
   nativeIntegration?: boolean;
+
+  /** Attachments from the task SOURCE message (snippets; backlog excluded from primary delivery). */
+  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,6 +127,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     isEntryPoint,
     availableHandoffTargets,
     nativeIntegration = false,
+    sourceAttachments,
   } = params;
 
   const lines: string[] = [];
@@ -141,6 +147,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       availableHandoffTargets,
       attachedMessages,
       isEntryPoint,
+      sourceAttachments,
     });
   }
 
@@ -227,6 +234,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push('## Chatroom task');
   lines.push(task.content);
+  lines.push(
+    ...renderDeliveryAttachmentsBlock(
+      { attachedSnippets: sourceAttachments?.attachedSnippets },
+      { chatroomId, role, mode: 'cli' }
+    )
+  );
   lines.push('');
   lines.push(getTokenActivityInProgressNote());
 
