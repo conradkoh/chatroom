@@ -12,7 +12,7 @@ const SQUARE_CLASSES = {
   lg: 'h-2.5 w-2.5',
 } as const;
 
-/** Non-rotating loader — four squares fading through grey / black / white shades. */
+/** Non-rotating loader — four squares in a 2×2 grid, fading through grey / black / white shades. */
 export function ChatroomLoader({
   className,
   size = 'md',
@@ -22,7 +22,11 @@ export function ChatroomLoader({
 }) {
   return (
     <span
-      className={cn('inline-grid shrink-0 grid-cols-4 items-center', SIZE_CLASSES[size], className)}
+      className={cn(
+        'inline-grid shrink-0 grid-cols-2 grid-rows-2 items-center',
+        SIZE_CLASSES[size],
+        className
+      )}
       role="status"
       aria-label="Loading"
     >
