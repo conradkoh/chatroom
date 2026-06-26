@@ -42,7 +42,7 @@ export const backlogProseClassNames =
 
 /**
  * Task detail prose styling (success-colored inline code).
- * Used in: TaskDetailModal, AttachedTaskDetailModal.
+ * Used in: TaskDetailModal, AttachedTaskChip modal.
  *
  * Features:
  * - Success-colored inline code
