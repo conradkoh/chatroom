@@ -22,14 +22,14 @@ export function ChatroomLoader({
 }) {
   return (
     <span
-      className={cn('inline-grid grid-cols-4 items-center', SIZE_CLASSES[size], className)}
+      className={cn('inline-grid shrink-0 grid-cols-4 items-center', SIZE_CLASSES[size], className)}
       role="status"
       aria-label="Loading"
     >
       {[0, 1, 2, 3].map((index) => (
         <span
           key={index}
-          className={cn('chatroom-loader-square', SQUARE_CLASSES[size])}
+          className={cn('chatroom-loader-square shrink-0', SQUARE_CLASSES[size])}
           style={{ animationDelay: `${index * 160}ms` }}
         />
       ))}
