@@ -4,10 +4,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { AttachmentsProvider } from '../../context/AttachmentsContext';
-import type { Message } from '../../types/message';
-
 import { TimelineMessageFooter } from './TimelineMessageFooter';
+import { AttachmentsProvider } from '../../attachments';
+import type { Message } from '../../types/message';
 
 vi.mock('../../viewModels/eventStreamViewModel', () => ({
   formatTimestamp: (time: number) => `TS:${time}`,

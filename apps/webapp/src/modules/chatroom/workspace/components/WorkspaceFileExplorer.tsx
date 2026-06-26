@@ -14,6 +14,7 @@ import {
 } from './explorerTreeFilter';
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files';
 
@@ -355,8 +356,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8 text-chatroom-text-muted text-xs">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-chatroom-text-muted text-xs">
+        <ChatroomLoader size="sm" />
         Loading files…
       </div>
     );

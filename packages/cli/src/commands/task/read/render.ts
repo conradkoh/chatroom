@@ -1,8 +1,9 @@
+import { renderDeliveryAttachmentsBlock } from '@workspace/backend/prompts/attachments/render-delivery-attachments.js';
+
 /**
  * Pure renderer for task-read output.
  *
- * Extracted from index.ts so the rendering logic can be tested
- * and restructured independently of command plumbing.
+ * @see @workspace/backend/prompts/attachments/ATTACHMENTS_GUIDE.md — attachment guide
  *
  * Layout (top to bottom):
  * 1. Header (task ID, status)
@@ -26,6 +27,8 @@ export interface RenderTaskPromptInput {
     elapsedHours: number;
   };
   attachedBacklogItems?: { _id: string; content: string; status: string }[];
+  // fallow-ignore-next-line code-duplication
+  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
 }
 
 /**
@@ -49,20 +52,13 @@ function renderAttachments(
   chatroomId: string,
   role: string
 ): string[] {
-  if (!input.attachedBacklogItems || input.attachedBacklogItems.length === 0) return [];
-  const lines: string[] = [''];
-  lines.push('<attachments>');
-  for (const item of input.attachedBacklogItems) {
-    lines.push(`  <attachment type="backlog-item">`);
-    lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
-    lines.push(`      ID: ${item._id}`);
-    lines.push(
-      `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}</hint>`
-    );
-    lines.push(`  </attachment>`);
-  }
-  lines.push('</attachments>');
-  return lines;
+  return renderDeliveryAttachmentsBlock(
+    {
+      attachedBacklogItems: input.attachedBacklogItems,
+      attachedSnippets: input.attachedSnippets,
+    },
+    { chatroomId, role, mode: 'task-read' }
+  );
 }
 
 function renderDivergenceWarnings(input: RenderTaskPromptInput): string[] {

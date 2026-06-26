@@ -85,3 +85,52 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toContain('Classify');
   });
 });
+
+describe('generateFullCliOutput — snippet attachments in primary delivery', () => {
+  test('CLI mode includes snippet XML after task content when sourceAttachments has snippets', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: false,
+      sourceAttachments: {
+        attachedSnippets: [
+          {
+            reference: 'attachment-reference-001',
+            fileSource: './windsurfrules',
+            selectedContent: '# Shadcn',
+          },
+        ],
+      },
+    });
+    const taskContentIdx = output.indexOf('Implement the feature');
+    const attachmentsIdx = output.indexOf('<attachments>');
+    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(output).toContain('<attachment reference="attachment-reference-001">');
+    expect(output).toContain('file-source="./windsurfrules"');
+    expect(output).toContain('# Shadcn');
+    expect(output).toContain('<user-selected-content>');
+  });
+
+  test('CLI mode omits attachments block when no snippets', () => {
+    const output = generateFullCliOutput({ ...BASE_PARAMS, nativeIntegration: false });
+    expect(output).not.toContain('<snippet file-source=');
+  });
+
+  test('native mode includes snippet XML when sourceAttachments has snippets', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: true,
+      sourceAttachments: {
+        attachedSnippets: [
+          {
+            reference: 'attachment-reference-001',
+            fileSource: 'src/foo.ts',
+            selectedContent: 'const x = 1;',
+          },
+        ],
+      },
+    });
+    expect(output).toContain('<attachments>');
+    expect(output).toContain('file-source="src/foo.ts"');
+    expect(output).toContain('const x = 1;');
+  });
+});
