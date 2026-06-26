@@ -47,6 +47,11 @@ import {
   isCursorSdkRunErrorInLogs,
 } from '../../../domain/agent-lifecycle/policies/cursor-sdk-run-error.js';
 import {
+  CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
+  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+  CURSOR_SDK_SESSION_REOPEN_REASON,
+} from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
+import {
   formatTerminalProviderFailureMessage,
   isTerminalProviderFailureInLogs,
 } from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
@@ -205,6 +210,8 @@ export class AgentProcessManager {
   /** Latest harness session reconnect context per chatroom+role — in-memory only. */
   private readonly lastHarnessSessions = new Map<string, HarnessSessionSnapshot>();
 
+  /** Active cursor-sdk session reopen retry loops per chatroom+role. */
+  private readonly sessionReopenRetryInFlight = new Set<string>();
   /** Queue of failed recordAgentExited calls awaiting retry. */
   private readonly exitRetryQueue: RetryQueueItem[] = [];
   /** Active retry interval timer handle, or null if queue is empty. */
@@ -713,6 +720,11 @@ export class AgentProcessManager {
 
     const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, logs);
 
+    if (harness === 'cursor-sdk') {
+      void this.retryCursorSdkSessionReopen(opts, ctx, coldRestartAfterRunError);
+      return;
+    }
+
     void this.ensureRunning({
       chatroomId: opts.chatroomId,
       role: opts.role,
@@ -733,6 +745,67 @@ export class AgentProcessManager {
         console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
         this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
       });
+  }
+
+  private async retryCursorSdkSessionReopen(
+    opts: HandleExitOpts,
+    ctx: ExitContext,
+    coldRestartAfterRunError: boolean
+  ): Promise<void> {
+    const key = agentKey(opts.chatroomId, opts.role);
+    if (this.sessionReopenRetryInFlight.has(key)) {
+      return;
+    }
+    this.sessionReopenRetryInFlight.add(key);
+
+    const harness = ctx.harness as AgentHarness;
+    const model = ctx.model;
+    const workingDir = ctx.workingDir as string;
+    const wantResume = coldRestartAfterRunError ? false : (ctx.wantResume ?? true);
+    const storedSessionId = this.lastHarnessSessions.get(key)?.harnessSessionId;
+    let lastError = 'unknown';
+
+    try {
+      for (let attempt = 1; attempt <= CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS; attempt++) {
+        await this.emitSessionReopenRetry(
+          opts.chatroomId,
+          opts.role,
+          attempt,
+          attempt > 1 ? lastError : undefined,
+          storedSessionId
+        );
+
+        const result = await this.ensureRunning({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          agentHarness: harness,
+          model,
+          workingDir,
+          reason: CURSOR_SDK_SESSION_REOPEN_REASON,
+          wantResume,
+        });
+
+        if (result.success) {
+          return;
+        }
+
+        lastError = result.error ?? 'unknown';
+
+        if (attempt < CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS) {
+          await this.deps.clock.delay(CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS);
+        }
+      }
+
+      const failureMessage = `cursor-sdk session reopen failed after ${CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS} attempts: ${lastError}`;
+      console.log(`[AgentProcessManager] ⛔ ${failureMessage}`);
+      this.emitStartFailedEvent(opts.role, opts.chatroomId, failureMessage);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(`   ⚠️  cursor-sdk session reopen retry loop failed: ${message}`);
+      this.emitStartFailedEvent(opts.role, opts.chatroomId, message);
+    } finally {
+      this.sessionReopenRetryInFlight.delete(key);
+    }
   }
 
   private handlePermanentFailureForRestart(
@@ -1233,6 +1306,32 @@ export class AgentProcessManager {
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${role}`);
     } catch (err) {
       console.log(`   ⚠️  Failed to emit sessionResumeFailed event: ${(err as Error).message}`);
+    }
+  }
+
+  private async emitSessionReopenRetry(
+    chatroomId: string,
+    role: string,
+    attempt: number,
+    error?: string,
+    harnessSessionId?: string
+  ): Promise<void> {
+    try {
+      await this.deps.backend.mutation(api.machines.emitSessionReopenRetry, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        attempt,
+        maxAttempts: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+        ...(error ? { error } : {}),
+        ...(harnessSessionId ? { harnessSessionId } : {}),
+      });
+      console.log(
+        `[AgentProcessManager] ✅ Emitted agent.sessionReopenRetry for ${role} (attempt ${attempt}/${CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS})`
+      );
+    } catch (err) {
+      console.log(`   ⚠️  Failed to emit sessionReopenRetry event: ${(err as Error).message}`);
     }
   }
 

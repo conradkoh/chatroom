@@ -7,6 +7,8 @@
  */
 
 import { appendNativeDeliveryHandoffTemplates } from './delivery-handoff-templates';
+import type { DeliveryAttachmentsInput } from '../../src/domain/entities/message-attachments.js';
+import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
 import { handoffCommand } from '../cli/handoff/command';
 import { inferPrimaryHandoffTarget } from '../utils/infer-primary-handoff-target';
 import { getUserVerificationReminder } from '../utils/task-verification';
@@ -21,6 +23,7 @@ export interface NativeTaskDeliveryParams {
   availableHandoffTargets: string[];
   attachedMessages?: { _id: string; content: string; senderRole: string }[];
   isEntryPoint?: boolean;
+  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
 }
 
 function maybeAddUserVerificationReminder(
@@ -123,11 +126,18 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     availableHandoffTargets,
     attachedMessages = [],
     isEntryPoint,
+    sourceAttachments,
   } = params;
 
   const lines: string[] = [`<task>`, `Task ID: ${task._id}`];
   if (message) lines.push(`From: ${message.senderRole}`);
   lines.push('', task.content);
+  lines.push(
+    ...renderDeliveryAttachmentsBlock(
+      { attachedSnippets: sourceAttachments?.attachedSnippets },
+      { chatroomId, role, mode: 'native' }
+    )
+  );
 
   for (const attached of attachedMessages) {
     lines.push('', '<attached>', `From: ${attached.senderRole}`, attached.content, '</attached>');

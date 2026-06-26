@@ -53,6 +53,11 @@ export interface ReadTaskResult {
     content: string;
     status: string;
   }[];
+  attachedSnippets?: {
+    reference: string;
+    fileSource: string;
+    selectedContent: string;
+  }[];
 }
 
 // ============================================================================
@@ -114,15 +119,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
     });
     await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
 
-    const context = await fetchCurrentContext(ctx, chatroomId);
-    const attachedBacklogItems = await fetchAttachedBacklogItems(ctx, task);
-    return {
-      taskId,
-      content: task.content,
-      status: 'in_progress',
-      ...(context && { context }),
-      ...(attachedBacklogItems.length > 0 && { attachedBacklogItems }),
-    };
+    return buildReadTaskResult(ctx, chatroomId, task, taskId);
   }
 
   // 5. If status is not acknowledged → error
@@ -137,24 +134,32 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   // 7. Update participant status
   await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
 
-  // 8. Fetch current context for inclusion in result
+  // 8–10. Fetch context/attachments and return
+  return buildReadTaskResult(ctx, chatroomId, task, taskId);
+}
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+async function buildReadTaskResult(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  task: { content: string; sourceMessageId?: Id<'chatroom_messages'> },
+  taskId: Id<'chatroom_tasks'>
+): Promise<ReadTaskResult> {
   const context = await fetchCurrentContext(ctx, chatroomId);
-
-  // 9. Fetch attached backlog items from source message
   const attachedBacklogItems = await fetchAttachedBacklogItems(ctx, task);
+  const attachedSnippets = await fetchAttachedSnippets(ctx, task);
 
-  // 10. Return result
   return {
     taskId,
     content: task.content,
     status: 'in_progress',
     ...(context && { context }),
     ...(attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+    ...(attachedSnippets.length > 0 && { attachedSnippets }),
   };
 }
-// ============================================================================
-// HELPERS
-// ============================================================================
 
 /**
  * Fetches the current pinned context for a chatroom, including the trigger
@@ -228,4 +233,16 @@ async function fetchAttachedBacklogItems(
   }
 
   return items;
+}
+
+async function fetchAttachedSnippets(
+  ctx: MutationCtx,
+  task: { sourceMessageId?: Id<'chatroom_messages'> }
+): Promise<NonNullable<ReadTaskResult['attachedSnippets']>> {
+  if (!task.sourceMessageId) {
+    return [];
+  }
+
+  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+  return sourceMessage?.attachedSnippets ?? [];
 }
