@@ -15,6 +15,60 @@ import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
 import { useSendMessage } from '../hooks/useSendMessage';
 
+function ComposerSendRow({
+  textareaRef,
+  text,
+  onTextChange,
+  onKeyDown,
+  onSend,
+  canSend,
+  disabled,
+  autoFocus,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  text: string;
+  onTextChange: (value: string) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onSend: () => void;
+  canSend: boolean;
+  disabled: boolean;
+  autoFocus?: boolean;
+}) {
+  return (
+    <div className="flex gap-2 items-end">
+      <Textarea
+        ref={textareaRef}
+        rows={3}
+        className="flex-1 resize-none text-sm"
+        placeholder="Message… (Enter to send, Shift+Enter for new line)"
+        value={text}
+        onChange={(e) => onTextChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        autoFocus={autoFocus}
+      />
+      <Button
+        size="icon"
+        className="shrink-0 h-9 w-9"
+        aria-label="Send message"
+        disabled={!canSend}
+        onClick={() => void onSend()}
+      >
+        <Send size={15} />
+      </Button>
+    </div>
+  );
+}
+
+function useEnterToSendKeyDown(onSend: () => void) {
+  return (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void onSend();
+    }
+  };
+}
+
 function useWorkspaceHarnessConfig(
   workspaceId: Id<'chatroom_workspaces'>,
   harnessName: string,
@@ -84,12 +138,7 @@ export function NewSessionComposer({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
-  };
+  const handleKeyDown = useEnterToSendKeyDown(handleSend);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -104,28 +153,16 @@ export function NewSessionComposer({
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Textarea + send button */}
-        <div className="flex gap-2 items-end">
-          <Textarea
-            ref={textareaRef}
-            rows={3}
-            className="flex-1 resize-none text-sm"
-            placeholder="Message… (Enter to send, Shift+Enter for new line)"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isCreating}
-            autoFocus
-          />
-          <Button
-            size="icon"
-            className="shrink-0 h-9 w-9"
-            aria-label="Send message"
-            disabled={!canSend}
-            onClick={() => void handleSend()}
-          >
-            <Send size={15} />
-          </Button>
-        </div>
+        <ComposerSendRow
+          textareaRef={textareaRef}
+          text={text}
+          onTextChange={setText}
+          onKeyDown={handleKeyDown}
+          onSend={handleSend}
+          canSend={canSend}
+          disabled={isCreating}
+          autoFocus
+        />
 
         {/* Harness + agent + model selectors + filter button */}
         <HarnessSelectorBar
@@ -195,12 +232,7 @@ export function SessionComposer({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
-  };
+  const handleKeyDown = useEnterToSendKeyDown(handleSend);
 
   if (isTerminal) {
     return (
@@ -213,27 +245,15 @@ export function SessionComposer({
   return (
     <div className="shrink-0 border-t-2 border-border p-3 flex flex-col gap-2">
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-      <div className="flex gap-2 items-end">
-        <Textarea
-          ref={textareaRef}
-          rows={3}
-          className="flex-1 resize-none text-sm"
-          placeholder="Message… (Enter to send, Shift+Enter for new line)"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isDisabled}
-        />
-        <Button
-          size="icon"
-          className="shrink-0 h-9 w-9"
-          aria-label="Send message"
-          disabled={!canSend}
-          onClick={() => void handleSend()}
-        >
-          <Send size={15} />
-        </Button>
-      </div>
+      <ComposerSendRow
+        textareaRef={textareaRef}
+        text={text}
+        onTextChange={setText}
+        onKeyDown={handleKeyDown}
+        onSend={handleSend}
+        canSend={canSend}
+        disabled={isDisabled}
+      />
       {/* Harness/agent/model bar — harness frozen mid-session; filter button visible when machineId is known */}
       {/* TODO: when in-session agent/model switching ships, pass resolvedAgent + resolvedModel to send(). */}
       <HarnessSelectorBar

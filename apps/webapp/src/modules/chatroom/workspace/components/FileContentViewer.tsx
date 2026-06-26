@@ -1,14 +1,12 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
-import { memo, useEffect, useRef } from 'react';
+import { memo, useRef } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
 import { useExplorerSelectionKeyboard } from '../hooks/useExplorerSelectionKeyboard';
-import { useFileContent } from '../hooks/useFileContent';
+import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
 
 import { cn } from '@/lib/utils';
 
@@ -72,20 +70,7 @@ const FileContentInner = memo(function FileContentInner({
   const contentContainerRef = useRef<HTMLDivElement>(null);
 
   useExplorerSelectionKeyboard(contentContainerRef, filePath, onSendSelectionToComposer);
-
-  // Request file content from daemon
-  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
-
-  useEffect(() => {
-    requestContent({ machineId, workingDir, filePath }).catch(() => {});
-  }, [machineId, workingDir, filePath, requestContent]);
-
-  // Reactively fetch cached content (with transparent decompression)
-  const content = useFileContent({
-    machineId,
-    workingDir,
-    filePath,
-  });
+  const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
 
   // Loading state
   if (content === undefined) {
