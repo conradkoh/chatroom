@@ -61,6 +61,7 @@ import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
@@ -80,6 +81,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,7 +115,7 @@ const FileExplorerPanel = dynamic(
     import('./workspace/components/FileExplorerPanel').then((m) => ({
       default: m.FileExplorerPanel,
     })),
-  { loading: () => <PanelLoadingSpinner /> }
+  { loading: () => <FileExplorerPanelLoadingShell /> }
 );
 
 const DirectHarnessView = dynamic(
@@ -1511,7 +1513,7 @@ export function ChatroomDashboard({
   if (chatroom === undefined || lifecycle === undefined || isSmallScreen === undefined) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
-        <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+        <ChatroomLoader size="md" />
       </div>
     );
   }

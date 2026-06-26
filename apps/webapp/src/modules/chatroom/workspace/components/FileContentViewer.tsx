@@ -8,6 +8,7 @@ import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers'
 import { useExplorerSelectionKeyboard } from '../hooks/useExplorerSelectionKeyboard';
 import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,8 +76,8 @@ const FileContentInner = memo(function FileContentInner({
   // Loading state
   if (content === undefined) {
     return (
-      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+        <ChatroomLoader size="sm" />
         Loading…
       </div>
     );
@@ -85,8 +86,8 @@ const FileContentInner = memo(function FileContentInner({
   // No content
   if (content === null) {
     return (
-      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+        <ChatroomLoader size="sm" />
         Waiting for file content…
       </div>
     );
