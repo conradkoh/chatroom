@@ -48,6 +48,9 @@ export async function promoteQueuedMessage(
     ...(queueRecord.attachedMessageIds?.length && {
       attachedMessageIds: queueRecord.attachedMessageIds,
     }),
+    ...(queueRecord.attachedSnippets?.length && {
+      attachedSnippets: queueRecord.attachedSnippets,
+    }),
     // DEPRECATED: pass through legacy workflow attachments if present on queued rows.
     ...(queueRecord.attachedWorkflowIds?.length && {
       attachedWorkflowIds: queueRecord.attachedWorkflowIds,

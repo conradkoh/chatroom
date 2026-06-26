@@ -26,6 +26,8 @@ export interface RenderTaskPromptInput {
     elapsedHours: number;
   };
   attachedBacklogItems?: { _id: string; content: string; status: string }[];
+  // fallow-ignore-next-line code-duplication
+  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
 }
 
 /**
@@ -44,15 +46,29 @@ export function detectBacklogDivergence(
   return attachedIds.filter((id) => !contextContent.includes(id));
 }
 
-function renderAttachments(
-  input: RenderTaskPromptInput,
+function renderSnippetAttachment(snippet: {
+  reference: string;
+  fileSource: string;
+  selectedContent: string;
+}): string[] {
+  return [
+    `  <attachment reference="${snippet.reference}">`,
+    `  <snippet file-source="${snippet.fileSource}">`,
+    `    <user-selected-content>`,
+    snippet.selectedContent,
+    `    </user-selected-content>`,
+    `  </snippet>`,
+    `  </attachment>`,
+  ];
+}
+
+function renderBacklogAttachments(
+  items: NonNullable<RenderTaskPromptInput['attachedBacklogItems']>,
   chatroomId: string,
   role: string
 ): string[] {
-  if (!input.attachedBacklogItems || input.attachedBacklogItems.length === 0) return [];
-  const lines: string[] = [''];
-  lines.push('<attachments>');
-  for (const item of input.attachedBacklogItems) {
+  const lines: string[] = [];
+  for (const item of items) {
     lines.push(`  <attachment type="backlog-item">`);
     lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
     lines.push(`      ID: ${item._id}`);
@@ -61,8 +77,34 @@ function renderAttachments(
     );
     lines.push(`  </attachment>`);
   }
-  lines.push('</attachments>');
   return lines;
+}
+
+function renderSnippetAttachments(
+  snippets: NonNullable<RenderTaskPromptInput['attachedSnippets']>
+): string[] {
+  const lines: string[] = [];
+  for (const snippet of snippets) {
+    lines.push(...renderSnippetAttachment(snippet));
+  }
+  return lines;
+}
+
+// fallow-ignore-next-line complexity
+function renderAttachments(
+  input: RenderTaskPromptInput,
+  chatroomId: string,
+  role: string
+): string[] {
+  const backlogLines = input.attachedBacklogItems?.length
+    ? renderBacklogAttachments(input.attachedBacklogItems, chatroomId, role)
+    : [];
+  const snippetLines = input.attachedSnippets?.length
+    ? renderSnippetAttachments(input.attachedSnippets)
+    : [];
+  if (backlogLines.length === 0 && snippetLines.length === 0) return [];
+
+  return ['', '<attachments>', ...backlogLines, ...snippetLines, '</attachments>'];
 }
 
 function renderDivergenceWarnings(input: RenderTaskPromptInput): string[] {

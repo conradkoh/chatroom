@@ -12,6 +12,7 @@ import remarkGfm from 'remark-gfm';
 import type { Message } from '../../types/message';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 import { MessageAttachmentChips } from '../MessageAttachmentChips';
+import { countMessageAttachments } from '../messageAttachmentUtils';
 
 import {
   DropdownMenu,
@@ -49,11 +50,7 @@ interface QueuedMessageDetailModalProps {
 
 /** Inline helper: renders "Attachments (N)" header + the shared chip strip. */
 function QueuedMessageAttachmentsSection({ message }: { message: Message }) {
-  const taskCount = message.attachedTasks?.length ?? 0;
-  const backlogCount = message.attachedBacklogItems?.length ?? 0;
-  const messageCount = message.attachedMessages?.length ?? 0;
-  const totalCount = taskCount + backlogCount + messageCount;
-
+  const totalCount = countMessageAttachments(message);
   if (totalCount === 0) return null;
 
   return (

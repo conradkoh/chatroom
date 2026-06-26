@@ -3,6 +3,12 @@ import { v } from 'convex/values';
 
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 
+const attachedSnippetValidator = v.object({
+  reference: v.string(),
+  fileSource: v.string(),
+  selectedContent: v.string(),
+});
+
 // agentHarnessValidator re-exported for backward compatibility
 // Canonical source is entities/agent.ts.
 export { agentHarnessValidator };
@@ -438,6 +444,9 @@ export default defineSchema({
     // User can attach existing messages as context for a new message
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
 
+    // Explorer file snippets attached via Cmd+I (inline content, no separate table)
+    attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
+
     // DEPRECATED: Legacy DAG workflow attachments. Feature removed — not written by
     // current app code. Retained so existing documents continue to validate.
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
@@ -497,6 +506,7 @@ export default defineSchema({
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Attached chatroom messages for context
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
     // DEPRECATED: Legacy DAG workflow attachments (see chatroom_messages.attachedWorkflowIds).
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)

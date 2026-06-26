@@ -30,8 +30,15 @@ export type MessageAttachment = {
   senderRole: string;
 };
 
+export type SnippetAttachment = {
+  type: 'snippet';
+  id: string;
+  fileSource: string;
+  selectedContent: string;
+};
+
 /** Discriminated union of all supported attachment types. */
-export type Attachment = TaskAttachment | BacklogAttachment | MessageAttachment;
+export type Attachment = TaskAttachment | BacklogAttachment | MessageAttachment | SnippetAttachment;
 
 // ── Context interface ──────────────────────────────────────────────────────
 
@@ -156,4 +163,13 @@ export function useBacklogAttachments(): BacklogAttachment[] {
 export function useMessageAttachments(): MessageAttachment[] {
   const { attachments } = useAttachments();
   return attachments.filter((a): a is MessageAttachment => a.type === 'message');
+}
+
+/**
+ * Selector hook — returns only snippet attachments from the registry.
+ * Pure derived state; does not add to the context interface.
+ */
+export function useSnippetAttachments(): SnippetAttachment[] {
+  const { attachments } = useAttachments();
+  return attachments.filter((a): a is SnippetAttachment => a.type === 'snippet');
 }

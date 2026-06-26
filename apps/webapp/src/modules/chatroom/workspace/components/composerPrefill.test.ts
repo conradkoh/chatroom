@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  buildExplorerSelectionMessage,
+  buildExplorerSelectionPrefill,
   dispatchComposerPrefill,
   subscribeComposerPrefill,
   type ComposerPrefillDetail,
@@ -9,43 +9,53 @@ import {
 
 const COMPOSER_PREFILL_EVENT = 'chatroom:composer-prefill';
 
-describe('buildExplorerSelectionMessage', () => {
-  it('includes file path and fenced selection', () => {
-    const message = buildExplorerSelectionMessage('src/foo.ts', 'const x = 1;');
-    expect(message).toContain('@src/foo.ts');
-    expect(message).toContain('const x = 1;');
-    expect(message).toMatch(/```[\s\S]*```/);
+const samplePrefillDetail = (
+  overrides?: Partial<ComposerPrefillDetail>
+): ComposerPrefillDetail => ({
+  target: 'messages',
+  fileSource: 'src/foo.ts',
+  selectedContent: 'const x = 1;',
+  ...overrides,
+});
+
+describe('buildExplorerSelectionPrefill', () => {
+  it('creates attachment and inline reference message body', () => {
+    const result = buildExplorerSelectionPrefill('src/foo.ts', 'const x = 1;', []);
+    expect(result.attachment.fileSource).toBe('src/foo.ts');
+    expect(result.attachment.selectedContent).toBe('const x = 1;');
+    expect(result.messageBody).toBe('[attachment: attachment-reference-001]');
+  });
+
+  it('increments reference when existing attachments present', () => {
+    const result = buildExplorerSelectionPrefill('b.ts', 'y', ['attachment-reference-001']);
+    expect(result.attachment.reference).toBe('attachment-reference-002');
+    expect(result.messageBody).toBe('[attachment: attachment-reference-002]');
   });
 });
 
 describe('composer prefill events', () => {
-  it('dispatches and routes by target', () => {
-    const messagesHandler = vi.fn();
-    const harnessHandler = vi.fn();
+  it('dispatches and delivers detail to subscriber', () => {
+    const handler = vi.fn();
+    const unsub = subscribeComposerPrefill(handler);
 
-    const unsubMessages = subscribeComposerPrefill('messages', messagesHandler);
-    const unsubHarness = subscribeComposerPrefill('direct-harness', harnessHandler);
+    const detail = samplePrefillDetail({ selectedContent: 'hello messages' });
+    dispatchComposerPrefill(detail);
 
-    dispatchComposerPrefill({ text: 'hello messages', target: 'messages' });
-    dispatchComposerPrefill({ text: 'hello harness', target: 'direct-harness' });
+    expect(handler).toHaveBeenCalledWith(detail);
 
-    expect(messagesHandler).toHaveBeenCalledWith('hello messages');
-    expect(harnessHandler).toHaveBeenCalledWith('hello harness');
-    expect(messagesHandler).not.toHaveBeenCalledWith('hello harness');
-
-    unsubMessages();
-    unsubHarness();
+    unsub();
   });
 
-  it('dispatches a CustomEvent with detail', () => {
+  it('dispatches a CustomEvent with structured detail', () => {
     const listener = vi.fn();
     window.addEventListener(COMPOSER_PREFILL_EVENT, listener);
 
-    dispatchComposerPrefill({ text: 'test', target: 'messages' });
+    const detail = samplePrefillDetail({ selectedContent: 'test' });
+    dispatchComposerPrefill(detail);
 
     expect(listener).toHaveBeenCalledTimes(1);
     const event = listener.mock.calls[0]?.[0] as CustomEvent<ComposerPrefillDetail>;
-    expect(event.detail).toEqual({ text: 'test', target: 'messages' });
+    expect(event.detail).toEqual(detail);
 
     window.removeEventListener(COMPOSER_PREFILL_EVENT, listener);
   });

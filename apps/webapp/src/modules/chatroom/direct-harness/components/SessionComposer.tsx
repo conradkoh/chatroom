@@ -10,11 +10,33 @@ import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
 import type { SessionStatus } from './StatusDot';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { useDirectHarnessComposerPrefill } from '../../workspace/components/composerPrefill';
 import { useCreateSession } from '../hooks/useCreateSession';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
 import { useSendMessage } from '../hooks/useSendMessage';
+
+function useWorkspaceHarnessConfig(
+  workspaceId: Id<'chatroom_workspaces'>,
+  harnessName: string,
+  initial?: { agent?: string; model?: { providerID: string; modelID: string } }
+) {
+  const capabilities = useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
+
+  const harnesses = capabilities?.harnesses ?? [];
+  const machineId = capabilities?.machineId ?? null;
+  const filter = useHarnessModelFilter(machineId, harnessName);
+  const config = useHarnessConfig({
+    harnesses,
+    harnessName,
+    initial,
+    isModelHidden: filter.isHidden,
+  });
+
+  return { harnesses, machineId, filter, config };
+}
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────
 
@@ -34,25 +56,9 @@ export function NewSessionComposer({
   const [harnessName, setHarnessName] = useState('opencode-sdk');
   const { create, isCreating } = useCreateSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
-  );
-
-  const harnesses = capabilities?.harnesses ?? [];
-  const machineId = capabilities?.machineId ?? null;
-
-  const filter = useHarnessModelFilter(machineId, harnessName);
-
-  const config = useHarnessConfig({
-    harnesses,
-    harnessName,
-    isModelHidden: filter.isHidden,
-  });
+  const { harnesses, filter, config } = useWorkspaceHarnessConfig(workspaceId, harnessName);
 
   const { resolvedAgent, resolvedModel } = config;
-
-  useDirectHarnessComposerPrefill(textareaRef, setText);
 
   const trimmed = text.trim();
   const canSend = !!trimmed && !isCreating && !!resolvedModel;
@@ -160,25 +166,11 @@ export function SessionComposer({
   const [error, setError] = useState<string | null>(null);
   const { send, isSending } = useSendMessage();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useDirectHarnessComposerPrefill(textareaRef, setText);
-
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
-  );
-
-  const harnesses = capabilities?.harnesses ?? [];
-  const machineId = capabilities?.machineId ?? null;
-
-  const filter = useHarnessModelFilter(machineId, harnessName);
-
-  const config = useHarnessConfig({
-    harnesses,
+  const { harnesses, filter, config } = useWorkspaceHarnessConfig(
+    workspaceId,
     harnessName,
-    initial: lastUsedConfig,
-    isModelHidden: filter.isHidden,
-  });
+    lastUsedConfig
+  );
 
   const isTerminal = status === 'closed' || status === 'failed';
   const isDisabled = status === 'pending' || status === 'spawning' || isTerminal || isSending;

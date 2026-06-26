@@ -59,9 +59,8 @@ import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
 import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import {
-  buildExplorerSelectionMessage,
   dispatchComposerPrefill,
-  type ComposerPrefillTarget,
+  PREFILL_TOAST_MESSAGE,
 } from './workspace/components/composerPrefill';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
@@ -515,23 +514,20 @@ export function ChatroomDashboard({
 
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
-      const text = buildExplorerSelectionMessage(filePath, selectedText);
-
       if (!explorerSplitViewEnabled && activeView === 'explorer') {
         setExplorerSplitViewEnabled(true);
       }
 
-      const target: ComposerPrefillTarget =
-        splitMode === 'direct-harness' ? 'direct-harness' : 'messages';
+      setSplitMode('messages');
 
-      dispatchComposerPrefill({ text, target });
-      toast.message(
-        target === 'direct-harness'
-          ? 'Selection added to Direct Harness composer'
-          : 'Selection added to Messages composer'
-      );
+      dispatchComposerPrefill({
+        target: 'messages',
+        fileSource: filePath,
+        selectedContent: selectedText,
+      });
+      toast.message(PREFILL_TOAST_MESSAGE);
     },
-    [explorerSplitViewEnabled, splitMode, activeView, setExplorerSplitViewEnabled]
+    [explorerSplitViewEnabled, activeView, setExplorerSplitViewEnabled, setSplitMode]
   );
 
   const handleActivityViewChange = useCallback(
@@ -1574,7 +1570,7 @@ export function ChatroomDashboard({
               {/* Main Content Area */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {/* Content Toolbar — always renders, actions change based on active view */}
-                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end px-2">
+                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end gap-2 px-2">
                   {activeView === 'explorer' && (
                     <button
                       className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"

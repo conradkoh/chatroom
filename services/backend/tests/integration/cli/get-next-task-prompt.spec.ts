@@ -1167,6 +1167,52 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(result.attachedBacklogItems![0]._id).toBe(backlogItemId);
   });
 
+  test('readTask mutation returns attached snippets from source message', async () => {
+    const { sessionId } = await createTestSession('test-readtask-snippets');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'What library is [attachment: attachment-reference-001]?',
+      type: 'message',
+      attachedSnippets: [
+        {
+          reference: 'attachment-reference-001',
+          fileSource: './windsurfrules',
+          selectedContent: '# Shadcn',
+        },
+      ],
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    expect(result.attachedSnippets).toBeDefined();
+    expect(result.attachedSnippets).toHaveLength(1);
+    expect(result.attachedSnippets![0].reference).toBe('attachment-reference-001');
+    expect(result.attachedSnippets![0].fileSource).toBe('./windsurfrules');
+    expect(result.attachedSnippets![0].selectedContent).toBe('# Shadcn');
+  });
+
   test('readTask mutation returns no attachedBacklogItems when source message has none', async () => {
     const { sessionId } = await createTestSession('test-readtask-no-backlog-items');
     const chatroomId = await createDuoTeamChatroom(sessionId);

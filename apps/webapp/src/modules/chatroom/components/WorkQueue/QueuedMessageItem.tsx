@@ -95,7 +95,8 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   const hasAttachments =
     (message.attachedTasks?.length ?? 0) > 0 ||
     (message.attachedBacklogItems?.length ?? 0) > 0 ||
-    (message.attachedMessages?.length ?? 0) > 0;
+    (message.attachedMessages?.length ?? 0) > 0 ||
+    (message.attachedSnippets?.length ?? 0) > 0;
 
   return (
     <>

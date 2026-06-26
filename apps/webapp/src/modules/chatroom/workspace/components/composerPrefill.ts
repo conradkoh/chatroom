@@ -1,49 +1,52 @@
-/** Cross-composer prefill via window event (messages vs direct harness). */
+/** Cross-composer prefill via window events (messages composer only). */
 
-import { useEffect, type RefObject } from 'react';
+import {
+  createExplorerSnippetAttachment,
+  renderInlineReference,
+  type ExplorerSnippetAttachment,
+} from './explorerSelectionAttachment';
 
 const COMPOSER_PREFILL_EVENT = 'chatroom:composer-prefill';
 
-export type ComposerPrefillTarget = 'messages' | 'direct-harness';
-
 export interface ComposerPrefillDetail {
-  text: string;
-  target: ComposerPrefillTarget;
+  target: 'messages';
+  fileSource: string;
+  selectedContent: string;
 }
 
 export function dispatchComposerPrefill(detail: ComposerPrefillDetail): void {
   window.dispatchEvent(new CustomEvent(COMPOSER_PREFILL_EVENT, { detail }));
 }
 
-/** Build a chatroom/harness message from explorer file selection. */
-export function buildExplorerSelectionMessage(filePath: string, selectedText: string): string {
-  const snippet = selectedText.trim();
-  return `In @${filePath}:\n\n\`\`\`\n${snippet}\n\`\`\`\n\n`;
+/** Build prefill payload for Cmd+I explorer selection. */
+export function buildExplorerSelectionPrefill(
+  fileSource: string,
+  selectedContent: string,
+  existingReferences?: Iterable<string>
+): {
+  attachment: ExplorerSnippetAttachment;
+  messageBody: string;
+} {
+  const attachment = createExplorerSnippetAttachment(
+    fileSource,
+    selectedContent,
+    existingReferences
+  );
+  const messageBody = renderInlineReference(attachment.reference);
+  return { attachment, messageBody };
 }
 
 export function subscribeComposerPrefill(
-  target: ComposerPrefillTarget,
-  handler: (text: string) => void
+  handler: (detail: ComposerPrefillDetail) => void
 ): () => void {
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<ComposerPrefillDetail>).detail;
-    if (!detail || detail.target !== target) return;
-    handler(detail.text);
+    if (!detail || detail.target !== 'messages') return;
+    handler(detail);
   };
 
   window.addEventListener(COMPOSER_PREFILL_EVENT, listener);
   return () => window.removeEventListener(COMPOSER_PREFILL_EVENT, listener);
 }
 
-/** Wire direct-harness composer textareas to explorer Cmd+I prefill events. */
-export function useDirectHarnessComposerPrefill(
-  textareaRef: RefObject<HTMLTextAreaElement | null>,
-  setText: (value: string) => void
-): void {
-  useEffect(() => {
-    return subscribeComposerPrefill('direct-harness', (prefillText) => {
-      setText(prefillText);
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    });
-  }, [setText, textareaRef]);
-}
+export const PREFILL_TOAST_MESSAGE = 'Selection added to Messages composer';
