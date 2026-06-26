@@ -332,7 +332,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-8 text-chatroom-text-muted text-xs">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-chatroom-text-muted text-xs">
         <ChatroomLoader size="sm" />
         Loading files…
       </div>

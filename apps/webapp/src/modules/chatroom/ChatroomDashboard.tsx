@@ -61,6 +61,7 @@ import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
@@ -114,7 +115,7 @@ const FileExplorerPanel = dynamic(
     import('./workspace/components/FileExplorerPanel').then((m) => ({
       default: m.FileExplorerPanel,
     })),
-  { loading: () => <PanelLoadingSpinner /> }
+  { loading: () => <FileExplorerPanelLoadingShell /> }
 );
 
 const DirectHarnessView = dynamic(
