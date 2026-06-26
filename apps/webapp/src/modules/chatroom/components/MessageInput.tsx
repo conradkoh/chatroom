@@ -6,32 +6,30 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
-import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
-import { AttachedMessageChip } from './AttachedMessageChip';
-import { AttachedSnippetChip } from './AttachedSnippetChip';
-import { AttachedTaskChip } from './AttachedTaskChip';
+import {
+  AttachedBacklogItemChip,
+  AttachedMessageChip,
+  AttachedSnippetChip,
+  AttachedTaskChip,
+  buildExplorerSelectionPrefill,
+  renderInlineReference,
+  subscribeComposerPrefill,
+  useAttachments,
+  useBacklogAttachments,
+  useMessageAttachments,
+  useSnippetAttachments,
+  useTaskAttachments,
+} from '../attachments';
 import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
+import type { FileEntry } from './FileSelector/useFileSelector';
 import {
   getEffectiveMaxTextareaHeightPx,
   getViewportHeightPx,
   MAX_TEXTAREA_HEIGHT_PX,
 } from './messageInputAutosize';
-import {
-  useAttachments,
-  useTaskAttachments,
-  useBacklogAttachments,
-  useMessageAttachments,
-  useSnippetAttachments,
-} from '../context/AttachmentsContext';
-import type { FileEntry } from './FileSelector/useFileSelector';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
-import {
-  buildExplorerSelectionPrefill,
-  subscribeComposerPrefill,
-} from '../workspace/components/composerPrefill';
-import { renderInlineReference } from '../workspace/components/explorerSelectionAttachment';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

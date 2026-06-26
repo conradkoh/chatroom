@@ -5,11 +5,10 @@ import { render, screen } from '@testing-library/react';
 import type React from 'react';
 import { describe, it, expect } from 'vitest';
 
-import { AttachmentsProvider } from '../../context/AttachmentsContext';
-import type { Message } from '../../types/message';
-import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
-
 import { TimelineEventRow } from './TimelineEventRow';
+import { AttachmentsProvider } from '../../attachments';
+import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
+import type { Message } from '../../types/message';
 
 function renderRow(ui: React.ReactElement) {
   return render(<AttachmentsProvider>{ui}</AttachmentsProvider>);

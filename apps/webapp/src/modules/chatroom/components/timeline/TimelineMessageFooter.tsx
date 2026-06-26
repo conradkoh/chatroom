@@ -4,7 +4,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Copy, Paperclip } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
-import { useAttachments } from '../../context/AttachmentsContext';
+import { useAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { formatTimestamp } from '../../viewModels/eventStreamViewModel';
 

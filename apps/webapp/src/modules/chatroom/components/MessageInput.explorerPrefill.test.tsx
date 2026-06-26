@@ -6,11 +6,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageInput } from './MessageInput';
-import { AttachmentsProvider } from '../context/AttachmentsContext';
 import {
+  AttachmentsProvider,
   dispatchComposerPrefill,
   subscribeComposerPrefill,
-} from '../workspace/components/composerPrefill';
+} from '../attachments';
 
 const mockSendMessage = vi.fn().mockResolvedValue('msg-id');
 

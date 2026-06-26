@@ -1,5 +1,8 @@
 'use client';
 
+/**
+ * @see ./ATTACHMENTS_GUIDE.md — end-to-end guide for implementing message attachments
+ */
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
@@ -7,6 +10,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
  * Maximum number of attachments that can be added to a single message.
  * This limit applies to the combined total across all attachment types.
  */
+// fallow-ignore-next-line unused-export
 export const MAX_ATTACHMENTS = 10;
 
 // ── Attachment types (discriminated union) ─────────────────────────────────

@@ -1,4 +1,4 @@
-import type { Message } from '../types/message';
+import type { Message } from '../../types/message';
 
 // fallow-ignore-next-line complexity
 export function countMessageAttachments(message: Message): number {

@@ -9,10 +9,9 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
+import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
-import { MessageAttachmentChips } from '../MessageAttachmentChips';
-import { countMessageAttachments } from '../messageAttachmentUtils';
 
 import {
   DropdownMenu,

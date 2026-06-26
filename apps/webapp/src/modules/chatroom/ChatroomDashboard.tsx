@@ -25,6 +25,7 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { AttachmentsProvider, dispatchComposerPrefill, PREFILL_TOAST_MESSAGE } from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import {
@@ -42,7 +43,6 @@ import { SavedCommandModal } from './components/SavedCommandModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 import { WorkQueue } from './components/WorkQueue';
-import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useTeamConfigs } from './hooks/use-team-configs';
@@ -58,10 +58,6 @@ import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
 import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
-import {
-  dispatchComposerPrefill,
-  PREFILL_TOAST_MESSAGE,
-} from './workspace/components/composerPrefill';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';

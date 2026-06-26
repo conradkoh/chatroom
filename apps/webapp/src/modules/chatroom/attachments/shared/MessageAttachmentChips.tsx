@@ -1,11 +1,11 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
-import { AttachedMessageChip } from './AttachedMessageChip';
-import { AttachedSnippetChip } from './AttachedSnippetChip';
-import { AttachedTaskChip } from './AttachedTaskChip';
 import { countMessageAttachments } from './messageAttachmentUtils';
-import type { Message } from '../types/message';
+import type { Message } from '../../types/message';
+import { AttachedBacklogItemChip } from '../backlog/AttachedBacklogItemChip';
+import { AttachedMessageChip } from '../message/AttachedMessageChip';
+import { AttachedSnippetChip } from '../snippet/AttachedSnippetChip';
+import { AttachedTaskChip } from '../task/AttachedTaskChip';
 
 interface MessageAttachmentChipsProps {
   message: Message;

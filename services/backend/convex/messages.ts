@@ -1653,8 +1653,7 @@ export const getTaskDeliveryPrompt = query({
 
     // Get context window (reuse getContextWindow logic)
     // Fetch recent messages for context
-    // (Pre-existing duplication with services/backend/convex/tasks/taskDelivery.ts
-    //  — origin/follow-up resolution; out of scope for this optimization PR.)
+    // Origin/follow-up resolution for context window (separate concern from attachment rendering).
     // fallow-ignore-next-line code-duplication
     const contextRecentMessages = await ctx.db
       .query('chatroom_messages')
@@ -1808,6 +1807,11 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
+    const sourceSnippets =
+      message && 'attachedSnippets' in message && message.attachedSnippets?.length
+        ? message.attachedSnippets
+        : undefined;
+
     // Build context for prompt generation
     const deliveryContext = {
       chatroomId: args.chatroomId,
@@ -1826,6 +1830,7 @@ export const getTaskDeliveryPrompt = query({
             senderRole: message.senderRole,
             type: message.type,
             targetRole: message.targetRole,
+            ...(sourceSnippets && { attachedSnippets: sourceSnippets }),
           }
         : null,
       participants: participants.map((p) => ({
@@ -1949,6 +1954,7 @@ export const getTaskDeliveryPrompt = query({
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
       nativeIntegration,
+      sourceAttachments: sourceSnippets ? { attachedSnippets: sourceSnippets } : undefined,
     });
 
     return {

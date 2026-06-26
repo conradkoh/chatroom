@@ -1,8 +1,9 @@
+import { renderDeliveryAttachmentsBlock } from '@workspace/backend/prompts/attachments/render-delivery-attachments.js';
+
 /**
  * Pure renderer for task-read output.
  *
- * Extracted from index.ts so the rendering logic can be tested
- * and restructured independently of command plumbing.
+ * @see ../../../../../../apps/webapp/src/modules/chatroom/attachments/ATTACHMENTS_GUIDE.md — attachment guide
  *
  * Layout (top to bottom):
  * 1. Header (task ID, status)
@@ -46,65 +47,18 @@ export function detectBacklogDivergence(
   return attachedIds.filter((id) => !contextContent.includes(id));
 }
 
-function renderSnippetAttachment(snippet: {
-  reference: string;
-  fileSource: string;
-  selectedContent: string;
-}): string[] {
-  return [
-    `  <attachment reference="${snippet.reference}">`,
-    `  <snippet file-source="${snippet.fileSource}">`,
-    `    <user-selected-content>`,
-    snippet.selectedContent,
-    `    </user-selected-content>`,
-    `  </snippet>`,
-    `  </attachment>`,
-  ];
-}
-
-function renderBacklogAttachments(
-  items: NonNullable<RenderTaskPromptInput['attachedBacklogItems']>,
-  chatroomId: string,
-  role: string
-): string[] {
-  const lines: string[] = [];
-  for (const item of items) {
-    lines.push(`  <attachment type="backlog-item">`);
-    lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
-    lines.push(`      ID: ${item._id}`);
-    lines.push(
-      `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${item._id}</hint>`
-    );
-    lines.push(`  </attachment>`);
-  }
-  return lines;
-}
-
-function renderSnippetAttachments(
-  snippets: NonNullable<RenderTaskPromptInput['attachedSnippets']>
-): string[] {
-  const lines: string[] = [];
-  for (const snippet of snippets) {
-    lines.push(...renderSnippetAttachment(snippet));
-  }
-  return lines;
-}
-
-// fallow-ignore-next-line complexity
 function renderAttachments(
   input: RenderTaskPromptInput,
   chatroomId: string,
   role: string
 ): string[] {
-  const backlogLines = input.attachedBacklogItems?.length
-    ? renderBacklogAttachments(input.attachedBacklogItems, chatroomId, role)
-    : [];
-  const snippetLines = input.attachedSnippets?.length
-    ? renderSnippetAttachments(input.attachedSnippets)
-    : [];
-  if (backlogLines.length === 0 && snippetLines.length === 0) return [];
-
-  return ['', '<attachments>', ...backlogLines, ...snippetLines, '</attachments>'];
+  return renderDeliveryAttachmentsBlock(
+    {
+      attachedBacklogItems: input.attachedBacklogItems,
+      attachedSnippets: input.attachedSnippets,
+    },
+    { chatroomId, role, mode: 'task-read' }
+  );
 }
 
 function renderDivergenceWarnings(input: RenderTaskPromptInput): string[] {

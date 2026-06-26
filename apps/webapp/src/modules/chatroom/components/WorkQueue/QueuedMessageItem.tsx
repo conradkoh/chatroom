@@ -4,9 +4,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
-import type { Message } from '../../types/message';
-import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
+import { MessageAttachmentChips } from '../../attachments';
+import type { Message } from '../../types/message';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { MessageAttachmentChips } from './MessageAttachmentChips';
-import type { Message } from '../types/message';
+import type { Message } from '../../types/message';
 
 describe('MessageAttachmentChips', () => {
   it('renders snippet chip with file basename in view mode', () => {

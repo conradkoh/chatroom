@@ -190,6 +190,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
+      - \`attachments\` (1 skill available)
+          - Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.
+
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
@@ -210,6 +213,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **attachments**: End-to-end guide for message attachments: compose UI, delivery paths (CLI/native/task-read), XML conventions, and checklist for adding new attachment types.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
@@ -262,7 +266,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -295,7 +299,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -446,7 +450,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ## Chatroom task
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
       </task>
 
       <next-steps>
@@ -1211,6 +1215,52 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(result.attachedSnippets![0].reference).toBe('attachment-reference-001');
     expect(result.attachedSnippets![0].fileSource).toBe('./windsurfrules');
     expect(result.attachedSnippets![0].selectedContent).toBe('# Shadcn');
+  });
+
+  test('getTaskDeliveryPrompt.fullCliOutput includes attached snippets from source message', async () => {
+    const { sessionId } = await createTestSession('test-delivery-snippets');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const userMessageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'What library is [attachment: attachment-reference-001]?',
+      type: 'message',
+      attachedSnippets: [
+        {
+          reference: 'attachment-reference-001',
+          fileSource: './windsurfrules',
+          selectedContent: '# Shadcn',
+        },
+      ],
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      messageId: userMessageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
+    expect(fullOutput).toContain('<attachments>');
+    expect(fullOutput).toContain('<snippet file-source="./windsurfrules">');
+    expect(fullOutput).toContain('<user-selected-content>');
+    expect(fullOutput).toContain('# Shadcn');
+    expect(fullOutput).toContain('[attachment: attachment-reference-001]');
+
+    expect(taskDeliveryPrompt.json.message?.attachedSnippets).toHaveLength(1);
   });
 
   test('readTask mutation returns no attachedBacklogItems when source message has none', async () => {
