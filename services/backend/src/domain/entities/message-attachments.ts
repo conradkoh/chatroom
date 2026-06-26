@@ -1,6 +1,6 @@
 /**
  * Attachment kinds that have delivery renderers (task-read + future primary delivery).
- * @see ../../../prompts/attachments/attachments-guide-content.ts — end-to-end attachment guide
+ * @see ./ATTACHMENTS_GUIDE.md — end-to-end attachment guide (canonical)
  */
 // fallow-ignore-next-line unused-export
 export const MESSAGE_ATTACHMENT_KINDS = ['backlog', 'snippet', 'message'] as const;

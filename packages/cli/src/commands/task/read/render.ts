@@ -3,7 +3,7 @@ import { renderDeliveryAttachmentsBlock } from '@workspace/backend/prompts/attac
 /**
  * Pure renderer for task-read output.
  *
- * @see ../../../../../../apps/webapp/src/modules/chatroom/attachments/ATTACHMENTS_GUIDE.md — attachment guide
+ * @see @workspace/backend/prompts/attachments/ATTACHMENTS_GUIDE.md — attachment guide
  *
  * Layout (top to bottom):
  * 1. Header (task ID, status)

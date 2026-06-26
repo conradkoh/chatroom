@@ -1,6 +1,6 @@
 // Context
 /**
- * @see ./ATTACHMENTS_GUIDE.md — end-to-end guide for implementing message attachments
+ * @see ./ATTACHMENTS_GUIDE.md — end-to-end guide (symlink to backend canonical)
  */
 export {
   AttachmentsProvider,
@@ -9,6 +9,18 @@ export {
   useBacklogAttachments,
   useMessageAttachments,
   useSnippetAttachments,
+  // fallow-ignore-next-line unused-export
+  MAX_ATTACHMENTS,
+  // fallow-ignore-next-line unused-type
+  type Attachment,
+  // fallow-ignore-next-line unused-type
+  type TaskAttachment,
+  // fallow-ignore-next-line unused-type
+  type BacklogAttachment,
+  // fallow-ignore-next-line unused-type
+  type MessageAttachment,
+  // fallow-ignore-next-line unused-type
+  type SnippetAttachment,
 } from './context/AttachmentsContext';
 
 // Shared read-only
@@ -22,10 +34,18 @@ export { AttachedMessageChip } from './message/AttachedMessageChip';
 export { AttachedSnippetChip } from './snippet/AttachedSnippetChip';
 
 // Snippet compose helpers
-export { renderInlineReference } from './snippet/explorerSelectionAttachment';
+export {
+  // fallow-ignore-next-line unused-export
+  createExplorerSnippetAttachment,
+  renderInlineReference,
+  // fallow-ignore-next-line unused-type
+  type ExplorerSnippetAttachment,
+} from './snippet/explorerSelectionAttachment';
 export {
   buildExplorerSelectionPrefill,
   dispatchComposerPrefill,
   subscribeComposerPrefill,
   PREFILL_TOAST_MESSAGE,
+  // fallow-ignore-next-line unused-type
+  type ComposerPrefillDetail,
 } from './snippet/composerPrefill';

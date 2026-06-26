@@ -1,6 +1,6 @@
 /**
  * Shared delivery attachment XML renderer.
- * @see ./attachments-guide-content.ts — end-to-end guide for implementing message attachments
+ * @see ./ATTACHMENTS_GUIDE.md — end-to-end guide for implementing message attachments
  */
 import type {
   DeliveryAttachmentsInput,
