@@ -385,6 +385,9 @@ describe('skills.get', () => {
     expect(skill).toBeDefined();
     expect(typeof skill?.prompt).toBe('string');
     expect(skill?.prompt).toContain('backlog update');
+    expect(skill?.prompt).toContain('## Lifecycle');
+    expect(skill?.prompt).toContain('mark-for-review');
+    expect(skill?.prompt).toContain('Command decision table');
     // Workflow 3: Continuous Backlog Execution
     expect(skill?.prompt).toContain('Continuous Backlog Execution');
     // Workflow 2: After completing a task

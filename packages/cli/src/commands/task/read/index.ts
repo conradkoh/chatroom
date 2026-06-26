@@ -68,6 +68,41 @@ function validateTaskId(taskId: string): Effect.Effect<void, TaskReadError> {
   return Effect.void;
 }
 
+type TaskReadMutationResult = {
+  taskId: string;
+  status: string;
+  content: string;
+  context?: string | null;
+  attachedBacklogItems?: unknown[] | null;
+  attachedSnippets?: unknown[] | null;
+};
+
+// fallow-ignore-next-line complexity
+function buildTaskPromptFromReadResult(
+  result: TaskReadMutationResult,
+  chatroomId: string,
+  role: string
+) {
+  return renderTaskPrompt({
+    taskId: result.taskId,
+    status: result.status,
+    content: result.content,
+    chatroomId,
+    role,
+    context: result.context && typeof result.context === 'object' ? result.context : undefined,
+    attachedBacklogItems: Array.isArray(result.attachedBacklogItems)
+      ? (result.attachedBacklogItems as { _id: string; content: string; status: string }[])
+      : undefined,
+    attachedSnippets: Array.isArray(result.attachedSnippets)
+      ? (result.attachedSnippets as {
+          reference: string;
+          fileSource: string;
+          selectedContent: string;
+        }[])
+      : undefined,
+  });
+}
+
 /**
  * Pure Effect program — no process.exit, no console.error inside.
  * All errors are typed; caller decides how to handle them.
@@ -93,13 +128,7 @@ export const taskReadEffect = (
     yield* validateTaskId(taskId);
 
     const result = yield* backend
-      .mutation<{
-        taskId: string;
-        status: string;
-        content: string;
-        context?: string | null;
-        attachedBacklogItems?: unknown[] | null;
-      }>(api.tasks.readTask, {
+      .mutation<TaskReadMutationResult>(api.tasks.readTask, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
@@ -108,20 +137,7 @@ export const taskReadEffect = (
       .pipe(Effect.mapError((cause): TaskReadError => ({ _tag: 'MutationFailed', cause })));
 
     yield* Effect.sync(() => {
-      console.log(
-        renderTaskPrompt({
-          taskId: result.taskId,
-          status: result.status,
-          content: result.content,
-          chatroomId,
-          role,
-          context:
-            result.context && typeof result.context === 'object' ? result.context : undefined,
-          attachedBacklogItems: Array.isArray(result.attachedBacklogItems)
-            ? (result.attachedBacklogItems as { _id: string; content: string; status: string }[])
-            : undefined,
-        })
-      );
+      console.log(buildTaskPromptFromReadResult(result, chatroomId, role));
     });
   });
 

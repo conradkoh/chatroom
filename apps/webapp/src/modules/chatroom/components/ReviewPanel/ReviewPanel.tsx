@@ -15,21 +15,12 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
-import {
-  FixedModal,
-  FixedModalContent,
-  FixedModalHeader,
-  FixedModalTitle,
-  FixedModalBody,
-  FixedModalSidebar,
-} from '@/components/ui/fixed-modal';
-
+import { useAttachments } from '../../attachments';
 import { type BacklogItem, getScoringBadge } from '../backlog';
 import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
-import { useAttachments } from '../../context/AttachmentsContext';
 import { formatRelativeTime } from '../WorkQueue/utils';
 
 import {
@@ -39,6 +30,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+  FixedModalSidebar,
+} from '@/components/ui/fixed-modal';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 

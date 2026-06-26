@@ -3,21 +3,31 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
-import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
-import { AttachedMessageChip } from './AttachedMessageChip';
-import { AttachedTaskChip } from './AttachedTaskChip';
-import { EditorModal } from './EditorModal';
-import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import {
+  AttachedBacklogItemChip,
+  AttachedMessageChip,
+  AttachedSnippetChip,
+  AttachedTaskChip,
+  buildExplorerSelectionPrefill,
+  renderInlineReference,
+  subscribeComposerPrefill,
   useAttachments,
-  useTaskAttachments,
   useBacklogAttachments,
   useMessageAttachments,
-} from '../context/AttachmentsContext';
+  useSnippetAttachments,
+  useTaskAttachments,
+} from '../attachments';
+import { EditorModal } from './EditorModal';
+import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import type { FileEntry } from './FileSelector/useFileSelector';
+import {
+  getEffectiveMaxTextareaHeightPx,
+  getViewportHeightPx,
+  MAX_TEXTAREA_HEIGHT_PX,
+} from './messageInputAutosize';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
 
@@ -54,15 +64,26 @@ function useIsTouchDevice(): boolean | undefined {
 const DRAFT_KEY_PREFIX = 'chatroom-draft:';
 const MAX_DRAFTS = 10;
 
-// ── Autosize constants ───────────────────────────────────────────────────────
-/** Maximum visible lines before scrollbar appears (text-sm = 14px, line-height 1.5 ≈ 21px/line) */
-const MAX_TEXTAREA_LINES = 3;
-/** Padding: py-1.5 = 12px total (6px top + 6px bottom) */
-const TEXTAREA_PADDING_PX = 12;
-/** Line height in px: 14px * 1.5 = 21px */
-const LINE_HEIGHT_PX = 21;
-/** Max height = 3 lines * 21px + 12px padding = 75px */
-const MAX_TEXTAREA_HEIGHT_PX = MAX_TEXTAREA_LINES * LINE_HEIGHT_PX + TEXTAREA_PADDING_PX;
+function useEffectiveMaxTextareaHeightPx(): number {
+  const [maxHeightPx, setMaxHeightPx] = useState(MAX_TEXTAREA_HEIGHT_PX);
+
+  useEffect(() => {
+    const update = () => {
+      const viewportHeight = getViewportHeightPx(window.visualViewport?.height, window.innerHeight);
+      setMaxHeightPx(getEffectiveMaxTextareaHeightPx(viewportHeight));
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('resize', update);
+    };
+  }, []);
+
+  return maxHeightPx;
+}
 
 interface StoredDraft {
   content: string;
@@ -124,7 +145,9 @@ export function MessageInput({
   const [sendError, setSendError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formContainerRef = useRef<HTMLDivElement>(null);
+  const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
+  const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
 
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -196,6 +219,32 @@ export function MessageInput({
     });
   }, [onRegisterFocus]);
 
+  // Prefill from explorer Cmd+I selection
+  const { add, remove, clearAll } = useAttachments();
+  const snippetAttachments = useSnippetAttachments();
+
+  useEffect(() => {
+    snippetRefsRef.current = snippetAttachments.map((s) => s.id);
+  }, [snippetAttachments]);
+
+  useEffect(() => {
+    return subscribeComposerPrefill((detail) => {
+      const { attachment, messageBody } = buildExplorerSelectionPrefill(
+        detail.fileSource,
+        detail.selectedContent,
+        snippetRefsRef.current
+      );
+      add({
+        type: 'snippet',
+        id: attachment.reference,
+        fileSource: attachment.fileSource,
+        selectedContent: attachment.selectedContent,
+      });
+      setMessage((prev) => (prev.trim() ? `${prev}\n${messageBody}` : messageBody));
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    });
+  }, [add]);
+
   // ── Draft persistence ──────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
@@ -223,7 +272,6 @@ export function MessageInput({
   }, [message, draftKey]);
 
   // ── Attachments context ────────────────────────────────────────────────────
-  const { remove, clearAll } = useAttachments();
   const attachedTasks = useTaskAttachments();
   const attachedBacklogItems = useBacklogAttachments();
   const attachedMessages = useMessageAttachments();
@@ -236,15 +284,15 @@ export function MessageInput({
     if (!textarea) return;
     onBeforeResize?.();
     textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, effectiveMaxTextareaHeightPx)}px`;
     onAfterResize?.();
-  }, [onBeforeResize, onAfterResize]);
+  }, [onBeforeResize, onAfterResize, effectiveMaxTextareaHeightPx]);
 
   // Re-measure textarea height whenever message changes (covers draft restore,
   // editor modal close, and autocomplete file select uniformly)
   useEffect(() => {
     autoResize();
-  }, [message, autoResize]);
+  }, [message, autoResize, effectiveMaxTextareaHeightPx]);
 
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
@@ -252,11 +300,18 @@ export function MessageInput({
       if (!text.trim() || sending) return;
       setSending(true);
       try {
+        const snippets = snippetAttachments.map((s) => ({
+          reference: s.id,
+          fileSource: s.fileSource,
+          selectedContent: s.selectedContent,
+        }));
+
         await sendMessage({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           senderRole: 'user',
           content: text.trim(),
           type: 'message',
+          ...(snippets.length > 0 && { attachedSnippets: snippets }),
           ...(attachedTasks.length > 0 && {
             attachedTaskIds: attachedTasks.map((task) => task.id),
           }),
@@ -273,7 +328,8 @@ export function MessageInput({
         if (
           attachedTasks.length > 0 ||
           attachedBacklogItems.length > 0 ||
-          attachedMessages.length > 0
+          attachedMessages.length > 0 ||
+          snippetAttachments.length > 0
         ) {
           clearAll();
         }
@@ -300,6 +356,7 @@ export function MessageInput({
       attachedTasks,
       attachedBacklogItems,
       attachedMessages,
+      snippetAttachments,
       clearAll,
       draftKey,
     ]
@@ -337,7 +394,8 @@ export function MessageInput({
           autocomplete.state.selectedIndex < autocomplete.state.results.length
         ) {
           e.preventDefault();
-          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex]!;
+          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex];
+          if (!selectedItem) return;
           const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
           setMessage(newText);
           autoResize();
@@ -403,7 +461,20 @@ export function MessageInput({
   }, [handleSubmit]);
 
   const hasAttachments =
-    attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0;
+    attachedTasks.length > 0 ||
+    attachedBacklogItems.length > 0 ||
+    attachedMessages.length > 0 ||
+    snippetAttachments.length > 0;
+
+  const handleRemoveSnippet = useCallback(
+    (reference: string) => {
+      remove('snippet', reference);
+      setMessage((t) =>
+        t.replace(renderInlineReference(reference), '').replace(/\n\n+/g, '\n').trim()
+      );
+    },
+    [remove]
+  );
 
   const canSend = message.trim().length > 0 && !sending;
 
@@ -450,6 +521,16 @@ export function MessageInput({
               onRemove={() => remove('message', msg.id)}
             />
           ))}
+          {snippetAttachments.map((s) => (
+            <AttachedSnippetChip
+              key={s.id}
+              mode="editable"
+              reference={s.id}
+              fileSource={s.fileSource}
+              selectedContent={s.selectedContent}
+              onRemove={() => handleRemoveSnippet(s.id)}
+            />
+          ))}
         </div>
       )}
 
@@ -489,7 +570,7 @@ export function MessageInput({
             disabled={sending}
             rows={1}
             className="block w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none overflow-y-auto"
-            style={{ height: 'auto', maxHeight: `${MAX_TEXTAREA_HEIGHT_PX}px` }}
+            style={{ height: 'auto', maxHeight: `${effectiveMaxTextareaHeightPx}px` }}
           />
         </div>
 

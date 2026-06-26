@@ -1,7 +1,7 @@
 'use client';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import type React from 'react';
 import {
@@ -14,17 +14,18 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import type {
+  PrependScrollAnchor,
+  TimelineScrollCoordinator,
+} from '../../hooks/timelineScrollCoordinator';
 import { useChatroomTimelineFeedData } from '../../hooks/useChatroomTimelineFeedData';
-import type { PrependScrollAnchor, TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
-
 import { EventStreamModal } from '../EventStreamModal';
 import { QueuedMessagesIndicator } from '../QueuedMessagesIndicator';
-
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
-import type { MachineNameEntry } from './timelineRowStyles';
 import { logLoadOlder } from './timelineLoadOlderDebug';
+import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
   shouldTriggerLoadOlder,
@@ -34,6 +35,8 @@ import {
   TIMELINE_PADDING_END,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
+
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 function timelineOverscan(eventCount: number): number {
   if (eventCount <= TIMELINE_EAGER_MEASURE_MAX_COUNT) {
@@ -142,7 +145,7 @@ export function ChatroomTimelineFeed({
       if (e && item.size > 0) cache.set(e.id, item.size);
     }
 
-    const lastEvent = events.length > 0 ? events[events.length - 1]! : null;
+    const lastEvent = events.at(-1) ?? null;
     if (!lastEvent) {
       tailMeasureRef.current = null;
       return;
@@ -183,7 +186,7 @@ export function ChatroomTimelineFeed({
   );
 
   const canLoadMore = hasMoreOlder && !isLoadingOlder;
-  const tailEventKey = events.length > 0 ? events[events.length - 1]!.id : null;
+  const tailEventKey = events.at(-1)?.id ?? null;
 
   useEffect(() => {
     coordinator.current.syncIsLoadingOlder(isLoadingOlder);
@@ -202,9 +205,7 @@ export function ChatroomTimelineFeed({
         return index >= 0 ? index : null;
       },
       getItemStart: (index) => {
-        const visible = virtualizerRef.current
-          .getVirtualItems()
-          .find((row) => row.index === index);
+        const visible = virtualizerRef.current.getVirtualItems().find((row) => row.index === index);
         if (visible) return visible.start;
         return topChromeHeight + index * TIMELINE_ESTIMATE_SIZE;
       },
@@ -225,9 +226,7 @@ export function ChatroomTimelineFeed({
 
     const chromeDelta = measuredChrome - topChromeHeight;
     const eventsPrepended =
-      events.length > prevEventCountRef.current &&
-      prevIsLoadingOlderRef.current &&
-      !isLoadingOlder;
+      events.length > prevEventCountRef.current && prevIsLoadingOlderRef.current && !isLoadingOlder;
     const skipChromeDelta =
       chromeDelta < 0 &&
       (coordinator.current.isPrependScrollPreservationActive() || eventsPrepended);
@@ -285,7 +284,15 @@ export function ChatroomTimelineFeed({
       logLoadOlder('invoke loadOlderEvents', { intent, anchorKey: anchor?.key ?? null });
       loadOlderEvents();
     },
-    [coordinator, events, hasMoreOlder, isLoadingOlder, loadOlderEvents, topChromeHeight, virtualizer]
+    [
+      coordinator,
+      events,
+      hasMoreOlder,
+      isLoadingOlder,
+      loadOlderEvents,
+      topChromeHeight,
+      virtualizer,
+    ]
   );
 
   const handleScroll = useCallback(() => {
@@ -339,8 +346,7 @@ export function ChatroomTimelineFeed({
         events={(eventsPaginated.results as EventStreamEvent[] | undefined) ?? []}
         isLoading={
           isEventStreamOpen &&
-          (eventsPaginated.results === undefined ||
-            eventsPaginated.status === 'LoadingFirstPage')
+          (eventsPaginated.results === undefined || eventsPaginated.status === 'LoadingFirstPage')
         }
         onLoadMore={() => eventsPaginated.loadMore(20)}
         hasMore={eventsPaginated.status === 'CanLoadMore'}
@@ -365,7 +371,7 @@ export function ChatroomTimelineFeed({
       <div className="flex-1 flex flex-col min-h-0">
         <div className="flex-1 overflow-y-auto p-4 min-h-0">
           <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
-            <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+            <ChatroomLoader size="md" />
           </div>
         </div>
         {footer}
@@ -416,7 +422,7 @@ export function ChatroomTimelineFeed({
           )}
           {isLoadingOlder && (
             <div className="w-full py-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
-              <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+              <ChatroomLoader size="sm" />
               Loading...
             </div>
           )}
