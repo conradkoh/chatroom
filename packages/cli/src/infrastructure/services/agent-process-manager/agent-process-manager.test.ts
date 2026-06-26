@@ -7,6 +7,7 @@ import {
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
+import { CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS } from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
@@ -1293,6 +1294,68 @@ describe('AgentProcessManager', () => {
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('running');
       expect(slot!.pid).toBe(100);
+    });
+
+    test('cursor-sdk crash retries session reopen 20 times with event stream logging', async () => {
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi
+          .fn()
+          .mockResolvedValueOnce({
+            pid: PID,
+            harnessSessionId: 'cursor-agent-1',
+            harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+            onExit: vi.fn(),
+            onOutput: vi.fn(),
+            onAgentEnd: vi.fn(),
+          })
+          .mockRejectedValue(new Error('resume failed')),
+        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('Agent.resume failed')),
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      let delayCalls = 0;
+      deps.clock.delay = vi.fn().mockImplementation(async () => {
+        delayCalls += 1;
+      });
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await vi.waitFor(() => {
+        const startFailed = getMutationCallsByArgs(
+          deps,
+          (args) => typeof args.error === 'string' && args.error.includes('session reopen failed')
+        );
+        expect(startFailed).toHaveLength(1);
+      });
+
+      const reopenRetryCalls = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.attempt !== undefined && args.maxAttempts === CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS
+      );
+      expect(reopenRetryCalls).toHaveLength(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS);
+      expect(reopenRetryCalls.map((args) => args.attempt)).toEqual(
+        Array.from({ length: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS }, (_, i) => i + 1)
+      );
+      expect(delayCalls).toBe(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS - 1);
     });
 
     test('signal exit (SIGTERM) triggers restart (no stale reason leak)', async () => {

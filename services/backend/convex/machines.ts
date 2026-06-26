@@ -2731,6 +2731,48 @@ export const emitSessionResumeFailed = mutation({
   },
 });
 
+/** Emits an agent.sessionReopenRetry event for each cursor-sdk crash recovery attempt. */
+export const emitSessionReopenRetry = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    attempt: v.number(),
+    maxAttempts: v.number(),
+    error: v.optional(v.string()),
+    harnessSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionReopenRetry',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      attempt: args.attempt,
+      maxAttempts: args.maxAttempts,
+      error: args.error,
+      harnessSessionId: args.harnessSessionId,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionReopenRetry');
+
+    return { success: true };
+  },
+});
+
 /** Emits an agent.restartLimitReached event when crash loop protection triggers. */
 export const emitRestartLimitReached = mutation({
   args: {

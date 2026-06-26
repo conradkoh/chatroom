@@ -1227,6 +1227,18 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // cursor-sdk crash recovery: retry reopening harness session before giving up
+      v.object({
+        type: v.literal('agent.sessionReopenRetry'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        attempt: v.number(),
+        maxAttempts: v.number(),
+        error: v.optional(v.string()),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
       // Auto-resume aborted: rapid agent_end without blocking on get-next-task
       v.object({
         type: v.literal('agent.resumeStormAborted'),
