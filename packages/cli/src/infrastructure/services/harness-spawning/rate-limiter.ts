@@ -67,7 +67,8 @@ export class SpawnRateLimiter {
   tryConsume(chatroomId: string, reason: string): TryConsumeResult {
     if (
       reason.startsWith('user.') ||
-      reason === 'platform.auto_restart_on_new_context'
+      reason === 'platform.auto_restart_on_new_context' ||
+      reason === 'platform.cursor_sdk_session_reopen'
     ) {
       return { allowed: true };
     }
@@ -115,13 +116,16 @@ export class SpawnRateLimiter {
   // ─── Private Helpers ───────────────────────────────────────────────────────
 
   private _getOrCreateBucket(chatroomId: string): TokenBucket {
-    if (!this.buckets.has(chatroomId)) {
-      this.buckets.set(chatroomId, {
-        tokens: this.config.initialTokens,
-        lastRefillAt: Date.now(),
-      });
+    const existing = this.buckets.get(chatroomId);
+    if (existing) {
+      return existing;
     }
-    return this.buckets.get(chatroomId)!;
+    const bucket: TokenBucket = {
+      tokens: this.config.initialTokens,
+      lastRefillAt: Date.now(),
+    };
+    this.buckets.set(chatroomId, bucket);
+    return bucket;
   }
 
   private _refill(bucket: TokenBucket): void {

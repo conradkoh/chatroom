@@ -21,6 +21,9 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, Plus } from 'lucide-react';
 import { useEffect } from 'react';
 
+import { NewSessionComposer } from '../direct-harness/components/SessionComposer';
+import { SessionDetail } from '../direct-harness/components/SessionDetail';
+import { displaySessionTitle } from '../direct-harness/components/SessionList';
 import {
   Select,
   SelectContent,
@@ -28,9 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../direct-harness/components/ui/select';
-import { SessionDetail } from '../direct-harness/components/SessionDetail';
-import { NewSessionComposer } from '../direct-harness/components/SessionComposer';
-import { displaySessionTitle } from '../direct-harness/components/SessionList';
 import { useRefreshCapabilities } from '../direct-harness/hooks/useRefreshCapabilities';
 import { useChatroomActiveWorkspace } from '../hooks/useChatroomActiveWorkspace';
 
@@ -117,7 +117,10 @@ export function DirectHarnessPanel({
       {/* Header: session dropdown + new-session button */}
       <div className="shrink-0 border-b-2 border-border px-2 py-1.5 flex items-center gap-2">
         {sessionTitle ? (
-          <span className="flex-1 min-w-0 truncate text-xs font-bold @md:hidden" title={sessionTitle}>
+          <span
+            className="flex-1 min-w-0 truncate text-xs font-bold @md:hidden"
+            title={sessionTitle}
+          >
             {sessionTitle}
           </span>
         ) : null}
@@ -139,9 +142,7 @@ export function DirectHarnessPanel({
             }
             aria-label={sessionTitle ? 'Change session' : 'Select session'}
           >
-            {sessionTitle ? (
-              <ChevronDown size={14} className="@md:hidden" />
-            ) : null}
+            {sessionTitle ? <ChevronDown size={14} className="@md:hidden" /> : null}
             <span className={sessionTitle ? 'hidden @md:inline-flex min-w-0' : undefined}>
               <SelectValue placeholder="Select session…" />
             </span>
@@ -160,7 +161,9 @@ export function DirectHarnessPanel({
 
         <button
           type="button"
-          onClick={() => setSelectedSessionId(null)}
+          onClick={() => {
+            setSelectedSessionId(null);
+          }}
           className="shrink-0 h-7 w-7 flex items-center justify-center border border-input bg-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
           title="Start a new session"
           aria-label="New session"
@@ -176,7 +179,9 @@ export function DirectHarnessPanel({
         ) : (
           <NewSessionComposer
             workspaceId={workspaceId}
-            onSessionCreated={(id) => setSelectedSessionId(id)}
+            onSessionCreated={(id) => {
+              setSelectedSessionId(id);
+            }}
           />
         )}
       </div>

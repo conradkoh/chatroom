@@ -1,5 +1,8 @@
 'use client';
 
+/**
+ * @see ./ATTACHMENTS_GUIDE.md — end-to-end guide for implementing message attachments
+ */
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
@@ -7,6 +10,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
  * Maximum number of attachments that can be added to a single message.
  * This limit applies to the combined total across all attachment types.
  */
+// fallow-ignore-next-line unused-export
 export const MAX_ATTACHMENTS = 10;
 
 // ── Attachment types (discriminated union) ─────────────────────────────────
@@ -30,8 +34,15 @@ export type MessageAttachment = {
   senderRole: string;
 };
 
+export type SnippetAttachment = {
+  type: 'snippet';
+  id: string;
+  fileSource: string;
+  selectedContent: string;
+};
+
 /** Discriminated union of all supported attachment types. */
-export type Attachment = TaskAttachment | BacklogAttachment | MessageAttachment;
+export type Attachment = TaskAttachment | BacklogAttachment | MessageAttachment | SnippetAttachment;
 
 // ── Context interface ──────────────────────────────────────────────────────
 
@@ -156,4 +167,13 @@ export function useBacklogAttachments(): BacklogAttachment[] {
 export function useMessageAttachments(): MessageAttachment[] {
   const { attachments } = useAttachments();
   return attachments.filter((a): a is MessageAttachment => a.type === 'message');
+}
+
+/**
+ * Selector hook — returns only snippet attachments from the registry.
+ * Pure derived state; does not add to the context interface.
+ */
+export function useSnippetAttachments(): SnippetAttachment[] {
+  const { attachments } = useAttachments();
+  return attachments.filter((a): a is SnippetAttachment => a.type === 'snippet');
 }
