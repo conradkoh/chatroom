@@ -295,60 +295,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       3. If requirements are NOT met → revise your own implementation and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`user\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
-
-      \`\`\`markdown
-      ## Summary
-      <what was accomplished, in plain terms — no references to prior messages>
-
-      ## Proof — files changed
-      - \`path/to/file.ts\` — <what changed and why>
-      <list every file you modified; this is the evidence of work>
-
-      ## Key Technical Decisions
-      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
-
-      ## Key Tradeoffs
-      - <what was weighed against what, and why you chose this path, or "Not Applicable">
-
-      ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
-
-      ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
-
-      \`\`\`mermaid
-      flowchart TD
-          A[Component] --> B[Component]
-      \`\`\`
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <result>
-
-      ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
-      \`\`\`
-
       ### Handoff Options
       Available targets: user
 

@@ -297,45 +297,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
        
 
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`planner\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
-
-      \`\`\`markdown
-      ## Summary
-      <what was implemented or attempted, in plain terms>
-
-      ## Proof — files changed
-      - \`path/to/file.ts\` — <what changed and why>
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
-
-      ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
-
-      ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
-      \`\`\`
-
       ### Handoff Options
       Available targets: planner, user
 

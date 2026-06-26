@@ -4,9 +4,9 @@
  * This is the most important template in the set: the planner is the single
  * point of contact for the user, and the user can ONLY see the final
  * handoff-to-user message. A high-quality report shapes the planner's goals
- * up-front, which is why this template is delivered eagerly with the user
- * message (see prompts/cli/get-next-task/fullOutput.ts) rather than requiring
- * the agent to fetch it on demand.
+ * up-front, which is why this template is delivered with each task (see
+ * prompts/cli/get-next-task/fullOutput.ts and native task delivery) rather
+ * than baked into the static init/system prompt.
  *
  * Every section is mandatory — when one does not apply the planner writes
  * `Not Applicable` rather than omitting it. The report captures not just what

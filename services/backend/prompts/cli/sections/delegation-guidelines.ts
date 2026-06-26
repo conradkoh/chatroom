@@ -19,9 +19,10 @@ function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: st
 }
 
 function getDelegationBriefReference(nativeIntegration?: boolean): string {
-  return nativeIntegration
-    ? 'Use the **Handoff to `builder`** template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.'
-    : 'Use the **Handoff to `builder`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.';
+  if (nativeIntegration) {
+    return 'Use the **Handoff to `builder`** template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.';
+  }
+  return 'Use the **Handoff to `builder`** template in your task delivery next-steps — follow that structure in your handoff message.';
 }
 
 function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): string {
