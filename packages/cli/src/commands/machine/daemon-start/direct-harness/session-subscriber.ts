@@ -20,14 +20,11 @@ import type { SessionRepository } from '../../../../domain/direct-harness/ports/
 import type {
   JournalFactory,
   SessionHandle,
-  ExtractedChunk,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
-import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import {
-  createChunkExtractor,
-  startBoundHarness,
-  type NativeDirectHarnessName,
-} from '../../../../infrastructure/harnesses/registry.js';
+  startOpencodeSdkHarness,
+  createOpencodeSdkChunkExtractor,
+} from '../../../../infrastructure/harnesses/opencode-sdk/index.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
@@ -106,25 +103,23 @@ async function getOrCreateHarness(
   session: PendingSession,
   workspace: WorkspaceInfo
 ): Promise<BoundHarness> {
-  const harnessName = session.opencode?.harnessName ?? 'opencode-sdk';
-  const key = makeHarnessKey(session.workspaceId, harnessName);
-  let harness = deps.harnesses.get(key);
+  let harness = deps.harnesses.get(session.workspaceId);
   if (harness && !harness.isAlive()) {
     console.warn(
-      `[direct-harness] Harness ${harnessName} for workspace ${session.workspaceId} is no longer alive — restarting`
+      `[direct-harness] Harness for workspace ${session.workspaceId} is no longer alive — restarting`
     );
     harness.close().catch(() => {});
-    deps.harnesses.delete(key);
+    deps.harnesses.delete(session.workspaceId);
     harness = undefined;
   }
   if (!harness) {
-    harness = await startBoundHarness({
-      harnessName: harnessName as NativeDirectHarnessName,
+    harness = await startOpencodeSdkHarness({
+      type: 'opencode',
       workingDir: workspace.workingDir,
       workspaceId: session.workspaceId,
       resolvedConvexUrl: daemonSession.convexUrl,
     });
-    deps.harnesses.set(key, harness);
+    deps.harnesses.set(session.workspaceId, harness);
   }
   return harness;
 }
@@ -133,7 +128,7 @@ function recordLiveSessionChunk(
   event: DirectHarnessSessionEvent,
   handle: SessionHandle,
   journal: ReturnType<JournalFactory['create']>,
-  extractChunk: (event: DirectHarnessSessionEvent) => ExtractedChunk | null,
+  extractChunk: ReturnType<typeof createOpencodeSdkChunkExtractor>,
   deps: SessionSubscriberDeps
 ): void {
   const chunk = extractChunk(event);
@@ -179,7 +174,7 @@ function handleLiveSessionEvent(
   ctx: {
     handle: SessionHandle;
     journal: ReturnType<JournalFactory['create']>;
-    extractChunk: (event: DirectHarnessSessionEvent) => ExtractedChunk | null;
+    extractChunk: ReturnType<typeof createOpencodeSdkChunkExtractor>;
     idleConfig: { agent: string; model?: { providerID: string; modelID: string } };
     deps: SessionSubscriberDeps;
     rowId: string;
@@ -196,7 +191,6 @@ function handleLiveSessionEvent(
   handleLiveSessionTitleUpdate(event, deps, rowId, liveSession);
 }
 
-// fallow-ignore-next-line complexity
 async function processOne(
   daemonSession: DirectHarnessSession,
   deps: SessionSubscriberDeps,
@@ -219,22 +213,18 @@ async function processOne(
       return;
     }
 
-    const harnessName = session.opencode?.harnessName ?? 'opencode-sdk';
+    // 2. Get or create BoundHarness for this workspace
     const harness = await getOrCreateHarness(daemonSession, deps, session, workspace);
-
-    const modelConfig = session.opencode?.lastUsedConfig.model;
-    const model = modelConfig ? `${modelConfig.providerID}/${modelConfig.modelID}` : undefined;
 
     // 3. Open a session on the harness
     const liveSession = await harness.newSession({
       agent: session.opencode?.lastUsedConfig.agent ?? 'build',
-      model,
       harnessSessionId: rowId as unknown as HarnessSessionId,
     });
 
     // 5. Create journal + wire session events → journal
     const journal = deps.journalFactory.create(rowId);
-    const extractChunk = createChunkExtractor(harness.type);
+    const extractChunk = createOpencodeSdkChunkExtractor(); // one stateful instance per session
     const idleConfig = {
       agent: session.opencode?.lastUsedConfig.agent ?? 'build',
       model: session.opencode?.lastUsedConfig.model,
@@ -262,7 +252,6 @@ async function processOne(
     //    Declare handle early so the event listener closure can reference it.
     const handle: SessionHandle = {
       harnessSessionId: rowId,
-      harnessName,
       opencodeSessionId: liveSession.opencodeSessionId as string,
       workspaceId: session.workspaceId,
       session: liveSession,

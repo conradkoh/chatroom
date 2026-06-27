@@ -7,9 +7,9 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from '../../_generated/server';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
+import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
+import { mutation } from '../../_generated/server.js';
 
 // ─── publishMachineCapabilities ───────────────────────────────────────────────
 
@@ -64,30 +64,9 @@ export const publishMachineCapabilities = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch('chatroom_machineRegistry', existing._id, entry);
+      await ctx.db.patch(existing._id, entry);
     } else {
       await ctx.db.insert('chatroom_machineRegistry', entry);
     }
-  },
-});
-
-// ─── getForMachine ────────────────────────────────────────────────────────────
-
-/** Read the current machine registry workspaces (for merge-on-refresh). */
-export const getForMachine = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-
-    const existing = await ctx.db
-      .query('chatroom_machineRegistry')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    return existing?.workspaces ?? null;
   },
 });

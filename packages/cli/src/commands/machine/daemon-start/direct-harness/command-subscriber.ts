@@ -15,11 +15,9 @@ import type { ConvexClient } from 'convex/browser';
 
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import { api } from '../../../../api.js';
-import type { NativeDirectHarnessName } from '../../../../domain/direct-harness/entities/bound-harness.js';
-import type { WorkspaceCapabilities } from '../../../../domain/direct-harness/entities/machine-capabilities.js';
 import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
+import { updateCapabilities } from '../../../../domain/direct-harness/usecases/update-capabilities.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import { listInstalledNativeDirectHarnesses } from '../../../../infrastructure/harnesses/registry.js';
 import type { SessionId } from '../types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -149,7 +147,6 @@ async function processPendingCommand(
   await dispatchPendingCommand(session, deps, cmd);
 }
 
-// fallow-ignore-next-line complexity
 async function drain(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
@@ -191,44 +188,19 @@ async function handleRefreshCapabilities(
       (payload ? ` (initiatedBy=${payload.initiatedBy})` : '')
   );
 
-  const installed = await listInstalledNativeDirectHarnesses();
-  const harnessEntries: WorkspaceCapabilities['harnesses'][number][] = [];
-  let cwd = '';
+  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
 
-  for (const harnessName of installed) {
-    const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId, harnessName);
-    cwd = harness.cwd;
-    const [agents, providers] = await Promise.all([harness.listAgents(), harness.listProviders()]);
-    harnessEntries.push({
-      name: harness.type,
-      displayName: harness.displayName,
-      agents: [...agents],
-      providers: [...providers],
-    });
-  }
-
-  const existing = (await session.backend.query(
-    api.daemon.directHarness.capabilities.getForMachine,
-    { sessionId: session.sessionId, machineId: session.machineId }
-  )) as { workspaces?: WorkspaceCapabilities[] } | null;
-
-  const updatedWorkspace: WorkspaceCapabilities = {
-    workspaceId: cmd.workspaceId,
-    cwd,
-    name: cwd,
-    harnesses: harnessEntries,
-  };
-
-  const merged = [
-    ...(existing?.workspaces ?? []).filter((ws) => ws.workspaceId !== cmd.workspaceId),
-    updatedWorkspace,
-  ];
-
-  await deps.publisher.publish({
-    machineId: session.machineId,
-    lastSeenAt: Date.now(),
-    workspaces: merged,
-  });
+  await updateCapabilities(
+    { publisher: deps.publisher, machineId: session.machineId },
+    {
+      harness,
+      workspace: {
+        workspaceId: cmd.workspaceId,
+        cwd: harness.cwd,
+        name: harness.cwd,
+      },
+    }
+  );
 
   await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
     sessionId: session.sessionId,
@@ -239,7 +211,6 @@ async function handleRefreshCapabilities(
   console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
 }
 
-// fallow-ignore-next-line complexity
 async function handleRefreshSessionTitle(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
@@ -254,7 +225,7 @@ async function handleRefreshSessionTitle(
   // Look up the opencodeSessionId from the backend
   const sessionRow = (await session.backend.query(api.daemon.directHarness.sessions.getSession, {
     harnessSessionId,
-  })) as { opencodeSessionId?: string; harnessName?: string; workspaceId?: string } | null;
+  })) as { opencodeSessionId?: string } | null;
 
   if (!sessionRow?.opencodeSessionId) {
     // Session not yet associated — nothing to fetch
@@ -267,11 +238,7 @@ async function handleRefreshSessionTitle(
   }
 
   // Use the running harness to fetch the title from OpenCode
-  const harnessName = (sessionRow.harnessName ?? 'opencode-sdk') as NativeDirectHarnessName;
-  const harness = await deps.lifecycleManager.getOrStart(
-    sessionRow.workspaceId ?? cmd.workspaceId,
-    harnessName
-  );
+  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
   const newTitle = await harness.fetchSessionTitle(sessionRow.opencodeSessionId);
 
   if (newTitle) {

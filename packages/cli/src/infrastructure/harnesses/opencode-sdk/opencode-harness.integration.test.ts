@@ -55,7 +55,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
 
   beforeAll(async () => {
     harness = await startOpencodeSdkHarness({
-      harnessName: 'opencode-sdk',
+      type: 'opencode',
       workingDir: HARNESS_CWD,
       workspaceId: 'integration-test',
       resolvedConvexUrl: 'http://test:3210',

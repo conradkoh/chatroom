@@ -122,13 +122,10 @@ export interface NewSessionConfig {
 
 // ─── startBoundHarness ────────────────────────────────────────────────────────
 
-/** Native SDK harness names supported by the direct-harness system. */
-export type NativeDirectHarnessName = 'opencode-sdk' | 'cursor-sdk' | 'pi-sdk';
-
 /** Configuration for starting a bound harness. */
 export interface StartBoundHarnessConfig {
-  /** Harness implementation identifier. */
-  readonly harnessName: NativeDirectHarnessName;
+  /** Harness implementation type. */
+  readonly type: 'opencode';
   /** Working directory for the harness process. */
   readonly workingDir: string;
   /** Workspace identifier (used for session metadata and process tracking). */

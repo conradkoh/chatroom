@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import type { SessionJournal, JournalFactory, ExtractedChunk } from './open-session.js';
 import { resumeSession } from './resume-session.js';
 import type { ResumeSessionDeps, ResumeSessionInput } from './resume-session.js';
 import type { BoundHarness } from '../entities/bound-harness.js';
@@ -8,7 +7,10 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
 } from '../entities/direct-harness-session.js';
+import type { SessionJournal, JournalFactory, ExtractedChunk } from './open-session.js';
 import type { OpenCodeSessionId } from '../entities/harness-session.js';
+import type { CloseSessionDeps, CloseSessionInput } from './close-session.js';
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 type Func = ReturnType<typeof vi.fn>;
@@ -52,7 +54,6 @@ function mockBoundHarness(): BoundHarness {
 const defaultInput: ResumeSessionInput = {
   harnessSessionId: 'row-1',
   opencodeSessionId: 'sess-1',
-  harnessName: 'opencode-sdk',
 };
 
 describe('resumeSession', () => {
@@ -206,11 +207,13 @@ describe('resumeSession', () => {
     (harness.resumeSession as Func).mockResolvedValue(session);
     const journal = mockJournal();
     const journalFactory: JournalFactory = { create: vi.fn().mockReturnValue(journal) };
-    const chunkExtractor = vi.fn().mockReturnValue({
-      content: 'content',
-      messageId: 'msg-x',
-      partType: 'text',
-    } satisfies ExtractedChunk);
+    const chunkExtractor = vi
+      .fn()
+      .mockReturnValue({
+        content: 'content',
+        messageId: 'msg-x',
+        partType: 'text',
+      } satisfies ExtractedChunk);
     const deps: ResumeSessionDeps = {
       harness,
       journalFactory,

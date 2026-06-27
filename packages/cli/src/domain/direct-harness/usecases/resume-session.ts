@@ -4,11 +4,16 @@
  * Does NOT create a new backend row or re-associate — the session already exists.
  */
 
-import { closeSession } from './close-session.js';
-import type { SessionHandle, JournalFactory, ExtractedChunk } from './open-session.js';
-import type { BoundHarness } from '../entities/bound-harness.js';
-import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
 import type { OpenCodeSessionId, HarnessSessionId } from '../entities/harness-session.js';
+import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
+import type { BoundHarness } from '../entities/bound-harness.js';
+import type {
+  SessionHandle,
+  SessionJournal,
+  JournalFactory,
+  ExtractedChunk,
+} from './open-session.js';
+import { closeSession } from './close-session.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 
@@ -25,7 +30,6 @@ export interface ResumeSessionInput {
   readonly harnessSessionId: string;
   readonly opencodeSessionId: string;
   readonly workspaceId?: string;
-  readonly harnessName: string;
 }
 
 export type ResumeSessionResult = SessionHandle;
@@ -70,7 +74,6 @@ export async function resumeSession(
 
   const handle: SessionHandle = {
     harnessSessionId,
-    harnessName: input.harnessName,
     opencodeSessionId,
     workspaceId: input.workspaceId ?? '',
     session,

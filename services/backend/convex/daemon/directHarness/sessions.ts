@@ -1,13 +1,13 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
-} from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
+} from '../../api/directHarnessHelpers.js';
+import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
+import { mutation, query } from '../../_generated/server.js';
 
 // ─── associateHarnessSessionId ────────────────────────────────────────────────
 
@@ -164,7 +164,6 @@ export const getSession = query({
       type: s.type,
       status: s.status,
       isGenerating: s.isGenerating ?? false,
-      harnessName: s.opencode.harnessName,
       opencodeSessionId: s.opencode.opencodeSessionId,
       lastUsedConfig: s.opencode.lastUsedConfig,
       workspaceId: s.workspaceId,

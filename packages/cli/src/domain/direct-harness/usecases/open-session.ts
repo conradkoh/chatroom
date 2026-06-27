@@ -14,12 +14,10 @@
  * to avoid leaking processes.
  */
 
-import type { BoundHarness } from '../entities/bound-harness.js';
 import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
 } from '../entities/direct-harness-session.js';
-import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Extracted chunk ─────────────────────────────────────────────────────────
 
@@ -37,6 +35,9 @@ export interface ExtractedChunk {
   /** Whether this chunk is reasoning (thinking) or regular text output. */
   readonly partType: 'text' | 'reasoning';
 }
+import type { BoundHarness } from '../entities/bound-harness.js';
+import type { HarnessSessionId } from '../entities/harness-session.js';
+import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Ports ────────────────────────────────────────────────────────────────────
 
@@ -93,8 +94,6 @@ export interface OpenSessionInput {
  */
 export interface SessionHandle {
   readonly harnessSessionId: string;
-  /** Harness name from the backend session row (e.g. cursor-sdk). */
-  readonly harnessName: string;
   readonly opencodeSessionId: string;
   /** The workspace this session belongs to — used for inactivity tracking. */
   readonly workspaceId: string;

@@ -301,7 +301,7 @@ describe('OpencodeSdkHarness', () => {
     (spawn as ReturnType<typeof vi.fn>).mockReturnValue(proc);
 
     const harness = await startOpencodeSdkHarness({
-      harnessName: 'opencode-sdk',
+      type: 'opencode',
       workingDir: '/test/ws',
       workspaceId: 'ws-1',
       resolvedConvexUrl: 'http://test:3210',
@@ -324,7 +324,7 @@ describe('OpencodeSdkHarness', () => {
 
     await expect(
       startOpencodeSdkHarness({
-        harnessName: 'opencode-sdk',
+        type: 'opencode',
         workingDir: '/test/ws',
         workspaceId: 'ws-1',
         resolvedConvexUrl: 'http://test:3210',
