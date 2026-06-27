@@ -41,7 +41,7 @@ import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
-import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
+import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
@@ -1631,24 +1631,24 @@ export function ChatroomDashboard({
                   </div>
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
-                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <ChatroomTimelineFeed
-                      chatroomId={chatroomId}
-                      coordinator={timelineScrollCoordinator}
-                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                      machines={machineNameMap}
-                    />
-                    <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                      <MessageInput
-                        chatroomId={chatroomId}
-                        onBeforeResize={beginResize}
-                        onAfterResize={endResize}
-                        onRegisterFocus={handleRegisterSendFormFocus}
-                        files={autocompleteFiles}
-                        onAtTriggerActivate={refreshAutocompleteFiles}
-                      />
-                    </div>
-                  </div>
+                  <ChatroomMessagesPanel
+                    chatroomId={chatroomId}
+                    coordinator={timelineScrollCoordinator}
+                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                    machines={machineNameMap}
+                    footer={
+                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                        <MessageInput
+                          chatroomId={chatroomId}
+                          onBeforeResize={beginResize}
+                          onAfterResize={endResize}
+                          onRegisterFocus={handleRegisterSendFormFocus}
+                          files={autocompleteFiles}
+                          onAtTriggerActivate={refreshAutocompleteFiles}
+                        />
+                      </div>
+                    }
+                  />
                 ) : activeView === 'direct-harness' ? (
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
