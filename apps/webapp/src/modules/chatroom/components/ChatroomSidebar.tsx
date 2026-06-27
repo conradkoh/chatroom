@@ -13,6 +13,7 @@ import { useChatroomListing, type ChatroomWithStatus } from '../context/Chatroom
 import { groupChatroomsByRecency } from '../utils/groupChatroomsByRecency';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -267,7 +268,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+        <ChatroomLoader size="sm" />
       </div>
     );
   }

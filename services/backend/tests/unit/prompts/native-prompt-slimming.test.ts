@@ -52,4 +52,30 @@ describe('native task delivery', () => {
     expect(output).not.toContain('task injection');
     expect(output).not.toContain('Classify');
   });
+
+  test('native delivery includes snippet XML from sourceAttachments', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'builder',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: {
+        _id: 'task-id',
+        content: 'What library is [attachment: attachment-reference-001]?',
+      },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['planner'],
+      sourceAttachments: {
+        attachedSnippets: [
+          {
+            reference: 'attachment-reference-001',
+            fileSource: './windsurfrules',
+            selectedContent: '# Shadcn',
+          },
+        ],
+      },
+    });
+    expect(output).toContain('<attachments>');
+    expect(output).toContain('file-source="./windsurfrules"');
+    expect(output).toContain('# Shadcn');
+  });
 });

@@ -126,6 +126,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
+      - \`attachments\` (1 skill available)
+          - Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.
+
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
@@ -146,6 +149,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **attachments**: End-to-end guide for message attachments: compose UI, delivery paths (CLI/native/task-read), XML conventions, and checklist for adding new attachment types.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
@@ -198,7 +202,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -231,7 +235,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -290,60 +294,6 @@ describe('Solo Team > Solo > System Prompt', () => {
       2. If requirements are met → deliver to \`user\` (run \`pnpm typecheck && pnpm test\` first **only if this slice changed the codebase** — skip for connectivity-only or no-code handbacks)
       3. If requirements are NOT met → revise your own implementation and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
-
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`user\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
-
-      \`\`\`markdown
-      ## Summary
-      <what was accomplished, in plain terms — no references to prior messages>
-
-      ## Proof — files changed
-      - \`path/to/file.ts\` — <what changed and why>
-      <list every file you modified; this is the evidence of work>
-
-      ## Key Technical Decisions
-      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
-
-      ## Key Tradeoffs
-      - <what was weighed against what, and why you chose this path, or "Not Applicable">
-
-      ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
-
-      ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
-
-      \`\`\`mermaid
-      flowchart TD
-          A[Component] --> B[Component]
-      \`\`\`
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <result>
-
-      ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
-      \`\`\`
 
       ### Handoff Options
       Available targets: user

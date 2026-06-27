@@ -48,6 +48,8 @@ describe('Duo Team > Builder > Get Next Task', () => {
     expect(output).toContain('<next-steps>');
     // Non-entry point should NOT have context creation step
     expect(output).not.toContain('Set a new context per user message');
-    expect(output).toContain('targets: planner');
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('you MUST run the handoff command');
+    expect(output).toContain('--next-role="planner"');
   });
 });

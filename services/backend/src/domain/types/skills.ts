@@ -19,6 +19,7 @@
  */
 const SKILLS = {
   backlog: { customizationType: null },
+  attachments: { customizationType: null },
   'software-engineering': { customizationType: null },
   'code-review': { customizationType: null },
   'development-workflow': { customizationType: 'development_workflow' as const },

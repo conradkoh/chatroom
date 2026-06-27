@@ -2,8 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MoreHorizontal, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Search } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 import {
   DropdownMenu,
@@ -11,8 +13,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 /** Event name dispatched to request a file explorer refresh (e.g. from command palette) */
 export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
@@ -35,6 +35,55 @@ interface FileExplorerPanelProps {
   onToggleSync: (enabled: boolean) => void;
 }
 
+function ExplorerPanelHeader({
+  explorerSyncEnabled,
+  onToggleSync,
+  onRefresh,
+}: {
+  explorerSyncEnabled?: boolean;
+  onToggleSync?: (enabled: boolean) => void;
+  onRefresh?: () => void;
+}) {
+  const showActions = onToggleSync != null && onRefresh != null;
+
+  return (
+    <div className="px-3 py-2 border-b-2 border-chatroom-border-strong flex items-center justify-between shrink-0">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+        Explorer
+      </span>
+      {showActions ? (
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-sm p-0.5"
+                aria-label="Explorer options"
+              >
+                <MoreHorizontal size={13} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[180px]">
+              <DropdownMenuCheckboxItem
+                checked={explorerSyncEnabled}
+                onCheckedChange={onToggleSync}
+              >
+                Sync with active editor
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+            onClick={onRefresh}
+            title="Refresh file tree"
+          >
+            <RefreshCw size={13} />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const FileExplorerPanel = memo(function FileExplorerPanel({
@@ -49,6 +98,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   onToggleSync,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [filterQuery, setFilterQuery] = useState('');
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
 
   // When sync is enabled, the active tab path becomes the effective reveal/select target.
@@ -86,13 +136,9 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
 
   if (!machineId || !workingDir) {
     return (
-      <div className="h-full flex flex-col">
-        <div className="px-3 py-2 border-b-2 border-chatroom-border-strong">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-            Explorer
-          </span>
-        </div>
-        <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-xs px-4 text-center">
+      <div className="h-full flex flex-col min-w-0">
+        <ExplorerPanelHeader />
+        <div className="flex flex-1 items-center justify-center text-chatroom-text-muted text-xs px-4 text-center">
           No workspace connected
         </div>
       </div>
@@ -101,42 +147,29 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
 
   return (
     <div className="h-full flex flex-col min-w-0">
-      {/* Header */}
-      <div className="px-3 py-2 border-b-2 border-chatroom-border-strong flex items-center justify-between shrink-0">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-          Explorer
-        </span>
-        <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-sm p-0.5"
-                aria-label="Explorer options"
-              >
-                <MoreHorizontal size={13} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[180px]">
-              <DropdownMenuCheckboxItem
-                checked={explorerSyncEnabled}
-                onCheckedChange={onToggleSync}
-              >
-                Sync with active editor
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <button
-            className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
-            onClick={handleRefresh}
-            title="Refresh file tree"
-          >
-            <RefreshCw size={13} />
-          </button>
+      <ExplorerPanelHeader
+        explorerSyncEnabled={explorerSyncEnabled}
+        onToggleSync={onToggleSync}
+        onRefresh={handleRefresh}
+      />
+
+      {/* Filename filter */}
+      <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-sm">
+          <Search size={12} className="text-chatroom-text-muted shrink-0" />
+          <input
+            type="search"
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            placeholder="Filter files…"
+            aria-label="Filter files in explorer"
+            className="w-full bg-transparent text-[12px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none"
+          />
         </div>
       </div>
 
       {/* Tree content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
         <WorkspaceFileExplorer
           key={refreshKey}
           chatroomId={chatroomId}
@@ -146,6 +179,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
           onFileDoubleClick={onFileDoubleClick}
           revealPath={effectiveRevealPath}
           selectedPath={effectiveSelectedPath}
+          filterQuery={filterQuery}
         />
       </div>
     </div>

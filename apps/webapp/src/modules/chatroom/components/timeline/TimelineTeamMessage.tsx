@@ -3,8 +3,6 @@
 import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { memo } from 'react';
 
-import type { Message } from '../../types/message';
-import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
@@ -15,6 +13,8 @@ import {
   TIMELINE_ROW_BORDER,
   type MachineNameEntry,
 } from './timelineRowStyles';
+import { MessageAttachmentChips } from '../../attachments';
+import type { Message } from '../../types/message';
 
 function getMessageTypeBadge(type: string) {
   if (type === 'handoff') {
