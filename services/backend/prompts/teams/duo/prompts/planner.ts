@@ -58,7 +58,6 @@ ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, {
   cliEnvPrefix,
   chatroomId,
   role,
-  nativeIntegration,
 })}
 
 ${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration)}

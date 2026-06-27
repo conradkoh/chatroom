@@ -100,6 +100,9 @@ describe('Duo Team > Planner > System Prompt', () => {
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
+      - \`attachments\` (1 skill available)
+          - Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.
+
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
@@ -120,6 +123,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **attachments**: End-to-end guide for message attachments: compose UI, delivery paths (CLI/native/task-read), XML conventions, and checklist for adding new attachment types.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
@@ -172,7 +176,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -205,7 +209,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -285,7 +289,7 @@ describe('Duo Team > Planner > System Prompt', () => {
           H -->|No| I[Deliver to user]
       \`\`\`
 
-      **Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in *Begin With the End in Mind* above — a clear, self-contained brief is enough for most work.
+      **Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in the task delivery \`<handoff-templates>\` section — follow that structure in your handoff message.
 
       **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
@@ -322,164 +326,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       2. If requirements are met → deliver to \`user\` (run \`pnpm typecheck && pnpm test\` first **only if this slice changed the codebase** — skip for connectivity-only or no-code handbacks)
       3. If requirements are NOT met → hand back to \`builder\` for rework
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
-
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`builder\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`builder\` agent **only** receives the text inside your \`handoff --next-role="builder"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
-
-      **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
-
-      **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
-
-      \`\`\`markdown
-      ## Summary
-      <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
-
-      ## Goal
-      <one sentence: the outcome this slice delivers>
-
-      ## Key Knowledge for High Quality Bar
-      <details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
-
-      ## Force Multipliers
-      <choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
-
-      ## Files to implement (exhaustive, file-level)
-      List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
-
-      ### \`path/to/file.ts\`
-      **Change:** <precisely what to add, modify, or remove in this file>
-
-      \`\`\`typescript
-      // Target code: exports, types, function bodies, component skeleton, query/mutation shape, etc.
-      // Enough that the builder can implement this file without inventing structure
-      \`\`\`
-
-      ### \`path/to/other-file.ts\`
-      **Change:** <...>
-
-      \`\`\`typescript
-      // ...
-      \`\`\`
-
-      (Add one ### block per file. If this slice touches only one file, still use the ### header.)
-
-      ## Shared contracts (planner-owned)
-      Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
-
-      ### Interfaces & types
-      \`\`\`typescript
-      // Shared signatures, schemas, props, or DB shapes
-      \`\`\`
-
-      ### Reference snippets
-      \`\`\`typescript
-      // Canonical call patterns, hook usage, imports, or wiring between files
-      \`\`\`
-
-      ## Requirements (acceptance criteria)
-      - <verifiable outcome the builder can self-check>
-      - Verify: \`pnpm typecheck && pnpm test\`
-
-      ## What to avoid
-      - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
-      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
-
-      ## Skills to activate
-      - <e.g. chatroom skill activate software-engineering --chatroom-id=<id> --role=builder, or "Not Applicable">
-
-      ## Out of scope
-      - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
-
-      ## Session Management
-      Valid values: \`new_session\` | \`none\`
-      - \`new_session\` — start a fresh agent session (default)
-      - \`none\` — continue prior session context
-      // data:agent.compress_context=new_session
-
-      **Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; no get-next-task rejoin needed.
-
-      **CLI harnesses** (all others): in-session compaction is NOT supported. \`new_session\` requires a hard restart — the daemon stops the agent, cold-starts it, and the agent must rejoin via \`get-next-task\`. \`none\` resumes the prior session (\`wantResume=true\`).
-
-      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
-
-      ### Handoff to \`user\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Report Template (Planner → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
-
-      \`\`\`markdown
-      ## Summary
-      <what was accomplished, in plain terms — no references to prior messages>
-
-      ## Template Disclosure Confirmation
-      - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
-
-      ## Proof of Principle
-      <!-- Demonstrate adherence to:
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
-
-      ## Proof of Completion
-      - \`path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you (or the builder) modified>
-
-      ## Key Technical Decisions
-      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
-
-      ## Key Tradeoffs
-      - <what was weighed against what, and why you chose this path, or "Not Applicable">
-
-      ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
-
-      ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
-
-      \`\`\`mermaid
-      flowchart TD
-          A[Component] --> B[Component]
-      \`\`\`
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <result>
-
-      ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
-      \`\`\`
 
       ### Handoff Options
       Available targets: builder, user

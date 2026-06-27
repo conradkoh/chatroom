@@ -58,6 +58,7 @@ export function toMessage(m: any): Message {
     attachedBacklogItems: m.attachedBacklogItems,
     attachedArtifacts: m.attachedArtifacts,
     attachedMessages: m.attachedMessages,
+    attachedSnippets: m.attachedSnippets,
     latestProgress: m.latestProgress,
     isQueued: m.isQueued,
   };
