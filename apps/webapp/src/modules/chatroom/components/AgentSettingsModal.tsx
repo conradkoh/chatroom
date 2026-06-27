@@ -32,6 +32,7 @@ import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   Dialog,
   DialogContent,
@@ -505,7 +506,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
         </label>
         {machines === undefined ? (
           <div className="p-4 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+            <ChatroomLoader size="lg" />
           </div>
         ) : machines.length === 0 ? (
           <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">

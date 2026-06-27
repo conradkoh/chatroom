@@ -91,14 +91,9 @@ export function assertNativeInitTemplateDisclosure(
 ): void {
   expect(prompt).not.toContain('Begin With the End in Mind');
   expect(prompt).not.toContain('handoff view-template');
+  expect(prompt).not.toContain('Report Template (Planner → User)');
 
   if (options.referencesDeliveryTemplates) {
-    expect(prompt).toContain('task delivery `<handoff-templates>` section');
+    expect(prompt).toContain('task delivery');
   }
-}
-
-/** CLI init still uses eager preview section at startup. */
-export function assertCliInitTemplateDisclosure(prompt: string): void {
-  expect(prompt).toContain('Begin With the End in Mind');
-  expect(prompt).toContain('get-next-task');
 }

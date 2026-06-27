@@ -215,3 +215,47 @@ describe('originating message disclosure', () => {
     expect(output).toContain('chatroom context read');
   });
 });
+
+describe('snippet attachments', () => {
+  it('renders snippet XML in attachments block after plain content', () => {
+    const output = renderTaskPrompt({
+      ...MINIMAL_INPUT,
+      content: 'What library is [attachment: attachment-reference-001]?',
+      attachedSnippets: [
+        {
+          reference: 'attachment-reference-001',
+          fileSource: './windsurfrules',
+          selectedContent: '# Shadcn',
+        },
+      ],
+    });
+    const contentIdx = output.indexOf('What library is');
+    const attachmentsIdx = output.indexOf('<attachments>');
+    expect(contentIdx).toBeLessThan(attachmentsIdx);
+    expect(output).toContain('<attachment reference="attachment-reference-001">');
+    expect(output).toContain('file-source="./windsurfrules"');
+    expect(output).toContain('# Shadcn');
+    expect(output).not.toContain('<message>');
+  });
+
+  it('renders backlog and snippet attachments in same block', () => {
+    const output = renderTaskPrompt({
+      ...MINIMAL_INPUT,
+      content: 'Work on both',
+      attachedBacklogItems: [{ _id: 'item-111', content: 'Backlog task', status: 'pending' }],
+      attachedSnippets: [
+        {
+          reference: 'attachment-reference-001',
+          fileSource: 'src/foo.ts',
+          selectedContent: 'const x = 1;',
+        },
+      ],
+    });
+    expect(output).toContain('<attachments>');
+    expect(output).toContain('type="backlog-item"');
+    expect(output).toContain('<attachment reference="attachment-reference-001">');
+    expect(output).toContain('file-source="src/foo.ts"');
+    expect(output.match(/<attachments>/g)?.length).toBe(1);
+    expect(output.match(/<\/attachments>/g)?.length).toBe(1);
+  });
+});

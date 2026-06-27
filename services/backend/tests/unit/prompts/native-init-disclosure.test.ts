@@ -9,10 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { composeSystemPrompt } from '../../../prompts/generator';
 import { assertNativeInitContract } from '../../helpers/native-init-contract';
-import {
-  assertCliInitTemplateDisclosure,
-  assertNativeInitTemplateDisclosure,
-} from '../../helpers/native-workflow-assertions';
+import { assertNativeInitTemplateDisclosure } from '../../helpers/native-workflow-assertions';
 import { NATIVE_INIT_SCENARIOS, TEAM_CONFIGS } from '../../helpers/native-workflow-fixtures';
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
@@ -58,7 +55,7 @@ describe('Native init — slim session model (no CLI listen loop)', () => {
   }
 });
 
-describe('Native init — templates deferred to task delivery', () => {
+describe('Init — templates deferred to task delivery', () => {
   test('native init does not include Begin With the End in Mind preview', () => {
     assertNativeInitTemplateDisclosure(nativeInitPrompt('duo', 'builder'));
   });
@@ -69,8 +66,8 @@ describe('Native init — templates deferred to task delivery', () => {
     });
   });
 
-  test('CLI init still includes Begin With the End in Mind at startup', () => {
-    assertCliInitTemplateDisclosure(cliInitPrompt('duo', 'planner'));
+  test('CLI init also defers templates to task delivery (no init preview)', () => {
+    assertNativeInitTemplateDisclosure(cliInitPrompt('duo', 'planner'));
   });
 });
 

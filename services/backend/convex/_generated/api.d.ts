@@ -86,7 +86,6 @@ import type * as skills from "../skills.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
 import type * as tasks from "../tasks.js";
-import type * as tasks_taskDelivery from "../tasks/taskDelivery.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as utils_types from "../utils/types.js";
 import type * as web_directHarness_capabilities from "../web/directHarness/capabilities.js";
@@ -183,7 +182,6 @@ declare const fullApi: ApiFromModules<{
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
   tasks: typeof tasks;
-  "tasks/taskDelivery": typeof tasks_taskDelivery;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   "utils/types": typeof utils_types;
   "web/directHarness/capabilities": typeof web_directHarness_capabilities;

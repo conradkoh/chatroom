@@ -137,6 +137,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
+      - \`attachments\` (1 skill available)
+          - Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.
+
       - \`software-engineering\` (1 skill available)
           - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
@@ -157,6 +160,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **attachments**: End-to-end guide for message attachments: compose UI, delivery paths (CLI/native/task-read), XML conventions, and checklist for adding new attachment types.
       - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
       - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
@@ -209,7 +213,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -242,7 +246,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -292,56 +296,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - Commit work with descriptive, atomic commit messages
 
        
-
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`planner\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section below. If a section does not apply, write \`Not Applicable\` (do not delete the section):
-
-      \`\`\`markdown
-      ## Summary
-      <what was implemented or attempted, in plain terms>
-
-      ## Template Disclosure Confirmation
-      - [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
-
-      ## Proof of Principle
-      <!-- Demonstrate adherence to:
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
-
-      ## Proof of Completion
-      - \`path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you modified>
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
-
-      ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
-
-      ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
-      \`\`\`
 
       ### Handoff Options
       Available targets: planner, user

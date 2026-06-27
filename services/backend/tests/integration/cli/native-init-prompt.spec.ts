@@ -135,7 +135,7 @@ describe('Native init prompt (integration)', () => {
 
     const prompt = await getInitPromptText(sessionId, chatroomId, 'builder');
     expect(prompt).toContain('get-next-task');
-    expect(prompt).toContain('Begin With the End in Mind');
+    expect(prompt).not.toContain('Begin With the End in Mind');
   });
 
   test('native handoff confirmation omits get-next-task reminder', () => {

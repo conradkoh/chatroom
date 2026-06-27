@@ -7,8 +7,14 @@ import type {
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  collectExpandedDirsForFilter,
+  filterExplorerTreeNodes,
+  type ExplorerTreeNode,
+} from './explorerTreeFilter';
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files';
 
@@ -32,6 +38,8 @@ interface WorkspaceFileExplorerProps {
   revealPath?: string | null;
   /** When set, visually highlights and scrolls to this path */
   selectedPath: string | null;
+  /** Optional filename filter (VSCode-style explorer search) */
+  filterQuery?: string;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -236,6 +244,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   onFileDoubleClick,
   revealPath,
   selectedPath,
+  filterQuery = '',
 }: WorkspaceFileExplorerProps) {
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
@@ -264,6 +273,22 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     }
   }, [treeJson]);
 
+  const displayNodes = useMemo<ExplorerTreeNode[]>(() => {
+    return filterExplorerTreeNodes(treeNodes, filterQuery);
+  }, [treeNodes, filterQuery]);
+
+  const filterExpandedDirs = useMemo(() => {
+    if (!filterQuery.trim()) return null;
+    return collectExpandedDirsForFilter(displayNodes);
+  }, [displayNodes, filterQuery]);
+
+  const effectiveExpandedPaths = useMemo(() => {
+    if (filterExpandedDirs) {
+      return new Set([...expandedPaths, ...filterExpandedDirs]);
+    }
+    return expandedPaths;
+  }, [expandedPaths, filterExpandedDirs]);
+
   // Auto-expand tree to reveal a specific file path
   useEffect(() => {
     if (!revealPath) return;
@@ -284,7 +309,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
   useEffect(() => {
     nodeRefs.current = new Map();
-  }, [treeNodes]);
+  }, [displayNodes]);
 
   // Scroll the selected node into view (after render, when the node's element is mounted)
   const scrollTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -331,8 +356,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8 text-chatroom-text-muted text-xs">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-chatroom-text-muted text-xs">
+        <ChatroomLoader size="sm" />
         Loading files…
       </div>
     );
@@ -347,14 +372,22 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     );
   }
 
+  if (displayNodes.length === 0 && filterQuery.trim()) {
+    return (
+      <div className="px-4 py-8 text-center text-chatroom-text-muted text-xs">
+        No files match &ldquo;{filterQuery.trim()}&rdquo;
+      </div>
+    );
+  }
+
   return (
     <div className="py-1">
-      {treeNodes.map((node) => (
+      {displayNodes.map((node) => (
         <TreeNodeItem
           key={node.path}
           node={node}
           depth={0}
-          expandedPaths={expandedPaths}
+          expandedPaths={effectiveExpandedPaths}
           selectedPath={selectedPath}
           onToggle={handleToggle}
           onFileSelect={onFileSelect}
