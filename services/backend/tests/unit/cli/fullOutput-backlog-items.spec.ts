@@ -186,7 +186,7 @@ describe('generateFullCliOutput — task content is inline', () => {
     const output = generateFullCliOutput(params);
 
     expect(output).toContain('Implement the dark mode toggle per spec');
-    expect(output).toContain('handed off from builder');
+    expect(output).toContain('you MUST run the handoff command');
     expect(output).not.toContain('chatroom task read');
   });
 });

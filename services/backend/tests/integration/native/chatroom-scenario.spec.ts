@@ -101,6 +101,7 @@ describe('ChatroomScenario — native prompt orchestration', () => {
     const delivery = await scenario.deliveryPromptFor('planner', taskId);
 
     expect(delivery).toContain('get-next-task');
-    expect(delivery).not.toContain('<handoffs>');
+    expect(delivery).toContain('<handoffs>');
+    expect(delivery).toContain('<handoff-templates>');
   });
 });

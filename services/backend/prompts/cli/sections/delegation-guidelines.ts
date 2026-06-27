@@ -18,11 +18,8 @@ function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: st
     `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
 }
 
-function getDelegationBriefReference(nativeIntegration?: boolean): string {
-  if (nativeIntegration) {
-    return 'Use the **Handoff to `builder`** template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.';
-  }
-  return 'Use the **Handoff to `builder`** template in your task delivery next-steps — follow that structure in your handoff message.';
+function getDelegationBriefReference(): string {
+  return 'Use the **Handoff to `builder`** template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.';
 }
 
 function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): string {
@@ -93,7 +90,6 @@ export function getDelegationGuidelinesSection(
     cliEnvPrefix?: string;
     chatroomId?: string;
     role?: string;
-    nativeIntegration?: boolean;
   }
 ): string {
   const feedingNote = config.hasBuilder
@@ -109,9 +105,5 @@ export function getDelegationGuidelinesSection(
     return getSoloImplementationGuidelines(cmd, feedingNote);
   }
 
-  return getBuilderDelegationGuidelines(
-    cmd,
-    feedingNote,
-    getDelegationBriefReference(options?.nativeIntegration)
-  );
+  return getBuilderDelegationGuidelines(cmd, feedingNote, getDelegationBriefReference());
 }
