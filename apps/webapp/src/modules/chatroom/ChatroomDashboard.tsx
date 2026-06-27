@@ -705,18 +705,27 @@ export function ChatroomDashboard({
   useEffect(() => {
     if (!chatroom) return;
 
-    // Mark as read immediately when viewing
-    markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {
-      // Silently ignore - non-critical
-    });
+    const mark = () => {
+      if (document.hidden) return;
+      markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {
+        // Silently ignore - non-critical
+      });
+    };
 
-    // Also mark as read periodically while viewing (every 30s)
-    // This ensures the cursor stays updated for long sessions
-    const interval = setInterval(() => {
-      markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {});
-    }, 30000);
+    mark();
 
-    return () => clearInterval(interval);
+    // Refresh cursor periodically while the tab is focused (60s — backend skips if fresh)
+    const interval = setInterval(mark, 60_000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) mark();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [chatroom, chatroomId, markAsRead]);
 
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
