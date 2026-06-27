@@ -350,45 +350,6 @@ ${taskDeliveryPrompt.fullCliOutput}
 
        
 
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`planner\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
-
-      \`\`\`markdown
-      ## Summary
-      <what was implemented or attempted, in plain terms>
-
-      ## Proof — files changed
-      - \`path/to/file.ts\` — <what changed and why>
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
-
-      ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
-
-      ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
-      \`\`\`
-
       ### Handoff Options
       Available targets: planner, user
 
@@ -454,25 +415,82 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
-      This blocking \`get-next-task\` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.
-
       1. Work on the task above.
-
-      2. Set a new context per user message (default) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
-      <summary of current focus>
-      CHATROOM_CONTEXT_END\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.
-      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
-      3. Hand off when complete:
+      2. **When complete, you MUST run the handoff command** — this completes your work and delivers it to \`user\` (task from \`user\`):
 
       Before handing off to user: verify the codebase is in a good state — run \`pnpm typecheck && pnpm test\`.
+
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="<target>" << 'CHATROOM_HANDOFF_END'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="user" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
       [Your message here]
       CHATROOM_HANDOFF_END
       \`\`\`
-      (targets: planner, user)
+
+      Fill in the message using the matching template in \`<handoff-templates>\` below. Replace \`[Your message here]\` with the template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). **Do not end your turn without running handoff.**
+
       </next-steps>
+
+      <handoff-templates>
+      Use these structures when handing off.
+
+      ### Handoff to \`planner\`
+      ---
+
+      ⚠️ **CRITICAL — Recipient visibility**
+
+      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
+
+      They **cannot** see:
+      - Anything you write in this agent session
+      - Progress reports
+      - Tool output
+
+      Put your **complete** deliverable in the handoff message — not in session text.
+
+      ---
+
+      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
+
+      \`\`\`markdown
+      ## Summary
+      <what was implemented or attempted, in plain terms>
+
+      ## Proof — files changed
+      - \`path/to/file.ts\` — <what changed and why>
+
+      ## Verification
+      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
+
+      ## Blockers / questions
+      <anything needing planner decision, or "Not Applicable">
+
+      ## Notes for review
+      <specific areas for planner to check, or "Not Applicable">
+      \`\`\`
+
+      </handoff-templates>
+
+      <handoffs>
+      Other handoff targets (if you need a different recipient than step 2):
+
+      **planner**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+      ---MESSAGE---
+      [Your message here]
+      CHATROOM_HANDOFF_END
+      \`\`\`
+
+      **user**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="user" << 'CHATROOM_HANDOFF_END'
+      ---MESSAGE---
+      [Your message here]
+      CHATROOM_HANDOFF_END
+      \`\`\`
+
+      </handoffs>
 
       ============================================================
       A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
@@ -510,16 +528,18 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
     expect(taskDeliveryPrompt.json).toBeDefined();
 
-    // ===== VERIFY context view-template hint presence =====
+    // ===== VERIFY context view-template hint presence (init prompt only) =====
     expect(fullCliMessage).toContain('chatroom context view-template');
 
     // ===== VERIFY FULL CLI OUTPUT FORMAT =====
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
 
-    expect(fullOutput).toContain('chatroom context view-template');
+    expect(fullOutput).toContain('<handoff-templates>');
+    expect(fullOutput).toContain('<handoffs>');
+    expect(fullOutput).toContain('you MUST run the handoff command');
 
-    // Should have consolidated NEXT STEPS section with inline guidance
-    expect(fullOutput).toContain('Hand off');
+    // Should have unified next-steps with handoff command
+    expect(fullOutput).toContain('handoff command');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role="builder"');
 

@@ -4,6 +4,7 @@
  * Covers the resolver dispatch and the structural guarantees the backlog
  * item requires:
  *  - planner → user report includes Proof of Principle, Proof of Completion,
+ *    backlog tasks implemented, backlog pending user review confirmation,
  *    decisions, Key tradeoffs, Tech debt observed, and a mermaid System
  *    Design section, all in markdown, with no optional fields.
  *  - planner → builder delegation brief includes goal/scope/requirements and
@@ -71,6 +72,13 @@ describe('handoff-templates > planner → user report', () => {
     expect(report).toContain('## Proof of Completion');
     expect(report).toContain('Organization & Maintainability');
     expect(report).toContain('Static Evaluability and Provability');
+  });
+
+  test('requires backlog implementation and pending review confirmation sections', () => {
+    expect(report).toContain('## Backlog Tasks Implemented');
+    expect(report).toContain('## Backlog Pending User Review Confirmation');
+    expect(report).toContain('pending_user_review');
+    expect(report).toContain('chatroom backlog mark-for-review');
   });
 
   test('requires a mermaid system design section', () => {

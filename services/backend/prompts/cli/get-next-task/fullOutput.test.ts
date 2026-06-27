@@ -49,6 +49,38 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).not.toContain('handoff view-template');
   });
 
+  test('CLI mode includes handoff-templates and handoffs sections', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      teamId: 'duo',
+      nativeIntegration: false,
+    });
+
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('you MUST run the handoff command');
+    expect(output).not.toContain('Delegate ONE slice to the builder');
+    expect(output).toContain('get-next-task'); // footer preserved
+  });
+
+  test('CLI planner user message has eager templates in handoff-templates section', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      role: 'planner',
+      teamId: 'duo',
+      isEntryPoint: true,
+      message: { _id: 'msg-id', senderRole: 'user', content: 'hello' },
+      availableHandoffTargets: ['builder', 'user'],
+      nativeIntegration: false,
+      task: { _id: 'task-id', content: 'hello' },
+    });
+    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    // Templates should be in handoff-templates, not inline in next-steps
+    const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
+    expect(nextSteps).not.toContain('## Proof of Principle');
+  });
+
   test('CLI mode includes inline task content and get-next-task reminder', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
@@ -58,7 +90,7 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('get-next-task');
     expect(output).toContain('Implement the feature');
     expect(output).toContain('grace-period cooldowns');
-    expect(output).not.toContain('<handoffs>');
+    expect(output).toContain('<handoffs>');
     expect(output).not.toMatch(/task read --chatroom-id/i);
   });
 
