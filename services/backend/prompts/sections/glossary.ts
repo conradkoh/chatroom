@@ -63,24 +63,11 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
     linkedSkillId: 'attachments',
   },
   {
-    term: 'software-engineering',
-    definition:
-      'Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.',
-    linkedSkillId: 'software-engineering',
-  },
-  {
     term: 'code-review',
     definition:
       'Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. ' +
       'Covers AI-generated code review with focus on maintainability and tech debt prevention.',
     linkedSkillId: 'code-review',
-  },
-  {
-    term: 'development-workflow',
-    definition:
-      'Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. ' +
-      'Use this skill for coordinating complex release and development processes.',
-    linkedSkillId: 'development-workflow',
   },
   {
     term: 'structural-decisions',

@@ -20,9 +20,7 @@
 const SKILLS = {
   backlog: { customizationType: null },
   attachments: { customizationType: null },
-  'software-engineering': { customizationType: null },
   'code-review': { customizationType: null },
-  'development-workflow': { customizationType: 'development_workflow' as const },
 } as const satisfies Record<string, { customizationType: string | null }>;
 
 // ─── Skill IDs ───────────────────────────────────────────────────────────
@@ -43,9 +41,11 @@ export function isSkillId(value: string): value is SkillId {
 /** Union type of all skill customization types (DB-stored, snake_case). */
 export type SkillCustomizationType = NonNullable<(typeof SKILLS)[SkillId]['customizationType']>;
 
-/** Named constant for the development workflow customization type. */
-export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE =
-  SKILLS['development-workflow'].customizationType;
+/**
+ * Legacy customization type for removed development-workflow skill.
+ * Existing chatroom_skillCustomizations rows may still use this type.
+ */
+export const DEVELOPMENT_WORKFLOW_CUSTOMIZATION_TYPE = 'development_workflow' as const;
 
 /**
  * Get the customization type for a given skill ID.
