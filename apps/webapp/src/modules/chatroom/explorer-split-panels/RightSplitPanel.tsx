@@ -15,10 +15,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import { DirectHarnessPanel } from './DirectHarnessPanel';
 import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
-import {
-  useExplorerSplitPanelMode,
-  type ExplorerSplitPanelMode,
-} from '../hooks/persistence/useExplorerSplitPanelMode';
+import { MessageViewToggle } from '../components/timeline/MessageViewToggle';
 import {
   Select,
   SelectContent,
@@ -26,11 +23,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../direct-harness/components/ui/select';
+import {
+  useExplorerSplitPanelMode,
+  type ExplorerSplitPanelMode,
+} from '../hooks/persistence/useExplorerSplitPanelMode';
+import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-// Props forwarded to MessagesPanel (all except chatroomId which is in RightSplitPanelProps)
-type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId'>;
+// Props forwarded to MessagesPanel (all except chatroomId and viewMode)
+type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId' | 'viewMode'>;
 
 export interface RightSplitPanelProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -52,6 +54,40 @@ const MODE_LABELS: Record<ExplorerSplitPanelMode, string> = {
   'direct-harness': 'Direct Harness',
 };
 
+function RightSplitPanelHeader({
+  mode,
+  setMode,
+  messageViewMode,
+  setMessageViewMode,
+}: {
+  mode: ExplorerSplitPanelMode;
+  setMode: (mode: ExplorerSplitPanelMode) => void;
+  messageViewMode: MessageViewMode;
+  setMessageViewMode: (mode: MessageViewMode) => void;
+}) {
+  return (
+    <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
+      {mode === 'messages' ? (
+        <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+      ) : (
+        <div aria-hidden="true" />
+      )}
+      <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
+        <SelectTrigger className="h-6 text-[10px] w-36 px-2">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
+          {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
+            <SelectItem key={m} value={m} className="text-xs">
+              {MODE_LABELS[m]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function RightSplitPanel({
@@ -65,29 +101,25 @@ export function RightSplitPanel({
   const [internalMode, internalSetMode] = useExplorerSplitPanelMode(chatroomId);
   const mode = modeProp ?? internalMode;
   const setMode = setModeProp ?? internalSetMode;
+  const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
 
   return (
     <div className="flex flex-col min-h-0 overflow-hidden flex-1">
-      {/* Header: mode dropdown */}
-      <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end px-2">
-        <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
-          <SelectTrigger className="h-6 text-[10px] w-36 px-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
-              <SelectItem key={m} value={m} className="text-xs">
-                {MODE_LABELS[m]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <RightSplitPanelHeader
+        mode={mode}
+        setMode={setMode}
+        messageViewMode={messageViewMode}
+        setMessageViewMode={setMessageViewMode}
+      />
 
       {/* Body: panel content */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {mode === 'messages' ? (
-          <MessagesPanel chatroomId={chatroomId as string} {...messagesPanelProps} />
+          <MessagesPanel
+            chatroomId={chatroomId as string}
+            viewMode={messageViewMode}
+            {...messagesPanelProps}
+          />
         ) : (
           <DirectHarnessPanel
             chatroomId={chatroomId}

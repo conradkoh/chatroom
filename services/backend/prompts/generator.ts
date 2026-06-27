@@ -25,7 +25,6 @@
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
-import { getHandoffTemplatesPreviewSection } from './cli/sections/handoff-templates-preview';
 import { getNativeHandoffTurnEndGuidance } from './native/session-continuity';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import {
@@ -320,7 +319,7 @@ function buildInitPromptSections(
   input: InitPromptInput,
   selectorCtx: SelectorContext
 ): PromptSection[] {
-  const { chatroomId, role, teamId, teamRoles, convexUrl } = input;
+  const { chatroomId, role, teamRoles, convexUrl } = input;
   const nativeIntegration = isNativeHarness(input.agentHarness);
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
   const handoffTargets = [...new Set([...otherRoles, 'user'])];
@@ -337,17 +336,6 @@ function buildInitPromptSections(
   }
 
   sections.push(getClassificationGuideSection(selectorCtx), getRoleGuidanceSection(selectorCtx));
-
-  if (!nativeIntegration) {
-    sections.push(
-      getHandoffTemplatesPreviewSection({
-        teamId,
-        role,
-        handoffTargets,
-        nativeIntegration,
-      })
-    );
-  }
 
   sections.push(getHandoffOptionsSection({ availableHandoffRoles: handoffTargets }));
 

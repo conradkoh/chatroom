@@ -70,7 +70,7 @@ vi.mock('@/components/ui/fixed-modal', () => ({
 }));
 
 // Mock AttachedMessageChip used inside the attachments section.
-vi.mock('../AttachedMessageChip', () => ({
+vi.mock('../../attachments/message/AttachedMessageChip', () => ({
   AttachedMessageChip: ({ content }: { content: string }) => (
     <div data-testid="attached-message-chip">{content}</div>
   ),

@@ -55,7 +55,7 @@ ${getCoreResponsibilitiesSection(teamConfig)}
 
 ${getDelegationAndDecompositionSection(teamConfig)}
 
-${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role, nativeIntegration })}
+${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(teamConfig, nativeIntegration)}
 

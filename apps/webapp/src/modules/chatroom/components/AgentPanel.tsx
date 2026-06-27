@@ -9,6 +9,8 @@ import { useRelativeTime } from '../hooks/useRelativeTime';
 import type { TeamLifecycle } from '../types/readiness';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+
 interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
@@ -176,7 +178,7 @@ export const AgentPanel = memo(function AgentPanel({
           Agents
         </div>
         <div className="p-4 flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+          <ChatroomLoader size="md" />
         </div>
       </div>
     );

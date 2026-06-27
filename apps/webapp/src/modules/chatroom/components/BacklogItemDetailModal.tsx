@@ -18,7 +18,7 @@ import remarkGfm from 'remark-gfm';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
-import { useAttachments } from '../context/AttachmentsContext';
+import { useAttachments } from '../attachments';
 
 import {
   DropdownMenu,

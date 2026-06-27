@@ -12,11 +12,11 @@ import {
 } from 'lucide-react';
 import { memo } from 'react';
 
-import type { Message, MessageClassification } from '../../types/message';
-import { MessageAttachmentChips } from '../MessageAttachmentChips';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { BADGE_BASE, ICON_SIZE, TIMELINE_ROW_BORDER } from './timelineRowStyles';
+import { MessageAttachmentChips } from '../../attachments';
+import type { Message, MessageClassification } from '../../types/message';
 
 function getClassificationBadge(classification: MessageClassification | undefined) {
   if (!classification) return null;

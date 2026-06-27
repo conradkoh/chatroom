@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -9,6 +10,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
+import { isTimelineMessage } from './messageList';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
@@ -53,6 +55,7 @@ async function enrichMessageAttachments(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
   }
 ) {
   // Resolve attached tasks
@@ -118,6 +121,7 @@ async function enrichMessageAttachments(
     ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
     ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
+    ...(msg.attachedSnippets?.length && { attachedSnippets: msg.attachedSnippets }),
   };
 }
 
@@ -210,6 +214,7 @@ async function _sendMessageHandler(
     attachedTaskIds?: Id<'chatroom_tasks'>[];
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
+    attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
   }
 ) {
   const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -284,6 +289,32 @@ async function _sendMessageHandler(
     }
   }
 
+  // Validate attached snippets if provided
+  if (args.attachedSnippets?.length) {
+    if (args.attachedSnippets.length > 10) {
+      throw new ConvexError({
+        code: 'TOO_MANY_ATTACHMENTS',
+        message: 'Cannot attach more than 10 snippets per message.',
+      });
+    }
+    const refs = new Set<string>();
+    for (const snippet of args.attachedSnippets) {
+      if (!snippet.reference.startsWith('attachment-reference-')) {
+        throw new ConvexError({
+          code: 'INVALID_SNIPPET_REFERENCE',
+          message: `Invalid snippet reference: ${snippet.reference}`,
+        });
+      }
+      if (refs.has(snippet.reference)) {
+        throw new ConvexError({
+          code: 'DUPLICATE_SNIPPET_REFERENCE',
+          message: `Duplicate snippet reference: ${snippet.reference}`,
+        });
+      }
+      refs.add(snippet.reference);
+    }
+  }
+
   // Validate senderRole to prevent impersonation
   // Only allow 'user' or roles that are in the team configuration
   const normalizedSenderRole = args.senderRole.toLowerCase();
@@ -326,11 +357,7 @@ async function _sendMessageHandler(
         content: args.content,
         type: 'message' as const,
         queuePosition,
-        ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-        ...(args.attachedBacklogItemIds?.length && {
-          attachedBacklogItemIds: args.attachedBacklogItemIds,
-        }),
-        ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+        ...messageAttachmentInsertFields(args),
       });
 
       // Update materialized queue count
@@ -350,11 +377,7 @@ async function _sendMessageHandler(
       content: args.content,
       targetRole,
       type: args.type,
-      ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-      ...(args.attachedBacklogItemIds?.length && {
-        attachedBacklogItemIds: args.attachedBacklogItemIds,
-      }),
-      ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+      ...messageAttachmentInsertFields(args),
     });
 
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -389,6 +412,7 @@ async function _sendMessageHandler(
     ...(args.attachedBacklogItemIds?.length && {
       attachedBacklogItemIds: args.attachedBacklogItemIds,
     }),
+    ...(args.attachedSnippets?.length && { attachedSnippets: args.attachedSnippets }),
   });
 
   await ctx.db.patch('chatroom_rooms', args.chatroomId, {
@@ -419,23 +443,46 @@ async function _sendMessageHandler(
   return messageId;
 }
 
-// =============================================================================
-// PUBLIC MUTATIONS - sendMessage is preferred, send is deprecated
-// =============================================================================
+const attachedSnippetArgsValidator = v.object({
+  reference: v.string(),
+  fileSource: v.string(),
+  selectedContent: v.string(),
+});
+
+type MessageAttachmentInserts = {
+  attachedTaskIds?: Id<'chatroom_tasks'>[];
+  attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
+  attachedMessageIds?: Id<'chatroom_messages'>[];
+  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+};
+
+function messageAttachmentInsertFields(args: MessageAttachmentInserts) {
+  return {
+    ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
+    ...(args.attachedBacklogItemIds?.length && {
+      attachedBacklogItemIds: args.attachedBacklogItemIds,
+    }),
+    ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
+    ...(args.attachedSnippets?.length && { attachedSnippets: args.attachedSnippets }),
+  };
+}
+
+const sendMessageMutationArgs = {
+  ...SessionIdArg,
+  chatroomId: v.id('chatroom_rooms'),
+  senderRole: v.string(),
+  content: v.string(),
+  targetRole: v.optional(v.string()),
+  type: v.union(v.literal('message'), v.literal('handoff')),
+  attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+  attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
+  attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+  attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
+};
 
 /** @deprecated Use sendMessage instead. */
 export const send = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    content: v.string(),
-    targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff')),
-    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
-    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
-    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
-  },
+  args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
   },
@@ -694,17 +741,7 @@ async function _handoffHandler(
 
 /** Sends a message to a chatroom without completing the current task. */
 export const sendMessage = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    content: v.string(),
-    targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff')),
-    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
-    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
-    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
-  },
+  args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
   },
@@ -989,6 +1026,7 @@ export const listQueued = query({
       attachedBacklogItemIds: qMsg.attachedBacklogItemIds,
       attachedArtifactIds: qMsg.attachedArtifactIds,
       attachedMessageIds: qMsg.attachedMessageIds,
+      attachedSnippets: qMsg.attachedSnippets,
       // Add queue-specific flags
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
@@ -1617,8 +1655,7 @@ export const getTaskDeliveryPrompt = query({
 
     // Get context window (reuse getContextWindow logic)
     // Fetch recent messages for context
-    // (Pre-existing duplication with services/backend/convex/tasks/taskDelivery.ts
-    //  — origin/follow-up resolution; out of scope for this optimization PR.)
+    // Origin/follow-up resolution for context window (separate concern from attachment rendering).
     // fallow-ignore-next-line code-duplication
     const contextRecentMessages = await ctx.db
       .query('chatroom_messages')
@@ -1772,6 +1809,11 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
+    const sourceSnippets =
+      message && 'attachedSnippets' in message && message.attachedSnippets?.length
+        ? message.attachedSnippets
+        : undefined;
+
     // Build context for prompt generation
     const deliveryContext = {
       chatroomId: args.chatroomId,
@@ -1790,6 +1832,7 @@ export const getTaskDeliveryPrompt = query({
             senderRole: message.senderRole,
             type: message.type,
             targetRole: message.targetRole,
+            ...(sourceSnippets && { attachedSnippets: sourceSnippets }),
           }
         : null,
       participants: participants.map((p) => ({
@@ -1913,6 +1956,7 @@ export const getTaskDeliveryPrompt = query({
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
       nativeIntegration,
+      sourceAttachments: sourceSnippets ? { attachedSnippets: sourceSnippets } : undefined,
     });
 
     return {
@@ -2028,6 +2072,111 @@ export const listSinceMessage = query({
     );
 
     return enrichedMessages;
+  },
+});
+
+/** Paginated list of user messages (newest first). For filtered message view. */
+export const listUserMessagesPaginated = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const result = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .paginate(args.paginationOpts);
+
+    const page = await enrichMessages(ctx, result.page);
+    return { ...result, page };
+  },
+});
+
+/** Paginated conversation slice from anchor until before next user message. Ascending order. */
+export const listConversationSlicePaginated = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    anchorMessageId: v.id('chatroom_messages'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const anchor = await ctx.db.get('chatroom_messages', args.anchorMessageId);
+    if (!anchor) {
+      throw new ConvexError({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' });
+    }
+    if (anchor.chatroomId !== args.chatroomId) {
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message does not belong to this chatroom',
+      });
+    }
+    if (anchor.senderRole.toLowerCase() !== 'user' || anchor.type !== 'message') {
+      throw new ConvexError({
+        code: 'INVALID_ANCHOR',
+        message: 'Anchor must be a user message',
+      });
+    }
+
+    const nextUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .filter((q) => q.gt(q.field('_creationTime'), anchor._creationTime))
+      .order('asc')
+      .first();
+
+    const upperBoundExclusive = nextUserMessage?._creationTime ?? null;
+
+    let cursor = args.paginationOpts.cursor;
+    let isDone = false;
+    const collected: Doc<'chatroom_messages'>[] = [];
+    const numItems = args.paginationOpts.numItems;
+
+    while (collected.length < numItems && !isDone) {
+      const batch = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) =>
+          q.eq('chatroomId', args.chatroomId).gte('_creationTime', anchor._creationTime)
+        )
+        .order('asc')
+        .paginate({ ...args.paginationOpts, cursor, numItems: numItems * 2 });
+
+      for (const msg of batch.page) {
+        if (upperBoundExclusive !== null && msg._creationTime >= upperBoundExclusive) {
+          isDone = true;
+          break;
+        }
+        if (!isTimelineMessage(msg)) continue;
+        collected.push(msg);
+        if (collected.length >= numItems) break;
+      }
+
+      cursor = batch.continueCursor;
+      isDone = isDone || batch.isDone;
+      if (batch.page.length === 0) break;
+    }
+
+    const page = await enrichMessages(ctx, collected.slice(0, numItems));
+    return {
+      page,
+      isDone,
+      continueCursor: cursor,
+      sliceMetadata: {
+        anchorMessageId: anchor._id,
+        nextUserMessageId: nextUserMessage?._id ?? null,
+        upperBoundExclusive,
+      },
+    };
   },
 });
 

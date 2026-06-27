@@ -322,6 +322,9 @@ export const isFavorite = query({
 // READ CURSORS (for unread indicators)
 // ============================================================================
 
+/** Skip cursor writes when already fresh — reduces OCC conflicts on hot paths. */
+const MARK_AS_READ_MIN_INTERVAL_MS = 20_000;
+
 /** Updates the user's read cursor for a chatroom to the current timestamp. */
 export const markAsRead = mutation({
   args: {
@@ -342,6 +345,9 @@ export const markAsRead = mutation({
       .first();
 
     if (existing) {
+      if (now - existing.lastSeenAt < MARK_AS_READ_MIN_INTERVAL_MS) {
+        return;
+      }
       await ctx.db.patch('chatroom_read_cursors', existing._id, {
         lastSeenAt: now,
         updatedAt: now,

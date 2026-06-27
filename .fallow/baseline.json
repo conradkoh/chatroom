@@ -527,6 +527,7 @@
   "unused_dependencies": ["packages/cli/package.json:@connectrpc/connect-node"],
   "unused_dev_dependencies": [],
   "circular_dependencies": [
+    "services/backend/convex/messageList.ts->services/backend/convex/messages.ts",
     "services/backend/prompts/generator.ts->services/backend/prompts/sections/role-guidance.ts"
   ],
   "re_export_cycles": [],
