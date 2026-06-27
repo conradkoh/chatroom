@@ -4,18 +4,18 @@
  * MessagesPanel — thin wrapper that renders the timeline feed + SendForm block
  * that appears in the explorer-split right panel.
  *
- * Props mirror the exact props passed to ChatroomTimelineFeed + SendForm in
+ * Props mirror the exact props passed to ChatroomMessagesPanel + SendForm in
  * ChatroomDashboard.tsx's explorer-split branch, grouped into a single typed
  * interface so they can be threaded cleanly through RightSplitPanel.
  */
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type React from 'react';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
-
-import { ChatroomTimelineFeed } from '../components/timeline/ChatroomTimelineFeed';
 import { MessageInput } from '../components/MessageInput';
+import { ChatroomMessagesPanel } from '../components/timeline/ChatroomMessagesPanel';
+import type { MessageViewMode } from '../hooks/persistence/useMessageViewMode';
 import type { TimelineScrollCoordinator } from '../hooks/timelineScrollCoordinator';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -25,6 +25,7 @@ export interface MessagesPanelProps {
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, { hostname: string; alias?: string }>;
+  viewMode: MessageViewMode;
   // SendForm props
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
@@ -42,6 +43,7 @@ export function MessagesPanel({
   coordinator,
   onRegisterOpenEventStream,
   machines,
+  viewMode,
   onBeforeResize,
   onAfterResize,
   onRegisterSendFormFocus,
@@ -49,23 +51,24 @@ export function MessagesPanel({
   refreshAutocompleteFiles,
 }: MessagesPanelProps) {
   return (
-    <>
-      <ChatroomTimelineFeed
-        chatroomId={chatroomId}
-        coordinator={coordinator}
-        onRegisterOpenEventStream={onRegisterOpenEventStream}
-        machines={machines}
-      />
-      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-        <MessageInput
-          chatroomId={chatroomId}
-          onBeforeResize={onBeforeResize}
-          onAfterResize={onAfterResize}
-          onRegisterFocus={onRegisterSendFormFocus}
-          files={autocompleteFiles}
-          onAtTriggerActivate={refreshAutocompleteFiles}
-        />
-      </div>
-    </>
+    <ChatroomMessagesPanel
+      chatroomId={chatroomId}
+      coordinator={coordinator}
+      onRegisterOpenEventStream={onRegisterOpenEventStream}
+      machines={machines}
+      viewMode={viewMode}
+      footer={
+        <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+          <MessageInput
+            chatroomId={chatroomId}
+            onBeforeResize={onBeforeResize}
+            onAfterResize={onAfterResize}
+            onRegisterFocus={onRegisterSendFormFocus}
+            files={autocompleteFiles}
+            onAtTriggerActivate={refreshAutocompleteFiles}
+          />
+        </div>
+      }
+    />
   );
 }
