@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -9,6 +10,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
+import { isTimelineMessage } from './messageList';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
@@ -2070,6 +2072,111 @@ export const listSinceMessage = query({
     );
 
     return enrichedMessages;
+  },
+});
+
+/** Paginated list of user messages (newest first). For filtered message view. */
+export const listUserMessagesPaginated = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const result = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .paginate(args.paginationOpts);
+
+    const page = await enrichMessages(ctx, result.page);
+    return { ...result, page };
+  },
+});
+
+/** Paginated conversation slice from anchor until before next user message. Ascending order. */
+export const listConversationSlicePaginated = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    anchorMessageId: v.id('chatroom_messages'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const anchor = await ctx.db.get('chatroom_messages', args.anchorMessageId);
+    if (!anchor) {
+      throw new ConvexError({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' });
+    }
+    if (anchor.chatroomId !== args.chatroomId) {
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message does not belong to this chatroom',
+      });
+    }
+    if (anchor.senderRole.toLowerCase() !== 'user' || anchor.type !== 'message') {
+      throw new ConvexError({
+        code: 'INVALID_ANCHOR',
+        message: 'Anchor must be a user message',
+      });
+    }
+
+    const nextUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .filter((q) => q.gt(q.field('_creationTime'), anchor._creationTime))
+      .order('asc')
+      .first();
+
+    const upperBoundExclusive = nextUserMessage?._creationTime ?? null;
+
+    let cursor = args.paginationOpts.cursor;
+    let isDone = false;
+    const collected: Doc<'chatroom_messages'>[] = [];
+    const numItems = args.paginationOpts.numItems;
+
+    while (collected.length < numItems && !isDone) {
+      const batch = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) =>
+          q.eq('chatroomId', args.chatroomId).gte('_creationTime', anchor._creationTime)
+        )
+        .order('asc')
+        .paginate({ ...args.paginationOpts, cursor, numItems: numItems * 2 });
+
+      for (const msg of batch.page) {
+        if (upperBoundExclusive !== null && msg._creationTime >= upperBoundExclusive) {
+          isDone = true;
+          break;
+        }
+        if (!isTimelineMessage(msg)) continue;
+        collected.push(msg);
+        if (collected.length >= numItems) break;
+      }
+
+      cursor = batch.continueCursor;
+      isDone = isDone || batch.isDone;
+      if (batch.page.length === 0) break;
+    }
+
+    const page = await enrichMessages(ctx, collected.slice(0, numItems));
+    return {
+      page,
+      isDone,
+      continueCursor: cursor,
+      sliceMetadata: {
+        anchorMessageId: anchor._id,
+        nextUserMessageId: nextUserMessage?._id ?? null,
+        upperBoundExclusive,
+      },
+    };
   },
 });
 
