@@ -13,7 +13,7 @@ describe('getUserVerificationReminder', () => {
 
   test('skips typecheck for builder handback with not applicable verification', () => {
     const reminder = getUserVerificationReminder(
-      '## Summary\nConnectivity test passed.\n## Proof — files changed\nNot Applicable\n## Verification\nNot Applicable'
+      '## Summary\nConnectivity test passed.\n## Proof of Completion\nNot Applicable\n## Verification\nNot Applicable'
     );
     expect(reminder).toContain('No codebase verification needed');
     expect(reminder).not.toContain('pnpm typecheck');

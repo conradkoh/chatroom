@@ -29,6 +29,12 @@ export interface AttachedMessage {
   _creationTime: number;
 }
 
+export interface AttachedSnippet {
+  reference: string;
+  fileSource: string;
+  selectedContent: string;
+}
+
 /** Message shape used throughout the chatroom feed UI. */
 export interface Message {
   _id: string;
@@ -58,6 +64,8 @@ export interface Message {
   attachedArtifacts?: ArtifactMeta[];
   /** Attached chatroom messages for context */
   attachedMessages?: AttachedMessage[];
+  /** Explorer file snippets attached via Cmd+I */
+  attachedSnippets?: AttachedSnippet[];
   /** Latest progress message for inline display */
   latestProgress?: {
     content: string;

@@ -1,14 +1,14 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
-import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
-import { memo, useEffect } from 'react';
+import { memo, useRef } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
-import { useFileContent } from '../hooks/useFileContent';
+import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
+import { useExplorerSelectionKeyboard } from '../hooks/useExplorerSelectionKeyboard';
+import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,6 +17,8 @@ interface FileContentViewerProps {
   machineId: string;
   workingDir: string;
   filePath: string;
+  /** Called when user presses Cmd+I with a text selection in the file viewer */
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   /** Called when user clicks "Preview" on a markdown file */
   onOpenPreview?: (filePath: string) => void;
   /** Called when user clicks "View" on a CSV file */
@@ -29,6 +31,7 @@ export const FileContentViewer = memo(function FileContentViewer({
   machineId,
   workingDir,
   filePath,
+  onSendSelectionToComposer,
   onOpenPreview,
   onOpenTableView,
 }: FileContentViewerProps) {
@@ -48,6 +51,7 @@ export const FileContentViewer = memo(function FileContentViewer({
       machineId={machineId}
       workingDir={workingDir}
       filePath={filePath}
+      onSendSelectionToComposer={onSendSelectionToComposer}
       onOpenPreview={onOpenPreview}
       onOpenTableView={onOpenTableView}
     />
@@ -60,28 +64,20 @@ const FileContentInner = memo(function FileContentInner({
   machineId,
   workingDir,
   filePath,
+  onSendSelectionToComposer,
   onOpenPreview,
   onOpenTableView,
 }: FileContentViewerProps) {
-  // Request file content from daemon
-  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
+  const contentContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    requestContent({ machineId, workingDir, filePath }).catch(() => {});
-  }, [machineId, workingDir, filePath, requestContent]);
-
-  // Reactively fetch cached content (with transparent decompression)
-  const content = useFileContent({
-    machineId,
-    workingDir,
-    filePath,
-  });
+  useExplorerSelectionKeyboard(contentContainerRef, filePath, onSendSelectionToComposer);
+  const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
 
   // Loading state
   if (content === undefined) {
     return (
-      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+        <ChatroomLoader size="sm" />
         Loading…
       </div>
     );
@@ -90,8 +86,8 @@ const FileContentInner = memo(function FileContentInner({
   // No content
   if (content === null) {
     return (
-      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+        <ChatroomLoader size="sm" />
         Waiting for file content…
       </div>
     );
@@ -143,7 +139,7 @@ const FileContentInner = memo(function FileContentInner({
       )}
 
       {/* File content — source only */}
-      <div className="flex-1 overflow-auto">
+      <div ref={contentContainerRef} className="flex-1 overflow-auto">
         <SyntaxHighlighter
           code={content.content}
           path={filePath}

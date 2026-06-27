@@ -17,6 +17,7 @@ import type {
   AgentSessionResumeRequestedEvent,
   AgentSessionResumedEvent,
   AgentSessionResumeFailedEvent,
+  AgentSessionReopenRetryEvent,
   AgentResumeStormAbortedEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
@@ -587,6 +588,49 @@ function renderAgentSessionResumeFailedDetails(
   );
 }
 
+// ─── Agent Session Reopen Retry ───────────────────────────────────────────────
+
+function renderAgentSessionReopenRetryCell(
+  event: AgentSessionReopenRetryEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const attemptLabel = `${event.attempt}/${event.maxAttempts}`;
+  const secondary = event.error ? `${attemptLabel} — ${event.error}` : attemptLabel;
+  return (
+    <EventRow
+      type="agent.sessionReopenRetry"
+      badgeText="Reopen Retry"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={secondary}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionReopenRetryDetails(
+  event: AgentSessionReopenRetryEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Reopen Retry"
+      timestamp={event.timestamp}
+      type="agent.sessionReopenRetry"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Attempt" value={`${event.attempt} of ${event.maxAttempts}`} />
+      {event.error && <DetailRow label="Previous Error" value={event.error} />}
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Machine Switched ─────────────────────────────────────────────────────────
 
 function renderMachineSwitchedCell(
@@ -639,6 +683,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.sessionResumeRequested'
   | 'agent.sessionResumed'
   | 'agent.sessionResumeFailed'
+  | 'agent.sessionReopenRetry'
   | 'agent.resumeStormAborted'
   | 'machine.switched'
 > = {
@@ -689,6 +734,10 @@ export const agentEventDefinitions: Pick<
   'agent.sessionResumeFailed': {
     cellRenderer: renderAgentSessionResumeFailedCell,
     detailsRenderer: renderAgentSessionResumeFailedDetails,
+  },
+  'agent.sessionReopenRetry': {
+    cellRenderer: renderAgentSessionReopenRetryCell,
+    detailsRenderer: renderAgentSessionReopenRetryDetails,
   },
   'agent.resumeStormAborted': {
     cellRenderer: renderAgentResumeStormAbortedCell,

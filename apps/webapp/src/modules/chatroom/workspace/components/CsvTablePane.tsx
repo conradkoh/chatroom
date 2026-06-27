@@ -1,10 +1,11 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { memo, useEffect, useState } from 'react';
+import { memo, useState } from 'react';
+
 import { CsvTableRenderer } from '../file-renderers';
-import { useFileContent } from '../hooks/useFileContent';
+import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
+
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,25 +23,12 @@ export const CsvTablePane = memo(function CsvTablePane({
   filePath,
 }: CsvTablePaneProps) {
   const [zoom, setZoom] = useState(100);
-
-  // Request file content from daemon
-  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
-
-  useEffect(() => {
-    requestContent({ machineId, workingDir, filePath }).catch(() => {});
-  }, [machineId, workingDir, filePath, requestContent]);
-
-  // Reactively fetch cached content (with transparent decompression)
-  const content = useFileContent({
-    machineId,
-    workingDir,
-    filePath,
-  });
+  const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
 
   if (content === undefined || content === null) {
     return (
-      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
-        <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin mr-2" />
+      <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+        <ChatroomLoader size="sm" />
         Loading table…
       </div>
     );

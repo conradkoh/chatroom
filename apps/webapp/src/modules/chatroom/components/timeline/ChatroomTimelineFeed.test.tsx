@@ -12,7 +12,7 @@ import {
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
 } from './timelineVirtualizerConfig';
-import { AttachmentsProvider } from '../../context/AttachmentsContext';
+import { AttachmentsProvider } from '../../attachments';
 import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
 

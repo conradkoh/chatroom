@@ -46,16 +46,16 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toBeDefined();
     expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
-    // Entry point should have context creation step
-    expect(output).toContain('Set a new context per user message');
     // User message should include inline task content and work-first next steps
     expect(output).toContain('Work on the task above');
     expect(output).toContain('Implement the feature as described');
     expect(output).not.toMatch(/task read --chatroom-id/i);
-    expect(output).toContain('targets: builder, user');
-    // Should have delegate to builder instruction
-    expect(output).toContain('Delegate ONE slice to the builder');
-    expect(output).toContain('--next-role="builder"');
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('<handoffs>');
+    expect(output).toContain('you MUST run the handoff command');
+    expect(output).toContain('--next-role="user"');
     expect(output).not.toContain('Do the work → follow PROCESS above');
     // Eagerly delivered report template (proof + mermaid system design)
     expect(output).toContain('## Proof of Principle');
@@ -82,10 +82,9 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toBeDefined();
     expect(output).toContain('📋 CHATROOM TASK');
     expect(output).toContain('<next-steps>');
-    // Team handoff should show "handed off from" instead of classification
-    expect(output).toContain('handed off from builder');
+    expect(output).toContain('you MUST run the handoff command');
     expect(output).not.toContain('Classify →');
-    expect(output).toContain('targets: builder, user');
+    expect(output).toContain('<handoffs>');
     // Phase Planning Loop should NOT appear for planner receiving a handoff (not a user message)
     expect(output).not.toContain('**Phase Planning Loop:**');
     expect(output).not.toContain(':Delegate ONE phase to builder;');
