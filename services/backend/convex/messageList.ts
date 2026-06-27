@@ -25,7 +25,7 @@ const MAX_NEW_MESSAGES_LIMIT = 500;
 /** Max visible message IDs accepted for the lightweight updates subscription. */
 const MAX_VISIBLE_UPDATE_IDS = 100;
 
-export function isTimelineMessage(msg: Doc<'chatroom_messages'>): boolean {
+function isTimelineMessage(msg: Doc<'chatroom_messages'>): boolean {
   return msg.type !== 'join' && msg.type !== 'progress';
 }
 
