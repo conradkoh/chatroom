@@ -14,16 +14,10 @@ describe('MessageViewToggle', () => {
 
     render(<MessageViewToggle mode="all" onChange={onChange} />);
 
-    expect(screen.getByRole('tab', { name: 'All messages' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
-    expect(screen.getByRole('tab', { name: 'My messages' })).toHaveAttribute(
-      'aria-selected',
-      'false'
-    );
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'User' })).toHaveAttribute('aria-selected', 'false');
 
-    await user.click(screen.getByRole('tab', { name: 'My messages' }));
+    await user.click(screen.getByRole('tab', { name: 'User' }));
     expect(onChange).toHaveBeenCalledWith('user-only');
   });
 });

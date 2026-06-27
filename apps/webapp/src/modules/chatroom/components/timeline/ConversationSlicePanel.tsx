@@ -49,7 +49,7 @@ export function ConversationSlicePanel({
 
   return (
     <div
-      className="flex flex-col min-h-0 h-full border-l-2 border-chatroom-border-strong bg-chatroom-bg-primary"
+      className="flex flex-1 flex-col min-h-0 min-w-0 w-full h-full border-l-2 border-chatroom-border-strong bg-chatroom-bg-primary"
       data-testid="conversation-slice-panel"
     >
       <div className="shrink-0 h-8 px-2 flex items-center justify-between border-b border-chatroom-border">

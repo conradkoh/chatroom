@@ -42,9 +42,11 @@ import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
+import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { useTeamConfigs } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
@@ -457,6 +459,8 @@ export function ChatroomDashboard({
     explorerSyncEnabled,
     setExplorerSyncEnabled,
   } = chatroomLifecycle;
+
+  const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
 
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
@@ -1577,22 +1581,29 @@ export function ChatroomDashboard({
               {/* Main Content Area */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {/* Content Toolbar — always renders, actions change based on active view */}
-                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end gap-2 px-2">
-                  {activeView === 'explorer' && (
-                    <button
-                      className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
-                      onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
-                      title={
-                        explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
-                      }
-                    >
-                      {explorerSplitViewEnabled ? (
-                        <MessageSquareOff size={14} />
-                      ) : (
-                        <MessageSquare size={14} />
-                      )}
-                    </button>
-                  )}
+                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {activeView === 'messages' && (
+                      <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeView === 'explorer' && (
+                      <button
+                        className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
+                        onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
+                        title={
+                          explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
+                        }
+                      >
+                        {explorerSplitViewEnabled ? (
+                          <MessageSquareOff size={14} />
+                        ) : (
+                          <MessageSquare size={14} />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* When in explorer view with split view enabled, show both explorer and messages */}
@@ -1636,6 +1647,7 @@ export function ChatroomDashboard({
                     coordinator={timelineScrollCoordinator}
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
                     machines={machineNameMap}
+                    viewMode={messageViewMode}
                     footer={
                       <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                         <MessageInput
