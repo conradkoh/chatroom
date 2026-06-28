@@ -25,9 +25,7 @@ const PROVIDERS = [
   {
     providerID: 'anthropic',
     name: 'Anthropic',
-    models: [
-      { modelID: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-    ],
+    models: [{ modelID: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }],
   },
 ];
 
@@ -37,6 +35,32 @@ function openDropdown() {
 }
 
 describe('HarnessModelSelect', () => {
+  it('shows an empty-state label when no providers are available', () => {
+    render(<HarnessModelSelect providers={[]} value="" onValueChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'No models available yet' })).toHaveTextContent(
+      'No models yet'
+    );
+    expect(screen.getByRole('button', { name: 'No models available yet' })).toBeDisabled();
+  });
+
+  it('shows an empty-state label when all models are hidden', () => {
+    const isHidden = () => true;
+    render(
+      <HarnessModelSelect
+        providers={PROVIDERS}
+        value=""
+        onValueChange={vi.fn()}
+        isHidden={isHidden}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'No models available yet' })).toHaveTextContent(
+      'No models yet'
+    );
+    expect(screen.getByRole('button', { name: 'No models available yet' })).toBeDisabled();
+  });
+
   it('renders all models when no isHidden prop is passed', () => {
     render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
     openDropdown();
@@ -48,7 +72,12 @@ describe('HarnessModelSelect', () => {
   it('hides models for which isHidden returns true', () => {
     const isHidden = (key: string) => key === 'openai::gpt-4-turbo';
     render(
-      <HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} isHidden={isHidden} />
+      <HarnessModelSelect
+        providers={PROVIDERS}
+        value=""
+        onValueChange={vi.fn()}
+        isHidden={isHidden}
+      />
     );
     openDropdown();
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
@@ -59,7 +88,12 @@ describe('HarnessModelSelect', () => {
   it('omits provider group entirely when ALL its models are hidden', () => {
     const isHidden = (key: string) => key.startsWith('anthropic::');
     render(
-      <HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} isHidden={isHidden} />
+      <HarnessModelSelect
+        providers={PROVIDERS}
+        value=""
+        onValueChange={vi.fn()}
+        isHidden={isHidden}
+      />
     );
     openDropdown();
     // OpenAI models visible

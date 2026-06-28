@@ -1,5 +1,6 @@
 'use client';
 
+import { CAPABILITIES_REFRESH_HINT, PENDING_SELECT_VALUE } from './select-empty-states';
 import { NativeIntegrationBadge } from '../../../components/NativeIntegrationBadge';
 import { harnessSupportsNativeIntegration } from '../../../types/machine';
 import type { AgentHarness } from '../../../types/machine';
@@ -20,6 +21,30 @@ export function HarnessHarnessSelect({
   onValueChange,
   disabled,
 }: HarnessHarnessSelectProps) {
+  const hasHarnesses = harnesses.length > 0;
+
+  if (!hasHarnesses) {
+    return (
+      <Select value={PENDING_SELECT_VALUE} disabled>
+        <SelectTrigger
+          className="h-8 text-xs w-full bg-transparent"
+          title={CAPABILITIES_REFRESH_HINT}
+        >
+          <SelectValue placeholder="No harnesses" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem
+            value={PENDING_SELECT_VALUE}
+            disabled
+            className="text-xs text-muted-foreground"
+          >
+            No harnesses available
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
       {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency with HarnessModelSelect */}

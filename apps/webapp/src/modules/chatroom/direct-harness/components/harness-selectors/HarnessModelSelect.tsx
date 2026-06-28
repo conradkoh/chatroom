@@ -1,13 +1,16 @@
 'use client';
 
-import { Check, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
-import { selectTriggerClassName } from '../ui/select';
-import { cn } from '@/lib/utils';
+import { getSelectedModelLabel, hasVisibleProviders } from './harness-model-select-utils';
+import { HarnessModelSelectList } from './HarnessModelSelectList';
+import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
 import type { ProviderOption } from './types';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { selectTriggerClassName } from '../ui/select';
+
+import { cn } from '@/lib/utils';
 
 interface HarnessModelSelectProps {
   providers: ProviderOption[];
@@ -22,76 +25,48 @@ interface HarnessModelSelectProps {
   isHidden?: (modelKey: string) => boolean;
 }
 
-export function HarnessModelSelect({ providers, value, onValueChange, isHidden }: HarnessModelSelectProps) {
+// fallow-ignore-next-line complexity
+export function HarnessModelSelect({
+  providers,
+  value,
+  onValueChange,
+  isHidden,
+}: HarnessModelSelectProps) {
   const [open, setOpen] = useState(false);
-
-  const selectedLabel = (() => {
-    if (!value) return null;
-    const [providerID, modelID] = value.split('::');
-    const provider = providers.find((p) => p.providerID === providerID);
-    const model = provider?.models.find((m) => m.modelID === modelID);
-    if (!provider || !model) return null;
-    return `${provider.name} / ${model.name}`;
-  })();
-
-  const hasProviders = providers.length > 0;
+  const selectedLabel = getSelectedModelLabel(providers, value);
+  const hasProviders = hasVisibleProviders(providers, isHidden);
+  const triggerLabel = selectedLabel ?? (hasProviders ? 'Select model…' : 'No models yet');
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={false}>
+    <Popover
+      open={hasProviders ? open : false}
+      onOpenChange={hasProviders ? setOpen : undefined}
+      modal={false}
+    >
       <PopoverTrigger asChild>
-        {/* Trigger styled identically to SelectTrigger: h-8, text-xs, border border-input */}
         <button
           type="button"
           disabled={!hasProviders}
           className={cn(selectTriggerClassName, 'w-full h-8')}
-          title="Select model"
+          title={hasProviders ? 'Select model' : CAPABILITIES_REFRESH_HINT}
+          aria-label={hasProviders ? 'Select model' : 'No models available yet'}
         >
-          <span className="truncate text-left flex-1">
-            {selectedLabel ?? <span className="text-muted-foreground">Default model</span>}
+          <span
+            className={cn('truncate text-left flex-1', !selectedLabel && 'text-muted-foreground')}
+          >
+            {triggerLabel}
           </span>
           <ChevronDown size={12} className="shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-72" align="start">
-        <Command>
-          <CommandInput placeholder="Search models…" className="text-xs h-8" />
-          <CommandList className="max-h-60">
-            <CommandEmpty className="text-xs text-muted-foreground py-3 text-center">
-              No models found.
-            </CommandEmpty>
-            {providers.map((provider) => {
-              // Filter out hidden models for this provider
-              const visibleModels = provider.models.filter((model) => {
-                const key = `${provider.providerID}::${model.modelID}`;
-                return !isHidden?.(key);
-              });
-              // Skip provider group entirely when all its models are hidden
-              if (visibleModels.length === 0) return null;
-              return (
-                <CommandGroup key={provider.providerID} heading={provider.name}>
-                  {visibleModels.map((model) => {
-                    const key = `${provider.providerID}::${model.modelID}`;
-                    const isSelected = value === key;
-                    return (
-                      <CommandItem
-                        key={key}
-                        value={`${provider.name} ${model.name}`}
-                        onSelect={() => {
-                          onValueChange(isSelected ? '' : key);
-                          setOpen(false);
-                        }}
-                        className="text-xs flex items-center justify-between"
-                      >
-                        <span className="truncate">{model.name}</span>
-                        {isSelected && <Check size={12} className="ml-2 shrink-0 text-primary" />}
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              );
-            })}
-          </CommandList>
-        </Command>
+        <HarnessModelSelectList
+          providers={providers}
+          value={value}
+          onValueChange={onValueChange}
+          onClose={() => setOpen(false)}
+          isHidden={isHidden}
+        />
       </PopoverContent>
     </Popover>
   );
