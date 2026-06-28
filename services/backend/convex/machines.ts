@@ -30,7 +30,10 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
+import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
+import { listAssignedTasksLiteForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-lite';
+import { pollAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/poll-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -2535,11 +2538,8 @@ export const getAgentOverviewForChatroom = query({
 
 /**
  * Returns all active tasks for chatrooms where this machine has remote agent configs.
- * Used by the daemon's task monitor to decide when to start/restart agents.
  *
- * For each active task, includes:
- * - Task info (taskId, chatroomId, status, assignedTo, updatedAt, createdAt)
- * - Relevant agent config (machineId, agentHarness, model, workingDir, spawnedAgentPid, desiredState, circuitState)
+ * @deprecated Use listAssignedTasksLite + pollAssignedTaskSignalsSince + getAssignedTaskForAction.
  */
 export const getAssignedTasks = query({
   args: {
@@ -2553,6 +2553,72 @@ export const getAssignedTasks = query({
     return getAssignedTasksForMachine(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
+    });
+  },
+});
+
+/**
+ * Lite assigned-task snapshot for daemon reconcile polls (no task.content).
+ */
+// fallow-ignore-next-line code-duplication
+export const listAssignedTasksLite = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { tasks: [] };
+
+    return listAssignedTasksLiteForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+    });
+  },
+});
+
+/**
+ * Incremental task-monitor signals since an exclusive cursor.
+ */
+export const pollAssignedTaskSignalsSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterKey: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { items: [], highKey: null, hasMore: false };
+
+    return pollAssignedTaskSignalsForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterKey: args.afterKey,
+      limit: args.limit,
+    });
+  },
+});
+
+/**
+ * Full assigned task row for a single nudge/inject action (includes task.content).
+ */
+export const getAssignedTaskForAction = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+
+    return getAssignedTaskForActionForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      taskId: args.taskId,
+      role: args.role,
     });
   },
 });
