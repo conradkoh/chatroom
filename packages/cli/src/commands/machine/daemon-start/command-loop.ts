@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref, Runtime } from 'effect';
+import { Effect, Ref, Runtime, type Context } from 'effect';
 
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { api } from '../../../api.js';
@@ -54,7 +54,7 @@ import { startLogObserverSubscription } from './handlers/process/log-observer-sy
 import { processManager } from './handlers/process/manager.js';
 import { refreshModelsEffect, type RefreshModelsOutcome } from './models-refresh.js';
 import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
-import { startTaskMonitorSubscriptionEffect } from './task-monitor.js';
+import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
 
@@ -306,6 +306,30 @@ export const dispatchCommandEventEffect = (
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 
+type CommandLoopRuntimeContext =
+  | DaemonSessionService
+  | DaemonAgentProcessManagerService
+  | DaemonMutableStateService;
+
+function forkDaemonSyncBatch(
+  runtime: Runtime.Runtime<CommandLoopRuntimeContext>,
+  effectContext: Context.Context<CommandLoopRuntimeContext>,
+  failureLabel: string
+): void {
+  Runtime.runFork(runtime)(
+    Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
+      concurrency: 'unbounded',
+    }).pipe(
+      Effect.provide(effectContext),
+      Effect.catchAll((err) =>
+        Effect.sync(() =>
+          console.warn(`[${formatTimestamp()}] ⚠️  ${failureLabel}: ${getErrorMessage(err)}`)
+        )
+      )
+    )
+  );
+}
+
 /** Effect twin for startCommandLoop — uses granular services. */
 export const startCommandLoopEffect: Effect.Effect<
   never,
@@ -334,20 +358,7 @@ export const startCommandLoopEffect: Effect.Effect<
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
         if (!observedSyncEnabled) {
-          Runtime.runFork(runtime)(
-            Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
-              concurrency: 'unbounded',
-            }).pipe(
-              Effect.provide(effectContext),
-              Effect.catchAll((err) =>
-                Effect.sync(() =>
-                  console.warn(
-                    `[${formatTimestamp()}] ⚠️  Heartbeat sync failed: ${getErrorMessage(err)}`
-                  )
-                )
-              )
-            )
-          );
+          forkDaemonSyncBatch(runtime, effectContext, 'Heartbeat sync failed');
         }
       })
       .catch((err: unknown) => {
@@ -376,18 +387,7 @@ export const startCommandLoopEffect: Effect.Effect<
   if (observedSyncEnabled) {
     console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
   } else {
-    Runtime.runFork(runtime)(
-      Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
-        concurrency: 'unbounded',
-      }).pipe(
-        Effect.provide(effectContext),
-        Effect.catchAll((err) =>
-          Effect.sync(() =>
-            console.warn(`[${formatTimestamp()}] ⚠️ Startup sync failed: ${getErrorMessage(err)}`)
-          )
-        )
-      )
-    );
+    forkDaemonSyncBatch(runtime, effectContext, 'Startup sync failed');
   }
 
   // ── Shutdown timeouts ──────────────────────────────────────────────────
@@ -513,7 +513,7 @@ export const startCommandLoopEffect: Effect.Effect<
     observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
   }
 
-  const taskMonitorHandle = yield* startTaskMonitorSubscriptionEffect(wsClient);
+  const taskMonitorHandle = yield* startTaskMonitorEffect();
 
   logObserverSubscriptionHandle = startLogObserverSubscription(
     { sessionId: session.sessionId, machineId: session.machineId },

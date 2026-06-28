@@ -1,5 +1,5 @@
 import type { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type { AssignedTaskLiteView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
@@ -14,7 +14,7 @@ export { isNativeHarness } from '../../../domain/native-integration/index.js';
 /** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line complexity
 export function shouldDeliverNativeTask(
-  task: AssignedTaskView,
+  task: AssignedTaskLiteView,
   opts: { ledger: NativeDeliveryLedger; harnessSessionId: string | undefined }
 ): boolean {
   if (!isNativeInjectableAliveRunning(task)) return false;
