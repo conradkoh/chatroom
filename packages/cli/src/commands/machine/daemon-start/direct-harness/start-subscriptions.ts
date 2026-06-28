@@ -81,6 +81,8 @@ export function startDirectHarnessSubscriptions(
       backend: session.backend,
       sessionId: session.sessionId,
     }),
+    activeSessions,
+    sessionRepository,
   });
 
   return {

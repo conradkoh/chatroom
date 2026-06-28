@@ -254,6 +254,7 @@ async function processOne(
       await journal.commit();
       await liveSession.close();
       await deps.sessionRepository.markClosed(rowId);
+      deps.activeSessions.delete(rowId);
     };
 
     // 7. Store in shared registry BEFORE patching the DB so that

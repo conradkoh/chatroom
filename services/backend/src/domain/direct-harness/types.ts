@@ -99,7 +99,7 @@ export interface HarnessAgent {
 export interface HarnessProvider {
   providerID: string;
   name: string;
-  models: Array<{ modelID: string; name: string }>;
+  models: { modelID: string; name: string }[];
 }
 
 /** Published harness capability as seen in the machine registry. */
@@ -157,11 +157,24 @@ export type HarnessSendMessageResult =
 // ─── Direct-Harness Commands ────────────────────────────────────────────────
 
 /** Discriminated union of all direct-harness command types. */
-export type DirectHarnessCommandType = 'refreshCapabilities';
+export type DirectHarnessCommandType =
+  | 'refreshCapabilities'
+  | 'refreshSessionTitle'
+  | 'closeSession';
 
 /** Payload for a refreshCapabilities command. */
 export interface DirectHarnessRefreshCapabilitiesPayload {
   initiatedBy: string;
+}
+
+/** Payload for a refreshSessionTitle command. */
+export interface DirectHarnessRefreshSessionTitlePayload {
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
+}
+
+/** Payload for a closeSession command. */
+export interface DirectHarnessCloseSessionPayload {
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
 }
 
 /**
@@ -179,6 +192,8 @@ export interface DirectHarnessCommand {
   workspaceId: Id<'chatroom_workspaces'>;
   type: DirectHarnessCommandType;
   refreshCapabilities?: DirectHarnessRefreshCapabilitiesPayload;
+  refreshSessionTitle?: DirectHarnessRefreshSessionTitlePayload;
+  closeSession?: DirectHarnessCloseSessionPayload;
   status: 'pending' | 'inProgress' | 'done' | 'failed';
   createdAt: number;
   completedAt?: number;

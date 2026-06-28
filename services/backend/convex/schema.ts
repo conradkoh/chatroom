@@ -2480,13 +2480,19 @@ export default defineSchema({
     /** Workspace context the command applies to. */
     workspaceId: v.id('chatroom_workspaces'),
     /** Discriminated union: selects the command kind. */
-    type: v.union(v.literal('refreshCapabilities'), v.literal('refreshSessionTitle')),
+    type: v.union(
+      v.literal('refreshCapabilities'),
+      v.literal('refreshSessionTitle'),
+      v.literal('closeSession')
+    ),
     /** Payload for refreshCapabilities commands. */
     refreshCapabilities: v.optional(v.object({ initiatedBy: v.string() })),
     /** Payload for refreshSessionTitle commands. */
     refreshSessionTitle: v.optional(
       v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })
     ),
+    /** Payload for closeSession commands. */
+    closeSession: v.optional(v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })),
     status: v.union(
       v.literal('pending'),
       v.literal('inProgress'),
