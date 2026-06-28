@@ -9,8 +9,6 @@
 import { attachmentsSkill } from './modules/attachments/index';
 import { backlogSkill } from './modules/backlog/index';
 import { codeReviewSkill } from './modules/code-review/index';
-import { developmentWorkflowSkill } from './modules/development-workflow/index';
-import { softwareEngineeringSkill } from './modules/software-engineering/index';
 import type { SkillId } from '../../types/skills';
 
 export interface SkillModule {
@@ -23,7 +21,5 @@ export interface SkillModule {
 export const SKILLS_REGISTRY: readonly SkillModule[] = [
   backlogSkill,
   attachmentsSkill,
-  softwareEngineeringSkill,
   codeReviewSkill,
-  developmentWorkflowSkill,
 ];

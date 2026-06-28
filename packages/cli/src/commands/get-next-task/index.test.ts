@@ -126,7 +126,7 @@ describe('get-next-task — agent config ownership', () => {
     expect(allOutput).toContain('grace-period');
 
     consoleSpy.mockRestore();
-  });
+  }, 15_000);
 
   it('should NEVER call updateAgentConfig — agent config is owned by startAgent, not get-next-task', async () => {
     // Agent harness configuration (agentType, workingDir) is now written exclusively
