@@ -1,9 +1,6 @@
 'use client';
 
 import { CAPABILITIES_REFRESH_HINT, PENDING_SELECT_VALUE } from './select-empty-states';
-import { NativeIntegrationBadge } from '../../../components/NativeIntegrationBadge';
-import { harnessSupportsNativeIntegration } from '../../../types/machine';
-import type { AgentHarness } from '../../../types/machine';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
@@ -27,7 +24,8 @@ export function HarnessHarnessSelect({
     return (
       <Select value={PENDING_SELECT_VALUE} disabled>
         <SelectTrigger
-          className="h-8 text-xs w-full bg-transparent"
+          size="sm"
+          className="text-xs w-full bg-transparent"
           title={CAPABILITIES_REFRESH_HINT}
         >
           <SelectValue placeholder="No harnesses" />
@@ -48,18 +46,13 @@ export function HarnessHarnessSelect({
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
       {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency with HarnessModelSelect */}
-      <SelectTrigger className="h-8 text-xs w-full bg-transparent">
+      <SelectTrigger size="sm" className="text-xs w-full bg-transparent">
         <SelectValue placeholder="Harness" />
       </SelectTrigger>
       <SelectContent>
         {harnesses.map((h) => (
           <SelectItem key={h.name} value={h.name} className="text-xs">
-            <span className="flex items-center min-w-0">
-              {h.displayName}
-              {harnessSupportsNativeIntegration(h.name as AgentHarness) && (
-                <NativeIntegrationBadge />
-              )}
-            </span>
+            {h.displayName}
           </SelectItem>
         ))}
       </SelectContent>

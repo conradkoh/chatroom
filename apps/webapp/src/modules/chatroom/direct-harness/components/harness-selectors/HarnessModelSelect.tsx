@@ -47,7 +47,7 @@ export function HarnessModelSelect({
         <button
           type="button"
           disabled={!hasProviders}
-          className={cn(selectTriggerClassName, 'w-full h-8')}
+          className={selectTriggerClassName}
           title={hasProviders ? 'Select model' : CAPABILITIES_REFRESH_HINT}
           aria-label={hasProviders ? 'Select model' : 'No models available yet'}
         >

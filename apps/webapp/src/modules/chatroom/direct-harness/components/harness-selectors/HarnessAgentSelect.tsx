@@ -1,5 +1,6 @@
 'use client';
 
+import { displayAgentRoleName, getEligibleAgents } from './display-agent-role';
 import { CAPABILITIES_REFRESH_HINT, PENDING_SELECT_VALUE } from './select-empty-states';
 import type { AgentOption } from './types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -11,8 +12,8 @@ interface HarnessAgentSelectProps {
   onValueChange: (v: string) => void;
   /**
    * The resolved fallback agent name (e.g. 'builder') shown when no agents
-   * have been discovered yet (harness cold start). This keeps the trigger
-   * visually consistent instead of reverting to the free-text input.
+   * have been discovered yet (harness cold start). Displayed as "default" for
+   * single-role harnesses.
    */
   resolvedAgent: string;
 }
@@ -23,9 +24,9 @@ export function HarnessAgentSelect({
   onValueChange,
   resolvedAgent,
 }: HarnessAgentSelectProps) {
-  const eligibleAgents = agents.filter((a) => a.mode === 'primary' || a.mode === 'all');
+  const eligibleAgents = getEligibleAgents(agents);
   const hasAgents = eligibleAgents.length > 0;
-  const pendingLabel = resolvedAgent || 'builder';
+  const pendingLabel = displayAgentRoleName(agents, resolvedAgent || 'builder');
 
   return (
     <Select
@@ -35,7 +36,8 @@ export function HarnessAgentSelect({
     >
       {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency */}
       <SelectTrigger
-        className="h-8 text-xs w-full bg-transparent"
+        size="sm"
+        className="text-xs w-full bg-transparent"
         title={!hasAgents ? CAPABILITIES_REFRESH_HINT : undefined}
       >
         <SelectValue placeholder={pendingLabel} />
@@ -44,7 +46,7 @@ export function HarnessAgentSelect({
         {hasAgents ? (
           eligibleAgents.map((a) => (
             <SelectItem key={a.name} value={a.name} className="text-xs">
-              {a.name}
+              {displayAgentRoleName(agents, a.name)}
             </SelectItem>
           ))
         ) : (
@@ -53,7 +55,7 @@ export function HarnessAgentSelect({
             disabled
             className="text-xs text-muted-foreground"
           >
-            {pendingLabel} (default)
+            {pendingLabel}
           </SelectItem>
         )}
       </SelectContent>
