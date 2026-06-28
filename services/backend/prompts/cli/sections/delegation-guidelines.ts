@@ -25,7 +25,7 @@ function getDelegationBriefReference(): string {
 function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): string {
   return `**Implementation Guidelines:**
 
-Break complex features into small, focused slices. For architecture/SOLID guidance, activate the \`software-engineering\` skill: ${cmd('skill activate software-engineering')}.
+Break complex features into small, focused slices. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
@@ -39,7 +39,7 @@ function getBuilderDelegationGuidelines(
 ): string {
   return `**Delegation Guidelines:**
 
-Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: ${cmd('skill activate software-engineering')}.
+Break complex features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
 **Decision flow:**
 \`\`\`mermaid

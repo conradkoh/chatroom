@@ -103,14 +103,8 @@ describe('Duo Team > Planner > System Prompt', () => {
       - \`attachments\` (1 skill available)
           - Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.
 
-      - \`software-engineering\` (1 skill available)
-          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
-
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
-
-      - \`development-workflow\` (1 skill available)
-          - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
@@ -124,9 +118,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **attachments**: End-to-end guide for message attachments: compose UI, delivery paths (CLI/native/task-read), XML conventions, and checklist for adding new attachment types.
-      - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 
@@ -272,7 +264,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Delegation Guidelines:**
 
-      Break complex features into small, focused slices, then delegate them to the builder one at a time. For architecture/SOLID guidance, activate the \`software-engineering\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
+      Break complex features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
       **Decision flow:**
       \`\`\`mermaid
