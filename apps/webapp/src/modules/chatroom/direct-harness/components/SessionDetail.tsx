@@ -7,11 +7,11 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from './ui/button';
+import { EditableSessionTitle } from './EditableSessionTitle';
 import { SessionComposer } from './SessionComposer';
 import { SessionMessageStream } from './SessionMessageStream';
 import { StatusDot } from './StatusDot';
-import { displaySessionTitle } from './SessionList';
+import { Button } from './ui/button';
 
 interface SessionDetailProps {
   sessionRowId: Id<'chatroom_harnessSessions'>;
@@ -19,9 +19,10 @@ interface SessionDetailProps {
 }
 
 export function SessionDetail({ sessionRowId, sessionSummary }: SessionDetailProps) {
-  const title = displaySessionTitle(sessionSummary);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const refreshSessionTitle = useSessionMutation(api.web.directHarness.commands.refreshSessionTitle);
+  const refreshSessionTitle = useSessionMutation(
+    api.web.directHarness.commands.refreshSessionTitle
+  );
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -38,13 +39,11 @@ export function SessionDetail({ sessionRowId, sessionSummary }: SessionDetailPro
       {/* Header */}
       <div className="shrink-0 border-b-2 border-border px-4 py-2.5 flex items-center gap-2">
         <StatusDot status={sessionSummary.status} />
-        <span className="flex-1 min-w-0 text-sm font-bold text-foreground truncate" title={title}>
-          {title}
-        </span>
+        <EditableSessionTitle harnessSessionId={sessionRowId} sessionSummary={sessionSummary} />
         <Button
           size="icon"
           variant="ghost"
-          className="h-6 w-6 shrink-0"
+          className="ml-auto h-6 w-6 shrink-0"
           title="Refresh session title"
           disabled={isRefreshing}
           onClick={() => void handleRefresh()}

@@ -13,10 +13,8 @@ import {
   MessageSquareOff,
   PanelRightClose,
   PanelRightOpen,
-  Pencil,
   Settings2,
   Square,
-  X,
   XCircle,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -28,6 +26,7 @@ import { toast } from 'sonner';
 import { AttachmentsProvider, dispatchComposerPrefill, PREFILL_TOAST_MESSAGE } from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
+import { ChatroomTitleEditor } from './components/ChatroomTitleEditor';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -162,129 +161,6 @@ interface ChatroomDashboardProps {
 
 /** Edit target for the saved command modal */
 type SavedCommandEditTarget = SavedCommand;
-
-/**
- * Memoized title editor component to prevent input recreation on every keystroke.
- * This component manages its own editing state to avoid triggering parent re-renders.
- */
-interface ChatroomTitleEditorProps {
-  displayName: string;
-  chatroomId: string;
-}
-
-const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
-  displayName,
-  chatroomId,
-}: ChatroomTitleEditorProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState('');
-  const [isPending, setIsPending] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const renameChatroom = useSessionMutation(api.chatrooms.rename);
-
-  const handleStartEdit = useCallback(() => {
-    setEditedName(displayName);
-    setIsEditing(true);
-  }, [displayName]);
-
-  const handleCancel = useCallback(() => {
-    setIsEditing(false);
-    setEditedName('');
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    if (!editedName.trim()) {
-      handleCancel();
-      return;
-    }
-    setIsPending(true);
-    try {
-      await renameChatroom({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        name: editedName.trim(),
-      });
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to rename chatroom:', error);
-    } finally {
-      setIsPending(false);
-    }
-  }, [editedName, renameChatroom, chatroomId, handleCancel]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        handleSave();
-      } else if (e.key === 'Escape') {
-        handleCancel();
-      }
-    },
-    [handleSave, handleCancel]
-  );
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-2">
-        <input
-          ref={inputRef}
-          type="text"
-          value={editedName}
-          onChange={(e) => setEditedName(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={(e) => {
-            const pasted = e.clipboardData.getData('text');
-            if (!pasted.includes('/') && !pasted.includes('\\')) return;
-            e.preventDefault();
-            setEditedName(normalizePastedChatroomName(pasted));
-          }}
-          className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
-          placeholder="Enter name..."
-          disabled={isPending}
-          maxLength={100}
-        />
-        <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-status-success w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-status-success disabled:opacity-50"
-          onClick={handleSave}
-          disabled={isPending}
-          title="Save name"
-        >
-          <Check size={12} />
-        </button>
-        <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-          onClick={handleCancel}
-          disabled={isPending}
-          title="Cancel"
-        >
-          <X size={12} />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-chatroom-text-primary text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
-        {displayName}
-      </span>
-      <button
-        className="bg-transparent border-0 text-chatroom-text-muted w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-chatroom-text-secondary"
-        onClick={handleStartEdit}
-        title="Rename chatroom"
-      >
-        <Pencil size={12} />
-      </button>
-    </div>
-  );
-});
 
 // ─── Explorer Content Component ───────────────────────────────────────────────
 // Extracts shared file explorer UI to eliminate duplication between split/non-split views

@@ -368,6 +368,7 @@ export const startCommandLoopEffect: Effect.Effect<
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let commandSubscriptionHandle: { stop: () => void } | null = null;
   let lifecycleManager: HarnessLifecycleManager | null = null;
+  let closeDirectHarnessSessionsOnShutdown: (() => Promise<void>) | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -472,8 +473,12 @@ export const startCommandLoopEffect: Effect.Effect<
   };
 
   const closeAllSessionsAndHarnesses = async (): Promise<void> => {
-    for (const handle of activeSessions.values()) {
-      await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
+    if (closeDirectHarnessSessionsOnShutdown) {
+      await withTimeout(closeDirectHarnessSessionsOnShutdown(), PROCESS_KILL_TIMEOUT_MS);
+    } else {
+      for (const handle of activeSessions.values()) {
+        await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
+      }
     }
     for (const harness of harnesses.values()) {
       await withTimeout(harness.close(), CLOSE_TIMEOUT_MS);
@@ -531,6 +536,7 @@ export const startCommandLoopEffect: Effect.Effect<
     pendingHarnessSessionSubscriptionHandle = handles.pendingHarnessSessionSubscriptionHandle;
     commandSubscriptionHandle = handles.commandSubscriptionHandle;
     lifecycleManager = handles.lifecycleManager;
+    closeDirectHarnessSessionsOnShutdown = handles.closeSessionsOnShutdown;
   }
 
   console.log(`\nListening for commands...`);

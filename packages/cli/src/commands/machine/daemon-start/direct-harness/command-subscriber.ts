@@ -14,10 +14,18 @@
 import type { ConvexClient } from 'convex/browser';
 
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
+import type { ActiveSession } from './session-subscriber.js';
 import { api } from '../../../../api.js';
+import type { NativeDirectHarnessName } from '../../../../domain/direct-harness/entities/bound-harness.js';
+import type {
+  HarnessSessionId,
+  OpenCodeSessionId,
+} from '../../../../domain/direct-harness/entities/harness-session.js';
+import type { WorkspaceCapabilities } from '../../../../domain/direct-harness/entities/machine-capabilities.js';
 import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
-import { updateCapabilities } from '../../../../domain/direct-harness/usecases/update-capabilities.js';
+import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
+import { listInstalledNativeDirectHarnesses } from '../../../../infrastructure/harnesses/registry.js';
 import type { SessionId } from '../types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -43,9 +51,10 @@ interface PendingCommand {
   _creationTime: number;
   machineId: string;
   workspaceId: string;
-  type: 'refreshCapabilities' | 'refreshSessionTitle';
+  type: 'refreshCapabilities' | 'refreshSessionTitle' | 'closeSession';
   refreshCapabilities?: { initiatedBy: string };
   refreshSessionTitle?: { harnessSessionId: string };
+  closeSession?: { harnessSessionId: string };
   status: string;
   createdAt: number;
   completedAt?: number;
@@ -64,6 +73,10 @@ export interface CommandSubscriberDeps {
   readonly lifecycleManager: HarnessLifecycleManager;
   /** Publishes capability snapshots to the machine registry. */
   readonly publisher: CapabilitiesPublisher;
+  /** Live harness session handles keyed by harnessSessionRowId. */
+  readonly activeSessions: Map<string, ActiveSession>;
+  /** Backend session status mutations. */
+  readonly sessionRepository: SessionRepository;
 }
 
 // ─── Subscriber ──────────────────────────────────────────────────────────────
@@ -125,6 +138,9 @@ async function dispatchPendingCommand(
     case 'refreshSessionTitle':
       await handleRefreshSessionTitle(session, deps, cmd);
       break;
+    case 'closeSession':
+      await handleCloseSession(session, deps, cmd);
+      break;
     default:
       await markFailed(session, cmd._id, `Unknown command type: ${cmd.type}`);
   }
@@ -147,6 +163,7 @@ async function processPendingCommand(
   await dispatchPendingCommand(session, deps, cmd);
 }
 
+// fallow-ignore-next-line complexity
 async function drain(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
@@ -188,19 +205,44 @@ async function handleRefreshCapabilities(
       (payload ? ` (initiatedBy=${payload.initiatedBy})` : '')
   );
 
-  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
+  const installed = await listInstalledNativeDirectHarnesses();
+  const harnessEntries: WorkspaceCapabilities['harnesses'][number][] = [];
+  let cwd = '';
 
-  await updateCapabilities(
-    { publisher: deps.publisher, machineId: session.machineId },
-    {
-      harness,
-      workspace: {
-        workspaceId: cmd.workspaceId,
-        cwd: harness.cwd,
-        name: harness.cwd,
-      },
-    }
-  );
+  for (const harnessName of installed) {
+    const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId, harnessName);
+    cwd = harness.cwd;
+    const [agents, providers] = await Promise.all([harness.listAgents(), harness.listProviders()]);
+    harnessEntries.push({
+      name: harness.type,
+      displayName: harness.displayName,
+      agents: [...agents],
+      providers: [...providers],
+    });
+  }
+
+  const existing = (await session.backend.query(
+    api.daemon.directHarness.capabilities.getForMachine,
+    { sessionId: session.sessionId, machineId: session.machineId }
+  )) as { workspaces?: WorkspaceCapabilities[] } | null;
+
+  const updatedWorkspace: WorkspaceCapabilities = {
+    workspaceId: cmd.workspaceId,
+    cwd,
+    name: cwd,
+    harnesses: harnessEntries,
+  };
+
+  const merged = [
+    ...(existing?.workspaces ?? []).filter((ws) => ws.workspaceId !== cmd.workspaceId),
+    updatedWorkspace,
+  ];
+
+  await deps.publisher.publish({
+    machineId: session.machineId,
+    lastSeenAt: Date.now(),
+    workspaces: merged,
+  });
 
   await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
     sessionId: session.sessionId,
@@ -211,6 +253,7 @@ async function handleRefreshCapabilities(
   console.log(`[direct-harness] Capabilities refreshed for workspace=${cmd.workspaceId}`);
 }
 
+// fallow-ignore-next-line complexity
 async function handleRefreshSessionTitle(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,
@@ -225,7 +268,7 @@ async function handleRefreshSessionTitle(
   // Look up the opencodeSessionId from the backend
   const sessionRow = (await session.backend.query(api.daemon.directHarness.sessions.getSession, {
     harnessSessionId,
-  })) as { opencodeSessionId?: string } | null;
+  })) as { opencodeSessionId?: string; harnessName?: string; workspaceId?: string } | null;
 
   if (!sessionRow?.opencodeSessionId) {
     // Session not yet associated — nothing to fetch
@@ -238,7 +281,11 @@ async function handleRefreshSessionTitle(
   }
 
   // Use the running harness to fetch the title from OpenCode
-  const harness = await deps.lifecycleManager.getOrStart(cmd.workspaceId);
+  const harnessName = (sessionRow.harnessName ?? 'opencode-sdk') as NativeDirectHarnessName;
+  const harness = await deps.lifecycleManager.getOrStart(
+    sessionRow.workspaceId ?? cmd.workspaceId,
+    harnessName
+  );
   const newTitle = await harness.fetchSessionTitle(sessionRow.opencodeSessionId);
 
   if (newTitle) {
@@ -255,6 +302,88 @@ async function handleRefreshSessionTitle(
     commandId: cmd._id,
     status: 'done',
   });
+}
+
+interface HarnessSessionRow {
+  status?: string;
+  opencodeSessionId?: string;
+  harnessName?: string;
+  workspaceId?: string;
+}
+
+async function closeDisconnectedHarnessSession(
+  deps: CommandSubscriberDeps,
+  sessionRow: HarnessSessionRow,
+  harnessSessionId: string
+): Promise<void> {
+  if (!sessionRow.opencodeSessionId) {
+    await deps.sessionRepository.markClosed(harnessSessionId);
+    return;
+  }
+
+  const harnessName = (sessionRow.harnessName ?? 'opencode-sdk') as NativeDirectHarnessName;
+  const harness = await deps.lifecycleManager.getOrStart(sessionRow.workspaceId ?? '', harnessName);
+  const liveSession = await harness.resumeSession(
+    sessionRow.opencodeSessionId as OpenCodeSessionId,
+    {
+      harnessSessionId: harnessSessionId as HarnessSessionId,
+    }
+  );
+  await liveSession.close();
+  await deps.sessionRepository.markClosed(harnessSessionId);
+}
+
+/** Gracefully close a harness session — exported for unit tests. */
+// fallow-ignore-next-line complexity unused-export
+export async function closeHarnessSession(
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  harnessSessionId: string
+): Promise<void> {
+  const sessionRow = (await session.backend.query(api.daemon.directHarness.sessions.getSession, {
+    harnessSessionId,
+  })) as HarnessSessionRow | null;
+
+  if (!sessionRow) {
+    throw new Error(`Harness session ${harnessSessionId} not found`);
+  }
+
+  if (sessionRow.status === 'closed' || sessionRow.status === 'failed') {
+    return;
+  }
+
+  const handle = deps.activeSessions.get(harnessSessionId);
+  if (handle) {
+    await handle.close();
+    deps.activeSessions.delete(harnessSessionId);
+    return;
+  }
+
+  await closeDisconnectedHarnessSession(deps, sessionRow, harnessSessionId);
+}
+
+async function handleCloseSession(
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  cmd: PendingCommand
+): Promise<void> {
+  const { harnessSessionId } = (cmd.closeSession ?? {}) as { harnessSessionId?: string };
+  if (!harnessSessionId) {
+    await markFailed(session, cmd._id, 'closeSession: missing harnessSessionId');
+    return;
+  }
+
+  console.log(`[direct-harness] Processing closeSession for harnessSessionId=${harnessSessionId}`);
+
+  await closeHarnessSession(session, deps, harnessSessionId);
+
+  await session.backend.mutation(api.daemon.directHarness.commands.updateCommandStatus, {
+    sessionId: session.sessionId,
+    commandId: cmd._id,
+    status: 'done',
+  });
+
+  console.log(`[direct-harness] Closed session ${harnessSessionId}`);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

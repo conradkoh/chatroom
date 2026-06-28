@@ -1,8 +1,6 @@
 'use client';
 
-import { NativeIntegrationBadge } from '../../../components/NativeIntegrationBadge';
-import { harnessSupportsNativeIntegration } from '../../../types/machine';
-import type { AgentHarness } from '../../../types/machine';
+import { CAPABILITIES_REFRESH_HINT, PENDING_SELECT_VALUE } from './select-empty-states';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
@@ -20,29 +18,43 @@ export function HarnessHarnessSelect({
   onValueChange,
   disabled,
 }: HarnessHarnessSelectProps) {
+  const hasHarnesses = harnesses.length > 0;
+
+  if (!hasHarnesses) {
+    return (
+      <Select value={PENDING_SELECT_VALUE} disabled>
+        <SelectTrigger
+          size="sm"
+          className="text-xs w-full bg-transparent"
+          title={CAPABILITIES_REFRESH_HINT}
+        >
+          <SelectValue placeholder="No harnesses" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem
+            value={PENDING_SELECT_VALUE}
+            disabled
+            className="text-xs text-muted-foreground"
+          >
+            No harnesses available
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
       {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency with HarnessModelSelect */}
-      <SelectTrigger className="h-8 text-xs w-full bg-transparent">
+      <SelectTrigger size="sm" className="text-xs w-full bg-transparent">
         <SelectValue placeholder="Harness" />
       </SelectTrigger>
       <SelectContent>
-        {harnesses.length > 0 ? (
-          harnesses.map((h) => (
-            <SelectItem key={h.name} value={h.name} className="text-xs">
-              <span className="flex items-center min-w-0">
-                {h.displayName}
-                {harnessSupportsNativeIntegration(h.name as AgentHarness) && (
-                  <NativeIntegrationBadge />
-                )}
-              </span>
-            </SelectItem>
-          ))
-        ) : (
-          <SelectItem value="opencode-sdk" className="text-xs">
-            Opencode
+        {harnesses.map((h) => (
+          <SelectItem key={h.name} value={h.name} className="text-xs">
+            {h.displayName}
           </SelectItem>
-        )}
+        ))}
       </SelectContent>
     </Select>
   );

@@ -1,13 +1,13 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
-} from '../../api/directHarnessHelpers.js';
-import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
-import { mutation, query } from '../../_generated/server.js';
+} from '../../api/directHarnessHelpers';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
 
@@ -98,13 +98,14 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    const sessions: Array<{
+    const sessions: {
       _id: string;
       workspaceId: string;
+      harnessName: string;
       opencodeSessionId: string | undefined;
       lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
-    }> = [];
-    const allMessages: Array<{ harnessSessionId: string; content: string; seq: number }> = [];
+    }[] = [];
+    const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
 
     for (const session of allSessions) {
       const cursor = session.lastProcessedTurnSeq ?? 0;
@@ -123,9 +124,7 @@ export const pendingForMachine = query({
         sessions.push({
           _id: session._id as string,
           workspaceId: session.workspaceId as string,
-          // Include opencodeSessionId so the subscriber can detect when
-          // the session transitions pending→active without a separate query.
-          // When this changes (undefined→string), the subscription re-fires.
+          harnessName: s.opencode.harnessName,
           opencodeSessionId: s.opencode.opencodeSessionId,
           lastUsedConfig: s.opencode.lastUsedConfig,
         });

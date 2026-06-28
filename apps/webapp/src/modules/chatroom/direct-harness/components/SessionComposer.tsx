@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Send } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
 import type { SessionStatus } from './StatusDot';
@@ -14,6 +14,7 @@ import { useCreateSession } from '../hooks/useCreateSession';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
 import { useSendMessage } from '../hooks/useSendMessage';
+import { resolveNativeHarnessOptions, selectDefaultHarnessName } from '../utils/harness-selection';
 
 function ComposerSendRow({
   textareaRef,
@@ -69,17 +70,21 @@ function useEnterToSendKeyDown(onSend: () => void) {
   };
 }
 
+function useWorkspaceCapabilities(workspaceId: Id<'chatroom_workspaces'>) {
+  return useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
+}
+
 function useWorkspaceHarnessConfig(
   workspaceId: Id<'chatroom_workspaces'>,
   harnessName: string,
   initial?: { agent?: string; model?: { providerID: string; modelID: string } }
 ) {
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
-  );
+  const capabilities = useWorkspaceCapabilities(workspaceId);
 
-  const harnesses = capabilities?.harnesses ?? [];
+  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
   const machineId = capabilities?.machineId ?? null;
   const filter = useHarnessModelFilter(machineId, harnessName);
   const config = useHarnessConfig({
@@ -90,6 +95,28 @@ function useWorkspaceHarnessConfig(
   });
 
   return { harnesses, machineId, filter, config };
+}
+
+function useNewSessionHarnessConfig(workspaceId: Id<'chatroom_workspaces'>, harnessName: string) {
+  const capabilities = useWorkspaceCapabilities(workspaceId);
+
+  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
+  const machineId = capabilities?.machineId ?? null;
+
+  const resolvedHarnessName = useMemo(() => {
+    if (harnesses.length === 0) return harnessName;
+    if (harnesses.some((h) => h.name === harnessName)) return harnessName;
+    return selectDefaultHarnessName(harnesses);
+  }, [harnesses, harnessName]);
+
+  const filter = useHarnessModelFilter(machineId, resolvedHarnessName);
+  const config = useHarnessConfig({
+    harnesses,
+    harnessName: resolvedHarnessName,
+    isModelHidden: filter.isHidden,
+  });
+
+  return { harnesses, filter, config, resolvedHarnessName };
 }
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────
@@ -107,10 +134,13 @@ export function NewSessionComposer({
 }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [harnessName, setHarnessName] = useState('opencode-sdk');
+  const [harnessName, setHarnessName] = useState('pi-sdk');
   const { create, isCreating } = useCreateSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { harnesses, filter, config } = useWorkspaceHarnessConfig(workspaceId, harnessName);
+  const { harnesses, filter, config, resolvedHarnessName } = useNewSessionHarnessConfig(
+    workspaceId,
+    harnessName
+  );
 
   const { resolvedAgent, resolvedModel } = config;
 
@@ -124,7 +154,7 @@ export function NewSessionComposer({
     try {
       const result = await create({
         workspaceId,
-        harnessName,
+        harnessName: resolvedHarnessName,
         config: {
           agent: resolvedAgent,
           ...(model ? { model } : {}),
@@ -167,7 +197,7 @@ export function NewSessionComposer({
         {/* Harness + agent + model selectors + filter button */}
         <HarnessSelectorBar
           harnesses={harnesses}
-          harnessName={harnessName}
+          harnessName={resolvedHarnessName}
           onHarnessChange={setHarnessName}
           config={config}
           filter={filter}

@@ -6,23 +6,18 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { ChevronLeft, MonitorOff, Plus, SquarePen } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 
-import { cn } from '@/lib/utils';
-
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-
+import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
 import { NewSessionComposer } from './SessionComposer';
 import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
-import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useOptimisticSessionClose } from '../hooks/useOptimisticSessionClose';
 import { useRefreshCapabilities } from '../hooks/useRefreshCapabilities';
+import { effectiveSessionStatus } from '../utils/sessionStatus';
+
+import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -35,11 +30,16 @@ interface DirectHarnessViewProps {
 function SelectedSessionDetail({
   selectedSessionId,
   workspaceId,
+  optimisticallyClosedIds,
 }: {
   selectedSessionId: Id<'chatroom_harnessSessions'>;
   workspaceId: Id<'chatroom_workspaces'> | null;
+  optimisticallyClosedIds: ReadonlySet<string>;
 }) {
-  const sessions = useSessionQuery(api.web.directHarness.sessions.listSessions, workspaceId ? { workspaceId } : 'skip');
+  const sessions = useSessionQuery(
+    api.web.directHarness.sessions.listSessions,
+    workspaceId ? { workspaceId } : 'skip'
+  );
   const sessionSummary = sessions?.find((s) => s._id === selectedSessionId);
 
   if (!sessionSummary) {
@@ -50,7 +50,16 @@ function SelectedSessionDetail({
     );
   }
 
-  return <SessionDetail sessionRowId={selectedSessionId} sessionSummary={sessionSummary} />;
+  const displaySummary = {
+    ...sessionSummary,
+    status: effectiveSessionStatus(
+      sessionSummary.status,
+      sessionSummary._id,
+      optimisticallyClosedIds
+    ),
+  };
+
+  return <SessionDetail sessionRowId={selectedSessionId} sessionSummary={displaySummary} />;
 }
 
 // ─── DirectHarnessView ────────────────────────────────────────────────────────
@@ -77,6 +86,13 @@ export const DirectHarnessView = memo(function DirectHarnessView({
   const [registerSubmitting, setRegisterSubmitting] = useState(false);
 
   const { refresh: refreshCapabilities } = useRefreshCapabilities();
+
+  const workspaceSessions = useSessionQuery(
+    api.web.directHarness.sessions.listSessions,
+    selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : 'skip'
+  );
+  const { optimisticallyClosedIds, closingIds, closeSession } =
+    useOptimisticSessionClose(workspaceSessions);
 
   const machines = machinesResult?.machines ?? [];
 
@@ -111,8 +127,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
         <div className="text-center space-y-2 max-w-sm">
           <p className="text-sm font-bold">No machines connected</p>
           <p className="text-xs text-muted-foreground">
-            Run{' '}
-            <code className="bg-muted px-1 py-0.5 rounded text-xs">chatroom machine start</code>{' '}
+            Run <code className="bg-muted px-1 py-0.5 rounded text-xs">chatroom machine start</code>{' '}
             on your machine to get started.
           </p>
         </div>
@@ -143,87 +158,90 @@ export const DirectHarnessView = memo(function DirectHarnessView({
     }
   };
 
-  const showMobileDetail =
-    selectedWorkspaceId != null && selectedSessionId !== null;
+  const showMobileDetail = selectedWorkspaceId != null && selectedSessionId !== null;
 
   const sidebar = (
-        <div className="w-full flex flex-col min-h-0 flex-1">
-          {/* Workspace picker + new button */}
-          <div className="shrink-0 p-2 border-b-2 border-border flex items-center gap-1.5">
-            <div className="flex-1 min-w-0">
-              {workspaces.length > 0 ? (
-                <HarnessWorkspaceSwitcher
-                  workspaces={workspaces}
-                  selectedWorkspaceId={selectedWorkspaceId}
-                  onSelect={setSelectedWorkspaceId}
-                />
-              ) : (
-                <span className="text-xs text-muted-foreground px-1">No workspaces</span>
-              )}
-            </div>
-            {selectedWorkspaceId && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 shrink-0"
-                title="New session"
-                onClick={() => setSelectedSessionId(undefined)}
-              >
-                <SquarePen size={14} />
-              </Button>
-            )}
-          </div>
-
-          {/* Session list */}
-          {selectedWorkspaceId ? (
-            <SessionList
-              workspaceId={selectedWorkspaceId}
-              selectedSessionId={selectedSessionId ?? null}
-              onSelect={setSelectedSessionId}
+    <div className="w-full flex flex-col min-h-0 flex-1">
+      {/* Workspace picker + new button */}
+      <div className="shrink-0 p-2 border-b-2 border-border flex items-center gap-1.5">
+        <div className="flex-1 min-w-0">
+          {workspaces.length > 0 ? (
+            <HarnessWorkspaceSwitcher
+              workspaces={workspaces}
+              selectedWorkspaceId={selectedWorkspaceId}
+              onSelect={setSelectedWorkspaceId}
             />
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4 text-center">
-              {workspaces.length === 0 ? (
-                <>
-                  <p className="text-xs text-muted-foreground">Register a workspace to start.</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1"
-                    onClick={() => setShowRegisterDialog(true)}
-                  >
-                    <Plus size={12} />
-                    Register workspace
-                  </Button>
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground">Select a workspace.</p>
-              )}
-            </div>
+            <span className="text-xs text-muted-foreground px-1">No workspaces</span>
           )}
         </div>
+        {selectedWorkspaceId && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 shrink-0"
+            title="New session"
+            onClick={() => setSelectedSessionId(undefined)}
+          >
+            <SquarePen size={14} />
+          </Button>
+        )}
+      </div>
+
+      {/* Session list */}
+      {selectedWorkspaceId ? (
+        <SessionList
+          workspaceId={selectedWorkspaceId}
+          selectedSessionId={selectedSessionId ?? null}
+          onSelect={setSelectedSessionId}
+          optimisticallyClosedIds={optimisticallyClosedIds}
+          closingIds={closingIds}
+          onCloseSession={closeSession}
+        />
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4 text-center">
+          {workspaces.length === 0 ? (
+            <>
+              <p className="text-xs text-muted-foreground">Register a workspace to start.</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => setShowRegisterDialog(true)}
+              >
+                <Plus size={12} />
+                Register workspace
+              </Button>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">Select a workspace.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 
   const detailPane = (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {selectedSessionId ? (
-            <SelectedSessionDetail
-              selectedSessionId={selectedSessionId}
-              workspaceId={selectedWorkspaceId}
-            />
-          ) : selectedSessionId === undefined && selectedWorkspaceId ? (
-            <NewSessionComposer
-              workspaceId={selectedWorkspaceId}
-              onSessionCreated={(id) => setSelectedSessionId(id)}
-            />
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground select-none">
-              {selectedWorkspaceId
-                ? 'Select a session or start a new one.'
-                : 'Select a workspace to begin.'}
-            </div>
-          )}
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {selectedSessionId ? (
+        <SelectedSessionDetail
+          selectedSessionId={selectedSessionId}
+          workspaceId={selectedWorkspaceId}
+          optimisticallyClosedIds={optimisticallyClosedIds}
+        />
+      ) : selectedSessionId === undefined && selectedWorkspaceId ? (
+        <NewSessionComposer
+          workspaceId={selectedWorkspaceId}
+          onSessionCreated={(id) => setSelectedSessionId(id)}
+        />
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground select-none">
+          {selectedWorkspaceId
+            ? 'Select a session or start a new one.'
+            : 'Select a workspace to begin.'}
         </div>
+      )}
+    </div>
   );
 
   return (
@@ -273,7 +291,9 @@ export const DirectHarnessView = memo(function DirectHarnessView({
             <h3 className="text-xs font-bold uppercase tracking-wider">Register workspace</h3>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Machine</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Machine
+              </label>
               <Select value={registerMachineId} onValueChange={setRegisterMachineId}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select machine…" />
@@ -289,7 +309,9 @@ export const DirectHarnessView = memo(function DirectHarnessView({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Working directory</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Working directory
+              </label>
               <Input
                 className="h-8 text-xs"
                 placeholder="/path/to/project"
@@ -307,7 +329,10 @@ export const DirectHarnessView = memo(function DirectHarnessView({
                 size="sm"
                 variant="ghost"
                 className="h-7 text-xs"
-                onClick={() => { setShowRegisterDialog(false); setRegisterError(null); }}
+                onClick={() => {
+                  setShowRegisterDialog(false);
+                  setRegisterError(null);
+                }}
               >
                 Cancel
               </Button>

@@ -7,13 +7,13 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireChatroomAccess } from '../../auth/chatroomAccess.js';
+import { mutation, query } from '../../_generated/server';
 import {
   requireDirectHarnessWorkers,
   requireOpencodeSession,
-} from '../../api/directHarnessHelpers.js';
-import { insertUserTurn } from '../../daemon/directHarness/turns.js';
-import { mutation, query } from '../../_generated/server.js';
+} from '../../api/directHarnessHelpers';
+import { requireChatroomAccess } from '../../auth/chatroomAccess';
+import { insertUserTurn } from '../../daemon/directHarness/turns';
 
 // ─── create ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +94,61 @@ export const listSessions = query({
         createdAt: s.createdAt,
         lastActiveAt: s.lastActiveAt,
       };
+    });
+  },
+});
+
+// ─── renameSession ────────────────────────────────────────────────────────────
+
+const MAX_SESSION_TITLE_LENGTH = 200;
+
+function validateTrimmedSessionTitle(sessionTitle: string): string {
+  const trimmed = sessionTitle.trim();
+  if (!trimmed) {
+    throw new ConvexError({
+      code: 'HARNESS_SESSION_INVALID_TITLE',
+      message: 'Title must not be empty',
+    });
+  }
+  if (trimmed.length > MAX_SESSION_TITLE_LENGTH) {
+    throw new ConvexError({
+      code: 'HARNESS_SESSION_INVALID_TITLE',
+      message: `Title must be at most ${MAX_SESSION_TITLE_LENGTH} characters`,
+    });
+  }
+  return trimmed;
+}
+
+/** User-facing rename — updates the stored session title in Convex only (no SDK sync). */
+export const renameSession = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+    sessionTitle: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    const trimmed = validateTrimmedSessionTitle(args.sessionTitle);
+
+    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
+    if (!harnessSession) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Session not found' });
+    }
+
+    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
+    if (!workspace) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
+    }
+
+    await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
+
+    const s = requireOpencodeSession(harnessSession);
+    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
+      opencode: {
+        ...s.opencode,
+        sessionTitle: trimmed,
+      },
+      lastActiveAt: Date.now(),
     });
   },
 });

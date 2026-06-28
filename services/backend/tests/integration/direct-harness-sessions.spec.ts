@@ -10,7 +10,6 @@ import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 import { featureFlags } from '../../config/featureFlags';
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { setupWorkspaceForSession, createSession } from './direct-harness/fixtures';
 
@@ -380,5 +379,40 @@ describe('pendingForMachine — idle sessions', () => {
     });
 
     expect(result.sessions.every((s) => s._id !== rowId)).toBe(true);
+  });
+});
+
+// ─── renameSession ────────────────────────────────────────────────────────────
+
+describe('sessions.renameSession', () => {
+  test('updates sessionTitle for an authorized user', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('rename-success');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await t.mutation(api.web.directHarness.sessions.renameSession, {
+      sessionId,
+      harnessSessionId: rowId,
+      sessionTitle: '  My custom title  ',
+    });
+
+    const sessions = await t.query(api.web.directHarness.sessions.listSessions, {
+      sessionId,
+      workspaceId,
+    });
+    const updated = sessions.find((s) => s._id === rowId);
+    expect(updated?.sessionTitle).toBe('My custom title');
+  });
+
+  test('rejects empty titles', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('rename-empty');
+    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+
+    await expect(
+      t.mutation(api.web.directHarness.sessions.renameSession, {
+        sessionId,
+        harnessSessionId: rowId,
+        sessionTitle: '   ',
+      })
+    ).rejects.toThrow();
   });
 });

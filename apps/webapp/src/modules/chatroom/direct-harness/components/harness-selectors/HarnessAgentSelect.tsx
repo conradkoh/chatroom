@@ -1,7 +1,9 @@
 'use client';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { displayAgentRoleName, getEligibleAgents } from './display-agent-role';
+import { CAPABILITIES_REFRESH_HINT, PENDING_SELECT_VALUE } from './select-empty-states';
 import type { AgentOption } from './types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface HarnessAgentSelectProps {
   /** Full agents list — component filters to mode primary|all internally. */
@@ -10,8 +12,8 @@ interface HarnessAgentSelectProps {
   onValueChange: (v: string) => void;
   /**
    * The resolved fallback agent name (e.g. 'builder') shown when no agents
-   * have been discovered yet (harness cold start). This keeps the trigger
-   * visually consistent instead of reverting to the free-text input.
+   * have been discovered yet (harness cold start). Displayed as "default" for
+   * single-role harnesses.
    */
   resolvedAgent: string;
 }
@@ -22,33 +24,41 @@ export function HarnessAgentSelect({
   onValueChange,
   resolvedAgent,
 }: HarnessAgentSelectProps) {
-  const eligibleAgents = agents.filter((a) => a.mode === 'primary' || a.mode === 'all');
+  const eligibleAgents = getEligibleAgents(agents);
   const hasAgents = eligibleAgents.length > 0;
+  const pendingLabel = displayAgentRoleName(agents, resolvedAgent || 'builder');
 
   return (
     <Select
-      value={hasAgents ? value : resolvedAgent}
+      value={hasAgents ? value : PENDING_SELECT_VALUE}
       onValueChange={hasAgents ? onValueChange : undefined}
       disabled={!hasAgents}
     >
       {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency */}
       <SelectTrigger
-        className="h-8 text-xs w-full bg-transparent"
-        title={
-          !hasAgents ? 'Agent list will populate after the first session starts.' : undefined
-        }
+        size="sm"
+        className="text-xs w-full bg-transparent"
+        title={!hasAgents ? CAPABILITIES_REFRESH_HINT : undefined}
       >
-        <SelectValue placeholder={resolvedAgent || 'Agent'} />
+        <SelectValue placeholder={pendingLabel} />
       </SelectTrigger>
-      {hasAgents && (
-        <SelectContent>
-          {eligibleAgents.map((a) => (
+      <SelectContent>
+        {hasAgents ? (
+          eligibleAgents.map((a) => (
             <SelectItem key={a.name} value={a.name} className="text-xs">
-              {a.name}
+              {displayAgentRoleName(agents, a.name)}
             </SelectItem>
-          ))}
-        </SelectContent>
-      )}
+          ))
+        ) : (
+          <SelectItem
+            value={PENDING_SELECT_VALUE}
+            disabled
+            className="text-xs text-muted-foreground"
+          >
+            {pendingLabel}
+          </SelectItem>
+        )}
+      </SelectContent>
     </Select>
   );
 }
