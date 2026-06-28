@@ -14,7 +14,7 @@ import { useCreateSession } from '../hooks/useCreateSession';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
 import { useSendMessage } from '../hooks/useSendMessage';
-import { filterNativeHarnesses, selectDefaultHarnessName } from '../utils/harness-selection';
+import { resolveNativeHarnessOptions, selectDefaultHarnessName } from '../utils/harness-selection';
 
 function ComposerSendRow({
   textareaRef,
@@ -70,17 +70,21 @@ function useEnterToSendKeyDown(onSend: () => void) {
   };
 }
 
+function useWorkspaceCapabilities(workspaceId: Id<'chatroom_workspaces'>) {
+  return useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
+}
+
 function useWorkspaceHarnessConfig(
   workspaceId: Id<'chatroom_workspaces'>,
   harnessName: string,
   initial?: { agent?: string; model?: { providerID: string; modelID: string } }
 ) {
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
-  );
+  const capabilities = useWorkspaceCapabilities(workspaceId);
 
-  const harnesses = filterNativeHarnesses(capabilities?.harnesses ?? []);
+  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
   const machineId = capabilities?.machineId ?? null;
   const filter = useHarnessModelFilter(machineId, harnessName);
   const config = useHarnessConfig({
@@ -94,12 +98,9 @@ function useWorkspaceHarnessConfig(
 }
 
 function useNewSessionHarnessConfig(workspaceId: Id<'chatroom_workspaces'>, harnessName: string) {
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
-  );
+  const capabilities = useWorkspaceCapabilities(workspaceId);
 
-  const harnesses = filterNativeHarnesses(capabilities?.harnesses ?? []);
+  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
   const machineId = capabilities?.machineId ?? null;
 
   const resolvedHarnessName = useMemo(() => {

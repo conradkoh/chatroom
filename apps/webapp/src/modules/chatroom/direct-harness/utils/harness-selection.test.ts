@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { filterNativeHarnesses, selectDefaultHarnessName } from './harness-selection';
+import { resolveNativeHarnessOptions, selectDefaultHarnessName } from './harness-selection';
 import type { HarnessOption } from '../hooks/useHarnessConfig';
 
 function harness(name: string): HarnessOption {
   return { name, displayName: name, agents: [], providers: [] };
 }
 
-describe('filterNativeHarnesses', () => {
-  it('keeps only native-integration SDK harnesses', () => {
+describe('resolveNativeHarnessOptions', () => {
+  it('keeps only native-integration SDK harnesses from daemon reports', () => {
     const input = [
       harness('opencode'),
       harness('opencode-sdk'),
@@ -17,10 +17,43 @@ describe('filterNativeHarnesses', () => {
       harness('pi-sdk'),
     ];
 
-    expect(filterNativeHarnesses(input).map((h) => h.name)).toEqual([
-      'opencode-sdk',
-      'cursor-sdk',
+    expect(resolveNativeHarnessOptions(input).map((h) => h.name)).toEqual([
       'pi-sdk',
+      'cursor-sdk',
+      'opencode-sdk',
+    ]);
+  });
+
+  it('returns the full catalog when daemon reports no harnesses', () => {
+    expect(resolveNativeHarnessOptions([]).map((h) => h.name)).toEqual([
+      'pi-sdk',
+      'cursor-sdk',
+      'opencode-sdk',
+    ]);
+    expect(resolveNativeHarnessOptions([])[0]?.displayName).toBe('Pi (SDK)');
+  });
+
+  it('merges daemon-reported agents and providers into catalog entries', () => {
+    const reported = [
+      {
+        ...harness('opencode-sdk'),
+        agents: [{ name: 'build', mode: 'primary' as const }],
+        providers: [{ providerID: 'openai', name: 'OpenAI', models: [] }],
+      },
+    ];
+
+    const resolved = resolveNativeHarnessOptions(reported);
+    expect(resolved.map((h) => h.name)).toEqual(['pi-sdk', 'cursor-sdk', 'opencode-sdk']);
+    expect(resolved.find((h) => h.name === 'opencode-sdk')?.agents).toHaveLength(1);
+    expect(resolved.find((h) => h.name === 'pi-sdk')?.agents).toEqual([]);
+  });
+
+  it('ignores non-native harnesses from daemon reports', () => {
+    const reported = [harness('opencode'), harness('cursor-sdk')];
+    expect(resolveNativeHarnessOptions(reported).map((h) => h.name)).toEqual([
+      'pi-sdk',
+      'cursor-sdk',
+      'opencode-sdk',
     ]);
   });
 });

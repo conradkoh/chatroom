@@ -27,22 +27,16 @@ export function HarnessHarnessSelect({
         <SelectValue placeholder="Harness" />
       </SelectTrigger>
       <SelectContent>
-        {harnesses.length > 0 ? (
-          harnesses.map((h) => (
-            <SelectItem key={h.name} value={h.name} className="text-xs">
-              <span className="flex items-center min-w-0">
-                {h.displayName}
-                {harnessSupportsNativeIntegration(h.name as AgentHarness) && (
-                  <NativeIntegrationBadge />
-                )}
-              </span>
-            </SelectItem>
-          ))
-        ) : (
-          <SelectItem value="opencode-sdk" className="text-xs">
-            Opencode
+        {harnesses.map((h) => (
+          <SelectItem key={h.name} value={h.name} className="text-xs">
+            <span className="flex items-center min-w-0">
+              {h.displayName}
+              {harnessSupportsNativeIntegration(h.name as AgentHarness) && (
+                <NativeIntegrationBadge />
+              )}
+            </span>
           </SelectItem>
-        )}
+        ))}
       </SelectContent>
     </Select>
   );
