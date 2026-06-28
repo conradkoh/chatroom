@@ -1,6 +1,6 @@
 # Incremental Sync Feed — Daemon Polling Layer
 
-**Status:** Proposal — for review
+**Status:** Implemented — see [incremental-sync-feed-implementation.md](./incremental-sync-feed-implementation.md)
 **Date:** 2026-06-28
 **Motivation:** [getAssignedTasks bandwidth](../../services/backend/src/domain/usecase/machine/get-assigned-tasks.ts), file-tree heartbeat (~1GB/day), commit-detail re-fetch churn
 
@@ -375,16 +375,16 @@ For `getAssignedTasks`, snapshot might hydrate current active task IDs; polls de
 
 ## 8. Migration plan
 
-### Phase 0 — Framework + design (this PR)
+### Phase 0 — Framework + design
 
 - [x] Design doc
-- [ ] Scaffold `incremental-sync/` types + `MessageBuffer` + tests (no production wiring)
+- [x] Scaffold `incremental-sync/` types + `MessageBuffer` + tests
 
 ### Phase 1 — Pilot: assigned task signals
 
-- Add `pollAssignedTaskSignalsSince` backend query.
-- Replace `task-monitor.ts` `onUpdate(getAssignedTasks)` with `assignedTaskSignalsFeed`.
-- Keep `getAssignedTasks` temporarily for debugging; mark deprecated.
+- [x] Add `pollAssignedTaskSignalsSince` backend query.
+- [x] Replace `task-monitor.ts` `onUpdate(getAssignedTasks)` with `assignedTaskSignalsFeed`.
+- [x] Keep `getAssignedTasks` temporarily for debugging; mark deprecated.
 
 ### Phase 2 — High-bandwidth daemon subscriptions
 
