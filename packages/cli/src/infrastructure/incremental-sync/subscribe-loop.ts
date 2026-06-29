@@ -7,8 +7,8 @@ import type { ConvexClient } from 'convex/browser';
 import type { MessageBuffer } from './message-buffer.js';
 import { resolveHighKey } from './resolve-high-key.js';
 import type {
+  FeedPage,
   IncrementalFeedDef,
-  PollPage,
   StreamKey,
   SubscribeLoopConfig,
   SubscribeQueryTarget,
@@ -32,6 +32,7 @@ export function startSubscribeLoop<TItem, TArgs>(opts: {
   let afterKey: StreamKey | null = opts.initialAfterKey ?? null;
   let stopped = false;
   let unsubscribe: (() => void) | undefined;
+  let drainInFlight = false;
 
   const subscribe = (): void => {
     if (stopped) return;
@@ -42,7 +43,7 @@ export function startSubscribeLoop<TItem, TArgs>(opts: {
       (result: unknown) => {
         if (stopped) return;
         const page = opts.target.parsePage(result);
-        applyPage(page);
+        void drainPages(page);
       },
       (err: unknown) => {
         opts.onError?.(err);
@@ -50,18 +51,49 @@ export function startSubscribeLoop<TItem, TArgs>(opts: {
     );
   };
 
-  const applyPage = (page: PollPage<TItem>): void => {
-    if (page.items.length === 0) return;
-
-    opts.buffer.enqueue(page.items);
-    const nextKey = resolveHighKey(
-      opts.def as IncrementalFeedDef<TItem, unknown>,
-      opts.buffer,
-      page
+  const fetchPage = async (cursor: StreamKey | null): Promise<FeedPage<TItem>> => {
+    const result = await opts.wsClient.query(
+      opts.target.query,
+      opts.target.buildArgs(opts.args, cursor, opts.config.limit)
     );
-    if (nextKey !== null && nextKey !== afterKey) {
-      afterKey = nextKey;
-      subscribe();
+    return opts.target.parsePage(result);
+  };
+
+  // fallow-ignore-next-line complexity
+  const drainPages = async (initialPage: FeedPage<TItem>): Promise<void> => {
+    if (stopped || drainInFlight) return;
+    drainInFlight = true;
+
+    try {
+      const cursorAtStart = afterKey;
+      let page = initialPage;
+
+      while (!stopped && page.items.length > 0) {
+        opts.buffer.enqueue(page.items);
+        const nextKey = resolveHighKey(
+          opts.def as IncrementalFeedDef<TItem, unknown>,
+          opts.buffer,
+          page
+        );
+        if (nextKey === null) {
+          break;
+        }
+        afterKey = nextKey;
+
+        if (!page.hasMore) {
+          break;
+        }
+
+        page = await fetchPage(afterKey);
+      }
+
+      if (!stopped && afterKey !== cursorAtStart) {
+        subscribe();
+      }
+    } catch (err) {
+      opts.onError?.(err);
+    } finally {
+      drainInFlight = false;
     }
   };
 

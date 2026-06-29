@@ -1,6 +1,6 @@
 /**
  * In-memory message buffer for incremental sync feeds.
- * SQS-inspired: FIFO/standard delivery, dedupe, bounded size.
+ * FIFO delivery, dedupe, bounded size.
  */
 
 import type { BufferConfig, StreamKey } from './types.js';
@@ -17,6 +17,7 @@ export class MessageBuffer<TItem> {
   private readonly recentlyAcked = new Map<StreamKey, number>();
   private readonly dedupe: boolean;
   private readonly dedupeTtlMs: number;
+  private readonly maxSize: number;
 
   constructor(
     config: BufferConfig,
@@ -25,11 +26,7 @@ export class MessageBuffer<TItem> {
     this.dedupe = config.dedupe ?? true;
     this.dedupeTtlMs = config.dedupeTtlMs ?? 0;
     this.maxSize = config.maxSize;
-    this.deliveryMode = config.deliveryMode;
   }
-
-  private readonly maxSize: number;
-  private readonly deliveryMode: 'fifo' | 'standard';
 
   // fallow-ignore-next-line complexity
   enqueue(items: readonly TItem[]): number {
@@ -47,7 +44,7 @@ export class MessageBuffer<TItem> {
       enqueued++;
     }
 
-    if (enqueued > 0 && this.deliveryMode === 'fifo') {
+    if (enqueued > 0) {
       this.queue.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     }
 

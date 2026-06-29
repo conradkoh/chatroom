@@ -13,7 +13,7 @@ import type { MessageBuffer } from './message-buffer.js';
 /** Opaque cursor carried across subscribe pages. Serialized to string for logs/persistence. */
 export type StreamKey = string;
 
-export interface PollPage<TItem> {
+export interface FeedPage<TItem> {
   readonly items: readonly TItem[];
   /** Greatest key in this page (used to advance cursor when items non-empty). */
   readonly highKey: StreamKey | null;
@@ -35,22 +35,16 @@ export interface SubscribeQueryTarget<TItem, TArgs> {
     afterKey: StreamKey | null,
     limit: number
   ) => Record<string, unknown>;
-  readonly parsePage: (result: unknown) => PollPage<TItem>;
+  readonly parsePage: (result: unknown) => FeedPage<TItem>;
 }
-
-export type DeliveryMode = 'fifo' | 'standard';
 
 export interface BufferConfig {
   /** Max items retained; oldest unacked dropped when exceeded. */
   readonly maxSize: number;
-  /** fifo: single worker, strict key order. standard: parallel workers allowed. */
-  readonly deliveryMode: DeliveryMode;
   /** Drop duplicate itemKey while still in buffer or recently acked (default: true). */
   readonly dedupe?: boolean;
   /** How long to suppress re-delivery after ack (ms). 0 = until removed from buffer only. */
   readonly dedupeTtlMs?: number;
-  /** standard mode only: max concurrent handler invocations. */
-  readonly maxConcurrency?: number;
 }
 
 export interface SubscribeLoopConfig {

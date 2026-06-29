@@ -50,7 +50,7 @@ export interface ListAssignedTasksLiteResult {
   tasks: AssignedTaskLiteView[];
 }
 
-export type AssignedTaskSignalType = 'task' | 'agent_config' | 'participant';
+export type AssignedTaskSignalType = 'task' | 'agent_config';
 
 export interface AssignedTaskSignal {
   taskId: Id<'chatroom_tasks'>;
@@ -66,23 +66,23 @@ export interface AssignedTaskSignal {
   desiredState?: string;
 }
 
-export interface PollAssignedTaskSignalsResult {
+export interface SubscribeAssignedTaskSignalsResult {
   items: AssignedTaskSignal[];
   highKey: string | null;
   hasMore: boolean;
 }
 
-export interface GetAssignedTasksInput {
+export interface MachineAssignedTasksInput {
   machineId: string;
   userId: Id<'users'>;
 }
 
-export interface GetAssignedTaskForActionInput extends GetAssignedTasksInput {
+export interface GetAssignedTaskForActionInput extends MachineAssignedTasksInput {
   taskId: Id<'chatroom_tasks'>;
   role: string;
 }
 
-export interface PollAssignedTaskSignalsInput extends GetAssignedTasksInput {
+export interface SubscribeAssignedTaskSignalsInput extends MachineAssignedTasksInput {
   afterKey?: string;
   limit: number;
 }

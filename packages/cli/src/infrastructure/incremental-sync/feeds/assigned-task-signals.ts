@@ -6,7 +6,7 @@ import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/m
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { api } from '../../../api.js';
-import type { IncrementalFeedDef, PollPage, SubscribeQueryTarget } from '../types.js';
+import type { IncrementalFeedDef, FeedPage, SubscribeQueryTarget } from '../types.js';
 
 export interface AssignedTaskSignalFeedArgs {
   sessionId: SessionId;
@@ -32,14 +32,13 @@ export const assignedTaskSignalsSubscribeTarget: SubscribeQueryTarget<
     afterKey: afterKey ?? undefined,
     limit,
   }),
-  parsePage: (result) => result as PollPage<AssignedTaskSignal>,
+  parsePage: (result) => result as FeedPage<AssignedTaskSignal>,
 };
 
 export const ASSIGNED_TASK_SIGNAL_FEED_LIMIT = 50;
 
 export const ASSIGNED_TASK_SIGNAL_FEED_BUFFER = {
   maxSize: 200,
-  deliveryMode: 'fifo' as const,
   dedupe: true,
 };
 

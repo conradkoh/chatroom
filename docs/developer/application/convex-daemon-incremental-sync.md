@@ -108,14 +108,14 @@ If a subscribe query must stay correct but dependency reads are too broad, write
 
 **Location:** `packages/cli/src/infrastructure/incremental-sync/`
 
-| Module                | Responsibility                                                          |
-| --------------------- | ----------------------------------------------------------------------- |
-| `types.ts`            | `PollPage`, `IncrementalFeedDef`, `SubscribeQueryTarget`, handler types |
-| `message-buffer.ts`   | FIFO queue, dedupe, bounded size                                        |
-| `subscribe-loop.ts`   | Cursor-pinned `onUpdate`, re-subscribe on advance                       |
-| `resolve-high-key.ts` | Derive next `afterKey` from a delta page                                |
-| `feed-runtime.ts`     | `runIncrementalSubscribeLive`, `runReconcilePollLive`                   |
-| `feeds/<name>.ts`     | Feed def + subscribe target for a domain                                |
+| Module                | Responsibility                                                           |
+| --------------------- | ------------------------------------------------------------------------ |
+| `types.ts`            | `FeedPage`, `IncrementalFeedDef`, `SubscribeQueryTarget`, handler types  |
+| `message-buffer.ts`   | FIFO queue, dedupe, bounded size                                         |
+| `subscribe-loop.ts`   | Cursor-pinned `onUpdate`, drain `hasMore` pages, re-subscribe on advance |
+| `resolve-high-key.ts` | Derive next `afterKey` from a delta page                                 |
+| `feed-runtime.ts`     | `runIncrementalSubscribeLive`, `runReconcilePollLive`                    |
+| `feeds/<name>.ts`     | Feed def + subscribe target for a domain                                 |
 
 ### Wiring a new feed
 
@@ -167,11 +167,11 @@ Default signal buffer: fifo, max 200, dedupe on. Subscribe page limit: 50.
 
 ## Testing
 
-| Layer                                | Where                                                        |
-| ------------------------------------ | ------------------------------------------------------------ |
-| Buffer, subscribe loop, feed runtime | `packages/cli/src/infrastructure/incremental-sync/*.test.ts` |
-| Backend cursor / payload rules       | `services/backend/tests/integration/` (per feed)             |
-| Consumer logic                       | Co-located `*.test.ts` next to the subscriber                |
+| Layer                                | Where                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------- |
+| Buffer, subscribe loop, feed runtime | `packages/cli/src/infrastructure/incremental-sync/*.test.ts`                            |
+| Backend cursor / payload rules       | `services/backend/tests/integration/subscribe-assigned-task-signals.spec.ts` (per feed) |
+| Consumer logic                       | Co-located `*.test.ts` next to the subscriber                                           |
 
 Prove cursor exclusivity and “no blob in signal path” in backend integration tests before wiring production subscribers.
 
@@ -198,3 +198,17 @@ Prove cursor exclusivity and “no blob in signal path” in backend integration
 - [ ] Reconcile poll only if signal stream omits required fields
 - [ ] Integration tests for cursor and payload shape
 - [ ] No fixed-interval poll on the signal tail
+
+---
+
+## Follow-up improvements
+
+Track these when extending the pattern or if production metrics justify the investment:
+
+| Item                               | Description                                                                                                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Signal projection table**        | Write signals on meaningful mutations only; subscribe reads an indexed projection instead of live participant/task scans. Eliminates heartbeat-driven query re-runs on the WS channel. |
+| **Use signal payload in handlers** | Task monitor currently treats signals as wake-ups and refetches `listAssignedTasksLite` on every item. Pass signal fields into reconcile logic to reduce HTTP calls.                   |
+| **Targeted action fetch**          | `getAssignedTaskForAction` re-collects all assigned rows to find one task. Add an index-backed lookup when action frequency grows.                                                     |
+| **Additional feeds**               | Generalize to `subscribeCommandsSince`, `subscribeEventsSince`, etc., reusing `feeds/` + `runIncrementalSubscribeLive`.                                                                |
+| **Parallel delivery mode**         | `MessageBuffer` is FIFO-only today. Add standard/parallel worker mode when a feed needs concurrent handlers.                                                                           |

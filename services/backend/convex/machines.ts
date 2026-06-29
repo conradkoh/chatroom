@@ -32,7 +32,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listAssignedTasksLiteForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-lite';
-import { pollAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/poll-assigned-task-signals';
+import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -2569,7 +2569,7 @@ export const subscribeAssignedTaskSignalsSince = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { items: [], highKey: null, hasMore: false };
 
-    return pollAssignedTaskSignalsForMachine(ctx, {
+    return subscribeAssignedTaskSignalsForMachine(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
       afterKey: args.afterKey,

@@ -4,7 +4,7 @@ import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
 import { runIncrementalSubscribeLive, runReconcilePollLive } from './feed-runtime.js';
-import type { IncrementalFeedDef, PollPage } from './types.js';
+import type { IncrementalFeedDef, FeedPage } from './types.js';
 
 type TestItem = { key: string; value: string };
 
@@ -37,10 +37,10 @@ describe('runIncrementalSubscribe', () => {
             afterKey: afterKey ?? undefined,
             limit,
           }),
-          parsePage: (result) => result as PollPage<TestItem>,
+          parsePage: (result) => result as FeedPage<TestItem>,
         },
         args: { id: 'machine-1' },
-        buffer: { maxSize: 10, deliveryMode: 'fifo', dedupe: true },
+        buffer: { maxSize: 10, dedupe: true },
         subscribe: { limit: 10 },
         onItem: ({ item, ack }) =>
           Effect.sync(() => {

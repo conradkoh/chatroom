@@ -4,7 +4,7 @@
 
 import { Effect, Fiber } from 'effect';
 
-import { PollClock, PollClockLive } from './layers.js';
+import { IntervalClock, IntervalClockLive } from './layers.js';
 import { MessageBuffer } from './message-buffer.js';
 import { startSubscribeLoop } from './subscribe-loop.js';
 import type {
@@ -78,9 +78,9 @@ export const runIncrementalSubscribeLive = <TItem, TArgs>(
  */
 const runReconcilePoll = <TResult, TArgs>(
   opts: ReconcilePollOptions<TResult, TArgs>
-): Effect.Effect<ReconcilePollHandle, never, PollClock> =>
+): Effect.Effect<ReconcilePollHandle, never, IntervalClock> =>
   Effect.gen(function* () {
-    const clock = yield* PollClock;
+    const clock = yield* IntervalClock;
     const backoffCfg = opts.backoff ?? { initialMs: 1_000, maxMs: 30_000 };
     let backoffMs = opts.intervalMs;
     let stopped = false;
@@ -118,4 +118,4 @@ const runReconcilePoll = <TResult, TArgs>(
 export const runReconcilePollLive = <TResult, TArgs>(
   opts: ReconcilePollOptions<TResult, TArgs>
 ): Effect.Effect<ReconcilePollHandle, never, never> =>
-  runReconcilePoll(opts).pipe(Effect.provide(PollClockLive));
+  runReconcilePoll(opts).pipe(Effect.provide(IntervalClockLive));

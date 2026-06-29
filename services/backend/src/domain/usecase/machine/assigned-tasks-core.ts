@@ -8,7 +8,7 @@ import type {
   AssignedTaskSignal,
   AssignedTaskSignalType,
   AssignedTaskView,
-  GetAssignedTasksInput,
+  MachineAssignedTasksInput,
 } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
@@ -74,7 +74,7 @@ export async function loadMachineAssignedTaskContext(
 
 export async function mapAssignedTasksForMachine<T>(
   ctx: QueryCtx,
-  input: GetAssignedTasksInput,
+  input: MachineAssignedTasksInput,
   mapRow: (row: CollectedAssignedTaskRow, machineId: string) => T
 ): Promise<{ tasks: T[] }> {
   const context = await loadMachineAssignedTaskContext(ctx, input.machineId, input.userId);
@@ -253,7 +253,7 @@ export function filterSignalsAfterKey(
   signals: AssignedTaskSignal[],
   afterKey: string | undefined,
   limit: number
-): PollAssignedTaskSignalsSlice {
+): SubscribeAssignedTaskSignalsSlice {
   const sorted = [...signals].sort((a, b) =>
     a.revisionKey < b.revisionKey ? -1 : a.revisionKey > b.revisionKey ? 1 : 0
   );
@@ -271,7 +271,7 @@ export function filterSignalsAfterKey(
   return { items, highKey, hasMore };
 }
 
-export interface PollAssignedTaskSignalsSlice {
+export interface SubscribeAssignedTaskSignalsSlice {
   items: AssignedTaskSignal[];
   highKey: string | null;
   hasMore: boolean;

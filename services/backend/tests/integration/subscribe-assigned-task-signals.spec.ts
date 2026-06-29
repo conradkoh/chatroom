@@ -122,6 +122,57 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     expect(afterAction.items.length).toBeGreaterThanOrEqual(1);
     expect(afterAction.items[0]?.lastSeenAction).toBe('get-next-task:started');
   });
+
+  test('does not emit a new signal when only participant lastSeenAt changes', async () => {
+    const { sessionId } = await createTestSession('test-signals-heartbeat-1');
+    const machineId = 'machine-signals-heartbeat-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: '## Goal\nHeartbeat test',
+      createdBy: 'user',
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
+      sessionId,
+      machineId,
+      limit: 10,
+    });
+    const cursor = baseline.highKey!;
+
+    await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      if (!participant) throw new Error('participant not found');
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        lastSeenAt: Date.now() + 60_000,
+      });
+    });
+
+    const afterHeartbeat = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
+      sessionId,
+      machineId,
+      afterKey: cursor,
+      limit: 10,
+    });
+
+    expect(afterHeartbeat.items).toHaveLength(0);
+  });
 });
 
 describe('machines.getAssignedTaskForAction', () => {

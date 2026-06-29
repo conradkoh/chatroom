@@ -4,12 +4,15 @@
 
 import { Context, Effect, Layer } from 'effect';
 
-export interface PollClockShape {
+export interface IntervalClockShape {
   readonly sleep: (ms: number) => Effect.Effect<void>;
 }
 
-export class PollClock extends Context.Tag('PollClock')<PollClock, PollClockShape>() {}
+export class IntervalClock extends Context.Tag('IntervalClock')<
+  IntervalClock,
+  IntervalClockShape
+>() {}
 
-export const PollClockLive: Layer.Layer<PollClock> = Layer.succeed(PollClock, {
+export const IntervalClockLive: Layer.Layer<IntervalClock> = Layer.succeed(IntervalClock, {
   sleep: (ms) => Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, ms))),
 });

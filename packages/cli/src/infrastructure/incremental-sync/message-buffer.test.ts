@@ -5,7 +5,7 @@ import { MessageBuffer } from './message-buffer.js';
 describe('MessageBuffer', () => {
   it('enqueues and dequeues in fifo key order', () => {
     const buffer = new MessageBuffer(
-      { maxSize: 10, deliveryMode: 'fifo' },
+      { maxSize: 10 },
       (item: { id: string; key: string }) => item.key
     );
 
@@ -22,7 +22,7 @@ describe('MessageBuffer', () => {
 
   it('dedupes items with the same key while in buffer', () => {
     const buffer = new MessageBuffer(
-      { maxSize: 10, deliveryMode: 'fifo', dedupe: true },
+      { maxSize: 10, dedupe: true },
       (item: { key: string }) => item.key
     );
 
@@ -32,7 +32,7 @@ describe('MessageBuffer', () => {
 
   it('dedupes recently acked items when dedupeTtlMs is set', () => {
     const buffer = new MessageBuffer(
-      { maxSize: 10, deliveryMode: 'fifo', dedupe: true, dedupeTtlMs: 60_000 },
+      { maxSize: 10, dedupe: true, dedupeTtlMs: 60_000 },
       (item: { key: string }) => item.key
     );
 
@@ -46,7 +46,7 @@ describe('MessageBuffer', () => {
 
   it('requeues on nack when requeue is true', () => {
     const buffer = new MessageBuffer(
-      { maxSize: 10, deliveryMode: 'fifo' },
+      { maxSize: 10 },
       (item: { key: string; value: number }) => item.key
     );
 
@@ -58,10 +58,7 @@ describe('MessageBuffer', () => {
   });
 
   it('drops oldest items when maxSize is exceeded', () => {
-    const buffer = new MessageBuffer(
-      { maxSize: 2, deliveryMode: 'fifo' },
-      (item: { key: string }) => item.key
-    );
+    const buffer = new MessageBuffer({ maxSize: 2 }, (item: { key: string }) => item.key);
 
     buffer.enqueue([{ key: '001' }, { key: '002' }, { key: '003' }]);
     expect(buffer.size()).toBe(2);
@@ -69,10 +66,7 @@ describe('MessageBuffer', () => {
   });
 
   it('computes highKeyOf from items', () => {
-    const buffer = new MessageBuffer(
-      { maxSize: 10, deliveryMode: 'fifo' },
-      (item: { key: string }) => item.key
-    );
+    const buffer = new MessageBuffer({ maxSize: 10 }, (item: { key: string }) => item.key);
 
     expect(buffer.highKeyOf([{ key: '001' }, { key: '003' }, { key: '002' }])).toBe('003');
     expect(buffer.highKeyOf([])).toBeNull();
