@@ -13,7 +13,6 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type {
   AssignedTaskSnapshotView,
-  AssignedTaskSignal,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { ConvexClient } from 'convex/browser';
@@ -30,15 +29,12 @@ import {
   listNativeTasksNeedingRevive,
   NudgeCooldown,
 } from './task-monitor-logic.js';
-import { TaskMonitorSnapshot } from './task-monitor-snapshot.js';
+import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import {
-  runIncrementalSubscribeLive,
-  runReconcilePollLive,
-} from '../../../infrastructure/incremental-sync/feed-runtime.js';
+import { runDualChannelFeedLive } from '../../../infrastructure/incremental-sync/dual-channel-feed.js';
 import {
   ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
   ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
@@ -301,7 +297,7 @@ export const startTaskMonitorEffect = (
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
     const cooldown = new NudgeCooldown();
-    const snapshot = new TaskMonitorSnapshot();
+    const snapshot = createTaskMonitorSnapshot();
     let stopped = false;
     let monitorPassInFlight = false;
 
@@ -339,33 +335,8 @@ export const startTaskMonitorEffect = (
         machineId: session.machineId,
       }) as Promise<ListAssignedTasksForReconcileResult>;
 
-    const hydrateSnapshotFromBackend = async (): Promise<void> => {
-      const result = await queryReconcileSnapshots();
-      snapshot.replaceAll(result?.tasks ?? []);
-    };
-
-    const resolveSnapshotRowForSignal = async (
-      signal: AssignedTaskSignal
-    ): Promise<AssignedTaskSnapshotView | undefined> => {
-      const merged = snapshot.mergeSignal(signal);
-      if (merged) {
-        return merged;
-      }
-      await hydrateSnapshotFromBackend();
-      return snapshot.mergeSignal(signal) ?? snapshot.get(signal.taskId, signal.role);
-    };
-
-    const seedPage = (yield* Effect.tryPromise(() =>
-      session.backend.query(api.machines.subscribeAssignedTaskSignalsSince, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-        limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
-      })
-    ).pipe(Effect.orElseSucceed(() => null))) as {
-      highKey: string | null;
-    } | null;
-
-    const signalHandle = yield* runIncrementalSubscribeLive({
+    const feedHandle = yield* runDualChannelFeedLive({
+      name: 'assigned-tasks',
       wsClient,
       def: assignedTaskSignalsFeedDef,
       target: assignedTaskSignalsSubscribeTarget,
@@ -375,47 +346,40 @@ export const startTaskMonitorEffect = (
       },
       buffer: ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
       subscribe: { limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT },
-      initialAfterKey: seedPage?.highKey ?? null,
-      onError: (err) =>
+      snapshot,
+      seedCursor: async () => {
+        const seedPage = (await session.backend.query(
+          api.machines.subscribeAssignedTaskSignalsSince,
+          {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+            limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
+          }
+        )) as { highKey: string | null } | null;
+        return seedPage?.highKey ?? null;
+      },
+      fetchReconcile: () => queryReconcileSnapshots(),
+      extractReconcileRows: (result) => result?.tasks ?? [],
+      reconcileIntervalMs: ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
+      isStopped: () => stopped,
+      onSubscribeError: (err) =>
         console.warn(
           `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
         ),
-      onItem: ({ item: signal, ack }) =>
-        Effect.gen(function* () {
-          ack();
-          if (stopped) return;
-          const row = yield* Effect.tryPromise(() => resolveSnapshotRowForSignal(signal));
-          if (!row) return;
+      onSignalRow: (row) =>
+        Effect.sync(() => {
           runMonitorPass([row], 'signal');
         }),
-    });
-
-    const reconcileHandle = yield* runReconcilePollLive({
-      name: 'assigned-tasks-reconcile',
-      poll: () => queryReconcileSnapshots(),
-      args: undefined,
-      intervalMs: ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
-      onResult: (result) =>
+      onReconcileRows: (tasks) =>
         Effect.sync(() => {
-          const tasks = result?.tasks ?? [];
-          snapshot.replaceAll(tasks);
-          runMonitorPass(tasks, 'reconcile');
+          runMonitorPass([...tasks], 'reconcile');
         }),
     });
-
-    const initial = yield* Effect.tryPromise(() => queryReconcileSnapshots()).pipe(
-      Effect.orElseSucceed(() => null)
-    );
-    if (initial?.tasks) {
-      snapshot.replaceAll(initial.tasks);
-      runMonitorPass(initial.tasks, 'reconcile');
-    }
 
     return {
       stop() {
         stopped = true;
-        void Effect.runPromise(signalHandle.stop());
-        void Effect.runPromise(reconcileHandle.stop());
+        void Effect.runPromise(feedHandle.stop());
         console.log(`[${formatTimestamp()}] 📋 Task-monitor stopped`);
       },
     };

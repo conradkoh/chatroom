@@ -15,10 +15,11 @@ The daemon runs long-lived processes that need timely updates from Convex. Two a
 
 The standard pattern is **cursor-pinned incremental (delta) subscription** plus a **consumer working snapshot**:
 
-| Layer         | Location                                                         | Responsibility                                                             |
-| ------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **Transport** | `packages/cli/src/infrastructure/incremental-sync/`              | WS subscribe, cursor, `MessageBuffer`, reconcile poll helper               |
-| **Consumer**  | Co-located with the subscriber (e.g. `task-monitor-snapshot.ts`) | In-memory snapshot rows, signal patch vs reconcile replace, handler passes |
+| Layer             | Location                                                         | Responsibility                                                  |
+| ----------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| **Transport**     | `packages/cli/src/infrastructure/incremental-sync/`              | WS subscribe, cursor, `MessageBuffer`, reconcile poll helper    |
+| **Orchestration** | `dual-channel-feed.ts`                                           | Initial hydrate, cursor seed, cold hydrate, dual-channel wiring |
+| **Consumer**      | Co-located with the subscriber (e.g. `task-monitor-snapshot.ts`) | Domain merge rules + handler passes over `WorkingSnapshot`      |
 
 **Reference implementation:** `task-monitor.ts` + `task-monitor-snapshot.ts`
 
@@ -101,7 +102,7 @@ Reusable best practice for any feed that has **incremental + reconcile** channel
 
 ### What it is
 
-A `Map<rowKey, SnapshotRow>` held in the daemon process:
+Use `WorkingSnapshot` from `incremental-sync/working-snapshot.ts` — a `Map<rowKey, SnapshotRow>` held in the daemon process. Per-feed files (e.g. `task-monitor-snapshot.ts`) supply `rowKey`, `signalKey`, and the domain `mergeSignal` function; the map mechanics are shared.
 
 - **Reconcile poll** calls `replaceAll(rows)` from `list*ForReconcile` — Convex is authoritative.
 - **Each incremental signal** calls `mergeSignal(signal)` — patch volatile fields the signal carries; **preserve** fields the signal omits (e.g. `lastSeenAt`, `createdAt`).
@@ -160,35 +161,53 @@ Define `pass: 'signal' | 'reconcile'` on your processor and gate branches explic
 
 ### Skeleton (new feed)
 
+**1. Domain snapshot** — factory over `WorkingSnapshot` with feed-specific merge rules:
+
 ```typescript
-const snapshot = new FeedSnapshot(); // replaceAll + mergeSignal + get
+import { WorkingSnapshot } from '…/incremental-sync/working-snapshot.js';
 
-// Reconcile poll
-onResult: (result) => {
-  const rows = result?.items ?? [];
-  snapshot.replaceAll(rows);
-  runHandlerPass(snapshot.values(), 'reconcile');
-};
+export function createMyFeedSnapshot(): WorkingSnapshot<MyRow, MySignal> {
+  return new WorkingSnapshot({
+    rowKey: (row) => row.id,
+    signalKey: (signal) => signal.id,
+    mergeSignal: mergeSignalIntoRow, // domain-only
+  });
+}
+```
 
-// Incremental signal
-onItem: ({ item: signal, ack }) => {
-  ack();
-  let row = snapshot.mergeSignal(signal);
-  if (!row) {
-    await hydrateSnapshotFromReconcileList();
-    row = snapshot.mergeSignal(signal) ?? snapshot.get(signal.id, signal.scope);
-  }
-  if (row) runHandlerPass([row], 'signal');
-};
+**2. Dual-channel wiring** — `runDualChannelFeedLive` handles hydrate, cursor seed, incremental subscribe, cold hydrate, and reconcile poll:
 
-// Action
+```typescript
+import { runDualChannelFeedLive } from '…/incremental-sync/dual-channel-feed.js';
+
+const snapshot = createMyFeedSnapshot();
+
+const handle = yield* runDualChannelFeedLive({
+  name: 'my-feed',
+  wsClient,
+  def: myFeedDef,
+  target: myFeedSubscribeTarget,
+  args: { sessionId, machineId },
+  buffer: MY_FEED_BUFFER,
+  subscribe: { limit: 50 },
+  snapshot,
+  seedCursor: () => seedMyFeedCursor(session),
+  fetchReconcile: () => session.backend.query(api.machines.listMyFeedForReconcile, …),
+  extractReconcileRows: (result) => result?.items ?? [],
+  reconcileIntervalMs: 15_000,
+  isStopped: () => stopped,
+  onSignalRow: (row) => Effect.sync(() => runHandlerPass([row], 'signal')),
+  onReconcileRows: (rows) => Effect.sync(() => runHandlerPass(rows, 'reconcile')),
+});
+
+// Action fetch — only inside handler branches that perform side effects
 if (shouldAct(row)) {
   const full = await fetchForAction(row.id, …);
   …
 }
 ```
 
-Extract `FeedSnapshot` to `<feed>-snapshot.ts` with unit tests for merge/replace/cold-miss.
+Unit-test merge rules in `<feed>-snapshot.test.ts`. Transport/orchestration behavior is covered by `incremental-sync/*.test.ts`.
 
 ---
 
@@ -239,18 +258,20 @@ If the subscribe query re-runs too often because it reads high-churn tables, wri
 
 ---
 
-## CLI framework (transport)
+## CLI framework (transport + orchestration)
 
 **Location:** `packages/cli/src/infrastructure/incremental-sync/`
 
-| Module                | Responsibility                                                          |
-| --------------------- | ----------------------------------------------------------------------- |
-| `types.ts`            | `FeedPage`, `IncrementalFeedDef`, `SubscribeQueryTarget`, handler types |
-| `message-buffer.ts`   | FIFO queue, dedupe, bounded size                                        |
-| `subscribe-loop.ts`   | Cursor-pinned `onUpdate`, drain `hasMore`, re-subscribe                 |
-| `resolve-high-key.ts` | Derive `afterKey` from a page                                           |
-| `feed-runtime.ts`     | `runIncrementalSubscribeLive`, `runReconcilePollLive`                   |
-| `feeds/<name>.ts`     | Feed def + subscribe target                                             |
+| Module                 | Responsibility                                                          |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `types.ts`             | `FeedPage`, `IncrementalFeedDef`, `SubscribeQueryTarget`, handler types |
+| `message-buffer.ts`    | FIFO queue, dedupe, bounded size                                        |
+| `subscribe-loop.ts`    | Cursor-pinned `onUpdate`, drain `hasMore`, re-subscribe                 |
+| `resolve-high-key.ts`  | Derive `afterKey` from a page                                           |
+| `feed-runtime.ts`      | `runIncrementalSubscribeLive`, `runReconcilePollLive`                   |
+| `working-snapshot.ts`  | Generic `replaceAll` / `mergeSignal` map for reconcile + signal rows    |
+| `dual-channel-feed.ts` | `runDualChannelFeedLive` — hydrate, seed, subscribe, reconcile wiring   |
+| `feeds/<name>.ts`      | Feed def + subscribe target                                             |
 
 ### Wiring a new feed
 
@@ -259,17 +280,16 @@ If the subscribe query re-runs too often because it reads high-churn tables, wri
 1. `subscribe*Since` (incremental) + `list*ForReconcile` (+ optional `get*ForAction`).
 2. Integration spec: cursor exclusivity, no blobs in incremental path, heartbeat does not emit signal (if applicable).
 
-**Transport**
+**Transport + orchestration**
 
 3. `feeds/<your-feed>.ts` — `IncrementalFeedDef`, `SubscribeQueryTarget`, buffer limit.
-4. `runIncrementalSubscribeLive` + `runReconcilePollLive` in the subscriber.
+4. `runDualChannelFeedLive` in the subscriber (preferred) — wires subscribe + reconcile + cold hydrate.
 
 **Consumer**
 
-5. `<your-feed>-snapshot.ts` — `replaceAll`, `mergeSignal`, row key, merge tests.
+5. `<your-feed>-snapshot.ts` — `WorkingSnapshot` + domain `mergeSignal`, merge tests.
 6. Split `signal` / `reconcile` handler passes; document which fields each pass needs.
-7. Cold hydrate only when `mergeSignal` misses a base row.
-8. Action fetch only inside the branch that performs the side effect.
+7. Action fetch only inside the branch that performs the side effect.
 
 ---
 
@@ -292,15 +312,16 @@ Reconcile: replaceAll(snapshot) ──► processTasksUpdate(all, 'reconcile')
 getAssignedTaskForAction (full task.content)
 ```
 
-| Piece              | Location                                     |
-| ------------------ | -------------------------------------------- |
-| Incremental query  | `machines.subscribeAssignedTaskSignalsSince` |
-| Reconcile snapshot | `machines.listAssignedTasksForReconcile`     |
-| Action fetch       | `machines.getAssignedTaskForAction`          |
-| Backend core       | `assigned-tasks-core.ts`                     |
-| Feed def           | `feeds/assigned-task-signals.ts`             |
-| Consumer           | `task-monitor.ts`                            |
-| Working snapshot   | `task-monitor-snapshot.ts`                   |
+| Piece              | Location                                                 |
+| ------------------ | -------------------------------------------------------- |
+| Incremental query  | `machines.subscribeAssignedTaskSignalsSince`             |
+| Reconcile snapshot | `machines.listAssignedTasksForReconcile`                 |
+| Action fetch       | `machines.getAssignedTaskForAction`                      |
+| Backend core       | `assigned-tasks-core.ts`                                 |
+| Feed def           | `feeds/assigned-task-signals.ts`                         |
+| Orchestration      | `dual-channel-feed.ts` (`runDualChannelFeedLive`)        |
+| Consumer           | `task-monitor.ts` (handler passes only)                  |
+| Domain snapshot    | `task-monitor-snapshot.ts` (`createTaskMonitorSnapshot`) |
 
 Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (matches idle nudge threshold).
 
@@ -340,19 +361,18 @@ Prove: cursor exclusivity, no blob in incremental path, signal omitted fields do
 - [ ] `revisionKey` excludes fields handled by reconcile
 - [ ] Integration tests for cursor, payload shape, heartbeat contract
 
-**Transport**
+**Transport + orchestration**
 
-- [ ] `feeds/<name>.ts` + `runIncrementalSubscribeLive` with `wsClient`
-- [ ] Initial hydrate + cursor seed before subscribe
+- [ ] `feeds/<name>.ts` feed def + subscribe target
+- [ ] `runDualChannelFeedLive` (or lower-level `runIncrementalSubscribeLive` + `runReconcilePollLive` if atypical)
 - [ ] No fixed-interval poll on the incremental tail
 - [ ] `subscribe-loop` handles `hasMore`
 
 **Consumer**
 
-- [ ] `<name>-snapshot.ts` with `replaceAll` + `mergeSignal` + tests
+- [ ] `<name>-snapshot.ts` with `WorkingSnapshot` + domain merge + tests
 - [ ] Signal pass vs reconcile pass documented and gated
-- [ ] `onItem` patches snapshot; no full reconcile refetch unless cold hydrate
-- [ ] Reconcile poll `replaceAll` before full pass
+- [ ] Reconcile `replaceAll` and cold hydrate handled by orchestrator (default)
 - [ ] Local ledger / slots only for machine-specific dedupe and health
 
 ---

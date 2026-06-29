@@ -4,7 +4,7 @@ import type {
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, it } from 'vitest';
 
-import { TaskMonitorSnapshot } from './task-monitor-snapshot.js';
+import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 
 function makeSnapshot(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
   return {
@@ -46,18 +46,18 @@ function makeSignal(overrides: Partial<AssignedTaskSignal> = {}): AssignedTaskSi
   };
 }
 
-describe('TaskMonitorSnapshot', () => {
+describe('createTaskMonitorSnapshot', () => {
   it('replaces all rows on reconcile refresh', () => {
-    const snapshot = new TaskMonitorSnapshot();
+    const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([makeSnapshot()]);
-    expect(snapshot.get('task_1', 'builder')).toBeDefined();
+    expect(snapshot.getByKey('task_1:builder')).toBeDefined();
 
     snapshot.replaceAll([]);
-    expect(snapshot.get('task_1', 'builder')).toBeUndefined();
+    expect(snapshot.getByKey('task_1:builder')).toBeUndefined();
   });
 
   it('merges incremental signals while preserving reconcile-only fields', () => {
-    const snapshot = new TaskMonitorSnapshot();
+    const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([makeSnapshot()]);
 
     const merged = snapshot.mergeSignal(
@@ -74,11 +74,11 @@ describe('TaskMonitorSnapshot', () => {
     expect(merged?.participant?.lastSeenAt).toBe(500);
     expect(merged?.createdAt).toBe(1_000);
     expect(merged?.assignedTo).toBe('builder');
-    expect(snapshot.get('task_1', 'builder')?.participant?.lastSeenAction).toBe('task.injected');
+    expect(snapshot.getByKey('task_1:builder')?.participant?.lastSeenAction).toBe('task.injected');
   });
 
   it('returns undefined when merging a signal with no base row', () => {
-    const snapshot = new TaskMonitorSnapshot();
+    const snapshot = createTaskMonitorSnapshot();
     expect(snapshot.mergeSignal(makeSignal())).toBeUndefined();
   });
 });

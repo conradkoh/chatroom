@@ -7,7 +7,10 @@ import type {
   AssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import { WorkingSnapshot } from '../../../infrastructure/incremental-sync/working-snapshot.js';
+import {
+  WorkingSnapshot,
+  type WorkingSnapshotOptions,
+} from '../../../infrastructure/incremental-sync/working-snapshot.js';
 
 function taskSnapshotKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;
@@ -15,7 +18,7 @@ function taskSnapshotKey(taskId: string, role: string): string {
 
 /** Merge incremental signal fields into a reconcile snapshot row. */
 // fallow-ignore-next-line complexity
-function mergeSignalIntoSnapshot(
+function mergeSignalIntoTaskSnapshot(
   existing: AssignedTaskSnapshotView | undefined,
   signal: AssignedTaskSignal
 ): AssignedTaskSnapshotView | undefined {
@@ -39,22 +42,18 @@ function mergeSignalIntoSnapshot(
   };
 }
 
-export class TaskMonitorSnapshot {
-  private readonly inner = new WorkingSnapshot<AssignedTaskSnapshotView, AssignedTaskSignal>({
-    rowKey: (row) => taskSnapshotKey(row.taskId, row.agentConfig.role),
-    signalKey: (signal) => taskSnapshotKey(signal.taskId, signal.role),
-    mergeSignal: mergeSignalIntoSnapshot,
-  });
+const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
+  AssignedTaskSnapshotView,
+  AssignedTaskSignal
+> = {
+  rowKey: (row) => taskSnapshotKey(row.taskId, row.agentConfig.role),
+  signalKey: (signal) => taskSnapshotKey(signal.taskId, signal.role),
+  mergeSignal: mergeSignalIntoTaskSnapshot,
+};
 
-  replaceAll(tasks: readonly AssignedTaskSnapshotView[]): void {
-    this.inner.replaceAll(tasks);
-  }
-
-  get(taskId: string, role: string): AssignedTaskSnapshotView | undefined {
-    return this.inner.getByKey(taskSnapshotKey(taskId, role));
-  }
-
-  mergeSignal(signal: AssignedTaskSignal): AssignedTaskSnapshotView | undefined {
-    return this.inner.mergeSignal(signal);
-  }
+export function createTaskMonitorSnapshot(): WorkingSnapshot<
+  AssignedTaskSnapshotView,
+  AssignedTaskSignal
+> {
+  return new WorkingSnapshot(taskMonitorSnapshotOptions);
 }

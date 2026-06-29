@@ -2,6 +2,7 @@
  * In-memory working snapshot — merged from reconcile polls and incremental signals.
  * Not durable; reconcile poll re-authorizes from Convex on each refresh.
  */
+// fallow-ignore-file unused-class-member
 
 export type MergeSignalFn<TRow, TSignal> = (
   existing: TRow | undefined,
@@ -29,6 +30,10 @@ export class WorkingSnapshot<TRow, TSignal> {
 
   getByKey(key: string): TRow | undefined {
     return this.rows.get(key);
+  }
+
+  getBySignal(signal: TSignal): TRow | undefined {
+    return this.rows.get(this.opts.signalKey(signal));
   }
 
   mergeSignal(signal: TSignal): TRow | undefined {
