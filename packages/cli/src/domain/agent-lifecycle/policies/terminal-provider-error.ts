@@ -20,8 +20,6 @@ const QUOTA_PHRASES = [
 
 const PROVIDER_ERROR_NAMES = ['ai_apicallerror', 'ai_retryerror'] as const;
 
-const HARNESS_LOG_PREFIX = /^\[[^\]]+\] role:/;
-
 function matchesQuotaPhrase(blob: string): boolean {
   const text = blob.toLowerCase();
   return QUOTA_PHRASES.some((phrase) => text.includes(phrase));
@@ -72,7 +70,7 @@ function isClassifiableHarnessLogLine(line: string): boolean {
   if (line.includes('provider_rate_limit')) return true;
   if (line.includes('agent_end]')) return true;
   if (line.includes(' error]')) return true;
-  if (!HARNESS_LOG_PREFIX.test(line)) return true;
+  if (line.includes(' run-error]')) return true;
   return false;
 }
 
