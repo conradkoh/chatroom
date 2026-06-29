@@ -1,5 +1,6 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
+  parseSessionAugmentation,
   resolveSessionAugmentationForRole,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
@@ -131,6 +132,22 @@ describe('nudge wantResume from task content', () => {
 
   test('planner missing section → wantResume true (augmentation gated to none)', () => {
     expect(resolveWantResume('## Goal\nAck user task', 'planner')).toBe(true);
+  });
+
+  test('regression: planner builder handback → wantResume true (must not cold-restart)', () => {
+    const handback = `## Summary
+Implemented feature.
+
+## Changes Made
+- Done`;
+    expect(resolveWantResume(handback, 'planner')).toBe(true);
+  });
+
+  test('regression: planner must not get wantResume=false from missing section default', () => {
+    const userTask = `## Goal
+Acknowledge user message`;
+    expect(parseSessionAugmentation(userTask)).toBe('new_session');
+    expect(resolveWantResume(userTask, 'planner')).toBe(true);
   });
 });
 

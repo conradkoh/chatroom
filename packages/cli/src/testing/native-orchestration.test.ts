@@ -49,8 +49,59 @@ describe('NativeOrchestrationSimulator', () => {
     const prompt = await sim.inject({ task, deliveryOutput: PLANNER_DELIVERY });
 
     expect(prompt).toContain('hello');
+    expect(prompt).not.toContain('Starting a new agent session');
+    expect(prompt).not.toContain('Context was compacted');
     expect(sim.harness.injections).toHaveLength(1);
     expect(sim.harness.lastInjection()?.role).toBe('planner');
+  });
+
+  test('regression: planner builder handback has no session augmentation preamble', async () => {
+    const sim = new NativeOrchestrationSimulator();
+    const handbackContent = `## Summary
+Implemented dark mode toggle.
+
+## Changes Made
+- Added theme switch`;
+
+    const prompt = await sim.inject({
+      task: NativeOrchestrationSimulator.makeTask({
+        assignedTo: 'planner',
+        taskContent: handbackContent,
+      }),
+      deliveryOutput: PLANNER_DELIVERY,
+    });
+
+    expect(prompt).toContain('hello');
+    expect(prompt).not.toContain('Starting a new agent session');
+    expect(prompt).not.toContain('Context was compacted');
+  });
+
+  test('regression: builder delegation without section gets new-session preamble', async () => {
+    const sim = new NativeOrchestrationSimulator();
+    const delegation = `## Goal
+Add payments API
+
+## Files to implement
+- src/payments.ts`;
+
+    const prompt = await sim.inject({
+      task: NativeOrchestrationSimulator.makeTask({
+        assignedTo: 'builder',
+        taskContent: delegation,
+        agentConfig: {
+          role: 'builder',
+          machineId: 'machine_1',
+          agentHarness: 'opencode-sdk',
+          workingDir: '/tmp/project',
+          spawnedAgentPid: 12345,
+          desiredState: 'running',
+        },
+      }),
+      deliveryOutput: BUILDER_DELIVERY,
+    });
+
+    expect(prompt).toContain('Starting a new agent session');
+    expect(prompt).toContain('Implement dark mode');
   });
 
   test('multi-turn: planner injection then builder injection after handoff', async () => {

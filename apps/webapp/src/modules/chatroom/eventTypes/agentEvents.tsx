@@ -19,6 +19,7 @@ import type {
   AgentSessionResumeFailedEvent,
   AgentSessionReopenRetryEvent,
   AgentSessionCompactedEvent,
+  AgentSessionAugmentedEvent,
   AgentResumeStormAbortedEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
@@ -670,6 +671,60 @@ function renderAgentSessionCompactedDetails(event: AgentSessionCompactedEvent): 
   );
 }
 
+// ─── Agent Session Augmented ──────────────────────────────────────────────────
+
+function sessionAugmentationModeLabel(mode: AgentSessionAugmentedEvent['mode']): string {
+  switch (mode) {
+    case 'new_session':
+      return 'New session';
+    case 'compact':
+      return 'Compact';
+    case 'none':
+      return 'Continue';
+  }
+}
+
+function renderAgentSessionAugmentedCell(
+  event: AgentSessionAugmentedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const badgeText = event.newSessionStarted
+    ? 'New Session'
+    : sessionAugmentationModeLabel(event.mode);
+  return (
+    <EventRow
+      type="agent.sessionAugmented"
+      badgeText={badgeText}
+      badgeColor={event.newSessionStarted ? 'warning' : 'info'}
+      primaryInfo={event.role}
+      secondaryInfo={sessionAugmentationModeLabel(event.mode)}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionAugmentedDetails(event: AgentSessionAugmentedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Augmented"
+      timestamp={event.timestamp}
+      type="agent.sessionAugmented"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Mode" value={sessionAugmentationModeLabel(event.mode)} />
+      <DetailRow label="New Session Started" value={event.newSessionStarted ? 'Yes' : 'No'} />
+      <DetailRow label="Task ID" value={event.taskId} mono />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Machine Switched ─────────────────────────────────────────────────────────
 
 function renderMachineSwitchedCell(
@@ -724,6 +779,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.sessionResumeFailed'
   | 'agent.sessionReopenRetry'
   | 'agent.sessionCompacted'
+  | 'agent.sessionAugmented'
   | 'agent.resumeStormAborted'
   | 'machine.switched'
 > = {
@@ -782,6 +838,10 @@ export const agentEventDefinitions: Pick<
   'agent.sessionCompacted': {
     cellRenderer: renderAgentSessionCompactedCell,
     detailsRenderer: renderAgentSessionCompactedDetails,
+  },
+  'agent.sessionAugmented': {
+    cellRenderer: renderAgentSessionAugmentedCell,
+    detailsRenderer: renderAgentSessionAugmentedDetails,
   },
   'agent.resumeStormAborted': {
     cellRenderer: renderAgentResumeStormAbortedCell,

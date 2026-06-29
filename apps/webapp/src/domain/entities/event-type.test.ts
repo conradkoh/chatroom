@@ -8,8 +8,8 @@ import {
 
 describe('event-type', () => {
   it('lists every chatroom_eventStream type surfaced in the event stream UI', () => {
-    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(29);
-    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(29);
+    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(30);
+    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(30);
   });
 
   it('isSupportedEventType narrows supported keys', () => {

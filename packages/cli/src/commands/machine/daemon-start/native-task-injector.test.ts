@@ -199,6 +199,79 @@ describe('runNativeInjectionEffect', () => {
     );
   });
 
+  test('regression: planner acknowledged task (user ack) does not emit sessionAugmented', async () => {
+    const deps = createDeps();
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      status: 'acknowledged',
+      assignedTo: 'planner',
+      agentConfig: { ...makeTask().agentConfig, role: 'planner' },
+      taskContent: `## Goal
+Review and acknowledge the user task.
+
+## Task
+Ship feature A`,
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+
+    const emitCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === api.machines.emitSessionAugmented
+    );
+    expect(emitCalls).toHaveLength(0);
+    const prompt = (deps.agentMgr.resumeTurnForSlot as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .prompt as string;
+    expect(prompt).not.toContain('Starting a new agent session');
+    expect(prompt).not.toContain('Context was compacted');
+  });
+
+  test('regression: planner builder handback does not emit sessionAugmented with newSessionStarted', async () => {
+    const deps = createDeps();
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      assignedTo: 'planner',
+      agentConfig: { ...makeTask().agentConfig, role: 'planner' },
+      taskContent: `## Summary
+Implemented dark mode toggle.
+
+## Changes Made
+- Added theme switch`,
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+
+    const emitCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === api.machines.emitSessionAugmented
+    );
+    expect(emitCalls).toHaveLength(0);
+  });
+
+  test('regression: builder delegation without section emits newSessionStarted=true', async () => {
+    const deps = createDeps();
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      taskContent: `## Goal
+Add dark mode toggle
+
+## Files to implement
+- src/theme.ts`,
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      api.machines.emitSessionAugmented,
+      expect.objectContaining({
+        role: 'builder',
+        mode: 'new_session',
+        newSessionStarted: true,
+      })
+    );
+    const prompt = (deps.agentMgr.resumeTurnForSlot as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      .prompt as string;
+    expect(prompt).toContain('Starting a new agent session');
+  });
+
   test('emits sessionAugmented for every session_augmentation mode', async () => {
     for (const tag of ['none', 'compact', 'new_session'] as const) {
       const deps = createDeps();

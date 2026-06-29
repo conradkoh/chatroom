@@ -33,6 +33,7 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.sessionResumeFailed': { label: 'Session Reconnect Failed', badge: 'warning' },
   'agent.sessionReopenRetry': { label: 'Session Reopen Retry', badge: 'info' },
   'agent.sessionCompacted': { label: 'Session Compacted', badge: 'info' },
+  'agent.sessionAugmented': { label: 'Session Augmented', badge: 'info' },
   'agent.resumeStormAborted': { label: 'Resume Storm Aborted', badge: 'error' },
   'agent.restartLimitReached': { label: 'Agent Restart Limit', badge: 'error' },
   'machine.switched': { label: 'Machine Switched', badge: 'info' },
