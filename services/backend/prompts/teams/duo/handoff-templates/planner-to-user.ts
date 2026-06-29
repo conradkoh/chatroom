@@ -4,9 +4,9 @@
  * This is the most important template in the set: the planner is the single
  * point of contact for the user, and the user can ONLY see the final
  * handoff-to-user message. A high-quality report shapes the planner's goals
- * up-front, which is why this template is delivered eagerly with the user
- * message (see prompts/cli/get-next-task/fullOutput.ts) rather than requiring
- * the agent to fetch it on demand.
+ * up-front, which is why this template is delivered with each task (see
+ * prompts/cli/get-next-task/fullOutput.ts and native task delivery) rather
+ * than baked into the static init/system prompt.
  *
  * Every section is mandatory — when one does not apply the planner writes
  * `Not Applicable` rather than omitting it. The report captures not just what
@@ -16,10 +16,13 @@
  *  2. Proof of principle — how the work adhered to organization/maintainability
  *     and static evaluability/provability principles.
  *  3. Proof of completion — evidence the goal was met (files changed).
- *  4. Key technical decisions — schema design, modules, interfaces, entities.
- *  5. Key tradeoffs — what was weighed and why this path was chosen.
- *  6. Tech debt observed — issues left intentionally out of scope.
- *  7. System design — a mermaid diagram when the change has non-trivial
+ *  4. Backlog tasks implemented — backlog items addressed by this work.
+ *  5. Backlog pending user review confirmation — attestation that implemented
+ *     backlog items were moved to pending_user_review when a PR was raised.
+ *  6. Key technical decisions — schema design, modules, interfaces, entities.
+ *  7. Key tradeoffs — what was weighed and why this path was chosen.
+ *  8. Tech debt observed — issues left intentionally out of scope.
+ *  9. System design — a mermaid diagram when the change has non-trivial
  *     structure (write "Not Applicable" for trivial changes).
  */
 
@@ -51,6 +54,15 @@ export function getPlannerToUserReportTemplate(): string {
 ## Proof of Completion
 - \`path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you (or the builder) modified>
+
+## Backlog Tasks Implemented
+- \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
+<List every backlog item this work implemented. Write \`Not Applicable\` if no backlog items were in scope.>
+
+## Backlog Pending User Review Confirmation
+- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
+- PR URL(s): <link to PR(s), or \`Not Applicable\` if no PR was raised>
+- If no backlog items apply, write \`Not Applicable\` for the checkbox and explain in one line
 
 ## Key Technical Decisions
 - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">

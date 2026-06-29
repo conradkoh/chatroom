@@ -12,10 +12,35 @@
 
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { requireChatroomAccess } from '../../auth/chatroomAccess.js';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
-import { mutation } from '../../_generated/server.js';
+import type { Id } from '../../_generated/dataModel';
+import { mutation } from '../../_generated/server';
+import type { MutationCtx } from '../../_generated/server';
+import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
+import { requireChatroomAccess } from '../../auth/chatroomAccess';
+
+async function requireHarnessSessionContext(
+  ctx: MutationCtx,
+  sessionId: SessionId,
+  harnessSessionId: Id<'chatroom_harnessSessions'>
+) {
+  requireDirectHarnessWorkers();
+
+  const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionId);
+  if (!harnessSession) {
+    throw new Error('Harness session not found');
+  }
+
+  const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
+  if (!workspace) {
+    throw new Error('Workspace not found');
+  }
+
+  await requireChatroomAccess(ctx, sessionId, workspace.chatroomId);
+
+  return { harnessSession, workspace };
+}
 
 // ─── refreshCapabilities ──────────────────────────────────────────────────────
 
@@ -82,20 +107,11 @@ export const refreshSessionTitle = mutation({
     harnessSessionId: v.id('chatroom_harnessSessions'),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
-    const harnessSession = await ctx.db.get('chatroom_harnessSessions', args.harnessSessionId);
-    if (!harnessSession) {
-      throw new Error('Harness session not found');
-    }
-
-    const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
-    if (!workspace) {
-      throw new Error('Workspace not found');
-    }
-
-    // Verify the caller has access to this workspace's chatroom
-    await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
+    const { harnessSession, workspace } = await requireHarnessSessionContext(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
 
     // Skip if session has no opencode session ID yet (still spawning)
     if (!('opencode' in harnessSession) || !harnessSession.opencode?.opencodeSessionId) {
@@ -107,6 +123,57 @@ export const refreshSessionTitle = mutation({
       workspaceId: harnessSession.workspaceId,
       type: 'refreshSessionTitle',
       refreshSessionTitle: { harnessSessionId: args.harnessSessionId },
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// ─── closeSession ─────────────────────────────────────────────────────────────
+
+/**
+ * Request the daemon to gracefully close a harness session: flush journal,
+ * abort the harness process session, and mark the backend row as closed.
+ */
+// fallow-ignore-next-line code-duplication
+export const closeSession = mutation({
+  args: {
+    ...SessionIdArg,
+    harnessSessionId: v.id('chatroom_harnessSessions'),
+  },
+  handler: async (ctx, args) => {
+    const { harnessSession, workspace } = await requireHarnessSessionContext(
+      ctx,
+      args.sessionId,
+      args.harnessSessionId
+    );
+
+    if (harnessSession.status === 'closed' || harnessSession.status === 'failed') {
+      return;
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_directHarnessCommands')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', workspace.machineId).eq('status', 'pending')
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('type'), 'closeSession'),
+          q.eq(q.field('closeSession.harnessSessionId'), args.harnessSessionId)
+        )
+      )
+      .first();
+
+    if (existing) {
+      return;
+    }
+
+    await ctx.db.insert('chatroom_directHarnessCommands', {
+      machineId: workspace.machineId,
+      workspaceId: harnessSession.workspaceId,
+      type: 'closeSession',
+      closeSession: { harnessSessionId: args.harnessSessionId },
       status: 'pending',
       createdAt: Date.now(),
     });

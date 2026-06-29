@@ -13,10 +13,8 @@ import {
   MessageSquareOff,
   PanelRightClose,
   PanelRightOpen,
-  Pencil,
   Settings2,
   Square,
-  X,
   XCircle,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -25,8 +23,10 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { AttachmentsProvider, dispatchComposerPrefill, PREFILL_TOAST_MESSAGE } from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
+import { ChatroomTitleEditor } from './components/ChatroomTitleEditor';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -40,11 +40,12 @@ import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
-import { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
+import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
+import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
-import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { useTeamConfigs } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
@@ -61,6 +62,7 @@ import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
@@ -80,6 +82,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,7 +116,7 @@ const FileExplorerPanel = dynamic(
     import('./workspace/components/FileExplorerPanel').then((m) => ({
       default: m.FileExplorerPanel,
     })),
-  { loading: () => <PanelLoadingSpinner /> }
+  { loading: () => <FileExplorerPanelLoadingShell /> }
 );
 
 const DirectHarnessView = dynamic(
@@ -159,129 +162,6 @@ interface ChatroomDashboardProps {
 /** Edit target for the saved command modal */
 type SavedCommandEditTarget = SavedCommand;
 
-/**
- * Memoized title editor component to prevent input recreation on every keystroke.
- * This component manages its own editing state to avoid triggering parent re-renders.
- */
-interface ChatroomTitleEditorProps {
-  displayName: string;
-  chatroomId: string;
-}
-
-const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
-  displayName,
-  chatroomId,
-}: ChatroomTitleEditorProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState('');
-  const [isPending, setIsPending] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const renameChatroom = useSessionMutation(api.chatrooms.rename);
-
-  const handleStartEdit = useCallback(() => {
-    setEditedName(displayName);
-    setIsEditing(true);
-  }, [displayName]);
-
-  const handleCancel = useCallback(() => {
-    setIsEditing(false);
-    setEditedName('');
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    if (!editedName.trim()) {
-      handleCancel();
-      return;
-    }
-    setIsPending(true);
-    try {
-      await renameChatroom({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        name: editedName.trim(),
-      });
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to rename chatroom:', error);
-    } finally {
-      setIsPending(false);
-    }
-  }, [editedName, renameChatroom, chatroomId, handleCancel]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        handleSave();
-      } else if (e.key === 'Escape') {
-        handleCancel();
-      }
-    },
-    [handleSave, handleCancel]
-  );
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-2">
-        <input
-          ref={inputRef}
-          type="text"
-          value={editedName}
-          onChange={(e) => setEditedName(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={(e) => {
-            const pasted = e.clipboardData.getData('text');
-            if (!pasted.includes('/') && !pasted.includes('\\')) return;
-            e.preventDefault();
-            setEditedName(normalizePastedChatroomName(pasted));
-          }}
-          className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
-          placeholder="Enter name..."
-          disabled={isPending}
-          maxLength={100}
-        />
-        <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-status-success w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-status-success disabled:opacity-50"
-          onClick={handleSave}
-          disabled={isPending}
-          title="Save name"
-        >
-          <Check size={12} />
-        </button>
-        <button
-          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-          onClick={handleCancel}
-          disabled={isPending}
-          title="Cancel"
-        >
-          <X size={12} />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-chatroom-text-primary text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
-        {displayName}
-      </span>
-      <button
-        className="bg-transparent border-0 text-chatroom-text-muted w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-chatroom-text-secondary"
-        onClick={handleStartEdit}
-        title="Rename chatroom"
-      >
-        <Pencil size={12} />
-      </button>
-    </div>
-  );
-});
-
 // ─── Explorer Content Component ───────────────────────────────────────────────
 // Extracts shared file explorer UI to eliminate duplication between split/non-split views
 
@@ -290,6 +170,7 @@ interface ExplorerContentProps {
   activeWorkspace: { machineId: string | null; workingDir: string | null } | null;
   onOpenPreview: (filePath: string) => void;
   onOpenTableView: (filePath: string) => void;
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
 }
 
 const ExplorerContent = memo(function ExplorerContent({
@@ -297,6 +178,7 @@ const ExplorerContent = memo(function ExplorerContent({
   activeWorkspace,
   onOpenPreview,
   onOpenTableView,
+  onSendSelectionToComposer,
 }: ExplorerContentProps) {
   return (
     <>
@@ -327,6 +209,7 @@ const ExplorerContent = memo(function ExplorerContent({
               machineId={activeWorkspace.machineId}
               workingDir={activeWorkspace.workingDir}
               filePath={fileTabs.activeTabPath}
+              onSendSelectionToComposer={onSendSelectionToComposer}
               onOpenPreview={onOpenPreview}
               onOpenTableView={onOpenTableView}
             />
@@ -453,6 +336,8 @@ export function ChatroomDashboard({
     setExplorerSyncEnabled,
   } = chatroomLifecycle;
 
+  const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
+
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     role: '',
@@ -504,6 +389,24 @@ export function ChatroomDashboard({
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
   }, []);
+
+  const handleExplorerSelectionToComposer = useCallback(
+    ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
+      if (!explorerSplitViewEnabled && activeView === 'explorer') {
+        setExplorerSplitViewEnabled(true);
+      }
+
+      setSplitMode('messages');
+
+      dispatchComposerPrefill({
+        target: 'messages',
+        fileSource: filePath,
+        selectedContent: selectedText,
+      });
+      toast.message(PREFILL_TOAST_MESSAGE);
+    },
+    [explorerSplitViewEnabled, activeView, setExplorerSplitViewEnabled, setSplitMode]
+  );
 
   const handleActivityViewChange = useCallback(
     (view: ActivityView) => {
@@ -682,18 +585,27 @@ export function ChatroomDashboard({
   useEffect(() => {
     if (!chatroom) return;
 
-    // Mark as read immediately when viewing
-    markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {
-      // Silently ignore - non-critical
-    });
+    const mark = () => {
+      if (document.hidden) return;
+      markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {
+        // Silently ignore - non-critical
+      });
+    };
 
-    // Also mark as read periodically while viewing (every 30s)
-    // This ensures the cursor stays updated for long sessions
-    const interval = setInterval(() => {
-      markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {});
-    }, 30000);
+    mark();
 
-    return () => clearInterval(interval);
+    // Refresh cursor periodically while the tab is focused (60s — backend skips if fresh)
+    const interval = setInterval(mark, 60_000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) mark();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [chatroom, chatroomId, markAsRead]);
 
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
@@ -1490,7 +1402,7 @@ export function ChatroomDashboard({
   if (chatroom === undefined || lifecycle === undefined || isSmallScreen === undefined) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
-        <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+        <ChatroomLoader size="md" />
       </div>
     );
   }
@@ -1545,22 +1457,29 @@ export function ChatroomDashboard({
               {/* Main Content Area */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {/* Content Toolbar — always renders, actions change based on active view */}
-                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-end px-2">
-                  {activeView === 'explorer' && (
-                    <button
-                      className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
-                      onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
-                      title={
-                        explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
-                      }
-                    >
-                      {explorerSplitViewEnabled ? (
-                        <MessageSquareOff size={14} />
-                      ) : (
-                        <MessageSquare size={14} />
-                      )}
-                    </button>
-                  )}
+                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {activeView === 'messages' && (
+                      <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeView === 'explorer' && (
+                      <button
+                        className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
+                        onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
+                        title={
+                          explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
+                        }
+                      >
+                        {explorerSplitViewEnabled ? (
+                          <MessageSquareOff size={14} />
+                        ) : (
+                          <MessageSquare size={14} />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* When in explorer view with split view enabled, show both explorer and messages */}
@@ -1573,6 +1492,7 @@ export function ChatroomDashboard({
                         activeWorkspace={activeWorkspace}
                         onOpenPreview={handleOpenPreview}
                         onOpenTableView={handleOpenTableView}
+                        onSendSelectionToComposer={handleExplorerSelectionToComposer}
                       />
                     </div>
 
@@ -1598,24 +1518,25 @@ export function ChatroomDashboard({
                   </div>
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
-                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <ChatroomTimelineFeed
-                      chatroomId={chatroomId}
-                      coordinator={timelineScrollCoordinator}
-                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                      machines={machineNameMap}
-                    />
-                    <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                      <MessageInput
-                        chatroomId={chatroomId}
-                        onBeforeResize={beginResize}
-                        onAfterResize={endResize}
-                        onRegisterFocus={handleRegisterSendFormFocus}
-                        files={autocompleteFiles}
-                        onAtTriggerActivate={refreshAutocompleteFiles}
-                      />
-                    </div>
-                  </div>
+                  <ChatroomMessagesPanel
+                    chatroomId={chatroomId}
+                    coordinator={timelineScrollCoordinator}
+                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                    machines={machineNameMap}
+                    viewMode={messageViewMode}
+                    footer={
+                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                        <MessageInput
+                          chatroomId={chatroomId}
+                          onBeforeResize={beginResize}
+                          onAfterResize={endResize}
+                          onRegisterFocus={handleRegisterSendFormFocus}
+                          files={autocompleteFiles}
+                          onAtTriggerActivate={refreshAutocompleteFiles}
+                        />
+                      </div>
+                    }
+                  />
                 ) : activeView === 'direct-harness' ? (
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
@@ -1655,6 +1576,7 @@ export function ChatroomDashboard({
                     activeWorkspace={activeWorkspace}
                     onOpenPreview={handleOpenPreview}
                     onOpenTableView={handleOpenTableView}
+                    onSendSelectionToComposer={handleExplorerSelectionToComposer}
                   />
                 )}
               </div>

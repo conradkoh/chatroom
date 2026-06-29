@@ -137,14 +137,11 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
-      - \`software-engineering\` (1 skill available)
-          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+      - \`attachments\` (1 skill available)
+          - Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.
 
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
-
-      - \`development-workflow\` (1 skill available)
-          - Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. Use this skill for coordinating complex release and development processes.
 
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
@@ -157,9 +154,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
-      - **software-engineering**: Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+      - **attachments**: End-to-end guide for message attachments: compose UI, delivery paths (CLI/native/task-read), XML conventions, and checklist for adding new attachment types.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
-      - **development-workflow**: Standard development and release process: create release branch, raise PRs against it, squash-merge changes, then merge to master.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 
@@ -209,7 +205,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -242,7 +238,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
       \`\`\`bash
@@ -292,45 +288,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - Commit work with descriptive, atomic commit messages
 
        
-
-      ## Begin With the End in Mind
-
-      Review the handoff template for who you will hand off to **before** you start work. Your handoff message must follow the template structure.
-
-      ### Handoff to \`planner\`
-      ---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section; use \`Not Applicable\` when a section does not apply.
-
-      \`\`\`markdown
-      ## Summary
-      <what was implemented or attempted, in plain terms>
-
-      ## Proof — files changed
-      - \`path/to/file.ts\` — <what changed and why>
-
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
-
-      ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
-
-      ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
-      \`\`\`
 
       ### Handoff Options
       Available targets: planner, user

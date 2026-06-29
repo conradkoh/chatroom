@@ -4,16 +4,120 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Send } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
+import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
+import type { SessionStatus } from './StatusDot';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { useCreateSession } from '../hooks/useCreateSession';
-import { useSendMessage } from '../hooks/useSendMessage';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
-import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
-import type { SessionStatus } from './StatusDot';
+import { useSendMessage } from '../hooks/useSendMessage';
+import { resolveNativeHarnessOptions, selectDefaultHarnessName } from '../utils/harness-selection';
+
+function ComposerSendRow({
+  textareaRef,
+  text,
+  onTextChange,
+  onKeyDown,
+  onSend,
+  canSend,
+  disabled,
+  autoFocus,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  text: string;
+  onTextChange: (value: string) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onSend: () => void;
+  canSend: boolean;
+  disabled: boolean;
+  autoFocus?: boolean;
+}) {
+  return (
+    <div className="flex gap-2 items-end">
+      <Textarea
+        ref={textareaRef}
+        rows={3}
+        className="flex-1 resize-none text-sm"
+        placeholder="Message… (Enter to send, Shift+Enter for new line)"
+        value={text}
+        onChange={(e) => onTextChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        autoFocus={autoFocus}
+      />
+      <Button
+        size="icon"
+        className="shrink-0 h-9 w-9"
+        aria-label="Send message"
+        disabled={!canSend}
+        onClick={() => void onSend()}
+      >
+        <Send size={15} />
+      </Button>
+    </div>
+  );
+}
+
+function useEnterToSendKeyDown(onSend: () => void) {
+  return (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void onSend();
+    }
+  };
+}
+
+function useWorkspaceCapabilities(workspaceId: Id<'chatroom_workspaces'>) {
+  return useSessionQuery(
+    api.web.directHarness.capabilities.listForWorkspace,
+    workspaceId ? { workspaceId } : 'skip'
+  );
+}
+
+function useWorkspaceHarnessConfig(
+  workspaceId: Id<'chatroom_workspaces'>,
+  harnessName: string,
+  initial?: { agent?: string; model?: { providerID: string; modelID: string } }
+) {
+  const capabilities = useWorkspaceCapabilities(workspaceId);
+
+  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
+  const machineId = capabilities?.machineId ?? null;
+  const filter = useHarnessModelFilter(machineId, harnessName);
+  const config = useHarnessConfig({
+    harnesses,
+    harnessName,
+    initial,
+    isModelHidden: filter.isHidden,
+  });
+
+  return { harnesses, machineId, filter, config };
+}
+
+function useNewSessionHarnessConfig(workspaceId: Id<'chatroom_workspaces'>, harnessName: string) {
+  const capabilities = useWorkspaceCapabilities(workspaceId);
+
+  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
+  const machineId = capabilities?.machineId ?? null;
+
+  const resolvedHarnessName = useMemo(() => {
+    if (harnesses.length === 0) return harnessName;
+    if (harnesses.some((h) => h.name === harnessName)) return harnessName;
+    return selectDefaultHarnessName(harnesses);
+  }, [harnesses, harnessName]);
+
+  const filter = useHarnessModelFilter(machineId, resolvedHarnessName);
+  const config = useHarnessConfig({
+    harnesses,
+    harnessName: resolvedHarnessName,
+    isModelHidden: filter.isHidden,
+  });
+
+  return { harnesses, filter, config, resolvedHarnessName };
+}
 
 // ─── NewSessionComposer ───────────────────────────────────────────────────────
 
@@ -30,24 +134,13 @@ export function NewSessionComposer({
 }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [harnessName, setHarnessName] = useState('opencode-sdk');
+  const [harnessName, setHarnessName] = useState('pi-sdk');
   const { create, isCreating } = useCreateSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
+  const { harnesses, filter, config, resolvedHarnessName } = useNewSessionHarnessConfig(
+    workspaceId,
+    harnessName
   );
-
-  const harnesses = capabilities?.harnesses ?? [];
-  const machineId = capabilities?.machineId ?? null;
-
-  const filter = useHarnessModelFilter(machineId, harnessName);
-
-  const config = useHarnessConfig({
-    harnesses,
-    harnessName,
-    isModelHidden: filter.isHidden,
-  });
 
   const { resolvedAgent, resolvedModel } = config;
 
@@ -61,7 +154,7 @@ export function NewSessionComposer({
     try {
       const result = await create({
         workspaceId,
-        harnessName,
+        harnessName: resolvedHarnessName,
         config: {
           agent: resolvedAgent,
           ...(model ? { model } : {}),
@@ -75,12 +168,7 @@ export function NewSessionComposer({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
-  };
+  const handleKeyDown = useEnterToSendKeyDown(handleSend);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -95,33 +183,21 @@ export function NewSessionComposer({
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
         {/* Textarea + send button */}
-        <div className="flex gap-2 items-end">
-          <Textarea
-            ref={textareaRef}
-            rows={3}
-            className="flex-1 resize-none text-sm"
-            placeholder="Message… (Enter to send, Shift+Enter for new line)"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isCreating}
-            autoFocus
-          />
-          <Button
-            size="icon"
-            className="shrink-0 h-9 w-9"
-            aria-label="Send message"
-            disabled={!canSend}
-            onClick={() => void handleSend()}
-          >
-            <Send size={15} />
-          </Button>
-        </div>
+        <ComposerSendRow
+          textareaRef={textareaRef}
+          text={text}
+          onTextChange={setText}
+          onKeyDown={handleKeyDown}
+          onSend={handleSend}
+          canSend={canSend}
+          disabled={isCreating}
+          autoFocus
+        />
 
         {/* Harness + agent + model selectors + filter button */}
         <HarnessSelectorBar
           harnesses={harnesses}
-          harnessName={harnessName}
+          harnessName={resolvedHarnessName}
           onHarnessChange={setHarnessName}
           config={config}
           filter={filter}
@@ -156,23 +232,12 @@ export function SessionComposer({
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { send, isSending } = useSendMessage();
-
-  const capabilities = useSessionQuery(
-    api.web.directHarness.capabilities.listForWorkspace,
-    workspaceId ? { workspaceId } : 'skip'
-  );
-
-  const harnesses = capabilities?.harnesses ?? [];
-  const machineId = capabilities?.machineId ?? null;
-
-  const filter = useHarnessModelFilter(machineId, harnessName);
-
-  const config = useHarnessConfig({
-    harnesses,
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { harnesses, filter, config } = useWorkspaceHarnessConfig(
+    workspaceId,
     harnessName,
-    initial: lastUsedConfig,
-    isModelHidden: filter.isHidden,
-  });
+    lastUsedConfig
+  );
 
   const isTerminal = status === 'closed' || status === 'failed';
   const isDisabled = status === 'pending' || status === 'spawning' || isTerminal || isSending;
@@ -197,12 +262,7 @@ export function SessionComposer({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
-  };
+  const handleKeyDown = useEnterToSendKeyDown(handleSend);
 
   if (isTerminal) {
     return (
@@ -215,26 +275,15 @@ export function SessionComposer({
   return (
     <div className="shrink-0 border-t-2 border-border p-3 flex flex-col gap-2">
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-      <div className="flex gap-2 items-end">
-        <Textarea
-          rows={3}
-          className="flex-1 resize-none text-sm"
-          placeholder="Message… (Enter to send, Shift+Enter for new line)"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isDisabled}
-        />
-        <Button
-          size="icon"
-          className="shrink-0 h-9 w-9"
-          aria-label="Send message"
-          disabled={!canSend}
-          onClick={() => void handleSend()}
-        >
-          <Send size={15} />
-        </Button>
-      </div>
+      <ComposerSendRow
+        textareaRef={textareaRef}
+        text={text}
+        onTextChange={setText}
+        onKeyDown={handleKeyDown}
+        onSend={handleSend}
+        canSend={canSend}
+        disabled={isDisabled}
+      />
       {/* Harness/agent/model bar — harness frozen mid-session; filter button visible when machineId is known */}
       {/* TODO: when in-session agent/model switching ships, pass resolvedAgent + resolvedModel to send(). */}
       <HarnessSelectorBar

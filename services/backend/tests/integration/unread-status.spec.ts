@@ -5,6 +5,7 @@
  * markAsRead clears it.
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
@@ -82,5 +83,37 @@ describe('Unread Status Tracking', () => {
       expect(status.hasUnread).toBe(false);
       expect(status.hasUnreadHandoff).toBe(false);
     }
+  });
+
+  test('markAsRead skips redundant cursor patch within freshness window', async () => {
+    const sessionKey = 'test-unread-3';
+    const login = await t.mutation(api.auth.loginAnon, { sessionId: sessionKey as SessionId });
+    const sessionId = sessionKey as SessionId;
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.chatrooms.markAsRead, { sessionId, chatroomId });
+    const afterFirst = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId_chatroomId', (q) =>
+          q.eq('userId', login.userId!).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+    expect(afterFirst).not.toBeNull();
+
+    await t.mutation(api.chatrooms.markAsRead, { sessionId, chatroomId });
+
+    const afterSecond = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId_chatroomId', (q) =>
+          q.eq('userId', login.userId!).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+
+    expect(afterSecond?.updatedAt).toBe(afterFirst?.updatedAt);
   });
 });

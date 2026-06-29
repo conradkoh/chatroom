@@ -56,10 +56,11 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
     linkedSkillId: 'backlog',
   },
   {
-    term: 'software-engineering',
+    term: 'attachments',
     definition:
-      'Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.',
-    linkedSkillId: 'software-engineering',
+      'Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. ' +
+      'Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.',
+    linkedSkillId: 'attachments',
   },
   {
     term: 'code-review',
@@ -67,13 +68,6 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       'Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. ' +
       'Covers AI-generated code review with focus on maintainability and tech debt prevention.',
     linkedSkillId: 'code-review',
-  },
-  {
-    term: 'development-workflow',
-    definition:
-      'Manages the development and release flow: creating release branches, updating versions, raising PRs, and managing feature branches. ' +
-      'Use this skill for coordinating complex release and development processes.',
-    linkedSkillId: 'development-workflow',
   },
   {
     term: 'structural-decisions',

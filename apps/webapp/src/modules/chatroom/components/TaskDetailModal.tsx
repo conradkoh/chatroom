@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 
 import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
-import { useAttachments } from '../context/AttachmentsContext';
+import { useAttachments } from '../attachments';
 
 import {
   DropdownMenu,

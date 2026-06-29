@@ -27,9 +27,9 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
  * (data-[size=...], *:data-[slot=...], [&_svg]:...) — those stay inline.
  */
 export const selectTriggerClassName =
-  'flex items-center justify-between gap-2 ' +
+  'flex h-8 w-full items-center justify-between gap-2 ' +
   'rounded-none border border-input bg-transparent ' +
-  'px-3 text-xs shadow-xs whitespace-nowrap ' +
+  'px-3 py-2 text-xs shadow-xs whitespace-nowrap ' +
   'transition-[color,box-shadow] outline-none ' +
   'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring ' +
   'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive ' +

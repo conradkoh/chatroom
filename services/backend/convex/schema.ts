@@ -3,6 +3,12 @@ import { v } from 'convex/values';
 
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 
+const attachedSnippetValidator = v.object({
+  reference: v.string(),
+  fileSource: v.string(),
+  selectedContent: v.string(),
+});
+
 // agentHarnessValidator re-exported for backward compatibility
 // Canonical source is entities/agent.ts.
 export { agentHarnessValidator };
@@ -438,6 +444,9 @@ export default defineSchema({
     // User can attach existing messages as context for a new message
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
 
+    // Explorer file snippets attached via Cmd+I (inline content, no separate table)
+    attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
+
     // DEPRECATED: Legacy DAG workflow attachments. Feature removed — not written by
     // current app code. Retained so existing documents continue to validate.
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
@@ -497,6 +506,7 @@ export default defineSchema({
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Attached chatroom messages for context
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
     // DEPRECATED: Legacy DAG workflow attachments (see chatroom_messages.attachedWorkflowIds).
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
@@ -1214,6 +1224,18 @@ export default defineSchema({
         role: v.string(),
         machineId: v.string(),
         reason: v.string(),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // cursor-sdk crash recovery: retry reopening harness session before giving up
+      v.object({
+        type: v.literal('agent.sessionReopenRetry'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        attempt: v.number(),
+        maxAttempts: v.number(),
+        error: v.optional(v.string()),
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
@@ -2458,13 +2480,19 @@ export default defineSchema({
     /** Workspace context the command applies to. */
     workspaceId: v.id('chatroom_workspaces'),
     /** Discriminated union: selects the command kind. */
-    type: v.union(v.literal('refreshCapabilities'), v.literal('refreshSessionTitle')),
+    type: v.union(
+      v.literal('refreshCapabilities'),
+      v.literal('refreshSessionTitle'),
+      v.literal('closeSession')
+    ),
     /** Payload for refreshCapabilities commands. */
     refreshCapabilities: v.optional(v.object({ initiatedBy: v.string() })),
     /** Payload for refreshSessionTitle commands. */
     refreshSessionTitle: v.optional(
       v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })
     ),
+    /** Payload for closeSession commands. */
+    closeSession: v.optional(v.object({ harnessSessionId: v.id('chatroom_harnessSessions') })),
     status: v.union(
       v.literal('pending'),
       v.literal('inProgress'),

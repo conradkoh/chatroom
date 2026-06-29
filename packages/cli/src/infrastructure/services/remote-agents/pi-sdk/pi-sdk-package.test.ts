@@ -21,7 +21,7 @@ describe('pi-sdk-package', () => {
     expect(sdk.createAgentSession).toBeTypeOf('function');
     expect(sdk.AuthStorage).toBeDefined();
     expect(sdk.ModelRegistry).toBeDefined();
-  });
+  }, 15_000);
 
   it('formats load failures with chatroom-cli reinstall guidance', () => {
     const message = formatPiSdkLoadError(

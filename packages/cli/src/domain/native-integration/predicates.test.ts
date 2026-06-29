@@ -1,12 +1,11 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
 import {
   isCliIdleNotListening,
   isInjectableNativeAction,
   isNativeInjectableAliveRunning,
-  isNativePendingAliveRunning,
   isStaleCliGetNextTaskWaiting,
 } from './predicates.js';
 
@@ -35,24 +34,6 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
     ...overrides,
   };
 }
-
-describe('isNativePendingAliveRunning', () => {
-  test('true for live native pending task', () => {
-    expect(isNativePendingAliveRunning(makeTask())).toBe(true);
-  });
-
-  test('false without pid', () => {
-    expect(
-      isNativePendingAliveRunning(
-        makeTask({ agentConfig: { ...makeTask().agentConfig, spawnedAgentPid: undefined } })
-      )
-    ).toBe(false);
-  });
-
-  test('false when acknowledged', () => {
-    expect(isNativePendingAliveRunning(makeTask({ status: 'acknowledged' }))).toBe(false);
-  });
-});
 
 describe('isNativeInjectableAliveRunning', () => {
   test('true for pending and acknowledged tasks owned by role', () => {

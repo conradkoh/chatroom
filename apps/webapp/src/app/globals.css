@@ -417,3 +417,32 @@ input,
     @apply max-w-[95vw] sm:max-w-lg p-4 sm:p-6;
   }
 }
+
+/* Chatroom loader — four squares with staggered grey → black/white fade */
+.chatroom-loader-square {
+  background-color: var(--chatroom-text-primary);
+  animation: chatroom-loader-square-fade 1.8s ease-in-out infinite;
+}
+
+@keyframes chatroom-loader-square-fade {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  25% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  75% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chatroom-loader-square {
+    animation: none;
+    opacity: 0.5;
+  }
+}

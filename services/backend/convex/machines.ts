@@ -30,7 +30,9 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
-import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
+import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
+import { listAssignedTasksForReconcileForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-for-reconcile';
+import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -2530,18 +2532,14 @@ export const getAgentOverviewForChatroom = query({
 
 // ============================================================================
 // DAEMON TASK MONITOR
-// Used by the daemon to subscribe to all tasks assigned to roles on this machine.
+// Used by the daemon to poll assigned tasks on this machine.
 // ============================================================================
 
 /**
- * Returns all active tasks for chatrooms where this machine has remote agent configs.
- * Used by the daemon's task monitor to decide when to start/restart agents.
- *
- * For each active task, includes:
- * - Task info (taskId, chatroomId, status, assignedTo, updatedAt, createdAt)
- * - Relevant agent config (machineId, agentHarness, model, workingDir, spawnedAgentPid, desiredState, circuitState)
+ * Assigned-task reconcile snapshot for daemon polls (no task.content in response).
  */
-export const getAssignedTasks = query({
+// fallow-ignore-next-line code-duplication
+export const listAssignedTasksForReconcile = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
@@ -2550,9 +2548,55 @@ export const getAssignedTasks = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { tasks: [] };
 
-    return getAssignedTasksForMachine(ctx, {
+    return listAssignedTasksForReconcileForMachine(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
+    });
+  },
+});
+
+/**
+ * Incremental task-monitor signals since an exclusive cursor (reactive subscribe).
+ */
+export const subscribeAssignedTaskSignalsSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterKey: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { items: [], highKey: null, hasMore: false };
+
+    return subscribeAssignedTaskSignalsForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterKey: args.afterKey,
+      limit: args.limit,
+    });
+  },
+});
+
+/**
+ * Full assigned task row for a single nudge/inject action (includes task.content).
+ */
+export const getAssignedTaskForAction = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+
+    return getAssignedTaskForActionForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      taskId: args.taskId,
+      role: args.role,
     });
   },
 });
@@ -2726,6 +2770,48 @@ export const emitSessionResumeFailed = mutation({
     });
 
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeFailed');
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.sessionReopenRetry event for each cursor-sdk crash recovery attempt. */
+export const emitSessionReopenRetry = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    attempt: v.number(),
+    maxAttempts: v.number(),
+    error: v.optional(v.string()),
+    harnessSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.sessionReopenRetry',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      attempt: args.attempt,
+      maxAttempts: args.maxAttempts,
+      error: args.error,
+      harnessSessionId: args.harnessSessionId,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionReopenRetry');
 
     return { success: true };
   },

@@ -1,21 +1,21 @@
 /**
- * Task Monitor — reactive subscription to assigned tasks for this machine.
+ * Task Monitor — incremental subscribe + reconcile for assigned tasks on this machine.
  *
- * Restarts alive CLI agents that have pending tasks but are not actively listening
- * in the get-next-task loop (stale waiting or idle after delivery).
+ * - Signal feed: patch working snapshot, run revive/inject for that row (no reconcile refetch)
+ * - Reconcile poll: refresh snapshot from listAssignedTasksForReconcile, full pass including nudge
  *
- * For native harnesses, injects tasks via resumeTurn on assignment updates.
- * Native revive cold-starts when backend PID is stale locally; injection retries
- * are not nudged (delivery ledger + reactive inject only).
+ * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
 
 import {
   compressContextToWantResume,
   parseCompressContext,
 } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskView,
+} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { ConvexClient } from 'convex/browser';
-import type { FunctionReturnType } from 'convex/server';
 import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
@@ -29,16 +29,27 @@ import {
   listNativeTasksNeedingRevive,
   NudgeCooldown,
 } from './task-monitor-logic.js';
+import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import { runDualChannelFeedLive } from '../../../infrastructure/incremental-sync/dual-channel-feed.js';
+import {
+  ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
+  ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
+  ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
+  assignedTaskSignalsFeedDef,
+  assignedTaskSignalsSubscribeTarget,
+} from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-
-type AssignedTasksResult = FunctionReturnType<typeof api.machines.getAssignedTasks>;
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
+
+type ListAssignedTasksForReconcileResult = { tasks: AssignedTaskSnapshotView[] };
+
+type TaskMonitorPass = 'signal' | 'reconcile';
 
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
   return compressContextToWantResume(parseCompressContext(task.taskContent ?? ''));
@@ -53,7 +64,7 @@ function buildCliNudgeLogLine(task: AssignedTaskView): string {
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`;
 }
 
-function resolveTaskRunnerContext(task: AssignedTaskView):
+function resolveTaskRunnerContextFromFull(task: AssignedTaskView):
   | {
       chatroomId: string;
       agentConfig: AssignedTaskView['agentConfig'];
@@ -81,7 +92,7 @@ function executeCliNudge(
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape
 ): void {
-  const ctx = resolveTaskRunnerContext(task);
+  const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
 
@@ -116,7 +127,7 @@ function runNativeReviveEffect(
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape
 ): void {
-  const ctx = resolveTaskRunnerContext(task);
+  const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
 
@@ -148,6 +159,20 @@ function runNativeReviveEffect(
   );
 }
 
+async function fetchTaskForAction(
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string,
+  snapshotRow: AssignedTaskSnapshotView
+): Promise<AssignedTaskView | null> {
+  const result = (await sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
+    sessionId: sessionDeps.sessionId,
+    machineId,
+    taskId: snapshotRow.taskId,
+    role: snapshotRow.agentConfig.role,
+  })) as AssignedTaskView | null;
+  return result;
+}
+
 function runCliNudgeEffect(
   task: AssignedTaskView,
   runtime: TaskMonitorRuntime,
@@ -158,21 +183,25 @@ function runCliNudgeEffect(
   executeCliNudge(task, runtime, effectContext, agentMgr);
 }
 
-function nudgeStuckTasks(
-  tasks: AssignedTaskView[],
+async function nudgeStuckTasks(
+  tasks: AssignedTaskSnapshotView[],
   now: number,
   cooldown: NudgeCooldown,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape
-): void {
-  for (const task of listTasksReadyForNudge(tasks, now, cooldown)) {
-    runCliNudgeEffect(task, runtime, effectContext, agentMgr);
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string
+): Promise<void> {
+  for (const row of listTasksReadyForNudge(tasks, now, cooldown)) {
+    const full = await fetchTaskForAction(sessionDeps, machineId, row);
+    if (!full) continue;
+    runCliNudgeEffect(full, runtime, effectContext, agentMgr);
   }
 }
 
-function reviveNativeTasks(
-  tasks: AssignedTaskView[],
+async function reviveNativeTasks(
+  tasks: AssignedTaskSnapshotView[],
   localHealth: {
     getSlot: (
       chatroomId: string,
@@ -184,45 +213,77 @@ function reviveNativeTasks(
   cooldown: NudgeCooldown,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape
-): void {
-  for (const task of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
-    runNativeReviveEffect(task, runtime, effectContext, agentMgr);
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string
+): Promise<void> {
+  for (const row of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
+    const full = await fetchTaskForAction(sessionDeps, machineId, row);
+    if (!full) continue;
+    runNativeReviveEffect(full, runtime, effectContext, agentMgr);
   }
 }
 
-function processTasksUpdate(
-  tasks: AssignedTaskView[],
+async function processTasksUpdate(
+  tasks: AssignedTaskSnapshotView[],
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   cooldown: NudgeCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
-  sessionDeps: NativeTaskDeliverySessionDeps
-): void {
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string,
+  pass: TaskMonitorPass
+): Promise<void> {
+  if (tasks.length === 0) return;
+
   const now = Date.now();
   const localHealth = {
     getSlot: (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role),
     isPidAlive: (pid: number) => isProcessAlive((p) => process.kill(p, 0), pid),
   };
 
-  reviveNativeTasks(tasks, localHealth, now, cooldown, runtime, effectContext, agentMgr);
+  await reviveNativeTasks(
+    tasks,
+    localHealth,
+    now,
+    cooldown,
+    runtime,
+    effectContext,
+    agentMgr,
+    sessionDeps,
+    machineId
+  );
   getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks,
     runtime,
     effectContext,
     agentMgr,
     sessionDeps,
+    machineId,
   });
-  nudgeStuckTasks(tasks, now, cooldown, runtime, effectContext, agentMgr);
+  if (pass === 'reconcile') {
+    await nudgeStuckTasks(
+      tasks,
+      now,
+      cooldown,
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      machineId
+    );
+  }
 }
 
-export const startTaskMonitorSubscriptionEffect = (
+// fallow-ignore-next-line complexity
+export const startTaskMonitorEffect = (
   wsClient: ConvexClient
 ): Effect.Effect<
   { stop: () => void },
   never,
   DaemonSessionService | DaemonAgentProcessManagerService
 > =>
+  // fallow-ignore-next-line complexity
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
@@ -233,14 +294,17 @@ export const startTaskMonitorSubscriptionEffect = (
       DaemonSessionService | DaemonAgentProcessManagerService
     >();
 
-    console.log(`[${formatTimestamp()}] 📋 Starting task-monitor subscription (reactive)`);
+    console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
     const cooldown = new NudgeCooldown();
+    const snapshot = createTaskMonitorSnapshot();
     let stopped = false;
+    let monitorPassInFlight = false;
 
     const sessionDeps: NativeTaskDeliverySessionDeps = {
       sessionId: session.sessionId,
       convexUrl: session.convexUrl,
+      machineId: session.machineId,
       backend: {
         mutation: (fn: unknown, args: Record<string, unknown>) =>
           session.backend.mutation(fn, args),
@@ -248,26 +312,75 @@ export const startTaskMonitorSubscriptionEffect = (
       },
     };
 
-    const onTasksUpdate = (result: AssignedTasksResult | undefined): void => {
-      if (stopped || !result?.tasks?.length) return;
-      processTasksUpdate(result.tasks, runtime, effectContext, cooldown, agentMgr, sessionDeps);
+    const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
+      if (stopped || monitorPassInFlight || tasks.length === 0) return;
+      monitorPassInFlight = true;
+      void processTasksUpdate(
+        tasks,
+        runtime,
+        effectContext,
+        cooldown,
+        agentMgr,
+        sessionDeps,
+        session.machineId,
+        pass
+      ).finally(() => {
+        monitorPassInFlight = false;
+      });
     };
 
-    const unsubscribe = wsClient.onUpdate(
-      api.machines.getAssignedTasks,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      onTasksUpdate,
-      (err) =>
+    const queryReconcileSnapshots = (): Promise<ListAssignedTasksForReconcileResult> =>
+      session.backend.query(api.machines.listAssignedTasksForReconcile, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      }) as Promise<ListAssignedTasksForReconcileResult>;
+
+    const feedHandle = yield* runDualChannelFeedLive({
+      name: 'assigned-tasks',
+      wsClient,
+      def: assignedTaskSignalsFeedDef,
+      target: assignedTaskSignalsSubscribeTarget,
+      args: {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      },
+      buffer: ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
+      subscribe: { limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT },
+      snapshot,
+      seedCursor: async () => {
+        const seedPage = (await session.backend.query(
+          api.machines.subscribeAssignedTaskSignalsSince,
+          {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+            limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
+          }
+        )) as { highKey: string | null } | null;
+        return seedPage?.highKey ?? null;
+      },
+      fetchReconcile: () => queryReconcileSnapshots(),
+      extractReconcileRows: (result) => result?.tasks ?? [],
+      reconcileIntervalMs: ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
+      isStopped: () => stopped,
+      onSubscribeError: (err) =>
         console.warn(
-          `[${formatTimestamp()}] Task-monitor subscription error: ${getErrorMessage(err)}`
-        )
-    );
+          `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
+        ),
+      onSignalRow: (row) =>
+        Effect.sync(() => {
+          runMonitorPass([row], 'signal');
+        }),
+      onReconcileRows: (tasks) =>
+        Effect.sync(() => {
+          runMonitorPass([...tasks], 'reconcile');
+        }),
+    });
 
     return {
       stop() {
         stopped = true;
-        unsubscribe();
-        console.log(`[${formatTimestamp()}] 📋 Task-monitor subscription stopped`);
+        void Effect.runPromise(feedHandle.stop());
+        console.log(`[${formatTimestamp()}] 📋 Task-monitor stopped`);
       },
     };
   });

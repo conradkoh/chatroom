@@ -13,13 +13,15 @@
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
+import type { DeliveryAttachmentsInput } from '../../../src/domain/entities/message-attachments.js';
+import { renderDeliveryAttachmentsBlock } from '../../attachments/render-delivery-attachments.js';
 import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
-import { inferPrimaryHandoffTarget } from '../../utils/infer-primary-handoff-target';
-import { getUserVerificationReminder } from '../../utils/task-verification';
-import { contextNewCommand, contextNewHint } from '../context/new';
-import { handoffCommand } from '../handoff/command';
-import { getHandoffTemplate } from '../handoff-templates';
+import {
+  appendTaskDeliveryHandoffTargets,
+  appendTaskDeliveryHandoffTemplates,
+  appendTaskDeliveryNextSteps,
+} from '../../task-delivery/core.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,29 +76,9 @@ export interface FullCliOutputParams {
 
   /** When true, omit get-next-task language (native harness task injection). */
   nativeIntegration?: boolean;
-}
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * If `user` is among the available handoff targets, add a verification
- * reminder before the handoff command so the planner/coordinator verifies
- * the codebase before delivering to the user.
- */
-function maybeAddVerificationReminder(
-  lines: string[],
-  availableHandoffTargets: string[],
-  taskContent: string
-): void {
-  if (!availableHandoffTargets.includes('user')) {
-    return;
-  }
-  lines.push('');
-  lines.push(getUserVerificationReminder(taskContent));
-}
-
-function getNextStepsIntro(): string {
-  return 'This blocking `get-next-task` resolved because the user or team message is ready as a chatroom task. Infer what to do from that message—it is the source of truth. Numbered steps below are typical role patterns, not a rigid script.';
+  /** Attachments from the task SOURCE message (snippets; backlog excluded from primary delivery). */
+  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -122,12 +104,11 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     isEntryPoint,
     availableHandoffTargets,
     nativeIntegration = false,
+    sourceAttachments,
   } = params;
 
   const lines: string[] = [];
   const SEP_EQUAL = '='.repeat(60);
-
-  const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
 
   if (nativeIntegration) {
     const attachedMessages = originMessage?.attachedMessages ?? [];
@@ -141,6 +122,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       availableHandoffTargets,
       attachedMessages,
       isEntryPoint,
+      sourceAttachments,
     });
   }
 
@@ -227,6 +209,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push('## Chatroom task');
   lines.push(task.content);
+  lines.push(
+    ...renderDeliveryAttachmentsBlock(
+      { attachedSnippets: sourceAttachments?.attachedSnippets },
+      { chatroomId, role, mode: 'cli' }
+    )
+  );
   lines.push('');
   lines.push(getTokenActivityInProgressNote());
 
@@ -247,110 +235,22 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('</task>');
 
-  // ── Next Steps ──────────────────────────────────────────────────────────
-
-  lines.push('');
-  lines.push('<next-steps>');
-  lines.push(getNextStepsIntro());
-  lines.push('');
-
-  if (isUserMessage) {
-    lines.push('1. Work on the task above.');
-
-    if (role === 'planner') {
-      const contextStepNum = 2;
-      const delegateStepNum = 3;
-      const reportStepNum = 4;
-      // Planner role receiving a new user task
-      lines.push('');
-      lines.push(
-        `${contextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
-      );
-      lines.push(contextNewHint());
-      lines.push(`${delegateStepNum}. Delegate ONE slice to the builder:`);
-      lines.push('');
-      lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'builder' }) ?? '');
-      lines.push('```bash');
-      lines.push(
-        handoffCommand({
-          chatroomId,
-          role,
-          nextRole: 'builder',
-          cliEnvPrefix,
-          messagePlaceholder: '[Your delegation brief here]',
-        })
-      );
-      lines.push('```');
-      if (availableHandoffTargets.length > 0) {
-        lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
-      }
-      lines.push('');
-      lines.push(
-        `${reportStepNum}. When the work is done, deliver to the user using this report template:`
-      );
-      maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
-      lines.push('');
-      lines.push(getHandoffTemplate({ teamId, fromRole: 'planner', toRole: 'user' }) ?? '');
-    } else {
-      // Non-coordinator role receiving a user message
-      let nextStepNum = 2;
-      if (isEntryPoint) {
-        lines.push('');
-        lines.push(
-          `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
-        );
-        lines.push(contextNewHint());
-        nextStepNum++;
-      }
-      lines.push(`${nextStepNum}. Hand off when complete:`);
-      maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
-      lines.push('```bash');
-      lines.push(handoffCommand({ chatroomId, role, cliEnvPrefix }));
-      lines.push('```');
-      if (availableHandoffTargets.length > 0) {
-        lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
-      }
-    }
-  } else if (message) {
-    lines.push('1. Work on the task above.');
-    lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
-
-    let nextStepNum = 2;
-    if (isEntryPoint) {
-      lines.push(
-        `${nextStepNum}. Set a new context per user message (default) → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\` — skip ONLY when the message is clearly a follow-up of the current chatroom task.`
-      );
-      lines.push(contextNewHint());
-      nextStepNum++;
-    }
-
-    lines.push(`${nextStepNum}. Hand off when complete:`);
-    maybeAddVerificationReminder(lines, availableHandoffTargets, task.content);
-    const primaryTarget =
-      inferPrimaryHandoffTarget({
-        senderRole: message.senderRole,
-        role,
-        availableHandoffTargets,
-        isEntryPoint,
-      }) ?? availableHandoffTargets[0];
-    if (primaryTarget) {
-      const tmpl = getHandoffTemplate({ teamId, fromRole: role, toRole: primaryTarget });
-      if (tmpl) {
-        lines.push('');
-        lines.push(tmpl);
-      }
-    }
-    lines.push('```bash');
-    lines.push(handoffCommand({ chatroomId, role, cliEnvPrefix }));
-    lines.push('```');
-    if (availableHandoffTargets.length > 0) {
-      lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
-    }
-  } else {
-    lines.push(`No message found. Task ID: ${task._id}`);
-  }
-
-  lines.push('</next-steps>');
+  appendTaskDeliveryNextSteps(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    message: message ? { _id: message._id, senderRole: message.senderRole } : null,
+    availableHandoffTargets,
+    task,
+    isEntryPoint,
+  });
+  appendTaskDeliveryHandoffTemplates(lines, { teamId, role });
+  appendTaskDeliveryHandoffTargets(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    availableHandoffTargets,
+  });
 
   // ── Reminder footer ───────────────────────────────────────────────────────
 

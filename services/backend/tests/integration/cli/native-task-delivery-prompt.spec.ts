@@ -232,6 +232,7 @@ describe('Native task delivery prompt (integration)', () => {
     });
 
     expect(fullCliOutput).toContain('get-next-task');
-    expect(fullCliOutput).not.toContain('<handoffs>');
+    expect(fullCliOutput).toContain('<handoffs>');
+    expect(fullCliOutput).toContain('you MUST run the handoff command');
   });
 });

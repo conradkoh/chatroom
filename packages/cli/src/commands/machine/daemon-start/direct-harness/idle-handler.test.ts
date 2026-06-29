@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { handleSessionIdle } from './idle-handler.js';
-import type { SessionHandle, SessionJournal } from '../../../../domain/direct-harness/usecases/open-session.js';
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { DirectHarnessSession } from '../../../../domain/direct-harness/entities/direct-harness-session.js';
+import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
+import type {
+  SessionHandle,
+  SessionJournal,
+} from '../../../../domain/direct-harness/usecases/open-session.js';
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
@@ -52,6 +55,7 @@ function makeHandle(
 ): SessionHandle {
   return {
     harnessSessionId: rowId,
+    harnessName: 'opencode-sdk',
     opencodeSessionId: 'sdk-sess-1',
     workspaceId: 'workspace-1',
     session,
@@ -174,7 +178,9 @@ describe('handleSessionIdle', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     // Should not throw
-    await expect(handleSessionIdle(handle, journal, { agent: 'build' }, repo)).resolves.toBeUndefined();
+    await expect(
+      handleSessionIdle(handle, journal, { agent: 'build' }, repo)
+    ).resolves.toBeUndefined();
 
     // dequeueNext is still called after the error
     expect(repo.dequeueNext).toHaveBeenCalled();

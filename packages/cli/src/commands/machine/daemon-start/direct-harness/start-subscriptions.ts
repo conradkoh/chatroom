@@ -10,6 +10,7 @@ import { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import { startMessageSubscriber } from './prompt-subscriber.js';
 import { startSessionSubscriber } from './session-subscriber.js';
 import type { ActiveSession } from './session-subscriber.js';
+import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
@@ -31,6 +32,7 @@ export interface DirectHarnessSubscriptionHandles {
   pendingHarnessSessionSubscriptionHandle: { stop: () => void };
   commandSubscriptionHandle: { stop: () => void };
   lifecycleManager: HarnessLifecycleManager;
+  closeSessionsOnShutdown: () => Promise<void>;
 }
 
 export function startDirectHarnessSubscriptions(
@@ -81,6 +83,8 @@ export function startDirectHarnessSubscriptions(
       backend: session.backend,
       sessionId: session.sessionId,
     }),
+    activeSessions,
+    sessionRepository,
   });
 
   return {
@@ -88,5 +92,11 @@ export function startDirectHarnessSubscriptions(
     pendingHarnessSessionSubscriptionHandle,
     commandSubscriptionHandle,
     lifecycleManager,
+    closeSessionsOnShutdown: () =>
+      closeAllMachineHarnessSessionsOnShutdown(session, {
+        lifecycleManager,
+        activeSessions,
+        sessionRepository,
+      }),
   };
 }

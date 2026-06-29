@@ -47,7 +47,7 @@ vi.mock('./QueuedMessageDetailModal', () => ({
 
 // Mock chip components to render a simple button with the content so we can
 // test click propagation without needing the real modal infrastructure.
-vi.mock('../MessageAttachmentChips', () => ({
+vi.mock('../../attachments', () => ({
   MessageAttachmentChips: ({
     message,
   }: {
