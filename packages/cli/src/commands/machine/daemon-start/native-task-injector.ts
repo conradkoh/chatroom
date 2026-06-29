@@ -1,6 +1,6 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
 import type { NativeDeliveryLedger } from './native-delivery-ledger.js';

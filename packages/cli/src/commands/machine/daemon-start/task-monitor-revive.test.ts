@@ -1,4 +1,4 @@
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
 import { listNativeTasksNeedingRevive, NudgeCooldown } from './task-monitor-logic.js';

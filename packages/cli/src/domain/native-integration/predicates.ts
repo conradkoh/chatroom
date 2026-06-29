@@ -3,21 +3,11 @@ import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
-
-export function isNativePendingAliveRunning(task: AssignedTaskView): boolean {
-  const { agentConfig, status } = task;
-  return (
-    isNativeHarness(agentConfig.agentHarness) &&
-    status === 'pending' &&
-    agentConfig.spawnedAgentPid != null &&
-    agentConfig.desiredState === 'running'
-  );
-}
+import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 /** Pending, or acknowledged and owned by this agent — eligible for native task injection. */
 // fallow-ignore-next-line complexity
-export function isNativeInjectableAliveRunning(task: AssignedTaskView): boolean {
+export function isNativeInjectableAliveRunning(task: AssignedTaskSnapshotView): boolean {
   const { agentConfig, status } = task;
   if (!isNativeHarness(agentConfig.agentHarness)) return false;
   if (agentConfig.spawnedAgentPid == null || agentConfig.desiredState !== 'running') {
@@ -48,7 +38,7 @@ export function isNativeIdleAfterTaskComplete(participant: {
 }
 
 /** Injection retry after claim/join when resume did not complete. */
-export function isNativeAcknowledgedInjectionRetry(task: AssignedTaskView): boolean {
+export function isNativeAcknowledgedInjectionRetry(task: AssignedTaskSnapshotView): boolean {
   if (task.status !== 'acknowledged') return false;
   const assignedTo = task.assignedTo?.toLowerCase();
   if (assignedTo !== task.agentConfig.role.toLowerCase()) return false;
@@ -56,7 +46,7 @@ export function isNativeAcknowledgedInjectionRetry(task: AssignedTaskView): bool
 }
 
 // fallow-ignore-next-line complexity
-export function isStaleCliGetNextTaskWaiting(task: AssignedTaskView): boolean {
+export function isStaleCliGetNextTaskWaiting(task: AssignedTaskSnapshotView): boolean {
   const lastSeenAt = task.participant?.lastSeenAt ?? 0;
   return (
     task.participant?.lastSeenAction === 'get-next-task:started' && task.createdAt > lastSeenAt
@@ -64,7 +54,7 @@ export function isStaleCliGetNextTaskWaiting(task: AssignedTaskView): boolean {
 }
 
 export function isCliIdleNotListening(
-  task: AssignedTaskView,
+  task: AssignedTaskSnapshotView,
   now: number,
   thresholdMs: number
 ): boolean {

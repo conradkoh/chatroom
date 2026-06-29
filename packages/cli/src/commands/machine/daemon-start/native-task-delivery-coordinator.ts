@@ -1,4 +1,7 @@
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskView,
+} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
 import type {
@@ -9,6 +12,7 @@ import type {
 import { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import { shouldDeliverNativeTask } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
+import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -17,6 +21,7 @@ type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProc
 export interface NativeTaskDeliverySessionDeps {
   sessionId: string;
   convexUrl: string;
+  machineId: string;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -41,20 +46,22 @@ export class NativeTaskDeliveryCoordinator {
 
   // fallow-ignore-next-line complexity
   reconcileAssignedTasks(params: {
-    tasks: AssignedTaskView[];
+    tasks: AssignedTaskSnapshotView[];
     runtime: TaskMonitorRuntime;
     effectContext: TaskMonitorContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
     sessionDeps: NativeTaskDeliverySessionDeps;
+    machineId: string;
   }): void {
-    const { tasks, runtime, effectContext, agentMgr, sessionDeps } = params;
+    const { tasks, runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
+    const ledger = this.ledger;
 
-    for (const task of tasks) {
-      const slot = agentMgr.getSlot(task.chatroomId, task.agentConfig.role);
+    for (const row of tasks) {
+      const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
       const harnessSessionId = slot?.harnessSessionId;
       if (
-        !shouldDeliverNativeTask(task, {
-          ledger: this.ledger,
+        !shouldDeliverNativeTask(row, {
+          ledger,
           harnessSessionId,
         })
       ) {
@@ -65,24 +72,37 @@ export class NativeTaskDeliveryCoordinator {
       }
 
       Runtime.runFork(runtime)(
-        runNativeInjectionEffect(
-          task,
-          harnessSessionId,
-          {
-            sessionId: sessionDeps.sessionId,
-            backend: sessionDeps.backend,
-            agentMgr: {
-              resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
+        Effect.gen(function* () {
+          const full = (yield* Effect.tryPromise(() =>
+            sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
+              sessionId: sessionDeps.sessionId,
+              machineId,
+              taskId: row.taskId,
+              role: row.agentConfig.role,
+            })
+          )) as AssignedTaskView | null;
+
+          if (!full) return;
+
+          yield* runNativeInjectionEffect(
+            full,
+            harnessSessionId,
+            {
+              sessionId: sessionDeps.sessionId,
+              backend: sessionDeps.backend,
+              agentMgr: {
+                resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
+              },
+              convexUrl: sessionDeps.convexUrl,
             },
-            convexUrl: sessionDeps.convexUrl,
-          },
-          this.ledger
-        ).pipe(
+            ledger
+          );
+        }).pipe(
           Effect.provide(effectContext),
           Effect.catchAll((err) =>
             Effect.sync(() =>
               console.warn(
-                `[NativeTaskDelivery] delivery failed for ${task.agentConfig.role}@${task.chatroomId}: ${getErrorMessage(err)}`
+                `[NativeTaskDelivery] delivery failed for ${row.agentConfig.role}@${row.chatroomId}: ${getErrorMessage(err)}`
               )
             )
           )
