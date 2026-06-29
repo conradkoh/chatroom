@@ -278,6 +278,37 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.acknowledged');
   });
 
+  test('native:waiting does not downgrade in_progress task while agent is working', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-waiting-in-progress-guard');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+  });
+
   test('updateTokenActivity starts task when native:task-injected but lastStatus was agent.waiting', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

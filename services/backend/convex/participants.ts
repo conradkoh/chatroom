@@ -23,7 +23,10 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import { findAcknowledgedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
+import {
+  findActiveAssignedTaskForRole,
+  findAcknowledgedTaskForRole,
+} from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { readTask } from '../src/domain/usecase/task/read-task';
 
@@ -226,12 +229,12 @@ export const join = mutation({
     }
 
     if (args.action === NATIVE_WAITING_ACTION) {
-      const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
+      const activeTask = await findActiveAssignedTaskForRole(ctx, {
         chatroomId: args.chatroomId,
         role: args.role,
       });
-      // Do not downgrade to agent.waiting while a claimed task awaits first token output.
-      if (acknowledgedTask?.status === 'acknowledged') {
+      // Do not downgrade while agent has claimed work (awaiting tokens or actively working).
+      if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress') {
         return participantId;
       }
 
