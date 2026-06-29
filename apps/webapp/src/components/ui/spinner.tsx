@@ -7,6 +7,7 @@
  * - Utilitarian first (minimal, functional design)
  */
 
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 
 type SpinnerSize = 'sm' | 'md' | 'lg';
@@ -44,41 +45,9 @@ export function Spinner({ size = 'md', variant = 'default', className }: Spinner
   );
 }
 
-/**
- * Industrial spinner with multiple blocks for a more dynamic loading indicator
- * Three blocks that pulse in sequence
- */
-export function SpinnerBlocks({ size = 'md', variant = 'default', className }: SpinnerProps) {
-  const blockSizeClasses: Record<SpinnerSize, string> = {
-    sm: 'w-1.5 h-1.5 gap-0.5',
-    md: 'w-2 h-2 gap-1',
-    lg: 'w-3 h-3 gap-1.5',
-  };
-
-  const blockSize = blockSizeClasses[size].split(' ').slice(0, 2).join(' ');
-  const gapSize = blockSizeClasses[size].split(' ').slice(2).join(' ');
-
-  return (
-    <div className={cn('flex items-center', gapSize, className)} role="status" aria-label="Loading">
-      <div
-        className={cn(
-          blockSize,
-          variantClasses[variant],
-          'animate-pulse',
-          '[animation-delay:-0.3s]'
-        )}
-      />
-      <div
-        className={cn(
-          blockSize,
-          variantClasses[variant],
-          'animate-pulse',
-          '[animation-delay:-0.15s]'
-        )}
-      />
-      <div className={cn(blockSize, variantClasses[variant], 'animate-pulse')} />
-    </div>
-  );
+/** Four-square 2×2 loader — matches ChatroomLoader used across the chatroom UI. */
+export function SpinnerBlocks({ size = 'md', className }: Omit<SpinnerProps, 'variant'>) {
+  return <ChatroomLoader size={size} className={className} />;
 }
 
 /**
@@ -93,7 +62,7 @@ export function PageSpinner({ message = 'Loading...' }: PageSpinnerProps) {
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
       <div className="flex flex-col items-center gap-3">
-        <SpinnerBlocks size="lg" variant="muted" />
+        <SpinnerBlocks size="lg" />
         <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">{message}</p>
       </div>
     </div>
