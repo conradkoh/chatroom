@@ -221,6 +221,57 @@ describe('AgentProcessManager', () => {
       expect(nativeWaitingCalls).toHaveLength(1);
     });
 
+    test('turn-end for cursor-sdk skips native:waiting while task is in progress', async () => {
+      const resumeTurn = vi.fn().mockResolvedValue(undefined);
+      let agentEndCb: (() => void) | undefined;
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            agentEndCb = cb;
+          }),
+        }),
+      };
+      let queryCallCount = 0;
+      deps = createDeps({
+        backend: {
+          query: vi.fn().mockImplementation(async () => {
+            queryCallCount++;
+            if (queryCallCount >= 2) {
+              return { lastStatus: 'task.inProgress' };
+            }
+            return {
+              prompt: true,
+              rolePrompt: 'You are a builder',
+              initialMessage: 'Start working',
+            };
+          }),
+          mutation: vi.fn().mockResolvedValue(undefined),
+        },
+      });
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      await triggerAgentEnd(manager, () => agentEndCb!());
+
+      expect(resumeTurn).not.toHaveBeenCalled();
+      const nativeWaitingCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.action === 'native:waiting'
+      );
+      expect(nativeWaitingCalls).toHaveLength(0);
+    });
+
     test('onAgentEnd for native opencode-sdk emits native:waiting without resumeTurn', async () => {
       const resumeTurn = vi.fn().mockResolvedValue(undefined);
       let agentEndCb: (() => void) | undefined;
@@ -243,40 +294,6 @@ describe('AgentProcessManager', () => {
 
       await manager.ensureRunning(
         createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
-      );
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-      await triggerAgentEnd(manager, () => agentEndCb!());
-
-      expect(resumeTurn).not.toHaveBeenCalled();
-      expect(deps.processes.kill).not.toHaveBeenCalled();
-      const nativeWaitingCalls = getMutationCallsByArgs(
-        deps,
-        (args) => args.action === 'native:waiting'
-      );
-      expect(nativeWaitingCalls).toHaveLength(1);
-    });
-
-    test('onAgentEnd for cursor-sdk emits native:waiting without resumeTurn', async () => {
-      const resumeTurn = vi.fn().mockResolvedValue(undefined);
-      let agentEndCb: (() => void) | undefined;
-      const resumableService = {
-        ...createMockService(),
-        id: 'cursor-sdk',
-        resumeTurn,
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn((cb: () => void) => {
-            agentEndCb = cb;
-          }),
-        }),
-      };
-      deps.agentServices = new Map([['cursor-sdk', resumableService]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
       (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
       await triggerAgentEnd(manager, () => agentEndCb!());
