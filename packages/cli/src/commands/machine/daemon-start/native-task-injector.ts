@@ -1,5 +1,9 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { roleSupportsAutoRestartOnNewContextSetting } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
+import {
+  resolveSessionAugmentationForRole,
+  sessionAugmentationNewSessionStarted,
+} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
@@ -85,7 +89,7 @@ export function runNativeInjectionEffect(
 
     const delivery = deliveryResult.right;
 
-    const augmentationMode = parseSessionAugmentation(taskContent);
+    const augmentationMode = resolveSessionAugmentationForRole(taskContent, role);
 
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
@@ -106,15 +110,17 @@ export function runNativeInjectionEffect(
       Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
     );
 
-    if (augmentationMode === 'compact') {
+    if (roleSupportsAutoRestartOnNewContextSetting(role)) {
       yield* Effect.tryPromise({
         try: () =>
-          deps.backend.mutation(api.machines.emitSessionCompacted, {
+          deps.backend.mutation(api.machines.emitSessionAugmented, {
             sessionId: deps.sessionId,
             machineId: deps.machineId,
             chatroomId,
             role,
             taskId,
+            mode: augmentationMode,
+            newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
             harnessSessionId,
           }),
         catch: (err) => err,

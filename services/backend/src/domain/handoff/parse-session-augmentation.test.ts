@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 
 import {
   parseSessionAugmentation,
+  resolveSessionAugmentationForRole,
+  sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from './parse-session-augmentation';
 
@@ -112,5 +114,37 @@ describe('sessionAugmentationToWantResume', () => {
 
   test('new_session → cold spawn', () => {
     expect(sessionAugmentationToWantResume('new_session')).toBe(false);
+  });
+});
+
+describe('sessionAugmentationNewSessionStarted', () => {
+  test('only new_session starts a new session', () => {
+    expect(sessionAugmentationNewSessionStarted('new_session')).toBe(true);
+    expect(sessionAugmentationNewSessionStarted('none')).toBe(false);
+    expect(sessionAugmentationNewSessionStarted('compact')).toBe(false);
+  });
+});
+
+describe('resolveSessionAugmentationForRole', () => {
+  test('planner always gets none even when content defaults to new_session', () => {
+    expect(resolveSessionAugmentationForRole('## Goal\nDo work', 'planner')).toBe('none');
+    expect(
+      resolveSessionAugmentationForRole(
+        `${SESSION_AUGMENTATION_SECTION}
+// data:agent.session_augmentation=new_session`,
+        'planner'
+      )
+    ).toBe('none');
+  });
+
+  test('builder parses augmentation from content', () => {
+    expect(resolveSessionAugmentationForRole('## Goal\nDo work', 'builder')).toBe('new_session');
+    expect(
+      resolveSessionAugmentationForRole(
+        `${SESSION_AUGMENTATION_SECTION}
+// data:agent.session_augmentation=compact`,
+        'builder'
+      )
+    ).toBe('compact');
   });
 });

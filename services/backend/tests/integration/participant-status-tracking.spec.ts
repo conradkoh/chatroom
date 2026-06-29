@@ -788,6 +788,45 @@ describe('Participant Status Tracking', () => {
     expect(statusAfter.lastStatus).toBe('task.inProgress');
   });
 
+  test('emitSessionAugmented writes event stream row with mode and newSessionStarted', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-augmented');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-pst-session-augmented';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.machines.emitSessionAugmented, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+      mode: 'new_session',
+      newSessionStarted: true,
+      harnessSessionId: 'sess-2',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const augmented = events.filter((e) => e.type === 'agent.sessionAugmented');
+    expect(augmented).toHaveLength(1);
+    expect(augmented[0]).toMatchObject({
+      taskId,
+      harnessSessionId: 'sess-2',
+      machineId,
+      role: 'builder',
+      mode: 'new_session',
+      newSessionStarted: true,
+    });
+  });
+
   test('emitSessionResumeFailed persists harnessSessionId on event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-failed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

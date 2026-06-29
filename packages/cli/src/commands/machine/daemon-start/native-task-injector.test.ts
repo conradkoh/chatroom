@@ -1,5 +1,5 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
@@ -87,7 +87,10 @@ describe('runNativeInjectionEffect', () => {
       role: 'builder',
       prompt: buildNativeInjectionPrompt({
         taskDeliveryOutput: 'DELIVERY OUTPUT',
-        augmentationMode: parseSessionAugmentation(task.taskContent),
+        augmentationMode: resolveSessionAugmentationForRole(
+          task.taskContent,
+          task.agentConfig.role
+        ),
       }),
     });
     expect(deps.backend.mutation).toHaveBeenCalledWith(
@@ -175,31 +178,29 @@ describe('runNativeInjectionEffect', () => {
     warnSpy.mockRestore();
   });
 
-  test('emits sessionCompacted when session_augmentation is compact', async () => {
+  test('planner task does not emit sessionAugmented or new-session preamble', async () => {
     const deps = createDeps();
     const ledger = new NativeDeliveryLedger();
     const task = makeTask({
-      taskContent:
-        '## Goal\nDo work\n## Session Augmentation\n// data:agent.session_augmentation=compact',
+      agentConfig: { ...makeTask().agentConfig, role: 'planner' },
+      taskContent: '## Goal\nAck user task',
     });
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      api.machines.emitSessionCompacted,
+    const emitCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === api.machines.emitSessionAugmented
+    );
+    expect(emitCalls).toHaveLength(0);
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: 'session_1',
-        machineId: 'machine_1',
-        chatroomId: task.chatroomId,
-        role: 'builder',
-        taskId: task.taskId,
-        harnessSessionId: HARNESS_SESSION_ID,
+        prompt: 'DELIVERY OUTPUT',
       })
     );
   });
 
-  test('does not emit sessionCompacted for none or new_session', async () => {
-    for (const tag of ['none', 'new_session'] as const) {
+  test('emits sessionAugmented for every session_augmentation mode', async () => {
+    for (const tag of ['none', 'compact', 'new_session'] as const) {
       const deps = createDeps();
       const ledger = new NativeDeliveryLedger();
       const task = makeTask({
@@ -208,10 +209,19 @@ describe('runNativeInjectionEffect', () => {
 
       await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
-      const compactedCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
-        (call) => call[0] === api.machines.emitSessionCompacted
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        api.machines.emitSessionAugmented,
+        expect.objectContaining({
+          sessionId: 'session_1',
+          machineId: 'machine_1',
+          chatroomId: task.chatroomId,
+          role: 'builder',
+          taskId: task.taskId,
+          mode: tag,
+          newSessionStarted: tag === 'new_session',
+          harnessSessionId: HARNESS_SESSION_ID,
+        })
       );
-      expect(compactedCalls).toHaveLength(0);
     }
   });
 });

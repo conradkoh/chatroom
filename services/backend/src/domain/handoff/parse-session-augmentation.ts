@@ -1,3 +1,5 @@
+import { roleSupportsAutoRestartOnNewContextSetting } from '../entities/team-agent-settings';
+
 export type SessionAugmentationMode = 'none' | 'compact' | 'new_session';
 
 const SECTION_HEADINGS = [
@@ -47,7 +49,23 @@ export function parseSessionAugmentation(handoffContent: string): SessionAugment
   return normalizeMode(match[1]);
 }
 
+/** Parse session augmentation for task delivery. Non-augmentable roles always get `none`. */
+export function resolveSessionAugmentationForRole(
+  handoffContent: string,
+  role: string
+): SessionAugmentationMode {
+  if (!roleSupportsAutoRestartOnNewContextSetting(role)) {
+    return 'none';
+  }
+  return parseSessionAugmentation(handoffContent);
+}
+
 /** Map mode to daemon wantResume for ensureRunning after stop nudge. */
 export function sessionAugmentationToWantResume(mode: SessionAugmentationMode): boolean {
   return mode === 'none' || mode === 'compact';
+}
+
+/** Whether the augmentation mode starts a completely new agent session. */
+export function sessionAugmentationNewSessionStarted(mode: SessionAugmentationMode): boolean {
+  return mode === 'new_session';
 }

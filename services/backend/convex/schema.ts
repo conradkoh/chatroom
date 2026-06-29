@@ -1239,13 +1239,25 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
-      // Native harness in-process context compaction (new_session handoff)
+      // Native harness in-process context compaction (legacy; prefer agent.sessionAugmented)
       v.object({
         type: v.literal('agent.sessionCompacted'),
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
         machineId: v.string(),
         taskId: v.id('chatroom_tasks'),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Session augmentation applied on task delivery (none / compact / new_session)
+      v.object({
+        type: v.literal('agent.sessionAugmented'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        mode: v.union(v.literal('none'), v.literal('compact'), v.literal('new_session')),
+        newSessionStarted: v.boolean(),
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
