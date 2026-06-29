@@ -19,7 +19,6 @@ import {
   agentTypeValidator,
   machineCommandTypeValidator,
 } from '../src/domain/entities/agent';
-import { roleSupportsAutoRestartOnNewContextSetting } from '../src/domain/entities/team-agent-settings';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
@@ -1888,74 +1887,6 @@ export const saveTeamAgentConfig = mutation({
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
-  },
-});
-
-/** Toggle auto-restart-on-new-context for a team agent config (builder only for now). */
-export const setAutoRestartOnNewContext = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    enabled: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
-    }
-
-    if (!roleSupportsAutoRestartOnNewContextSetting(args.role)) {
-      throw new ConvexError({
-        code: 'INVALID_ROLE',
-        message: `Auto restart on new context is not available for role "${args.role}"`,
-      });
-    }
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
-    }
-    if (chatroom.ownerId !== auth.userId) {
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'Not authorized to modify team agent configs for this chatroom',
-      });
-    }
-    if (!chatroom.teamId) {
-      throw new ConvexError({
-        code: 'CHATROOM_NO_TEAM_ID',
-        message: 'Chatroom has no teamId — cannot build agent config key',
-      });
-    }
-
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
-    const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-
-    const now = Date.now();
-
-    if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
-        autoRestartOnNewContext: args.enabled,
-        updatedAt: now,
-      });
-    } else {
-      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        type: 'remote',
-        autoRestartOnNewContext: args.enabled,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    return { success: true, enabled: args.enabled };
   },
 });
 

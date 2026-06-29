@@ -215,7 +215,6 @@ export function useAgentControls({
   teamConfigModel,
   teamConfigHarness,
   teamConfigMachineId,
-  teamAutoRestartOnNewContext,
   teamWantResume,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
@@ -232,8 +231,6 @@ export function useAgentControls({
   teamConfigHarness?: AgentHarness;
   /** Team-config machine binding for this role (from team agent config / agent status view). */
   teamConfigMachineId?: string | null;
-  /** Persisted auto-restart-on-new-context preference from team agent config. */
-  teamAutoRestartOnNewContext?: boolean;
   /** Persisted reconnect-on-start preference from team agent config. */
   teamWantResume?: boolean;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
@@ -254,7 +251,6 @@ export function useAgentControls({
   const teamBehavior = useTeamAgentBehaviorSettings({
     chatroomId,
     role,
-    teamAutoRestartOnNewContext,
     teamWantResume,
   });
   const { seedFromTeamConfig, syncWantResume, effectiveWantResume } = teamBehavior;
@@ -1204,14 +1200,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             role={role}
             agentHarness={displayHarness}
             resumeSession={displayResumeSession}
-            autoRestartOnNewContext={teamBehavior.effectiveAutoRestartOnNewContext}
             disabled={isBusy || isAgentRunning}
-            isSavingAutoRestartOnNewContext={teamBehavior.isSavingAutoRestartOnNewContext}
             isSavingWantResume={teamBehavior.isSavingWantResume}
             onResumeSessionChange={(checked) => void teamBehavior.updateWantResume(checked)}
-            onAutoRestartOnNewContextChange={(checked) =>
-              void teamBehavior.updateAutoRestartOnNewContext(checked)
-            }
           />
 
           <AlertDialog

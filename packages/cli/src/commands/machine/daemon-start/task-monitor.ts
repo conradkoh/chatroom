@@ -7,7 +7,7 @@
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
 
-import { roleSupportsAutoRestartOnNewContextSetting } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
+import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
 import {
   resolveSessionAugmentationForRole,
   sessionAugmentationNewSessionStarted,
@@ -115,7 +115,7 @@ function executeCliNudge(
         reason: 'platform.task_monitor_nudge',
         wantResume,
       });
-      if (roleSupportsAutoRestartOnNewContextSetting(role)) {
+      if (roleSupportsSessionAugmentation(role)) {
         yield* Effect.tryPromise({
           try: () =>
             sessionDeps.backend.mutation(api.machines.emitSessionAugmented, {

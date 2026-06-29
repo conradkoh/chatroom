@@ -1,5 +1,5 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { roleSupportsAutoRestartOnNewContextSetting } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
+import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
 import {
   resolveSessionAugmentationForRole,
   sessionAugmentationNewSessionStarted,
@@ -110,7 +110,7 @@ export function runNativeInjectionEffect(
       Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
     );
 
-    if (roleSupportsAutoRestartOnNewContextSetting(role)) {
+    if (roleSupportsSessionAugmentation(role)) {
       yield* Effect.tryPromise({
         try: () =>
           deps.backend.mutation(api.machines.emitSessionAugmented, {

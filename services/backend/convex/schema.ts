@@ -941,7 +941,7 @@ export default defineSchema({
     spawnedAgentPid: v.optional(v.number()),
     spawnedAt: v.optional(v.number()),
 
-    /** When true, restart this remote agent after the entry role sets new context. */
+    /** @deprecated Legacy setting — no longer written. Kept optional for existing rows. */
     autoRestartOnNewContext: v.optional(v.boolean()),
 
     /**
@@ -1085,7 +1085,7 @@ export default defineSchema({
         deadline: v.number(),
         timestamp: v.number(),
         wantResume: v.optional(v.boolean()),
-        /** Snapshot of team config at emit time (observability only). */
+        /** @deprecated Legacy snapshot — no longer written. Kept optional for historical events. */
         autoRestartOnNewContext: v.optional(v.boolean()),
       }),
       // An agent stop was requested (replaces command.stopAgent; includes deadline)

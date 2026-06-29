@@ -73,7 +73,6 @@ async function emitOfflineUserMessageRestart(
         workingDir: config.workingDir,
         reason: 'platform.restart_offline_on_user_message',
         wantResume: config.wantResume ?? true,
-        autoRestartOnNewContext: config.autoRestartOnNewContext,
       },
       now
     )

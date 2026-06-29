@@ -68,7 +68,7 @@ export type AgentRequestStartEvent = {
   deadline: number;
   timestamp: number;
   wantResume?: boolean;
-  /** Snapshot of team config at emit time (observability only). */
+  /** @deprecated Legacy snapshot — no longer written. Kept optional for historical events. */
   autoRestartOnNewContext?: boolean;
 };
 

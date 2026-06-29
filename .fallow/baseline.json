@@ -369,7 +369,7 @@
     "services/backend/src/domain/entities/backlog-item.ts:isActiveBacklogItem",
     "services/backend/src/domain/entities/backlog-item.ts:canTransitionTo",
     "services/backend/src/domain/entities/harness/types.ts:getHarnessRuntimeKind",
-    "services/backend/src/domain/entities/team-agent-settings.ts:AUTO_RESTART_ON_NEW_CONTEXT_ROLES",
+    "services/backend/src/domain/entities/team-agent-settings.ts:SESSION_AUGMENTATION_ROLES",
     "services/backend/src/domain/entities/team-kind.ts:teamKindSchema",
     "services/backend/src/domain/entities/team-kind.ts:WELL_KNOWN_TEAM_KINDS",
     "services/backend/src/domain/entities/team-kind.ts:TeamKindEnum",

@@ -69,7 +69,7 @@ export interface AgentRequestStartEvent extends EventStreamEventBase {
   chatroomId: string;
   /** When true (default), resume from the daemon's last session on first launch. */
   wantResume?: boolean;
-  /** Snapshot of team config at emit time (observability only). */
+  /** @deprecated Legacy snapshot — no longer written. Kept optional for historical events. */
   autoRestartOnNewContext?: boolean;
 }
 

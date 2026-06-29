@@ -862,53 +862,6 @@ describe('AgentProcessManager', () => {
       expect(slot!.state).toBe('idle');
     });
 
-    test('context auto-restart failure falls back to crash recovery (rate-limited)', async () => {
-      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
-      shouldAllowSpawn.mockReturnValue({ allowed: true });
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>)
-        .mockRejectedValueOnce(new Error('spawn error'))
-        .mockResolvedValueOnce({
-          pid: PID,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        });
-
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.auto_restart_on_new_context' })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
-      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
-        1,
-        CHATROOM_ID,
-        'platform.auto_restart_on_new_context'
-      );
-      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(2, CHATROOM_ID, 'platform.crash_recovery');
-      expect(service.spawn).toHaveBeenCalledTimes(2);
-    });
-
-    test('context auto-restart: crash recovery failure returns rate_limited', async () => {
-      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
-      shouldAllowSpawn
-        .mockReturnValueOnce({ allowed: true })
-        .mockReturnValueOnce({ allowed: false });
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('spawn error'));
-
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.auto_restart_on_new_context' })
-      );
-
-      expect(result).toEqual({ success: false, error: 'rate_limited' });
-      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
-      expect(service.spawn).toHaveBeenCalledTimes(1);
-    });
-
     test('crash loop: returns failure, emits restartLimitReached', async () => {
       // Fill the window to max successful restarts: spacing must satisfy backoff (30s then 60s)
       // and keep all timestamps within CRASH_LOOP_WINDOW_MS so the limit check applies.

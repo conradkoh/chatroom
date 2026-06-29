@@ -1,23 +1,20 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  roleSupportsAutoRestartOnNewContextSetting,
-  AUTO_RESTART_ON_NEW_CONTEXT_ROLES,
-} from './team-agent-settings';
+import { roleSupportsSessionAugmentation, SESSION_AUGMENTATION_ROLES } from './team-agent-settings';
 
 describe('team-agent-settings', () => {
-  test('builder role supports auto-restart-on-new-context setting', () => {
-    expect(roleSupportsAutoRestartOnNewContextSetting('builder')).toBe(true);
-    expect(roleSupportsAutoRestartOnNewContextSetting('Builder')).toBe(true);
+  test('builder role supports session augmentation', () => {
+    expect(roleSupportsSessionAugmentation('builder')).toBe(true);
+    expect(roleSupportsSessionAugmentation('Builder')).toBe(true);
   });
 
-  test('other roles do not support the setting yet', () => {
-    expect(roleSupportsAutoRestartOnNewContextSetting('planner')).toBe(false);
-    expect(roleSupportsAutoRestartOnNewContextSetting('architect')).toBe(false);
-    expect(roleSupportsAutoRestartOnNewContextSetting('solo')).toBe(false);
+  test('other roles do not support session augmentation', () => {
+    expect(roleSupportsSessionAugmentation('planner')).toBe(false);
+    expect(roleSupportsSessionAugmentation('architect')).toBe(false);
+    expect(roleSupportsSessionAugmentation('solo')).toBe(false);
   });
 
-  test('AUTO_RESTART_ON_NEW_CONTEXT_ROLES includes builder only', () => {
-    expect([...AUTO_RESTART_ON_NEW_CONTEXT_ROLES]).toEqual(['builder']);
+  test('SESSION_AUGMENTATION_ROLES includes builder only', () => {
+    expect([...SESSION_AUGMENTATION_ROLES]).toEqual(['builder']);
   });
 });

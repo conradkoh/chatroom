@@ -1,4 +1,4 @@
-import { roleSupportsAutoRestartOnNewContextSetting } from '../entities/team-agent-settings';
+import { roleSupportsSessionAugmentation } from '../entities/team-agent-settings';
 
 export type SessionAugmentationMode = 'none' | 'compact' | 'new_session';
 
@@ -54,7 +54,7 @@ export function resolveSessionAugmentationForRole(
   handoffContent: string,
   role: string
 ): SessionAugmentationMode {
-  if (!roleSupportsAutoRestartOnNewContextSetting(role)) {
+  if (!roleSupportsSessionAugmentation(role)) {
     return 'none';
   }
   return parseSessionAugmentation(handoffContent);
