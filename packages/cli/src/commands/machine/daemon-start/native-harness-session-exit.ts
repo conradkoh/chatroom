@@ -4,7 +4,6 @@ import { notifyNativeSessionLost } from './native-task-delivery-coordinator.js';
 import type { AgentHarness } from './types.js';
 import type { StopReason } from '../../../domain/agent-lifecycle/index.js';
 import { shouldRetainHarnessSessionForReconnect } from '../../../domain/agent-lifecycle/index.js';
-import { isCursorSdkRunErrorInLogs } from '../../../domain/agent-lifecycle/policies/cursor-sdk-run-error.js';
 
 export interface NativeHarnessSessionExitContext {
   chatroomId: string;
@@ -23,12 +22,9 @@ export function isNativeHarnessSessionDiscardedOnExit(
     'harness' | 'harnessSessionId' | 'stopReason' | 'recentLogLines' | 'supportsDaemonMemoryResume'
   >
 ): boolean {
-  const { harness, harnessSessionId, stopReason, recentLogLines, supportsDaemonMemoryResume } = ctx;
+  const { harness, harnessSessionId, stopReason, supportsDaemonMemoryResume } = ctx;
   if (!harness || !harnessSessionId) {
     return false;
-  }
-  if (isCursorSdkRunErrorInLogs(recentLogLines ?? [])) {
-    return true;
   }
   if (!supportsDaemonMemoryResume) {
     return true;
