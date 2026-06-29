@@ -1,15 +1,15 @@
 import type {
-  AssignedTaskLiteView,
   AssignedTaskSignal,
+  AssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, it } from 'vitest';
 
 import { TaskMonitorSnapshot } from './task-monitor-snapshot.js';
 
-function makeLite(overrides: Partial<AssignedTaskLiteView> = {}): AssignedTaskLiteView {
+function makeSnapshot(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
   return {
-    taskId: 'task_1' as AssignedTaskLiteView['taskId'],
-    chatroomId: 'room_1' as AssignedTaskLiteView['chatroomId'],
+    taskId: 'task_1' as AssignedTaskSnapshotView['taskId'],
+    chatroomId: 'room_1' as AssignedTaskSnapshotView['chatroomId'],
     status: 'pending',
     assignedTo: 'builder',
     updatedAt: 1_000,
@@ -49,16 +49,16 @@ function makeSignal(overrides: Partial<AssignedTaskSignal> = {}): AssignedTaskSi
 describe('TaskMonitorSnapshot', () => {
   it('replaces all rows on reconcile refresh', () => {
     const snapshot = new TaskMonitorSnapshot();
-    snapshot.replaceAll([makeLite()]);
+    snapshot.replaceAll([makeSnapshot()]);
     expect(snapshot.get('task_1', 'builder')).toBeDefined();
 
     snapshot.replaceAll([]);
     expect(snapshot.get('task_1', 'builder')).toBeUndefined();
   });
 
-  it('merges signals while preserving timing fields from the lite row', () => {
+  it('merges incremental signals while preserving reconcile-only fields', () => {
     const snapshot = new TaskMonitorSnapshot();
-    snapshot.replaceAll([makeLite()]);
+    snapshot.replaceAll([makeSnapshot()]);
 
     const merged = snapshot.mergeSignal(
       makeSignal({

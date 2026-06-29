@@ -1,8 +1,8 @@
 /**
  * Task Monitor — incremental subscribe + reconcile for assigned tasks on this machine.
  *
- * - Signal feed: patch working snapshot, run revive/inject for that row (no lite list refetch)
- * - Reconcile poll: refresh snapshot from listAssignedTasksLite, full pass including nudge
+ * - Signal feed: patch working snapshot, run revive/inject for that row (no reconcile refetch)
+ * - Reconcile poll: refresh snapshot from listAssignedTasksForReconcile, full pass including nudge
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
@@ -12,7 +12,7 @@ import {
   parseCompressContext,
 } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type {
-  AssignedTaskLiteView,
+  AssignedTaskSnapshotView,
   AssignedTaskSignal,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
@@ -51,7 +51,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
-type ListAssignedTasksLiteResult = { tasks: AssignedTaskLiteView[] };
+type ListAssignedTasksForReconcileResult = { tasks: AssignedTaskSnapshotView[] };
 
 type TaskMonitorPass = 'signal' | 'reconcile';
 
@@ -166,13 +166,13 @@ function runNativeReviveEffect(
 async function fetchTaskForAction(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
-  lite: AssignedTaskLiteView
+  snapshotRow: AssignedTaskSnapshotView
 ): Promise<AssignedTaskView | null> {
   const result = (await sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
     sessionId: sessionDeps.sessionId,
     machineId,
-    taskId: lite.taskId,
-    role: lite.agentConfig.role,
+    taskId: snapshotRow.taskId,
+    role: snapshotRow.agentConfig.role,
   })) as AssignedTaskView | null;
   return result;
 }
@@ -188,7 +188,7 @@ function runCliNudgeEffect(
 }
 
 async function nudgeStuckTasks(
-  tasks: AssignedTaskLiteView[],
+  tasks: AssignedTaskSnapshotView[],
   now: number,
   cooldown: NudgeCooldown,
   runtime: TaskMonitorRuntime,
@@ -197,15 +197,15 @@ async function nudgeStuckTasks(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
 ): Promise<void> {
-  for (const lite of listTasksReadyForNudge(tasks, now, cooldown)) {
-    const full = await fetchTaskForAction(sessionDeps, machineId, lite);
+  for (const row of listTasksReadyForNudge(tasks, now, cooldown)) {
+    const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runCliNudgeEffect(full, runtime, effectContext, agentMgr);
   }
 }
 
 async function reviveNativeTasks(
-  tasks: AssignedTaskLiteView[],
+  tasks: AssignedTaskSnapshotView[],
   localHealth: {
     getSlot: (
       chatroomId: string,
@@ -221,15 +221,15 @@ async function reviveNativeTasks(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
 ): Promise<void> {
-  for (const lite of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
-    const full = await fetchTaskForAction(sessionDeps, machineId, lite);
+  for (const row of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
+    const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runNativeReviveEffect(full, runtime, effectContext, agentMgr);
   }
 }
 
 async function processTasksUpdate(
-  tasks: AssignedTaskLiteView[],
+  tasks: AssignedTaskSnapshotView[],
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   cooldown: NudgeCooldown,
@@ -316,7 +316,7 @@ export const startTaskMonitorEffect = (
       },
     };
 
-    const runMonitorPass = (tasks: AssignedTaskLiteView[], pass: TaskMonitorPass): void => {
+    const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
       void processTasksUpdate(
@@ -333,20 +333,20 @@ export const startTaskMonitorEffect = (
       });
     };
 
-    const queryLiteTasks = (): Promise<ListAssignedTasksLiteResult> =>
-      session.backend.query(api.machines.listAssignedTasksLite, {
+    const queryReconcileSnapshots = (): Promise<ListAssignedTasksForReconcileResult> =>
+      session.backend.query(api.machines.listAssignedTasksForReconcile, {
         sessionId: session.sessionId,
         machineId: session.machineId,
-      }) as Promise<ListAssignedTasksLiteResult>;
+      }) as Promise<ListAssignedTasksForReconcileResult>;
 
     const hydrateSnapshotFromBackend = async (): Promise<void> => {
-      const result = await queryLiteTasks();
+      const result = await queryReconcileSnapshots();
       snapshot.replaceAll(result?.tasks ?? []);
     };
 
-    const resolveLiteForSignal = async (
+    const resolveSnapshotRowForSignal = async (
       signal: AssignedTaskSignal
-    ): Promise<AssignedTaskLiteView | undefined> => {
+    ): Promise<AssignedTaskSnapshotView | undefined> => {
       const merged = snapshot.mergeSignal(signal);
       if (merged) {
         return merged;
@@ -384,15 +384,15 @@ export const startTaskMonitorEffect = (
         Effect.gen(function* () {
           ack();
           if (stopped) return;
-          const lite = yield* Effect.tryPromise(() => resolveLiteForSignal(signal));
-          if (!lite) return;
-          runMonitorPass([lite], 'signal');
+          const row = yield* Effect.tryPromise(() => resolveSnapshotRowForSignal(signal));
+          if (!row) return;
+          runMonitorPass([row], 'signal');
         }),
     });
 
     const reconcileHandle = yield* runReconcilePollLive({
       name: 'assigned-tasks-reconcile',
-      poll: () => queryLiteTasks(),
+      poll: () => queryReconcileSnapshots(),
       args: undefined,
       intervalMs: ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
       onResult: (result) =>
@@ -403,7 +403,7 @@ export const startTaskMonitorEffect = (
         }),
     });
 
-    const initial = yield* Effect.tryPromise(() => queryLiteTasks()).pipe(
+    const initial = yield* Effect.tryPromise(() => queryReconcileSnapshots()).pipe(
       Effect.orElseSucceed(() => null)
     );
     if (initial?.tasks) {

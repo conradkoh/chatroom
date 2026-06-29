@@ -1,5 +1,5 @@
 import type {
-  AssignedTaskLiteView,
+  AssignedTaskSnapshotView,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
@@ -46,7 +46,7 @@ export class NativeTaskDeliveryCoordinator {
 
   // fallow-ignore-next-line complexity
   reconcileAssignedTasks(params: {
-    tasks: AssignedTaskLiteView[];
+    tasks: AssignedTaskSnapshotView[];
     runtime: TaskMonitorRuntime;
     effectContext: TaskMonitorContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
@@ -56,11 +56,11 @@ export class NativeTaskDeliveryCoordinator {
     const { tasks, runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
     const ledger = this.ledger;
 
-    for (const lite of tasks) {
-      const slot = agentMgr.getSlot(lite.chatroomId, lite.agentConfig.role);
+    for (const row of tasks) {
+      const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
       const harnessSessionId = slot?.harnessSessionId;
       if (
-        !shouldDeliverNativeTask(lite, {
+        !shouldDeliverNativeTask(row, {
           ledger,
           harnessSessionId,
         })
@@ -77,8 +77,8 @@ export class NativeTaskDeliveryCoordinator {
             sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
               sessionId: sessionDeps.sessionId,
               machineId,
-              taskId: lite.taskId,
-              role: lite.agentConfig.role,
+              taskId: row.taskId,
+              role: row.agentConfig.role,
             })
           )) as AssignedTaskView | null;
 
@@ -102,7 +102,7 @@ export class NativeTaskDeliveryCoordinator {
           Effect.catchAll((err) =>
             Effect.sync(() =>
               console.warn(
-                `[NativeTaskDelivery] delivery failed for ${lite.agentConfig.role}@${lite.chatroomId}: ${getErrorMessage(err)}`
+                `[NativeTaskDelivery] delivery failed for ${row.agentConfig.role}@${row.chatroomId}: ${getErrorMessage(err)}`
               )
             )
           )

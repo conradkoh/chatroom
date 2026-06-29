@@ -13,7 +13,7 @@ import {
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
-describe('machines.listAssignedTasksLite', () => {
+describe('machines.listAssignedTasksForReconcile', () => {
   test('returns active tasks without task content', async () => {
     const { sessionId } = await createTestSession('test-lite-tasks-1');
     const machineId = 'machine-lite-tasks-1';
@@ -29,7 +29,7 @@ describe('machines.listAssignedTasksLite', () => {
       createdBy: 'user',
     });
 
-    const result = await t.query(api.machines.listAssignedTasksLite, {
+    const result = await t.query(api.machines.listAssignedTasksForReconcile, {
       sessionId,
       machineId,
     });

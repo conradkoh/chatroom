@@ -34,8 +34,11 @@ export interface AssignedTaskView {
   participant?: AssignedTaskParticipantView;
 }
 
-/** Lite view for reconcile polls — omits task.content. */
-export interface AssignedTaskLiteView {
+/**
+ * Reconcile snapshot row — omits task.content from the API response.
+ * Server-side collect may still read full task documents; see developer guide.
+ */
+export interface AssignedTaskSnapshotView {
   taskId: Id<'chatroom_tasks'>;
   chatroomId: Id<'chatroom_rooms'>;
   status: string;
@@ -46,8 +49,8 @@ export interface AssignedTaskLiteView {
   participant?: AssignedTaskParticipantView;
 }
 
-export interface ListAssignedTasksLiteResult {
-  tasks: AssignedTaskLiteView[];
+export interface ListAssignedTasksForReconcileResult {
+  tasks: AssignedTaskSnapshotView[];
 }
 
 export type AssignedTaskSignalType = 'task' | 'agent_config';

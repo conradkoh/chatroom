@@ -4,20 +4,20 @@
  */
 
 import type {
-  AssignedTaskLiteView,
   AssignedTaskSignal,
+  AssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 function taskSnapshotKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;
 }
 
-/** Merge signal fields into an existing lite row. Returns undefined when no base row exists. */
+/** Merge incremental signal fields into a reconcile snapshot row. */
 // fallow-ignore-next-line complexity
-function mergeSignalIntoLite(
-  existing: AssignedTaskLiteView | undefined,
+function mergeSignalIntoSnapshot(
+  existing: AssignedTaskSnapshotView | undefined,
   signal: AssignedTaskSignal
-): AssignedTaskLiteView | undefined {
+): AssignedTaskSnapshotView | undefined {
   if (!existing) {
     return undefined;
   }
@@ -39,22 +39,22 @@ function mergeSignalIntoLite(
 }
 
 export class TaskMonitorSnapshot {
-  private readonly rows = new Map<string, AssignedTaskLiteView>();
+  private readonly rows = new Map<string, AssignedTaskSnapshotView>();
 
-  replaceAll(tasks: readonly AssignedTaskLiteView[]): void {
+  replaceAll(tasks: readonly AssignedTaskSnapshotView[]): void {
     this.rows.clear();
     for (const task of tasks) {
       this.rows.set(taskSnapshotKey(task.taskId, task.agentConfig.role), task);
     }
   }
 
-  get(taskId: string, role: string): AssignedTaskLiteView | undefined {
+  get(taskId: string, role: string): AssignedTaskSnapshotView | undefined {
     return this.rows.get(taskSnapshotKey(taskId, role));
   }
 
-  mergeSignal(signal: AssignedTaskSignal): AssignedTaskLiteView | undefined {
+  mergeSignal(signal: AssignedTaskSignal): AssignedTaskSnapshotView | undefined {
     const key = taskSnapshotKey(signal.taskId, signal.role);
-    const merged = mergeSignalIntoLite(this.rows.get(key), signal);
+    const merged = mergeSignalIntoSnapshot(this.rows.get(key), signal);
     if (!merged) {
       return undefined;
     }

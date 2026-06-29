@@ -1,4 +1,4 @@
-import type { AssignedTaskLiteView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import { isNativeHarness } from './native-task-injector-logic.js';
 import {
@@ -10,7 +10,7 @@ import type { AgentSlot } from '../../../infrastructure/services/agent-process-m
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;
 
-function isPendingAliveRunningTask(task: AssignedTaskLiteView): boolean {
+function isPendingAliveRunningTask(task: AssignedTaskSnapshotView): boolean {
   const { agentConfig, status } = task;
   return (
     status === 'pending' &&
@@ -38,7 +38,7 @@ function isSlotUnavailableForPid(
   return !isPidAlive(pid);
 }
 
-function isNativeRevivableTaskStatus(task: AssignedTaskLiteView): boolean {
+function isNativeRevivableTaskStatus(task: AssignedTaskSnapshotView): boolean {
   const { status } = task;
   if (status === 'pending') {
     return task.agentConfig.spawnedAgentPid != null;
@@ -51,7 +51,7 @@ function isNativeRevivableTaskStatus(task: AssignedTaskLiteView): boolean {
 
 // fallow-ignore-next-line complexity
 function isNativeAgentSlotDown(
-  task: AssignedTaskLiteView,
+  task: AssignedTaskSnapshotView,
   health: NativeAgentLocalHealth
 ): boolean {
   const slot = health.getSlot(task.chatroomId, task.agentConfig.role);
@@ -67,7 +67,7 @@ function isNativeAgentSlotDown(
 
 /** Native agent should be running for an active task but the local slot is down. */
 function isNativeActiveTaskAgentDown(
-  task: AssignedTaskLiteView,
+  task: AssignedTaskSnapshotView,
   health: NativeAgentLocalHealth
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
@@ -77,11 +77,11 @@ function isNativeActiveTaskAgentDown(
 }
 
 export function listNativeTasksNeedingRevive(
-  tasks: AssignedTaskLiteView[],
+  tasks: AssignedTaskSnapshotView[],
   health: NativeAgentLocalHealth,
   now: number,
   cooldown: NudgeCooldown
-): AssignedTaskLiteView[] {
+): AssignedTaskSnapshotView[] {
   return tasks.filter((task) => {
     if (!isNativeActiveTaskAgentDown(task, health)) return false;
     const { chatroomId, agentConfig } = task;
@@ -93,7 +93,7 @@ export function listNativeTasksNeedingRevive(
 }
 
 function shouldNudgeCliPendingTask(
-  task: AssignedTaskLiteView,
+  task: AssignedTaskSnapshotView,
   now: number,
   pendingIdleThresholdMs: number
 ): boolean {
@@ -105,7 +105,7 @@ function shouldNudgeCliPendingTask(
 
 /** Returns true when a pending CLI task should trigger an agent restart nudge. */
 function shouldNudgePendingTask(
-  task: AssignedTaskLiteView,
+  task: AssignedTaskSnapshotView,
   now: number,
   pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
 ): boolean {
@@ -132,7 +132,7 @@ export class NudgeCooldown {
 }
 
 function isTaskReadyForNudge(
-  task: AssignedTaskLiteView,
+  task: AssignedTaskSnapshotView,
   now: number,
   cooldown: NudgeCooldown
 ): boolean {
@@ -144,10 +144,10 @@ function isTaskReadyForNudge(
 }
 
 export function listTasksReadyForNudge(
-  tasks: AssignedTaskLiteView[],
+  tasks: AssignedTaskSnapshotView[],
   now: number,
   cooldown: NudgeCooldown
-): AssignedTaskLiteView[] {
+): AssignedTaskSnapshotView[] {
   return tasks.filter((task) => {
     if (!isTaskReadyForNudge(task, now, cooldown)) return false;
     cooldown.recordNudge(task.chatroomId, task.agentConfig.role, now);

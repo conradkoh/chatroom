@@ -31,7 +31,7 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { listAssignedTasksLiteForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-lite';
+import { listAssignedTasksForReconcileForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-for-reconcile';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -2536,10 +2536,10 @@ export const getAgentOverviewForChatroom = query({
 // ============================================================================
 
 /**
- * Lite assigned-task snapshot for daemon reconcile polls (no task.content).
+ * Assigned-task reconcile snapshot for daemon polls (no task.content in response).
  */
 // fallow-ignore-next-line code-duplication
-export const listAssignedTasksLite = query({
+export const listAssignedTasksForReconcile = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
@@ -2548,7 +2548,7 @@ export const listAssignedTasksLite = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { tasks: [] };
 
-    return listAssignedTasksLiteForMachine(ctx, {
+    return listAssignedTasksForReconcileForMachine(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
     });

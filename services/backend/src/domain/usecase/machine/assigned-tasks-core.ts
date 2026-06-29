@@ -4,7 +4,7 @@
 
 import type {
   AssignedTaskAgentConfigView,
-  AssignedTaskLiteView,
+  AssignedTaskSnapshotView,
   AssignedTaskSignal,
   AssignedTaskSignalType,
   AssignedTaskView,
@@ -170,7 +170,7 @@ function toAgentConfigView(
 // fallow-ignore-next-line complexity
 function toParticipantView(
   participant: Doc<'chatroom_participants'> | null
-): AssignedTaskLiteView['participant'] {
+): AssignedTaskSnapshotView['participant'] {
   if (!participant) {
     return {
       lastSeenAction: null,
@@ -185,10 +185,10 @@ function toParticipantView(
   };
 }
 
-export function rowToLiteView(
+export function rowToSnapshotView(
   row: CollectedAssignedTaskRow,
   machineId: string
-): AssignedTaskLiteView {
+): AssignedTaskSnapshotView {
   const { task, config, participant } = row;
   return {
     taskId: task._id,
@@ -204,7 +204,7 @@ export function rowToLiteView(
 
 export function rowToFullView(row: CollectedAssignedTaskRow, machineId: string): AssignedTaskView {
   return {
-    ...rowToLiteView(row, machineId),
+    ...rowToSnapshotView(row, machineId),
     taskContent: row.task.content,
   };
 }
