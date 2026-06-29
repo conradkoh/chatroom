@@ -27,6 +27,7 @@ import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
+import { deletePendingTaskAndMessage } from '../src/domain/usecase/task/delete-pending-task-and-message';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
@@ -887,13 +888,11 @@ export const deletePendingMessage = mutation({
       });
     }
 
-    // Delete the associated pending task first
-    await ctx.db.delete('chatroom_tasks', task._id);
-    await adjustTaskCount(ctx, message.chatroomId, 'pending', -1);
-
-    // Delete the message itself (hard delete)
-    await ctx.db.delete('chatroom_messages', args.messageId);
-
+    await deletePendingTaskAndMessage(ctx, {
+      chatroomId: message.chatroomId,
+      taskId: task._id,
+      messageId: args.messageId,
+    });
     return { success: true };
   },
 });

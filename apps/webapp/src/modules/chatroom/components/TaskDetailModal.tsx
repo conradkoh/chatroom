@@ -361,13 +361,15 @@ export function TaskDetailModal({
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleDelete}
-                      className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </DropdownMenuItem>
+                    {task.status === 'pending' && (
+                      <DropdownMenuItem
+                        onClick={handleDelete}
+                        className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>

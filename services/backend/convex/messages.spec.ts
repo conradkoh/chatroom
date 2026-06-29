@@ -504,6 +504,36 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
 });
 
 describe('deletePendingMessage and materialized counts', () => {
+  test('deletePendingTask removes task and linked user message', async () => {
+    const { sessionId } = await createTestSession('del-pending-task-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'pending message',
+      type: 'message',
+    });
+
+    const message = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    const taskId = message!.taskId!;
+
+    await t.mutation(api.tasks.deletePendingTask, { sessionId, taskId });
+
+    const task = await t.run((ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task).toBeNull();
+
+    const deletedMessage = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    expect(deletedMessage).toBeNull();
+
+    const counts = await t.query(api.tasks.getTaskCounts, {
+      sessionId,
+      chatroomId,
+    });
+    expect(counts.pending).toBe(0);
+  });
+
   test('deleting pending message decrements pending count so next send is not queued', async () => {
     const { sessionId } = await createTestSession('del-pending-counts-1');
     const chatroomId = await createChatroom(sessionId);

@@ -18,6 +18,10 @@ import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
+import {
+  deletePendingTaskAndMessage,
+  findPrimaryMessageForTask,
+} from '../src/domain/usecase/task/delete-pending-task-and-message';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
@@ -433,6 +437,36 @@ export const completeTaskById = mutation({
     throw new Error(
       `Cannot complete task with status: ${task.status}. Only pending, in_progress, and acknowledged tasks can be completed.`
     );
+  },
+});
+
+/** Deletes a pending task and its linked user message (task-queue UI entry point). */
+export const deletePendingTask = mutation({
+  args: {
+    ...SessionIdArg,
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      return { success: true };
+    }
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    const primary = await findPrimaryMessageForTask(ctx, args.taskId);
+    if (!primary) {
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'No message found for this task.',
+      });
+    }
+
+    await deletePendingTaskAndMessage(ctx, {
+      chatroomId: task.chatroomId,
+      taskId: args.taskId,
+      messageId: primary._id,
+    });
+    return { success: true };
   },
 });
 
