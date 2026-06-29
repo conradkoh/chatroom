@@ -27,7 +27,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
-      updateQueuedMessage: 'messages:updateQueuedMessage',
+      updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
     },
   },
 }));

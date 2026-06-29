@@ -142,14 +142,13 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     (api.backlog as any).completeAllPendingReviewBacklogItems
   );
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
-  const updateTask = useSessionMutation(api.tasks.updateTask);
+  const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
-  const deletePendingTask = useSessionMutation(api.tasks.deletePendingTask);
+  const deleteUserMessageOrTask = useSessionMutation(api.messages.deleteUserMessageOrTask);
   // Note: cancelTask mutation was removed in Phase 3 backlog cleanup
 
   // Queued messages mutations
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
 
   // Fetch queued messages
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
@@ -174,14 +173,15 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handleQueuedDelete = useCallback(
     async (queuedMessageId: string) => {
       try {
-        await deleteQueuedMessage({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        await deleteUserMessageOrTask({
+          type: 'message',
+          messageId: queuedMessageId as Id<'chatroom_messageQueue'>,
         });
       } catch (error) {
         console.error('Failed to delete queued message:', error);
       }
     },
-    [deleteQueuedMessage]
+    [deleteUserMessageOrTask]
   );
 
   // Categorize tasks by status
@@ -230,7 +230,8 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handleModalEdit = useCallback(
     async (taskId: string, content: string) => {
       try {
-        await updateTask({
+        await updateUserMessageOrTask({
+          type: 'task',
           taskId: taskId as Id<'chatroom_tasks'>,
           content,
         });
@@ -241,7 +242,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         throw error; // Re-throw so TaskDetailModal can handle it
       }
     },
-    [updateTask]
+    [updateUserMessageOrTask]
   );
 
   const handleModalForceComplete = useCallback(
@@ -261,9 +262,12 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   const handleModalDelete = useCallback(
     async (taskId: string) => {
-      await deletePendingTask({ taskId: taskId as Id<'chatroom_tasks'> });
+      await deleteUserMessageOrTask({
+        type: 'task',
+        taskId: taskId as Id<'chatroom_tasks'>,
+      });
     },
-    [deletePendingTask]
+    [deleteUserMessageOrTask]
   );
 
   // Batch close all acknowledged tasks (force complete)

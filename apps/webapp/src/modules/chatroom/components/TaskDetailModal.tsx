@@ -361,7 +361,9 @@ export function TaskDetailModal({
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
-                    {task.status === 'pending' && (
+                    {(task.status === 'pending' ||
+                      task.status === 'acknowledged' ||
+                      task.status === 'in_progress') && (
                       <DropdownMenuItem
                         onClick={handleDelete}
                         className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"

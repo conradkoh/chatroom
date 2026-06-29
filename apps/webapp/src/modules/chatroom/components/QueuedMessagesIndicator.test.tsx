@@ -15,6 +15,10 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Control the list of queued messages returned by the query.
@@ -34,8 +38,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
       listQueued: 'messages:listQueued',
-      deleteQueuedMessage: 'messages:deleteQueuedMessage',
-      updateQueuedMessage: 'messages:updateQueuedMessage',
+      deleteUserMessageOrTask: 'messages:deleteUserMessageOrTask',
+      updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
     },
     tasks: {
       promoteSpecificTask: 'tasks:promoteSpecificTask',
@@ -58,10 +62,6 @@ vi.mock('./WorkQueue/QueuedMessageDetailModal', () => ({
       </div>
     ) : null,
 }));
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-import { QueuedMessagesIndicator } from './QueuedMessagesIndicator';
 
 const CHATROOM_ID = 'room-test-1' as Id<'chatroom_rooms'>;
 
