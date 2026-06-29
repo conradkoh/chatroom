@@ -1,7 +1,7 @@
 /**
  * Incremental sync feed — shared types for cursor-based daemon feeds.
  *
- * See docs/developer/application/convex-daemon-incremental-sync.md
+ * See packages/cli/src/infrastructure/incremental-sync/README.md
  */
 
 import type { ConvexClient } from 'convex/browser';
