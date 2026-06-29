@@ -2,7 +2,7 @@ import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
 import { NativeDeliveryLedger } from './native-delivery-ledger.js';

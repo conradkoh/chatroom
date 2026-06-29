@@ -31,7 +31,6 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 import { listAssignedTasksLiteForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-lite';
 import { pollAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/poll-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
@@ -2533,29 +2532,8 @@ export const getAgentOverviewForChatroom = query({
 
 // ============================================================================
 // DAEMON TASK MONITOR
-// Used by the daemon to subscribe to all tasks assigned to roles on this machine.
+// Used by the daemon to poll assigned tasks on this machine.
 // ============================================================================
-
-/**
- * Returns all active tasks for chatrooms where this machine has remote agent configs.
- *
- * @deprecated Use listAssignedTasksLite + pollAssignedTaskSignalsSince + getAssignedTaskForAction.
- */
-export const getAssignedTasks = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return { tasks: [] };
-
-    return getAssignedTasksForMachine(ctx, {
-      machineId: args.machineId,
-      userId: auth.userId,
-    });
-  },
-});
 
 /**
  * Lite assigned-task snapshot for daemon reconcile polls (no task.content).

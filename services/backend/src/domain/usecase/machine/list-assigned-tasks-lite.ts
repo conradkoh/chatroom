@@ -1,7 +1,7 @@
 /**
  * Use Case: List assigned tasks (lite) for machine daemon reconcile polls.
  *
- * Same pairing logic as getAssignedTasks but omits task.content.
+ * Same pairing logic as listAssignedTasksLite but omits task.content in the view mapper.
  */
 
 import { mapAssignedTasksForMachine, rowToLiteView } from './assigned-tasks-core';

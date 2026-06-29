@@ -3,7 +3,7 @@ import {
   compressContextToWantResume,
   parseCompressContext,
 } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/get-assigned-tasks.js';
+import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
 import { isNativeHarness } from './native-task-injector-logic.js';

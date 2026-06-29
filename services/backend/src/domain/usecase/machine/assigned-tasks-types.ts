@@ -46,10 +46,6 @@ export interface AssignedTaskLiteView {
   participant?: AssignedTaskParticipantView;
 }
 
-export interface GetAssignedTasksResult {
-  tasks: AssignedTaskView[];
-}
-
 export interface ListAssignedTasksLiteResult {
   tasks: AssignedTaskLiteView[];
 }

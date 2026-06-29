@@ -10,8 +10,6 @@ import {
 import type { AssignedTaskView, GetAssignedTaskForActionInput } from './assigned-tasks-types';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
-export type { AssignedTaskView } from './assigned-tasks-types';
-
 export async function getAssignedTaskForAction(
   ctx: QueryCtx,
   input: GetAssignedTaskForActionInput
