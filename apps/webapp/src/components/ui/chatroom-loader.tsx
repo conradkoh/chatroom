@@ -4,12 +4,14 @@ const SIZE_CLASSES = {
   sm: 'gap-0.5',
   md: 'gap-1',
   lg: 'gap-1.5',
+  xl: 'gap-2',
 } as const;
 
 const SQUARE_CLASSES = {
   sm: 'h-1.5 w-1.5',
   md: 'h-2 w-2',
   lg: 'h-2.5 w-2.5',
+  xl: 'h-4 w-4',
 } as const;
 
 /** Non-rotating loader — four squares in a 2×2 grid, fading through grey / black / white shades. */
