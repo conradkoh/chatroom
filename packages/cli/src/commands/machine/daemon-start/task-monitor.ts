@@ -1,8 +1,8 @@
 /**
  * Task Monitor — incremental subscribe + reconcile for assigned tasks on this machine.
  *
- * - Signal feed (subscribeAssignedTaskSignalsSince) via WebSocket for task/config/action changes
- * - Reconcile poll (listAssignedTasksLite) for participant staleness checks
+ * - Signal feed: patch working snapshot, run revive/inject for that row (no lite list refetch)
+ * - Reconcile poll: refresh snapshot from listAssignedTasksLite, full pass including nudge
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
@@ -13,6 +13,7 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type {
   AssignedTaskLiteView,
+  AssignedTaskSignal,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { ConvexClient } from 'convex/browser';
@@ -29,6 +30,7 @@ import {
   listNativeTasksNeedingRevive,
   NudgeCooldown,
 } from './task-monitor-logic.js';
+import { TaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -50,6 +52,8 @@ type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProc
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
 type ListAssignedTasksLiteResult = { tasks: AssignedTaskLiteView[] };
+
+type TaskMonitorPass = 'signal' | 'reconcile';
 
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
   return compressContextToWantResume(parseCompressContext(task.taskContent ?? ''));
@@ -231,7 +235,8 @@ async function processTasksUpdate(
   cooldown: NudgeCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
-  machineId: string
+  machineId: string,
+  pass: TaskMonitorPass
 ): Promise<void> {
   if (tasks.length === 0) return;
 
@@ -260,16 +265,18 @@ async function processTasksUpdate(
     sessionDeps,
     machineId,
   });
-  await nudgeStuckTasks(
-    tasks,
-    now,
-    cooldown,
-    runtime,
-    effectContext,
-    agentMgr,
-    sessionDeps,
-    machineId
-  );
+  if (pass === 'reconcile') {
+    await nudgeStuckTasks(
+      tasks,
+      now,
+      cooldown,
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      machineId
+    );
+  }
 }
 
 // fallow-ignore-next-line complexity
@@ -294,8 +301,9 @@ export const startTaskMonitorEffect = (
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
     const cooldown = new NudgeCooldown();
+    const snapshot = new TaskMonitorSnapshot();
     let stopped = false;
-    let reconcileInFlight = false;
+    let monitorPassInFlight = false;
 
     const sessionDeps: NativeTaskDeliverySessionDeps = {
       sessionId: session.sessionId,
@@ -308,9 +316,9 @@ export const startTaskMonitorEffect = (
       },
     };
 
-    const runReconcile = (tasks: AssignedTaskLiteView[]): void => {
-      if (stopped || reconcileInFlight || tasks.length === 0) return;
-      reconcileInFlight = true;
+    const runMonitorPass = (tasks: AssignedTaskLiteView[], pass: TaskMonitorPass): void => {
+      if (stopped || monitorPassInFlight || tasks.length === 0) return;
+      monitorPassInFlight = true;
       void processTasksUpdate(
         tasks,
         runtime,
@@ -318,9 +326,10 @@ export const startTaskMonitorEffect = (
         cooldown,
         agentMgr,
         sessionDeps,
-        session.machineId
+        session.machineId,
+        pass
       ).finally(() => {
-        reconcileInFlight = false;
+        monitorPassInFlight = false;
       });
     };
 
@@ -329,6 +338,22 @@ export const startTaskMonitorEffect = (
         sessionId: session.sessionId,
         machineId: session.machineId,
       }) as Promise<ListAssignedTasksLiteResult>;
+
+    const hydrateSnapshotFromBackend = async (): Promise<void> => {
+      const result = await queryLiteTasks();
+      snapshot.replaceAll(result?.tasks ?? []);
+    };
+
+    const resolveLiteForSignal = async (
+      signal: AssignedTaskSignal
+    ): Promise<AssignedTaskLiteView | undefined> => {
+      const merged = snapshot.mergeSignal(signal);
+      if (merged) {
+        return merged;
+      }
+      await hydrateSnapshotFromBackend();
+      return snapshot.mergeSignal(signal) ?? snapshot.get(signal.taskId, signal.role);
+    };
 
     const seedPage = (yield* Effect.tryPromise(() =>
       session.backend.query(api.machines.subscribeAssignedTaskSignalsSince, {
@@ -355,14 +380,13 @@ export const startTaskMonitorEffect = (
         console.warn(
           `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
         ),
-      onItem: ({ ack }) =>
+      onItem: ({ item: signal, ack }) =>
         Effect.gen(function* () {
           ack();
           if (stopped) return;
-          const result = yield* Effect.tryPromise(() => queryLiteTasks());
-          if (result?.tasks?.length) {
-            runReconcile(result.tasks);
-          }
+          const lite = yield* Effect.tryPromise(() => resolveLiteForSignal(signal));
+          if (!lite) return;
+          runMonitorPass([lite], 'signal');
         }),
     });
 
@@ -373,17 +397,18 @@ export const startTaskMonitorEffect = (
       intervalMs: ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
       onResult: (result) =>
         Effect.sync(() => {
-          if (result?.tasks?.length) {
-            runReconcile(result.tasks);
-          }
+          const tasks = result?.tasks ?? [];
+          snapshot.replaceAll(tasks);
+          runMonitorPass(tasks, 'reconcile');
         }),
     });
 
     const initial = yield* Effect.tryPromise(() => queryLiteTasks()).pipe(
       Effect.orElseSucceed(() => null)
     );
-    if (initial?.tasks?.length) {
-      runReconcile(initial.tasks);
+    if (initial?.tasks) {
+      snapshot.replaceAll(initial.tasks);
+      runMonitorPass(initial.tasks, 'reconcile');
     }
 
     return {

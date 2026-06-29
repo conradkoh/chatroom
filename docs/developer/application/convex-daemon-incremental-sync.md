@@ -146,20 +146,20 @@ Seed cursor (HTTP) ──► subscribeAssignedTaskSignalsSince (WS)
          │                              │
          └──────────┬───────────────────┘
                     ▼
-              processTasksUpdate
+              processTasksUpdate (signal: revive/inject; reconcile: + nudge)
                     │ on action only
                     ▼
          getAssignedTaskForAction (full task.content)
 ```
 
-| Piece                | Location                                     |
-| -------------------- | -------------------------------------------- |
-| Subscribe query      | `machines.subscribeAssignedTaskSignalsSince` |
-| Lite snapshot        | `machines.listAssignedTasksLite`             |
-| Action fetch         | `machines.getAssignedTaskForAction`          |
-| Shared backend logic | `assigned-tasks-core.ts`                     |
-| Feed def             | `feeds/assigned-task-signals.ts`             |
-| Consumer             | `task-monitor.ts`                            |
+| Piece                | Location                                       |
+| -------------------- | ---------------------------------------------- |
+| Subscribe query      | `machines.subscribeAssignedTaskSignalsSince`   |
+| Lite snapshot        | `machines.listAssignedTasksLite`               |
+| Action fetch         | `machines.getAssignedTaskForAction`            |
+| Shared backend logic | `assigned-tasks-core.ts`                       |
+| Feed def             | `feeds/assigned-task-signals.ts`               |
+| Consumer             | `task-monitor.ts` + `task-monitor-snapshot.ts` |
 
 Default signal buffer: fifo, max 200, dedupe on. Subscribe page limit: 50.
 
@@ -203,12 +203,13 @@ Prove cursor exclusivity and “no blob in signal path” in backend integration
 
 ## Follow-up improvements
 
-Track these when extending the pattern or if production metrics justify the investment:
+Track these when extending the pattern or if production metrics justify further investment:
 
-| Item                               | Description                                                                                                                                                                            |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Signal projection table**        | Write signals on meaningful mutations only; subscribe reads an indexed projection instead of live participant/task scans. Eliminates heartbeat-driven query re-runs on the WS channel. |
-| **Use signal payload in handlers** | Task monitor currently treats signals as wake-ups and refetches `listAssignedTasksLite` on every item. Pass signal fields into reconcile logic to reduce HTTP calls.                   |
-| **Targeted action fetch**          | `getAssignedTaskForAction` re-collects all assigned rows to find one task. Add an index-backed lookup when action frequency grows.                                                     |
-| **Additional feeds**               | Generalize to `subscribeCommandsSince`, `subscribeEventsSince`, etc., reusing `feeds/` + `runIncrementalSubscribeLive`.                                                                |
-| **Parallel delivery mode**         | `MessageBuffer` is FIFO-only today. Add standard/parallel worker mode when a feed needs concurrent handlers.                                                                           |
+| Item                        | Description                                                                                                                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Signal projection table** | Write signals on meaningful mutations only; subscribe reads an indexed projection instead of live participant/task scans. Eliminates heartbeat-driven query re-runs on the WS channel. |
+| **Targeted action fetch**   | `getAssignedTaskForAction` re-collects all assigned rows to find one task. Add an index-backed lookup when action frequency grows.                                                     |
+| **Additional feeds**        | Generalize to `subscribeCommandsSince`, `subscribeEventsSince`, etc., reusing `feeds/` + `runIncrementalSubscribeLive`.                                                                |
+| **Parallel delivery mode**  | `MessageBuffer` is FIFO-only today. Add standard/parallel worker mode when a feed needs concurrent handlers.                                                                           |
+
+Task monitor uses a **working snapshot** (`task-monitor-snapshot.ts`): reconcile poll replaces it from Convex; signals patch rows in place and drive revive/inject without refetching the full lite list. Nudge stays on the reconcile timer (needs `lastSeenAt` / `createdAt` fields signals omit).
