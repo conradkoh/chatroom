@@ -2817,7 +2817,7 @@ export const emitSessionReopenRetry = mutation({
   },
 });
 
-/** Emits an agent.sessionCompacted event when native harness compacts in-process context. */
+/** Emits agent.sessionCompacted when native harness runs in-session compaction (`session_augmentation=compact`). */
 export const emitSessionCompacted = mutation({
   args: {
     ...SessionIdArg,

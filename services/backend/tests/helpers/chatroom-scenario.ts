@@ -16,7 +16,7 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { generateHandoffOutput } from '../../prompts/generator';
-import { parseCompressContext } from '../../src/domain/handoff/parse-compress-context';
+import { parseSessionAugmentation } from '../../src/domain/handoff/parse-session-augmentation';
 import { t } from '../../test.setup';
 
 const DEFAULT_CONVEX_URL = 'http://127.0.0.1:3210';
@@ -58,15 +58,22 @@ async function createTeamChatroom(
   return createPlannerBuilderDuoChatroom(sessionId);
 }
 
-/** Shape injected prompt: task delivery body + optional compaction header (mirrors CLI daemon). */
+/** Shape injected prompt: task delivery body + optional augmentation preamble (mirrors CLI daemon). */
 export function buildNativeInjectionPrompt(params: {
   taskDeliveryOutput: string;
   taskContent: string;
 }): string {
-  const compressMode = parseCompressContext(params.taskContent);
-  if (compressMode === 'new_session') {
+  const augmentationMode = parseSessionAugmentation(params.taskContent);
+  if (augmentationMode === 'compact') {
     return [
       '⚠️ Context was compacted. Run `chatroom get-system-prompt` only if role instructions are missing.',
+      '',
+      params.taskDeliveryOutput,
+    ].join('\n');
+  }
+  if (augmentationMode === 'new_session') {
+    return [
+      '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',
       '',
       params.taskDeliveryOutput,
     ].join('\n');

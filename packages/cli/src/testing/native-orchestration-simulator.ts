@@ -5,7 +5,7 @@
  */
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+import { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
@@ -89,7 +89,7 @@ export class NativeOrchestrationSimulator {
   expectedPrompt(task: AssignedTaskView, deliveryOutput: string): string {
     return buildNativeInjectionPrompt({
       taskDeliveryOutput: deliveryOutput,
-      compressMode: parseCompressContext(task.taskContent),
+      augmentationMode: parseSessionAugmentation(task.taskContent),
     });
   }
 

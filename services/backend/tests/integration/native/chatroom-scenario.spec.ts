@@ -70,8 +70,8 @@ describe('ChatroomScenario — native prompt orchestration', () => {
     const delegation = [
       '## Goal',
       'Add dark mode toggle to settings page',
-      '## Session Management',
-      '// data:agent.compress_context=new_session',
+      '## Session Augmentation',
+      '// data:agent.session_augmentation=new_session',
     ].join('\n');
 
     const { mutation, cliOutput } = await scenario.handoff('planner', 'builder', delegation);
@@ -89,7 +89,7 @@ describe('ChatroomScenario — native prompt orchestration', () => {
 
     const builderScenario = getNativeDeliveryScenario('duo builder receives planner delegation');
     assertNativeDeliveryScenario(builderDelivery, builderScenario);
-    expect(builderInjection).toContain('Context was compacted');
+    expect(builderInjection).toContain('Starting a new agent session');
     expect(builderInjection).toContain('Add dark mode toggle');
   });
 

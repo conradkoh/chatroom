@@ -1,5 +1,5 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+import { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
@@ -87,7 +87,7 @@ describe('runNativeInjectionEffect', () => {
       role: 'builder',
       prompt: buildNativeInjectionPrompt({
         taskDeliveryOutput: 'DELIVERY OUTPUT',
-        compressMode: parseCompressContext(task.taskContent),
+        augmentationMode: parseSessionAugmentation(task.taskContent),
       }),
     });
     expect(deps.backend.mutation).toHaveBeenCalledWith(
@@ -175,11 +175,12 @@ describe('runNativeInjectionEffect', () => {
     warnSpy.mockRestore();
   });
 
-  test('emits sessionCompacted when compress_context is new_session', async () => {
+  test('emits sessionCompacted when session_augmentation is compact', async () => {
     const deps = createDeps();
     const ledger = new NativeDeliveryLedger();
     const task = makeTask({
-      taskContent: '## Goal\nDo work\n// data:agent.compress_context=new_session',
+      taskContent:
+        '## Goal\nDo work\n## Session Augmentation\n// data:agent.session_augmentation=compact',
     });
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
@@ -197,19 +198,21 @@ describe('runNativeInjectionEffect', () => {
     );
   });
 
-  test('does not emit sessionCompacted when compress_context is none', async () => {
-    const deps = createDeps();
-    const ledger = new NativeDeliveryLedger();
-    const task = makeTask({
-      taskContent: '## Goal\nDo work\n// data:agent.compress_context=none',
-    });
+  test('does not emit sessionCompacted for none or new_session', async () => {
+    for (const tag of ['none', 'new_session'] as const) {
+      const deps = createDeps();
+      const ledger = new NativeDeliveryLedger();
+      const task = makeTask({
+        taskContent: `## Goal\nDo work\n## Session Augmentation\n// data:agent.session_augmentation=${tag}`,
+      });
 
-    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+      await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
 
-    const compactedCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (call) => call[0] === api.machines.emitSessionCompacted
-    );
-    expect(compactedCalls).toHaveLength(0);
+      const compactedCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call) => call[0] === api.machines.emitSessionCompacted
+      );
+      expect(compactedCalls).toHaveLength(0);
+    }
   });
 });
 

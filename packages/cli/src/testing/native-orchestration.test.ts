@@ -69,7 +69,8 @@ describe('NativeOrchestrationSimulator', () => {
       task: NativeOrchestrationSimulator.makeTask({
         taskId: 'task_builder' as never,
         assignedTo: 'builder',
-        taskContent: '## Goal\nImplement dark mode\n// data:agent.compress_context=new_session',
+        taskContent:
+          '## Goal\nImplement dark mode\n## Session Augmentation\n// data:agent.session_augmentation=compact',
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',

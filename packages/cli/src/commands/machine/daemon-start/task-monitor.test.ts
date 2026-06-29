@@ -1,8 +1,8 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
-  compressContextToWantResume,
-  parseCompressContext,
-} from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+  parseSessionAugmentation,
+  sessionAugmentationToWantResume,
+} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
@@ -98,12 +98,12 @@ describe('shouldNudgePendingTask', () => {
 
 describe('nudge wantResume from task content', () => {
   function resolveWantResume(taskContent: string): boolean {
-    return compressContextToWantResume(parseCompressContext(taskContent));
+    return sessionAugmentationToWantResume(parseSessionAugmentation(taskContent));
   }
 
   test('new_session → wantResume false (cold spawn)', () => {
-    const content = `## Session Management
-// data:agent.compress_context=new_session`;
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=new_session`;
     expect(resolveWantResume(content)).toBe(false);
   });
 
@@ -114,8 +114,14 @@ describe('nudge wantResume from task content', () => {
   });
 
   test('none → wantResume true (resume session)', () => {
-    const content = `## Restart new context
-// data:agent.compress_context=none`;
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=none`;
+    expect(resolveWantResume(content)).toBe(true);
+  });
+
+  test('compact → wantResume true (no cold restart)', () => {
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=compact`;
     expect(resolveWantResume(content)).toBe(true);
   });
 
@@ -168,9 +174,9 @@ describe('native harness nudge exclusion', () => {
   });
 
   test('CLI new_session still implies wantResume false (regression)', () => {
-    const content = `## Session Management
-// data:agent.compress_context=new_session`;
-    expect(compressContextToWantResume(parseCompressContext(content))).toBe(false);
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=new_session`;
+    expect(sessionAugmentationToWantResume(parseSessionAugmentation(content))).toBe(false);
   });
 });
 

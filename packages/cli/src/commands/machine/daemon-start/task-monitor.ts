@@ -8,9 +8,9 @@
  */
 
 import {
-  compressContextToWantResume,
-  parseCompressContext,
-} from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+  parseSessionAugmentation,
+  sessionAugmentationToWantResume,
+} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
@@ -52,16 +52,16 @@ type ListAssignedTasksForReconcileResult = { tasks: AssignedTaskSnapshotView[] }
 type TaskMonitorPass = 'signal' | 'reconcile';
 
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
-  return compressContextToWantResume(parseCompressContext(task.taskContent ?? ''));
+  return sessionAugmentationToWantResume(parseSessionAugmentation(task.taskContent ?? ''));
 }
 
 function buildCliNudgeLogLine(task: AssignedTaskView): string {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
-  const compressMode = parseCompressContext(task.taskContent ?? '');
+  const augmentationMode = parseSessionAugmentation(task.taskContent ?? '');
   const wantResume = resolveTaskWantResume(task);
-  return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`;
+  return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
 }
 
 function resolveTaskRunnerContextFromFull(task: AssignedTaskView):

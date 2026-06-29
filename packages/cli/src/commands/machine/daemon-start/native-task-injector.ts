@@ -1,5 +1,5 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+import { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
@@ -85,11 +85,11 @@ export function runNativeInjectionEffect(
 
     const delivery = deliveryResult.right;
 
-    const compressMode = parseCompressContext(taskContent);
+    const augmentationMode = parseSessionAugmentation(taskContent);
 
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
-      compressMode,
+      augmentationMode,
     });
 
     yield* Effect.tryPromise({
@@ -106,7 +106,7 @@ export function runNativeInjectionEffect(
       Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
     );
 
-    if (compressMode === 'new_session') {
+    if (augmentationMode === 'compact') {
       yield* Effect.tryPromise({
         try: () =>
           deps.backend.mutation(api.machines.emitSessionCompacted, {
