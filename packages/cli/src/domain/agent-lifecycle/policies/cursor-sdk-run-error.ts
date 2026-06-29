@@ -1,8 +1,7 @@
 /**
  * Detects Cursor SDK run-level failures from harness log lines.
- *
- * When a run ends with status `error`, crash recovery should not try
- * Agent.resume on the same harness session — cold spawn is more reliable.
+ * Triggers resume-first reopen (see CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS)
+ * before clearing daemon-memory session snapshot.
  */
 
 export function isCursorSdkRunErrorInLogs(logLines: readonly string[]): boolean {

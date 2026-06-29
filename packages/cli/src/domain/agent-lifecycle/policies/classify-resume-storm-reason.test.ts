@@ -37,7 +37,9 @@ describe('classifyResumeStormReason', () => {
   test('isPermanentHarnessFailure treats auth, config, and rate limits as permanent', () => {
     expect(isPermanentHarnessFailure(['Invalid API key for anthropic'])).toBe(true);
     expect(isPermanentHarnessFailure(['model_not_supported'])).toBe(true);
-    expect(isPermanentHarnessFailure(['Error 429: rate limit exceeded'])).toBe(true);
+    expect(
+      isPermanentHarnessFailure(['[ts] role:builder error] Error 429: rate limit exceeded'])
+    ).toBe(true);
     expect(isPermanentHarnessFailure(['agent_end'])).toBe(false);
   });
 
