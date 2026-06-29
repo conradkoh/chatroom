@@ -1,19 +1,19 @@
 /**
- * Feed runtime — wires poll loop, buffer, and item handlers.
+ * Feed runtime — wires subscribe loop, buffer, and item handlers.
  */
 
 import { Effect, Fiber } from 'effect';
 
 import { PollClock, PollClockLive } from './layers.js';
 import { MessageBuffer } from './message-buffer.js';
-import { makePollLoop } from './poll-loop.js';
+import { startSubscribeLoop } from './subscribe-loop.js';
 import type {
   FeedHandle,
   FeedHandlerContext,
   FeedItemHandler,
   ReconcilePollHandle,
   ReconcilePollOptions,
-  RunFeedOptions,
+  RunSubscribeFeedOptions,
   StreamKey,
 } from './types.js';
 
@@ -44,14 +44,21 @@ function runWorkerLoop<TItem>(
   });
 }
 
-const runIncrementalFeed = <TItem, TArgs>(
-  opts: RunFeedOptions<TItem, TArgs>
-): Effect.Effect<FeedHandle<TItem>, never, PollClock> =>
+export const runIncrementalSubscribeLive = <TItem, TArgs>(
+  opts: RunSubscribeFeedOptions<TItem, TArgs>
+): Effect.Effect<FeedHandle<TItem>, never, never> =>
   Effect.gen(function* () {
     const buffer = new MessageBuffer(opts.buffer, opts.def.itemKey);
-    const pollFiber = yield* Effect.forkDaemon(
-      makePollLoop(opts.def, opts.args, buffer, opts.poll)
-    );
+    const subscribeHandle = startSubscribeLoop({
+      wsClient: opts.wsClient,
+      target: opts.target,
+      args: opts.args,
+      buffer,
+      def: opts.def,
+      config: opts.subscribe,
+      initialAfterKey: opts.initialAfterKey ?? null,
+      onError: opts.onError,
+    });
     const workerFiber = yield* Effect.forkDaemon(
       runWorkerLoop(opts.def.name, buffer, opts.def.itemKey, opts.onItem)
     );
@@ -60,7 +67,7 @@ const runIncrementalFeed = <TItem, TArgs>(
       buffer,
       stop: () =>
         Effect.gen(function* () {
-          yield* Fiber.interrupt(pollFiber);
+          subscribeHandle.stop();
           yield* Fiber.interrupt(workerFiber);
         }),
     };
@@ -107,12 +114,6 @@ const runReconcilePoll = <TResult, TArgs>(
         }),
     };
   });
-
-/** Convenience: run feed with live clock when no PollClock in context. */
-export const runIncrementalFeedLive = <TItem, TArgs>(
-  opts: RunFeedOptions<TItem, TArgs>
-): Effect.Effect<FeedHandle<TItem>, never, never> =>
-  runIncrementalFeed(opts).pipe(Effect.provide(PollClockLive));
 
 export const runReconcilePollLive = <TResult, TArgs>(
   opts: ReconcilePollOptions<TResult, TArgs>

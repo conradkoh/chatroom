@@ -2556,9 +2556,9 @@ export const listAssignedTasksLite = query({
 });
 
 /**
- * Incremental task-monitor signals since an exclusive cursor.
+ * Incremental task-monitor signals since an exclusive cursor (reactive subscribe).
  */
-export const pollAssignedTaskSignalsSince = query({
+export const subscribeAssignedTaskSignalsSince = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),

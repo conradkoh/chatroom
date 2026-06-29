@@ -43,7 +43,7 @@ describe('machines.listAssignedTasksLite', () => {
   });
 });
 
-describe('machines.pollAssignedTaskSignalsSince', () => {
+describe('machines.subscribeAssignedTaskSignalsSince', () => {
   test('returns exclusive cursor pages without task content', async () => {
     const { sessionId } = await createTestSession('test-signals-1');
     const machineId = 'machine-signals-1';
@@ -59,7 +59,7 @@ describe('machines.pollAssignedTaskSignalsSince', () => {
       createdBy: 'user',
     });
 
-    const first = await t.query(api.machines.pollAssignedTaskSignalsSince, {
+    const first = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
       machineId,
       limit: 10,
@@ -74,7 +74,7 @@ describe('machines.pollAssignedTaskSignalsSince', () => {
     expect(first.items[0]).not.toHaveProperty('taskContent');
     expect(JSON.stringify(first)).not.toContain(largeContent.slice(0, 100));
 
-    const second = await t.query(api.machines.pollAssignedTaskSignalsSince, {
+    const second = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
       machineId,
       afterKey: first.highKey ?? undefined,
@@ -98,7 +98,7 @@ describe('machines.pollAssignedTaskSignalsSince', () => {
       createdBy: 'user',
     });
 
-    const baseline = await t.query(api.machines.pollAssignedTaskSignalsSince, {
+    const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
       machineId,
       limit: 10,
@@ -112,7 +112,7 @@ describe('machines.pollAssignedTaskSignalsSince', () => {
       action: 'get-next-task:started',
     });
 
-    const afterAction = await t.query(api.machines.pollAssignedTaskSignalsSince, {
+    const afterAction = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
       machineId,
       afterKey: cursor,

@@ -1,8 +1,7 @@
 /**
- * Task Monitor — incremental poll + reconcile for assigned tasks on this machine.
+ * Task Monitor — incremental subscribe + reconcile for assigned tasks on this machine.
  *
- * Replaces the reactive getAssignedTasks subscription with:
- * - Signal feed (pollAssignedTaskSignalsSince) for fast task/config/action changes
+ * - Signal feed (subscribeAssignedTaskSignalsSince) via WebSocket for task/config/action changes
  * - Reconcile poll (listAssignedTasksLite) for participant staleness checks
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
@@ -14,9 +13,9 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
 import type {
   AssignedTaskLiteView,
-  AssignedTaskSignal,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
@@ -35,14 +34,15 @@ import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import {
-  runIncrementalFeedLive,
+  runIncrementalSubscribeLive,
   runReconcilePollLive,
 } from '../../../infrastructure/incremental-sync/feed-runtime.js';
 import {
   ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
   ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
-  ASSIGNED_TASK_SIGNAL_FEED_POLL,
-  makeAssignedTaskSignalsFeed,
+  ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
+  assignedTaskSignalsFeedDef,
+  assignedTaskSignalsSubscribeTarget,
 } from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -273,11 +273,14 @@ async function processTasksUpdate(
 }
 
 // fallow-ignore-next-line complexity
-export const startTaskMonitorEffect = (): Effect.Effect<
+export const startTaskMonitorEffect = (
+  wsClient: ConvexClient
+): Effect.Effect<
   { stop: () => void },
   never,
   DaemonSessionService | DaemonAgentProcessManagerService
 > =>
+  // fallow-ignore-next-line complexity
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const agentMgr = yield* DaemonAgentProcessManagerService;
@@ -288,7 +291,7 @@ export const startTaskMonitorEffect = (): Effect.Effect<
       DaemonSessionService | DaemonAgentProcessManagerService
     >();
 
-    console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental poll)`);
+    console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
     const cooldown = new NudgeCooldown();
     let stopped = false;
@@ -327,23 +330,31 @@ export const startTaskMonitorEffect = (): Effect.Effect<
         machineId: session.machineId,
       }) as Promise<ListAssignedTasksLiteResult>;
 
-    const assignedTaskSignalsFeed = makeAssignedTaskSignalsFeed(
-      (fn, args) =>
-        session.backend.query(fn, args) as Promise<{
-          items: AssignedTaskSignal[];
-          highKey: string | null;
-          hasMore: boolean;
-        }>
-    );
+    const seedPage = (yield* Effect.tryPromise(() =>
+      session.backend.query(api.machines.subscribeAssignedTaskSignalsSince, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
+      })
+    ).pipe(Effect.orElseSucceed(() => null))) as {
+      highKey: string | null;
+    } | null;
 
-    const signalHandle = yield* runIncrementalFeedLive({
-      def: assignedTaskSignalsFeed,
+    const signalHandle = yield* runIncrementalSubscribeLive({
+      wsClient,
+      def: assignedTaskSignalsFeedDef,
+      target: assignedTaskSignalsSubscribeTarget,
       args: {
         sessionId: session.sessionId,
         machineId: session.machineId,
       },
       buffer: ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
-      poll: ASSIGNED_TASK_SIGNAL_FEED_POLL,
+      subscribe: { limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT },
+      initialAfterKey: seedPage?.highKey ?? null,
+      onError: (err) =>
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
+        ),
       onItem: ({ ack }) =>
         Effect.gen(function* () {
           ack();

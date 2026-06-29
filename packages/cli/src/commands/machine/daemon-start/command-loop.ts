@@ -513,7 +513,7 @@ export const startCommandLoopEffect: Effect.Effect<
     observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
   }
 
-  const taskMonitorHandle = yield* startTaskMonitorEffect();
+  const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
 
   logObserverSubscriptionHandle = startLogObserverSubscription(
     { sessionId: session.sessionId, machineId: session.machineId },

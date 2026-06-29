@@ -1,14 +1,16 @@
 /**
- * Incremental sync feed — shared types for cursor-based daemon polling.
+ * Incremental sync feed — shared types for cursor-based daemon feeds.
  *
- * See docs/design/incremental-sync-feed.md
+ * See docs/developer/application/convex-daemon-incremental-sync.md
  */
 
+import type { ConvexClient } from 'convex/browser';
+import type { FunctionReference } from 'convex/server';
 import type { Effect } from 'effect';
 
 import type { MessageBuffer } from './message-buffer.js';
 
-/** Opaque cursor carried across polls. Serialized to string for logs/persistence. */
+/** Opaque cursor carried across subscribe pages. Serialized to string for logs/persistence. */
 export type StreamKey = string;
 
 export interface PollPage<TItem> {
@@ -18,20 +20,22 @@ export interface PollPage<TItem> {
   readonly hasMore: boolean;
 }
 
-export interface PollRequest<TArgs> {
-  readonly args: TArgs;
-  readonly afterKey: StreamKey | null;
-  readonly limit: number;
-}
-
-export interface IncrementalFeedDef<TItem, TArgs> {
+export interface IncrementalFeedDef<TItem, _TArgs = unknown> {
   readonly name: string;
-  /** Imperative poll — NOT a reactive subscription target. */
-  readonly poll: (req: PollRequest<TArgs>) => Promise<PollPage<TItem>>;
   /** Stable identity for dedupe + FIFO ordering. */
   readonly itemKey: (item: TItem) => StreamKey;
   /** Optional: extract cursor from item when highKey not provided by backend. */
   readonly itemToKey?: (item: TItem) => StreamKey;
+}
+
+export interface SubscribeQueryTarget<TItem, TArgs> {
+  readonly query: FunctionReference<'query'>;
+  readonly buildArgs: (
+    args: TArgs,
+    afterKey: StreamKey | null,
+    limit: number
+  ) => Record<string, unknown>;
+  readonly parsePage: (result: unknown) => PollPage<TItem>;
 }
 
 export type DeliveryMode = 'fifo' | 'standard';
@@ -49,10 +53,8 @@ export interface BufferConfig {
   readonly maxConcurrency?: number;
 }
 
-export interface PollLoopConfig {
-  readonly intervalMs: number;
+export interface SubscribeLoopConfig {
   readonly limit: number;
-  readonly backoff: { readonly initialMs: number; readonly maxMs: number };
 }
 
 export interface FeedHandlerContext<TItem> {
@@ -67,12 +69,16 @@ export type FeedItemHandler<TItem, R = void> = (
   ctx: FeedHandlerContext<TItem>
 ) => Effect.Effect<R, unknown, never>;
 
-export interface RunFeedOptions<TItem, TArgs> {
+export interface RunSubscribeFeedOptions<TItem, TArgs> {
+  readonly wsClient: ConvexClient;
   readonly def: IncrementalFeedDef<TItem, TArgs>;
+  readonly target: SubscribeQueryTarget<TItem, TArgs>;
   readonly args: TArgs;
   readonly buffer: BufferConfig;
-  readonly poll: PollLoopConfig;
+  readonly subscribe: SubscribeLoopConfig;
+  readonly initialAfterKey?: StreamKey | null;
   readonly onItem: FeedItemHandler<TItem>;
+  readonly onError?: (err: unknown) => void;
 }
 
 export interface FeedHandle<TItem> {

@@ -1,38 +1,47 @@
+import type { ConvexClient } from 'convex/browser';
+import type { FunctionReference } from 'convex/server';
 import { Effect } from 'effect';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { runIncrementalFeedLive, runReconcilePollLive } from './feed-runtime.js';
-import type { IncrementalFeedDef, PollPage, PollRequest } from './types.js';
+import { runIncrementalSubscribeLive, runReconcilePollLive } from './feed-runtime.js';
+import type { IncrementalFeedDef, PollPage } from './types.js';
 
 type TestItem = { key: string; value: string };
 
-describe('runIncrementalFeed', () => {
-  it('invokes onItem for polled items and supports stop', async () => {
+const testQuery = 'test.query' as unknown as FunctionReference<'query'>;
+
+describe('runIncrementalSubscribe', () => {
+  it('invokes onItem for subscribed items and supports stop', async () => {
     const handled: string[] = [];
-    let pollCount = 0;
+    let onUpdateCallback: ((result: unknown) => void) | undefined;
+
+    const wsClient = {
+      onUpdate: vi.fn((_query, _args, onUpdate) => {
+        onUpdateCallback = onUpdate;
+        return vi.fn();
+      }),
+    } as unknown as ConvexClient;
 
     const def: IncrementalFeedDef<TestItem, { id: string }> = {
       name: 'test',
-      poll: async (_req: PollRequest<{ id: string }>): Promise<PollPage<TestItem>> => {
-        pollCount++;
-        if (pollCount === 1) {
-          return {
-            items: [{ key: '001', value: 'first' }],
-            highKey: '001',
-            hasMore: false,
-          };
-        }
-        return { items: [], highKey: null, hasMore: false };
-      },
       itemKey: (item) => item.key,
     };
 
     const handle = await Effect.runPromise(
-      runIncrementalFeedLive({
+      runIncrementalSubscribeLive({
+        wsClient,
         def,
+        target: {
+          query: testQuery,
+          buildArgs: (_args, afterKey, limit) => ({
+            afterKey: afterKey ?? undefined,
+            limit,
+          }),
+          parsePage: (result) => result as PollPage<TestItem>,
+        },
         args: { id: 'machine-1' },
         buffer: { maxSize: 10, deliveryMode: 'fifo', dedupe: true },
-        poll: { intervalMs: 5, limit: 10, backoff: { initialMs: 1, maxMs: 10 } },
+        subscribe: { limit: 10 },
         onItem: ({ item, ack }) =>
           Effect.sync(() => {
             handled.push(item.value);
@@ -41,11 +50,17 @@ describe('runIncrementalFeed', () => {
       })
     );
 
+    onUpdateCallback?.({
+      items: [{ key: '001', value: 'first' }],
+      highKey: '001',
+      hasMore: false,
+    });
+
     await Effect.runPromise(Effect.sleep('80 millis'));
     await Effect.runPromise(handle.stop());
 
     expect(handled).toContain('first');
-    expect(pollCount).toBeGreaterThanOrEqual(1);
+    expect(wsClient.onUpdate).toHaveBeenCalled();
   });
 });
 
