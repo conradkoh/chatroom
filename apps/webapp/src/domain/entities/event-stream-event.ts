@@ -142,6 +142,15 @@ export interface AgentSessionReopenRetryEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentSessionCompactedEvent extends EventStreamEventBase {
+  type: 'agent.sessionCompacted';
+  role: string;
+  machineId: string;
+  taskId: string;
+  harnessSessionId?: string;
+  chatroomId: string;
+}
+
 export interface AgentResumeStormAbortedEvent extends EventStreamEventBase {
   type: 'agent.resumeStormAborted';
   role: string;
@@ -296,6 +305,7 @@ export type EventStreamEvent =
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent
   | AgentSessionReopenRetryEvent
+  | AgentSessionCompactedEvent
   | AgentResumeStormAbortedEvent
   | AgentRestartLimitReachedEvent
   | MachineSwitchedEvent

@@ -168,6 +168,16 @@ export type AgentSessionReopenRetryEvent = {
   timestamp: number;
 };
 
+export type AgentSessionCompactedEvent = {
+  type: 'agent.sessionCompacted';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  taskId: Id<'chatroom_tasks'>;
+  harnessSessionId?: string;
+  timestamp: number;
+};
+
 export type AgentResumeStormAbortedEvent = {
   type: 'agent.resumeStormAborted';
   chatroomId: Id<'chatroom_rooms'>;
@@ -250,4 +260,5 @@ export type ChatroomEvent =
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent
   | AgentSessionReopenRetryEvent
+  | AgentSessionCompactedEvent
   | AgentRestartLimitReachedEvent;

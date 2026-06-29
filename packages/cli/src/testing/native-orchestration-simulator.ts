@@ -10,6 +10,7 @@ import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/mac
 import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
+import { api } from '../api.js';
 import { NativeDeliveryLedger } from '../commands/machine/daemon-start/native-delivery-ledger.js';
 import { buildNativeInjectionPrompt } from '../commands/machine/daemon-start/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from '../commands/machine/daemon-start/native-task-injector.js';
@@ -52,8 +53,12 @@ function isClaimMutation(args: Record<string, unknown>): boolean {
 }
 
 function createBackendMock(deliveryOutput: string) {
-  const mutation = async (_fn: unknown, args: Record<string, unknown>) => {
-    if (isClaimMutation(args) || args.action === NATIVE_TASK_INJECTED_ACTION) {
+  const mutation = async (fn: unknown, args: Record<string, unknown>) => {
+    if (
+      isClaimMutation(args) ||
+      args.action === NATIVE_TASK_INJECTED_ACTION ||
+      fn === api.machines.emitSessionCompacted
+    ) {
       return undefined;
     }
     throw new Error(`Unexpected mutation call: ${JSON.stringify(Object.keys(args))}`);
@@ -101,6 +106,7 @@ export class NativeOrchestrationSimulator {
         this.harnessSessionId,
         {
           sessionId,
+          machineId: task.agentConfig.machineId,
           convexUrl,
           backend,
           agentMgr: this.harness,

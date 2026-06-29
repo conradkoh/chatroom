@@ -1239,6 +1239,16 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Native harness in-process context compaction (new_session handoff)
+      v.object({
+        type: v.literal('agent.sessionCompacted'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
       // Auto-resume aborted: rapid agent_end without blocking on get-next-task
       v.object({
         type: v.literal('agent.resumeStormAborted'),

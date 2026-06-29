@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 export interface NativeInjectorDeps {
   sessionId: string;
+  machineId: string;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -84,9 +85,11 @@ export function runNativeInjectionEffect(
 
     const delivery = deliveryResult.right;
 
+    const compressMode = parseCompressContext(taskContent);
+
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
-      compressMode: parseCompressContext(taskContent),
+      compressMode,
     });
 
     yield* Effect.tryPromise({
@@ -102,6 +105,21 @@ export function runNativeInjectionEffect(
     }).pipe(
       Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
     );
+
+    if (compressMode === 'new_session') {
+      yield* Effect.tryPromise({
+        try: () =>
+          deps.backend.mutation(api.machines.emitSessionCompacted, {
+            sessionId: deps.sessionId,
+            machineId: deps.machineId,
+            chatroomId,
+            role,
+            taskId,
+            harnessSessionId,
+          }),
+        catch: (err) => err,
+      }).pipe(Effect.catchAll(() => Effect.void));
+    }
 
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),

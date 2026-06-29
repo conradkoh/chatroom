@@ -18,6 +18,7 @@ import type {
   AgentSessionResumedEvent,
   AgentSessionResumeFailedEvent,
   AgentSessionReopenRetryEvent,
+  AgentSessionCompactedEvent,
   AgentResumeStormAbortedEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
@@ -631,6 +632,44 @@ function renderAgentSessionReopenRetryDetails(
   );
 }
 
+// ─── Agent Session Compacted ──────────────────────────────────────────────────
+
+function renderAgentSessionCompactedCell(
+  event: AgentSessionCompactedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.sessionCompacted"
+      badgeText="Compacted"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={event.harnessSessionId ?? event.taskId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionCompactedDetails(event: AgentSessionCompactedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Compacted"
+      timestamp={event.timestamp}
+      type="agent.sessionCompacted"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Task ID" value={event.taskId} mono />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Machine Switched ─────────────────────────────────────────────────────────
 
 function renderMachineSwitchedCell(
@@ -684,6 +723,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.sessionResumed'
   | 'agent.sessionResumeFailed'
   | 'agent.sessionReopenRetry'
+  | 'agent.sessionCompacted'
   | 'agent.resumeStormAborted'
   | 'machine.switched'
 > = {
@@ -738,6 +778,10 @@ export const agentEventDefinitions: Pick<
   'agent.sessionReopenRetry': {
     cellRenderer: renderAgentSessionReopenRetryCell,
     detailsRenderer: renderAgentSessionReopenRetryDetails,
+  },
+  'agent.sessionCompacted': {
+    cellRenderer: renderAgentSessionCompactedCell,
+    detailsRenderer: renderAgentSessionCompactedDetails,
   },
   'agent.resumeStormAborted': {
     cellRenderer: renderAgentResumeStormAbortedCell,

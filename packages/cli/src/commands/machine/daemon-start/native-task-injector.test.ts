@@ -43,6 +43,7 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
 function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps {
   return {
     sessionId: 'session_1',
+    machineId: 'machine_1',
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
@@ -136,7 +137,7 @@ describe('runNativeInjectionEffect', () => {
 
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if (!('action' in args) && args.taskId) {
+        if (!('action' in args) && args.taskId && !('machineId' in args)) {
           claimCount += 1;
           await new Promise((resolve) => setTimeout(resolve, 20));
         }
@@ -172,6 +173,43 @@ describe('runNativeInjectionEffect', () => {
     expect(ledger.isDelivered(task.taskId, HARNESS_SESSION_ID)).toBe(false);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  test('emits sessionCompacted when compress_context is new_session', async () => {
+    const deps = createDeps();
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      taskContent: '## Goal\nDo work\n// data:agent.compress_context=new_session',
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      api.machines.emitSessionCompacted,
+      expect.objectContaining({
+        sessionId: 'session_1',
+        machineId: 'machine_1',
+        chatroomId: task.chatroomId,
+        role: 'builder',
+        taskId: task.taskId,
+        harnessSessionId: HARNESS_SESSION_ID,
+      })
+    );
+  });
+
+  test('does not emit sessionCompacted when compress_context is none', async () => {
+    const deps = createDeps();
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      taskContent: '## Goal\nDo work\n// data:agent.compress_context=none',
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+
+    const compactedCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === api.machines.emitSessionCompacted
+    );
+    expect(compactedCalls).toHaveLength(0);
   });
 });
 
