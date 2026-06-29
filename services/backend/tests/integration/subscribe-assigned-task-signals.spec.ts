@@ -183,7 +183,7 @@ describe('machines.getAssignedTaskForAction', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    const content = '## Goal\nInject me\n// data:agent.compress_context=none';
+    const content = '## Goal\nInject me\n// data:agent.session_augmentation=none';
     const { taskId } = await t.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId,

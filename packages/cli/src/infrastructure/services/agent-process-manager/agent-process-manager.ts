@@ -1069,16 +1069,6 @@ export class AgentProcessManager {
     try {
       await this.killExistingBeforeSpawn(opts.chatroomId, opts.role);
       const result = await this.doEnsureRunning(key, slot, opts);
-      if (!result.success && opts.reason === 'platform.auto_restart_on_new_context') {
-        console.log(
-          `[AgentProcessManager] Context auto-restart failed (${result.error ?? 'unknown'}), ` +
-            `attempting crash recovery (rate-limited)`
-        );
-        return await this.doEnsureRunning(key, slot, {
-          ...opts,
-          reason: 'platform.crash_recovery',
-        });
-      }
       return result;
     } finally {
       if (slot.pendingOperation) {

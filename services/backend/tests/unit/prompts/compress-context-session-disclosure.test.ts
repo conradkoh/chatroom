@@ -1,9 +1,9 @@
 /**
- * Session management disclosure — unit tests.
+ * Session augmentation disclosure — unit tests.
  *
  * Documents how planner → builder handoffs control builder context:
- * - Delegation brief template includes Session Management (default new_session)
- * - parseCompressContext defaults when planner omits the section
+ * - Delegation brief template includes Session Augmentation (default new_session)
+ * - parseSessionAugmentation defaults when planner omits the section
  * - Native delivery inlines the native-integration variant of the brief
  */
 
@@ -17,26 +17,29 @@ import {
   assertNativeInjectionCompaction,
   expectContinueSessionFromTaskContent,
   expectNewSessionFromTaskContent,
-} from '../../helpers/compress-context-session';
+} from '../../helpers/session-augmentation';
 
-describe('Delegation brief template — Session Management default', () => {
+describe('Delegation brief template — Session Augmentation default', () => {
   test('planner → builder brief includes new_session as the documented default', () => {
     const brief = getPlannerToBuilderHandoffTemplate();
-    expect(brief).toContain('## Session Management');
-    expect(brief).toContain('`new_session` — start a fresh agent session (default)');
-    expect(brief).toContain('// data:agent.compress_context=new_session');
+    expect(brief).toContain('## Session Augmentation');
+    expect(brief).toContain('`none` | `compact` | `new_session`');
+    expect(brief).toContain('`new_session` — start a completely new session (default)');
+    expect(brief).toContain('// data:agent.session_augmentation=new_session');
   });
 
-  test('nativeIntegration variant explains in-process compaction for SDK harnesses', () => {
+  test('nativeIntegration variant explains compact vs new_session without conflating them', () => {
     const nativeBrief = getPlannerToBuilderHandoffTemplate(true);
-    expect(nativeBrief).toContain('in-session context compaction is supported');
-    expect(nativeBrief).toContain('tasks continue via injection');
+    expect(nativeBrief).toContain('`compact` runs in-session context compaction');
+    expect(nativeBrief).toContain('`new_session` starts a completely new session');
+    expect(nativeBrief).toContain('(not compaction)');
+    expect(nativeBrief).toContain('Tasks continue via injection');
     expect(nativeBrief).not.toContain('get-next-task rejoin');
   });
 });
 
-describe('Native task delivery — planner sees Session Management in eager builder template', () => {
-  test('duo planner delivery inlines delegation brief with Session Management', () => {
+describe('Native task delivery — planner sees Session Augmentation in eager builder template', () => {
+  test('duo planner delivery inlines delegation brief with Session Augmentation', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
@@ -48,8 +51,8 @@ describe('Native task delivery — planner sees Session Management in eager buil
     });
 
     expect(output).toContain('Delegation Brief (Planner → Builder)');
-    expect(output).toContain('## Session Management');
-    expect(output).toContain('data:agent.compress_context=new_session');
+    expect(output).toContain('## Session Augmentation');
+    expect(output).toContain('data:agent.session_augmentation=new_session');
     expect(
       getHandoffTemplate({
         teamId: 'duo',
@@ -61,8 +64,8 @@ describe('Native task delivery — planner sees Session Management in eager buil
   });
 });
 
-describe('parseCompressContext — planner handoff body → daemon behavior', () => {
-  test('omitted Session Management section defaults to new_session (unrelated task)', () => {
+describe('parseSessionAugmentation — planner handoff body → daemon behavior', () => {
+  test('omitted Session Augmentation section defaults to new_session (unrelated task)', () => {
     expectNewSessionFromTaskContent(
       ['## Goal', 'Implement dark mode toggle', '## Files to implement'].join('\n')
     );
@@ -71,17 +74,17 @@ describe('parseCompressContext — planner handoff body → daemon behavior', ()
   test('explicit none continues prior builder session', () => {
     expectContinueSessionFromTaskContent(`## Goal
 Follow-up fix on same slice
-## Session Management
-// data:agent.compress_context=none`);
+## Session Augmentation
+// data:agent.session_augmentation=none`);
   });
 
-  test('injection prompt adds compaction header only for new_session', () => {
+  test('injection prompt adds correct preamble per mode', () => {
     const delivery = '<task>builder work</task>';
     assertNativeInjectionCompaction(
       buildNativeInjectionPrompt({
         taskDeliveryOutput: delivery,
         taskContent:
-          '## Goal\nUnrelated feature\n## Session Management\n// data:agent.compress_context=new_session',
+          '## Goal\nUnrelated feature\n## Session Augmentation\n// data:agent.session_augmentation=new_session',
       }),
       'new_session'
     );
@@ -89,7 +92,15 @@ Follow-up fix on same slice
       buildNativeInjectionPrompt({
         taskDeliveryOutput: delivery,
         taskContent:
-          '## Goal\nFollow-up\n## Session Management\n// data:agent.compress_context=none',
+          '## Goal\nCompact context\n## Session Augmentation\n// data:agent.session_augmentation=compact',
+      }),
+      'compact'
+    );
+    assertNativeInjectionCompaction(
+      buildNativeInjectionPrompt({
+        taskDeliveryOutput: delivery,
+        taskContent:
+          '## Goal\nFollow-up\n## Session Augmentation\n// data:agent.session_augmentation=none',
       }),
       'none'
     );

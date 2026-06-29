@@ -207,22 +207,32 @@ describe('shouldDeliverNativeTask', () => {
 });
 
 describe('buildNativeInjectionPrompt', () => {
-  test('adds compaction header for compress_context=new_session', () => {
+  test('adds compaction preamble for session_augmentation=compact', () => {
     const output = buildNativeInjectionPrompt({
       taskDeliveryOutput: 'TASK BODY',
-      compressMode: 'new_session',
+      augmentationMode: 'compact',
     });
     expect(output).toContain('Context was compacted');
     expect(output).toContain('only if role instructions are missing');
     expect(output).toContain('TASK BODY');
   });
 
-  test('no compaction header for compress_context=none', () => {
+  test('adds new-session preamble for session_augmentation=new_session', () => {
     const output = buildNativeInjectionPrompt({
       taskDeliveryOutput: 'TASK BODY',
-      compressMode: 'none',
+      augmentationMode: 'new_session',
+    });
+    expect(output).toContain('Starting a new agent session');
+    expect(output).not.toContain('Context was compacted');
+    expect(output).toContain('TASK BODY');
+  });
+
+  test('no preamble for session_augmentation=none', () => {
+    const output = buildNativeInjectionPrompt({
+      taskDeliveryOutput: 'TASK BODY',
+      augmentationMode: 'none',
     });
     expect(output).toBe('TASK BODY');
-    expect(output).not.toContain('Session Management');
+    expect(output).not.toContain('Session Augmentation');
   });
 });
