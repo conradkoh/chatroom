@@ -1,12 +1,13 @@
 /**
- * In-memory working snapshot for task-monitor — merged from reconcile polls and signals.
- * Not durable; reconcile poll re-authorizes from Convex every interval.
+ * Task-monitor working snapshot — domain merge rules over shared WorkingSnapshot.
  */
 
 import type {
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+
+import { WorkingSnapshot } from '../../../infrastructure/incremental-sync/working-snapshot.js';
 
 function taskSnapshotKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;
@@ -39,26 +40,21 @@ function mergeSignalIntoSnapshot(
 }
 
 export class TaskMonitorSnapshot {
-  private readonly rows = new Map<string, AssignedTaskSnapshotView>();
+  private readonly inner = new WorkingSnapshot<AssignedTaskSnapshotView, AssignedTaskSignal>({
+    rowKey: (row) => taskSnapshotKey(row.taskId, row.agentConfig.role),
+    signalKey: (signal) => taskSnapshotKey(signal.taskId, signal.role),
+    mergeSignal: mergeSignalIntoSnapshot,
+  });
 
   replaceAll(tasks: readonly AssignedTaskSnapshotView[]): void {
-    this.rows.clear();
-    for (const task of tasks) {
-      this.rows.set(taskSnapshotKey(task.taskId, task.agentConfig.role), task);
-    }
+    this.inner.replaceAll(tasks);
   }
 
   get(taskId: string, role: string): AssignedTaskSnapshotView | undefined {
-    return this.rows.get(taskSnapshotKey(taskId, role));
+    return this.inner.getByKey(taskSnapshotKey(taskId, role));
   }
 
   mergeSignal(signal: AssignedTaskSignal): AssignedTaskSnapshotView | undefined {
-    const key = taskSnapshotKey(signal.taskId, signal.role);
-    const merged = mergeSignalIntoSnapshot(this.rows.get(key), signal);
-    if (!merged) {
-      return undefined;
-    }
-    this.rows.set(key, merged);
-    return merged;
+    return this.inner.mergeSignal(signal);
   }
 }
