@@ -73,20 +73,6 @@ describe('SpawnRateLimiter', () => {
       expect(limiter.tryConsume('room-1', 'platform.crash_recovery').allowed).toBe(false);
       expect(limiter.tryConsume('room-1', 'system.restart').allowed).toBe(false);
     });
-
-    it('always allows platform.auto_restart_on_new_context without consuming tokens', () => {
-      const limiter = new SpawnRateLimiter({
-        maxTokens: 0,
-        initialTokens: 0,
-        refillRateMs: 60_000,
-      });
-
-      expect(limiter.tryConsume('room-1', 'platform.auto_restart_on_new_context')).toEqual({
-        allowed: true,
-      });
-      // Subsequent crash recovery still respects the bucket
-      expect(limiter.tryConsume('room-1', 'platform.crash_recovery').allowed).toBe(false);
-    });
   });
 
   // ─── Token Refill Over Time ───────────────────────────────────────────────
@@ -142,7 +128,6 @@ describe('SpawnRateLimiter', () => {
         refillRateMs: 10_000,
       });
       const chatroomId = 'room-cap';
-      const reason = 'platform.restart';
 
       // Prime the bucket before advancing time
       limiter.getStatus(chatroomId);

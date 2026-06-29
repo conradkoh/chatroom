@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { isNativeHarnessSessionDiscardedOnExit } from './native-harness-session-exit.js';
 
 describe('isNativeHarnessSessionDiscardedOnExit', () => {
-  test('discards on cursor-sdk run-error logs', () => {
+  test('retains on cursor-sdk run-error logs when daemon memory resume is supported', () => {
     expect(
       isNativeHarnessSessionDiscardedOnExit({
         harness: 'cursor-sdk',
@@ -14,7 +14,7 @@ describe('isNativeHarnessSessionDiscardedOnExit', () => {
         ],
         supportsDaemonMemoryResume: true,
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   test('retains when daemon memory resume is enabled and stop reason allows reconnect', () => {

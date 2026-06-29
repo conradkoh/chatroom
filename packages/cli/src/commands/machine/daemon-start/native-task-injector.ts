@@ -1,5 +1,9 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
+import {
+  resolveSessionAugmentationForRole,
+  sessionAugmentationNewSessionStarted,
+} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
@@ -13,6 +17,7 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 
 export interface NativeInjectorDeps {
   sessionId: string;
+  machineId: string;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -84,9 +89,11 @@ export function runNativeInjectionEffect(
 
     const delivery = deliveryResult.right;
 
+    const augmentationMode = resolveSessionAugmentationForRole(taskContent, role);
+
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
-      compressMode: parseCompressContext(taskContent),
+      augmentationMode,
     });
 
     yield* Effect.tryPromise({
@@ -102,6 +109,23 @@ export function runNativeInjectionEffect(
     }).pipe(
       Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
     );
+
+    if (roleSupportsSessionAugmentation(role)) {
+      yield* Effect.tryPromise({
+        try: () =>
+          deps.backend.mutation(api.machines.emitSessionAugmented, {
+            sessionId: deps.sessionId,
+            machineId: deps.machineId,
+            chatroomId,
+            role,
+            taskId,
+            mode: augmentationMode,
+            newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
+            harnessSessionId,
+          }),
+        catch: (err) => err,
+      }).pipe(Effect.catchAll(() => Effect.void));
+    }
 
     const resumeResult = yield* Effect.tryPromise({
       try: () => deps.agentMgr.resumeTurnForSlot({ chatroomId, role, prompt }),

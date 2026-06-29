@@ -7,10 +7,12 @@
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
 
+import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
 import {
-  compressContextToWantResume,
-  parseCompressContext,
-} from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+  resolveSessionAugmentationForRole,
+  sessionAugmentationNewSessionStarted,
+  sessionAugmentationToWantResume,
+} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
@@ -52,16 +54,18 @@ type ListAssignedTasksForReconcileResult = { tasks: AssignedTaskSnapshotView[] }
 type TaskMonitorPass = 'signal' | 'reconcile';
 
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
-  return compressContextToWantResume(parseCompressContext(task.taskContent ?? ''));
+  return sessionAugmentationToWantResume(
+    resolveSessionAugmentationForRole(task.taskContent ?? '', task.agentConfig.role)
+  );
 }
 
 function buildCliNudgeLogLine(task: AssignedTaskView): string {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
-  const compressMode = parseCompressContext(task.taskContent ?? '');
+  const augmentationMode = resolveSessionAugmentationForRole(task.taskContent ?? '', role);
   const wantResume = resolveTaskWantResume(task);
-  return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, compress_context=${compressMode}, wantResume=${wantResume}`;
+  return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
 }
 
 function resolveTaskRunnerContextFromFull(task: AssignedTaskView):
@@ -90,11 +94,14 @@ function executeCliNudge(
   task: AssignedTaskView,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string
 ): void {
   const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
+  const augmentationMode = resolveSessionAugmentationForRole(task.taskContent ?? '', role);
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -108,6 +115,21 @@ function executeCliNudge(
         reason: 'platform.task_monitor_nudge',
         wantResume,
       });
+      if (roleSupportsSessionAugmentation(role)) {
+        yield* Effect.tryPromise({
+          try: () =>
+            sessionDeps.backend.mutation(api.machines.emitSessionAugmented, {
+              sessionId: sessionDeps.sessionId,
+              machineId,
+              chatroomId,
+              role,
+              taskId: task.taskId,
+              mode: augmentationMode,
+              newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
+            }),
+          catch: (err) => err,
+        }).pipe(Effect.catchAll(() => Effect.void));
+      }
     }).pipe(
       Effect.provide(effectContext),
       Effect.catchAll((err) =>
@@ -177,10 +199,12 @@ function runCliNudgeEffect(
   task: AssignedTaskView,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
-  agentMgr: DaemonAgentProcessManagerServiceShape
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string
 ): void {
   console.log(buildCliNudgeLogLine(task));
-  executeCliNudge(task, runtime, effectContext, agentMgr);
+  executeCliNudge(task, runtime, effectContext, agentMgr, sessionDeps, machineId);
 }
 
 async function nudgeStuckTasks(
@@ -196,7 +220,7 @@ async function nudgeStuckTasks(
   for (const row of listTasksReadyForNudge(tasks, now, cooldown)) {
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
-    runCliNudgeEffect(full, runtime, effectContext, agentMgr);
+    runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
   }
 }
 

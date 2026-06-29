@@ -7,8 +7,6 @@
  * - initialTokens: 5
  *
  * User-initiated spawn reasons (prefixed with "user.") always bypass the rate limit.
- * Context auto-restart (`platform.auto_restart_on_new_context`) also bypasses the bucket;
- * failures fall back to `platform.crash_recovery`, which consumes a token.
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,16 +58,12 @@ export class SpawnRateLimiter {
   /**
    * Try to consume a token for the given chatroom.
    *
-   * If the reason starts with "user." or is `platform.auto_restart_on_new_context`,
+   * If the reason starts with "user." or is `platform.cursor_sdk_session_reopen`,
    * the spawn is always allowed (bypass). Otherwise, checks the token bucket and
    * consumes a token if available.
    */
   tryConsume(chatroomId: string, reason: string): TryConsumeResult {
-    if (
-      reason.startsWith('user.') ||
-      reason === 'platform.auto_restart_on_new_context' ||
-      reason === 'platform.cursor_sdk_session_reopen'
-    ) {
+    if (reason.startsWith('user.') || reason === 'platform.cursor_sdk_session_reopen') {
       return { allowed: true };
     }
 

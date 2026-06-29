@@ -5,7 +5,6 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
-import { restartAgentsOnNewContext } from '../src/domain/usecase/context/restart-agents-on-new-context';
 
 /** Creates a new context for a chatroom and sets it as the current pinned context. */
 export const createContext = mutation({
@@ -85,8 +84,6 @@ export const createContext = mutation({
       content: args.content,
       type: 'new-context',
     });
-
-    await restartAgentsOnNewContext(ctx, args.chatroomId);
 
     return contextId;
   },

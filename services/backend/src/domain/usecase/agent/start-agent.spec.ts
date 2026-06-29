@@ -141,60 +141,6 @@ describe('startAgent use case — desiredState', () => {
     expect(running?.desiredState).toBe('running');
   });
 
-  test('preserves autoRestartOnNewContext when starting an agent', async () => {
-    const { sessionId } = await createTestSession('start-agent-auto-restart');
-    const chatroomId = await createChatroom(sessionId);
-    const machineId = 'start-machine-auto-restart';
-
-    await registerMachine(sessionId, machineId);
-
-    await t.run(async (ctx) => {
-      const now = Date.now();
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        chatroomId,
-        role: 'builder',
-        type: 'remote',
-        machineId,
-        agentHarness: 'opencode',
-        model: 'anthropic/claude-sonnet-4',
-        workingDir: '/tmp/test',
-        createdAt: now,
-        updatedAt: now,
-        desiredState: 'stopped',
-        autoRestartOnNewContext: true,
-      });
-    });
-
-    await startAgent(sessionId, machineId, chatroomId, 'builder');
-
-    const config = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
-        )
-        .first();
-    });
-
-    expect(config?.autoRestartOnNewContext).toBe(true);
-    expect(config?.desiredState).toBe('running');
-
-    const requestStartEvents = await t.run(async (ctx) => {
-      const events = await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-      return events.filter((e) => e.type === 'agent.requestStart');
-    });
-    const latest = requestStartEvents.at(-1);
-    expect(latest?.type).toBe('agent.requestStart');
-    if (latest?.type === 'agent.requestStart') {
-      expect(latest.autoRestartOnNewContext).toBe(true);
-    }
-  });
-
   test('resets circuit breaker state when manually starting an agent', async () => {
     const { sessionId } = await createTestSession('start-agent-3');
     const chatroomId = await createChatroom(sessionId);

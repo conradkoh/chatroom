@@ -4,11 +4,11 @@
  * Controls which roles can configure optional agent settings in the UI.
  */
 
-/** Roles that may configure "auto restart on new context" for now. */
-export const AUTO_RESTART_ON_NEW_CONTEXT_ROLES = ['builder'] as const;
+/** Roles that receive session augmentation on native task delivery (builder only). */
+export const SESSION_AUGMENTATION_ROLES = ['builder'] as const;
 
-/** Whether the given role can expose the auto-restart-on-new-context setting. */
-export function roleSupportsAutoRestartOnNewContextSetting(role: string): boolean {
+/** Whether the given role receives session augmentation on native task delivery. */
+export function roleSupportsSessionAugmentation(role: string): boolean {
   const normalized = role.toLowerCase();
-  return AUTO_RESTART_ON_NEW_CONTEXT_ROLES.some((r) => r === normalized);
+  return SESSION_AUGMENTATION_ROLES.some((r) => r === normalized);
 }

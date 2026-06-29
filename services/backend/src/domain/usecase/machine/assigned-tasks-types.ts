@@ -63,7 +63,7 @@ export interface AssignedTaskSignal {
   signalType: AssignedTaskSignalType;
   /** Monotonic exclusive cursor component — excludes pure lastSeenAt heartbeats. */
   revisionKey: string;
-  compressContext?: 'new_session' | 'none';
+  sessionAugmentation?: 'none' | 'compact' | 'new_session';
   lastSeenAction?: string | null;
   spawnedAgentPid?: number;
   desiredState?: string;

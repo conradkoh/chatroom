@@ -68,7 +68,7 @@ export type AgentRequestStartEvent = {
   deadline: number;
   timestamp: number;
   wantResume?: boolean;
-  /** Snapshot of team config at emit time (observability only). */
+  /** @deprecated Legacy snapshot — no longer written. Kept optional for historical events. */
   autoRestartOnNewContext?: boolean;
 };
 
@@ -168,6 +168,28 @@ export type AgentSessionReopenRetryEvent = {
   timestamp: number;
 };
 
+export type AgentSessionCompactedEvent = {
+  type: 'agent.sessionCompacted';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  taskId: Id<'chatroom_tasks'>;
+  harnessSessionId?: string;
+  timestamp: number;
+};
+
+export type AgentSessionAugmentedEvent = {
+  type: 'agent.sessionAugmented';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  taskId: Id<'chatroom_tasks'>;
+  mode: 'none' | 'compact' | 'new_session';
+  newSessionStarted: boolean;
+  harnessSessionId?: string;
+  timestamp: number;
+};
+
 export type AgentResumeStormAbortedEvent = {
   type: 'agent.resumeStormAborted';
   chatroomId: Id<'chatroom_rooms'>;
@@ -250,4 +272,6 @@ export type ChatroomEvent =
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent
   | AgentSessionReopenRetryEvent
+  | AgentSessionCompactedEvent
+  | AgentSessionAugmentedEvent
   | AgentRestartLimitReachedEvent;

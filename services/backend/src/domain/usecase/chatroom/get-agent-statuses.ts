@@ -28,8 +28,6 @@ export interface AgentRoleView {
   model?: string;
   workingDir?: string;
   spawnedAt?: number;
-  /** When true, agent restarts after entry role sets new pinned context. */
-  autoRestartOnNewContext?: boolean;
   /** When true (default), stop→start reconnects to the daemon's preserved session. */
   wantResume?: boolean;
 }
@@ -123,7 +121,6 @@ export async function getAgentStatusForChatroom(
       model,
       workingDir: teamConfig.workingDir,
       spawnedAt: teamConfig.spawnedAt,
-      autoRestartOnNewContext: teamConfig.autoRestartOnNewContext,
       wantResume: teamConfig.wantResume,
     };
   });
