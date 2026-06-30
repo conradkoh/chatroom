@@ -45,6 +45,12 @@ export function getPlannerToUserReportTemplate(): string {
 ## Template Disclosure Confirmation
 - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
 
+## Proof of Planning
+<!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
+- <step 1: concrete artifact or outcome>
+- <step 2: concrete artifact or outcome>
+<List the planned slices/steps the planner defined (or would have defined) before delegating. Each step should name a verifiable deliverable — not vague layers like "backend work". Write \`Not Applicable\` only for trivial single-step tasks.>
+
 ## Proof of Principle
 <!-- Demonstrate adherence to:
 - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
