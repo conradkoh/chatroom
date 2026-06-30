@@ -8,6 +8,7 @@ import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
 import type { AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
+import { getIndicatorClass, getLabelColorClass } from './AgentPanel/AgentStatusRow';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -33,6 +34,47 @@ interface AgentSidebarRowProps {
   onOpen: () => void;
 }
 
+interface AgentSidebarInfoProps {
+  role: string;
+  agentConfig: AgentConfig | undefined;
+  isLoadingStatuses: boolean;
+  statusLabel: string;
+  labelColorClass: string;
+  lastSeenLabel: string;
+}
+
+const AgentSidebarInfo = memo(function AgentSidebarInfo({
+  role,
+  agentConfig,
+  isLoadingStatuses,
+  statusLabel,
+  labelColorClass,
+  lastSeenLabel,
+}: AgentSidebarInfoProps) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+        {role}
+      </div>
+      {agentConfig && (
+        <div className="text-[10px] font-medium tracking-wide text-chatroom-text-muted truncate">
+          {agentConfig.agentType}
+          {agentConfig.model ? ` · ${agentConfig.model}` : ''}
+        </div>
+      )}
+      <div className="text-[10px] font-bold uppercase tracking-wide">
+        <span
+          className={isLoadingStatuses ? 'text-chatroom-text-muted animate-pulse' : labelColorClass}
+        >
+          {isLoadingStatuses ? '...' : statusLabel}
+        </span>
+        <span className="text-chatroom-text-muted mx-1.5">·</span>
+        <span className="text-chatroom-text-muted">{lastSeenLabel}</span>
+      </div>
+    </div>
+  );
+});
+
 /** A single agent row in the AgentPanel sidebar. Extracted as a proper component so
  *  React can correctly reconcile keyed list items — keys must be on elements directly
  *  returned from `.map()`, not inside helper functions. */
@@ -49,46 +91,10 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
   const statusVariant = agentStatus?.statusVariant;
   const lastSeenLabel = useRelativeTime(lastSeenAt);
-
-  // Map statusVariant to indicator dot color
-  const indicatorClass = (() => {
-    switch (statusVariant) {
-      case 'offline':
-        return 'bg-chatroom-text-muted';
-      case 'error':
-        return 'bg-red-500 dark:bg-red-400';
-      case 'transitioning':
-        return 'bg-yellow-500 dark:bg-yellow-400';
-      case 'ready':
-        return 'bg-chatroom-status-success';
-      case 'working':
-        return 'bg-chatroom-status-info animate-pulse';
-      default:
-        return online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-    }
-  })();
-
-  // Map statusVariant to label text color
-  const labelColorClass = (() => {
-    switch (statusVariant) {
-      case 'offline':
-        return 'text-chatroom-text-muted';
-      case 'error':
-        return 'text-red-600 dark:text-red-400';
-      case 'transitioning':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'ready':
-        return 'text-chatroom-status-success';
-      case 'working':
-        return 'text-chatroom-status-info animate-pulse';
-      default:
-        return working_
-          ? 'text-chatroom-status-info animate-pulse'
-          : online_
-            ? 'text-chatroom-status-success'
-            : 'text-chatroom-text-muted';
-    }
-  })();
+  const indicatorClass = getIndicatorClass(statusVariant, online_);
+  const labelColorClass = working_
+    ? 'text-chatroom-status-info animate-pulse'
+    : getLabelColorClass(statusVariant, online_);
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
@@ -111,28 +117,14 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
           role="status"
           aria-label={`Status: ${isLoadingStatuses ? 'Loading...' : statusLabel}`}
         />
-        {/* Agent Info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
-            {role}
-          </div>
-          <div
-            className={`text-[10px] font-bold uppercase tracking-wide ${
-              isLoadingStatuses ? 'text-chatroom-text-muted animate-pulse' : labelColorClass
-            }`}
-          >
-            {isLoadingStatuses ? '...' : statusLabel}
-          </div>
-          {agentConfig && (
-            <div className="text-[10px] font-medium tracking-wide text-chatroom-text-muted truncate">
-              {agentConfig.agentType}
-              {agentConfig.model ? ` · ${agentConfig.model}` : ''}
-            </div>
-          )}
-          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-            {lastSeenLabel}
-          </div>
-        </div>
+        <AgentSidebarInfo
+          role={role}
+          agentConfig={agentConfig}
+          isLoadingStatuses={isLoadingStatuses}
+          statusLabel={statusLabel}
+          labelColorClass={labelColorClass}
+          lastSeenLabel={lastSeenLabel}
+        />
         {/* View Indicator */}
         <div className="text-chatroom-text-muted">
           <ChevronRight size={14} />
