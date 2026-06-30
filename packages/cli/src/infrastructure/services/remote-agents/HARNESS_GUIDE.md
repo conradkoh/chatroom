@@ -25,7 +25,7 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 
 **Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk` (`supportsNativeIntegration: true` in `types.ts`).
 
-**Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn`. Task injection uses `resumeTurn` only when delivering user work.
+**Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn` when the agent has no active assigned work (`task.acknowledged` / `task.inProgress`). Task injection uses `resumeTurn` only when delivering user work.
 
 **Participant heartbeat actions** (emitted by the daemon):
 
@@ -43,7 +43,7 @@ The task monitor watches assigned tasks and, for native harnesses, injects pendi
 
 1. `native-task-injector-logic.ts` — pure inject decisions (`shouldInjectNativeTask`)
 2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
-3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and native turn-end idle
+3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and native turn-end idle (skipped on turn-end when participant status is `task.acknowledged` or `task.inProgress`)
 
 CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
 

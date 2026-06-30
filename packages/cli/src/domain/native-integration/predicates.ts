@@ -26,6 +26,11 @@ export function isInjectableNativeAction(action: string | null | undefined): boo
   return action === NATIVE_WAITING_ACTION;
 }
 
+/** Harness turn-end is idle, but chatroom task may still be acknowledged or in progress. */
+export function shouldEmitNativeWaitingOnTurnEnd(lastStatus: string | null | undefined): boolean {
+  return lastStatus !== 'task.acknowledged' && lastStatus !== 'task.inProgress';
+}
+
 /** Missed native:waiting after handoff — task completed but action still task-injected. */
 export function isNativeIdleAfterTaskComplete(participant: {
   lastSeenAction?: string | null;
