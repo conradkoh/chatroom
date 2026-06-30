@@ -3,7 +3,7 @@
  *
  * Covers the resolver dispatch and the structural guarantees the backlog
  * item requires:
- *  - planner → user report includes Proof of Principle, Proof of Completion,
+ *  - planner → user report includes Proof of Planning, Proof of Principle, Proof of Completion,
  *    backlog tasks implemented, backlog pending user review confirmation,
  *    decisions, Key tradeoffs, Tech debt observed, and a mermaid System
  *    Design section, all in markdown, with no optional fields.
@@ -68,7 +68,8 @@ describe('handoff-templates > planner → user report', () => {
     );
   });
 
-  test('requires proof of principle and proof of completion sections', () => {
+  test('requires proof of planning, proof of principle and proof of completion sections', () => {
+    expect(report).toContain('## Proof of Planning');
     expect(report).toContain('## Proof of Principle');
     expect(report).toContain('## Proof of Completion');
     expect(report).toContain('Organization & Maintainability');
