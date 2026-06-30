@@ -7,11 +7,11 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
-import { getMachineDisplayName } from '../../types/machine';
+import { getCompactModelId, getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
-import { AgentStatusRow } from './AgentStatusRow';
+import { AgentStatusRow, getLabelColorClass, formatLastSeen } from './AgentStatusRow';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
@@ -58,6 +58,111 @@ export interface InlineAgentCardProps {
    */
   restartSummary?: { count3h: number; count3d: number } | null;
 }
+
+interface AgentCardModelLineProps {
+  model?: string | null;
+}
+
+const AgentCardModelLine = memo(function AgentCardModelLine({ model }: AgentCardModelLineProps) {
+  if (!model) return null;
+  return (
+    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
+      {getCompactModelId(model)}
+    </div>
+  );
+});
+
+interface AgentCardStatusFooterProps {
+  statusLabel: string;
+  resolvedVariant: StatusVariant;
+  online: boolean;
+  lastSeenAt?: number | null;
+}
+
+const AgentCardStatusFooter = memo(function AgentCardStatusFooter({
+  statusLabel,
+  resolvedVariant,
+  online,
+  lastSeenAt,
+}: AgentCardStatusFooterProps) {
+  return (
+    <div className="mt-2">
+      <span
+        className={
+          'text-[10px] font-bold uppercase tracking-wide ' +
+          getLabelColorClass(resolvedVariant, online)
+        }
+      >
+        {statusLabel}
+      </span>
+      <span className="text-[10px] font-bold text-chatroom-text-muted mx-1.5">·</span>
+      <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+        {formatLastSeen(lastSeenAt)}
+      </span>
+    </div>
+  );
+});
+
+interface AgentCardRestartSectionProps {
+  restartSummary: { count3h: number; count3d: number };
+  statsMachineId: string | null;
+  statsOpen: boolean;
+  onOpenStats: () => void;
+  onCloseStats: () => void;
+  allRoles: string[];
+  role: string;
+  chatroomId: string;
+  defaultModel?: string;
+}
+
+const AgentCardRestartSection = memo(function AgentCardRestartSection({
+  restartSummary,
+  statsMachineId,
+  statsOpen,
+  onOpenStats,
+  onCloseStats,
+  allRoles,
+  role,
+  chatroomId,
+  defaultModel,
+}: AgentCardRestartSectionProps) {
+  return (
+    <>
+      <div className="mt-2 pt-2 border-t border-chatroom-border flex items-center gap-2">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
+          Restarts
+        </span>
+        <span className="text-[10px] text-chatroom-text-secondary">
+          <span className="font-bold text-chatroom-text-primary">{restartSummary.count3h}</span>
+          <span className="text-chatroom-text-muted"> in 3h</span>
+          <span className="mx-1.5 text-chatroom-border-strong">·</span>
+          <span className="font-bold text-chatroom-text-primary">{restartSummary.count3d}</span>
+          <span className="text-chatroom-text-muted"> in 3d</span>
+        </span>
+        {statsMachineId && (
+          <button
+            type="button"
+            onClick={onOpenStats}
+            className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
+          >
+            View Stats →
+          </button>
+        )}
+      </div>
+      {statsMachineId && (
+        <AgentRestartStatsModal
+          isOpen={statsOpen}
+          onClose={onCloseStats}
+          roles={allRoles}
+          defaultRole={role}
+          machineId={statsMachineId}
+          chatroomId={chatroomId}
+          defaultModel={defaultModel}
+        />
+      )}
+    </>
+  );
+});
 
 /** Compact always-visible agent row with tabs for inline remote config editing. */
 export const InlineAgentCard = memo(function InlineAgentCard({
@@ -142,15 +247,9 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     >
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
       <div className="flex flex-col min-w-0 flex-1">
-        {/* Status row at top — extra breathing room below */}
-        <div className="mb-2">
-          <AgentStatusRow
-            role={role}
-            online={online}
-            statusLabel={statusLabel}
-            statusVariant={resolvedVariant}
-            lastSeenAt={lastSeenAt}
-          />
+        {/* Agent role */}
+        <div className="mb-1">
+          <AgentStatusRow role={role} online={online} />
         </div>
 
         {/* Tab bar + tab content */}
@@ -166,52 +265,32 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
         />
 
-        {/* Restart stats row — always shown when data is loaded */}
         {restartSummary && (
-          <>
-            <div className="mt-2 pt-2 border-t border-chatroom-border flex items-center gap-2">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
-                Restarts
-              </span>
-              <span className="text-[10px] text-chatroom-text-secondary">
-                <span className="font-bold text-chatroom-text-primary">
-                  {restartSummary.count3h}
-                </span>
-                <span className="text-chatroom-text-muted"> in 3h</span>
-                <span className="mx-1.5 text-chatroom-border-strong">·</span>
-                <span className="font-bold text-chatroom-text-primary">
-                  {restartSummary.count3d}
-                </span>
-                <span className="text-chatroom-text-muted"> in 3d</span>
-              </span>
-              {statsMachineId && (
-                <button
-                  type="button"
-                  onClick={() => setStatsOpen(true)}
-                  className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
-                >
-                  View Stats →
-                </button>
-              )}
-            </div>
-
-            {statsMachineId && (
-              <AgentRestartStatsModal
-                isOpen={statsOpen}
-                onClose={() => setStatsOpen(false)}
-                roles={allRoles}
-                defaultRole={role}
-                machineId={statsMachineId}
-                chatroomId={chatroomId}
-                defaultModel={
-                  agentRoleView?.agentHarness && agentRoleView?.model
-                    ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
-                    : undefined
-                }
-              />
-            )}
-          </>
+          <AgentCardRestartSection
+            restartSummary={restartSummary}
+            statsMachineId={statsMachineId}
+            statsOpen={statsOpen}
+            onOpenStats={() => setStatsOpen(true)}
+            onCloseStats={() => setStatsOpen(false)}
+            allRoles={allRoles}
+            role={role}
+            chatroomId={chatroomId}
+            defaultModel={
+              agentRoleView?.agentHarness && agentRoleView?.model
+                ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
+                : undefined
+            }
+          />
         )}
+
+        <AgentCardStatusFooter
+          statusLabel={statusLabel}
+          resolvedVariant={resolvedVariant}
+          online={online}
+          lastSeenAt={lastSeenAt}
+        />
+
+        <AgentCardModelLine model={agentRoleView?.model} />
       </div>
     </div>
   );
