@@ -6,7 +6,7 @@ import { useState, useMemo, useCallback, memo } from 'react';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
-import type { AgentConfig } from '../types/machine';
+import { getCompactModelId, type AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
 import { getIndicatorClass, getLabelColorClass } from './AgentPanel/AgentStatusRow';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
@@ -56,12 +56,6 @@ const AgentSidebarInfo = memo(function AgentSidebarInfo({
       <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
         {role}
       </div>
-      {agentConfig && (
-        <div className="text-[10px] font-medium tracking-wide text-chatroom-text-muted truncate">
-          {agentConfig.agentType}
-          {agentConfig.model ? ` · ${agentConfig.model}` : ''}
-        </div>
-      )}
       <div className="text-[10px] font-bold uppercase tracking-wide">
         <span
           className={isLoadingStatuses ? 'text-chatroom-text-muted animate-pulse' : labelColorClass}
@@ -71,6 +65,11 @@ const AgentSidebarInfo = memo(function AgentSidebarInfo({
         <span className="text-chatroom-text-muted mx-1.5">·</span>
         <span className="text-chatroom-text-muted">{lastSeenLabel}</span>
       </div>
+      {agentConfig?.model && (
+        <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
+          {getCompactModelId(agentConfig.model)}
+        </div>
+      )}
     </div>
   );
 });

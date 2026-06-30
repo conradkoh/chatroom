@@ -7,7 +7,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
-import { getMachineDisplayName } from '../../types/machine';
+import { getCompactModelId, getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
@@ -59,20 +59,15 @@ export interface InlineAgentCardProps {
   restartSummary?: { count3h: number; count3d: number } | null;
 }
 
-interface AgentCardHarnessLineProps {
-  harness?: string | null;
+interface AgentCardModelLineProps {
   model?: string | null;
 }
 
-const AgentCardHarnessLine = memo(function AgentCardHarnessLine({
-  harness,
-  model,
-}: AgentCardHarnessLineProps) {
-  if (!harness && !model) return null;
+const AgentCardModelLine = memo(function AgentCardModelLine({ model }: AgentCardModelLineProps) {
+  if (!model) return null;
   return (
-    <div className="mb-2 text-[10px] font-medium tracking-wide text-chatroom-text-muted truncate">
-      {harness}
-      {model ? ` · ${model}` : ''}
+    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
+      {getCompactModelId(model)}
     </div>
   );
 });
@@ -257,8 +252,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           <AgentStatusRow role={role} online={online} />
         </div>
 
-        <AgentCardHarnessLine harness={agentRoleView?.agentHarness} model={agentRoleView?.model} />
-
         {/* Tab bar + tab content */}
         <AgentControlsSection
           controls={controls}
@@ -296,6 +289,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           online={online}
           lastSeenAt={lastSeenAt}
         />
+
+        <AgentCardModelLine model={agentRoleView?.model} />
       </div>
     </div>
   );
