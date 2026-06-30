@@ -214,19 +214,8 @@ export const AgentPanel = memo(function AgentPanel({
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       {/* Header with settings button */}
       <div className="flex items-center justify-between gap-2 h-14 px-4 border-b-2 border-chatroom-border min-w-0">
-        <div className="flex flex-col min-w-0 flex-1 gap-1">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-            Agents
-          </div>
-          {teamName && teams && defaultTeamId && onTeamChange && (
-            <TeamSelectorDropdown
-              teamName={teamName}
-              teamId={teamId}
-              defaultTeamId={defaultTeamId}
-              teams={teams}
-              onTeamChange={onTeamChange}
-            />
-          )}
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Agents
         </div>
         {/* Settings button — opens settings panel directly */}
         <button
@@ -239,6 +228,19 @@ export const AgentPanel = memo(function AgentPanel({
           <Settings size={14} />
         </button>
       </div>
+
+      {/* Team selector — own row below the Agents header */}
+      {teamName && teams && defaultTeamId && onTeamChange && (
+        <div className="px-4 py-2 border-b border-chatroom-border/50">
+          <TeamSelectorDropdown
+            teamName={teamName}
+            teamId={teamId}
+            defaultTeamId={defaultTeamId}
+            teams={teams}
+            onTeamChange={onTeamChange}
+          />
+        </div>
+      )}
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
