@@ -7,10 +7,12 @@ import { expect } from 'vitest';
 import { SKILLS_REGISTRY } from '../../src/domain/usecase/skills/registry';
 
 export interface NativeInitContractOptions {
-  /** Solo team — operating model lives in task delivery, not init */
+  /** Solo team */
   soloTeam?: boolean;
   /** Disallow task read CLI patterns (entry-point solo/planner workflows) */
   noTaskRead?: boolean;
+  /** Expected operating model heading for this role */
+  operatingModelHeading?: string;
   /** When set, assert init prompt length stays below this budget */
   maxLength?: number;
 }
@@ -30,20 +32,19 @@ export function assertNativeInitContract(
   expect(prompt).not.toContain('injected automatically');
   expect(prompt).not.toContain('listen-loop');
 
-  expect(prompt).not.toContain('## Planner Operating Model');
-  expect(prompt).not.toContain('## Builder Operating Model');
-  expect(prompt).not.toContain('## Solo Operating Model');
-  expect(prompt).not.toContain('Delegate ONE phase');
   expect(prompt).not.toMatch(/### Start [Ww]orking/);
   expect(prompt).not.toContain('**Proactively activate skills**');
   if (SKILLS_REGISTRY.length > 0) {
     expect(prompt).not.toContain(`- **${SKILLS_REGISTRY[0].skillId}**:`);
   }
 
+  if (options.operatingModelHeading) {
+    expect(prompt).toContain(options.operatingModelHeading);
+  }
+
   if (options.soloTeam) {
     expect(prompt).not.toContain('Classification (Entry Point Role)');
     expect(prompt).not.toContain('chatroom classify');
-    expect(prompt).not.toContain('Solo Operating Model');
   }
 
   expect(prompt).not.toContain('chatroom classify');
@@ -52,6 +53,8 @@ export function assertNativeInitContract(
   if (options.noTaskRead) {
     expect(prompt).not.toMatch(/task read --chatroom-id/i);
   }
+
+  expect(prompt).toContain('get-role-guidance');
 
   if (options.maxLength !== undefined) {
     expect(prompt.length).toBeLessThan(options.maxLength);

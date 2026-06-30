@@ -25,6 +25,7 @@ export function assertNativeDeliveryContract(
   expect(output).not.toContain('task injection');
   expect(output).not.toContain('Level A');
   expect(output).not.toContain('Level B');
+  expect(output).not.toContain('<role-guidance>');
   expect(output).toContain('<task>');
   expect(output).toContain('<next-steps>');
   expect(output).toContain('you MUST run the handoff command');
@@ -41,22 +42,12 @@ export function assertNativeDeliveryContract(
   }
 }
 
-/** Assert native task delivery includes per-task role guidance and intake. */
-export function assertNativeDeliveryRoleGuidance(
+/** Assert native task delivery includes per-task task intake only (role guidance is in init). */
+export function assertNativeDeliveryTaskIntake(
   output: string,
   options: { entryPoint?: boolean; role: string; teamId?: string }
 ): void {
-  expect(output).toContain('<role-guidance>');
-  if (options.teamId === 'duo' && options.role === 'planner') {
-    expect(output).toContain('Planner Operating Model');
-    expect(output).toContain('Receive user message');
-  }
-  if (options.teamId === 'duo' && options.role === 'builder') {
-    expect(output).toContain('Builder Operating Model');
-  }
-  if (options.role === 'solo') {
-    expect(output).toContain('Solo Operating Model');
-  }
+  expect(output).not.toContain('<role-guidance>');
   expect(output).toContain('<task-intake>');
   if (options.entryPoint) {
     expect(output).toContain('Start working');

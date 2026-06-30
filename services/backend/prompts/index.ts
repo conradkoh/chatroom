@@ -7,6 +7,8 @@
  */
 export { getRoleTemplate, type RoleTemplate } from './templates';
 export { composeNativeSystemPrompt } from './native/system-prompt';
+// fallow-ignore-next-line unused-export
+export { composeRoleGuidance } from './role-guidance';
 export {
   // Low-level generators
   generateGeneralInstructions,

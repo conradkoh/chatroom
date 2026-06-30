@@ -15,8 +15,8 @@ import { NATIVE_INIT_SCENARIOS, TEAM_CONFIGS } from '../../helpers/native-workfl
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
 
-/** Length budget for native duo/planner init — below pre-slim size, above new slim prompt. */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 6000;
+/** Length budget for native duo/planner init with role guidance restored. */
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 12000;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];
@@ -53,6 +53,7 @@ describe('Native init — slim session model (no CLI listen loop)', () => {
       assertNativeInitContract(prompt, {
         soloTeam: scenario.soloTeam,
         noTaskRead: scenario.noTaskRead,
+        operatingModelHeading: scenario.operatingModelHeading,
         maxLength:
           scenario.team === 'duo' && scenario.role === 'planner'
             ? NATIVE_DUO_PLANNER_INIT_MAX_LENGTH
@@ -86,11 +87,13 @@ describe('Native init — commands reference', () => {
     expect(prompt).not.toContain('chatroom get-next-task');
   });
 
-  test('includes role title, compact glossary, and recovery commands', () => {
+  test('includes role title, compact glossary, role guidance, and recovery commands', () => {
     const prompt = nativeInitPrompt('duo', 'planner');
     expect(prompt).toMatch(/# (Planner|Your Role)/i);
     expect(prompt).toContain('# Glossary');
+    expect(prompt).toContain('## Planner Operating Model');
     expect(prompt).toContain('get-system-prompt');
+    expect(prompt).toContain('get-role-guidance');
     expect(prompt).toContain('context read');
   });
 });

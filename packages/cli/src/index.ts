@@ -8,6 +8,9 @@
 
 import { Command } from 'commander';
 
+import { registerChatroomRoleCommand } from './commands/register-chatroom-role-command.js';
+import { collectMultiValueOption } from './utils/multi-value-option.js';
+import { readHeredocOrFileContent } from './utils/read-heredoc-or-file-content.js';
 import { readStdin } from './utils/stdin.js';
 import { getVersion } from './version.js';
 
@@ -189,9 +192,7 @@ handoffCommandGroup
   .option(
     '--attach-artifact <artifactId>',
     'Attach artifact to handoff (can be used multiple times)',
-    (value: string, previous: string[]) => {
-      return previous ? [...previous, value] : [value];
-    },
+    collectMultiValueOption,
     []
   )
   .action(
@@ -279,40 +280,17 @@ backlogCommand
     await maybeRequireAuth();
 
     let content: string;
-
-    if (options.contentFile) {
-      // Read content from file
-      const { readFileContent } = await import('./utils/file-content.js');
-      try {
-        content = readFileContent(options.contentFile, 'content-file');
-      } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
-        process.exit(1);
-      }
-    } else {
-      // Read content from stdin (heredoc support)
-      const stdinContent = await readStdin();
-      const { BACKLOG_STDIN_DELIMITER, validateStdinHeredocBody } =
-        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
-      try {
-        validateStdinHeredocBody(stdinContent, BACKLOG_STDIN_DELIMITER, 'Content');
-      } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
-        process.exit(1);
-      }
-      content = stdinContent;
-    }
-
-    // Validate that content is not empty
-    if (!content || content.trim().length === 0) {
-      console.error('❌ Content is empty. Provide content via --content-file or stdin (heredoc).');
-      console.error('');
-      console.error('   Example with heredoc:');
-      console.error(
-        "   chatroom backlog add --chatroom-id=<id> --role=<role> << 'CHATROOM_BACKLOG_END'"
-      );
-      console.error('   Your backlog item content here');
-      console.error('   CHATROOM_BACKLOG_END');
+    try {
+      content = await readHeredocOrFileContent(options, {
+        delimiter: (await import('@workspace/backend/prompts/cli/stdin-heredoc.js'))
+          .BACKLOG_STDIN_DELIMITER,
+        fieldLabel: 'Content',
+        emptyMessage: 'Content is empty. Provide content via --content-file or stdin (heredoc).',
+        heredocExampleCommand:
+          "chatroom backlog add --chatroom-id=<id> --role=<role> << 'CHATROOM_BACKLOG_END'",
+      });
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
       process.exit(1);
     }
 
@@ -337,39 +315,17 @@ backlogCommand
       await maybeRequireAuth();
 
       let content: string;
-
-      if (options.contentFile) {
-        const { readFileContent } = await import('./utils/file-content.js');
-        try {
-          content = readFileContent(options.contentFile, 'content-file');
-        } catch (err) {
-          console.error(`❌ ${(err as Error).message}`);
-          process.exit(1);
-        }
-      } else {
-        const stdinContent = await readStdin();
-        const { BACKLOG_STDIN_DELIMITER, validateStdinHeredocBody } =
-          await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
-        try {
-          validateStdinHeredocBody(stdinContent, BACKLOG_STDIN_DELIMITER, 'Content');
-        } catch (err) {
-          console.error(`❌ ${(err as Error).message}`);
-          process.exit(1);
-        }
-        content = stdinContent;
-      }
-
-      if (!content || content.trim().length === 0) {
-        console.error(
-          '❌ Content is empty. Provide content via --content-file or stdin (heredoc).'
-        );
-        console.error('');
-        console.error('   Example with heredoc:');
-        console.error(
-          "   chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'CHATROOM_BACKLOG_END'"
-        );
-        console.error('   New content here');
-        console.error('   CHATROOM_BACKLOG_END');
+      try {
+        content = await readHeredocOrFileContent(options, {
+          delimiter: (await import('@workspace/backend/prompts/cli/stdin-heredoc.js'))
+            .BACKLOG_STDIN_DELIMITER,
+          fieldLabel: 'Content',
+          emptyMessage: 'Content is empty. Provide content via --content-file or stdin (heredoc).',
+          heredocExampleCommand:
+            "chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> << 'CHATROOM_BACKLOG_END'",
+        });
+      } catch (err) {
+        console.error(`❌ ${(err as Error).message}`);
         process.exit(1);
       }
 
@@ -813,9 +769,7 @@ artifactCommand
   .option(
     '--artifact <artifactId>',
     'Artifact ID to view (can be used multiple times)',
-    (value: string, previous: string[]) => {
-      return previous ? [...previous, value] : [value];
-    },
+    collectMultiValueOption,
     []
   )
   .action(async (options: { chatroomId: string; role: string; artifact?: string[] }) => {
@@ -831,16 +785,25 @@ artifactCommand
 // FILE COMMANDS (auth required)
 // ============================================================================
 
-program
-  .command('get-system-prompt')
-  .description('Fetch the system prompt for your role in a chatroom')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role (e.g., planner, builder)')
-  .action(async (options: { chatroomId: string; role: string }) => {
-    await maybeRequireAuth();
+registerChatroomRoleCommand(program, {
+  name: 'get-system-prompt',
+  description: 'Fetch the system prompt for your role in a chatroom',
+  maybeRequireAuth,
+  run: async (chatroomId, { role }) => {
     const { getSystemPrompt } = await import('./commands/get-system-prompt/index.js');
-    await getSystemPrompt(options.chatroomId, { role: options.role });
-  });
+    await getSystemPrompt(chatroomId, { role });
+  },
+});
+
+registerChatroomRoleCommand(program, {
+  name: 'get-role-guidance',
+  description: 'Fetch role-specific operating-model guidance for your role in a chatroom',
+  maybeRequireAuth,
+  run: async (chatroomId, { role }) => {
+    const { getRoleGuidance } = await import('./commands/get-role-guidance/index.js');
+    await getRoleGuidance(chatroomId, { role });
+  },
+});
 
 // ============================================================================
 // TELEGRAM COMMANDS (auth required)

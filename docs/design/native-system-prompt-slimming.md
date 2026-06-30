@@ -35,9 +35,11 @@ The system prompt has become a second, hidden place where behavior is codified �
 
 ### Phase 2 — Slim native init prompt ✅
 
-- Introduce `composeNativeSystemPrompt()` that includes only: glossary, compact commands reference, compact recovery guidance
+- Introduce `composeNativeSystemPrompt()` that includes: glossary, role guidance, compact commands reference, compact recovery guidance
 - Route native harnesses through slim composer in `generator.ts`
-- Move operating-model paragraphs to handoff-only delivery
+- Role guidance restored to native init; per-task `<role-guidance>` delivery removed
+- Add `chatroom get-role-guidance` CLI for on-demand reload/reminder
+- Handoff templates include role-guidance disclosure checkbox under Template Disclosure Confirmation
 
 ### Phase 3 — Handoff-first behavior
 

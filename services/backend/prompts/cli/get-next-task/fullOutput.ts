@@ -244,7 +244,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     task,
     isEntryPoint,
   });
-  appendTaskDeliveryHandoffTemplates(lines, { teamId, role });
+  appendTaskDeliveryHandoffTemplates(lines, { teamId, role, chatroomId, cliEnvPrefix });
   appendTaskDeliveryHandoffTargets(lines, {
     chatroomId,
     role,

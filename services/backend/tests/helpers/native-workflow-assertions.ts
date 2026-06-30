@@ -4,7 +4,7 @@
 
 import { expect } from 'vitest';
 
-import { assertNativeDeliveryRoleGuidance } from './native-delivery-contract';
+import { assertNativeDeliveryTaskIntake } from './native-delivery-contract';
 import type { NativeDeliveryScenario } from './native-workflow-fixtures';
 import { NATIVE_DELIVERY_SECTION_ORDER, indexOfSectionLine } from './native-workflow-fixtures';
 
@@ -70,7 +70,7 @@ export function assertNativeDeliveryScenario(
   }
 ): void {
   assertNativeDeliverySectionOrder(output);
-  assertNativeDeliveryRoleGuidance(output, {
+  assertNativeDeliveryTaskIntake(output, {
     entryPoint: scenario.role === 'planner' || scenario.role === 'solo',
     role: scenario.role,
     teamId: scenario.teamId,

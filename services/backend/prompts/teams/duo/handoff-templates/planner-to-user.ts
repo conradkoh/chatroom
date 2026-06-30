@@ -26,14 +26,18 @@
  *     structure (write "Not Applicable" for trivial changes).
  */
 
+import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
+import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
  * Returns the markdown report template the planner uses when delivering the
  * final result to the user.
  */
-export function getPlannerToUserReportTemplate(): string {
+export function getPlannerToUserReportTemplate(
+  roleGuidanceContext?: RoleGuidanceCommandParams
+): string {
   return `${getHandoffRecipientVisibilityCallout('user')}
 
 **Report Template (Planner → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
@@ -44,6 +48,7 @@ export function getPlannerToUserReportTemplate(): string {
 
 ## Template Disclosure Confirmation
 - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
+${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
 ## Proof of Planning
 <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->

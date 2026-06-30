@@ -16,6 +16,9 @@ export interface HandoffTemplateQuery {
   toRole: string;
   teamId?: string;
   nativeIntegration?: boolean;
+  chatroomId?: string;
+  role?: string;
+  cliEnvPrefix?: string;
 }
 
 /**

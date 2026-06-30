@@ -43,18 +43,33 @@ export interface NativeInitScenario {
   entryPoint: boolean;
   soloTeam?: boolean;
   noTaskRead?: boolean;
+  operatingModelHeading?: string;
 }
 
 /** Every native harness × team × role init combination we support. */
 export const NATIVE_INIT_SCENARIOS: NativeInitScenario[] = [
-  { team: 'solo', role: 'solo', entryPoint: true, soloTeam: true, noTaskRead: true },
+  {
+    team: 'solo',
+    role: 'solo',
+    entryPoint: true,
+    soloTeam: true,
+    noTaskRead: true,
+    operatingModelHeading: '## Solo Operating Model',
+  },
   {
     team: 'duo',
     role: 'planner',
     entryPoint: true,
     noTaskRead: true,
+    operatingModelHeading: '## Planner Operating Model',
   },
-  { team: 'duo', role: 'builder', entryPoint: false, noTaskRead: true },
+  {
+    team: 'duo',
+    role: 'builder',
+    entryPoint: false,
+    noTaskRead: true,
+    operatingModelHeading: '## Builder Operating Model',
+  },
 ];
 
 /**
@@ -150,8 +165,6 @@ export function getNativeDeliveryScenario(match: string): NativeDeliveryScenario
 export const NATIVE_DELIVERY_SECTION_ORDER = [
   '<task>',
   '</task>',
-  '<role-guidance>',
-  '</role-guidance>',
   '<task-intake>',
   '</task-intake>',
   '<next-steps>',

@@ -373,6 +373,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
+      - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
 
       ### Next
@@ -447,6 +448,8 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ## Template Disclosure Confirmation
       - [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
+      - [ ] I confirm that I've read and followed the role guidance before starting any work
+      <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principle
       <!-- Demonstrate adherence to:
