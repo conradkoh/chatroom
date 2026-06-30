@@ -1607,6 +1607,7 @@ export function ChatroomDashboard({
                   chatroomId={chatroomId}
                   teamRoles={teamRoles}
                   lifecycle={lifecycle}
+                  agentConfigs={agentPanelData.machineConfigs}
                   onConfigure={handleOpenSettings}
                   onOpenAgents={handleOpenAgents}
                 />

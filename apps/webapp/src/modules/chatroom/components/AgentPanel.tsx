@@ -6,6 +6,7 @@ import { useState, useMemo, useCallback, memo } from 'react';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
+import type { AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
@@ -15,6 +16,7 @@ interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
+  agentConfigs?: AgentConfig[];
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
   /** Called when user clicks an agent row — opens settings to agents tab */
@@ -26,6 +28,7 @@ interface AgentPanelProps {
 interface AgentSidebarRowProps {
   role: string;
   agentStatus: AgentStatus | undefined;
+  agentConfig: AgentConfig | undefined;
   isLoadingStatuses: boolean;
   onOpen: () => void;
 }
@@ -36,6 +39,7 @@ interface AgentSidebarRowProps {
 const AgentSidebarRow = memo(function AgentSidebarRow({
   role,
   agentStatus,
+  agentConfig,
   isLoadingStatuses,
   onOpen,
 }: AgentSidebarRowProps) {
@@ -119,6 +123,12 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
           >
             {isLoadingStatuses ? '...' : statusLabel}
           </div>
+          {agentConfig && (
+            <div className="text-[10px] font-medium tracking-wide text-chatroom-text-muted truncate">
+              {agentConfig.agentType}
+              {agentConfig.model ? ` · ${agentConfig.model}` : ''}
+            </div>
+          )}
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
             {lastSeenLabel}
           </div>
@@ -138,6 +148,7 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
   lifecycle,
+  agentConfigs = [],
   onConfigure,
   onOpenAgents,
 }: AgentPanelProps) {
@@ -222,6 +233,7 @@ export const AgentPanel = memo(function AgentPanel({
             key={role}
             role={role}
             agentStatus={agentStatuses.find((a) => a.role === role)}
+            agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
             isLoadingStatuses={isLoadingStatuses}
             onOpen={openAgentListModal}
           />
