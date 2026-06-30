@@ -32,7 +32,7 @@ export const TeamSelectorDropdown = memo(function TeamSelectorDropdown({
   const activeTeamId = teamId || defaultTeamId;
 
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -45,7 +45,8 @@ export const TeamSelectorDropdown = memo(function TeamSelectorDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="min-w-[200px] bg-chatroom-bg-primary border border-chatroom-border p-0 rounded-none"
+        sideOffset={4}
+        className="z-[100] min-w-[200px] bg-chatroom-bg-primary border border-chatroom-border p-0 rounded-none"
       >
         {teams.map((teamData) => {
           const isActive = teamData.id === activeTeamId;
@@ -56,10 +57,8 @@ export const TeamSelectorDropdown = memo(function TeamSelectorDropdown({
                 if (isActive) return;
                 await onTeamChange(teamData);
               }}
-              className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-chatroom-border last:border-b-0 rounded-none transition-colors duration-100 ${
-                isActive
-                  ? 'bg-chatroom-accent/5 text-chatroom-text-primary'
-                  : 'text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+              className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-chatroom-border last:border-b-0 rounded-none transition-colors duration-100 text-chatroom-text-primary focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary data-[highlighted]:bg-chatroom-bg-hover data-[highlighted]:text-chatroom-text-primary ${
+                isActive ? 'bg-chatroom-accent/5' : ''
               }`}
             >
               <div>
