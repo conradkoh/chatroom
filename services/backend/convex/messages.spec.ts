@@ -534,6 +534,39 @@ describe('deleteUserMessageOrTask and materialized counts', () => {
     expect(counts.pending).toBe(0);
   });
 
+  test('delete by queued message id removes queue row', async () => {
+    const { sessionId } = await createTestSession('del-queued-msg-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message to delete',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queued.length).toBe(1);
+
+    await t.mutation(api.messages.deleteUserMessageOrTask, {
+      sessionId,
+      type: 'message',
+      messageId: queued[0]._id,
+    });
+
+    const queuedAfter = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedAfter.length).toBe(0);
+  });
+
   test('delete by message decrements pending count so next send is not queued', async () => {
     const { sessionId } = await createTestSession('del-pending-counts-1');
     const chatroomId = await createChatroom(sessionId);

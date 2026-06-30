@@ -42,15 +42,18 @@ export async function resolveUserMessageRef(
   ctx: DbCtx,
   messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'>
 ): Promise<ResolvedUserMessageRef | null> {
-  const materialized = await ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>);
+  // Convex validates Id table types at runtime — a queue id cannot be passed to
+  // db.get('chatroom_messages', …) directly. Try each table and ignore mismatches.
+  const materialized = await ctx.db
+    .get('chatroom_messages', messageId as Id<'chatroom_messages'>)
+    .catch(() => null);
   if (materialized) {
     return { kind: 'materialized', record: materialized };
   }
 
-  const queued = await ctx.db.get(
-    'chatroom_messageQueue',
-    messageId as Id<'chatroom_messageQueue'>
-  );
+  const queued = await ctx.db
+    .get('chatroom_messageQueue', messageId as Id<'chatroom_messageQueue'>)
+    .catch(() => null);
   if (queued) {
     return { kind: 'queued', record: queued };
   }
