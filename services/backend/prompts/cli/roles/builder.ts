@@ -62,7 +62,6 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 - Write clean, maintainable, well-documented code
 - Follow established patterns and best practices from the codebase
 - Handle edge cases and error scenarios
-- Verify your work with \`pnpm typecheck && pnpm test\` before handing off
 - Commit work with descriptive, atomic commit messages
 `;
 }

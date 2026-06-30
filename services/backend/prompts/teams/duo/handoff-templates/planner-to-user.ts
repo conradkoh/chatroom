@@ -27,6 +27,7 @@
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 
 /**
  * Returns the markdown report template the planner uses when delivering the
@@ -81,8 +82,8 @@ flowchart TD
     A[Component] --> B[Component]
 \`\`\`
 
-## Verification
-- \`pnpm typecheck && pnpm test\` — <result>
+## Code Change Verification
+${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 
 ## Notes / Next steps
 <anything the user should know, follow-ups, or open questions, or "Not Applicable">

@@ -53,20 +53,21 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
     expect(output).toContain('**user**');
   });
 
-  test('planner answering user gets verification reminder in next-steps', () => {
+  test('planner answering user does not mandate verification in next-steps', () => {
     const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
     const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
     expect(nextSteps).not.toContain('⚠️ **User visibility:**');
-    expect(nextSteps).toContain('pnpm typecheck && pnpm test');
+    expect(nextSteps).not.toContain('pnpm typecheck && pnpm test');
+    expect(nextSteps).not.toContain('No codebase verification needed');
   });
 
-  test('planner receiving builder handback skips verification when no code changed', () => {
+  test('planner receiving builder handback does not inject verification reminder', () => {
     const output = deliver(getNativeDeliveryScenario('planner receives builder handback'));
     const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
     expect(nextSteps).toContain('delivers it to `user`');
     expect(nextSteps).toContain('task from `builder`');
     expect(nextSteps).not.toContain('pnpm typecheck && pnpm test');
-    expect(nextSteps).toContain('No codebase verification needed');
+    expect(nextSteps).not.toContain('No codebase verification needed');
   });
 
   test('handoff templates include recipient visibility callout per target role', () => {

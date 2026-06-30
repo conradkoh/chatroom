@@ -25,7 +25,7 @@ export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): s
 
 **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
-**Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
+**Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -77,7 +77,6 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Verify: \`pnpm typecheck && pnpm test\`
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
