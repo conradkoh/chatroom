@@ -75,13 +75,6 @@ export function assertNativeDeliveryScenario(
     output,
     options?.alternateHandoffTargets ?? scenario.availableHandoffTargets
   );
-
-  if (scenario.userVerificationInNextSteps) {
-    const start = output.indexOf('<next-steps>');
-    const end = output.indexOf('</next-steps>');
-    const nextSteps = output.slice(start, end);
-    expect(nextSteps).toContain('pnpm typecheck && pnpm test');
-  }
 }
 
 /** Init prompt: templates are NOT eager — delivery inlines them per task. */

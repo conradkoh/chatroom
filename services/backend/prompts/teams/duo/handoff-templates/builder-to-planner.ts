@@ -12,6 +12,7 @@
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 
 /**
  * Returns the markdown handoff template the builder uses when returning work
@@ -40,8 +41,8 @@ export function getBuilderToPlannerHandoffTemplate(): string {
 - \`path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you modified>
 
-## Verification
-- \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
+## Code Change Verification
+${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 
 ## Blockers / questions
 <anything needing planner decision, or "Not Applicable">

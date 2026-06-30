@@ -34,9 +34,6 @@ flowchart TD
     A[Component] --> B[Component]
 \`\`\`
 
-## Verification
-- \`pnpm typecheck && pnpm test\` — <result>
-
 ## Notes / Next steps
 <anything the user should know, follow-ups, or open questions, or "Not Applicable">
 \`\`\``;

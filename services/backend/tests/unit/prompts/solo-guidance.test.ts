@@ -90,7 +90,7 @@ describe('solo > getSoloGuidance', () => {
   test('contains implementation guidelines', () => {
     const guidance = getSoloGuidance(baseParams);
     expect(guidance).toContain('Implementation Guidelines');
-    expect(guidance).toContain('typecheck');
+    expect(guidance).not.toContain('typecheck');
     expect(guidance).toContain('atomic');
   });
 });

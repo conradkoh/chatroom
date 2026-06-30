@@ -55,10 +55,7 @@ ${getTaskIntakeNodes(nativeIntegration)}
     K --> F
     J -->|yes| L{more phases?}
     L -->|yes| F
-    L -->|no| M{codebase changed this slice?}
-    M -->|yes| N[Verify: pnpm typecheck && pnpm test]
-    M -->|no| O[Deliver final result to user]
-    N --> O
+    L -->|no| O[Deliver final result to user]
     O --> P[${footer}] --> B
 \`\`\``;
 }
@@ -80,16 +77,14 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
     return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-3. Verify (\`pnpm typecheck && pnpm test\`) before user delivery **only when this slice changed the codebase**
-4. Deliver to **user**
-5. ${continueStep}`;
+3. Deliver to **user**
+4. ${continueStep}`;
   }
 
   return `**Operating model: Planner Solo**
 
 ${intakeSteps}
 3. Review your own work for quality
-4. Verify: \`pnpm typecheck && pnpm test\`
-5. Deliver to **user**
-6. ${continueStep}`;
+4. Deliver to **user**
+5. ${continueStep}`;
 }

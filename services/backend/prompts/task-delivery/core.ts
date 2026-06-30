@@ -7,7 +7,6 @@
 import type { DeliveryAttachmentsInput } from '../../src/domain/entities/message-attachments.js';
 import { handoffCommand } from '../cli/handoff/command';
 import { inferPrimaryHandoffTarget } from '../utils/infer-primary-handoff-target';
-import { getUserVerificationReminder } from '../utils/task-verification';
 
 export interface TaskDeliveryParams {
   chatroomId: string;
@@ -24,18 +23,6 @@ export interface TaskDeliveryParams {
 
 export { appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates } from '../native/delivery-handoff-templates';
 
-function maybeAddUserVerificationReminder(
-  lines: string[],
-  target: string | undefined,
-  taskContent: string
-): void {
-  if (target?.toLowerCase() !== 'user') {
-    return;
-  }
-  lines.push('');
-  lines.push(getUserVerificationReminder(taskContent));
-}
-
 export function appendTaskDeliveryNextSteps(
   lines: string[],
   params: Pick<
@@ -49,8 +36,7 @@ export function appendTaskDeliveryNextSteps(
     | 'isEntryPoint'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets, task, isEntryPoint } =
-    params;
+  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets, isEntryPoint } = params;
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole: message?.senderRole,
     role,
@@ -67,7 +53,6 @@ export function appendTaskDeliveryNextSteps(
     lines.push(
       `2. **When complete, you MUST run the handoff command** — this completes your work and delivers it to \`${primaryTarget}\`${senderNote}:`
     );
-    maybeAddUserVerificationReminder(lines, primaryTarget, task.content);
     lines.push('');
     lines.push('```bash');
     lines.push(handoffCommand({ chatroomId, role, nextRole: primaryTarget, cliEnvPrefix }));

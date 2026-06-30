@@ -337,7 +337,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Write clean, maintainable, well-documented code
       - Follow established patterns and best practices from the codebase
       - Handle edge cases and error scenarios
-      - Verify your work with \`pnpm typecheck && pnpm test\` before handing off
       - Commit work with descriptive, atomic commit messages
 
        
@@ -410,8 +409,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       1. Work on the task above.
       2. **When complete, you MUST run the handoff command** — this completes your work and delivers it to \`user\` (task from \`user\`):
 
-      Before handing off to user: verify the codebase is in a good state — run \`pnpm typecheck && pnpm test\`.
-
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="user" << 'CHATROOM_HANDOFF_END'
       ---MESSAGE---
@@ -462,8 +459,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       - \`path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 
-      ## Verification
-      - \`pnpm typecheck && pnpm test\` — <pass/fail + notes>
+      ## Code Change Verification
+      - [ ] I confirm that I have run \`pnpm typecheck && pnpm test\` (only required if code changes were made)
 
       ## Blockers / questions
       <anything needing planner decision, or "Not Applicable">
