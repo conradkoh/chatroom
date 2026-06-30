@@ -1,0 +1,52 @@
+/**
+ * Assigned task presence — incremental feed for participant lastSeenAt (nudge timing).
+ */
+
+import type { AssignedTaskPresenceSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { SessionId } from 'convex-helpers/server/sessions';
+
+import { api } from '../../../api.js';
+import type { IncrementalFeedDef, FeedPage, SubscribeQueryTarget } from '../types.js';
+
+export interface AssignedTaskPresenceFeedArgs {
+  sessionId: SessionId;
+  machineId: string;
+}
+
+export const assignedTaskPresenceFeedDef: IncrementalFeedDef<
+  AssignedTaskPresenceSignal,
+  AssignedTaskPresenceFeedArgs
+> = {
+  name: 'assigned-task-presence',
+  itemKey: (item) => `${item.presenceUpdatedAt}:${item.taskId}:${item.role}`,
+};
+
+export const assignedTaskPresenceSubscribeTarget: SubscribeQueryTarget<
+  AssignedTaskPresenceSignal,
+  AssignedTaskPresenceFeedArgs
+> = {
+  query: api.machines.subscribeAssignedTaskPresenceSince,
+  buildArgs: (args, afterKey, limit) => ({
+    sessionId: args.sessionId,
+    machineId: args.machineId,
+    afterPresenceAt: afterKey ? Number(afterKey) : 0,
+    limit,
+  }),
+  parsePage: (result) => {
+    const page = result as FeedPage<AssignedTaskPresenceSignal> & {
+      highPresenceAt: number | null;
+    };
+    return {
+      items: page.items,
+      highKey: page.highPresenceAt !== null ? String(page.highPresenceAt) : null,
+      hasMore: page.hasMore,
+    };
+  },
+};
+
+export const ASSIGNED_TASK_PRESENCE_FEED_LIMIT = 50;
+
+export const ASSIGNED_TASK_PRESENCE_FEED_BUFFER = {
+  maxSize: 200,
+  dedupe: true,
+};

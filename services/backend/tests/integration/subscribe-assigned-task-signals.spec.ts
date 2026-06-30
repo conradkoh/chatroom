@@ -13,7 +13,14 @@ import {
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
-describe('machines.listAssignedTasksForReconcile', () => {
+async function syncMachineSnapshots(sessionId: string, machineId: string): Promise<void> {
+  await t.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
+    sessionId,
+    machineId,
+  });
+}
+
+describe('machines.listMachineAssignedTaskSnapshots', () => {
   test('returns active tasks without task content', async () => {
     const { sessionId } = await createTestSession('test-lite-tasks-1');
     const machineId = 'machine-lite-tasks-1';
@@ -29,7 +36,9 @@ describe('machines.listAssignedTasksForReconcile', () => {
       createdBy: 'user',
     });
 
-    const result = await t.query(api.machines.listAssignedTasksForReconcile, {
+    await syncMachineSnapshots(sessionId, machineId);
+
+    const result = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
       sessionId,
       machineId,
     });
@@ -58,6 +67,8 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       content: largeContent,
       createdBy: 'user',
     });
+
+    await syncMachineSnapshots(sessionId, machineId);
 
     const first = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
@@ -97,6 +108,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       content: '## Goal\nWork',
       createdBy: 'user',
     });
+    await syncMachineSnapshots(sessionId, machineId);
 
     const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
@@ -136,6 +148,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       content: '## Goal\nHeartbeat test',
       createdBy: 'user',
     });
+    await syncMachineSnapshots(sessionId, machineId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -164,6 +177,8 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       });
     });
 
+    await syncMachineSnapshots(sessionId, machineId);
+
     const afterHeartbeat = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
       machineId,
@@ -172,6 +187,41 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     });
 
     expect(afterHeartbeat.items).toHaveLength(0);
+  });
+});
+
+describe('machines.subscribeAssignedTaskPresenceSince', () => {
+  test('returns presence deltas when lastSeenAt advances', async () => {
+    const { sessionId } = await createTestSession('test-presence-1');
+    const machineId = 'machine-presence-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: '## Goal\nPresence',
+      createdBy: 'user',
+    });
+    await syncMachineSnapshots(sessionId, machineId);
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const page = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceAt: 0,
+      limit: 10,
+    });
+
+    expect(page.items.length).toBeGreaterThanOrEqual(1);
+    expect(page.items[0]?.lastSeenAt).toBeTruthy();
   });
 });
 
@@ -190,6 +240,7 @@ describe('machines.getAssignedTaskForAction', () => {
       content,
       createdBy: 'user',
     });
+    await syncMachineSnapshots(sessionId, machineId);
 
     const result = await t.query(api.machines.getAssignedTaskForAction, {
       sessionId,

@@ -34,10 +34,7 @@ export interface AssignedTaskView {
   participant?: AssignedTaskParticipantView;
 }
 
-/**
- * Reconcile snapshot row — omits task.content from the API response.
- * Server-side collect may still read full task documents; see developer guide.
- */
+/** Slim snapshot row for daemon working set (no task.content). */
 export interface AssignedTaskSnapshotView {
   taskId: Id<'chatroom_tasks'>;
   chatroomId: Id<'chatroom_rooms'>;
@@ -49,7 +46,7 @@ export interface AssignedTaskSnapshotView {
   participant?: AssignedTaskParticipantView;
 }
 
-export interface ListAssignedTasksForReconcileResult {
+export interface ListMachineAssignedTaskSnapshotsResult {
   tasks: AssignedTaskSnapshotView[];
 }
 
@@ -69,9 +66,24 @@ export interface AssignedTaskSignal {
   desiredState?: string;
 }
 
+export interface AssignedTaskPresenceSignal {
+  taskId: Id<'chatroom_tasks'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  lastSeenAt: number | null;
+  lastSeenAction?: string | null;
+  presenceUpdatedAt: number;
+}
+
 export interface SubscribeAssignedTaskSignalsResult {
   items: AssignedTaskSignal[];
   highKey: string | null;
+  hasMore: boolean;
+}
+
+export interface SubscribeAssignedTaskPresenceResult {
+  items: AssignedTaskPresenceSignal[];
+  highPresenceAt: number | null;
   hasMore: boolean;
 }
 
@@ -87,5 +99,10 @@ export interface GetAssignedTaskForActionInput extends MachineAssignedTasksInput
 
 export interface SubscribeAssignedTaskSignalsInput extends MachineAssignedTasksInput {
   afterKey?: string;
+  limit: number;
+}
+
+export interface SubscribeAssignedTaskPresenceInput extends MachineAssignedTasksInput {
+  afterPresenceAt: number;
   limit: number;
 }
