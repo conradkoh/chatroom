@@ -3,12 +3,14 @@
 import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
+import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
 import { getCompactModelId, type AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
 import { getIndicatorClass, getLabelColorClass } from './AgentPanel/AgentStatusRow';
+import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -17,6 +19,11 @@ interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
+  teamName?: string;
+  teamId?: string;
+  defaultTeamId?: string;
+  teams?: readonly TeamConfigEntry[];
+  onTeamChange?: (team: TeamConfigEntry) => Promise<void>;
   agentConfigs?: AgentConfig[];
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
@@ -139,6 +146,11 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
   lifecycle,
+  teamName,
+  teamId,
+  defaultTeamId,
+  teams,
+  onTeamChange,
   agentConfigs = [],
   onConfigure,
   onOpenAgents,
@@ -201,7 +213,7 @@ export const AgentPanel = memo(function AgentPanel({
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       {/* Header with settings button */}
-      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
+      <div className="flex items-center justify-between gap-2 h-14 px-4 border-b-2 border-chatroom-border min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
@@ -216,6 +228,19 @@ export const AgentPanel = memo(function AgentPanel({
           <Settings size={14} />
         </button>
       </div>
+
+      {/* Team selector — own row below the Agents header */}
+      {teamName && teams && defaultTeamId && onTeamChange && (
+        <div className="px-4 py-2 border-b border-chatroom-border/50">
+          <TeamSelectorDropdown
+            teamName={teamName}
+            teamId={teamId}
+            defaultTeamId={defaultTeamId}
+            teams={teams}
+            onTeamChange={onTeamChange}
+          />
+        </div>
+      )}
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
