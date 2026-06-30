@@ -6,8 +6,6 @@ import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
-  Check,
-  ChevronDown,
   Files,
   MessageSquare,
   MessageSquareOff,
@@ -26,6 +24,7 @@ import { toast } from 'sonner';
 import { AttachmentsProvider, dispatchComposerPrefill, PREFILL_TOAST_MESSAGE } from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
+import { teamConfigToUpdateArgs } from './components/AgentPanel/TeamSelectorDropdown';
 import { ChatroomTitleEditor } from './components/ChatroomTitleEditor';
 import {
   CommandPalette,
@@ -46,7 +45,7 @@ import { WorkQueue } from './components/WorkQueue';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
-import { useTeamConfigs } from './hooks/use-team-configs';
+import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
@@ -83,13 +82,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
@@ -577,6 +569,13 @@ export function ChatroomDashboard({
 
   // Update team mutation (for switching teams)
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
+
+  const handleTeamChange = useCallback(
+    async (team: TeamConfigEntry) => {
+      await updateTeam(teamConfigToUpdateArgs(chatroomId, team));
+    },
+    [updateTeam, chatroomId]
+  );
 
   // Mark chatroom as read mutation (for unread indicators)
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
@@ -1284,60 +1283,6 @@ export function ChatroomDashboard({
         ),
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
-            {chatroom.teamName && (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <button className="bg-chatroom-bg-tertiary border-2 border-transparent px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:flex items-center gap-1.5 cursor-pointer transition-all duration-100 hover:border-chatroom-border hover:text-chatroom-text-primary focus:outline-none">
-                    Team: {chatroom.teamName}
-                    <ChevronDown size={10} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="min-w-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none p-0"
-                >
-                  {teams.map((teamData) => {
-                    const isActive = teamData.id === (chatroom.teamId || defaultTeamId);
-                    return (
-                      <DropdownMenuItem
-                        key={teamData.id}
-                        onClick={async () => {
-                          if (isActive) return;
-                          await updateTeam({
-                            chatroomId: chatroomId as Id<'chatroom_rooms'>,
-                            teamId: teamData.id,
-                            teamName: teamData.name,
-                            teamRoles: teamData.roles,
-                            teamEntryPoint: teamData.entryPoint || teamData.roles[0],
-                          });
-                        }}
-                        className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-chatroom-border last:border-b-0 rounded-none transition-colors duration-100 ${
-                          isActive
-                            ? 'bg-chatroom-accent/5 text-chatroom-text-primary'
-                            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
-                            {teamData.name}
-                          </div>
-                          <div className="text-[10px] text-chatroom-text-muted mt-0.5">
-                            {teamData.roles.join(' · ')}
-                          </div>
-                        </div>
-                        {isActive && (
-                          <Check size={12} className="text-chatroom-accent ml-2 shrink-0" />
-                        )}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  <DropdownMenuSeparator className="bg-chatroom-border-strong m-0" />
-                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-                    Agents must reconnect after switching
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
             <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
               {isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
@@ -1607,6 +1552,11 @@ export function ChatroomDashboard({
                   chatroomId={chatroomId}
                   teamRoles={teamRoles}
                   lifecycle={lifecycle}
+                  teamName={chatroom.teamName}
+                  teamId={chatroom.teamId}
+                  defaultTeamId={defaultTeamId}
+                  teams={teams}
+                  onTeamChange={handleTeamChange}
                   onConfigure={handleOpenSettings}
                   onOpenAgents={handleOpenAgents}
                 />

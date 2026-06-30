@@ -3,10 +3,12 @@
 import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
+import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
 import type { TeamLifecycle } from '../types/readiness';
+import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -15,6 +17,11 @@ interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
+  teamName?: string;
+  teamId?: string;
+  defaultTeamId?: string;
+  teams?: readonly TeamConfigEntry[];
+  onTeamChange?: (team: TeamConfigEntry) => Promise<void>;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
   /** Called when user clicks an agent row — opens settings to agents tab */
@@ -138,6 +145,11 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
   lifecycle,
+  teamName,
+  teamId,
+  defaultTeamId,
+  teams,
+  onTeamChange,
   onConfigure,
   onOpenAgents,
 }: AgentPanelProps) {
@@ -199,9 +211,20 @@ export const AgentPanel = memo(function AgentPanel({
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       {/* Header with settings button */}
-      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-          Agents
+      <div className="flex items-center justify-between gap-2 h-14 px-4 border-b-2 border-chatroom-border min-w-0">
+        <div className="flex flex-col min-w-0 flex-1 gap-1">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+            Agents
+          </div>
+          {teamName && teams && defaultTeamId && onTeamChange && (
+            <TeamSelectorDropdown
+              teamName={teamName}
+              teamId={teamId}
+              defaultTeamId={defaultTeamId}
+              teams={teams}
+              onTeamChange={onTeamChange}
+            />
+          )}
         </div>
         {/* Settings button — opens settings panel directly */}
         <button
