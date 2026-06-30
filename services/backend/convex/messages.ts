@@ -27,9 +27,12 @@ import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
+import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
+import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
 
 const config = getConfig();
 
@@ -819,175 +822,121 @@ export const list = query({
   },
 });
 
-/** Deletes a queued message record from chatroom_messageQueue (user-triggered dismiss). */
-export const deleteQueuedMessage = mutation({
-  args: {
-    ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
-  },
-  handler: async (ctx, args) => {
-    const queueRecord = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!queueRecord) {
-      // Already deleted — idempotent
-      return { success: true };
-    }
+const userMessageOrTaskIdArgs = {
+  type: v.union(v.literal('task'), v.literal('message')),
+  taskId: v.optional(v.id('chatroom_tasks')),
+  messageId: v.optional(v.union(v.id('chatroom_messages'), v.id('chatroom_messageQueue'))),
+};
 
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
+type UserMessageOrTaskMutationArgs = {
+  sessionId: string;
+  type: 'task' | 'message';
+  taskId?: Id<'chatroom_tasks'>;
+  messageId?: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'>;
+};
 
-    // Delete the queue record
-    await ctx.db.delete('chatroom_messageQueue', args.queuedMessageId);
+async function authorizeTaskTarget(
+  ctx: MutationCtx,
+  sessionId: string,
+  taskId: Id<'chatroom_tasks'> | undefined,
+  requireTargetExists: boolean
+): Promise<{ type: 'task'; taskId: Id<'chatroom_tasks'> }> {
+  if (!taskId) {
+    throw new ConvexError({
+      code: 'INVALID_TASK',
+      message: 'taskId is required when type is task.',
+    });
+  }
 
-    // Update materialized queue count
-    await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
-
-    return { success: true };
-  },
-});
-
-/** Deletes a pending message from chatroom_messages and its associated pending task (user-triggered cancel).
- *  Only messages with a linked task in 'pending' status can be deleted — messages that are already
- *  being processed (acknowledged / in_progress) are protected.
- */
-export const deletePendingMessage = mutation({
-  args: {
-    ...SessionIdArg,
-    messageId: v.id('chatroom_messages'),
-  },
-  handler: async (ctx, args) => {
-    const message = await ctx.db.get('chatroom_messages', args.messageId);
-    if (!message) {
-      // Already deleted — idempotent
-      return { success: true };
-    }
-
-    // Validate session and check chatroom access (also verifies ownership)
-    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
-
-    // Guard: only allow deletion if the linked task is still pending
-    if (!message.taskId) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Message has no associated task and cannot be deleted.',
-      });
-    }
-
-    const task = await ctx.db.get('chatroom_tasks', message.taskId);
-    if (!task) {
+  const task = await ctx.db.get('chatroom_tasks', taskId);
+  if (!task) {
+    if (requireTargetExists) {
       throw new ConvexError({
         code: 'TASK_NOT_FOUND',
-        message: 'Associated task not found.',
+        message: 'Task not found.',
       });
     }
+    return { type: 'task', taskId };
+  }
 
-    if (task.status !== 'pending') {
-      throw new ConvexError({
-        code: 'INVALID_TASK_STATUS',
-        message: `Cannot delete message: task is already ${task.status}. Only pending messages can be deleted.`,
-      });
-    }
+  await requireChatroomAccess(ctx, sessionId, task.chatroomId);
+  return { type: 'task', taskId };
+}
 
-    // Delete the associated pending task first
-    await ctx.db.delete('chatroom_tasks', task._id);
-    await adjustTaskCount(ctx, message.chatroomId, 'pending', -1);
+async function authorizeMessageTarget(
+  ctx: MutationCtx,
+  sessionId: string,
+  messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> | undefined,
+  requireTargetExists: boolean
+): Promise<{
+  type: 'message';
+  messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'>;
+}> {
+  if (!messageId) {
+    throw new ConvexError({
+      code: 'INVALID_MESSAGE',
+      message: 'messageId is required when type is message.',
+    });
+  }
 
-    // Delete the message itself (hard delete)
-    await ctx.db.delete('chatroom_messages', args.messageId);
-
-    return { success: true };
-  },
-});
-
-/** Updates the content of a pending message (task still pending — not yet picked up by an agent).
- *  Also updates the associated task content to stay in sync.
- */
-export const updatePendingMessage = mutation({
-  args: {
-    ...SessionIdArg,
-    messageId: v.id('chatroom_messages'),
-    content: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const message = await ctx.db.get('chatroom_messages', args.messageId);
-    if (!message) {
+  const resolved = await resolveUserMessageRef(ctx, messageId);
+  if (!resolved) {
+    if (requireTargetExists) {
       throw new ConvexError({
         code: 'MESSAGE_NOT_FOUND',
         message: 'Message not found.',
       });
     }
+    return { type: 'message', messageId };
+  }
 
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
+  await requireChatroomAccess(ctx, sessionId, resolved.record.chatroomId);
+  return { type: 'message', messageId };
+}
 
-    // Validate non-empty content
-    const trimmed = args.content.trim();
-    if (!trimmed) {
-      throw new ConvexError({
-        code: 'INVALID_CONTENT',
-        message: 'Message content cannot be empty.',
-      });
+async function authorizeUserMessageOrTaskAccess(
+  ctx: MutationCtx,
+  args: UserMessageOrTaskMutationArgs,
+  options: { requireTargetExists: boolean }
+): Promise<
+  | { type: 'task'; taskId: Id<'chatroom_tasks'> }
+  | {
+      type: 'message';
+      messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'>;
     }
+> {
+  if (args.type === 'task') {
+    return authorizeTaskTarget(ctx, args.sessionId, args.taskId, options.requireTargetExists);
+  }
+  return authorizeMessageTarget(ctx, args.sessionId, args.messageId, options.requireTargetExists);
+}
 
-    // Guard: only allow edit if the linked task is still pending
-    if (!message.taskId) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Message has no associated task and cannot be edited.',
-      });
-    }
-
-    const task = await ctx.db.get('chatroom_tasks', message.taskId);
-    if (!task) {
-      throw new ConvexError({
-        code: 'TASK_NOT_FOUND',
-        message: 'Associated task not found.',
-      });
-    }
-
-    if (task.status !== 'pending') {
-      throw new ConvexError({
-        code: 'INVALID_TASK_STATUS',
-        message: `Cannot edit message: task is already ${task.status}. Only pending messages can be edited.`,
-      });
-    }
-
-    // Update the message content
-    await ctx.db.patch('chatroom_messages', args.messageId, { content: trimmed });
-
-    // Update the associated task content to stay in sync
-    await ctx.db.patch('chatroom_tasks', task._id, {
-      content: trimmed,
-      updatedAt: Date.now(),
+/** Deletes a user message and/or its linked task (any lifecycle stage). */
+export const deleteUserMessageOrTask = mutation({
+  args: {
+    ...SessionIdArg,
+    ...userMessageOrTaskIdArgs,
+  },
+  handler: async (ctx, args) => {
+    const target = await authorizeUserMessageOrTaskAccess(ctx, args, {
+      requireTargetExists: false,
     });
-
-    return { success: true };
+    return deleteUserMessageOrTaskUsecase(ctx, target);
   },
 });
 
-/** Updates the content of a queued (pending) message before it is dispatched. */
-export const updateQueuedMessage = mutation({
+/** Updates a user message and/or its linked task content (any lifecycle stage). */
+export const updateUserMessageOrTask = mutation({
   args: {
     ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
+    ...userMessageOrTaskIdArgs,
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const queueRecord = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!queueRecord) {
-      throw new Error('Queued message not found');
-    }
-
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
-
-    // Validate non-empty content
-    const trimmed = args.content.trim();
-    if (!trimmed) {
-      throw new Error('Message content cannot be empty');
-    }
-
-    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, { content: trimmed });
-    return { success: true };
+    const target = await authorizeUserMessageOrTaskAccess(ctx, args, {
+      requireTargetExists: true,
+    });
+    return updateUserMessageOrTaskUsecase(ctx, { ...target, content: args.content });
   },
 });
 

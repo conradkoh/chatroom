@@ -40,7 +40,7 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
+  const deleteUserMessageOrTask = useSessionMutation(api.messages.deleteUserMessageOrTask);
 
   const handlePromote = useCallback(
     async (queuedMessageId: string) => {
@@ -58,21 +58,23 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   const handleDelete = useCallback(
     async (queuedMessageId: string) => {
       try {
-        await deleteQueuedMessage({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        await deleteUserMessageOrTask({
+          type: 'message',
+          messageId: queuedMessageId as Id<'chatroom_messageQueue'>,
         });
       } catch (error) {
         console.error('Failed to delete queued message:', error);
       }
     },
-    [deleteQueuedMessage]
+    [deleteUserMessageOrTask]
   );
 
   // Return null when there are no queued messages — no indicator shown.
   if (queuedMessages.length === 0) return null;
 
   // listQueued returns ascending order — last item is the most recently queued.
-  const lastMessage = queuedMessages[queuedMessages.length - 1]!;
+  const lastMessage = queuedMessages.at(-1);
+  if (!lastMessage) return null;
   const extraCount = queuedMessages.length - 1;
 
   return (
