@@ -246,10 +246,7 @@ describe('Duo Team > Planner > System Prompt', () => {
           K --> F
           J -->|yes| L{more phases?}
           L -->|yes| F
-          L -->|no| M{codebase changed this slice?}
-          M -->|yes| N[Verify: pnpm typecheck && pnpm test]
-          M -->|no| O[Deliver final result to user]
-          N --> O
+          L -->|no| O[Deliver final result to user]
           O --> P[Run get-next-task] --> B
       \`\`\`
 
@@ -315,7 +312,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → deliver to \`user\` (run \`pnpm typecheck && pnpm test\` first **only if this slice changed the codebase** — skip for connectivity-only or no-code handbacks)
+      2. If requirements are met → deliver to \`user\`
       3. If requirements are NOT met → hand back to \`builder\` for rework
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 

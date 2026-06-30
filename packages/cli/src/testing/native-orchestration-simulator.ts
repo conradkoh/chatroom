@@ -5,11 +5,12 @@
  */
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
+import { api } from '../api.js';
 import { NativeDeliveryLedger } from '../commands/machine/daemon-start/native-delivery-ledger.js';
 import { buildNativeInjectionPrompt } from '../commands/machine/daemon-start/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from '../commands/machine/daemon-start/native-task-injector.js';
@@ -52,8 +53,13 @@ function isClaimMutation(args: Record<string, unknown>): boolean {
 }
 
 function createBackendMock(deliveryOutput: string) {
-  const mutation = async (_fn: unknown, args: Record<string, unknown>) => {
-    if (isClaimMutation(args) || args.action === NATIVE_TASK_INJECTED_ACTION) {
+  const mutation = async (fn: unknown, args: Record<string, unknown>) => {
+    if (
+      isClaimMutation(args) ||
+      args.action === NATIVE_TASK_INJECTED_ACTION ||
+      fn === api.machines.emitSessionCompacted ||
+      fn === api.machines.emitSessionAugmented
+    ) {
       return undefined;
     }
     throw new Error(`Unexpected mutation call: ${JSON.stringify(Object.keys(args))}`);
@@ -84,7 +90,7 @@ export class NativeOrchestrationSimulator {
   expectedPrompt(task: AssignedTaskView, deliveryOutput: string): string {
     return buildNativeInjectionPrompt({
       taskDeliveryOutput: deliveryOutput,
-      compressMode: parseCompressContext(task.taskContent),
+      augmentationMode: resolveSessionAugmentationForRole(task.taskContent, task.agentConfig.role),
     });
   }
 
@@ -101,6 +107,7 @@ export class NativeOrchestrationSimulator {
         this.harnessSessionId,
         {
           sessionId,
+          machineId: task.agentConfig.machineId,
           convexUrl,
           backend,
           agentMgr: this.harness,

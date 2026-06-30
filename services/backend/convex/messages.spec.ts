@@ -503,8 +503,71 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
   });
 });
 
-describe('deletePendingMessage and materialized counts', () => {
-  test('deleting pending message decrements pending count so next send is not queued', async () => {
+describe('deleteUserMessageOrTask and materialized counts', () => {
+  test('delete by task removes task and linked user message', async () => {
+    const { sessionId } = await createTestSession('del-pending-task-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'pending message',
+      type: 'message',
+    });
+
+    const message = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    const taskId = message!.taskId!;
+
+    await t.mutation(api.messages.deleteUserMessageOrTask, { sessionId, type: 'task', taskId });
+
+    const task = await t.run((ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task).toBeNull();
+
+    const deletedMessage = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    expect(deletedMessage).toBeNull();
+
+    const counts = await t.query(api.tasks.getTaskCounts, {
+      sessionId,
+      chatroomId,
+    });
+    expect(counts.pending).toBe(0);
+  });
+
+  test('delete by queued message id removes queue row', async () => {
+    const { sessionId } = await createTestSession('del-queued-msg-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message to delete',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queued.length).toBe(1);
+
+    await t.mutation(api.messages.deleteUserMessageOrTask, {
+      sessionId,
+      type: 'message',
+      messageId: queued[0]._id,
+    });
+
+    const queuedAfter = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedAfter.length).toBe(0);
+  });
+
+  test('delete by message decrements pending count so next send is not queued', async () => {
     const { sessionId } = await createTestSession('del-pending-counts-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -516,8 +579,9 @@ describe('deletePendingMessage and materialized counts', () => {
       type: 'message',
     });
 
-    await t.mutation(api.messages.deletePendingMessage, {
+    await t.mutation(api.messages.deleteUserMessageOrTask, {
       sessionId,
+      type: 'message',
       messageId,
     });
 
@@ -542,5 +606,33 @@ describe('deletePendingMessage and materialized counts', () => {
       chatroomId,
     });
     expect(queued.length).toBe(0);
+  });
+
+  test('update by task syncs linked timeline message', async () => {
+    const { sessionId } = await createTestSession('update-task-sync-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'original content',
+      type: 'message',
+    });
+
+    const message = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    const taskId = message!.taskId!;
+
+    await t.mutation(api.messages.updateUserMessageOrTask, {
+      sessionId,
+      type: 'task',
+      taskId,
+      content: 'updated content',
+    });
+
+    const task = await t.run((ctx) => ctx.db.get('chatroom_tasks', taskId));
+    const updatedMessage = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    expect(task?.content).toBe('updated content');
+    expect(updatedMessage?.content).toBe('updated content');
   });
 });

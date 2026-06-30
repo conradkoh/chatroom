@@ -69,7 +69,7 @@ export interface AgentRequestStartEvent extends EventStreamEventBase {
   chatroomId: string;
   /** When true (default), resume from the daemon's last session on first launch. */
   wantResume?: boolean;
-  /** Snapshot of team config at emit time (observability only). */
+  /** @deprecated Legacy snapshot — no longer written. Kept optional for historical events. */
   autoRestartOnNewContext?: boolean;
 }
 
@@ -138,6 +138,26 @@ export interface AgentSessionReopenRetryEvent extends EventStreamEventBase {
   attempt: number;
   maxAttempts: number;
   error?: string;
+  harnessSessionId?: string;
+  chatroomId: string;
+}
+
+export interface AgentSessionCompactedEvent extends EventStreamEventBase {
+  type: 'agent.sessionCompacted';
+  role: string;
+  machineId: string;
+  taskId: string;
+  harnessSessionId?: string;
+  chatroomId: string;
+}
+
+export interface AgentSessionAugmentedEvent extends EventStreamEventBase {
+  type: 'agent.sessionAugmented';
+  role: string;
+  machineId: string;
+  taskId: string;
+  mode: 'none' | 'compact' | 'new_session';
+  newSessionStarted: boolean;
   harnessSessionId?: string;
   chatroomId: string;
 }
@@ -296,6 +316,8 @@ export type EventStreamEvent =
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent
   | AgentSessionReopenRetryEvent
+  | AgentSessionCompactedEvent
+  | AgentSessionAugmentedEvent
   | AgentResumeStormAbortedEvent
   | AgentRestartLimitReachedEvent
   | MachineSwitchedEvent

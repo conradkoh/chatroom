@@ -87,9 +87,11 @@ describe('handoff-templates > planner → user report', () => {
     expect(report).toContain('```mermaid');
   });
 
-  test('requires a verification section', () => {
-    expect(report).toContain('## Verification');
-    expect(report).toContain('pnpm typecheck && pnpm test');
+  test('requires a code change verification section', () => {
+    expect(report).toContain('## Code Change Verification');
+    expect(report).toContain(
+      '- [ ] I confirm that I have run `pnpm typecheck && pnpm test` (only required if code changes were made)'
+    );
   });
 
   test('requires key technical decisions, tradeoffs, and tech debt sections', () => {
@@ -157,12 +159,11 @@ describe('handoff-templates > planner → builder delegation brief', () => {
     expect(brief).toMatch(/anti-patterns|recurring mistakes/i);
   });
 
-  test('includes Session Management section with new_session default tag', () => {
-    expect(brief).toContain('## Session Management');
+  test('includes Session Augmentation section with new_session default tag', () => {
+    expect(brief).toContain('## Session Augmentation');
     expect(brief).toContain('new_session');
-    expect(brief).toContain('data:agent.compress_context=new_session');
-    expect(brief).toContain('Native harnesses');
-    expect(brief).toContain('CLI harnesses');
+    expect(brief).toContain('data:agent.session_augmentation=new_session');
+    expect(brief).toContain('`compact`');
     expect(brief).not.toContain('## Restart new context');
   });
 
@@ -191,9 +192,11 @@ describe('handoff-templates > builder → planner handoff', () => {
     expect(handoff).toContain('Static Evaluability and Provability');
   });
 
-  test('includes verification section', () => {
-    expect(handoff).toContain('## Verification');
-    expect(handoff).toContain('pnpm typecheck && pnpm test');
+  test('includes code change verification section', () => {
+    expect(handoff).toContain('## Code Change Verification');
+    expect(handoff).toContain(
+      '- [ ] I confirm that I have run `pnpm typecheck && pnpm test` (only required if code changes were made)'
+    );
   });
 
   test('includes recipient visibility callout for planner', () => {

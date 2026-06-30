@@ -7,6 +7,7 @@ import {
   isInjectableNativeAction,
   isNativeInjectableAliveRunning,
   isStaleCliGetNextTaskWaiting,
+  shouldEmitNativeWaitingOnTurnEnd,
 } from './predicates.js';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
@@ -58,6 +59,20 @@ describe('isInjectableNativeAction', () => {
 
   test('get-next-task:started is not injectable', () => {
     expect(isInjectableNativeAction('get-next-task:started')).toBe(false);
+  });
+});
+
+describe('shouldEmitNativeWaitingOnTurnEnd', () => {
+  test('false while task is acknowledged or in progress', () => {
+    expect(shouldEmitNativeWaitingOnTurnEnd('task.acknowledged')).toBe(false);
+    expect(shouldEmitNativeWaitingOnTurnEnd('task.inProgress')).toBe(false);
+  });
+
+  test('true when idle, waiting, or task completed', () => {
+    expect(shouldEmitNativeWaitingOnTurnEnd('agent.waiting')).toBe(true);
+    expect(shouldEmitNativeWaitingOnTurnEnd('task.completed')).toBe(true);
+    expect(shouldEmitNativeWaitingOnTurnEnd(null)).toBe(true);
+    expect(shouldEmitNativeWaitingOnTurnEnd(undefined)).toBe(true);
   });
 });
 

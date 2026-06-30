@@ -18,16 +18,14 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
  */
 export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): string {
   const sessionManagement = nativeIntegration
-    ? `**Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; the session stays active and tasks continue via injection.`
-    : `**Native harnesses** (\`cursor-sdk\`, \`opencode-sdk\`): in-session context compaction is supported by the SDK runtime. \`new_session\` triggers a fresh context within the same process; no get-next-task rejoin needed.
-
-**CLI harnesses** (all others): in-session compaction is NOT supported. \`new_session\` requires a hard restart — the daemon stops the agent, cold-starts it, and the agent must rejoin via \`get-next-task\`. \`none\` resumes the prior session (\`wantResume=true\`).`;
+    ? `\`compact\` runs in-session context compaction via the SDK runtime. \`new_session\` starts a completely new session within the same process (not compaction). \`none\` continues the prior session. Tasks continue via injection.`
+    : `\`compact\` is NOT supported — use \`none\` or \`new_session\`. \`new_session\` requires a hard restart (daemon stops agent, cold-starts, agent rejoins via \`get-next-task\`). \`none\` resumes prior session (\`wantResume=true\`).`;
 
   return `${getHandoffRecipientVisibilityCallout('builder')}
 
 **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
 
-**Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify, runs verification, and does not redesign or invent alternatives unless blocked.
+**Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -79,7 +77,6 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Verify: \`pnpm typecheck && pnpm test\`
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -91,11 +88,12 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 ## Out of scope
 - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
 
-## Session Management
-Valid values: \`new_session\` | \`none\`
-- \`new_session\` — start a fresh agent session (default)
+## Session Augmentation
+Valid values: \`none\` | \`compact\` | \`new_session\`
 - \`none\` — continue prior session context
-// data:agent.compress_context=new_session
+- \`compact\` — run in-session context compaction (native SDK harnesses only)
+- \`new_session\` — start a completely new session (default)
+// data:agent.session_augmentation=new_session
 
 ${sessionManagement}
 

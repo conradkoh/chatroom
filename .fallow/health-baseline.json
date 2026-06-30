@@ -279,6 +279,11 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/components/AgentPanel/RemoteAgentAdvancedSettings.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/components/AgentPanel/AgentStatusRow.tsx": {
       "crap_high": {
         "count": 2

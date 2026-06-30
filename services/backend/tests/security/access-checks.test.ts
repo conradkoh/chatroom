@@ -43,6 +43,7 @@ const ACCESS_CHECK_PATTERNS = [
   // chatroomAccess.ts helpers
   'requireChatroomAccess',
   'getChatroomAccess',
+  'authorizeUserMessageOrTaskAccess',
   // convex/backlog.ts — requireBacklogItemForChatroom → requireChatroomAccess
   'requireBacklogItemForChatroom',
   'validateSession',

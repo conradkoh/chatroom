@@ -57,12 +57,20 @@ describe('isTerminalProviderFailureInLogs', () => {
     ).toBe(true);
   });
 
-  test('matches stream error log lines', () => {
+  test('matches stream error log lines on explicit error channel', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[ts] role:builder error] message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
+      ])
+    ).toBe(true);
+  });
+
+  test('does not match unstructured stream blobs without error channel', () => {
     expect(
       isTerminalProviderFailureInLogs([
         'message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
       ])
-    ).toBe(true);
+    ).toBe(false);
   });
 
   test('matches harness error log lines', () => {
@@ -85,6 +93,22 @@ describe('isTerminalProviderFailureInLogs', () => {
     expect(
       isTerminalProviderFailureInLogs([
         '[ts] role:builder thinking] The provider rate limit is 100 rpm',
+      ])
+    ).toBe(false);
+  });
+
+  test('ignores status/finished lines mentioning rate limits', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:planner@x status: FINISHED] Please respect the rate limit when calling the API',
+      ])
+    ).toBe(false);
+  });
+
+  test('ignores handoff-like harness lines mentioning rate limits', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:builder@c1] role:builder handoff mentions weekly rate limit policy',
       ])
     ).toBe(false);
   });

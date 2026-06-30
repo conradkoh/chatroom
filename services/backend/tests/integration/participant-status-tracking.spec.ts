@@ -278,6 +278,37 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.acknowledged');
   });
 
+  test('native:waiting does not downgrade in_progress task while agent is working', async () => {
+    const { sessionId } = await createTestSession('test-pst-native-waiting-in-progress-guard');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+  });
+
   test('updateTokenActivity starts task when native:task-injected but lastStatus was agent.waiting', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -731,6 +762,100 @@ describe('Participant Status Tracking', () => {
     const resumed = events.filter((e) => e.type === 'agent.sessionResumed');
     expect(resumed).toHaveLength(1);
     expect(resumed[0].harnessSessionId).toBe('harness-sess-resumed-xyz');
+  });
+
+  test('emitSessionCompacted writes event stream row without changing lastStatus', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-compacted');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-pst-session-compacted';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const statusBefore = await getParticipantStatus(chatroomId, 'builder');
+    expect(statusBefore.lastStatus).toBe('task.inProgress');
+
+    await t.mutation(api.machines.emitSessionCompacted, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+      harnessSessionId: 'sess-1',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const compacted = events.filter((e) => e.type === 'agent.sessionCompacted');
+    expect(compacted).toHaveLength(1);
+    expect(compacted[0]).toMatchObject({
+      taskId,
+      harnessSessionId: 'sess-1',
+      machineId,
+      role: 'builder',
+    });
+
+    const statusAfter = await getParticipantStatus(chatroomId, 'builder');
+    expect(statusAfter.lastStatus).toBe('task.inProgress');
+  });
+
+  test('emitSessionAugmented writes event stream row with mode and newSessionStarted', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-augmented');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-pst-session-augmented';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.machines.emitSessionAugmented, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+      mode: 'new_session',
+      newSessionStarted: true,
+      harnessSessionId: 'sess-2',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const augmented = events.filter((e) => e.type === 'agent.sessionAugmented');
+    expect(augmented).toHaveLength(1);
+    expect(augmented[0]).toMatchObject({
+      taskId,
+      harnessSessionId: 'sess-2',
+      machineId,
+      role: 'builder',
+      mode: 'new_session',
+      newSessionStarted: true,
+    });
   });
 
   test('emitSessionResumeFailed persists harnessSessionId on event stream row', async () => {

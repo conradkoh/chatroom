@@ -69,7 +69,7 @@ describe('handleTurnCompleted', () => {
       state: 'running',
       pid: 42,
       recentLogLines: [
-        'message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
+        '[ts] role:builder error] message="stream error" error.error="AI_APICallError: Rate limit exceeded. Please try again later."',
       ],
     };
 

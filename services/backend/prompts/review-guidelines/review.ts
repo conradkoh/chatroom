@@ -39,7 +39,7 @@ If code is hard to extend, hard to understand, or creates mess - it should be re
    Inconsistent code creates confusion and bugs.
 
 4. **Verification Over Trust**
-   Run typecheck and lint. Check the actual changes, not just the summary.
+   Check the actual changes, not just the summary.
    If something seems off, investigate. Trust but verify.
 
 5. **Be Direct and Specific**
@@ -62,14 +62,11 @@ Before looking at code, understand what was requested:
 3. If a feature has metadata (title, description, tech-specs), review each point
 4. If there are attached tasks, read their content
 
-### Phase 2: Verification Commands
+### Phase 2: Change Inspection
 
-Run these commands to verify the implementation:
+Run these commands to inspect the implementation:
 
 \`\`\`bash
-# Check for TypeScript errors
-pnpm typecheck
-
 # Check for linting issues
 pnpm lint:fix
 
