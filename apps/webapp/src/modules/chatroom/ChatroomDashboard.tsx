@@ -1218,21 +1218,6 @@ export function ChatroomDashboard({
   // Once the chatroom has been used (hasHistory), never show setup again
   const isSetupMode = !allMembersJoined && !lifecycle?.hasHistory;
 
-  // Status badge colors - using chatroom status variables for theme support
-  const getStatusBadgeClasses = useCallback((status: string, isSetup: boolean) => {
-    const base =
-      'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide inline-flex items-center border-2 border-transparent';
-    if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
-    switch (status) {
-      case 'active':
-        return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
-      case 'completed':
-        return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
-      default:
-        return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
-    }
-  }, []);
-
   // Derive display name
   const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
 
@@ -1338,9 +1323,6 @@ export function ChatroomDashboard({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
-              {isSetupMode ? 'Setting Up' : chatroom.status}
-            </span>
             {/* Setup Button - shown when setup modal is dismissed but still in setup mode */}
             {isSetupMode && !setupModalOpen && (
               <button
@@ -1391,7 +1373,6 @@ export function ChatroomDashboard({
     toggleSidebar,
     setHeaderContent,
     clearHeaderContent,
-    getStatusBadgeClasses,
     displayName,
     setupModalOpen,
     handleOpenSetup,
