@@ -191,3 +191,9 @@ export function getModelDisplayLabel(modelId: string): string {
   if (!provider) return model;
   return `${provider} / ${model}`;
 }
+
+/** Last segment of a provider/model path for compact agent sidebar display. */
+export function getCompactModelId(modelId: string): string {
+  const parts = modelId.split('/').filter(Boolean);
+  return parts.at(-1) ?? modelId;
+}

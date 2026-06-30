@@ -4,6 +4,7 @@ import {
   HARNESS_DISPLAY_NAMES,
   getHarnessDisplayName,
   getModelDisplayLabel,
+  getCompactModelId,
   harnessSupportsDaemonMemoryResume,
   harnessSupportsNativeIntegration,
   isCursorSdkHarness,
@@ -105,5 +106,19 @@ describe('getModelDisplayLabel', () => {
 
   it('shows Auto for legacy default id until daemon refresh', () => {
     expect(getModelDisplayLabel('default')).toBe('Auto');
+  });
+});
+
+describe('getCompactModelId', () => {
+  it('returns the last segment of a provider/model path', () => {
+    expect(getCompactModelId('github-copilot/claude-sonnet-4.5')).toBe('claude-sonnet-4.5');
+  });
+
+  it('returns the model unchanged when there is no slash', () => {
+    expect(getCompactModelId('auto')).toBe('auto');
+  });
+
+  it('returns the last segment for multi-segment paths', () => {
+    expect(getCompactModelId('provider/subprovider/model-name')).toBe('model-name');
   });
 });
