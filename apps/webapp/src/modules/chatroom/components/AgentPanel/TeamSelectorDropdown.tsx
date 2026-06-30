@@ -5,13 +5,12 @@ import { Check, ChevronDown } from 'lucide-react';
 import { memo } from 'react';
 
 import type { TeamConfigEntry } from '../../hooks/use-team-configs';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '../ui/dropdown-menu';
 
 export interface TeamSelectorDropdownProps {
   teamName: string;
@@ -43,11 +42,7 @@ export const TeamSelectorDropdown = memo(function TeamSelectorDropdown({
           <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        sideOffset={4}
-        className="z-[100] min-w-[200px] bg-chatroom-bg-primary border border-chatroom-border p-0 rounded-none"
-      >
+      <DropdownMenuContent align="start" side="top" sideOffset={4} className="min-w-[200px]">
         {teams.map((teamData) => {
           const isActive = teamData.id === activeTeamId;
           return (
@@ -57,7 +52,7 @@ export const TeamSelectorDropdown = memo(function TeamSelectorDropdown({
                 if (isActive) return;
                 await onTeamChange(teamData);
               }}
-              className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-chatroom-border last:border-b-0 rounded-none transition-colors duration-100 text-chatroom-text-primary focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary data-[highlighted]:bg-chatroom-bg-hover data-[highlighted]:text-chatroom-text-primary ${
+              className={`flex items-center justify-between px-3 py-2.5 border-b border-chatroom-border last:border-b-0 transition-colors duration-100 ${
                 isActive ? 'bg-chatroom-accent/5' : ''
               }`}
             >

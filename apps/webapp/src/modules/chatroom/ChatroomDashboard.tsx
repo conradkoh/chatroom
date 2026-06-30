@@ -139,10 +139,9 @@ const ProcessesPanel = dynamic(
 const ALL_MACHINES = '';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
-// NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
-// (fully opaque) — NOT `bg-chatroom-bg-surface` (glassmorphism/semi-transparent).
-// `bg-chatroom-bg-surface` is intended for overlapping panels with solid backgrounds,
-// not for floating popovers that sit over arbitrary page content.
+// NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`
+// (chatroom highlight colors, modal={false} default) or explicit `bg-chatroom-bg-primary` on content.
+// Do NOT use `bg-chatroom-bg-surface` (glassmorphism/semi-transparent) on portaled menus.
 
 interface ChatroomDashboardProps {
   chatroomId: string;
