@@ -1,7 +1,6 @@
 /**
  * Unit tests for buildAgentRequestStartEvent — the single typed constructor
- * for agent.requestStart events shared by the start-agent and
- * restart-on-new-context use cases.
+ * for agent.requestStart events.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -25,10 +24,7 @@ describe('buildAgentRequestStartEvent', () => {
 
   test('always includes the resolved wantResume boolean', () => {
     const now = 1_000;
-    const event = buildAgentRequestStartEvent(
-      { ...base, wantResume: false, autoRestartOnNewContext: undefined },
-      now
-    );
+    const event = buildAgentRequestStartEvent({ ...base, wantResume: false }, now);
 
     expect(event.type).toBe('agent.requestStart');
     expect(event.wantResume).toBe(false);
@@ -36,27 +32,8 @@ describe('buildAgentRequestStartEvent', () => {
     expect(event.deadline).toBe(now + AGENT_REQUEST_DEADLINE_MS);
   });
 
-  test('omits autoRestartOnNewContext key when undefined', () => {
-    const event = buildAgentRequestStartEvent(
-      { ...base, wantResume: true, autoRestartOnNewContext: undefined },
-      0
-    );
-    expect('autoRestartOnNewContext' in event).toBe(false);
-  });
-
-  test('includes autoRestartOnNewContext when provided', () => {
-    const event = buildAgentRequestStartEvent(
-      { ...base, wantResume: true, autoRestartOnNewContext: true },
-      0
-    ) as { autoRestartOnNewContext?: boolean };
-    expect(event.autoRestartOnNewContext).toBe(true);
-  });
-
   test('forwards the core start fields verbatim', () => {
-    const event = buildAgentRequestStartEvent(
-      { ...base, wantResume: true, autoRestartOnNewContext: undefined },
-      0
-    );
+    const event = buildAgentRequestStartEvent({ ...base, wantResume: true }, 0);
     expect(event.chatroomId).toBe(base.chatroomId);
     expect(event.machineId).toBe(base.machineId);
     expect(event.role).toBe(base.role);

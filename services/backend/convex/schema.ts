@@ -941,7 +941,7 @@ export default defineSchema({
     spawnedAgentPid: v.optional(v.number()),
     spawnedAt: v.optional(v.number()),
 
-    /** When true, restart this remote agent after the entry role sets new context. */
+    /** @deprecated Legacy setting — no longer written. Kept optional for existing rows. */
     autoRestartOnNewContext: v.optional(v.boolean()),
 
     /**
@@ -1085,7 +1085,7 @@ export default defineSchema({
         deadline: v.number(),
         timestamp: v.number(),
         wantResume: v.optional(v.boolean()),
-        /** Snapshot of team config at emit time (observability only). */
+        /** @deprecated Legacy snapshot — no longer written. Kept optional for historical events. */
         autoRestartOnNewContext: v.optional(v.boolean()),
       }),
       // An agent stop was requested (replaces command.stopAgent; includes deadline)
@@ -1236,6 +1236,28 @@ export default defineSchema({
         attempt: v.number(),
         maxAttempts: v.number(),
         error: v.optional(v.string()),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Native harness in-process context compaction (legacy; prefer agent.sessionAugmented)
+      v.object({
+        type: v.literal('agent.sessionCompacted'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Session augmentation applied on task delivery (none / compact / new_session)
+      v.object({
+        type: v.literal('agent.sessionAugmented'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        mode: v.union(v.literal('none'), v.literal('compact'), v.literal('new_session')),
+        newSessionStarted: v.boolean(),
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),

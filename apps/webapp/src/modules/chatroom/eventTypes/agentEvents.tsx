@@ -18,6 +18,8 @@ import type {
   AgentSessionResumedEvent,
   AgentSessionResumeFailedEvent,
   AgentSessionReopenRetryEvent,
+  AgentSessionCompactedEvent,
+  AgentSessionAugmentedEvent,
   AgentResumeStormAbortedEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
@@ -183,11 +185,6 @@ function formatWantResumeLabel(wantResume: boolean | undefined): string {
   return wantResume === false ? 'resume off' : 'resume on';
 }
 
-function formatAutoRestartOnNewContextLabel(autoRestartOnNewContext: boolean | undefined): string {
-  if (autoRestartOnNewContext === undefined) return 'new context restart unset';
-  return autoRestartOnNewContext ? 'new context restart on' : 'new context restart off';
-}
-
 function renderAgentRequestStartCell(
   event: AgentRequestStartEvent,
   isSelected: boolean
@@ -198,7 +195,7 @@ function renderAgentRequestStartCell(
       badgeText="Req Start"
       badgeColor="warning"
       primaryInfo={event.role}
-      secondaryInfo={`${formatWantResumeLabel(event.wantResume)} · ${formatAutoRestartOnNewContextLabel(event.autoRestartOnNewContext)} · ${event.reason}`}
+      secondaryInfo={`${formatWantResumeLabel(event.wantResume)} · ${event.reason}`}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -219,10 +216,6 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
       <DetailRow label="Working Dir" value={event.workingDir} mono />
       <DetailRow label="Reason" value={event.reason} />
       <DetailRow label="Resume session" value={formatWantResumeLabel(event.wantResume)} />
-      <DetailRow
-        label="Restart on new context"
-        value={formatAutoRestartOnNewContextLabel(event.autoRestartOnNewContext)}
-      />
       <DetailRow label="Deadline" value={formatTimestampFull(event.deadline)} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
@@ -631,6 +624,98 @@ function renderAgentSessionReopenRetryDetails(
   );
 }
 
+// ─── Agent Session Compacted ──────────────────────────────────────────────────
+
+function renderAgentSessionCompactedCell(
+  event: AgentSessionCompactedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.sessionCompacted"
+      badgeText="Compacted"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={event.harnessSessionId ?? event.taskId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionCompactedDetails(event: AgentSessionCompactedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Compacted"
+      timestamp={event.timestamp}
+      type="agent.sessionCompacted"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Task ID" value={event.taskId} mono />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Session Augmented ──────────────────────────────────────────────────
+
+function sessionAugmentationModeLabel(mode: AgentSessionAugmentedEvent['mode']): string {
+  switch (mode) {
+    case 'new_session':
+      return 'New session';
+    case 'compact':
+      return 'Compact';
+    case 'none':
+      return 'Continue';
+  }
+}
+
+function renderAgentSessionAugmentedCell(
+  event: AgentSessionAugmentedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const badgeText = event.newSessionStarted
+    ? 'New Session'
+    : sessionAugmentationModeLabel(event.mode);
+  return (
+    <EventRow
+      type="agent.sessionAugmented"
+      badgeText={badgeText}
+      badgeColor={event.newSessionStarted ? 'warning' : 'info'}
+      primaryInfo={event.role}
+      secondaryInfo={sessionAugmentationModeLabel(event.mode)}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentSessionAugmentedDetails(event: AgentSessionAugmentedEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Session Augmented"
+      timestamp={event.timestamp}
+      type="agent.sessionAugmented"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Mode" value={sessionAugmentationModeLabel(event.mode)} />
+      <DetailRow label="New Session Started" value={event.newSessionStarted ? 'Yes' : 'No'} />
+      <DetailRow label="Task ID" value={event.taskId} mono />
+      {event.harnessSessionId && (
+        <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Machine Switched ─────────────────────────────────────────────────────────
 
 function renderMachineSwitchedCell(
@@ -684,6 +769,8 @@ export const agentEventDefinitions: Pick<
   | 'agent.sessionResumed'
   | 'agent.sessionResumeFailed'
   | 'agent.sessionReopenRetry'
+  | 'agent.sessionCompacted'
+  | 'agent.sessionAugmented'
   | 'agent.resumeStormAborted'
   | 'machine.switched'
 > = {
@@ -738,6 +825,14 @@ export const agentEventDefinitions: Pick<
   'agent.sessionReopenRetry': {
     cellRenderer: renderAgentSessionReopenRetryCell,
     detailsRenderer: renderAgentSessionReopenRetryDetails,
+  },
+  'agent.sessionCompacted': {
+    cellRenderer: renderAgentSessionCompactedCell,
+    detailsRenderer: renderAgentSessionCompactedDetails,
+  },
+  'agent.sessionAugmented': {
+    cellRenderer: renderAgentSessionAugmentedCell,
+    detailsRenderer: renderAgentSessionAugmentedDetails,
   },
   'agent.resumeStormAborted': {
     cellRenderer: renderAgentResumeStormAbortedCell,

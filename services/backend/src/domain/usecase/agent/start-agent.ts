@@ -108,7 +108,6 @@ export async function startAgent(
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const resolvedWantResume = wantResume ?? true;
-  let resolvedAutoRestartOnNewContext: boolean | undefined;
 
   if (chatroom) {
     if (!chatroom.teamId) {
@@ -122,8 +121,6 @@ export async function startAgent(
     const previousMachineId = existingTeamConfig?.machineId;
 
     const teamConfigNow = Date.now();
-    const preservedAutoRestartOnNewContext = existingTeamConfig?.autoRestartOnNewContext;
-    resolvedAutoRestartOnNewContext = preservedAutoRestartOnNewContext;
 
     const teamConfig = {
       teamRoleKey,
@@ -139,9 +136,6 @@ export async function startAgent(
       // Persist the resolved resume preference so the UI can show the actual
       // value the running agent was started with.
       wantResume: resolvedWantResume,
-      ...(preservedAutoRestartOnNewContext !== undefined
-        ? { autoRestartOnNewContext: preservedAutoRestartOnNewContext }
-        : {}),
       // Reset circuit breaker — manual start is an explicit user intent to retry
       circuitState: 'closed' as const,
       circuitOpenedAt: undefined,
@@ -186,7 +180,6 @@ export async function startAgent(
         workingDir,
         reason,
         wantResume: resolvedWantResume,
-        autoRestartOnNewContext: resolvedAutoRestartOnNewContext,
       },
       now
     )

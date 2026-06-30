@@ -13,7 +13,7 @@ import type {
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { getTeamEntryPoint } from '../../entities/team';
-import { parseCompressContext } from '../../handoff/parse-compress-context';
+import { parseSessionAugmentation } from '../../handoff/parse-session-augmentation';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 
@@ -242,7 +242,7 @@ export function rowToSignal(row: CollectedAssignedTaskRow): AssignedTaskSignal |
     status,
     signalType: primarySignalType(row),
     revisionKey: buildAssignedTaskRevisionKey(row),
-    compressContext: parseCompressContext(row.task.content),
+    sessionAugmentation: parseSessionAugmentation(row.task.content),
     lastSeenAction: row.participant?.lastSeenAction ?? null,
     spawnedAgentPid: row.config.spawnedAgentPid,
     desiredState: row.config.desiredState,

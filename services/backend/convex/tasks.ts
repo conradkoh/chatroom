@@ -436,36 +436,6 @@ export const completeTaskById = mutation({
   },
 });
 
-/** Updates the content of a pending or acknowledged task. */
-export const updateTask = mutation({
-  args: {
-    ...SessionIdArg,
-    taskId: v.id('chatroom_tasks'),
-    content: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
-
-    // Only allow editing of pending and acknowledged tasks
-    if (!['pending', 'acknowledged'].includes(task.status)) {
-      throw new Error(`Cannot edit task with status: ${task.status}`);
-    }
-
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      content: args.content,
-      updatedAt: Date.now(),
-    });
-
-    return { success: true };
-  },
-});
-
 /** Lists tasks in a chatroom, optionally filtered by status and sorted by priority or queue position. */
 export const listTasks = query({
   args: {

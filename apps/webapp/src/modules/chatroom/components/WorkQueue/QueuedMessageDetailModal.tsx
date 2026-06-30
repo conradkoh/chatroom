@@ -88,7 +88,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
+  const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
@@ -121,8 +121,9 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
     setIsSaving(true);
     setEditError(null);
     try {
-      await updateQueuedMessage({
-        queuedMessageId: message._id as Id<'chatroom_messageQueue'>,
+      await updateUserMessageOrTask({
+        type: 'message',
+        messageId: message._id as Id<'chatroom_messageQueue'>,
         content: trimmed,
       });
       setIsEditing(false);
@@ -131,7 +132,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
     } finally {
       setIsSaving(false);
     }
-  }, [editedContent, message.content, message._id, updateQueuedMessage]);
+  }, [editedContent, message.content, message._id, updateUserMessageOrTask]);
 
   /** Close-from-chrome: exit edit first, then close. */
   const dismissFromChrome = useCallback(() => {

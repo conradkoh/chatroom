@@ -27,8 +27,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
-      updateQueuedMessage: 'messages:updateQueuedMessage',
-      deleteQueuedMessage: 'messages:deleteQueuedMessage',
+      updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
+      deleteUserMessageOrTask: 'messages:deleteUserMessageOrTask',
     },
     tasks: {
       promoteSpecificTask: 'tasks:promoteSpecificTask',

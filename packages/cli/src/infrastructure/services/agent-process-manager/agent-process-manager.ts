@@ -28,6 +28,7 @@ import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../../commands/machine/daemon-start/native-harness-session-exit.js';
+import { notifyNativeSessionLost } from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
 import type { HarnessSessionSnapshot, StopReason } from '../../../domain/agent-lifecycle/index.js';
 import {
   decideResumePathOnRestart,
@@ -50,6 +51,7 @@ import {
   CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_REOPEN_REASON,
+  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
 import {
   formatTerminalProviderFailureMessage,
@@ -621,12 +623,8 @@ export class AgentProcessManager {
     slot: AgentSlot,
     ctx: ExitContext
   ): Promise<void> {
-    const { harness, harnessSessionId, stopReason, recentLogLines } = ctx;
+    const { harness, harnessSessionId, stopReason } = ctx;
     if (!harness || !harnessSessionId) {
-      return;
-    }
-    if (isCursorSdkRunErrorInLogs(recentLogLines ?? [])) {
-      this.clearLastHarnessSession(key);
       return;
     }
     const service = this.deps.agentServices.get(harness);
@@ -693,20 +691,18 @@ export class AgentProcessManager {
     this.maybeRestartAgent(opts, ctx);
   }
 
-  private clearHarnessSessionAfterRunError(key: string, recentLogLines: string[]): boolean {
+  private hasCursorSdkRunErrorInContext(recentLogLines: string[]): boolean {
     if (!isCursorSdkRunErrorInLogs(recentLogLines)) {
       return false;
     }
     console.log(
-      `[AgentProcessManager] cursor-sdk run-error — cold restarting ${key}: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
+      `[AgentProcessManager] cursor-sdk run-error detected: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
     );
-    this.clearLastHarnessSession(key);
     return true;
   }
 
   private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
     const { harness, model, workingDir, recentLogLines } = ctx;
-    const key = agentKey(opts.chatroomId, opts.role);
     const logs = recentLogLines ?? [];
 
     if (!harness || !workingDir) {
@@ -726,10 +722,10 @@ export class AgentProcessManager {
       return;
     }
 
-    const coldRestartAfterRunError = this.clearHarnessSessionAfterRunError(key, logs);
+    const hadRunError = this.hasCursorSdkRunErrorInContext(logs);
 
     if (harness === 'cursor-sdk') {
-      void this.retryCursorSdkSessionReopen(opts, ctx, coldRestartAfterRunError);
+      void this.retryCursorSdkSessionReopen(opts, ctx, hadRunError);
       return;
     }
 
@@ -740,7 +736,7 @@ export class AgentProcessManager {
       model,
       workingDir,
       reason: 'platform.crash_recovery',
-      wantResume: coldRestartAfterRunError ? false : (ctx.wantResume ?? true),
+      wantResume: hadRunError ? false : (ctx.wantResume ?? true),
     })
       .then((result) => {
         if (!result.success) {
@@ -755,10 +751,39 @@ export class AgentProcessManager {
       });
   }
 
+  private clearHarnessSessionAfterResumePhaseFailure(
+    key: string,
+    opts: Pick<HandleExitOpts, 'chatroomId' | 'role'>
+  ): void {
+    const stored = this.lastHarnessSessions.get(key);
+    this.clearLastHarnessSession(key);
+    if (stored?.harnessSessionId) {
+      notifyNativeSessionLost({
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        harnessSessionId: stored.harnessSessionId,
+      });
+    }
+  }
+
+  private resolveCursorSdkReopenWantResume(
+    hadRunError: boolean,
+    attempt: number,
+    ctx: ExitContext
+  ): boolean {
+    if (hadRunError && attempt <= CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS) {
+      return true;
+    }
+    if (hadRunError) {
+      return false;
+    }
+    return ctx.wantResume ?? true;
+  }
+
   private async retryCursorSdkSessionReopen(
     opts: HandleExitOpts,
     ctx: ExitContext,
-    coldRestartAfterRunError: boolean
+    hadRunError: boolean
   ): Promise<void> {
     const key = agentKey(opts.chatroomId, opts.role);
     if (this.sessionReopenRetryInFlight.has(key)) {
@@ -769,12 +794,17 @@ export class AgentProcessManager {
     const harness = ctx.harness as AgentHarness;
     const model = ctx.model;
     const workingDir = ctx.workingDir as string;
-    const wantResume = coldRestartAfterRunError ? false : (ctx.wantResume ?? true);
-    const storedSessionId = this.lastHarnessSessions.get(key)?.harnessSessionId;
     let lastError = 'unknown';
 
     try {
       for (let attempt = 1; attempt <= CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS; attempt++) {
+        if (hadRunError && attempt === CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS + 1) {
+          this.clearHarnessSessionAfterResumePhaseFailure(key, opts);
+        }
+
+        const wantResume = this.resolveCursorSdkReopenWantResume(hadRunError, attempt, ctx);
+        const storedSessionId = this.lastHarnessSessions.get(key)?.harnessSessionId;
+
         await this.emitSessionReopenRetry(
           opts.chatroomId,
           opts.role,
@@ -1047,16 +1077,6 @@ export class AgentProcessManager {
     try {
       await this.killExistingBeforeSpawn(opts.chatroomId, opts.role);
       const result = await this.doEnsureRunning(key, slot, opts);
-      if (!result.success && opts.reason === 'platform.auto_restart_on_new_context') {
-        console.log(
-          `[AgentProcessManager] Context auto-restart failed (${result.error ?? 'unknown'}), ` +
-            `attempting crash recovery (rate-limited)`
-        );
-        return await this.doEnsureRunning(key, slot, {
-          ...opts,
-          reason: 'platform.crash_recovery',
-        });
-      }
       return result;
     } finally {
       if (slot.pendingOperation) {

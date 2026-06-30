@@ -1,8 +1,9 @@
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
-  compressContextToWantResume,
-  parseCompressContext,
-} from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+  parseSessionAugmentation,
+  resolveSessionAugmentationForRole,
+  sessionAugmentationToWantResume,
+} from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
@@ -97,13 +98,13 @@ describe('shouldNudgePendingTask', () => {
 });
 
 describe('nudge wantResume from task content', () => {
-  function resolveWantResume(taskContent: string): boolean {
-    return compressContextToWantResume(parseCompressContext(taskContent));
+  function resolveWantResume(taskContent: string, role = 'builder'): boolean {
+    return sessionAugmentationToWantResume(resolveSessionAugmentationForRole(taskContent, role));
   }
 
   test('new_session → wantResume false (cold spawn)', () => {
-    const content = `## Session Management
-// data:agent.compress_context=new_session`;
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=new_session`;
     expect(resolveWantResume(content)).toBe(false);
   });
 
@@ -114,13 +115,39 @@ describe('nudge wantResume from task content', () => {
   });
 
   test('none → wantResume true (resume session)', () => {
-    const content = `## Restart new context
-// data:agent.compress_context=none`;
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=none`;
     expect(resolveWantResume(content)).toBe(true);
   });
 
-  test('missing section → wantResume false (default new_session)', () => {
+  test('compact → wantResume true (no cold restart)', () => {
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=compact`;
+    expect(resolveWantResume(content)).toBe(true);
+  });
+
+  test('missing section → wantResume false for builder (default new_session)', () => {
     expect(resolveWantResume('## Goal\nImplement feature')).toBe(false);
+  });
+
+  test('planner missing section → wantResume true (augmentation gated to none)', () => {
+    expect(resolveWantResume('## Goal\nAck user task', 'planner')).toBe(true);
+  });
+
+  test('regression: planner builder handback → wantResume true (must not cold-restart)', () => {
+    const handback = `## Summary
+Implemented feature.
+
+## Changes Made
+- Done`;
+    expect(resolveWantResume(handback, 'planner')).toBe(true);
+  });
+
+  test('regression: planner must not get wantResume=false from missing section default', () => {
+    const userTask = `## Goal
+Acknowledge user message`;
+    expect(parseSessionAugmentation(userTask)).toBe('new_session');
+    expect(resolveWantResume(userTask, 'planner')).toBe(true);
   });
 });
 
@@ -168,9 +195,11 @@ describe('native harness nudge exclusion', () => {
   });
 
   test('CLI new_session still implies wantResume false (regression)', () => {
-    const content = `## Session Management
-// data:agent.compress_context=new_session`;
-    expect(compressContextToWantResume(parseCompressContext(content))).toBe(false);
+    const content = `## Session Augmentation
+// data:agent.session_augmentation=new_session`;
+    expect(
+      sessionAugmentationToWantResume(resolveSessionAugmentationForRole(content, 'builder'))
+    ).toBe(false);
   });
 });
 

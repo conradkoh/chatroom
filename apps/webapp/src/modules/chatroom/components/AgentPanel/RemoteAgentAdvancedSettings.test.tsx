@@ -8,9 +8,7 @@ describe('RemoteAgentAdvancedSettings', () => {
     role: 'planner',
     agentHarness: 'cursor-sdk' as const,
     resumeSession: true,
-    autoRestartOnNewContext: false,
     onResumeSessionChange: vi.fn(),
-    onAutoRestartOnNewContextChange: vi.fn(),
   };
 
   it('shows reconnect toggle for daemon-memory-capable harnesses', () => {

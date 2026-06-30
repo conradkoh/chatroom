@@ -1,6 +1,7 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
@@ -12,25 +13,23 @@ import {
   CheckCheck,
 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-
-import { BacklogCreateModal } from './BacklogCreateModal';
-import { BacklogItemDetailModal } from './BacklogItemDetailModal';
-import { TaskDetailModal } from './TaskDetailModal';
-import { TaskQueueModal } from './TaskQueueModal';
-import { type BacklogItem } from './backlog';
-import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
-import { TaskItem } from './WorkQueue/TaskItem';
-import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
-import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
-import { ReviewPanel } from './ReviewPanel';
-import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
-import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
-import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
-import type { Message } from '../types/message';
 import { toast } from 'sonner';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { type BacklogItem } from './backlog';
+import { BacklogCreateModal } from './BacklogCreateModal';
+import { BacklogItemDetailModal } from './BacklogItemDetailModal';
+import { ReviewPanel } from './ReviewPanel';
+import { TaskDetailModal } from './TaskDetailModal';
+import { TaskQueueModal } from './TaskQueueModal';
+import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
+import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
+import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
+import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
+import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
+import { TaskItem } from './WorkQueue/TaskItem';
+import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
+import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import type { Message } from '../types/message';
 
 import {
   DropdownMenu,
@@ -143,13 +142,13 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     (api.backlog as any).completeAllPendingReviewBacklogItems
   );
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
-  const updateTask = useSessionMutation(api.tasks.updateTask);
+  const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
+  const deleteUserMessageOrTask = useSessionMutation(api.messages.deleteUserMessageOrTask);
   // Note: cancelTask mutation was removed in Phase 3 backlog cleanup
 
   // Queued messages mutations
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
 
   // Fetch queued messages
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
@@ -174,14 +173,15 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handleQueuedDelete = useCallback(
     async (queuedMessageId: string) => {
       try {
-        await deleteQueuedMessage({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        await deleteUserMessageOrTask({
+          type: 'message',
+          messageId: queuedMessageId as Id<'chatroom_messageQueue'>,
         });
       } catch (error) {
         console.error('Failed to delete queued message:', error);
       }
     },
-    [deleteQueuedMessage]
+    [deleteUserMessageOrTask]
   );
 
   // Categorize tasks by status
@@ -230,7 +230,8 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const handleModalEdit = useCallback(
     async (taskId: string, content: string) => {
       try {
-        await updateTask({
+        await updateUserMessageOrTask({
+          type: 'task',
           taskId: taskId as Id<'chatroom_tasks'>,
           content,
         });
@@ -241,7 +242,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         throw error; // Re-throw so TaskDetailModal can handle it
       }
     },
-    [updateTask]
+    [updateUserMessageOrTask]
   );
 
   const handleModalForceComplete = useCallback(
@@ -257,6 +258,16 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       }
     },
     [completeTaskById]
+  );
+
+  const handleModalDelete = useCallback(
+    async (taskId: string) => {
+      await deleteUserMessageOrTask({
+        type: 'task',
+        taskId: taskId as Id<'chatroom_tasks'>,
+      });
+    },
+    [deleteUserMessageOrTask]
   );
 
   // Batch close all acknowledged tasks (force complete)
@@ -498,7 +509,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           task={selectedTask}
           onClose={handleCloseTaskDetail}
           onEdit={handleModalEdit}
-          onDelete={handleModalForceComplete}
+          onDelete={handleModalDelete}
           onForceComplete={handleModalForceComplete}
         />
       )}

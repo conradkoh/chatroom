@@ -7,7 +7,10 @@ import {
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
-import { CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS } from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
+import {
+  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
+} from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
@@ -876,53 +879,6 @@ describe('AgentProcessManager', () => {
       expect(slot!.state).toBe('idle');
     });
 
-    test('context auto-restart failure falls back to crash recovery (rate-limited)', async () => {
-      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
-      shouldAllowSpawn.mockReturnValue({ allowed: true });
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>)
-        .mockRejectedValueOnce(new Error('spawn error'))
-        .mockResolvedValueOnce({
-          pid: PID,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: vi.fn(),
-        });
-
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.auto_restart_on_new_context' })
-      );
-
-      expect(result).toEqual({ success: true, pid: PID });
-      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
-      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(
-        1,
-        CHATROOM_ID,
-        'platform.auto_restart_on_new_context'
-      );
-      expect(shouldAllowSpawn).toHaveBeenNthCalledWith(2, CHATROOM_ID, 'platform.crash_recovery');
-      expect(service.spawn).toHaveBeenCalledTimes(2);
-    });
-
-    test('context auto-restart: crash recovery failure returns rate_limited', async () => {
-      const shouldAllowSpawn = deps.spawning.shouldAllowSpawn as ReturnType<typeof vi.fn>;
-      shouldAllowSpawn
-        .mockReturnValueOnce({ allowed: true })
-        .mockReturnValueOnce({ allowed: false });
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('spawn error'));
-
-      const result = await manager.ensureRunning(
-        createOpts({ reason: 'platform.auto_restart_on_new_context' })
-      );
-
-      expect(result).toEqual({ success: false, error: 'rate_limited' });
-      expect(shouldAllowSpawn).toHaveBeenCalledTimes(2);
-      expect(service.spawn).toHaveBeenCalledTimes(1);
-    });
-
     test('crash loop: returns failure, emits restartLimitReached', async () => {
       // Fill the window to max successful restarts: spacing must satisfy backoff (30s then 60s)
       // and keep all timestamps within CRASH_LOOP_WINDOW_MS so the limit check applies.
@@ -1373,6 +1329,74 @@ describe('AgentProcessManager', () => {
         Array.from({ length: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS }, (_, i) => i + 1)
       );
       expect(delayCalls).toBe(CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS - 1);
+    });
+
+    test('cursor-sdk run-error resumes existing session before cold restart', async () => {
+      const resumeFromDaemonMemory = vi.fn().mockRejectedValue(new Error('resume failed'));
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[cursor-sdk:builder@c1 run-error] run abc failed: no error detail from SDK',
+      ];
+
+      const ensureRunningSpy = vi.spyOn(manager, 'ensureRunning').mockResolvedValue({
+        success: false,
+        error: 'resume failed',
+      });
+      deps.clock.delay = vi.fn().mockResolvedValue(undefined);
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await vi.waitFor(() => {
+        expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(
+          CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS + 1
+        );
+      });
+
+      const wantResumeValues = ensureRunningSpy.mock.calls.map(
+        (call) => (call[0] as EnsureRunningOpts).wantResume
+      );
+      expect(wantResumeValues.slice(0, CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS)).toEqual([
+        true,
+        true,
+        true,
+      ]);
+      expect(wantResumeValues[CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS]).toBe(false);
+
+      const sessions = getLastHarnessSessions(manager);
+      expect(sessions.has(`${CHATROOM_ID}:${ROLE}`)).toBe(false);
+
+      ensureRunningSpy.mockRestore();
     });
 
     test('signal exit (SIGTERM) triggers restart (no stale reason leak)', async () => {

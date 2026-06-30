@@ -47,14 +47,15 @@ The task monitor watches assigned tasks and, for native harnesses, injects pendi
 
 CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
 
-### Context compaction vs hard restart
+### Context compaction vs hard restart vs new session
 
-| Harness kind                                   | `compress_context=new_session` behavior                                                 | In-session compaction                    |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **Native** (`supportsNativeIntegration: true`) | SDK compacts/summarizes context in-process; session stays alive; next task injected     | ✅ Supported                             |
-| **CLI** (default)                              | Daemon stop → cold start (`wantResume=false`); agent must run `get-next-task` to rejoin | ❌ Not supported — hard restart required |
+| Mode          | Native (`cursor-sdk`, `opencode-sdk`)                           | CLI harnesses                                      |
+| ------------- | --------------------------------------------------------------- | -------------------------------------------------- |
+| `none`        | Continue prior session; plain task injection                    | Resume prior session (`wantResume=true`)           |
+| `compact`     | In-session compaction via SDK; compaction preamble on injection | Not supported — treat like `none` at runtime       |
+| `new_session` | New session in-process; new-session preamble (not compaction)   | Hard restart (`wantResume=false`); `get-next-task` |
 
-**Rule:** Only native harnesses can compact context without leaving the session. CLI harnesses always require a full process restart and get-next-task rejoin when starting a new session context.
+**Rule:** `compact` triggers in-session compaction and `agent.sessionCompacted` on native harnesses only. `new_session` starts a fresh session — it is not compaction. CLI harnesses cannot compact in-process; use `new_session` for a cold restart.
 
 ---
 

@@ -1,4 +1,4 @@
-import type { parseCompressContext } from '@workspace/backend/src/domain/handoff/parse-compress-context.js';
+import type { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
@@ -27,15 +27,22 @@ export function shouldDeliverNativeTask(
   );
 }
 
-/** Shape injected prompt: task delivery body + optional compaction header. */
+/** Shape injected prompt: task delivery body + optional augmentation preamble. */
 export function buildNativeInjectionPrompt(params: {
   taskDeliveryOutput: string;
-  compressMode: ReturnType<typeof parseCompressContext>;
+  augmentationMode: ReturnType<typeof parseSessionAugmentation>;
 }): string {
-  const { taskDeliveryOutput, compressMode } = params;
-  if (compressMode === 'new_session') {
+  const { taskDeliveryOutput, augmentationMode } = params;
+  if (augmentationMode === 'compact') {
     return [
       '⚠️ Context was compacted. Run `chatroom get-system-prompt` only if role instructions are missing.',
+      '',
+      taskDeliveryOutput,
+    ].join('\n');
+  }
+  if (augmentationMode === 'new_session') {
+    return [
+      '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',
       '',
       taskDeliveryOutput,
     ].join('\n');

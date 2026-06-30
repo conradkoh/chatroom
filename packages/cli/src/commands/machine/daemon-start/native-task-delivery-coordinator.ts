@@ -89,6 +89,7 @@ export class NativeTaskDeliveryCoordinator {
             harnessSessionId,
             {
               sessionId: sessionDeps.sessionId,
+              machineId: sessionDeps.machineId,
               backend: sessionDeps.backend,
               agentMgr: {
                 resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
