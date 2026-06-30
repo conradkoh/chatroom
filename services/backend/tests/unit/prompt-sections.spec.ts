@@ -10,13 +10,13 @@
 import { describe, expect, test } from 'vitest';
 
 import { getAvailableActions } from '../../prompts/cli/get-next-task/available-actions';
-import { buildSelectorContext } from '../../prompts/generator';
 import {
   getRoleDescriptionSection,
   getRoleTitleSection,
   getTeamHeaderSection,
 } from '../../prompts/sections/role-identity';
 import { getTeamContextSection } from '../../prompts/sections/team-context';
+import { buildSelectorContext } from '../../prompts/selector-context';
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
 

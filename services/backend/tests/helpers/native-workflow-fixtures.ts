@@ -43,8 +43,6 @@ export interface NativeInitScenario {
   entryPoint: boolean;
   soloTeam?: boolean;
   noTaskRead?: boolean;
-  /** Planner/solo with builder delegation guidance */
-  referencesDeliveryTemplates?: boolean;
 }
 
 /** Every native harness × team × role init combination we support. */
@@ -55,7 +53,6 @@ export const NATIVE_INIT_SCENARIOS: NativeInitScenario[] = [
     role: 'planner',
     entryPoint: true,
     noTaskRead: true,
-    referencesDeliveryTemplates: true,
   },
   { team: 'duo', role: 'builder', entryPoint: false, noTaskRead: true },
 ];
@@ -153,6 +150,10 @@ export function getNativeDeliveryScenario(match: string): NativeDeliveryScenario
 export const NATIVE_DELIVERY_SECTION_ORDER = [
   '<task>',
   '</task>',
+  '<role-guidance>',
+  '</role-guidance>',
+  '<task-intake>',
+  '</task-intake>',
   '<next-steps>',
   '</next-steps>',
   '<handoff-templates>',

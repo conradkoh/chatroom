@@ -274,6 +274,7 @@
     "services/backend/prompts/generator.ts:getPerformancePolicy",
     "services/backend/prompts/generator.ts:generateGeneralInstructions",
     "services/backend/prompts/generator.ts:composeInitMessage",
+    "services/backend/prompts/index.ts:composeNativeSystemPrompt",
     "services/backend/prompts/index.ts:getRoleTemplate",
     "services/backend/prompts/index.ts:generateGeneralInstructions",
     "services/backend/prompts/index.ts:composeSystemPrompt",

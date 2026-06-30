@@ -5,6 +5,7 @@ import {
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
 } from '../../../prompts/native/task-started-content';
+import { assertNativeDeliveryRoleGuidance } from '../../helpers/native-delivery-contract';
 
 describe('native task-started content', () => {
   test('entry point prompt describes task intake without task read or injection', () => {
@@ -29,6 +30,25 @@ describe('native task-started content', () => {
 });
 
 describe('native task delivery', () => {
+  test('includes role guidance with operating model for duo planner', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+    });
+
+    assertNativeDeliveryRoleGuidance(output, {
+      entryPoint: true,
+      role: 'planner',
+      teamId: 'duo',
+    });
+  });
+
   test('includes task content, eager templates, next steps, and handoff commands', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',

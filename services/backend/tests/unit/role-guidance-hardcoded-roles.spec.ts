@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../prompts/cli/roles/builder';
 import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
-import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/generator';
+import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/selector-context';
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
 

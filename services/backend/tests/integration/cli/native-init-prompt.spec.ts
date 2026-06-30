@@ -106,13 +106,10 @@ describe('Native init prompt (integration)', () => {
         const prompt = await getInitPromptText(sessionId, chatroomId, scenario.role);
 
         assertNativeInitContract(prompt, {
-          entryPoint: scenario.entryPoint,
           soloTeam: scenario.soloTeam,
           noTaskRead: scenario.noTaskRead,
         });
-        assertNativeInitTemplateDisclosure(prompt, {
-          referencesDeliveryTemplates: scenario.referencesDeliveryTemplates,
-        });
+        assertNativeInitTemplateDisclosure(prompt);
       });
     }
   }

@@ -6,6 +6,7 @@
  *   Final output composers: composeSystemPrompt, composeInitMessage, composeInitPrompt
  */
 export { getRoleTemplate, type RoleTemplate } from './templates';
+export { composeNativeSystemPrompt } from './native/system-prompt';
 export {
   // Low-level generators
   generateGeneralInstructions,

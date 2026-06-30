@@ -1,6 +1,8 @@
 # Native System Prompt Slimming — Analysis
 
 > Backlog: `ps78vcmhbqf6n4r40tyftgqepd89f6ab` — Improvement: Remove system prompt for all native agent harnesses
+>
+> **Status:** Phase 1 guardrails and Phase 2 (slim native init + per-task role guidance) are implemented on this branch.
 
 ## Problem
 
@@ -25,13 +27,13 @@ The system prompt has become a second, hidden place where behavior is codified �
 
 ## Recommended phases
 
-### Phase 1 (this release) — Analysis + guardrails
+### Phase 1 (this release) — Analysis + guardrails ✅
 
 - Document this analysis (this file)
 - Add regression test: native init prompt must not contain mandatory `pnpm typecheck` language
 - Add regression test: native init prompt length budget (e.g. < N chars for cursor-sdk)
 
-### Phase 2 — Slim native init prompt
+### Phase 2 — Slim native init prompt ✅
 
 - Introduce `composeNativeSystemPrompt()` that includes only: glossary, compact commands reference, compact recovery guidance
 - Route native harnesses through slim composer in `generator.ts`
