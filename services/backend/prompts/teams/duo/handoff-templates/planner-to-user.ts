@@ -13,17 +13,12 @@
  * changed but the reasoning behind it:
  *  1. Template disclosure confirmation — planner attests they saw this template
  *     at task start before planning or delegating (soft verification for debugging).
- *  2. Proof of principle — how the work adhered to organization/maintainability
- *     and static evaluability/provability principles.
- *  3. Proof of completion — evidence the goal was met (files changed).
- *  4. Backlog tasks implemented — backlog items addressed by this work.
- *  5. Backlog pending user review confirmation — attestation that implemented
+ *  2. What changed — high-level view since the user's message, with proof of
+ *     principle and proof of completion as sub-sections.
+ *  3. Backlog tasks implemented — backlog items addressed by this work.
+ *  4. Backlog pending user review confirmation — attestation that implemented
  *     backlog items were moved to pending_user_review when a PR was raised.
- *  6. Key technical decisions — schema design, modules, interfaces, entities.
- *  7. Key tradeoffs — what was weighed and why this path was chosen.
- *  8. Tech debt observed — issues left intentionally out of scope.
- *  9. System design — a mermaid diagram when the change has non-trivial
- *     structure (write "Not Applicable" for trivial changes).
+ *  5. Key technical decisions, tradeoffs, tech debt, and system design.
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
@@ -56,14 +51,17 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 - <step 2: concrete artifact or outcome>
 <List the planned slices/steps the planner defined (or would have defined) before delegating. Each step should name a verifiable deliverable — not vague layers like "backend work". Write \`Not Applicable\` only for trivial single-step tasks.>
 
-## Proof of Principle
+## What changed
+<high-level view of what changed since the user's message before the detailed proofs below>
+
+### Proof of Principle
 <!-- Demonstrate adherence to:
 - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
 - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
 -->
 <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
-## Proof of Completion
+### Proof of Completion
 - \`path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you (or the builder) modified>
 
