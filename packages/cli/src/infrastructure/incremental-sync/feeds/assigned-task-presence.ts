@@ -2,6 +2,7 @@
  * Assigned task presence — incremental feed for participant lastSeenAt (nudge timing).
  */
 
+import { parseAssignedTaskPresenceSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type { AssignedTaskPresenceSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
@@ -19,6 +20,7 @@ export const assignedTaskPresenceFeedDef: IncrementalFeedDef<
 > = {
   name: 'assigned-task-presence',
   itemKey: (item) => `${item.presenceUpdatedAt}:${item.taskId}:${item.role}`,
+  parseItem: parseAssignedTaskPresenceSignal,
 };
 
 export const assignedTaskPresenceSubscribeTarget: SubscribeQueryTarget<

@@ -2,11 +2,11 @@
  * Write-time projection sync for machine assigned-task snapshots.
  */
 
+import { monitorRowFromSnapshotDoc } from './assigned-task-monitor-row';
 import {
   getParticipantForChatroomRole,
   loadMachineAssignedTaskContext,
   loadRemoteAgentConfigsForMachine,
-  toAgentConfigView,
   toParticipantView,
 } from './assigned-tasks-core';
 import {
@@ -69,39 +69,7 @@ function resolveResponsibleConfigs(
 }
 
 export function snapshotDocToView(doc: SnapshotDoc): AssignedTaskSnapshotView {
-  const configStub = {
-    role: doc.role,
-    machineId: doc.machineId,
-    type: 'remote' as const,
-    agentHarness: doc.agentHarness,
-    model: doc.model,
-    workingDir: doc.workingDir,
-    spawnedAgentPid: doc.spawnedAgentPid,
-    desiredState: doc.desiredState,
-    circuitState: doc.circuitState,
-    teamRoleKey: '',
-    chatroomId: doc.chatroomId,
-    createdAt: 0,
-    updatedAt: doc.configUpdatedAt,
-  };
-  return {
-    taskId: doc.taskId,
-    chatroomId: doc.chatroomId,
-    status: doc.taskStatus,
-    assignedTo: doc.taskAssignedTo,
-    updatedAt: doc.taskUpdatedAt,
-    createdAt: doc.taskCreatedAt,
-    agentConfig: toAgentConfigView(configStub as RemoteAgentConfig, doc.machineId),
-    participant: toParticipantView({
-      lastSeenAction: doc.lastSeenAction,
-      lastSeenAt: doc.lastSeenAt,
-      lastStatus: doc.lastStatus,
-    } as Doc<'chatroom_participants'>) ?? {
-      lastSeenAction: null,
-      lastSeenAt: null,
-      lastStatus: null,
-    },
-  };
+  return monitorRowFromSnapshotDoc(doc);
 }
 
 export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {

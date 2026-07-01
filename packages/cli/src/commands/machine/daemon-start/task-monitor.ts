@@ -14,8 +14,9 @@ import {
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type {
-  AssignedTaskPresenceSignal,
+  AssignedTaskSignal,
   AssignedTaskSnapshotView,
   AssignedTaskView,
   ListMachineAssignedTaskSnapshotsResult,
@@ -213,6 +214,26 @@ function runNativeReviveEffect(
   );
 }
 
+async function resolveRowForSignal(
+  snapshot: ReturnType<typeof createTaskMonitorSnapshot>,
+  signal: AssignedTaskSignal,
+  session: {
+    sessionId: string;
+    machineId: string;
+    backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
+  }
+): Promise<AssignedTaskSnapshotView | undefined> {
+  const merged = snapshot.mergeSignal(signal);
+  if (merged) return merged;
+
+  const hydrate = (await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+  })) as ListMachineAssignedTaskSnapshotsResult;
+  snapshot.replaceAll(parseAssignedTaskMonitorRows(hydrate.tasks ?? []));
+  return snapshot.mergeSignal(signal) ?? snapshot.getBySignal(signal);
+}
+
 async function fetchTaskForAction(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
@@ -399,7 +420,7 @@ export const startTaskMonitorEffect = (
           machineId: session.machineId,
         }) as Promise<ListMachineAssignedTaskSnapshotsResult>
     ).pipe(Effect.orElseSucceed(() => ({ tasks: [] })));
-    const hydrateTasks = hydrate.tasks ?? [];
+    const hydrateTasks = parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
     snapshot.replaceAll(hydrateTasks);
     if (hydrateTasks.length > 0) {
       yield* Effect.tryPromise(() =>
@@ -442,7 +463,18 @@ export const startTaskMonitorEffect = (
         Effect.gen(function* () {
           ack();
           if (stopped) return;
-          const row = snapshot.mergeSignal(signal);
+          const row = yield* Effect.tryPromise(() =>
+            resolveRowForSignal(snapshot, signal, session)
+          ).pipe(
+            Effect.catchAll((err) =>
+              Effect.sync(() => {
+                console.warn(
+                  `[${formatTimestamp()}] ⚠️  Task signal merge failed: ${getErrorMessage(err)}`
+                );
+                return undefined;
+              })
+            )
+          );
           if (!row) return;
           yield* Effect.sync(() => {
             runMonitorPass([row], 'signal');
@@ -469,7 +501,7 @@ export const startTaskMonitorEffect = (
         Effect.gen(function* () {
           ack();
           if (stopped) return;
-          const row = snapshot.mergePresence(presence as AssignedTaskPresenceSignal);
+          const row = snapshot.mergePresence(presence);
           if (!row) return;
           yield* Effect.sync(() => {
             runMonitorPass([row], 'presence');

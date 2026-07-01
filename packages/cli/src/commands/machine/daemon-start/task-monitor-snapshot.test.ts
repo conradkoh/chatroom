@@ -96,4 +96,34 @@ describe('createTaskMonitorSnapshot', () => {
     expect(merged?.participant?.lastSeenAt).toBeNull();
     expect(snapshot.getByKey('task_1:builder')).toBe(merged);
   });
+
+  it('ignores presence when no base row exists, then applies signal', () => {
+    const snapshot = createTaskMonitorSnapshot();
+
+    const presenceOnly = snapshot.mergePresence({
+      taskId: 'task_1' as AssignedTaskSignal['taskId'],
+      chatroomId: 'room_1' as AssignedTaskSignal['chatroomId'],
+      role: 'builder',
+      lastSeenAt: 900,
+      lastSeenAction: 'get-next-task:started',
+      presenceUpdatedAt: 900,
+      presenceKey: 'presence-key',
+    });
+    expect(presenceOnly).toBeUndefined();
+    expect(snapshot.getByKey('task_1:builder')).toBeUndefined();
+
+    const row = snapshot.mergeSignal(makeSignal());
+    expect(row).toBeDefined();
+
+    snapshot.mergePresence({
+      taskId: row!.taskId,
+      chatroomId: row!.chatroomId,
+      role: row!.agentConfig.role,
+      lastSeenAt: 1_100,
+      lastSeenAction: 'get-next-task:started',
+      presenceUpdatedAt: 1_100,
+      presenceKey: 'presence-key-2',
+    });
+    expect(snapshot.getByKey('task_1:builder')?.participant?.lastSeenAt).toBe(1_100);
+  });
 });

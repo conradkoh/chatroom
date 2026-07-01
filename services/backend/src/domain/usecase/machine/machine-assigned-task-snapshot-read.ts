@@ -2,6 +2,7 @@
  * Indexed reads from machine assigned-task snapshot projection.
  */
 
+import { parseAssignedTaskSignal } from './assigned-task-monitor-contract';
 import { presenceKeyAfterTimestamp } from './assigned-tasks-revision';
 import type {
   AssignedTaskView,
@@ -99,7 +100,7 @@ export async function subscribeAssignedTaskSignalsFromSnapshots(
   const feed = sliceSnapshotFeedPage(
     page,
     input.limit,
-    snapshotDocToSignal,
+    (doc) => parseAssignedTaskSignal(snapshotDocToSignal(doc)),
     (item) => item.revisionKey
   );
   return {
