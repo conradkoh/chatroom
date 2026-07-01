@@ -12,6 +12,8 @@ import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
 
+const HANDOFF_BODY_GUIDANCE = `Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
+
 export interface CommandsReferenceParams {
   chatroomId: string;
   role: string;
@@ -45,10 +47,7 @@ export function getCommandsReferenceSection(params: CommandsReferenceParams): Pr
 ${handoffCmd}
 \`\`\`
 
-Replace \`[Your message here]\` with:
-- **Summary**: Brief description of what was done
-- **Changes Made**: Key changes (bullets)
-- **Testing**: How to verify the work
+${HANDOFF_BODY_GUIDANCE}
 
 **Continue receiving messages after \`handoff\`:**
 \`\`\`
@@ -90,10 +89,7 @@ export function getNativeCommandsReferenceSection(params: CommandsReferenceParam
 ${handoffCmd}
 \`\`\`
 
-Replace \`[Your message here]\` with:
-- **Summary**: Brief description of what was done
-- **Changes Made**: Key changes (bullets)
-- **Testing**: How to verify the work
+${HANDOFF_BODY_GUIDANCE}
 
 **Do not run \`register-agent\`** — your session was registered when the harness started.
 
