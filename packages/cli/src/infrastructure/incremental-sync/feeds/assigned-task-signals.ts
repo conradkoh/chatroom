@@ -41,6 +41,3 @@ export const ASSIGNED_TASK_SIGNAL_FEED_BUFFER = {
   maxSize: 200,
   dedupe: true,
 };
-
-/** Reconcile interval — matches PENDING_IDLE_NUDGE_MS in task-monitor-logic. */
-export const ASSIGNED_TASK_RECONCILE_INTERVAL_MS = 15_000;

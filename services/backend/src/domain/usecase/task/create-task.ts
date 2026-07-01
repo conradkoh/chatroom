@@ -26,6 +26,7 @@ import {
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { resolveTaskRole } from '../../entities/task';
+import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
 
 type MaterializedTaskCounts = {
   pending: number;
@@ -105,7 +106,7 @@ export async function createTask(
   const now = Date.now();
 
   // Status is always pending for direct task creation
-  const status: 'pending' = 'pending';
+  const status = 'pending' as const;
 
   const taskId = await ctx.db.insert('chatroom_tasks', {
     chatroomId: args.chatroomId,
@@ -129,7 +130,6 @@ export async function createTask(
   // Note: Agent restart for pending tasks is now handled by the daemon's task monitor.
   // No backend scheduling needed here.
 
-  // Write task.activated event to stream
   const chatroom = args.assignedTo ? null : await ctx.db.get('chatroom_rooms', args.chatroomId);
   const role = resolveTaskRole(args.assignedTo, chatroom);
   await ctx.db.insert('chatroom_eventStream', {
@@ -141,6 +141,8 @@ export async function createTask(
     taskContent: args.content,
     timestamp: now,
   });
+
+  await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
 
   return { taskId, status };
 }

@@ -3,10 +3,14 @@
 import { ChevronRight, Settings } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
+import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
+import { getCompactModelId, type AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
+import { getIndicatorClass, getLabelColorClass } from './AgentPanel/AgentStatusRow';
+import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -15,6 +19,12 @@ interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
+  teamName?: string;
+  teamId?: string;
+  defaultTeamId?: string;
+  teams?: readonly TeamConfigEntry[];
+  onTeamChange?: (team: TeamConfigEntry) => Promise<void>;
+  agentConfigs?: AgentConfig[];
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
   /** Called when user clicks an agent row — opens settings to agents tab */
@@ -26,9 +36,50 @@ interface AgentPanelProps {
 interface AgentSidebarRowProps {
   role: string;
   agentStatus: AgentStatus | undefined;
+  agentConfig: AgentConfig | undefined;
   isLoadingStatuses: boolean;
   onOpen: () => void;
 }
+
+interface AgentSidebarInfoProps {
+  role: string;
+  agentConfig: AgentConfig | undefined;
+  isLoadingStatuses: boolean;
+  statusLabel: string;
+  labelColorClass: string;
+  lastSeenLabel: string;
+}
+
+const AgentSidebarInfo = memo(function AgentSidebarInfo({
+  role,
+  agentConfig,
+  isLoadingStatuses,
+  statusLabel,
+  labelColorClass,
+  lastSeenLabel,
+}: AgentSidebarInfoProps) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+        {role}
+      </div>
+      <div className="text-[10px] font-bold uppercase tracking-wide">
+        <span
+          className={isLoadingStatuses ? 'text-chatroom-text-muted animate-pulse' : labelColorClass}
+        >
+          {isLoadingStatuses ? '...' : statusLabel}
+        </span>
+        <span className="text-chatroom-text-muted mx-1.5">·</span>
+        <span className="text-chatroom-text-muted">{lastSeenLabel}</span>
+      </div>
+      {agentConfig?.model && (
+        <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
+          {getCompactModelId(agentConfig.model)}
+        </div>
+      )}
+    </div>
+  );
+});
 
 /** A single agent row in the AgentPanel sidebar. Extracted as a proper component so
  *  React can correctly reconcile keyed list items — keys must be on elements directly
@@ -36,6 +87,7 @@ interface AgentSidebarRowProps {
 const AgentSidebarRow = memo(function AgentSidebarRow({
   role,
   agentStatus,
+  agentConfig,
   isLoadingStatuses,
   onOpen,
 }: AgentSidebarRowProps) {
@@ -45,46 +97,10 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
   const statusVariant = agentStatus?.statusVariant;
   const lastSeenLabel = useRelativeTime(lastSeenAt);
-
-  // Map statusVariant to indicator dot color
-  const indicatorClass = (() => {
-    switch (statusVariant) {
-      case 'offline':
-        return 'bg-chatroom-text-muted';
-      case 'error':
-        return 'bg-red-500 dark:bg-red-400';
-      case 'transitioning':
-        return 'bg-yellow-500 dark:bg-yellow-400';
-      case 'ready':
-        return 'bg-chatroom-status-success';
-      case 'working':
-        return 'bg-chatroom-status-info animate-pulse';
-      default:
-        return online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-    }
-  })();
-
-  // Map statusVariant to label text color
-  const labelColorClass = (() => {
-    switch (statusVariant) {
-      case 'offline':
-        return 'text-chatroom-text-muted';
-      case 'error':
-        return 'text-red-600 dark:text-red-400';
-      case 'transitioning':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'ready':
-        return 'text-chatroom-status-success';
-      case 'working':
-        return 'text-chatroom-status-info animate-pulse';
-      default:
-        return working_
-          ? 'text-chatroom-status-info animate-pulse'
-          : online_
-            ? 'text-chatroom-status-success'
-            : 'text-chatroom-text-muted';
-    }
-  })();
+  const indicatorClass = getIndicatorClass(statusVariant, online_);
+  const labelColorClass = working_
+    ? 'text-chatroom-status-info animate-pulse'
+    : getLabelColorClass(statusVariant, online_);
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
@@ -107,22 +123,14 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
           role="status"
           aria-label={`Status: ${isLoadingStatuses ? 'Loading...' : statusLabel}`}
         />
-        {/* Agent Info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
-            {role}
-          </div>
-          <div
-            className={`text-[10px] font-bold uppercase tracking-wide ${
-              isLoadingStatuses ? 'text-chatroom-text-muted animate-pulse' : labelColorClass
-            }`}
-          >
-            {isLoadingStatuses ? '...' : statusLabel}
-          </div>
-          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-            {lastSeenLabel}
-          </div>
-        </div>
+        <AgentSidebarInfo
+          role={role}
+          agentConfig={agentConfig}
+          isLoadingStatuses={isLoadingStatuses}
+          statusLabel={statusLabel}
+          labelColorClass={labelColorClass}
+          lastSeenLabel={lastSeenLabel}
+        />
         {/* View Indicator */}
         <div className="text-chatroom-text-muted">
           <ChevronRight size={14} />
@@ -138,6 +146,12 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
   lifecycle,
+  teamName,
+  teamId,
+  defaultTeamId,
+  teams,
+  onTeamChange,
+  agentConfigs = [],
   onConfigure,
   onOpenAgents,
 }: AgentPanelProps) {
@@ -199,7 +213,7 @@ export const AgentPanel = memo(function AgentPanel({
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       {/* Header with settings button */}
-      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
+      <div className="flex items-center justify-between gap-2 h-14 px-4 border-b-2 border-chatroom-border min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
@@ -214,6 +228,19 @@ export const AgentPanel = memo(function AgentPanel({
           <Settings size={14} />
         </button>
       </div>
+
+      {/* Team selector — own row below the Agents header */}
+      {teamName && teams && defaultTeamId && onTeamChange && (
+        <div className="px-4 py-2 border-b border-chatroom-border/50">
+          <TeamSelectorDropdown
+            teamName={teamName}
+            teamId={teamId}
+            defaultTeamId={defaultTeamId}
+            teams={teams}
+            onTeamChange={onTeamChange}
+          />
+        </div>
+      )}
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
@@ -222,6 +249,7 @@ export const AgentPanel = memo(function AgentPanel({
             key={role}
             role={role}
             agentStatus={agentStatuses.find((a) => a.role === role)}
+            agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
             isLoadingStatuses={isLoadingStatuses}
             onOpen={openAgentListModal}
           />

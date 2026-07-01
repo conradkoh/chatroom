@@ -17,6 +17,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentStopReason } from '../../entities/agent';
+import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,9 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
       spawnedAgentPid: undefined,
       spawnedAt: undefined,
     });
+    // Reflect the desired-stopped/cleared-PID state in the daemon snapshot
+    // projection so the task monitor stops treating the agent as running.
+    await syncChatroomAssignedTaskSnapshots(ctx, chatroomId);
   }
 
   return {};

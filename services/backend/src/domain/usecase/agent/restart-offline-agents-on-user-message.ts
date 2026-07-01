@@ -13,6 +13,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
 import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
+import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
 
 type TeamAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 
@@ -80,6 +81,7 @@ async function emitOfflineUserMessageRestart(
   await transitionAgentStatus(ctx, chatroomId, config.role, 'agent.requestStart', 'running');
 }
 
+// fallow-ignore-next-line complexity
 export async function restartOfflineAgentsOnUserMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
@@ -103,6 +105,13 @@ export async function restartOfflineAgentsOnUserMessage(
     await ensureRunningClosedCircuit(ctx, config, now);
     await emitOfflineUserMessageRestart(ctx, chatroomId, config, now);
     restartedRoles.push(config.role);
+  }
+
+  // Refresh the daemon snapshot projection when we flipped any config back to
+  // desiredState=running so the task monitor can act without waiting for a
+  // task transition.
+  if (restartedRoles.length > 0) {
+    await syncChatroomAssignedTaskSnapshots(ctx, chatroomId);
   }
 
   return { restartedRoles };

@@ -30,7 +30,12 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { listAssignedTasksForReconcileForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-for-reconcile';
+import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
+import {
+  syncChatroomAssignedTaskSnapshots,
+  syncMachineAssignedTaskSnapshots,
+} from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -1406,6 +1411,7 @@ export const updateSpawnedAgent = mutation({
       updatedAt: now,
       ...(args.model !== undefined ? { model: args.model } : {}),
     });
+    await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
 
     // Write agent.started event and increment restart metric when a new agent is spawning
     if (args.pid != null) {
@@ -1630,11 +1636,15 @@ async function runRecordCustomAgentRegistered(
     });
   }
 
+  const previousMachineId = existing?.machineId;
   await ensureOnlyAgentForRole(ctx, {
     chatroomId: args.chatroomId,
     role: args.role,
     excludeMachineId: undefined,
   });
+  if (previousMachineId) {
+    await syncMachineAssignedTaskSnapshots(ctx, previousMachineId);
+  }
 
   await ctx.db.insert('chatroom_eventStream', {
     type: 'agent.registered',
@@ -1869,11 +1879,16 @@ export const saveTeamAgentConfig = mutation({
       });
     }
 
+    const previousMachineId = existing?.machineId;
     await ensureOnlyAgentForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
     });
+    await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
+    if (previousMachineId && previousMachineId !== args.machineId) {
+      await syncMachineAssignedTaskSnapshots(ctx, previousMachineId);
+    }
 
     // Emit agent.registered event to the event stream
     await ctx.db.insert('chatroom_eventStream', {
@@ -2463,14 +2478,13 @@ export const getAgentOverviewForChatroom = query({
 
 // ============================================================================
 // DAEMON TASK MONITOR
-// Used by the daemon to poll assigned tasks on this machine.
+// Slim snapshot projection + indexed subscribe cursors for assigned tasks.
 // ============================================================================
 
 /**
- * Assigned-task reconcile snapshot for daemon polls (no task.content in response).
+ * One-shot hydrate of slim assigned-task rows for this machine (no task.content).
  */
-// fallow-ignore-next-line code-duplication
-export const listAssignedTasksForReconcile = query({
+export const listMachineAssignedTaskSnapshots = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
@@ -2479,7 +2493,7 @@ export const listAssignedTasksForReconcile = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { tasks: [] };
 
-    return listAssignedTasksForReconcileForMachine(ctx, {
+    return listMachineAssignedTaskSnapshotsUseCase(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
     });
@@ -2487,7 +2501,25 @@ export const listAssignedTasksForReconcile = query({
 });
 
 /**
- * Incremental task-monitor signals since an exclusive cursor (reactive subscribe).
+ * Rebuild snapshot projection rows for this machine (daemon startup backfill).
+ */
+export const syncMachineAssignedTaskSnapshotsMutation = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+    await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
+    return { success: true };
+  },
+});
+
+/**
+ * Incremental task-monitor signals since an exclusive revisionKey cursor (WS subscribe).
  */
 export const subscribeAssignedTaskSignalsSince = query({
   args: {
@@ -2504,6 +2536,31 @@ export const subscribeAssignedTaskSignalsSince = query({
       machineId: args.machineId,
       userId: auth.userId,
       afterKey: args.afterKey,
+      limit: args.limit,
+    });
+  },
+});
+
+/**
+ * Incremental participant presence since an exclusive presenceUpdatedAt cursor (WS subscribe).
+ */
+export const subscribeAssignedTaskPresenceSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterPresenceAt: v.optional(v.number()),
+    afterPresenceKey: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { items: [], highPresenceAt: null, highPresenceKey: null, hasMore: false };
+
+    return subscribeAssignedTaskPresenceForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterPresenceAt: args.afterPresenceAt,
+      afterPresenceKey: args.afterPresenceKey,
       limit: args.limit,
     });
   },
@@ -2587,6 +2644,7 @@ export const emitAgentStartFailed = mutation({
           desiredState: 'stopped',
           updatedAt: Date.now(),
         });
+        await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
       }
     }
 
@@ -2895,6 +2953,7 @@ export const clearAllSpawnedPids = mutation({
         clearedCount++;
       }
     }
+    await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
 
     return { clearedCount };
   },
