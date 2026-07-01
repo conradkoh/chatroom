@@ -1,6 +1,6 @@
 # Assigned Task Monitor — Contract Refactor Plan
 
-**Status:** Phases 0–4 and Phase 7 done; Phase 5 in progress (same PR)  
+**Status:** Phases 0–5 done (Phase 5 complete)  
 **Related PRs:** [#779](https://github.com/conradkoh/chatroom/pull/779) (hotfix), `fe9ebb888` (incremental migration)  
 **Last updated:** 2026-07-01
 
@@ -515,46 +515,40 @@ async function resolveRowForSignal(
 
 ---
 
-### Phase 5 — Centralize backend projection writes (in progress)
+### Phase 5 — Done (centralize backend projection writes)
 
 **Goal:** Stop requiring every mutation to remember `syncChatroomAssignedTaskSnapshots`.
 
-**Approach:** Option B (single write usecases) — canonical projection helpers + `patchTeamAgentConfig` for config patches. Convex table triggers deferred.
+**Approach:** Option B (single write usecases) — canonical projection helpers + `patchTeamAgentConfig` / `upsertTeamAgentConfigByTeamRoleKey`. Convex table triggers deferred.
 
-**Canonical exports** (`machine-assigned-task-snapshot-sync.ts`):
+**Centralized write helpers** (`patch-team-agent-config.ts`):
 
-| Name                                          | Alias of                            |
-| --------------------------------------------- | ----------------------------------- |
-| `projectAssignedTaskSnapshotsForChatroom`     | `syncChatroomAssignedTaskSnapshots` |
-| `projectAssignedTaskSnapshotsForMachine`      | `syncMachineAssignedTaskSnapshots`  |
-| `projectAssignedTaskSnapshotsAfterTaskChange` | Task status change                  |
-
-**Centralized write helper:** `patch-team-agent-config.ts` — patch + project (machine or chatroom scope).
+| Helper                                    | Role                                               |
+| ----------------------------------------- | -------------------------------------------------- |
+| `patchTeamAgentConfig`                    | Patch + project (optional `skipProject` for batch) |
+| `upsertTeamAgentConfigByTeamRoleKey`      | Insert/patch without project                       |
+| `projectAfterTeamConfigRegistration`      | Chatroom + previous-machine projection             |
+| `projectAssignedTaskSnapshotsForMachines` | Batch machine rebuild                              |
 
 **Projection sync call-site inventory:**
 
-| Path                                        | Trigger            | Centralized?                                     |
-| ------------------------------------------- | ------------------ | ------------------------------------------------ |
-| `create-task.ts`                            | Task created       | ✅ `projectAssignedTaskSnapshotsForChatroom`     |
-| `transition-task.ts`                        | Task status change | ✅ `projectAssignedTaskSnapshotsAfterTaskChange` |
-| `patch-team-agent-config.ts`                | Config patch       | ✅ new helper                                    |
-| `start-agent.ts`                            | Agent start        | ✅ project at end of usecase                     |
-| `stop-agent.ts`                             | Agent stop         | ✅ via `patchTeamAgentConfig`                    |
-| `agent-exited.ts`                           | PID clear          | ✅ via `patchTeamAgentConfig`                    |
-| `restart-offline-agents-on-user-message.ts` | Offline restart    | ✅ project at end                                |
-| `update-team.ts`                            | Team switch        | ⏳ machine-scoped rebuild loop                   |
-| `participants.ts` join                      | Circuit reset      | ✅ via `patchTeamAgentConfig`                    |
-| `participants.ts` join                      | Presence           | ✅ `syncParticipantPresenceOnSnapshots`          |
-| `machines.ts` updateSpawnedAgent            | PID recorded       | ✅ via `patchTeamAgentConfig`                    |
-| `machines.ts` saveTeamAgentConfig           | Config upsert      | ⏳ manual project after upsert                   |
-| `machines.ts` daemon startup                | Backfill           | ⏳ `syncMachineAssignedTaskSnapshotsMutation`    |
-| `agentResumeStorm.ts`                       | Storm abort        | ✅ via `patchTeamAgentConfig`                    |
+| Path                                | Trigger            | Centralized?                     |
+| ----------------------------------- | ------------------ | -------------------------------- |
+| `create-task.ts`                    | Task created       | ✅                               |
+| `transition-task.ts`                | Task status change | ✅                               |
+| `start-agent.ts`                    | Agent start        | ✅ upsert + project              |
+| `stop-agent.ts` / `agent-exited.ts` | Agent stop/exit    | ✅                               |
+| `update-team.ts`                    | Team switch        | ✅ batch project                 |
+| `ensure-only-agent-for-role.ts`     | Dedup stop         | ✅                               |
+| `machines.ts` saveTeamAgentConfig   | Config upsert      | ✅                               |
+| `machines.ts` clearAllSpawnedPids   | Daemon startup     | ✅ batch                         |
+| `machines.ts` updateWantResume      | Resume pref only   | ⚪ exception (not in projection) |
 
 **Acceptance criteria:**
 
 - [x] Inventory of projection sync call sites documented
-- [x] Integration tests no longer call `syncMachineSnapshots` after `createTask` / `sendMessage` (write-time projection)
-- [ ] All `chatroom_teamAgentConfigs` patches route through `patchTeamAgentConfig` or documented exceptions
+- [x] Integration tests rely on write-time projection
+- [x] Config patches route through centralized helpers (documented exceptions only)
 
 ---
 
@@ -648,14 +642,13 @@ Both `@workspace/backend` and `chatroom-cli` depend on it.
 - [x] Shared `resolveSnapshotRowForSignal` (dual-channel + task monitor)
 - [x] Drop `AssignedTaskMonitorRow` alias
 
-### Phase 5 — Projection centralization (in progress)
+### Phase 5 — Projection centralization
 
 - [x] Canonical `projectAssignedTaskSnapshots*` exports
-- [x] `patchTeamAgentConfig` helper for config patches + projection
-- [x] Agent stop/exit/resume-storm + `updateSpawnedAgent` use centralized writes
-- [x] Integration tests rely on write-time projection (no manual sync after createTask)
-- [ ] Remaining `machines.ts` config upsert paths
-- [ ] `update-team.ts` machine rebuild loop
+- [x] `patchTeamAgentConfig` + `upsertTeamAgentConfigByTeamRoleKey`
+- [x] Agent stop/exit/resume-storm + machines config paths use centralized writes
+- [x] `update-team` + `ensure-only-agent-for-role` batch projection
+- [x] Integration tests rely on write-time projection
 ```
 
 ---
