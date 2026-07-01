@@ -1,6 +1,6 @@
 # Assigned Task Monitor — Contract Refactor Plan
 
-**Status:** Phases 0–4 done; Phase 7 cleanup in progress (same PR)  
+**Status:** Phases 0–4 and Phase 7 done; Phase 5 deferred  
 **Related PRs:** [#779](https://github.com/conradkoh/chatroom/pull/779) (hotfix), `fe9ebb888` (incremental migration)  
 **Last updated:** 2026-07-01
 
@@ -415,7 +415,7 @@ const items = page
 
 - [x] Invalid backend responses fail loudly in CLI (`parseItem` + `onError`), not silent drop
 - [x] Contract test: bootstrap fields covered by `assignedTaskSignalSchema`
-- [ ] Wire types derived from Zod (`z.infer`) — **Phase 7**
+- [x] Wire types derived from Zod (`z.infer`) — Phase 7
 
 ---
 
@@ -496,20 +496,20 @@ async function resolveRowForSignal(
 
 ---
 
-### Phase 7 — Cleanup (in progress, same PR)
+### Phase 7 — Done (cleanup, same PR)
 
 **Goal:** Shrink net LOC and remove fragmentation left after Phases 1–4 (additive refactor left parallel types/mappers).
 
-| Item                                          | Action                                                                                        | Status  |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------- | ------- |
-| Dead `filterSignalsAfterKey`                  | Remove from `assigned-tasks-core.ts` + test file                                              | pending |
-| `snapshotDocToView` passthrough               | Remove; callers use `monitorRowFromSnapshotDoc`                                               | pending |
-| Backend double Zod parse                      | `subscribe` path uses `snapshotDocToSignal` only; Zod at CLI wire boundary                    | pending |
-| `AssignedTaskMonitorRow` alias                | Remove; use `AssignedTaskSnapshotView`                                                        | pending |
-| Duplicate `resolveRowForSignal`               | Extract `resolveSnapshotRowForSignal` in incremental-sync; share with `dual-channel-feed.ts`  | pending |
-| `machineId: ''` bootstrap hack                | Add `machineId` to `AssignedTaskSignal` + schema + `snapshotDocToSignal`                      | pending |
-| Wire types vs interfaces                      | Derive `AssignedTaskSignal`, presence, snapshot view from Zod; thin `assigned-tasks-types.ts` | pending |
-| `snapshotDocToSignal` ↔ bootstrap field drift | Round-trip test + shared `machineId`; doc→row via signal bootstrap where possible             | pending |
+| Item                                          | Action                                                                                        | Status |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- | ------ |
+| Dead `filterSignalsAfterKey`                  | Remove from `assigned-tasks-core.ts` + test file                                              | done   |
+| `snapshotDocToView` passthrough               | Remove; callers use `monitorRowFromSnapshotDoc`                                               | done   |
+| Backend double Zod parse                      | `subscribe` path uses `snapshotDocToSignal` only; Zod at CLI wire boundary                    | done   |
+| `AssignedTaskMonitorRow` alias                | Remove; use `AssignedTaskSnapshotView`                                                        | done   |
+| Duplicate `resolveRowForSignal`               | Extract `resolveSnapshotRowForSignal` in incremental-sync; share with `dual-channel-feed.ts`  | done   |
+| `machineId: ''` bootstrap hack                | Add `machineId` to `AssignedTaskSignal` + schema + `snapshotDocToSignal`                      | done   |
+| Wire types vs interfaces                      | Derive `AssignedTaskSignal`, presence, snapshot view from Zod; thin `assigned-tasks-types.ts` | done   |
+| `snapshotDocToSignal` ↔ bootstrap field drift | Round-trip test + shared `machineId`; doc→row via signal bootstrap where possible             | done   |
 
 **Out of scope for Phase 7:** Phase 5 (projection write centralization) — remains a follow-up.
 
@@ -612,7 +612,7 @@ Both `@workspace/backend` and `chatroom-cli` depend on it.
 
 ## Open questions / follow-ups
 
-1. **`machineId` on bootstrap row** — Hotfix uses `''`. Should `AssignedTaskSignal` include `machineId` from projection doc, or should predicates stop reading `agentConfig.machineId`?
+1. **`machineId` on bootstrap row** — Resolved in Phase 7: `AssignedTaskSignal` includes `machineId` from projection doc.
 2. **Presence-before-signal race** — `mergePresence` still no-ops without a row. Is signal always guaranteed first in production ordering?
 3. **Queued messages** — No task/signal until promotion. Document in UI/docs so users know daemon won't react until queue drains?
 4. **Reconcile poll** — Fully removed. Confirm presence channel covers all nudge timing edge cases without 15s full refresh.
@@ -631,13 +631,13 @@ Both `@workspace/backend` and `chatroom-cli` depend on it.
 
 ### Phase 7 — Cleanup (this PR)
 
-- [ ] Remove dead `filterSignalsAfterKey`
-- [ ] Remove `snapshotDocToView` passthrough
-- [ ] Remove backend subscribe-path Zod re-parse
-- [ ] Add `machineId` to signal bootstrap path
-- [ ] Derive wire types from Zod schemas
-- [ ] Shared `resolveSnapshotRowForSignal` (dual-channel + task monitor)
-- [ ] Drop `AssignedTaskMonitorRow` alias
+- [x] Remove dead `filterSignalsAfterKey`
+- [x] Remove `snapshotDocToView` passthrough
+- [x] Remove backend subscribe-path Zod re-parse
+- [x] Add `machineId` to signal bootstrap path
+- [x] Derive wire types from Zod schemas
+- [x] Shared `resolveSnapshotRowForSignal` (dual-channel + task monitor)
+- [x] Drop `AssignedTaskMonitorRow` alias
 
 ### Phase 5 — Projection centralization (follow-up)
 
