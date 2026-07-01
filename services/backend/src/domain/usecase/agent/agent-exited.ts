@@ -20,7 +20,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
-import { syncMachineAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -89,12 +89,10 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
   //    a newer agent's PID if a stale exit report arrives after a new agent
   //    has been spawned.
   if (config && config.spawnedAgentPid === pid && config.machineId === machineId) {
-    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+    await patchTeamAgentConfig(ctx, config._id, {
       spawnedAgentPid: undefined,
       spawnedAt: undefined,
-      updatedAt: Date.now(),
     });
-    await syncMachineAssignedTaskSnapshots(ctx, machineId);
   }
 
   // Process any pending config-removal requests (requires PID to be cleared first)

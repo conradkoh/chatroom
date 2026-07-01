@@ -35,6 +35,7 @@ import {
   syncChatroomAssignedTaskSnapshots,
   syncMachineAssignedTaskSnapshots,
 } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
@@ -1405,13 +1406,11 @@ export const updateSpawnedAgent = mutation({
 
     const now = Date.now();
 
-    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+    await patchTeamAgentConfig(ctx, config._id, {
       spawnedAgentPid: args.pid,
       spawnedAt: args.pid ? now : undefined,
-      updatedAt: now,
       ...(args.model !== undefined ? { model: args.model } : {}),
     });
-    await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
 
     // Write agent.started event and increment restart metric when a new agent is spawning
     if (args.pid != null) {

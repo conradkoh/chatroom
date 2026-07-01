@@ -1,6 +1,6 @@
 # Assigned Task Monitor — Contract Refactor Plan
 
-**Status:** Phases 0–4 and Phase 7 done; Phase 5 deferred  
+**Status:** Phases 0–4 and Phase 7 done; Phase 5 in progress (same PR)  
 **Related PRs:** [#779](https://github.com/conradkoh/chatroom/pull/779) (hotfix), `fe9ebb888` (incremental migration)  
 **Last updated:** 2026-07-01
 
@@ -515,37 +515,46 @@ async function resolveRowForSignal(
 
 ---
 
-### Phase 5 — Centralize backend projection writes (longer term)
+### Phase 5 — Centralize backend projection writes (in progress)
 
 **Goal:** Stop requiring every mutation to remember `syncChatroomAssignedTaskSnapshots`.
 
-**Option A — Internal hooks on source tables**
+**Approach:** Option B (single write usecases) — canonical projection helpers + `patchTeamAgentConfig` for config patches. Convex table triggers deferred.
 
-Register Convex internal mutations / triggers when:
+**Canonical exports** (`machine-assigned-task-snapshot-sync.ts`):
 
-- `chatroom_tasks` insert/patch/delete
-- `chatroom_teamAgentConfigs` patch (machineId, harness, pid, desiredState)
-- `chatroom_participants` patch (lastSeenAction, lastSeenAt)
+| Name                                          | Alias of                            |
+| --------------------------------------------- | ----------------------------------- |
+| `projectAssignedTaskSnapshotsForChatroom`     | `syncChatroomAssignedTaskSnapshots` |
+| `projectAssignedTaskSnapshotsForMachine`      | `syncMachineAssignedTaskSnapshots`  |
+| `projectAssignedTaskSnapshotsAfterTaskChange` | Task status change                  |
 
-**Option B — Single write usecases**
+**Centralized write helper:** `patch-team-agent-config.ts` — patch + project (machine or chatroom scope).
 
-Route all task/agent mutations through usecases that always call projection sync.
+**Projection sync call-site inventory:**
 
-**Files likely involved:**
-
-| File                                                                                 | Action                                                  |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| `services/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.ts` | Export single `projectAssignedTaskSnapshotsForChatroom` |
-| `services/backend/convex/tasks.ts`                                                   | Ensure only usecase path                                |
-| `services/backend/convex/messages.ts`                                                | Audit task creation paths                               |
-| `services/backend/convex/participants.ts`                                            | Remove direct sync if trigger handles it                |
-| `services/backend/src/domain/usecase/agent/*.ts`                                     | Remove redundant sync calls after trigger               |
-| `services/backend/tests/integration/subscribe-assigned-task-signals.spec.ts`         | Regression tests per mutation path                      |
+| Path                                        | Trigger            | Centralized?                                     |
+| ------------------------------------------- | ------------------ | ------------------------------------------------ |
+| `create-task.ts`                            | Task created       | ✅ `projectAssignedTaskSnapshotsForChatroom`     |
+| `transition-task.ts`                        | Task status change | ✅ `projectAssignedTaskSnapshotsAfterTaskChange` |
+| `patch-team-agent-config.ts`                | Config patch       | ✅ new helper                                    |
+| `start-agent.ts`                            | Agent start        | ✅ project at end of usecase                     |
+| `stop-agent.ts`                             | Agent stop         | ✅ via `patchTeamAgentConfig`                    |
+| `agent-exited.ts`                           | PID clear          | ✅ via `patchTeamAgentConfig`                    |
+| `restart-offline-agents-on-user-message.ts` | Offline restart    | ✅ project at end                                |
+| `update-team.ts`                            | Team switch        | ⏳ machine-scoped rebuild loop                   |
+| `participants.ts` join                      | Circuit reset      | ✅ via `patchTeamAgentConfig`                    |
+| `participants.ts` join                      | Presence           | ✅ `syncParticipantPresenceOnSnapshots`          |
+| `machines.ts` updateSpawnedAgent            | PID recorded       | ✅ via `patchTeamAgentConfig`                    |
+| `machines.ts` saveTeamAgentConfig           | Config upsert      | ⏳ manual project after upsert                   |
+| `machines.ts` daemon startup                | Backfill           | ⏳ `syncMachineAssignedTaskSnapshotsMutation`    |
+| `agentResumeStorm.ts`                       | Storm abort        | ✅ via `patchTeamAgentConfig`                    |
 
 **Acceptance criteria:**
 
-- [ ] Inventory of all projection sync call sites documented
-- [ ] New task from `sendMessage`, `handoff`, `promoteQueuedMessage` all emit signal without manual `syncMachineSnapshots` in tests
+- [x] Inventory of projection sync call sites documented
+- [x] Integration tests no longer call `syncMachineSnapshots` after `createTask` / `sendMessage` (write-time projection)
+- [ ] All `chatroom_teamAgentConfigs` patches route through `patchTeamAgentConfig` or documented exceptions
 
 ---
 
@@ -639,11 +648,14 @@ Both `@workspace/backend` and `chatroom-cli` depend on it.
 - [x] Shared `resolveSnapshotRowForSignal` (dual-channel + task monitor)
 - [x] Drop `AssignedTaskMonitorRow` alias
 
-### Phase 5 — Projection centralization (follow-up)
+### Phase 5 — Projection centralization (in progress)
 
-- [ ] Audit sync call sites
-- [ ] Triggers or single write path
-- [ ] Remove redundant sync calls
+- [x] Canonical `projectAssignedTaskSnapshots*` exports
+- [x] `patchTeamAgentConfig` helper for config patches + projection
+- [x] Agent stop/exit/resume-storm + `updateSpawnedAgent` use centralized writes
+- [x] Integration tests rely on write-time projection (no manual sync after createTask)
+- [ ] Remaining `machines.ts` config upsert paths
+- [ ] `update-team.ts` machine rebuild loop
 ```
 
 ---

@@ -292,8 +292,14 @@ export async function syncChatroomAssignedTaskSnapshots(
   }
 }
 
+/** Canonical name — rebuild assigned-task snapshot projection for one chatroom. */
+export const projectAssignedTaskSnapshotsForChatroom = syncChatroomAssignedTaskSnapshots;
+
+/** Canonical name — rebuild assigned-task snapshot projection for one machine. */
+export const projectAssignedTaskSnapshotsForMachine = syncMachineAssignedTaskSnapshots;
+
 /** After task status leaves active set, drop snapshot rows. */
-export async function syncAssignedTaskSnapshotsAfterTaskChange(
+export async function projectAssignedTaskSnapshotsAfterTaskChange(
   ctx: MutationCtx,
   taskId: Id<'chatroom_tasks'>
 ): Promise<void> {

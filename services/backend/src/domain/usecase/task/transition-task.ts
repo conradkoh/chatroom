@@ -36,7 +36,7 @@ import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
-import { syncAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
+import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
 
 // ============================================================================
 // TYPES
@@ -102,7 +102,7 @@ export async function transitionTask(
 
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
-  await syncAssignedTaskSnapshotsAfterTaskChange(ctx, taskId);
+  await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskId);
 
   // 1b. Update materialized task counts
   if (taskBeforeTransition && oldStatus) {

@@ -13,7 +13,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
 import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
-import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
+import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
 type TeamAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 
@@ -111,7 +111,7 @@ export async function restartOfflineAgentsOnUserMessage(
   // desiredState=running so the task monitor can act without waiting for a
   // task transition.
   if (restartedRoles.length > 0) {
-    await syncChatroomAssignedTaskSnapshots(ctx, chatroomId);
+    await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
   }
 
   return { restartedRoles };

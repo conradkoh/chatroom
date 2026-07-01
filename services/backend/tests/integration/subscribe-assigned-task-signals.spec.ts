@@ -37,8 +37,6 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       createdBy: 'user',
     });
 
-    await syncMachineSnapshots(sessionId, machineId);
-
     const result = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
       sessionId,
       machineId,
@@ -65,7 +63,6 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       content: '## Goal\nConfig sync',
       createdBy: 'user',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     await t.mutation(api.machines.updateSpawnedAgent, {
       sessionId,
@@ -96,7 +93,6 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       content: '## Goal\nStop sync',
       createdBy: 'user',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     const running = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
       sessionId,
@@ -136,8 +132,6 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       createdBy: 'user',
     });
 
-    await syncMachineSnapshots(sessionId, machineId);
-
     const first = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
       machineId,
@@ -176,7 +170,6 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       content: '## Goal\nWork',
       createdBy: 'user',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
@@ -347,7 +340,6 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       content: '## Goal\nFirst task',
       type: 'message',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
@@ -418,7 +410,6 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       content: '## Goal\nHeartbeat test',
       createdBy: 'user',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -474,7 +465,6 @@ describe('machines.subscribeAssignedTaskPresenceSince', () => {
       content: '## Goal\nPresence',
       createdBy: 'user',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -571,7 +561,6 @@ describe('machines.getAssignedTaskForAction', () => {
       content,
       createdBy: 'user',
     });
-    await syncMachineSnapshots(sessionId, machineId);
 
     const result = await t.query(api.machines.getAssignedTaskForAction, {
       sessionId,

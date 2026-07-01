@@ -26,7 +26,7 @@ import {
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { resolveTaskRole } from '../../entities/task';
-import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
+import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
 type MaterializedTaskCounts = {
   pending: number;
@@ -142,7 +142,7 @@ export async function createTask(
     timestamp: now,
   });
 
-  await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
+  await projectAssignedTaskSnapshotsForChatroom(ctx, args.chatroomId);
 
   return { taskId, status };
 }
