@@ -108,6 +108,36 @@ describe('fuzzyMatch', () => {
   });
 });
 
+describe('word prefix matching', () => {
+  it('matches repo against Repository word in label', () => {
+    expect(fuzzyMatch('repo', 'Github: View Repository')).toBeGreaterThan(0);
+  });
+
+  it('matches repo against Repository path segment', () => {
+    expect(
+      fuzzyMatch('repo', 'src/components/OldRepoAdapter/RepositoryBridge/index.ts')
+    ).toBeGreaterThan(0);
+  });
+
+  it('matches repo against Repos directory segment', () => {
+    expect(fuzzyMatch('repo', '/Users/me/Documents/Repos/chatroom')).toBeGreaterThan(0);
+  });
+
+  it('ranks prefix match on Repository above scattered path noise', () => {
+    const prefix = fuzzyMatch('repo', 'src/Repository/index.ts');
+    const scattered = fuzzyMatch('repo', 'src/components/OldRepoAdapter/RepositoryBridge/index.ts');
+    expect(prefix).toBeGreaterThan(scattered);
+  });
+
+  it('fuzzyFilter uses prefix match via keywords basename', () => {
+    expect(
+      fuzzyFilter('src/components/OldRepoAdapter/RepositoryBridge/index.ts', 'repo', [
+        'RepositoryBridge',
+      ])
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe('fuzzyFilter', () => {
   it('returns 0 for no match', () => {
     expect(fuzzyFilter('hello', 'xyz')).toBe(0);
