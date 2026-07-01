@@ -14,6 +14,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
 /**
  * Transition the agent's status across all state sources.
@@ -35,10 +36,7 @@ export async function transitionAgentStatus(
   lastDesiredState?: string
 ): Promise<void> {
   // 1. Update participant record (denormalized — deprecated as primary source)
-  const participant = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-    .unique();
+  const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
   if (participant) {
     const patch: Record<string, string> = { lastStatus };
     if (lastDesiredState !== undefined) {

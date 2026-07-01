@@ -20,6 +20,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
+import { syncMachineAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,7 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
       spawnedAt: undefined,
       updatedAt: Date.now(),
     });
+    await syncMachineAssignedTaskSnapshots(ctx, machineId);
   }
 
   // Process any pending config-removal requests (requires PID to be cleared first)

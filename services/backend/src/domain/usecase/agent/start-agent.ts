@@ -24,6 +24,7 @@ import {
   deleteStaleTeamAgentConfigs,
 } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
+import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,10 @@ export async function startAgent(
     )
   );
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
+
+  // Refresh the daemon snapshot projection so the task monitor sees the new
+  // config (desiredState/model/workingDir) without waiting for a task transition.
+  await syncChatroomAssignedTaskSnapshots(ctx, chatroomId);
 
   return {
     agentHarness,

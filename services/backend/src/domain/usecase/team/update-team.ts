@@ -11,6 +11,7 @@ import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { emitConfigRemoval } from '../agent/config-removal';
+import { syncMachineAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -61,7 +62,14 @@ export async function updateTeam(
   let stoppedAgentCount = 0;
   let deletedTeamConfigCount = 0;
 
+  // Track machines whose configs are being torn down so we can prune their
+  // orphaned snapshot projection rows after the configs are deleted.
+  const affectedMachineIds = new Set<string>();
+
   for (const config of existingTeamConfigs) {
+    if (config.machineId) {
+      affectedMachineIds.add(config.machineId);
+    }
     // Dispatch stop event for running remote agents.
     // The daemon will receive this, stop the process, and call recordAgentExited
     // which clears the PID in teamAgentConfig.
@@ -110,6 +118,13 @@ export async function updateTeam(
       await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
       deletedTeamConfigCount++;
     }
+  }
+
+  // Rebuild each affected machine's snapshot projection. With this chatroom's
+  // configs now deleted, syncMachineAssignedTaskSnapshots prunes the orphaned
+  // rows (deleting entirely if the machine has no remaining remote configs).
+  for (const machineId of affectedMachineIds) {
+    await syncMachineAssignedTaskSnapshots(ctx, machineId);
   }
 
   return {

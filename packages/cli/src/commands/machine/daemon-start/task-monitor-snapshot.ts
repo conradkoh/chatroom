@@ -3,6 +3,7 @@
  */
 
 import type {
+  AssignedTaskPresenceSignal,
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
@@ -42,6 +43,25 @@ function mergeSignalIntoTaskSnapshot(
   };
 }
 
+/** Merge incremental presence fields (lastSeenAt) into a snapshot row. */
+// fallow-ignore-next-line complexity
+function mergePresenceIntoTaskSnapshot(
+  existing: AssignedTaskSnapshotView | undefined,
+  presence: AssignedTaskPresenceSignal
+): AssignedTaskSnapshotView | undefined {
+  if (!existing) {
+    return undefined;
+  }
+  return {
+    ...existing,
+    participant: {
+      lastSeenAction: presence.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,
+      lastSeenAt: presence.lastSeenAt,
+      lastStatus: existing.participant?.lastStatus ?? null,
+    },
+  };
+}
+
 const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
   AssignedTaskSnapshotView,
   AssignedTaskSignal
@@ -54,6 +74,19 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
 export function createTaskMonitorSnapshot(): WorkingSnapshot<
   AssignedTaskSnapshotView,
   AssignedTaskSignal
-> {
-  return new WorkingSnapshot(taskMonitorSnapshotOptions);
+> & {
+  mergePresence(presence: AssignedTaskPresenceSignal): AssignedTaskSnapshotView | undefined;
+} {
+  const base = new WorkingSnapshot(taskMonitorSnapshotOptions);
+  return Object.assign(base, {
+    mergePresence(presence: AssignedTaskPresenceSignal) {
+      const key = taskSnapshotKey(presence.taskId, presence.role);
+      const existing = base.getByKey(key);
+      const merged = mergePresenceIntoTaskSnapshot(existing, presence);
+      if (merged) {
+        base.upsertRow(merged);
+      }
+      return merged;
+    },
+  });
 }
