@@ -66,6 +66,11 @@ describe('handoff-templates > planner → user report', () => {
     expect(report).toContain(
       'I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team'
     );
+    expect(report).toContain(
+      "I confirm that I've read and followed the role guidance before starting any work"
+    );
+    expect(report).toContain('chatroom get-role-guidance');
+    expect(report).toContain('Role guidance is static for your role');
   });
 
   test('requires proof of planning, proof of principle and proof of completion sections', () => {
@@ -183,6 +188,10 @@ describe('handoff-templates > builder → planner handoff', () => {
     expect(handoff).toContain(
       'I confirm that I have seen this template at the start of this task, before implementing or modifying any code'
     );
+    expect(handoff).toContain(
+      "I confirm that I've read and followed the role guidance before starting any work"
+    );
+    expect(handoff).toContain('chatroom get-role-guidance');
   });
 
   test('requires proof of principle and proof of completion sections', () => {

@@ -24,13 +24,10 @@
 
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
-import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
 import { getNativeHandoffTurnEndGuidance } from './native/session-continuity';
+import { composeNativeSystemPrompt } from './native/system-prompt';
 import { getClassificationGuideSection } from './sections/classification-guide';
-import {
-  getCommandsReferenceSection,
-  getNativeCommandsReferenceSection,
-} from './sections/commands-reference';
+import { getCommandsReferenceSection } from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
 import { getGettingStartedSection } from './sections/getting-started';
 import { getGlossarySection } from './sections/glossary';
@@ -43,16 +40,13 @@ import {
   getRoleDescriptionSection,
 } from './sections/role-identity';
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
-import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
-import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
+import { buildSelectorContext } from './selector-context';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
+import type { ComposedInitPrompt, InitPromptInput } from './types/init-prompt';
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
 import { getCliEnvPrefix } from './utils/index';
-import type { AgentHarness } from '../src/domain/entities/agent';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
-import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
-import type { TeamKind } from '../src/domain/entities/team-kind';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -89,110 +83,8 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 }
 
 // =============================================================================
-// INTERNAL HELPERS
+// SELECTOR-CONTEXT (defined in selector-context.ts)
 // =============================================================================
-
-function detectTeamTypeByName(teamName?: string): TeamKind | null {
-  const normalizedName = (teamName || '').toLowerCase();
-  if (normalizedName.includes('solo')) return 'solo';
-  if (normalizedName.includes('duo')) return 'duo';
-  return null;
-}
-
-function isSoloTeamByRoles(teamRoles: string[]): boolean {
-  return teamRoles.some((r) => r.toLowerCase() === 'solo') && teamRoles.length === 1;
-}
-
-function isDuoTeamByRoles(teamRoles: string[]): boolean {
-  const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
-  const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
-  return hasPlanner && hasBuilder && teamRoles.length === 2;
-}
-
-function detectTeamType(teamRoles: string[], teamName?: string): TeamKind | 'unknown' {
-  const byName = detectTeamTypeByName(teamName);
-  if (byName) return byName;
-  if (isSoloTeamByRoles(teamRoles)) return 'solo';
-  if (isDuoTeamByRoles(teamRoles)) return 'duo';
-  return 'unknown';
-}
-
-// Note: getTeamRoleGuidance and getBaseRoleGuidance were removed in Phase 3.
-// Their functionality is now handled by getRoleGuidanceFromContext which uses
-// SelectorContext-based dispatching through the fromContext adapters.
-
-// =============================================================================
-// SELECTOR-CONTEXT BASED DISPATCHERS (Phase 1.2/1.3)
-// =============================================================================
-
-/**
- * Build a SelectorContext from the various parameters used in the generator.
- *
- * This is the bridge from the current "spread of arguments" pattern to the
- * unified SelectorContext type. As callers migrate, they can construct
- * SelectorContext directly instead of going through this helper.
- */
-export function buildSelectorContext(params: {
-  role: string;
-  teamRoles: string[];
-  teamName?: string;
-  teamId?: string;
-  teamEntryPoint?: string;
-  convexUrl: string;
-  chatroomId?: string;
-  workflow?: 'new_feature' | 'question' | 'follow_up' | null;
-  agentType?: 'remote' | 'custom' | 'unset';
-  nativeIntegration?: boolean;
-}): SelectorContext {
-  const entryPoint =
-    getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ??
-    'builder';
-  const teamConfig =
-    toTeam({
-      teamId: params.teamId,
-      teamName: params.teamName,
-      teamRoles: params.teamRoles,
-      teamEntryPoint: params.teamEntryPoint,
-    }) ?? undefined;
-  return {
-    role: params.role,
-    team: detectTeamType(params.teamRoles, params.teamName),
-    teamConfig,
-    workflow: params.workflow,
-    teamRoles: params.teamRoles,
-    isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
-    convexUrl: params.convexUrl,
-    chatroomId: params.chatroomId,
-    agentType: params.agentType ?? 'unset',
-    nativeIntegration: params.nativeIntegration,
-  };
-}
-
-/**
- * Get role guidance using SelectorContext-based dispatching.
- *
- * Follows the same team → base fallback pattern as getTeamRoleGuidance/getBaseRoleGuidance
- * but uses the unified SelectorContext type throughout.
- *
- * This is the new preferred entry point for getting role guidance.
- */
-export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
-  try {
-    if (ctx.team === 'solo') {
-      const result = getSoloRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
-
-    if (ctx.team === 'duo') {
-      const result = getDuoRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
-  } catch {
-    // Fall back to base guidance
-  }
-
-  return getBaseRoleGuidanceFromContext(ctx);
-}
 
 // =============================================================================
 // ROLE PROMPT GENERATION
@@ -272,37 +164,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
 // FINAL OUTPUT COMPOSERS
 // =============================================================================
 
-export interface InitPromptInput {
-  chatroomId: string;
-  role: string;
-  teamId?: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint?: string;
-  convexUrl: string; // Required Convex URL for env var prefix generation
-  /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
-  agentType?: 'remote' | 'custom' | 'unset';
-  /** Remote agent harness — determines native vs CLI init prompt sections */
-  agentHarness?: AgentHarness;
-}
-
-/**
- * Composed prompt result for agent initialization.
- *
- * Consumers choose the appropriate fields based on their delivery mode:
- *   - Machine mode (harness supports system prompt):
- *       use `systemPrompt` as the system prompt + `initMessage` as first user message
- *   - Manual mode (harness does NOT support system prompt override):
- *       use `initPrompt` which combines everything into a single message
- */
-export interface ComposedInitPrompt {
-  /** System prompt: general instructions + role prompt (for harnesses that support it) */
-  systemPrompt: string;
-  /** Init message: context-gaining instructions and classify guidance (first user message) */
-  initMessage: string;
-  /** Combined init prompt: everything in one message (for harnesses without system prompt) */
-  initPrompt: string;
-}
+export type { ComposedInitPrompt, InitPromptInput } from './types/init-prompt';
 
 /**
  * Compose a system prompt for harnesses that support setting the system prompt.
@@ -320,7 +182,6 @@ function buildInitPromptSections(
   selectorCtx: SelectorContext
 ): PromptSection[] {
   const { chatroomId, role, teamRoles, convexUrl } = input;
-  const nativeIntegration = isNativeHarness(input.agentHarness);
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
   const handoffTargets = [...new Set([...otherRoles, 'user'])];
 
@@ -328,31 +189,24 @@ function buildInitPromptSections(
     getTeamHeaderSection(input.teamName),
     getRoleTitleSection(selectorCtx),
     getRoleDescriptionSection(selectorCtx),
-    getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId, nativeIntegration }),
+    getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }),
+    getSessionVsChatroomTaskSection(),
+    getGettingStartedSection(selectorCtx),
+    getClassificationGuideSection(selectorCtx),
+    getRoleGuidanceSection(selectorCtx),
+    getHandoffOptionsSection({ availableHandoffRoles: handoffTargets }),
+    getCommandsReferenceSection({ chatroomId, role, convexUrl }),
+    getNextStepSection({ chatroomId, role, convexUrl }),
   ];
-
-  if (!nativeIntegration) {
-    sections.push(getSessionVsChatroomTaskSection(), getGettingStartedSection(selectorCtx));
-  }
-
-  sections.push(getClassificationGuideSection(selectorCtx), getRoleGuidanceSection(selectorCtx));
-
-  sections.push(getHandoffOptionsSection({ availableHandoffRoles: handoffTargets }));
-
-  sections.push(
-    nativeIntegration
-      ? getNativeCommandsReferenceSection({ chatroomId, role, convexUrl })
-      : getCommandsReferenceSection({ chatroomId, role, convexUrl })
-  );
-
-  if (!nativeIntegration) {
-    sections.push(getNextStepSection({ chatroomId, role, convexUrl }));
-  }
 
   return sections;
 }
 
 export function composeSystemPrompt(input: InitPromptInput): string {
+  if (isNativeHarness(input.agentHarness)) {
+    return composeNativeSystemPrompt(input);
+  }
+
   const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
 
   const selectorCtx = buildSelectorContext({
@@ -364,7 +218,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     convexUrl,
     chatroomId,
     agentType: input.agentType,
-    nativeIntegration: isNativeHarness(input.agentHarness),
+    nativeIntegration: false,
   });
 
   return composeSections(buildInitPromptSections(input, selectorCtx));

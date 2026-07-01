@@ -7,6 +7,7 @@
 import { getNextTaskCommand } from '../cli/get-next-task/command';
 import { getNextTaskReminder } from '../cli/get-next-task/reminder';
 import { handoffCommand } from '../cli/handoff/command';
+import { roleGuidanceCommand } from '../cli/role-guidance/command';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
@@ -62,6 +63,7 @@ ${getNextTaskReminder()}
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Reload role guidance: \`${roleGuidanceCommand({ chatroomId: params.chatroomId, role: params.role, cliEnvPrefix })}\`
 - Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\``;
 
   return createSection('commands-reference', 'knowledge', content);
@@ -101,6 +103,7 @@ Replace \`[Your message here]\` with:
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Reload role guidance: \`${roleGuidanceCommand({ chatroomId: params.chatroomId, role: params.role, cliEnvPrefix })}\`
 - Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\``;
 
   return createSection('commands-reference-native', 'knowledge', content);
