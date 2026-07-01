@@ -6,27 +6,25 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
-import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabel';
+import {
+  isWorkingVariant,
+  resolveAgentStatus,
+  type StatusVariant,
+} from '../utils/agentStatusLabel';
 
-// ─── Not-working event types ─────────────────────────────────────────────────
-// Agent is online but NOT actively processing a task.
-// Used to compute isWorking: if lastStatus is in this set, isWorking = false.
-const NOT_WORKING_EVENT_TYPES = new Set([
-  'agent.waiting',
-  'agent.registered',
-  'agent.exited',
-  'task.acknowledged', // TASK RECEIVED is green/ready, not WORKING
-  null,
-  undefined,
-]);
-
-/** Whether an online agent is actively processing (blue WORKING styling). */
+/**
+ * Whether an online agent should use blue WORKING styling.
+ * Derived from `resolveAgentStatus` so label text and square icon always share
+ * the same semantic variant (blue = working only).
+ */
 // fallow-ignore-next-line unused-export
-export function isAgentWorking(
+export function deriveAgentIsWorking(
   latestEventType: string | null | undefined,
+  desiredState: string | null | undefined,
   online: boolean
 ): boolean {
-  return online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
+  const { variant } = resolveAgentStatus(latestEventType, desiredState, online);
+  return online && isWorkingVariant(variant);
 }
 
 export interface AgentStatus {
@@ -71,12 +69,12 @@ export function useAgentStatuses(chatroomId: string, roles: string[]): UseAgentS
       const latestEventType = participant?.lastStatus ?? null;
       const desiredState = participant?.lastDesiredState ?? null;
       const online = participant?.isAlive ?? false;
-      const isWorking = isAgentWorking(latestEventType, online);
       const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
         latestEventType,
         desiredState,
         online
       );
+      const isWorking = deriveAgentIsWorking(latestEventType, desiredState, online);
       return {
         role,
         online,

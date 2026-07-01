@@ -50,8 +50,13 @@ export function getLabelColorClass(variant: StatusVariant | undefined, online: b
     case 'ready':
       return 'text-chatroom-status-success';
     case 'working':
-      return 'text-chatroom-status-info';
+      return 'text-chatroom-status-info animate-pulse';
   }
+}
+
+/** Row background highlight for actively working agents. */
+export function getRowHighlightClass(variant: StatusVariant | undefined): string {
+  return variant === 'working' ? 'bg-chatroom-status-info/5' : '';
 }
 
 /** Renders the status indicator dot and role name. */
