@@ -13,6 +13,10 @@ import { transitionAgentStatus } from './transition-agent-status';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import {
+  patchTeamAgentConfig,
+  projectAssignedTaskSnapshotsForMachines,
+} from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,6 +41,7 @@ export interface EnsureOnlyAgentForRoleInput {
  * Emits an `agent.requestStop` event for every conflicting remote config found.
  * The daemon's stream subscription handles these events directly.
  */
+// fallow-ignore-next-line complexity
 export async function ensureOnlyAgentForRole(
   ctx: MutationCtx,
   input: EnsureOnlyAgentForRoleInput
@@ -55,6 +60,7 @@ export async function ensureOnlyAgentForRole(
   );
 
   const now = Date.now();
+  const affectedMachineIds = new Set<string>();
 
   for (const config of conflicting) {
     await ctx.db.insert('chatroom_eventStream', {
@@ -70,12 +76,24 @@ export async function ensureOnlyAgentForRole(
 
     // Eagerly clear spawn state and mark as stopped so the UI reflects the
     // stop immediately rather than waiting for the daemon to confirm.
-    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-      desiredState: 'stopped',
-      spawnedAgentPid: undefined,
-      spawnedAt: undefined,
-    });
+    await patchTeamAgentConfig(
+      ctx,
+      config._id,
+      {
+        desiredState: 'stopped',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      },
+      { skipProject: true }
+    );
+    if (config.machineId) {
+      affectedMachineIds.add(config.machineId);
+    }
 
     await transitionAgentStatus(ctx, chatroomId, role, 'agent.exited', 'stopped');
+  }
+
+  if (affectedMachineIds.size > 0) {
+    await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
   }
 }

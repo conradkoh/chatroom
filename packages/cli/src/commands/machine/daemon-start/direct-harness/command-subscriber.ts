@@ -334,7 +334,7 @@ async function closeDisconnectedHarnessSession(
 }
 
 /** Gracefully close a harness session — exported for unit tests. */
-// fallow-ignore-next-line complexity unused-export
+// fallow-ignore-next-line complexity
 export async function closeHarnessSession(
   session: DirectHarnessSession,
   deps: CommandSubscriberDeps,

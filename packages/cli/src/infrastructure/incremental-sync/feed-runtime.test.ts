@@ -3,7 +3,7 @@ import type { FunctionReference } from 'convex/server';
 import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { runIncrementalSubscribeLive, runReconcilePollLive } from './feed-runtime.js';
+import { runIncrementalSubscribeLive } from './feed-runtime.js';
 import type { IncrementalFeedDef, FeedPage } from './types.js';
 
 type TestItem = { key: string; value: string };
@@ -61,31 +61,5 @@ describe('runIncrementalSubscribe', () => {
 
     expect(handled).toContain('first');
     expect(wsClient.onUpdate).toHaveBeenCalled();
-  });
-});
-
-describe('runReconcilePoll', () => {
-  it('polls on interval and calls onResult', async () => {
-    let pollCount = 0;
-    const results: number[] = [];
-
-    const handle = await Effect.runPromise(
-      runReconcilePollLive({
-        name: 'reconcile-test',
-        poll: async () => {
-          pollCount++;
-          return pollCount;
-        },
-        args: {},
-        intervalMs: 10,
-        onResult: (n) => Effect.sync(() => results.push(n)),
-      })
-    );
-
-    await Effect.runPromise(Effect.sleep('50 millis'));
-    await Effect.runPromise(handle.stop());
-
-    expect(pollCount).toBeGreaterThanOrEqual(2);
-    expect(results.length).toBeGreaterThanOrEqual(2);
   });
 });

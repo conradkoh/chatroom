@@ -2,6 +2,7 @@
  * Assigned task signals — incremental feed definition for task monitor.
  */
 
+import { parseAssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
@@ -19,6 +20,7 @@ export const assignedTaskSignalsFeedDef: IncrementalFeedDef<
 > = {
   name: 'assigned-task-signals',
   itemKey: (item) => item.revisionKey,
+  parseItem: parseAssignedTaskSignal,
 };
 
 export const assignedTaskSignalsSubscribeTarget: SubscribeQueryTarget<
