@@ -16,7 +16,6 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type {
-  AssignedTaskSignal,
   AssignedTaskSnapshotView,
   AssignedTaskView,
   ListMachineAssignedTaskSnapshotsResult,
@@ -40,7 +39,10 @@ import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import { runIncrementalSubscribeLive } from '../../../infrastructure/incremental-sync/feed-runtime.js';
+import {
+  runDualChannelFeedLive,
+  runIncrementalSubscribeLive,
+} from '../../../infrastructure/incremental-sync/feed-runtime.js';
 import {
   ASSIGNED_TASK_PRESENCE_FEED_BUFFER,
   ASSIGNED_TASK_PRESENCE_FEED_LIMIT,
@@ -53,7 +55,6 @@ import {
   assignedTaskSignalsFeedDef,
   assignedTaskSignalsSubscribeTarget,
 } from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
-import { resolveSnapshotRowForSignal } from '../../../infrastructure/incremental-sync/resolve-snapshot-row.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -225,18 +226,6 @@ async function fetchHydrateRows(session: {
     machineId: session.machineId,
   })) as ListMachineAssignedTaskSnapshotsResult;
   return parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
-}
-
-async function resolveRowForSignal(
-  snapshot: ReturnType<typeof createTaskMonitorSnapshot>,
-  signal: AssignedTaskSignal,
-  session: {
-    sessionId: string;
-    machineId: string;
-    backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
-  }
-): Promise<AssignedTaskSnapshotView | undefined> {
-  return resolveSnapshotRowForSignal(snapshot, signal, () => fetchHydrateRows(session));
 }
 
 async function fetchTaskForAction(
@@ -418,38 +407,12 @@ export const startTaskMonitorEffect = (
       })
     ).pipe(Effect.catchAll(() => Effect.void));
 
-    const hydrate = yield* Effect.tryPromise(
-      () =>
-        session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-        }) as Promise<ListMachineAssignedTaskSnapshotsResult>
-    ).pipe(Effect.orElseSucceed(() => ({ tasks: [] })));
-    const hydrateTasks = parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
-    snapshot.replaceAll(hydrateTasks);
-    if (hydrateTasks.length > 0) {
-      yield* Effect.tryPromise(() =>
-        processTasksUpdate(
-          hydrateTasks,
-          runtime,
-          effectContext,
-          cooldown,
-          agentMgr,
-          sessionDeps,
-          session.machineId,
-          'presence'
-        )
-      ).pipe(Effect.catchAll(() => Effect.void));
-    }
-
-    const signalSeedKey = yield* Effect.tryPromise(() => seedSignalCursor(session)).pipe(
-      Effect.orElseSucceed(() => null)
-    );
     const presenceSeedKey = yield* Effect.tryPromise(() => seedPresenceCursor(session)).pipe(
       Effect.orElseSucceed(() => null)
     );
 
-    const signalHandle = yield* runIncrementalSubscribeLive({
+    const signalHandle = yield* runDualChannelFeedLive({
+      name: 'assigned-task-signals',
       wsClient,
       def: assignedTaskSignalsFeedDef,
       target: assignedTaskSignalsSubscribeTarget,
@@ -459,32 +422,32 @@ export const startTaskMonitorEffect = (
       },
       buffer: ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
       subscribe: { limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT },
-      initialAfterKey: signalSeedKey,
-      onError: (err) =>
+      snapshot,
+      seedCursor: () => seedSignalCursor(session),
+      fetchReconcile: () => fetchHydrateRows(session).then((tasks) => ({ tasks })),
+      extractReconcileRows: (result) => result.tasks,
+      isStopped: () => stopped,
+      onSignalRow: (row) =>
+        Effect.sync(() => {
+          runMonitorPass([row], 'signal');
+        }),
+      onReconcileRows: (tasks) =>
+        Effect.tryPromise(() =>
+          processTasksUpdate(
+            [...tasks],
+            runtime,
+            effectContext,
+            cooldown,
+            agentMgr,
+            sessionDeps,
+            session.machineId,
+            'presence'
+          )
+        ).pipe(Effect.catchAll(() => Effect.void)),
+      onSubscribeError: (err) =>
         console.warn(
           `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
         ),
-      onItem: ({ item: signal, ack }) =>
-        Effect.gen(function* () {
-          ack();
-          if (stopped) return;
-          const row = yield* Effect.tryPromise(() =>
-            resolveRowForSignal(snapshot, signal, session)
-          ).pipe(
-            Effect.catchAll((err) =>
-              Effect.sync(() => {
-                console.warn(
-                  `[${formatTimestamp()}] ⚠️  Task signal merge failed: ${getErrorMessage(err)}`
-                );
-                return undefined;
-              })
-            )
-          );
-          if (!row) return;
-          yield* Effect.sync(() => {
-            runMonitorPass([row], 'signal');
-          });
-        }),
     });
 
     const presenceHandle = yield* runIncrementalSubscribeLive({

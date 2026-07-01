@@ -20,7 +20,7 @@ The standard pattern is **cursor-pinned incremental (delta) subscription** plus 
 | Layer             | Location                                                                                          | Responsibility                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | **Transport**     | `packages/cli/src/infrastructure/incremental-sync/` (`message-buffer.ts`, `subscribe-loop.ts`, …) | WS subscribe, cursor, `MessageBuffer`, reconcile poll helper    |
-| **Orchestration** | `packages/cli/src/infrastructure/incremental-sync/dual-channel-feed.ts`                           | Initial hydrate, cursor seed, cold hydrate, dual-channel wiring |
+| **Orchestration** | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`)     | Initial hydrate, cursor seed, cold hydrate, dual-channel wiring |
 | **Consumer**      | Co-located with the subscriber (e.g. `daemon-start/task-monitor-snapshot.ts`)                     | Domain merge rules + handler passes over `WorkingSnapshot`      |
 
 **Reference implementation:**
@@ -183,7 +183,7 @@ export function createMyFeedSnapshot(): WorkingSnapshot<MyRow, MySignal> {
 **2. Dual-channel wiring** — `runDualChannelFeedLive` handles hydrate, cursor seed, incremental subscribe, cold hydrate, and reconcile poll:
 
 ```typescript
-import { runDualChannelFeedLive } from '../../../infrastructure/incremental-sync/dual-channel-feed.js';
+import { runDualChannelFeedLive } from '../../../infrastructure/incremental-sync/feed-runtime.js';
 import { myFeedDef, myFeedSubscribeTarget } from '../../../infrastructure/incremental-sync/feeds/my-feed.js';
 
 const snapshot = createMyFeedSnapshot();
@@ -267,17 +267,16 @@ If the subscribe query re-runs too often because it reads high-churn tables, wri
 
 ## Library modules (this folder)
 
-| Module                 | Responsibility                                                          |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `types.ts`             | `FeedPage`, `IncrementalFeedDef`, `SubscribeQueryTarget`, handler types |
-| `message-buffer.ts`    | FIFO queue, dedupe, bounded size                                        |
-| `subscribe-loop.ts`    | Cursor-pinned `onUpdate`, drain `hasMore`, re-subscribe                 |
-| `resolve-high-key.ts`  | Derive `afterKey` from a page                                           |
-| `feed-runtime.ts`      | `runIncrementalSubscribeLive`, `runReconcilePollLive`                   |
-| `working-snapshot.ts`  | `WorkingSnapshot` — generic `replaceAll` / `mergeSignal` map            |
-| `dual-channel-feed.ts` | `runDualChannelFeedLive` — hydrate, seed, subscribe, reconcile wiring   |
-| `layers.ts`            | `IntervalClock` for testable reconcile poll timing                      |
-| `feeds/<name>.ts`      | Per-feed `IncrementalFeedDef` + `SubscribeQueryTarget`                  |
+| Module                | Responsibility                                                                  |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `types.ts`            | `FeedPage`, `IncrementalFeedDef`, `SubscribeQueryTarget`, handler types         |
+| `message-buffer.ts`   | FIFO queue, dedupe, bounded size                                                |
+| `subscribe-loop.ts`   | Cursor-pinned `onUpdate`, drain `hasMore`, re-subscribe                         |
+| `resolve-high-key.ts` | Derive `afterKey` from a page                                                   |
+| `feed-runtime.ts`     | `runIncrementalSubscribeLive`, `runReconcilePollLive`, `runDualChannelFeedLive` |
+| `working-snapshot.ts` | `WorkingSnapshot` — generic `replaceAll` / `mergeSignal` map                    |
+| `layers.ts`           | `IntervalClock` for testable reconcile poll timing                              |
+| `feeds/<name>.ts`     | Per-feed `IncrementalFeedDef` + `SubscribeQueryTarget`                          |
 
 ### Wiring a new feed
 
@@ -318,18 +317,18 @@ Reconcile: replaceAll(snapshot) ──► processTasksUpdate(all, 'reconcile')
 getAssignedTaskForAction (full task.content)
 ```
 
-| Piece              | Location                                                                          |
-| ------------------ | --------------------------------------------------------------------------------- |
-| Incremental query  | `services/backend/convex/machines.ts` → `subscribeAssignedTaskSignalsSince`       |
-| Hydrate snapshot   | `services/backend/convex/machines.ts` → `listMachineAssignedTaskSnapshots`        |
-| Presence subscribe | `services/backend/convex/machines.ts` → `subscribeAssignedTaskPresenceSince`      |
-| Action fetch       | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                |
-| Backend core       | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`              |
-| Feed def           | `packages/cli/src/infrastructure/incremental-sync/feeds/assigned-task-signals.ts` |
-| Orchestration      | `packages/cli/src/infrastructure/incremental-sync/dual-channel-feed.ts`           |
-| Consumer           | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                  |
-| Domain snapshot    | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`         |
-| Handler logic      | `packages/cli/src/commands/machine/daemon-start/task-monitor-logic.ts`            |
+| Piece              | Location                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| Incremental query  | `services/backend/convex/machines.ts` → `subscribeAssignedTaskSignalsSince`                   |
+| Hydrate snapshot   | `services/backend/convex/machines.ts` → `listMachineAssignedTaskSnapshots`                    |
+| Presence subscribe | `services/backend/convex/machines.ts` → `subscribeAssignedTaskPresenceSince`                  |
+| Action fetch       | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
+| Backend core       | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
+| Feed def           | `packages/cli/src/infrastructure/incremental-sync/feeds/assigned-task-signals.ts`             |
+| Orchestration      | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
+| Consumer           | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
+| Domain snapshot    | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
+| Handler logic      | `packages/cli/src/commands/machine/daemon-start/task-monitor-logic.ts`                        |
 
 Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (matches idle nudge threshold).
 
