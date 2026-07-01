@@ -6,6 +6,7 @@ import { requireMachineOwner } from './auth/cli/machineAccess';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 
 /** Emits agent.resumeStormAborted when rapid agent_end events abort in-process auto-resume. */
 export const emitResumeStormAborted = mutation({
@@ -62,12 +63,16 @@ export const emitResumeStormAborted = mutation({
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', stormTeamRoleKey))
         .first();
       if (stormConfig) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', stormConfig._id, {
-          desiredState: 'stopped',
-          spawnedAgentPid: undefined,
-          spawnedAt: undefined,
-          updatedAt: Date.now(),
-        });
+        await patchTeamAgentConfig(
+          ctx,
+          stormConfig._id,
+          {
+            desiredState: 'stopped',
+            spawnedAgentPid: undefined,
+            spawnedAt: undefined,
+          },
+          { projectScope: 'chatroom' }
+        );
       }
     }
 

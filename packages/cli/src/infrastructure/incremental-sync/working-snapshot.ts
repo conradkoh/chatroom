@@ -32,6 +32,10 @@ export class WorkingSnapshot<TRow, TSignal> {
     return this.rows.get(key);
   }
 
+  upsertRow(row: TRow): void {
+    this.rows.set(this.opts.rowKey(row), row);
+  }
+
   getBySignal(signal: TSignal): TRow | undefined {
     return this.rows.get(this.opts.signalKey(signal));
   }

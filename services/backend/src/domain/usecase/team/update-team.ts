@@ -11,6 +11,10 @@ import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { emitConfigRemoval } from '../agent/config-removal';
+import {
+  patchTeamAgentConfig,
+  projectAssignedTaskSnapshotsForMachines,
+} from '../machine/patch-team-agent-config';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -61,7 +65,14 @@ export async function updateTeam(
   let stoppedAgentCount = 0;
   let deletedTeamConfigCount = 0;
 
+  // Track machines whose configs are being torn down so we can prune their
+  // orphaned snapshot projection rows after the configs are deleted.
+  const affectedMachineIds = new Set<string>();
+
   for (const config of existingTeamConfigs) {
+    if (config.machineId) {
+      affectedMachineIds.add(config.machineId);
+    }
     // Dispatch stop event for running remote agents.
     // The daemon will receive this, stop the process, and call recordAgentExited
     // which clears the PID in teamAgentConfig.
@@ -82,12 +93,16 @@ export async function updateTeam(
       // This prevents stale configs from appearing as "running" in the UI
       // if the daemon doesn't process the stop event in time (deadline expiry,
       // daemon disconnected, etc.).
-      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
-        desiredState: 'stopped',
-        updatedAt: now,
-      });
+      await patchTeamAgentConfig(
+        ctx,
+        config._id,
+        {
+          spawnedAgentPid: undefined,
+          spawnedAt: undefined,
+          desiredState: 'stopped',
+        },
+        { skipProject: true }
+      );
     }
 
     if (config.machineId) {
@@ -111,6 +126,10 @@ export async function updateTeam(
       deletedTeamConfigCount++;
     }
   }
+
+  // Rebuild each affected machine's snapshot projection. With this chatroom's
+  // configs now deleted, projection rebuild prunes the orphaned rows.
+  await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
 
   return {
     stoppedAgentCount,

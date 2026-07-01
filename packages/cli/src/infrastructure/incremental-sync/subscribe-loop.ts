@@ -14,6 +14,26 @@ import type {
   SubscribeQueryTarget,
 } from './types.js';
 
+// fallow-ignore-next-line complexity
+function parseFeedItems<TItem>(
+  def: IncrementalFeedDef<TItem, unknown>,
+  items: readonly unknown[],
+  onError?: (err: unknown) => void
+): TItem[] {
+  if (!def.parseItem) {
+    return items as TItem[];
+  }
+  const parsed: TItem[] = [];
+  for (const raw of items) {
+    try {
+      parsed.push(def.parseItem(raw));
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+  return parsed;
+}
+
 export interface SubscribeLoopHandle {
   readonly stop: () => void;
   readonly getAfterKey: () => StreamKey | null;
@@ -69,7 +89,10 @@ export function startSubscribeLoop<TItem, TArgs>(opts: {
       let page = initialPage;
 
       while (!stopped && page.items.length > 0) {
-        opts.buffer.enqueue(page.items);
+        const items = parseFeedItems(opts.def, page.items, opts.onError);
+        if (items.length > 0) {
+          opts.buffer.enqueue(items);
+        }
         const nextKey = resolveHighKey(
           opts.def as IncrementalFeedDef<TItem, unknown>,
           opts.buffer,

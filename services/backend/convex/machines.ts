@@ -30,7 +30,15 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
-import { listAssignedTasksForReconcileForMachine } from '../src/domain/usecase/machine/list-assigned-tasks-for-reconcile';
+import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
+import { projectAssignedTaskSnapshotsForMachine } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import {
+  patchTeamAgentConfig,
+  projectAfterTeamConfigRegistration,
+  projectAssignedTaskSnapshotsForMachines,
+  upsertTeamAgentConfigByTeamRoleKey,
+} from '../src/domain/usecase/machine/patch-team-agent-config';
+import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -1400,10 +1408,9 @@ export const updateSpawnedAgent = mutation({
 
     const now = Date.now();
 
-    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+    await patchTeamAgentConfig(ctx, config._id, {
       spawnedAgentPid: args.pid,
       spawnedAt: args.pid ? now : undefined,
-      updatedAt: now,
       ...(args.model !== undefined ? { model: args.model } : {}),
     });
 
@@ -1608,7 +1615,6 @@ async function runRecordCustomAgentRegistered(
 
   const now = Date.now();
   const nextConfig = {
-    teamRoleKey,
     chatroomId: args.chatroomId,
     role: args.role,
     type: 'custom' as const,
@@ -1620,21 +1626,20 @@ async function runRecordCustomAgentRegistered(
     desiredState: 'running' as const,
   };
 
-  if (existing) {
-    await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, nextConfig);
-  } else {
-    await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
-      ...nextConfig,
-      createdAt: now,
-    });
-  }
+  const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+    teamRoleKey,
+    fields: nextConfig,
+    createdAt: now,
+  });
 
   await ensureOnlyAgentForRole(ctx, {
     chatroomId: args.chatroomId,
     role: args.role,
     excludeMachineId: undefined,
   });
+  if (previousMachineId) {
+    await projectAssignedTaskSnapshotsForMachines(ctx, [previousMachineId]);
+  }
 
   await ctx.db.insert('chatroom_eventStream', {
     type: 'agent.registered',
@@ -1847,7 +1852,6 @@ export const saveTeamAgentConfig = mutation({
       args.type === 'remote' ? (args.agentHarness ?? existing?.agentHarness) : undefined;
 
     const config = {
-      teamRoleKey,
       chatroomId: args.chatroomId,
       role: args.role,
       type: args.type,
@@ -1859,20 +1863,21 @@ export const saveTeamAgentConfig = mutation({
       desiredState: 'running' as const,
     };
 
-    if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, config);
-    } else {
-      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        ...config,
-        createdAt: now,
-      });
-    }
+    const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+      teamRoleKey,
+      fields: config,
+      createdAt: now,
+    });
 
     await ensureOnlyAgentForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
+    });
+    await projectAfterTeamConfigRegistration(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.type === 'remote' ? args.machineId : undefined,
+      previousMachineId,
     });
 
     // Emit agent.registered event to the event stream
@@ -1930,10 +1935,7 @@ export const setWantResume = mutation({
     const now = Date.now();
 
     if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
-        wantResume: args.wantResume,
-        updatedAt: now,
-      });
+      await patchTeamAgentConfig(ctx, existing._id, { wantResume: args.wantResume });
     } else {
       await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
       await ctx.db.insert('chatroom_teamAgentConfigs', {
@@ -2463,14 +2465,13 @@ export const getAgentOverviewForChatroom = query({
 
 // ============================================================================
 // DAEMON TASK MONITOR
-// Used by the daemon to poll assigned tasks on this machine.
+// Slim snapshot projection + indexed subscribe cursors for assigned tasks.
 // ============================================================================
 
 /**
- * Assigned-task reconcile snapshot for daemon polls (no task.content in response).
+ * One-shot hydrate of slim assigned-task rows for this machine (no task.content).
  */
-// fallow-ignore-next-line code-duplication
-export const listAssignedTasksForReconcile = query({
+export const listMachineAssignedTaskSnapshots = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
@@ -2479,7 +2480,7 @@ export const listAssignedTasksForReconcile = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { tasks: [] };
 
-    return listAssignedTasksForReconcileForMachine(ctx, {
+    return listMachineAssignedTaskSnapshotsUseCase(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
     });
@@ -2487,7 +2488,25 @@ export const listAssignedTasksForReconcile = query({
 });
 
 /**
- * Incremental task-monitor signals since an exclusive cursor (reactive subscribe).
+ * Rebuild snapshot projection rows for this machine (daemon startup backfill).
+ */
+export const syncMachineAssignedTaskSnapshotsMutation = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+    await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
+    return { success: true };
+  },
+});
+
+/**
+ * Incremental task-monitor signals since an exclusive revisionKey cursor (WS subscribe).
  */
 export const subscribeAssignedTaskSignalsSince = query({
   args: {
@@ -2504,6 +2523,31 @@ export const subscribeAssignedTaskSignalsSince = query({
       machineId: args.machineId,
       userId: auth.userId,
       afterKey: args.afterKey,
+      limit: args.limit,
+    });
+  },
+});
+
+/**
+ * Incremental participant presence since an exclusive presenceUpdatedAt cursor (WS subscribe).
+ */
+export const subscribeAssignedTaskPresenceSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterPresenceAt: v.optional(v.number()),
+    afterPresenceKey: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { items: [], highPresenceAt: null, highPresenceKey: null, hasMore: false };
+
+    return subscribeAssignedTaskPresenceForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterPresenceAt: args.afterPresenceAt,
+      afterPresenceKey: args.afterPresenceKey,
       limit: args.limit,
     });
   },
@@ -2583,10 +2627,7 @@ export const emitAgentStartFailed = mutation({
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', failedTeamRoleKey))
         .first();
       if (failedConfig) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', failedConfig._id, {
-          desiredState: 'stopped',
-          updatedAt: Date.now(),
-        });
+        await patchTeamAgentConfig(ctx, failedConfig._id, { desiredState: 'stopped' });
       }
     }
 
@@ -2878,16 +2919,19 @@ export const clearAllSpawnedPids = mutation({
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .collect();
 
-    const now = Date.now();
     let clearedCount = 0;
 
     for (const config of allConfigs) {
       if (config.spawnedAgentPid != null) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-          spawnedAgentPid: undefined,
-          spawnedAt: undefined,
-          updatedAt: now,
-        });
+        await patchTeamAgentConfig(
+          ctx,
+          config._id,
+          {
+            spawnedAgentPid: undefined,
+            spawnedAt: undefined,
+          },
+          { skipProject: true }
+        );
 
         // Update participant status so the UI doesn't show "STARTING" or "WORKING"
         await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);
@@ -2895,6 +2939,7 @@ export const clearAllSpawnedPids = mutation({
         clearedCount++;
       }
     }
+    await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
 
     return { clearedCount };
   },

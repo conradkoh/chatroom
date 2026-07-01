@@ -13,6 +13,8 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
 import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
+import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 type TeamAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 
@@ -43,16 +45,20 @@ function shouldRestartForOfflineParticipant(
 async function ensureRunningClosedCircuit(
   ctx: MutationCtx,
   config: TeamAgentConfig,
-  now: number
+  _now: number
 ): Promise<void> {
   const needsDesiredState = config.desiredState !== 'running';
   const needsCircuitClose = config.circuitState === 'open';
   if (!needsDesiredState && !needsCircuitClose) return;
-  await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-    ...(needsDesiredState ? { desiredState: 'running' as const } : {}),
-    ...(needsCircuitClose ? { circuitState: 'closed' as const, circuitOpenedAt: undefined } : {}),
-    updatedAt: now,
-  });
+  await patchTeamAgentConfig(
+    ctx,
+    config._id,
+    {
+      ...(needsDesiredState ? { desiredState: 'running' as const } : {}),
+      ...(needsCircuitClose ? { circuitState: 'closed' as const, circuitOpenedAt: undefined } : {}),
+    },
+    { skipProject: true }
+  );
 }
 
 async function emitOfflineUserMessageRestart(
@@ -80,6 +86,7 @@ async function emitOfflineUserMessageRestart(
   await transitionAgentStatus(ctx, chatroomId, config.role, 'agent.requestStart', 'running');
 }
 
+// fallow-ignore-next-line complexity
 export async function restartOfflineAgentsOnUserMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
@@ -103,6 +110,13 @@ export async function restartOfflineAgentsOnUserMessage(
     await ensureRunningClosedCircuit(ctx, config, now);
     await emitOfflineUserMessageRestart(ctx, chatroomId, config, now);
     restartedRoles.push(config.role);
+  }
+
+  // Refresh the daemon snapshot projection when we flipped any config back to
+  // desiredState=running so the task monitor can act without waiting for a
+  // task transition.
+  if (restartedRoles.length > 0) {
+    await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
   }
 
   return { restartedRoles };

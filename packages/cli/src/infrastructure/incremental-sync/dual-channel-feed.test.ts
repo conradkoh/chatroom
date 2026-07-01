@@ -3,8 +3,8 @@ import type { FunctionReference } from 'convex/server';
 import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
-import { runDualChannelFeedLive } from './dual-channel-feed.js';
-import type { DualChannelFeedSnapshot } from './dual-channel-feed.js';
+import { runDualChannelFeedLive } from './feed-runtime.js';
+import type { DualChannelFeedSnapshot } from './feed-runtime.js';
 import type { IncrementalFeedDef, FeedPage } from './types.js';
 import { WorkingSnapshot } from './working-snapshot.js';
 

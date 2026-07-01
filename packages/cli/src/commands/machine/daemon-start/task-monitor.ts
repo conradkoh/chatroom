@@ -1,8 +1,9 @@
 /**
- * Task Monitor — incremental subscribe + reconcile for assigned tasks on this machine.
+ * Task Monitor — indexed snapshot projection + WS signal/presence subscribe.
  *
- * - Signal feed: patch working snapshot, run revive/inject for that row (no reconcile refetch)
- * - Reconcile poll: refresh snapshot from listAssignedTasksForReconcile, full pass including nudge
+ * - Hydrate: one-shot listMachineAssignedTaskSnapshots (slim rows, no task.content)
+ * - Signal feed: revisionKey cursor — revive/inject
+ * - Presence feed: presenceUpdatedAt cursor — nudge timing (replaces 15s reconcile poll)
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
@@ -13,9 +14,11 @@ import {
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
+  ListMachineAssignedTaskSnapshotsResult,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
@@ -36,9 +39,17 @@ import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import { runDualChannelFeedLive } from '../../../infrastructure/incremental-sync/dual-channel-feed.js';
 import {
-  ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
+  runDualChannelFeedLive,
+  runIncrementalSubscribeLive,
+} from '../../../infrastructure/incremental-sync/feed-runtime.js';
+import {
+  ASSIGNED_TASK_PRESENCE_FEED_BUFFER,
+  ASSIGNED_TASK_PRESENCE_FEED_LIMIT,
+  assignedTaskPresenceFeedDef,
+  assignedTaskPresenceSubscribeTarget,
+} from '../../../infrastructure/incremental-sync/feeds/assigned-task-presence.js';
+import {
   ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
   ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
   assignedTaskSignalsFeedDef,
@@ -49,9 +60,33 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
-type ListAssignedTasksForReconcileResult = { tasks: AssignedTaskSnapshotView[] };
+type TaskMonitorPass = 'signal' | 'presence';
 
-type TaskMonitorPass = 'signal' | 'reconcile';
+async function seedSignalCursor(session: {
+  sessionId: string;
+  machineId: string;
+  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
+}): Promise<string | null> {
+  const seedPage = (await session.backend.query(api.machines.subscribeAssignedTaskSignalsSince, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
+  })) as { highKey: string | null } | null;
+  return seedPage?.highKey ?? null;
+}
+
+async function seedPresenceCursor(session: {
+  sessionId: string;
+  machineId: string;
+  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
+}): Promise<string | null> {
+  const seedPage = (await session.backend.query(api.machines.subscribeAssignedTaskPresenceSince, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    limit: ASSIGNED_TASK_PRESENCE_FEED_LIMIT,
+  })) as { highPresenceKey: string | null } | null;
+  return seedPage?.highPresenceKey ?? null;
+}
 
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
   return sessionAugmentationToWantResume(
@@ -181,6 +216,18 @@ function runNativeReviveEffect(
   );
 }
 
+async function fetchHydrateRows(session: {
+  sessionId: string;
+  machineId: string;
+  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
+}): Promise<AssignedTaskSnapshotView[]> {
+  const hydrate = (await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+  })) as ListMachineAssignedTaskSnapshotsResult;
+  return parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
+}
+
 async function fetchTaskForAction(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
@@ -285,7 +332,7 @@ async function processTasksUpdate(
     sessionDeps,
     machineId,
   });
-  if (pass === 'reconcile') {
+  if (pass === 'presence') {
     await nudgeStuckTasks(
       tasks,
       now,
@@ -353,14 +400,19 @@ export const startTaskMonitorEffect = (
       });
     };
 
-    const queryReconcileSnapshots = (): Promise<ListAssignedTasksForReconcileResult> =>
-      session.backend.query(api.machines.listAssignedTasksForReconcile, {
+    yield* Effect.tryPromise(() =>
+      session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
         sessionId: session.sessionId,
         machineId: session.machineId,
-      }) as Promise<ListAssignedTasksForReconcileResult>;
+      })
+    ).pipe(Effect.catchAll(() => Effect.void));
 
-    const feedHandle = yield* runDualChannelFeedLive({
-      name: 'assigned-tasks',
+    const presenceSeedKey = yield* Effect.tryPromise(() => seedPresenceCursor(session)).pipe(
+      Effect.orElseSucceed(() => null)
+    );
+
+    const signalHandle = yield* runDualChannelFeedLive({
+      name: 'assigned-task-signals',
       wsClient,
       def: assignedTaskSignalsFeedDef,
       target: assignedTaskSignalsSubscribeTarget,
@@ -371,39 +423,65 @@ export const startTaskMonitorEffect = (
       buffer: ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
       subscribe: { limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT },
       snapshot,
-      seedCursor: async () => {
-        const seedPage = (await session.backend.query(
-          api.machines.subscribeAssignedTaskSignalsSince,
-          {
-            sessionId: session.sessionId,
-            machineId: session.machineId,
-            limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
-          }
-        )) as { highKey: string | null } | null;
-        return seedPage?.highKey ?? null;
-      },
-      fetchReconcile: () => queryReconcileSnapshots(),
-      extractReconcileRows: (result) => result?.tasks ?? [],
-      reconcileIntervalMs: ASSIGNED_TASK_RECONCILE_INTERVAL_MS,
+      seedCursor: () => seedSignalCursor(session),
+      fetchReconcile: () => fetchHydrateRows(session).then((tasks) => ({ tasks })),
+      extractReconcileRows: (result) => result.tasks,
       isStopped: () => stopped,
-      onSubscribeError: (err) =>
-        console.warn(
-          `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
-        ),
       onSignalRow: (row) =>
         Effect.sync(() => {
           runMonitorPass([row], 'signal');
         }),
       onReconcileRows: (tasks) =>
-        Effect.sync(() => {
-          runMonitorPass([...tasks], 'reconcile');
+        Effect.tryPromise(() =>
+          processTasksUpdate(
+            [...tasks],
+            runtime,
+            effectContext,
+            cooldown,
+            agentMgr,
+            sessionDeps,
+            session.machineId,
+            'presence'
+          )
+        ).pipe(Effect.catchAll(() => Effect.void)),
+      onSubscribeError: (err) =>
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
+        ),
+    });
+
+    const presenceHandle = yield* runIncrementalSubscribeLive({
+      wsClient,
+      def: assignedTaskPresenceFeedDef,
+      target: assignedTaskPresenceSubscribeTarget,
+      args: {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      },
+      buffer: ASSIGNED_TASK_PRESENCE_FEED_BUFFER,
+      subscribe: { limit: ASSIGNED_TASK_PRESENCE_FEED_LIMIT },
+      initialAfterKey: presenceSeedKey,
+      onError: (err) =>
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Task presence subscription error: ${getErrorMessage(err)}`
+        ),
+      onItem: ({ item: presence, ack }) =>
+        Effect.gen(function* () {
+          ack();
+          if (stopped) return;
+          const row = snapshot.mergePresence(presence);
+          if (!row) return;
+          yield* Effect.sync(() => {
+            runMonitorPass([row], 'presence');
+          });
         }),
     });
 
     return {
       stop() {
         stopped = true;
-        void Effect.runPromise(feedHandle.stop());
+        void Effect.runPromise(signalHandle.stop());
+        void Effect.runPromise(presenceHandle.stop());
         console.log(`[${formatTimestamp()}] 📋 Task-monitor stopped`);
       },
     };

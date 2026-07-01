@@ -17,6 +17,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentStopReason } from '../../entities/agent';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -89,11 +90,16 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
   // Mark the agent config as desired-stopped and eagerly clear spawn state
   // so that subsequent queries (e.g. isAlive) reflect the stop immediately.
   if (teamConfig) {
-    await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
-      desiredState: 'stopped',
-      spawnedAgentPid: undefined,
-      spawnedAt: undefined,
-    });
+    await patchTeamAgentConfig(
+      ctx,
+      teamConfig._id,
+      {
+        desiredState: 'stopped',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      },
+      { projectScope: 'chatroom' }
+    );
   }
 
   return {};
