@@ -108,6 +108,87 @@ describe('fuzzyMatch', () => {
   });
 });
 
+describe('word prefix matching', () => {
+  it('matches repo against Repository word in label', () => {
+    expect(fuzzyMatch('repo', 'Github: View Repository')).toBeGreaterThan(0);
+  });
+
+  it('matches repo against Repository path segment', () => {
+    expect(
+      fuzzyMatch('repo', 'src/components/OldRepoAdapter/RepositoryBridge/index.ts')
+    ).toBeGreaterThan(0);
+  });
+
+  it('matches repo against Repos directory segment', () => {
+    expect(fuzzyMatch('repo', '/Users/me/Documents/Repos/chatroom')).toBeGreaterThan(0);
+  });
+
+  it('ranks prefix match on Repository above scattered path noise', () => {
+    const prefix = fuzzyMatch('repo', 'src/Repository/index.ts');
+    const scattered = fuzzyMatch('repo', 'src/components/OldRepoAdapter/RepositoryBridge/index.ts');
+    expect(prefix).toBeGreaterThan(scattered);
+  });
+
+  it('fuzzyFilter uses prefix match via keywords basename', () => {
+    expect(
+      fuzzyFilter('src/components/OldRepoAdapter/RepositoryBridge/index.ts', 'repo', [
+        'RepositoryBridge',
+      ])
+    ).toBeGreaterThan(0);
+  });
+
+  it('matches repo with trailing space against Repository word in label', () => {
+    expect(fuzzyMatch('repo ', 'Github: View Repository')).toBeGreaterThan(0);
+  });
+
+  it('matches repo with trailing space against Repository path segment', () => {
+    expect(fuzzyMatch('repo ', 'src/Repository/index.ts')).toBeGreaterThan(0);
+  });
+
+  it('ranks repo with trailing space on Repository above scattered path noise', () => {
+    const prefix = fuzzyMatch('repo ', 'src/Repository/index.ts');
+    const scattered = fuzzyMatch(
+      'repo ',
+      'src/components/OldRepoAdapter/RepositoryBridge/index.ts'
+    );
+    expect(prefix).toBeGreaterThan(scattered);
+  });
+
+  it('fuzzyFilter matches repo with trailing space via keywords', () => {
+    expect(
+      fuzzyFilter('src/components/OldRepoAdapter/RepositoryBridge/index.ts', 'repo ', [
+        'RepositoryBridge',
+      ])
+    ).toBeGreaterThan(0);
+  });
+});
+
+describe('command palette keyword matching', () => {
+  const githubDesktopLabel = 'Machine: Open in GitHub Desktop';
+  const viewRepoLabel = 'Github: View Repository';
+  const workingDir = '/Users/me/Documents/Repos/chatroom';
+
+  it('does not match GitHub Desktop when repo query only matches a parent path segment', () => {
+    const fullPathKeywords = ['github desktop', 'localhost', workingDir];
+    expect(fuzzyFilter(githubDesktopLabel, 'repo ', fullPathKeywords)).toBeGreaterThan(0);
+
+    const basenameKeywords = ['github desktop', 'localhost', 'chatroom'];
+    expect(fuzzyFilter(githubDesktopLabel, 'repo ', basenameKeywords)).toBe(0);
+  });
+
+  it('still matches View Repository via explicit repo keyword', () => {
+    expect(
+      fuzzyFilter(viewRepoLabel, 'repo ', ['repo', 'repository', 'github', 'localhost', 'chatroom'])
+    ).toBeGreaterThan(0);
+  });
+
+  it('still matches commands by workspace basename', () => {
+    expect(
+      fuzzyFilter(githubDesktopLabel, 'chatroom', ['github desktop', 'localhost', 'chatroom'])
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe('fuzzyFilter', () => {
   it('returns 0 for no match', () => {
     expect(fuzzyFilter('hello', 'xyz')).toBe(0);
