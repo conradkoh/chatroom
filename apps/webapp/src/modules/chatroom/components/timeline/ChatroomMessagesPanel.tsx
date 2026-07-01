@@ -12,6 +12,9 @@ export interface ChatroomMessagesPanelProps {
   chatroomId: string;
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
+  onRegisterMessageStoreActions?: (actions: {
+    removeMessagesForTask: (taskId: string) => void;
+  }) => void;
   machines?: Map<string, MachineNameEntry>;
   viewMode: MessageViewMode;
   /** Optional footer (MessageInput) rendered below feed */
@@ -22,6 +25,7 @@ export function ChatroomMessagesPanel({
   chatroomId,
   coordinator,
   onRegisterOpenEventStream,
+  onRegisterMessageStoreActions,
   machines,
   viewMode,
   footer,
@@ -33,6 +37,7 @@ export function ChatroomMessagesPanel({
           chatroomId={chatroomId}
           coordinator={coordinator}
           onRegisterOpenEventStream={onRegisterOpenEventStream}
+          onRegisterMessageStoreActions={onRegisterMessageStoreActions}
           machines={machines}
         />
       ) : (

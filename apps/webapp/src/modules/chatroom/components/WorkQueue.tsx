@@ -44,7 +44,12 @@ const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 // Maximum number of current tasks to show in sidebar before "View More"
 const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
-export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueueProps) {
+export function WorkQueue({
+  chatroomId,
+  lifecycle,
+  onRegisterActions,
+  onTaskDeleted,
+}: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
@@ -266,8 +271,9 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         type: 'task',
         taskId: taskId as Id<'chatroom_tasks'>,
       });
+      onTaskDeleted?.(taskId);
     },
-    [deleteUserMessageOrTask]
+    [deleteUserMessageOrTask, onTaskDeleted]
   );
 
   // Batch close all acknowledged tasks (force complete)
