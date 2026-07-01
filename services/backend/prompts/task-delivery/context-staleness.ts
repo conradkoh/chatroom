@@ -2,6 +2,8 @@
  * Shared context header + staleness warnings for task delivery (CLI and native).
  */
 
+import { contextNewCommand } from '../cli/context/new';
+
 export interface TaskDeliveryContextWindow {
   currentContext?: {
     elapsedHours: number;
@@ -30,9 +32,11 @@ type ContextUpdateParams = Pick<
 function appendContextUpdateHint(lines: string[], params: ContextUpdateParams): void {
   const { chatroomId, role, cliEnvPrefix, isEntryPoint } = params;
   if (!isEntryPoint) return;
-  lines.push(
-    `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
-  );
+  const cmd = contextNewCommand({ chatroomId, role, cliEnvPrefix });
+  lines.push('   Update →');
+  lines.push('   ```bash');
+  lines.push(...cmd.split('\n').map((l) => `   ${l}`));
+  lines.push('   ```');
 }
 
 function appendContextHeader(lines: string[], contextReadLine: string): void {
