@@ -11,6 +11,8 @@ function signal(revisionKey: string): AssignedTaskSignal {
     status: 'pending',
     signalType: 'task',
     revisionKey,
+    agentHarness: 'opencode',
+    createdAt: 1_000,
   };
 }
 

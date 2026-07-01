@@ -116,6 +116,10 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     lastSeenAction: doc.lastSeenAction ?? null,
     spawnedAgentPid: doc.spawnedAgentPid,
     desiredState: doc.desiredState,
+    agentHarness: doc.agentHarness,
+    workingDir: doc.workingDir,
+    assignedTo: doc.taskAssignedTo,
+    createdAt: doc.taskCreatedAt,
   };
 }
 

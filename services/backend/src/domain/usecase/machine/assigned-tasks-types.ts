@@ -64,6 +64,12 @@ export interface AssignedTaskSignal {
   lastSeenAction?: string | null;
   spawnedAgentPid?: number;
   desiredState?: string;
+  /** Fields below are required for constructing a new snapshot row when the daemon
+   *  sees this task for the first time (no existing row in local snapshot). */
+  agentHarness: string;
+  workingDir?: string;
+  assignedTo?: string;
+  createdAt: number;
 }
 
 export interface AssignedTaskPresenceSignal {

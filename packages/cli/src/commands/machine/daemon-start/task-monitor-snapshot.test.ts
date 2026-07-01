@@ -42,6 +42,10 @@ function makeSignal(overrides: Partial<AssignedTaskSignal> = {}): AssignedTaskSi
     lastSeenAction: 'native.waiting',
     spawnedAgentPid: 200,
     desiredState: 'running',
+    agentHarness: 'cursor-sdk',
+    workingDir: '/tmp/project',
+    assignedTo: 'builder',
+    createdAt: 1_000,
     ...overrides,
   };
 }
@@ -77,8 +81,19 @@ describe('createTaskMonitorSnapshot', () => {
     expect(snapshot.getByKey('task_1:builder')?.participant?.lastSeenAction).toBe('task.injected');
   });
 
-  it('returns undefined when merging a signal with no base row', () => {
+  it('constructs a new row when merging a signal with no base row', () => {
     const snapshot = createTaskMonitorSnapshot();
-    expect(snapshot.mergeSignal(makeSignal())).toBeUndefined();
+    const merged = snapshot.mergeSignal(makeSignal());
+    expect(merged).toBeDefined();
+    expect(merged?.taskId).toBe('task_1');
+    expect(merged?.status).toBe('pending');
+    expect(merged?.agentConfig.role).toBe('builder');
+    expect(merged?.agentConfig.agentHarness).toBe('cursor-sdk');
+    expect(merged?.agentConfig.workingDir).toBe('/tmp/project');
+    expect(merged?.agentConfig.spawnedAgentPid).toBe(200);
+    expect(merged?.createdAt).toBe(1_000);
+    expect(merged?.participant?.lastSeenAction).toBe('native.waiting');
+    expect(merged?.participant?.lastSeenAt).toBeNull();
+    expect(snapshot.getByKey('task_1:builder')).toBe(merged);
   });
 });

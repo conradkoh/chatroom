@@ -202,6 +202,74 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     expect(afterAction.items[0]?.lastSeenAction).toBe('get-next-task:started');
   });
 
+  test('emits incremental signal when user sendMessage creates a task after empty daemon baseline', async () => {
+    const { sessionId } = await createTestSession('test-signals-send-message-1');
+    const machineId = 'machine-signals-send-message-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    // Daemon startup: sync projection + hydrate empty working set.
+    await syncMachineSnapshots(sessionId, machineId);
+
+    const hydrate = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId,
+      machineId,
+    });
+    expect(hydrate.tasks).toHaveLength(0);
+
+    const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
+      sessionId,
+      machineId,
+      limit: 10,
+    });
+    expect(baseline.items).toHaveLength(0);
+
+    const messageContent = '## Goal\nBuild from chatroom message';
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: messageContent,
+      type: 'message',
+    });
+
+    const afterMessage = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
+      sessionId,
+      machineId,
+      afterKey: baseline.highKey ?? undefined,
+      limit: 10,
+    });
+
+    expect(afterMessage.items).toHaveLength(1);
+    const signal = afterMessage.items[0]!;
+    expect(signal).toMatchObject({
+      role: 'builder',
+      status: 'pending',
+      agentHarness: 'opencode',
+      workingDir: '/test/workspace',
+      assignedTo: 'builder',
+    });
+    expect(signal.createdAt).toBeGreaterThan(0);
+    expect(signal.revisionKey).toBeTruthy();
+    expect(signal).not.toHaveProperty('taskContent');
+
+    const snapshots = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId,
+      machineId,
+    });
+    expect(snapshots.tasks).toHaveLength(1);
+    expect(snapshots.tasks[0]?.taskId).toBe(signal.taskId);
+
+    const full = await t.query(api.machines.getAssignedTaskForAction, {
+      sessionId,
+      machineId,
+      taskId: signal.taskId,
+      role: 'builder',
+    });
+    expect(full?.taskContent).toBe(messageContent);
+  });
+
   test('does not emit a new signal when only participant lastSeenAt changes', async () => {
     const { sessionId } = await createTestSession('test-signals-heartbeat-1');
     const machineId = 'machine-signals-heartbeat-1';
