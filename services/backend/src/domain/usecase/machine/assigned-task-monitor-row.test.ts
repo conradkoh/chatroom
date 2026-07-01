@@ -55,6 +55,7 @@ function makeSignal(overrides: Partial<AssignedTaskSignal> = {}): AssignedTaskSi
     status: 'pending',
     signalType: 'task',
     revisionKey: 'rev-1',
+    machineId: 'machine-1',
     agentHarness: 'cursor-sdk',
     createdAt: 1_000,
     ...overrides,
@@ -68,7 +69,7 @@ describe('bootstrapMonitorRowFromSignal', () => {
     expect(row.status).toBe('pending');
     expect(row.agentConfig.role).toBe('builder');
     expect(row.agentConfig.agentHarness).toBe('cursor-sdk');
-    expect(row.agentConfig.machineId).toBe('');
+    expect(row.agentConfig.machineId).toBe('machine-1');
     expect(row.participant?.lastSeenAt).toBeNull();
   });
 
@@ -169,14 +170,12 @@ describe('doc → signal → apply round-trip', () => {
       createdAt: fromDoc.createdAt,
       agentConfig: {
         role: fromDoc.agentConfig.role,
+        machineId: fromDoc.agentConfig.machineId,
         agentHarness: fromDoc.agentConfig.agentHarness,
         workingDir: fromDoc.agentConfig.workingDir,
         spawnedAgentPid: fromDoc.agentConfig.spawnedAgentPid,
         desiredState: fromDoc.agentConfig.desiredState,
       },
     });
-    // Bootstrap path uses empty machineId until hydrate; full doc row has machineId.
-    expect(fromDoc.agentConfig.machineId).toBe('machine-1');
-    expect(fromSignal.agentConfig.machineId).toBe('');
   });
 });

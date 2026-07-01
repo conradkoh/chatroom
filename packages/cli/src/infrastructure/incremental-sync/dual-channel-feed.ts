@@ -1,11 +1,13 @@
 /**
  * Dual-channel feed — wires incremental subscribe + reconcile poll over a working snapshot.
  */
+// fallow-ignore-file unused-file
 
 import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
 import { runIncrementalSubscribeLive, runReconcilePollLive } from './feed-runtime.js';
+import { resolveSnapshotRowForSignal } from './resolve-snapshot-row.js';
 import type {
   BufferConfig,
   IncrementalFeedDef,
@@ -62,19 +64,11 @@ export const runDualChannelFeedLive = <TSignal, TRow, TArgs, TReconcileResult>(
       Effect.orElseSucceed(() => null)
     );
 
-    const hydrateFromReconcile = async (): Promise<void> => {
-      const result = await opts.fetchReconcile();
-      opts.snapshot.replaceAll(opts.extractReconcileRows(result));
-    };
+    const hydrateFromReconcile = async (): Promise<readonly TRow[]> =>
+      opts.extractReconcileRows(await opts.fetchReconcile());
 
-    const resolveRowForSignal = async (signal: TSignal): Promise<TRow | undefined> => {
-      const merged = opts.snapshot.mergeSignal(signal);
-      if (merged) {
-        return merged;
-      }
-      await hydrateFromReconcile();
-      return opts.snapshot.mergeSignal(signal) ?? opts.snapshot.getBySignal(signal);
-    };
+    const resolveRowForSignal = async (signal: TSignal): Promise<TRow | undefined> =>
+      resolveSnapshotRowForSignal(opts.snapshot, signal, hydrateFromReconcile);
 
     const signalHandle = yield* runIncrementalSubscribeLive({
       wsClient: opts.wsClient,

@@ -53,6 +53,7 @@ import {
   assignedTaskSignalsFeedDef,
   assignedTaskSignalsSubscribeTarget,
 } from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
+import { resolveSnapshotRowForSignal } from '../../../infrastructure/incremental-sync/resolve-snapshot-row.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -214,6 +215,18 @@ function runNativeReviveEffect(
   );
 }
 
+async function fetchHydrateRows(session: {
+  sessionId: string;
+  machineId: string;
+  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
+}): Promise<AssignedTaskSnapshotView[]> {
+  const hydrate = (await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+  })) as ListMachineAssignedTaskSnapshotsResult;
+  return parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
+}
+
 async function resolveRowForSignal(
   snapshot: ReturnType<typeof createTaskMonitorSnapshot>,
   signal: AssignedTaskSignal,
@@ -223,15 +236,7 @@ async function resolveRowForSignal(
     backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
   }
 ): Promise<AssignedTaskSnapshotView | undefined> {
-  const merged = snapshot.mergeSignal(signal);
-  if (merged) return merged;
-
-  const hydrate = (await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-  })) as ListMachineAssignedTaskSnapshotsResult;
-  snapshot.replaceAll(parseAssignedTaskMonitorRows(hydrate.tasks ?? []));
-  return snapshot.mergeSignal(signal) ?? snapshot.getBySignal(signal);
+  return resolveSnapshotRowForSignal(snapshot, signal, () => fetchHydrateRows(session));
 }
 
 async function fetchTaskForAction(

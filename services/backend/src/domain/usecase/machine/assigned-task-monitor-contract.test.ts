@@ -20,6 +20,7 @@ function minimalSignal(): AssignedTaskSignal {
     status: 'pending',
     signalType: 'task',
     revisionKey: 'rev-1',
+    machineId: 'machine-1',
     agentHarness: 'opencode',
     createdAt: 1_000,
   };
@@ -85,6 +86,7 @@ describe('assignedTaskSignalSchema', () => {
       'chatroomId',
       'role',
       'status',
+      'machineId',
       'assignedTo',
       'createdAt',
       'agentHarness',

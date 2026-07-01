@@ -2,7 +2,6 @@
  * Write-time projection sync for machine assigned-task snapshots.
  */
 
-import { monitorRowFromSnapshotDoc } from './assigned-task-monitor-row';
 import {
   getParticipantForChatroomRole,
   loadMachineAssignedTaskContext,
@@ -14,11 +13,7 @@ import {
   buildAssignedTaskRevisionKey,
   primaryAssignedTaskSignalType,
 } from './assigned-tasks-revision';
-import type {
-  AssignedTaskSignal,
-  AssignedTaskSnapshotView,
-  AssignedTaskPresenceSignal,
-} from './assigned-tasks-types';
+import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getTeamEntryPoint } from '../../entities/team';
@@ -68,10 +63,6 @@ function resolveResponsibleConfigs(
   return configsForChatroom.slice(0, 1);
 }
 
-export function snapshotDocToView(doc: SnapshotDoc): AssignedTaskSnapshotView {
-  return monitorRowFromSnapshotDoc(doc);
-}
-
 export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   return {
     taskId: doc.taskId,
@@ -84,6 +75,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     lastSeenAction: doc.lastSeenAction ?? null,
     spawnedAgentPid: doc.spawnedAgentPid,
     desiredState: doc.desiredState,
+    machineId: doc.machineId,
     agentHarness: doc.agentHarness,
     workingDir: doc.workingDir,
     assignedTo: doc.taskAssignedTo,

@@ -3,21 +3,19 @@
  * Pure functions — safe for CLI import.
  */
 
-import { toAgentConfigView, toParticipantView } from './assigned-tasks-core';
 import type {
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
-} from './assigned-tasks-types';
+} from './assigned-task-monitor-contract';
+import { toAgentConfigView, toParticipantView } from './assigned-tasks-core';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
 
-export type AssignedTaskMonitorRow = AssignedTaskSnapshotView;
-
 /** Full row from projection doc (hydrate path). */
-export function monitorRowFromSnapshotDoc(doc: SnapshotDoc): AssignedTaskMonitorRow {
+export function monitorRowFromSnapshotDoc(doc: SnapshotDoc): AssignedTaskSnapshotView {
   const configStub = {
     role: doc.role,
     machineId: doc.machineId,
@@ -55,16 +53,16 @@ export function monitorRowFromSnapshotDoc(doc: SnapshotDoc): AssignedTaskMonitor
 
 /** Bootstrap or patch: always returns a row when signal is valid. */
 export function applyAssignedTaskSignal(
-  existing: AssignedTaskMonitorRow | undefined,
+  existing: AssignedTaskSnapshotView | undefined,
   signal: AssignedTaskSignal
-): AssignedTaskMonitorRow {
+): AssignedTaskSnapshotView {
   if (!existing) {
     return bootstrapMonitorRowFromSignal(signal);
   }
   return patchMonitorRowFromSignal(existing, signal);
 }
 
-function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTaskMonitorRow {
+function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTaskSnapshotView {
   return {
     taskId: signal.taskId,
     chatroomId: signal.chatroomId,
@@ -74,7 +72,7 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
     createdAt: signal.createdAt,
     agentConfig: {
       role: signal.role,
-      machineId: '',
+      machineId: signal.machineId,
       agentHarness: signal.agentHarness,
       workingDir: signal.workingDir,
       spawnedAgentPid: signal.spawnedAgentPid,
@@ -90,9 +88,9 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
 
 // fallow-ignore-next-line complexity
 function patchMonitorRowFromSignal(
-  existing: AssignedTaskMonitorRow,
+  existing: AssignedTaskSnapshotView,
   signal: AssignedTaskSignal
-): AssignedTaskMonitorRow {
+): AssignedTaskSnapshotView {
   return {
     ...existing,
     status: signal.status,
@@ -111,9 +109,9 @@ function patchMonitorRowFromSignal(
 
 // fallow-ignore-next-line complexity
 export function applyAssignedTaskPresence(
-  existing: AssignedTaskMonitorRow | undefined,
+  existing: AssignedTaskSnapshotView | undefined,
   presence: AssignedTaskPresenceSignal
-): AssignedTaskMonitorRow | undefined {
+): AssignedTaskSnapshotView | undefined {
   if (!existing) return undefined;
   return {
     ...existing,

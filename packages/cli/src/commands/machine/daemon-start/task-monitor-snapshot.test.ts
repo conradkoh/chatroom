@@ -39,6 +39,7 @@ function makeSignal(overrides: Partial<AssignedTaskSignal> = {}): AssignedTaskSi
     status: 'pending',
     signalType: 'task',
     revisionKey: 'rev-1',
+    machineId: 'machine_1',
     lastSeenAction: 'native.waiting',
     spawnedAgentPid: 200,
     desiredState: 'running',

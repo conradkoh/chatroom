@@ -2,11 +2,7 @@
  * Shared helpers for machine assigned-task queries.
  */
 
-import type {
-  AssignedTaskAgentConfigView,
-  AssignedTaskSignal,
-  AssignedTaskSnapshotView,
-} from './assigned-tasks-types';
+import type { AssignedTaskAgentConfigView, AssignedTaskSnapshotView } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 
@@ -126,34 +122,4 @@ export function toParticipantView(
     lastSeenAt: participant.lastSeenAt ?? null,
     lastStatus: participant.lastStatus ?? null,
   };
-}
-
-/** Client-side cursor filter — production subscribe uses indexed projection reads. */
-// fallow-ignore-next-line unused-export
-export function filterSignalsAfterKey(
-  signals: AssignedTaskSignal[],
-  afterKey: string | undefined,
-  limit: number
-): SubscribeAssignedTaskSignalsSlice {
-  const sorted = [...signals].sort((a, b) =>
-    a.revisionKey < b.revisionKey ? -1 : a.revisionKey > b.revisionKey ? 1 : 0
-  );
-
-  const filtered =
-    afterKey === undefined || afterKey === ''
-      ? sorted
-      : sorted.filter((signal) => signal.revisionKey > afterKey);
-
-  const items = filtered.slice(0, limit);
-  const hasMore = filtered.length > limit;
-  const lastItem = items.at(-1);
-  const highKey = lastItem ? lastItem.revisionKey : null;
-
-  return { items, highKey, hasMore };
-}
-
-export interface SubscribeAssignedTaskSignalsSlice {
-  items: AssignedTaskSignal[];
-  highKey: string | null;
-  hasMore: boolean;
 }

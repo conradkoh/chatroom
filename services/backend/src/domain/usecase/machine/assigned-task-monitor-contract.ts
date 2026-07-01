@@ -1,18 +1,16 @@
 /**
  * Zod wire contracts for daemon assigned-task monitor feeds.
  *
+ * Wire types are derived from these schemas (single source of truth).
+ *
  * @see docs/conventions/domain-models.md
  * @see docs/design/assigned-task-monitor-contract-refactor-plan.md
  */
 // fallow-ignore-file unused-export
+// fallow-ignore-file unused-type
 
 import { z } from 'zod';
 
-import type {
-  AssignedTaskPresenceSignal,
-  AssignedTaskSignal,
-  AssignedTaskSnapshotView,
-} from './assigned-tasks-types';
 import { convexIdSchema } from '../../entities/_shared/convex-id';
 
 const activeTaskStatusSchema = z.enum(['pending', 'acknowledged', 'in_progress']);
@@ -22,6 +20,23 @@ const sessionAugmentationSchema = z.enum(['none', 'compact', 'new_session']);
 const chatroomTaskIdSchema = convexIdSchema('chatroom_tasks');
 const chatroomRoomIdSchema = convexIdSchema('chatroom_rooms');
 
+export const assignedTaskAgentConfigSchema = z.object({
+  role: z.string(),
+  machineId: z.string(),
+  agentHarness: z.string(),
+  model: z.string().optional(),
+  workingDir: z.string().optional(),
+  spawnedAgentPid: z.number().optional(),
+  desiredState: z.string().optional(),
+  circuitState: z.string().optional(),
+});
+
+export const assignedTaskParticipantSchema = z.object({
+  lastSeenAction: z.string().nullable(),
+  lastSeenAt: z.number().nullable(),
+  lastStatus: z.string().nullable(),
+});
+
 /** Fields required to bootstrap a daemon working row from a signal alone. */
 export const assignedTaskSignalBootstrapFields = {
   taskId: chatroomTaskIdSchema,
@@ -30,6 +45,7 @@ export const assignedTaskSignalBootstrapFields = {
   status: activeTaskStatusSchema,
   signalType: assignedTaskSignalTypeSchema,
   revisionKey: z.string(),
+  machineId: z.string(),
   agentHarness: z.string(),
   createdAt: z.number(),
   workingDir: z.string().optional(),
@@ -52,12 +68,6 @@ export const assignedTaskPresenceSignalSchema = z.object({
   presenceKey: z.string(),
 });
 
-const assignedTaskParticipantSchema = z.object({
-  lastSeenAction: z.string().nullable(),
-  lastSeenAt: z.number().nullable(),
-  lastStatus: z.string().nullable(),
-});
-
 export const assignedTaskMonitorRowSchema = z
   .object({
     taskId: chatroomTaskIdSchema,
@@ -66,24 +76,20 @@ export const assignedTaskMonitorRowSchema = z
     assignedTo: z.string().optional(),
     updatedAt: z.number(),
     createdAt: z.number(),
-    agentConfig: z.object({
-      role: z.string(),
-      machineId: z.string(),
-      agentHarness: z.string(),
-      model: z.string().optional(),
-      workingDir: z.string().optional(),
-      spawnedAgentPid: z.number().optional(),
-      desiredState: z.string().optional(),
-      circuitState: z.string().optional(),
-    }),
+    agentConfig: assignedTaskAgentConfigSchema,
     participant: assignedTaskParticipantSchema.optional(),
   })
-  .transform(
-    (row): AssignedTaskSnapshotView => ({
-      ...row,
-      assignedTo: row.assignedTo,
-    })
-  );
+  .transform((row) => ({
+    ...row,
+    assignedTo: row.assignedTo,
+  }));
+
+export type AssignedTaskAgentConfigView = z.infer<typeof assignedTaskAgentConfigSchema>;
+export type AssignedTaskParticipantView = z.infer<typeof assignedTaskParticipantSchema>;
+export type AssignedTaskSnapshotView = z.output<typeof assignedTaskMonitorRowSchema>;
+export type AssignedTaskSignal = z.infer<typeof assignedTaskSignalSchema>;
+export type AssignedTaskPresenceSignal = z.infer<typeof assignedTaskPresenceSignalSchema>;
+export type AssignedTaskSignalType = AssignedTaskSignal['signalType'];
 
 /** Parse incremental signal wire payloads; throws ZodError on mismatch. */
 export function parseAssignedTaskSignal(raw: unknown): AssignedTaskSignal {

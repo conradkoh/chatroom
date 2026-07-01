@@ -1,85 +1,34 @@
 /**
  * Shared types for machine assigned-task queries.
+ *
+ * Wire shapes (signal, presence, snapshot row) are defined in
+ * assigned-task-monitor-contract.ts (Zod source of truth) and re-exported here.
  */
+// fallow-ignore-file unused-type
 
+import type {
+  AssignedTaskPresenceSignal,
+  AssignedTaskSignal,
+  AssignedTaskSnapshotView,
+} from './assigned-task-monitor-contract';
 import type { Id } from '../../../../convex/_generated/dataModel';
 
-export interface AssignedTaskAgentConfigView {
-  role: string;
-  machineId: string;
-  agentHarness: string;
-  model?: string;
-  workingDir?: string;
-  spawnedAgentPid?: number;
-  desiredState?: string;
-  circuitState?: string;
-}
-
-export interface AssignedTaskParticipantView {
-  lastSeenAction: string | null;
-  lastSeenAt: number | null;
-  lastStatus: string | null;
-}
+export type {
+  AssignedTaskAgentConfigView,
+  AssignedTaskParticipantView,
+  AssignedTaskPresenceSignal,
+  AssignedTaskSignal,
+  AssignedTaskSignalType,
+  AssignedTaskSnapshotView,
+} from './assigned-task-monitor-contract';
 
 /** Full view including task content — for one-shot action fetches. */
-export interface AssignedTaskView {
-  taskId: Id<'chatroom_tasks'>;
-  chatroomId: Id<'chatroom_rooms'>;
-  status: string;
-  assignedTo: string | undefined;
+export interface AssignedTaskView extends AssignedTaskSnapshotView {
   taskContent: string;
-  updatedAt: number;
-  createdAt: number;
-  agentConfig: AssignedTaskAgentConfigView;
-  participant?: AssignedTaskParticipantView;
-}
-
-/** Slim snapshot row for daemon working set (no task.content). */
-export interface AssignedTaskSnapshotView {
-  taskId: Id<'chatroom_tasks'>;
-  chatroomId: Id<'chatroom_rooms'>;
-  status: string;
-  assignedTo: string | undefined;
-  updatedAt: number;
-  createdAt: number;
-  agentConfig: AssignedTaskAgentConfigView;
-  participant?: AssignedTaskParticipantView;
 }
 
 export interface ListMachineAssignedTaskSnapshotsResult {
   tasks: AssignedTaskSnapshotView[];
-}
-
-export type AssignedTaskSignalType = 'task' | 'agent_config';
-
-export interface AssignedTaskSignal {
-  taskId: Id<'chatroom_tasks'>;
-  chatroomId: Id<'chatroom_rooms'>;
-  role: string;
-  status: 'pending' | 'acknowledged' | 'in_progress';
-  signalType: AssignedTaskSignalType;
-  /** Monotonic exclusive cursor component — excludes pure lastSeenAt heartbeats. */
-  revisionKey: string;
-  sessionAugmentation?: 'none' | 'compact' | 'new_session';
-  lastSeenAction?: string | null;
-  spawnedAgentPid?: number;
-  desiredState?: string;
-  /** Fields below are required for constructing a new snapshot row when the daemon
-   *  sees this task for the first time (no existing row in local snapshot). */
-  agentHarness: string;
-  workingDir?: string;
-  assignedTo?: string;
-  createdAt: number;
-}
-
-export interface AssignedTaskPresenceSignal {
-  taskId: Id<'chatroom_tasks'>;
-  chatroomId: Id<'chatroom_rooms'>;
-  role: string;
-  lastSeenAt: number | null;
-  lastSeenAction?: string | null;
-  presenceUpdatedAt: number;
-  presenceKey: string;
 }
 
 export interface SubscribeAssignedTaskSignalsResult {

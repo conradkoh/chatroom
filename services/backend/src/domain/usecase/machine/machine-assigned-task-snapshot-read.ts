@@ -2,7 +2,7 @@
  * Indexed reads from machine assigned-task snapshot projection.
  */
 
-import { parseAssignedTaskSignal } from './assigned-task-monitor-contract';
+import { monitorRowFromSnapshotDoc } from './assigned-task-monitor-row';
 import { presenceKeyAfterTimestamp } from './assigned-tasks-revision';
 import type {
   AssignedTaskView,
@@ -18,7 +18,6 @@ import {
   assertMachineSnapshotAccess,
   snapshotDocToPresenceSignal,
   snapshotDocToSignal,
-  snapshotDocToView,
 } from './machine-assigned-task-snapshot-sync';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
@@ -78,7 +77,7 @@ export async function listMachineAssignedTaskSnapshotsForMachine(
     .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
     .collect();
 
-  return { tasks: docs.map(snapshotDocToView) };
+  return { tasks: docs.map(monitorRowFromSnapshotDoc) };
 }
 
 export async function subscribeAssignedTaskSignalsFromSnapshots(
@@ -100,7 +99,7 @@ export async function subscribeAssignedTaskSignalsFromSnapshots(
   const feed = sliceSnapshotFeedPage(
     page,
     input.limit,
-    (doc) => parseAssignedTaskSignal(snapshotDocToSignal(doc)),
+    snapshotDocToSignal,
     (item) => item.revisionKey
   );
   return {
@@ -153,7 +152,7 @@ export async function getAssignedTaskForActionFromSnapshots(
   if (!task) return null;
 
   return {
-    ...snapshotDocToView(snapshot),
+    ...monitorRowFromSnapshotDoc(snapshot),
     taskContent: task.content,
   };
 }
