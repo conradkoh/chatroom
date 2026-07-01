@@ -15,9 +15,19 @@ const NOT_WORKING_EVENT_TYPES = new Set([
   'agent.waiting',
   'agent.registered',
   'agent.exited',
+  'task.acknowledged', // TASK RECEIVED is green/ready, not WORKING
   null,
   undefined,
 ]);
+
+/** Whether an online agent is actively processing (blue WORKING styling). */
+// fallow-ignore-next-line unused-export
+export function isAgentWorking(
+  latestEventType: string | null | undefined,
+  online: boolean
+): boolean {
+  return online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
+}
 
 export interface AgentStatus {
   role: string;
@@ -61,7 +71,7 @@ export function useAgentStatuses(chatroomId: string, roles: string[]): UseAgentS
       const latestEventType = participant?.lastStatus ?? null;
       const desiredState = participant?.lastDesiredState ?? null;
       const online = participant?.isAlive ?? false;
-      const isWorking = online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
+      const isWorking = isAgentWorking(latestEventType, online);
       const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
         latestEventType,
         desiredState,
