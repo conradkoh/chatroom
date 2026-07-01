@@ -299,10 +299,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Replace \`[Your message here]\` with:
-      - **Summary**: Brief description of what was done
-      - **Changes Made**: Key changes (bullets)
-      - **Testing**: How to verify the work
+      Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
