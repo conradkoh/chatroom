@@ -21,9 +21,13 @@ describe('appendTaskDeliveryContextSection', () => {
       currentContext: { elapsedHours: 48 },
     });
 
-    expect(lines.join('\n')).toContain('## Context');
-    expect(lines.join('\n')).toContain('⚠️ Context is 2d old.');
-    expect(lines.join('\n')).toContain('context new --chatroom-id="room-id"');
+    const text = lines.join('\n');
+    expect(text).toContain('## Context');
+    expect(text).toContain('⚠️ Context is 2d old.');
+    expect(text).toContain('context new --chatroom-id="room-id"');
+    expect(text).toContain('--trigger-message-id');
+    expect(text).toContain('CHATROOM_CONTEXT_END');
+    expect(text).not.toContain('--content="<summary>"');
   });
 
   test('soft-warns when explicit context is >= 4h old', () => {
@@ -33,7 +37,11 @@ describe('appendTaskDeliveryContextSection', () => {
       currentContext: { elapsedHours: 6 },
     });
 
-    expect(lines.join('\n')).toContain('⚠️ Context is 6h old — consider refreshing if stale.');
+    const text = lines.join('\n');
+    expect(text).toContain('⚠️ Context is 6h old — consider refreshing if stale.');
+    expect(text).toContain('--trigger-message-id');
+    expect(text).toContain('CHATROOM_CONTEXT_END');
+    expect(text).not.toContain('--content="<summary>"');
   });
 
   test('legacy user origin warns on follow-up count and pinned message age', () => {
@@ -50,6 +58,9 @@ describe('appendTaskDeliveryContextSection', () => {
     const text = lines.join('\n');
     expect(text).toContain('⚠️ Stale: 5 follow-ups since pinned message.');
     expect(text).toContain('⚠️ Pinned message is 1d old.');
+    expect(text).toContain('--trigger-message-id');
+    expect(text).toContain('CHATROOM_CONTEXT_END');
+    expect(text).not.toContain('--content="<summary>"');
   });
 
   test('omits section when no context and origin is not from user', () => {
