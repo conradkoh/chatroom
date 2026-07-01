@@ -237,7 +237,7 @@ async function deleteSnapshotsForTask(
 ): Promise<void> {
   const rows = await ctx.db
     .query('chatroom_machineAssignedTaskSnapshots')
-    .filter((q) => q.eq(q.field('taskId'), taskId))
+    .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
     .collect();
   for (const row of rows) {
     await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);

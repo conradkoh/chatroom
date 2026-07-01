@@ -6,6 +6,7 @@ import { requireMachineOwner } from './auth/cli/machineAccess';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { syncChatroomAssignedTaskSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 
 /** Emits agent.resumeStormAborted when rapid agent_end events abort in-process auto-resume. */
 export const emitResumeStormAborted = mutation({
@@ -68,6 +69,7 @@ export const emitResumeStormAborted = mutation({
           spawnedAt: undefined,
           updatedAt: Date.now(),
         });
+        await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
       }
     }
 

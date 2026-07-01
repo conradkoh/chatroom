@@ -625,6 +625,7 @@ export default defineSchema({
     .index('by_machineId_taskId_role', ['machineId', 'taskId', 'role'])
     .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
     .index('by_machineId_presenceKey', ['machineId', 'presenceKey'])
+    .index('by_taskId', ['taskId'])
     .index('by_chatroomId_role', ['chatroomId', 'role']),
 
   /**

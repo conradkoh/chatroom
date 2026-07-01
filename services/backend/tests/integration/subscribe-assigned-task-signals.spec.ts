@@ -81,6 +81,42 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
 
     expect(result.tasks[0]?.agentConfig.spawnedAgentPid).toBe(42_424);
   });
+
+  test('reflects desiredState=stopped in the snapshot after stop-agent', async () => {
+    const { sessionId } = await createTestSession('test-lite-tasks-stop-sync-1');
+    const machineId = 'machine-lite-tasks-stop-sync-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: '## Goal\nStop sync',
+      createdBy: 'user',
+    });
+    await syncMachineSnapshots(sessionId, machineId);
+
+    const running = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId,
+      machineId,
+    });
+    expect(running.tasks[0]?.agentConfig.desiredState).toBe('running');
+
+    await t.mutation(api.machines.sendCommand, {
+      sessionId,
+      machineId,
+      type: 'stop-agent',
+      payload: { chatroomId, role: 'builder' },
+    });
+
+    const stopped = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId,
+      machineId,
+    });
+    expect(stopped.tasks[0]?.agentConfig.desiredState).toBe('stopped');
+    expect(stopped.tasks[0]?.agentConfig.spawnedAgentPid).toBeUndefined();
+  });
 });
 
 describe('machines.subscribeAssignedTaskSignalsSince', () => {
