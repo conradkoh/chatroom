@@ -54,6 +54,7 @@ import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
 import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
+import { shouldRefocusMessageInput } from './lib/shouldRefocusMessageInput';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
@@ -376,6 +377,9 @@ export function ChatroomDashboard({
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
+  const { activeDialog, openDialog } = useCommandDialog();
+  const activeDialogRef = useRef(activeDialog);
+  activeDialogRef.current = activeDialog;
 
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
@@ -596,7 +600,18 @@ export function ChatroomDashboard({
     const interval = setInterval(mark, 60_000);
 
     const onVisibilityChange = () => {
-      if (!document.hidden) mark();
+      if (document.hidden) return;
+      mark();
+      if (
+        shouldRefocusMessageInput({
+          documentHidden: document.hidden,
+          activeCommandDialog: activeDialogRef.current,
+          activeElement: document.activeElement,
+          hasOpenDialogInDom: !!document.querySelector('[role="dialog"][data-state="open"]'),
+        })
+      ) {
+        requestAnimationFrame(() => focusSendFormRef.current?.());
+      }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -1019,8 +1034,6 @@ export function ChatroomDashboard({
   }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
 
   // Build command palette commands
-  const { openDialog } = useCommandDialog();
-
   const handleOpenChatroomSwitcher = useCallback(() => {
     openDialog('switcher');
   }, [openDialog]);

@@ -479,7 +479,11 @@ export function MessageInput({
   const canSend = message.trim().length > 0 && !sending;
 
   return (
-    <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
+    <div
+      ref={formContainerRef}
+      data-message-input=""
+      className="relative bg-chatroom-bg-surface backdrop-blur-xl"
+    >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
         results={autocomplete.state.results}
