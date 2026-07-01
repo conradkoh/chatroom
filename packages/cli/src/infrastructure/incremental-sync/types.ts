@@ -26,6 +26,8 @@ export interface IncrementalFeedDef<TItem, _TArgs = unknown> {
   readonly itemKey: (item: TItem) => StreamKey;
   /** Optional: extract cursor from item when highKey not provided by backend. */
   readonly itemToKey?: (item: TItem) => StreamKey;
+  /** Optional: validate and parse raw wire items before enqueue. */
+  readonly parseItem?: (raw: unknown) => TItem;
 }
 
 export interface SubscribeQueryTarget<TItem, TArgs> {

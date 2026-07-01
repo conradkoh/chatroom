@@ -23,10 +23,8 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import {
-  syncChatroomAssignedTaskSnapshots,
-  syncParticipantPresenceOnSnapshots,
-} from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
@@ -210,11 +208,15 @@ export const join = mutation({
       teamConfig.circuitState &&
       teamConfig.circuitState !== 'closed'
     ) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
-        circuitState: 'closed',
-        circuitOpenedAt: undefined,
-      });
-      await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
+      await patchTeamAgentConfig(
+        ctx,
+        teamConfig._id,
+        {
+          circuitState: 'closed',
+          circuitOpenedAt: undefined,
+        },
+        { projectScope: 'chatroom' }
+      );
     }
 
     // Emit agent.waiting event when agent enters the get-next-task loop

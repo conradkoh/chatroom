@@ -19,12 +19,10 @@ import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import {
-  buildTeamRoleKey,
-  deleteStaleTeamAgentConfigs,
-} from '../../../../convex/utils/teamRoleKey';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
+import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -115,42 +113,26 @@ export async function startAgent(
       throw new Error(`Chatroom ${chatroomId} has no teamId — cannot build agent config key`);
     }
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
-    const existingTeamConfig = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-    const previousMachineId = existingTeamConfig?.machineId;
-
     const teamConfigNow = Date.now();
 
-    const teamConfig = {
+    const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
-      chatroomId,
-      role,
-      type: 'remote' as AgentType,
-      machineId,
-      agentHarness: agentHarness as AgentHarness | undefined,
-      model,
-      workingDir,
-      updatedAt: teamConfigNow,
-      desiredState: 'running' as const,
-      // Persist the resolved resume preference so the UI can show the actual
-      // value the running agent was started with.
-      wantResume: resolvedWantResume,
-      // Reset circuit breaker — manual start is an explicit user intent to retry
-      circuitState: 'closed' as const,
-      circuitOpenedAt: undefined,
-    };
-
-    if (existingTeamConfig) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existingTeamConfig._id, teamConfig);
-    } else {
-      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        ...teamConfig,
-        createdAt: teamConfigNow,
-      });
-    }
+      createdAt: teamConfigNow,
+      fields: {
+        chatroomId,
+        role,
+        type: 'remote' as AgentType,
+        machineId,
+        agentHarness: agentHarness as AgentHarness | undefined,
+        model,
+        workingDir,
+        updatedAt: teamConfigNow,
+        desiredState: 'running' as const,
+        wantResume: resolvedWantResume,
+        circuitState: 'closed' as const,
+        circuitOpenedAt: undefined,
+      },
+    });
 
     if (previousMachineId != null && previousMachineId !== machineId) {
       await ctx.db.insert('chatroom_eventStream', {
@@ -189,7 +171,7 @@ export async function startAgent(
 
   // Refresh the daemon snapshot projection so the task monitor sees the new
   // config (desiredState/model/workingDir) without waiting for a task transition.
-  await syncChatroomAssignedTaskSnapshots(ctx, chatroomId);
+  await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
 
   return {
     agentHarness,

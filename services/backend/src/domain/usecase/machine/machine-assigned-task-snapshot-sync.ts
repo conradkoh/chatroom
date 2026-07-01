@@ -6,7 +6,6 @@ import {
   getParticipantForChatroomRole,
   loadMachineAssignedTaskContext,
   loadRemoteAgentConfigsForMachine,
-  toAgentConfigView,
   toParticipantView,
 } from './assigned-tasks-core';
 import {
@@ -14,11 +13,7 @@ import {
   buildAssignedTaskRevisionKey,
   primaryAssignedTaskSignalType,
 } from './assigned-tasks-revision';
-import type {
-  AssignedTaskSignal,
-  AssignedTaskSnapshotView,
-  AssignedTaskPresenceSignal,
-} from './assigned-tasks-types';
+import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getTeamEntryPoint } from '../../entities/team';
@@ -68,42 +63,6 @@ function resolveResponsibleConfigs(
   return configsForChatroom.slice(0, 1);
 }
 
-export function snapshotDocToView(doc: SnapshotDoc): AssignedTaskSnapshotView {
-  const configStub = {
-    role: doc.role,
-    machineId: doc.machineId,
-    type: 'remote' as const,
-    agentHarness: doc.agentHarness,
-    model: doc.model,
-    workingDir: doc.workingDir,
-    spawnedAgentPid: doc.spawnedAgentPid,
-    desiredState: doc.desiredState,
-    circuitState: doc.circuitState,
-    teamRoleKey: '',
-    chatroomId: doc.chatroomId,
-    createdAt: 0,
-    updatedAt: doc.configUpdatedAt,
-  };
-  return {
-    taskId: doc.taskId,
-    chatroomId: doc.chatroomId,
-    status: doc.taskStatus,
-    assignedTo: doc.taskAssignedTo,
-    updatedAt: doc.taskUpdatedAt,
-    createdAt: doc.taskCreatedAt,
-    agentConfig: toAgentConfigView(configStub as RemoteAgentConfig, doc.machineId),
-    participant: toParticipantView({
-      lastSeenAction: doc.lastSeenAction,
-      lastSeenAt: doc.lastSeenAt,
-      lastStatus: doc.lastStatus,
-    } as Doc<'chatroom_participants'>) ?? {
-      lastSeenAction: null,
-      lastSeenAt: null,
-      lastStatus: null,
-    },
-  };
-}
-
 export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   return {
     taskId: doc.taskId,
@@ -116,6 +75,11 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     lastSeenAction: doc.lastSeenAction ?? null,
     spawnedAgentPid: doc.spawnedAgentPid,
     desiredState: doc.desiredState,
+    machineId: doc.machineId,
+    agentHarness: doc.agentHarness,
+    workingDir: doc.workingDir,
+    assignedTo: doc.taskAssignedTo,
+    createdAt: doc.taskCreatedAt,
   };
 }
 
@@ -256,7 +220,7 @@ async function deleteSnapshotsForMachine(ctx: MutationCtx, machineId: string): P
 
 /** Rebuild projection rows for one machine (daemon startup / backfill). */
 // fallow-ignore-next-line complexity
-export async function syncMachineAssignedTaskSnapshots(
+export async function projectAssignedTaskSnapshotsForMachine(
   ctx: MutationCtx,
   machineId: string
 ): Promise<void> {
@@ -309,8 +273,8 @@ export async function syncMachineAssignedTaskSnapshots(
   }
 }
 
-/** Sync all machines with remote configs in a chatroom after task lifecycle changes. */
-export async function syncChatroomAssignedTaskSnapshots(
+/** Rebuild assigned-task snapshot projection for all machines in a chatroom. */
+export async function projectAssignedTaskSnapshotsForChatroom(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<void> {
@@ -324,12 +288,12 @@ export async function syncChatroomAssignedTaskSnapshots(
     configs.map((c) => c.machineId).filter((id): id is string => id !== undefined)
   );
   for (const machineId of machineIds) {
-    await syncMachineAssignedTaskSnapshots(ctx, machineId);
+    await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
   }
 }
 
 /** After task status leaves active set, drop snapshot rows. */
-export async function syncAssignedTaskSnapshotsAfterTaskChange(
+export async function projectAssignedTaskSnapshotsAfterTaskChange(
   ctx: MutationCtx,
   taskId: Id<'chatroom_tasks'>
 ): Promise<void> {
@@ -342,7 +306,7 @@ export async function syncAssignedTaskSnapshotsAfterTaskChange(
     await deleteSnapshotsForTask(ctx, taskId);
     return;
   }
-  await syncChatroomAssignedTaskSnapshots(ctx, task.chatroomId);
+  await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
 }
 
 // fallow-ignore-next-line complexity

@@ -17,7 +17,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentStopReason } from '../../entities/agent';
-import { syncChatroomAssignedTaskSnapshots } from '../machine/machine-assigned-task-snapshot-sync';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -90,14 +90,16 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
   // Mark the agent config as desired-stopped and eagerly clear spawn state
   // so that subsequent queries (e.g. isAlive) reflect the stop immediately.
   if (teamConfig) {
-    await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
-      desiredState: 'stopped',
-      spawnedAgentPid: undefined,
-      spawnedAt: undefined,
-    });
-    // Reflect the desired-stopped/cleared-PID state in the daemon snapshot
-    // projection so the task monitor stops treating the agent as running.
-    await syncChatroomAssignedTaskSnapshots(ctx, chatroomId);
+    await patchTeamAgentConfig(
+      ctx,
+      teamConfig._id,
+      {
+        desiredState: 'stopped',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      },
+      { projectScope: 'chatroom' }
+    );
   }
 
   return {};
