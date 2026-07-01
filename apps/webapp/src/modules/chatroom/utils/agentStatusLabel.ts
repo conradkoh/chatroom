@@ -29,6 +29,11 @@ export type StatusVariant =
   | 'ready' // Green — waiting or task received
   | 'working'; // Blue pulse — actively processing
 
+/** Blue WORKING styling applies only when the resolved variant is `working`. */
+export function isWorkingVariant(variant: StatusVariant): boolean {
+  return variant === 'working';
+}
+
 /**
  * Resolved status: the label string plus the semantic color variant.
  * Components use the variant to render the correct indicator color.
