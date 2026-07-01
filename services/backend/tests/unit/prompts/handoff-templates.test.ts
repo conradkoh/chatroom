@@ -73,10 +73,12 @@ describe('handoff-templates > planner → user report', () => {
     expect(report).toContain('Role guidance is static for your role');
   });
 
-  test('requires proof of planning, proof of principle and proof of completion sections', () => {
+  test('requires what changed with nested proof of principle and proof of completion sections', () => {
     expect(report).toContain('## Proof of Planning');
-    expect(report).toContain('## Proof of Principle');
-    expect(report).toContain('## Proof of Completion');
+    expect(report).toContain('## What changed');
+    expect(report).toContain('### Proof of Principle');
+    expect(report).toContain('### Proof of Completion');
+    expect(report).not.toMatch(/^## Proof of Principle/m);
     expect(report).toContain('Organization & Maintainability');
     expect(report).toContain('Static Evaluability and Provability');
   });
