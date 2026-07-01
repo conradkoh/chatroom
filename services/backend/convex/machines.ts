@@ -31,7 +31,10 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
-import { syncMachineAssignedTaskSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import {
+  syncChatroomAssignedTaskSnapshots,
+  syncMachineAssignedTaskSnapshots,
+} from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
@@ -1408,6 +1411,7 @@ export const updateSpawnedAgent = mutation({
       updatedAt: now,
       ...(args.model !== undefined ? { model: args.model } : {}),
     });
+    await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
 
     // Write agent.started event and increment restart metric when a new agent is spawning
     if (args.pid != null) {
@@ -1632,11 +1636,15 @@ async function runRecordCustomAgentRegistered(
     });
   }
 
+  const previousMachineId = existing?.machineId;
   await ensureOnlyAgentForRole(ctx, {
     chatroomId: args.chatroomId,
     role: args.role,
     excludeMachineId: undefined,
   });
+  if (previousMachineId) {
+    await syncMachineAssignedTaskSnapshots(ctx, previousMachineId);
+  }
 
   await ctx.db.insert('chatroom_eventStream', {
     type: 'agent.registered',
@@ -1871,11 +1879,16 @@ export const saveTeamAgentConfig = mutation({
       });
     }
 
+    const previousMachineId = existing?.machineId;
     await ensureOnlyAgentForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
     });
+    await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
+    if (previousMachineId && previousMachineId !== args.machineId) {
+      await syncMachineAssignedTaskSnapshots(ctx, previousMachineId);
+    }
 
     // Emit agent.registered event to the event stream
     await ctx.db.insert('chatroom_eventStream', {
@@ -2535,17 +2548,19 @@ export const subscribeAssignedTaskPresenceSince = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    afterPresenceAt: v.number(),
+    afterPresenceAt: v.optional(v.number()),
+    afterPresenceKey: v.optional(v.string()),
     limit: v.number(),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return { items: [], highPresenceAt: null, hasMore: false };
+    if (!auth) return { items: [], highPresenceAt: null, highPresenceKey: null, hasMore: false };
 
     return subscribeAssignedTaskPresenceForMachine(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
       afterPresenceAt: args.afterPresenceAt,
+      afterPresenceKey: args.afterPresenceKey,
       limit: args.limit,
     });
   },
@@ -2629,6 +2644,7 @@ export const emitAgentStartFailed = mutation({
           desiredState: 'stopped',
           updatedAt: Date.now(),
         });
+        await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
       }
     }
 
@@ -2937,6 +2953,7 @@ export const clearAllSpawnedPids = mutation({
         clearedCount++;
       }
     }
+    await syncMachineAssignedTaskSnapshots(ctx, args.machineId);
 
     return { clearedCount };
   },

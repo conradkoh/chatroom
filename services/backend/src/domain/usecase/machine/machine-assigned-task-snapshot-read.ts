@@ -2,6 +2,7 @@
  * Indexed reads from machine assigned-task snapshot projection.
  */
 
+import { presenceKeyAfterTimestamp } from './assigned-tasks-revision';
 import type {
   AssignedTaskView,
   GetAssignedTaskForActionInput,
@@ -26,6 +27,13 @@ type SnapshotFeedPage<TItem, THigh> = {
   hasMore: boolean;
 };
 
+const EMPTY_PRESENCE_RESULT: SubscribeAssignedTaskPresenceResult = {
+  items: [],
+  highPresenceAt: null,
+  highPresenceKey: null,
+  hasMore: false,
+};
+
 function sliceSnapshotFeedPage<TDoc, TItem, THigh>(
   page: TDoc[],
   limit: number,
@@ -39,6 +47,21 @@ function sliceSnapshotFeedPage<TDoc, TItem, THigh>(
     items,
     high: lastItem ? pickHigh(lastItem) : null,
     hasMore,
+  };
+}
+
+function resolvePresenceAfterKey(input: SubscribeAssignedTaskPresenceInput): string {
+  return input.afterPresenceKey ?? presenceKeyAfterTimestamp(input.afterPresenceAt ?? 0);
+}
+
+function presenceFeedToResult(
+  feed: SnapshotFeedPage<ReturnType<typeof snapshotDocToPresenceSignal>, string>
+): SubscribeAssignedTaskPresenceResult {
+  return {
+    items: feed.items,
+    highPresenceAt: feed.items.at(-1)?.presenceUpdatedAt ?? null,
+    highPresenceKey: feed.high,
+    hasMore: feed.hasMore,
   };
 }
 
@@ -91,12 +114,12 @@ export async function subscribeAssignedTaskPresenceFromSnapshots(
   input: SubscribeAssignedTaskPresenceInput
 ): Promise<SubscribeAssignedTaskPresenceResult> {
   const allowed = await assertMachineSnapshotAccess(ctx, input.machineId, input.userId);
-  if (!allowed) return { items: [], highPresenceAt: null, hasMore: false };
+  if (!allowed) return EMPTY_PRESENCE_RESULT;
 
   const page = await ctx.db
     .query('chatroom_machineAssignedTaskSnapshots')
-    .withIndex('by_machineId_presenceUpdatedAt', (q) =>
-      q.eq('machineId', input.machineId).gt('presenceUpdatedAt', input.afterPresenceAt)
+    .withIndex('by_machineId_presenceKey', (q) =>
+      q.eq('machineId', input.machineId).gt('presenceKey', resolvePresenceAfterKey(input))
     )
     .order('asc')
     .take(input.limit + 1);
@@ -105,13 +128,9 @@ export async function subscribeAssignedTaskPresenceFromSnapshots(
     page,
     input.limit,
     snapshotDocToPresenceSignal,
-    (item) => item.presenceUpdatedAt
+    (item) => item.presenceKey
   );
-  return {
-    items: feed.items,
-    highPresenceAt: feed.high,
-    hasMore: feed.hasMore,
-  };
+  return presenceFeedToResult(feed);
 }
 
 export async function getAssignedTaskForActionFromSnapshots(

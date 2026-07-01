@@ -50,6 +50,37 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
     expect(task).not.toHaveProperty('taskContent');
     expect(JSON.stringify(result)).not.toContain(largeContent.slice(0, 100));
   });
+
+  test('refreshes snapshot rows when agent config state changes', async () => {
+    const { sessionId } = await createTestSession('test-lite-tasks-config-sync-1');
+    const machineId = 'machine-lite-tasks-config-sync-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: '## Goal\nConfig sync',
+      createdBy: 'user',
+    });
+    await syncMachineSnapshots(sessionId, machineId);
+
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 42_424,
+    });
+
+    const result = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.tasks[0]?.agentConfig.spawnedAgentPid).toBe(42_424);
+  });
 });
 
 describe('machines.subscribeAssignedTaskSignalsSince', () => {
@@ -222,6 +253,67 @@ describe('machines.subscribeAssignedTaskPresenceSince', () => {
 
     expect(page.items.length).toBeGreaterThanOrEqual(1);
     expect(page.items[0]?.lastSeenAt).toBeTruthy();
+    expect(page.highPresenceKey).toBeTruthy();
+  });
+
+  test('paginates presence rows that share the same timestamp', async () => {
+    const { sessionId } = await createTestSession('test-presence-same-timestamp-1');
+    const machineId = 'machine-presence-same-timestamp-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        content: '## Goal\nPresence page 1',
+        createdBy: 'user',
+        status: 'pending',
+        assignedTo: 'builder',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 1,
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        content: '## Goal\nPresence page 2',
+        createdBy: 'user',
+        status: 'pending',
+        assignedTo: 'builder',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 2,
+      });
+    });
+    await syncMachineSnapshots(sessionId, machineId);
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const first = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceAt: 0,
+      limit: 1,
+    });
+    expect(first.items).toHaveLength(1);
+    expect(first.hasMore).toBe(true);
+    expect(first.highPresenceKey).toBeTruthy();
+
+    const second = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceKey: first.highPresenceKey ?? undefined,
+      limit: 10,
+    });
+
+    expect(second.items.length).toBeGreaterThanOrEqual(1);
+    expect(second.items[0]?.presenceUpdatedAt).toBe(first.items[0]?.presenceUpdatedAt);
   });
 });
 

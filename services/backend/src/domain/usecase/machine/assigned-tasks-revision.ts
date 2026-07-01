@@ -17,6 +17,20 @@ export function buildAssignedTaskRevisionKey(params: {
   return `${paddedTask}:${paddedConfig}:${params.lastSeenAction}:${params.lastStatus}:${params.taskId}:${params.role}`;
 }
 
+export function buildAssignedTaskPresenceKey(params: {
+  presenceUpdatedAt: number;
+  taskId: Id<'chatroom_tasks'>;
+  role: string;
+}): string {
+  const paddedPresence = String(params.presenceUpdatedAt).padStart(16, '0');
+  return `${paddedPresence}:${params.taskId}:${params.role}`;
+}
+
+export function presenceKeyAfterTimestamp(presenceUpdatedAt: number): string {
+  const paddedPresence = String(presenceUpdatedAt).padStart(16, '0');
+  return `${paddedPresence}:~:~`;
+}
+
 export function primaryAssignedTaskSignalType(
   taskUpdatedAt: number,
   configUpdatedAt: number

@@ -615,6 +615,7 @@ export default defineSchema({
     lastSeenAction: v.optional(v.string()),
     lastStatus: v.optional(v.string()),
     presenceUpdatedAt: v.number(),
+    presenceKey: v.string(),
 
     /** Excludes pure lastSeenAt heartbeats — used for signal subscribe cursor. */
     revisionKey: v.string(),
@@ -623,7 +624,7 @@ export default defineSchema({
     .index('by_machineId', ['machineId'])
     .index('by_machineId_taskId_role', ['machineId', 'taskId', 'role'])
     .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
-    .index('by_machineId_presenceUpdatedAt', ['machineId', 'presenceUpdatedAt'])
+    .index('by_machineId_presenceKey', ['machineId', 'presenceKey'])
     .index('by_chatroomId_role', ['chatroomId', 'role']),
 
   /**

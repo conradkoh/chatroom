@@ -80,10 +80,9 @@ async function seedPresenceCursor(session: {
   const seedPage = (await session.backend.query(api.machines.subscribeAssignedTaskPresenceSince, {
     sessionId: session.sessionId,
     machineId: session.machineId,
-    afterPresenceAt: 0,
     limit: ASSIGNED_TASK_PRESENCE_FEED_LIMIT,
-  })) as { highPresenceAt: number | null } | null;
-  return seedPage?.highPresenceAt != null ? String(seedPage.highPresenceAt) : null;
+  })) as { highPresenceKey: string | null } | null;
+  return seedPage?.highPresenceKey ?? null;
 }
 
 function resolveTaskWantResume(task: AssignedTaskView): boolean {
@@ -400,7 +399,22 @@ export const startTaskMonitorEffect = (
           machineId: session.machineId,
         }) as Promise<ListMachineAssignedTaskSnapshotsResult>
     ).pipe(Effect.orElseSucceed(() => ({ tasks: [] })));
-    snapshot.replaceAll(hydrate.tasks ?? []);
+    const hydrateTasks = hydrate.tasks ?? [];
+    snapshot.replaceAll(hydrateTasks);
+    if (hydrateTasks.length > 0) {
+      yield* Effect.tryPromise(() =>
+        processTasksUpdate(
+          hydrateTasks,
+          runtime,
+          effectContext,
+          cooldown,
+          agentMgr,
+          sessionDeps,
+          session.machineId,
+          'presence'
+        )
+      ).pipe(Effect.catchAll(() => Effect.void));
+    }
 
     const signalSeedKey = yield* Effect.tryPromise(() => seedSignalCursor(session)).pipe(
       Effect.orElseSucceed(() => null)

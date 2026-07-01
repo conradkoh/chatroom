@@ -73,6 +73,7 @@ export interface AssignedTaskPresenceSignal {
   lastSeenAt: number | null;
   lastSeenAction?: string | null;
   presenceUpdatedAt: number;
+  presenceKey: string;
 }
 
 export interface SubscribeAssignedTaskSignalsResult {
@@ -84,6 +85,7 @@ export interface SubscribeAssignedTaskSignalsResult {
 export interface SubscribeAssignedTaskPresenceResult {
   items: AssignedTaskPresenceSignal[];
   highPresenceAt: number | null;
+  highPresenceKey: string | null;
   hasMore: boolean;
 }
 
@@ -103,6 +105,7 @@ export interface SubscribeAssignedTaskSignalsInput extends MachineAssignedTasksI
 }
 
 export interface SubscribeAssignedTaskPresenceInput extends MachineAssignedTasksInput {
-  afterPresenceAt: number;
+  afterPresenceAt?: number;
+  afterPresenceKey?: string;
   limit: number;
 }

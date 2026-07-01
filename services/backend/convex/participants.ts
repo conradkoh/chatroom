@@ -23,7 +23,10 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import {
+  syncChatroomAssignedTaskSnapshots,
+  syncParticipantPresenceOnSnapshots,
+} from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
@@ -211,6 +214,7 @@ export const join = mutation({
         circuitState: 'closed',
         circuitOpenedAt: undefined,
       });
+      await syncChatroomAssignedTaskSnapshots(ctx, args.chatroomId);
     }
 
     // Emit agent.waiting event when agent enters the get-next-task loop

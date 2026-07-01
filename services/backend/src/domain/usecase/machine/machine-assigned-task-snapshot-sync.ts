@@ -10,6 +10,7 @@ import {
   toParticipantView,
 } from './assigned-tasks-core';
 import {
+  buildAssignedTaskPresenceKey,
   buildAssignedTaskRevisionKey,
   primaryAssignedTaskSignalType,
 } from './assigned-tasks-revision';
@@ -126,6 +127,7 @@ export function snapshotDocToPresenceSignal(doc: SnapshotDoc): AssignedTaskPrese
     lastSeenAt: doc.lastSeenAt ?? null,
     lastSeenAction: doc.lastSeenAction ?? null,
     presenceUpdatedAt: doc.presenceUpdatedAt,
+    presenceKey: doc.presenceKey,
   };
 }
 
@@ -162,6 +164,11 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     presenceOnly && existing
       ? now
       : (participant?.lastSeenAt ?? existing?.presenceUpdatedAt ?? now);
+  const presenceKey = buildAssignedTaskPresenceKey({
+    presenceUpdatedAt,
+    taskId: task._id,
+    role: config.role,
+  });
 
   const signalUpdatedAt =
     existing && existing.revisionKey === revisionKey
@@ -189,6 +196,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     lastSeenAction: participantView.lastSeenAction ?? undefined,
     lastStatus: participantView.lastStatus ?? undefined,
     presenceUpdatedAt,
+    presenceKey,
     revisionKey,
     signalUpdatedAt,
   };
@@ -236,6 +244,16 @@ async function deleteSnapshotsForTask(
   }
 }
 
+async function deleteSnapshotsForMachine(ctx: MutationCtx, machineId: string): Promise<void> {
+  const rows = await ctx.db
+    .query('chatroom_machineAssignedTaskSnapshots')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .collect();
+  for (const row of rows) {
+    await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
+  }
+}
+
 /** Rebuild projection rows for one machine (daemon startup / backfill). */
 // fallow-ignore-next-line complexity
 export async function syncMachineAssignedTaskSnapshots(
@@ -243,7 +261,10 @@ export async function syncMachineAssignedTaskSnapshots(
   machineId: string
 ): Promise<void> {
   const agentConfigs = await loadRemoteAgentConfigsForMachine(ctx, machineId);
-  if (!agentConfigs) return;
+  if (!agentConfigs) {
+    await deleteSnapshotsForMachine(ctx, machineId);
+    return;
+  }
 
   const chatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
   const now = Date.now();
@@ -340,11 +361,17 @@ async function patchSnapshotRowPresence(
     taskId: row.taskId,
     role: row.role,
   });
+  const presenceKey = buildAssignedTaskPresenceKey({
+    presenceUpdatedAt: now,
+    taskId: row.taskId,
+    role: row.role,
+  });
   const patch = {
     lastSeenAt: participant?.lastSeenAt ?? undefined,
     lastSeenAction: participant?.lastSeenAction ?? undefined,
     lastStatus: participant?.lastStatus ?? undefined,
     presenceUpdatedAt: now,
+    presenceKey,
     revisionKey,
   };
 

@@ -29,16 +29,17 @@ export const assignedTaskPresenceSubscribeTarget: SubscribeQueryTarget<
   buildArgs: (args, afterKey, limit) => ({
     sessionId: args.sessionId,
     machineId: args.machineId,
-    afterPresenceAt: afterKey ? Number(afterKey) : 0,
+    afterPresenceKey: afterKey ?? undefined,
     limit,
   }),
   parsePage: (result) => {
     const page = result as FeedPage<AssignedTaskPresenceSignal> & {
       highPresenceAt: number | null;
+      highPresenceKey: string | null;
     };
     return {
       items: page.items,
-      highKey: page.highPresenceAt !== null ? String(page.highPresenceAt) : null,
+      highKey: page.highPresenceKey,
       hasMore: page.hasMore,
     };
   },
