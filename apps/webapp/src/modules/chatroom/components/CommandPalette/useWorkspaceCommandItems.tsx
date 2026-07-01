@@ -37,6 +37,11 @@ function getWorkspaceDetail(workspace: Workspace, isMulti: boolean): string | un
   return `${hostname} — ${shortDir}`;
 }
 
+/** Basename only — full paths let parent segments (e.g. Repos) false-match queries like "repo". */
+function getWorkingDirBasename(workingDir: string): string {
+  return workingDir.split('/').filter(Boolean).pop() ?? workingDir;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -65,6 +70,7 @@ export function useWorkspaceCommandItems(
     const wsKey = workspace.id; // unique key per workspace
     const detail = getWorkspaceDetail(workspace, isMulti);
     const hostname = getWorkspaceDisplayHostname(workspace);
+    const workingDirBasename = getWorkingDirBasename(workingDir);
 
     // Only show machine actions when daemon is connected (local workspace)
     if (isConnected) {
@@ -74,7 +80,7 @@ export function useWorkspaceCommandItems(
         detail,
         icon: <Code2 size={14} />,
         category: 'Actions',
-        keywords: ['vscode', 'editor', hostname, workspace.workingDir],
+        keywords: ['vscode', 'editor', hostname, workingDirBasename],
         action: () => sendAction(machineId, 'open-vscode', workingDir),
       });
 
@@ -84,7 +90,7 @@ export function useWorkspaceCommandItems(
         detail,
         icon: <SiGithub size={14} />,
         category: 'Actions',
-        keywords: ['github desktop', hostname, workspace.workingDir],
+        keywords: ['github desktop', hostname, workingDirBasename],
         action: () => sendAction(machineId, 'open-github-desktop', workingDir),
       });
     }
@@ -102,7 +108,7 @@ export function useWorkspaceCommandItems(
           detail,
           icon: <SiGithub size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'PRs', hostname, workspace.workingDir],
+          keywords: ['PR', 'PRs', hostname, workingDirBasename],
           action: () => openExternalUrl(`${repoUrl}/pulls?q=is%3Apr+is%3Aopen+author%3A%40me`),
         });
 
@@ -112,7 +118,7 @@ export function useWorkspaceCommandItems(
           detail,
           icon: <SiGithub size={14} />,
           category: 'Actions',
-          keywords: ['repo', 'repository', 'github', hostname, workspace.workingDir],
+          keywords: ['repo', 'repository', 'github', hostname, workingDirBasename],
           action: () => openExternalUrl(repoUrl),
         });
       }
@@ -124,7 +130,7 @@ export function useWorkspaceCommandItems(
           detail,
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'pull request', 'Github PR', hostname, workspace.workingDir],
+          keywords: ['PR', 'pull request', 'Github PR', hostname, workingDirBasename],
           action: () => openExternalUrl(pr.url),
         });
 
@@ -134,7 +140,7 @@ export function useWorkspaceCommandItems(
           detail,
           icon: <GitPullRequest size={14} />,
           category: 'Actions',
-          keywords: ['PR', 'PRs', 'Review', hostname, workspace.workingDir],
+          keywords: ['PR', 'PRs', 'Review', hostname, workingDirBasename],
           action: () => onOpenGitPanel(),
         });
       }
@@ -146,7 +152,7 @@ export function useWorkspaceCommandItems(
         detail,
         icon: <GitBranch size={14} />,
         category: 'Actions',
-        keywords: ['git diff', 'changes', 'diff', hostname, workspace.workingDir],
+        keywords: ['git diff', 'changes', 'diff', hostname, workingDirBasename],
         action: () => onOpenGitPanel('diff'),
       });
 
@@ -157,7 +163,7 @@ export function useWorkspaceCommandItems(
         detail: `${hostname}:${workspace.workingDir.split('/').pop()}`,
         icon: <GitPullRequest size={14} />,
         category: 'Actions',
-        keywords: ['git pull', 'pull', 'fetch', hostname, workspace.workingDir],
+        keywords: ['git pull', 'pull', 'fetch', hostname, workingDirBasename],
         action: async () => {
           // Use type assertion since Convex types haven't been regenerated yet
           await sendAction(machineId, 'git-pull' as LocalActionType, workspace.workingDir);
@@ -172,7 +178,7 @@ export function useWorkspaceCommandItems(
       detail,
       icon: <PanelBottomOpen size={14} />,
       category: 'Actions',
-      keywords: ['workspace', 'details', hostname, workspace.workingDir],
+      keywords: ['workspace', 'details', hostname, workingDirBasename],
       action: onOpenGitPanel,
     });
 

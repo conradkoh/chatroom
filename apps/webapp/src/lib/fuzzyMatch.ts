@@ -53,10 +53,11 @@ function scoreWordPrefixMatch(query: string, target: string): number {
 
 // fallow-ignore-next-line complexity
 export function fuzzyMatch(query: string, target: string): number {
-  if (query.length === 0) return 1; // empty query matches everything
+  const normalizedQuery = query.trimEnd();
+  if (normalizedQuery.length === 0) return 1; // empty query matches everything
   if (target.length === 0) return 0;
 
-  const q = query.toLowerCase();
+  const q = normalizedQuery.toLowerCase();
   const t = target.toLowerCase();
   const prefixScore = scoreWordPrefixMatch(q, target);
 
