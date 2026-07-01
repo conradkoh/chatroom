@@ -220,7 +220,7 @@ async function deleteSnapshotsForMachine(ctx: MutationCtx, machineId: string): P
 
 /** Rebuild projection rows for one machine (daemon startup / backfill). */
 // fallow-ignore-next-line complexity
-export async function syncMachineAssignedTaskSnapshots(
+export async function projectAssignedTaskSnapshotsForMachine(
   ctx: MutationCtx,
   machineId: string
 ): Promise<void> {
@@ -273,8 +273,8 @@ export async function syncMachineAssignedTaskSnapshots(
   }
 }
 
-/** Sync all machines with remote configs in a chatroom after task lifecycle changes. */
-export async function syncChatroomAssignedTaskSnapshots(
+/** Rebuild assigned-task snapshot projection for all machines in a chatroom. */
+export async function projectAssignedTaskSnapshotsForChatroom(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<void> {
@@ -288,15 +288,9 @@ export async function syncChatroomAssignedTaskSnapshots(
     configs.map((c) => c.machineId).filter((id): id is string => id !== undefined)
   );
   for (const machineId of machineIds) {
-    await syncMachineAssignedTaskSnapshots(ctx, machineId);
+    await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
   }
 }
-
-/** Canonical name — rebuild assigned-task snapshot projection for one chatroom. */
-export const projectAssignedTaskSnapshotsForChatroom = syncChatroomAssignedTaskSnapshots;
-
-/** Canonical name — rebuild assigned-task snapshot projection for one machine. */
-export const projectAssignedTaskSnapshotsForMachine = syncMachineAssignedTaskSnapshots;
 
 /** After task status leaves active set, drop snapshot rows. */
 export async function projectAssignedTaskSnapshotsAfterTaskChange(
@@ -312,7 +306,7 @@ export async function projectAssignedTaskSnapshotsAfterTaskChange(
     await deleteSnapshotsForTask(ctx, taskId);
     return;
   }
-  await syncChatroomAssignedTaskSnapshots(ctx, task.chatroomId);
+  await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
 }
 
 // fallow-ignore-next-line complexity

@@ -14,6 +14,7 @@ import { isOfflineForUserMessageRestart } from '../../entities/participant';
 import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 type TeamAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 
@@ -44,16 +45,20 @@ function shouldRestartForOfflineParticipant(
 async function ensureRunningClosedCircuit(
   ctx: MutationCtx,
   config: TeamAgentConfig,
-  now: number
+  _now: number
 ): Promise<void> {
   const needsDesiredState = config.desiredState !== 'running';
   const needsCircuitClose = config.circuitState === 'open';
   if (!needsDesiredState && !needsCircuitClose) return;
-  await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-    ...(needsDesiredState ? { desiredState: 'running' as const } : {}),
-    ...(needsCircuitClose ? { circuitState: 'closed' as const, circuitOpenedAt: undefined } : {}),
-    updatedAt: now,
-  });
+  await patchTeamAgentConfig(
+    ctx,
+    config._id,
+    {
+      ...(needsDesiredState ? { desiredState: 'running' as const } : {}),
+      ...(needsCircuitClose ? { circuitState: 'closed' as const, circuitOpenedAt: undefined } : {}),
+    },
+    { skipProject: true }
+  );
 }
 
 async function emitOfflineUserMessageRestart(
