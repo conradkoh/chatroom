@@ -11,6 +11,7 @@ import {
   getNativeTaskStartedPromptForHandoffRecipient,
 } from './task-started-content';
 import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
+import { appendTaskDeliveryContextSection } from '../task-delivery/context-staleness.js';
 import {
   appendTaskDeliveryHandoffTargets,
   appendTaskDeliveryHandoffTemplates,
@@ -33,10 +34,72 @@ function appendNativeTaskIntake(
     ? getNativeTaskStartedPrompt({ chatroomId, role, cliEnvPrefix })
     : getNativeTaskStartedPromptForHandoffRecipient();
 
-  lines.push('');
-  lines.push('<task-intake>');
-  lines.push(taskIntakeContent);
-  lines.push('</task-intake>');
+  lines.push('', '<task-intake>', taskIntakeContent, '</task-intake>');
+}
+
+function appendNativeAttachedMessages(
+  lines: string[],
+  attachedMessages: { content: string; senderRole: string }[]
+): void {
+  for (const attached of attachedMessages) {
+    lines.push('', '<attached>', `From: ${attached.senderRole}`, attached.content, '</attached>');
+  }
+}
+
+function appendNativeTaskSection(
+  lines: string[],
+  params: Pick<
+    NativeTaskDeliveryParams,
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'task'
+    | 'message'
+    | 'attachedMessages'
+    | 'isEntryPoint'
+    | 'sourceAttachments'
+    | 'currentContext'
+    | 'originMessage'
+    | 'followUpCountSinceOrigin'
+    | 'originMessageCreatedAt'
+  >
+): void {
+  const {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    task,
+    message,
+    attachedMessages = [],
+    isEntryPoint,
+    sourceAttachments,
+    currentContext = null,
+    originMessage = null,
+    followUpCountSinceOrigin = 0,
+    originMessageCreatedAt = null,
+  } = params;
+
+  lines.push('<task>', `Task ID: ${task._id}`);
+  if (message) lines.push(`From: ${message.senderRole}`);
+  appendTaskDeliveryContextSection(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    isEntryPoint: isEntryPoint ?? false,
+    currentContext,
+    originMessage,
+    followUpCountSinceOrigin,
+    originMessageCreatedAt,
+  });
+  lines.push('', task.content);
+  lines.push(
+    ...renderDeliveryAttachmentsBlock(
+      { attachedSnippets: sourceAttachments?.attachedSnippets },
+      { chatroomId, role, mode: 'native' }
+    )
+  );
+  appendNativeAttachedMessages(lines, attachedMessages);
+  lines.push('</task>');
 }
 
 /** Task body, task intake, next steps, templates, and handoff commands. */
@@ -49,26 +112,30 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     task,
     message,
     availableHandoffTargets,
-    attachedMessages = [],
+    attachedMessages,
     isEntryPoint,
     sourceAttachments,
+    currentContext,
+    originMessage,
+    followUpCountSinceOrigin,
+    originMessageCreatedAt,
   } = params;
 
-  const lines: string[] = [`<task>`, `Task ID: ${task._id}`];
-  if (message) lines.push(`From: ${message.senderRole}`);
-  lines.push('', task.content);
-  lines.push(
-    ...renderDeliveryAttachmentsBlock(
-      { attachedSnippets: sourceAttachments?.attachedSnippets },
-      { chatroomId, role, mode: 'native' }
-    )
-  );
-
-  for (const attached of attachedMessages) {
-    lines.push('', '<attached>', `From: ${attached.senderRole}`, attached.content, '</attached>');
-  }
-
-  lines.push('</task>');
+  const lines: string[] = [];
+  appendNativeTaskSection(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    task,
+    message,
+    attachedMessages,
+    isEntryPoint,
+    sourceAttachments,
+    currentContext,
+    originMessage,
+    followUpCountSinceOrigin,
+    originMessageCreatedAt,
+  });
   appendNativeTaskIntake(lines, { chatroomId, role, cliEnvPrefix, teamId, isEntryPoint });
   appendTaskDeliveryNextSteps(lines, {
     chatroomId,

@@ -52,6 +52,23 @@ describe('native init', () => {
 });
 
 describe('native task delivery', () => {
+  test('includes context staleness section when context is old', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      currentContext: { elapsedHours: 10 },
+    });
+
+    expect(output).toContain('## Context');
+    expect(output).toContain('⚠️ Context is 10h old — consider refreshing if stale.');
+  });
+
   test('omits role guidance block; operating model lives in init', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',

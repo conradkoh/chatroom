@@ -28,6 +28,21 @@ const BASE_PARAMS = {
 };
 
 describe('generateFullCliOutput — nativeIntegration', () => {
+  test('native mode includes context staleness warnings like CLI', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      teamId: 'duo',
+      role: 'planner',
+      isEntryPoint: true,
+      nativeIntegration: true,
+      currentContext: { content: 'Old focus', elapsedHours: 30 },
+    });
+
+    expect(output).toContain('## Context');
+    expect(output).toContain('⚠️ Context is 1d old.');
+    expect(output).toContain('context read --chatroom-id="test-chatroom-id"');
+  });
+
   test('native mode returns task content, eager templates, next steps, and handoff commands', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,

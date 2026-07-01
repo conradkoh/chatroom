@@ -4,11 +4,12 @@
  * Used by both native and CLI task delivery paths.
  */
 
+import type { TaskDeliveryContextWindow } from './context-staleness';
 import type { DeliveryAttachmentsInput } from '../../src/domain/entities/message-attachments.js';
 import { handoffCommand } from '../cli/handoff/command';
 import { inferPrimaryHandoffTarget } from '../utils/infer-primary-handoff-target';
 
-export interface TaskDeliveryParams {
+export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;

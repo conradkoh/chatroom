@@ -12,11 +12,12 @@
  * - Reminder footer
  */
 
-import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import type { DeliveryAttachmentsInput } from '../../../src/domain/entities/message-attachments.js';
-import { renderDeliveryAttachmentsBlock } from '../../attachments/render-delivery-attachments.js';
-import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
+import {
+  appendCliTaskDeliveryFooter,
+  appendCliTaskSection,
+} from '../../task-delivery/cli-task-section.js';
 import {
   appendTaskDeliveryHandoffTargets,
   appendTaskDeliveryHandoffTemplates,
@@ -83,6 +84,84 @@ export interface FullCliOutputParams {
 
 // ─── Generator ────────────────────────────────────────────────────────────────
 
+function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
+  const {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    teamId,
+    task,
+    message,
+    originMessage,
+    availableHandoffTargets,
+    isEntryPoint,
+    sourceAttachments,
+    currentContext,
+    followUpCountSinceOrigin,
+    originMessageCreatedAt,
+  } = params;
+
+  return generateNativeTaskDeliveryOutput({
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    teamId,
+    task,
+    message: message ? { _id: message._id, senderRole: message.senderRole } : null,
+    availableHandoffTargets,
+    attachedMessages: originMessage?.attachedMessages ?? [],
+    isEntryPoint,
+    sourceAttachments,
+    currentContext,
+    originMessage: originMessage ? { senderRole: originMessage.senderRole } : null,
+    followUpCountSinceOrigin,
+    originMessageCreatedAt,
+  });
+}
+
+function appendCliSharedHandoffSections(
+  lines: string[],
+  params: Pick<
+    FullCliOutputParams,
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'teamId'
+    | 'task'
+    | 'message'
+    | 'availableHandoffTargets'
+    | 'isEntryPoint'
+  >
+): void {
+  const {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    teamId,
+    task,
+    message,
+    availableHandoffTargets,
+    isEntryPoint,
+  } = params;
+
+  appendTaskDeliveryNextSteps(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    message: message ? { _id: message._id, senderRole: message.senderRole } : null,
+    availableHandoffTargets,
+    task,
+    isEntryPoint,
+  });
+  appendTaskDeliveryHandoffTemplates(lines, { teamId, role, chatroomId, cliEnvPrefix });
+  appendTaskDeliveryHandoffTargets(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    availableHandoffTargets,
+  });
+}
+
 /**
  * Generate the complete CLI output for task delivery.
  *
@@ -107,158 +186,36 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     sourceAttachments,
   } = params;
 
-  const lines: string[] = [];
-  const SEP_EQUAL = '='.repeat(60);
-
   if (nativeIntegration) {
-    const attachedMessages = originMessage?.attachedMessages ?? [];
-    return generateNativeTaskDeliveryOutput({
-      chatroomId,
-      role,
-      cliEnvPrefix,
-      teamId,
-      task,
-      message: message ? { _id: message._id, senderRole: message.senderRole } : null,
-      availableHandoffTargets,
-      attachedMessages,
-      isEntryPoint,
-      sourceAttachments,
-    });
+    return buildNativeTaskDeliveryOutput(params);
   }
 
-  // ── Task section (IDs + context + content + backlog) ──────────────────────
-
-  lines.push('<task>');
-  lines.push(SEP_EQUAL);
-  lines.push('📋 CHATROOM TASK');
-  lines.push(SEP_EQUAL);
-  lines.push(`Task ID: ${task._id}`);
-  if (message) {
-    lines.push(`Origin Message ID: ${message._id}`);
-    lines.push(`From: ${message.senderRole}`);
-  }
-
-  // Display explicit context if available (new system)
-  if (currentContext) {
-    lines.push('');
-    lines.push('## Context');
-    lines.push(
-      `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
-    );
-
-    // Time-based staleness: soft warning at >= 4h, hard warning at >= 24h.
-    // The count-based "messages since context" signal was removed in favor of
-    // pure time-based staleness (zero per-call message-doc reads).
-    if (currentContext.elapsedHours >= 24) {
-      const ageDays = Math.floor(currentContext.elapsedHours / 24);
-      lines.push('');
-      lines.push(`⚠️ Context is ${ageDays}d old.`);
-      if (isEntryPoint) {
-        lines.push(
-          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
-        );
-      }
-    } else if (currentContext.elapsedHours >= 4) {
-      const ageHours = Math.floor(currentContext.elapsedHours);
-      lines.push('');
-      lines.push(`⚠️ Context is ${ageHours}h old — consider refreshing if stale.`);
-      if (isEntryPoint) {
-        lines.push(
-          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
-        );
-      }
-    }
-  }
-  // Fallback to origin message if no context (legacy behavior)
-  else if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
-    lines.push('');
-    lines.push('## Context');
-    lines.push(
-      `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
-    );
-
-    // Staleness warning: many follow-ups
-    if (followUpCountSinceOrigin >= 5) {
-      lines.push('');
-      lines.push(`⚠️ Stale: ${followUpCountSinceOrigin} follow-ups since pinned message.`);
-      if (isEntryPoint) {
-        lines.push(
-          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
-        );
-      }
-    }
-
-    // Staleness warning: old pinned message
-    if (originMessageCreatedAt) {
-      const ageMs = Date.now() - originMessageCreatedAt;
-      const ageHours = ageMs / (1000 * 60 * 60);
-      if (ageHours >= 24) {
-        const ageDays = Math.floor(ageHours / 24);
-        lines.push('');
-        lines.push(`⚠️ Pinned message is ${ageDays}d old.`);
-        if (isEntryPoint) {
-          lines.push(
-            `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
-          );
-        }
-      }
-    }
-  }
-
-  // Task content — inline (same as native injection; harness stdout marks in_progress)
-  lines.push('');
-  lines.push('## Chatroom task');
-  lines.push(task.content);
-  lines.push(
-    ...renderDeliveryAttachmentsBlock(
-      { attachedSnippets: sourceAttachments?.attachedSnippets },
-      { chatroomId, role, mode: 'cli' }
-    )
-  );
-  lines.push('');
-  lines.push(getTokenActivityInProgressNote());
-
-  // Attached messages from origin message (user-pinned messages as context)
-  const attachedMessages = originMessage?.attachedMessages ?? [];
-  if (attachedMessages.length > 0) {
-    lines.push('');
-    lines.push(`## Attached Messages (${attachedMessages.length})`);
-    for (const attached of attachedMessages) {
-      lines.push('<attached-message>');
-      lines.push(`From: ${attached.senderRole}`);
-      lines.push(`ID: ${attached._id}`);
-      lines.push('---');
-      lines.push(attached.content);
-      lines.push('</attached-message>');
-    }
-  }
-
-  lines.push('</task>');
-
-  appendTaskDeliveryNextSteps(lines, {
+  const lines: string[] = [];
+  appendCliTaskSection(lines, {
     chatroomId,
     role,
     cliEnvPrefix,
-    message: message ? { _id: message._id, senderRole: message.senderRole } : null,
-    availableHandoffTargets,
+    isEntryPoint,
     task,
+    message: message ? { _id: message._id, senderRole: message.senderRole } : null,
+    currentContext,
+    originMessage,
+    followUpCountSinceOrigin,
+    originMessageCreatedAt,
+    sourceAttachments,
+  });
+
+  appendCliSharedHandoffSections(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    teamId,
+    task,
+    message,
+    availableHandoffTargets,
     isEntryPoint,
   });
-  appendTaskDeliveryHandoffTemplates(lines, { teamId, role, chatroomId, cliEnvPrefix });
-  appendTaskDeliveryHandoffTargets(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    availableHandoffTargets,
-  });
-
-  // ── Reminder footer ───────────────────────────────────────────────────────
-
-  lines.push('');
-  lines.push(SEP_EQUAL);
-  lines.push(getNextTaskReminder());
-  lines.push(getCompactionRecoveryOneLiner({ cliEnvPrefix, chatroomId, role }));
-  lines.push(SEP_EQUAL);
+  appendCliTaskDeliveryFooter(lines, { chatroomId, role, cliEnvPrefix });
 
   return lines.join('\n');
 }
