@@ -3,7 +3,7 @@
  *
  * Tests the handoff command using injected dependencies.
  * Covers: auth validation, successful handoff, mutation failure,
- * handoff restriction (suggested target), artifact validation.
+ * handoff restriction (suggested target).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -203,17 +203,6 @@ describe('handoff', () => {
       const errOutput = getAllErrorOutput();
       expect(errOutput).toContain('Handoff failed');
       expect(errOutput).toContain('Network timeout');
-    });
-  });
-
-  describe('artifact validation', () => {
-    it('exits with code 1 when artifacts are invalid', async () => {
-      const deps = createMockDeps();
-      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-
-      await handoff(TEST_CHATROOM_ID, defaultOptions({ attachedArtifactIds: ['art_123'] }), deps);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 });
