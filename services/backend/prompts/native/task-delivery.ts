@@ -93,10 +93,7 @@ function appendNativeTaskSection(
   });
   lines.push('', task.content);
   lines.push(
-    ...renderDeliveryAttachmentsBlock(
-      { attachedSnippets: sourceAttachments?.attachedSnippets },
-      { chatroomId, role, mode: 'native' }
-    )
+    ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'native' })
   );
   appendNativeAttachedMessages(lines, attachedMessages);
   lines.push('</task>');

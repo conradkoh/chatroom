@@ -3,7 +3,7 @@
  */
 
 import { appendTaskDeliveryContextSection } from './context-staleness.js';
-import type { DeliveryAttachmentsInput } from '../../src/domain/entities/message-attachments.js';
+import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
 import { getTokenActivityInProgressNote } from '../base/shared/token-activity-note';
 import { getCompactionRecoveryOneLiner, getNextTaskReminder } from '../cli/get-next-task/reminder';
@@ -24,7 +24,7 @@ export interface CliTaskSectionParams {
   } | null;
   followUpCountSinceOrigin: number;
   originMessageCreatedAt: number | null;
-  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
+  sourceAttachments?: PrimaryDeliveryAttachments;
 }
 
 function appendCliAttachedMessages(
@@ -79,10 +79,7 @@ export function appendCliTaskSection(lines: string[], params: CliTaskSectionPara
 
   lines.push('', '## Chatroom task', task.content);
   lines.push(
-    ...renderDeliveryAttachmentsBlock(
-      { attachedSnippets: sourceAttachments?.attachedSnippets },
-      { chatroomId, role, mode: 'cli' }
-    )
+    ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'cli' })
   );
   lines.push('', getTokenActivityInProgressNote());
   appendCliAttachedMessages(lines, originMessage?.attachedMessages ?? []);

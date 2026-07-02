@@ -1,5 +1,5 @@
 /**
- * Attachment kinds that have delivery renderers (task-read + future primary delivery).
+ * Attachment kinds that have delivery renderers (task-read + primary delivery).
  * @see ./ATTACHMENTS_GUIDE.md — end-to-end attachment guide (canonical)
  */
 // fallow-ignore-next-line unused-export
@@ -12,15 +12,6 @@ export type MessageAttachmentField =
   | 'attachedMessageIds'
   | 'attachedSnippets'
   | 'attachedArtifactIds';
-
-/** Maps schema fields → delivery kind. Add new fields here before enabling delivery. */
-// fallow-ignore-next-line unused-export
-export const DELIVERY_ATTACHMENT_FIELD_MAP = {
-  attachedBacklogItemIds: 'backlog',
-  attachedMessageIds: 'message',
-  attachedSnippets: 'snippet',
-  attachedArtifactIds: 'artifact', // reserved — no renderer yet
-} as const satisfies Record<MessageAttachmentField, MessageAttachmentKind | 'artifact'>;
 
 /** Resolved attachment payloads passed to renderers. */
 export interface DeliveryBacklogItem {
@@ -46,6 +37,35 @@ export interface DeliveryAttachmentsInput {
   attachedSnippets?: DeliverySnippet[];
   attachedMessages?: DeliveryAttachedMessage[];
 }
+
+/**
+ * Kinds rendered in primary task delivery (`<attachments>` XML alongside task content).
+ * Add new kinds here AND in PRIMARY_DELIVERY_INPUT_KEY_BY_KIND — compiler enforces exhaustiveness.
+ */
+// fallow-ignore-next-line unused-export
+export const PRIMARY_DELIVERY_ATTACHMENT_KINDS = ['backlog', 'snippet'] as const;
+export type PrimaryDeliveryAttachmentKind = (typeof PRIMARY_DELIVERY_ATTACHMENT_KINDS)[number];
+
+/** Maps each primary-delivery kind → DeliveryAttachmentsInput field. Must stay exhaustive. */
+// fallow-ignore-next-line unused-export
+export const PRIMARY_DELIVERY_INPUT_KEY_BY_KIND = {
+  backlog: 'attachedBacklogItems',
+  snippet: 'attachedSnippets',
+} as const satisfies Record<PrimaryDeliveryAttachmentKind, keyof DeliveryAttachmentsInput>;
+
+export type PrimaryDeliveryAttachments = Pick<
+  DeliveryAttachmentsInput,
+  (typeof PRIMARY_DELIVERY_INPUT_KEY_BY_KIND)[PrimaryDeliveryAttachmentKind]
+>;
+
+/** Maps schema fields → delivery kind. Add new fields here before enabling delivery. */
+// fallow-ignore-next-line unused-export
+export const DELIVERY_ATTACHMENT_FIELD_MAP = {
+  attachedBacklogItemIds: 'backlog',
+  attachedMessageIds: 'message',
+  attachedSnippets: 'snippet',
+  attachedArtifactIds: 'artifact', // reserved — no renderer yet
+} as const satisfies Record<MessageAttachmentField, MessageAttachmentKind | 'artifact'>;
 
 export interface DeliveryAttachmentRenderContext {
   chatroomId: string;

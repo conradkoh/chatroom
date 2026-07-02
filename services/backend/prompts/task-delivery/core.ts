@@ -5,7 +5,7 @@
  */
 
 import type { TaskDeliveryContextWindow } from './context-staleness';
-import type { DeliveryAttachmentsInput } from '../../src/domain/entities/message-attachments.js';
+import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { handoffCommand } from '../cli/handoff/command';
 import { inferPrimaryHandoffTarget } from '../utils/infer-primary-handoff-target';
 
@@ -19,7 +19,7 @@ export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
   availableHandoffTargets: string[];
   attachedMessages?: { _id: string; content: string; senderRole: string }[];
   isEntryPoint?: boolean;
-  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
+  sourceAttachments?: PrimaryDeliveryAttachments;
 }
 
 export { appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates } from '../native/delivery-handoff-templates';

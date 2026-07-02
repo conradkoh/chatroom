@@ -13,7 +13,7 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 | Kind     | Schema field             | Compose (webapp) | Primary delivery        | Task read |
 | -------- | ------------------------ | ---------------- | ----------------------- | --------- |
 | task     | `attachedTaskIds`        | ✅ chip          | ❌ (separate)           | ❌        |
-| backlog  | `attachedBacklogItemIds` | ✅ chip          | ❌ task-read only       | ✅ XML    |
+| backlog  | `attachedBacklogItemIds` | ✅ chip          | ✅ `<attachments>` XML  | ✅ XML    |
 | message  | `attachedMessageIds`     | ✅ chip          | ✅ `<attached-message>` | ❌        |
 | snippet  | `attachedSnippets`       | ✅ chip + Cmd+I  | ✅ `<attachments>` XML  | ✅ XML    |
 | artifact | `attachedArtifactIds`    | ❌ reserved      | ❌ reserved             | ❌        |
@@ -21,7 +21,7 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 **Policy notes**
 
 - **Snippets** appear in primary delivery (`get-next-task` / native injection) and `task read`, using the shared XML renderer.
-- **Backlog** items are **task-read-only** in delivery — agents use `chatroom task read` to see backlog XML.
+- **Backlog** items appear in primary delivery and `task read`, using the shared `<attachments>` XML renderer.
 - **Attached messages** use a separate format in primary delivery (`<attached-message>` in CLI, `<attached>` in native) — not the `<attachments>` block.
 - **Tasks** link to `chatroom_tasks` records; compose-only chips, no delivery XML yet.
 
@@ -128,13 +128,13 @@ flowchart LR
 
 Backend files are **not** in the webapp module — document and wire from `services/backend/`:
 
-| File                                                                        | Purpose                                                                        |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `services/backend/src/domain/entities/message-attachments.ts`               | `MESSAGE_ATTACHMENT_KINDS`, `DELIVERY_ATTACHMENT_FIELD_MAP`, payload types     |
-| `services/backend/prompts/attachments/render-delivery-attachments.ts`       | `DELIVERY_ATTACHMENT_RENDERERS` (exhaustive), `renderDeliveryAttachmentsBlock` |
-| `services/backend/prompts/attachments/delivery-attachment-contract.test.ts` | `PRIMARY_DELIVERY_ATTACHMENT_KINDS` regression guard                           |
-| `services/backend/convex/messages.ts`                                       | `getTaskDeliveryPrompt` passes `sourceAttachments` from source message         |
-| `packages/cli/src/commands/task/read/render.ts`                             | Task-read delegates to shared renderer                                         |
+| File                                                                        | Purpose                                                                                                         |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `services/backend/src/domain/entities/message-attachments.ts`               | `MESSAGE_ATTACHMENT_KINDS`, `PRIMARY_DELIVERY_ATTACHMENT_KINDS`, `DELIVERY_ATTACHMENT_FIELD_MAP`, payload types |
+| `services/backend/prompts/attachments/render-delivery-attachments.ts`       | `DELIVERY_ATTACHMENT_RENDERERS` (exhaustive), `renderDeliveryAttachmentsBlock`                                  |
+| `services/backend/prompts/attachments/delivery-attachment-contract.test.ts` | Exhaustiveness regression guard for primary delivery kinds                                                      |
+| `services/backend/convex/messages.ts`                                       | `getTaskDeliveryPrompt` passes `sourceAttachments` from source message                                          |
+| `packages/cli/src/commands/task/read/render.ts`                             | Task-read delegates to shared renderer                                                                          |
 
 **Field map** (`message-attachments.ts`):
 
@@ -147,13 +147,17 @@ export const DELIVERY_ATTACHMENT_FIELD_MAP = {
 } as const;
 ```
 
-**Primary delivery kinds** (`delivery-attachment-contract.test.ts`):
+**Primary delivery kinds** (`message-attachments.ts`):
 
 ```typescript
-export const PRIMARY_DELIVERY_ATTACHMENT_KINDS = ['snippet'] as const;
+export const PRIMARY_DELIVERY_ATTACHMENT_KINDS = ['backlog', 'snippet'] as const;
+export const PRIMARY_DELIVERY_INPUT_KEY_BY_KIND = {
+  backlog: 'attachedBacklogItems',
+  snippet: 'attachedSnippets',
+} as const satisfies Record<PrimaryDeliveryAttachmentKind, keyof DeliveryAttachmentsInput>;
 ```
 
-Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` when agents must see it without running `task read`.
+Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KEY_BY_KIND` when agents must see it without running `task read`. Compiler enforces exhaustiveness.
 
 ---
 
@@ -202,7 +206,7 @@ Rendered by `renderDeliveryAttachmentsBlock` — identical in both paths:
 </attachments>
 ```
 
-### Backlog (task read only)
+### Backlog (primary delivery + task read)
 
 ```xml
   <attachment type="backlog-item">
@@ -229,7 +233,7 @@ Created by `renderInlineReference()` in `attachments/snippet/explorerSelectionAt
 | Kind        | Webapp folder          | Notes                                                                           |
 | ----------- | ---------------------- | ------------------------------------------------------------------------------- |
 | **Snippet** | `attachments/snippet/` | Most complete: Cmd+I (`composerPrefill.ts`), chip, primary delivery + task read |
-| **Backlog** | `attachments/backlog/` | Compose chip + task-read XML delivery                                           |
+| **Backlog** | `attachments/backlog/` | Compose chip + primary delivery + task-read XML                                 |
 | **Message** | `attachments/message/` | Compose chip + primary delivery via separate `<attached-message>` format        |
 | **Task**    | `attachments/task/`    | Compose-only chip linking to `chatroom_tasks`                                   |
 

@@ -16,6 +16,7 @@ import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
+import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -1709,8 +1710,11 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
-    // Fetch attached backlog items if any exist in context messages
+    // Fetch attached backlog items if any exist in context messages or the task source message
     const allAttachedBacklogItemIds: Id<'chatroom_backlog'>[] = [];
+    if (message?.attachedBacklogItemIds && message.attachedBacklogItemIds.length > 0) {
+      allAttachedBacklogItemIds.push(...message.attachedBacklogItemIds);
+    }
     if (originMessage?.attachedBacklogItemIds && originMessage.attachedBacklogItemIds.length > 0) {
       allAttachedBacklogItemIds.push(...originMessage.attachedBacklogItemIds);
     }
@@ -1761,6 +1765,22 @@ export const getTaskDeliveryPrompt = query({
     const sourceSnippets =
       message && 'attachedSnippets' in message && message.attachedSnippets?.length
         ? message.attachedSnippets
+        : undefined;
+
+    const sourceBacklogItems =
+      message && 'attachedBacklogItemIds' in message && message.attachedBacklogItemIds?.length
+        ? message.attachedBacklogItemIds.flatMap((id) => {
+            const item = attachedBacklogItemsMap.get(id);
+            return item ? [{ _id: item.id, content: item.content, status: item.status }] : [];
+          })
+        : undefined;
+
+    const sourceAttachments: PrimaryDeliveryAttachments | undefined =
+      sourceSnippets || sourceBacklogItems?.length
+        ? {
+            ...(sourceBacklogItems?.length && { attachedBacklogItems: sourceBacklogItems }),
+            ...(sourceSnippets && { attachedSnippets: sourceSnippets }),
+          }
         : undefined;
 
     // Build context for prompt generation
@@ -1905,7 +1925,7 @@ export const getTaskDeliveryPrompt = query({
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
       nativeIntegration,
-      sourceAttachments: sourceSnippets ? { attachedSnippets: sourceSnippets } : undefined,
+      sourceAttachments,
     });
 
     return {

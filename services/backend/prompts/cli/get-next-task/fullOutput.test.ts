@@ -134,6 +134,28 @@ describe('generateFullCliOutput — nativeIntegration', () => {
 });
 
 describe('generateFullCliOutput — snippet attachments in primary delivery', () => {
+  test('CLI mode includes backlog XML after task content when sourceAttachments has backlog items', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: false,
+      sourceAttachments: {
+        attachedBacklogItems: [
+          {
+            _id: 'backlog-item-001',
+            status: 'backlog',
+            content: 'Implement dark mode toggle',
+          },
+        ],
+      },
+    });
+    const taskContentIdx = output.indexOf('Implement the feature');
+    const attachmentsIdx = output.indexOf('<attachments>');
+    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(output).toContain('type="backlog-item"');
+    expect(output).toContain('Implement dark mode toggle');
+    expect(output).toContain('backlog-item-001');
+  });
+
   test('CLI mode includes snippet XML after task content when sourceAttachments has snippets', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
