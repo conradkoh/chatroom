@@ -49,6 +49,9 @@ export interface ChatroomTimelineFeedProps {
   chatroomId: string;
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
+  onRegisterMessageStoreActions?: (actions: {
+    removeMessagesForTask: (taskId: string) => void;
+  }) => void;
   machines?: Map<string, MachineNameEntry>;
 }
 
@@ -56,6 +59,7 @@ export function ChatroomTimelineFeed({
   chatroomId,
   coordinator,
   onRegisterOpenEventStream,
+  onRegisterMessageStoreActions,
   machines,
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
@@ -72,6 +76,7 @@ export function ChatroomTimelineFeed({
     hasMoreOlder,
     isLoadingOlder,
     loadOlderEvents,
+    removeMessagesForTask,
     isEventStreamOpen,
     setIsEventStreamOpen,
     latestEvent,
@@ -96,6 +101,10 @@ export function ChatroomTimelineFeed({
   useEffect(() => {
     onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
   }, [onRegisterOpenEventStream, setIsEventStreamOpen]);
+
+  useEffect(() => {
+    onRegisterMessageStoreActions?.({ removeMessagesForTask });
+  }, [onRegisterMessageStoreActions, removeMessagesForTask]);
 
   const initialMeasurementsCache = useMemo((): VirtualItem[] => {
     // Snapshot the cache once at mount. Re-mounts (chatroom switch) re-create.

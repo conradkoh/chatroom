@@ -96,7 +96,8 @@ type Action =
   | { type: 'LOAD_OLDER_START' }
   | { type: 'LOAD_OLDER_FAILED' }
   | { type: 'RESET' }
-  | { type: 'APPLY_VISIBLE_UPDATES'; updates: VisibleUpdate[] };
+  | { type: 'APPLY_VISIBLE_UPDATES'; updates: VisibleUpdate[] }
+  | { type: 'REMOVE_BY_TASK_ID'; taskId: string };
 
 function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] {
   if (incoming.length === 0) return existing;
@@ -147,6 +148,13 @@ export function applyVisibleUpdates(existing: Message[], updates: VisibleUpdate[
   return changed ? next : existing;
 }
 
+/** Evict all messages linked to a deleted task (pure helper for reducer + tests). */
+// fallow-ignore-next-line unused-export
+export function removeMessagesForTaskId(messages: Message[], taskId: string): Message[] {
+  return messages.filter((m) => m.taskId !== taskId);
+}
+
+// fallow-ignore-next-line complexity
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'INITIALIZE': {
@@ -187,6 +195,12 @@ function reducer(state: State, action: Action): State {
       if (!state.isInitialized) return state;
       const next = applyVisibleUpdates(state.messages, action.updates);
       if (next === state.messages) return state;
+      return { ...state, messages: next };
+    }
+    case 'REMOVE_BY_TASK_ID': {
+      if (!state.isInitialized) return state;
+      const next = removeMessagesForTaskId(state.messages, action.taskId);
+      if (next.length === state.messages.length) return state;
       return { ...state, messages: next };
     }
     case 'LOAD_OLDER_START':
@@ -274,6 +288,7 @@ export interface UseChatroomMessageStoreResult {
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   loadOlderMessages: () => void;
+  removeMessagesForTask: (taskId: string) => void;
 }
 
 export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageStoreResult {
@@ -420,11 +435,17 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
     })();
   }, [convex, typedChatroomId, sessionId]);
 
+  const removeMessagesForTask = useCallback(
+    (taskId: string) => dispatch({ type: 'REMOVE_BY_TASK_ID', taskId }),
+    []
+  );
+
   return {
     messages: state.messages,
     isLoading: !state.isInitialized,
     hasMoreOlder: state.hasMoreOlder,
     isLoadingOlder: state.isLoadingOlder,
     loadOlderMessages,
+    removeMessagesForTask,
   };
 }

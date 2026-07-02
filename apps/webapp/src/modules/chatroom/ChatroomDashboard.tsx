@@ -717,9 +717,21 @@ export function ChatroomDashboard({
   const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
+  const removeMessagesForTaskRef = useRef<((taskId: string) => void) | null>(null);
 
   const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
     openEventStreamRef.current = fn;
+  }, []);
+
+  const handleRegisterMessageStoreActions = useCallback(
+    (actions: { removeMessagesForTask: (taskId: string) => void }) => {
+      removeMessagesForTaskRef.current = actions.removeMessagesForTask;
+    },
+    []
+  );
+
+  const handleTaskDeleted = useCallback((taskId: string) => {
+    removeMessagesForTaskRef.current?.(taskId);
   }, []);
 
   const handleRegisterWorkQueueActions = useCallback(
@@ -1428,6 +1440,7 @@ export function ChatroomDashboard({
                       messagesPanelProps={{
                         coordinator: timelineScrollCoordinator,
                         onRegisterOpenEventStream: handleRegisterOpenEventStream,
+                        onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
                         machines: machineNameMap,
                         onBeforeResize: beginResize,
                         onAfterResize: endResize,
@@ -1447,6 +1460,7 @@ export function ChatroomDashboard({
                     chatroomId={chatroomId}
                     coordinator={timelineScrollCoordinator}
                     onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                    onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
                     machines={machineNameMap}
                     viewMode={messageViewMode}
                     footer={
@@ -1545,6 +1559,7 @@ export function ChatroomDashboard({
                   chatroomId={chatroomId as Id<'chatroom_rooms'>}
                   lifecycle={lifecycle}
                   onRegisterActions={handleRegisterWorkQueueActions}
+                  onTaskDeleted={handleTaskDeleted}
                 />
               </div>
             </div>
