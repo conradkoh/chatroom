@@ -20,7 +20,9 @@ describe('native task-started content', () => {
     expect(prompt).not.toMatch(/task read/i);
     expect(prompt).not.toMatch(/inject/i);
     expect(prompt).toContain('Start working');
-    expect(prompt).not.toContain('view-template');
+    expect(prompt).toContain('**Context Rule:**');
+    expect(prompt).toContain('context new --chatroom-id="room-id"');
+    expect(prompt).toContain('chatroom context view-template');
     expect(prompt).not.toContain('chatroom classify');
   });
 

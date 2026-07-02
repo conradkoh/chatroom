@@ -2,8 +2,9 @@
  * Task intake guidance for native-integration harnesses (init system prompt).
  */
 
+import { getContextRuleBlock } from '../base/shared/context-rule';
 import { getNativeTokenActivityInProgressNote } from '../base/shared/token-activity-note';
-import { contextNewCommand } from '../cli/context/new';
+import { contextNewCommand, contextNewHint } from '../cli/context/new';
 
 export function getNativeTaskStartedPrompt(ctx: {
   chatroomId: string;
@@ -20,11 +21,7 @@ export function getNativeTaskStartedPrompt(ctx: {
 
 Entry-point roles receive user messages directly. ${getNativeTokenActivityInProgressNote()}
 
-Set context when starting substantive code work. Skip for simple informational messages. Only the entry point role can set contexts:
-
-\`\`\`bash
-${contextNewCmd}
-\`\`\``;
+${getContextRuleBlock(contextNewCmd, contextNewHint())}`;
 }
 
 export function getNativeTaskStartedPromptForHandoffRecipient(): string {

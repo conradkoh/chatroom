@@ -78,6 +78,10 @@ describe('handoff-templates > planner → user report', () => {
     expect(report).toContain('## What changed');
     expect(report).toContain('### Proof of Principle');
     expect(report).toContain('### Proof of Completion');
+    expect(report).toContain('chatroom context read');
+    expect(report).toContain(
+      'I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met'
+    );
     expect(report).not.toMatch(/^## Proof of Principle/m);
     expect(report).toContain('Organization & Maintainability');
     expect(report).toContain('Static Evaluability and Provability');
@@ -200,6 +204,10 @@ describe('handoff-templates > builder → planner handoff', () => {
     expect(handoff).toContain('## Summary');
     expect(handoff).toContain('## Proof of Principle');
     expect(handoff).toContain('## Proof of Completion');
+    expect(handoff).toContain('chatroom context read');
+    expect(handoff).toContain(
+      'I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met'
+    );
     expect(handoff).toContain('Organization & Maintainability');
     expect(handoff).toContain('Static Evaluability and Provability');
   });

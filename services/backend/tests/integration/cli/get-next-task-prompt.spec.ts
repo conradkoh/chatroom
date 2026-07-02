@@ -456,6 +456,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
       ## Proof of Completion
+      - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
+      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. State the context goal and confirm it was achieved. -->
       - \`path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 

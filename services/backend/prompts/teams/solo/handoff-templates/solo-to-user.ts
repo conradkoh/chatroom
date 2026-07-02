@@ -2,9 +2,11 @@
  * Handoff template: Solo → user (final report).
  */
 
+import type { ContextReadParams } from '../../../cli/context/read';
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
 
-export function getSoloToUserReportTemplate(): string {
+export function getSoloToUserReportTemplate(contextParams?: ContextReadParams): string {
   return `${getHandoffRecipientVisibilityCallout('user')}
 
 **Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
@@ -14,6 +16,7 @@ export function getSoloToUserReportTemplate(): string {
 <what was accomplished, in plain terms — no references to prior messages>
 
 ## Proof — files changed
+${getContextReadDisclosureBlock(contextParams)}
 - \`path/to/file.ts\` — <what changed and why>
 <list every file you modified; this is the evidence of work>
 
