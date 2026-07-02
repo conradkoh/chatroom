@@ -142,24 +142,8 @@ function createNativeSdkService(harness: NativeSdkHarness) {
   return { service, resumeTurn, onAgentEndRegistrar };
 }
 
-function createDepsWithParticipantStatus(lastStatus: string, afterQueryCalls = 2) {
-  let queryCallCount = 0;
-  return createDeps({
-    backend: {
-      query: vi.fn().mockImplementation(async () => {
-        queryCallCount++;
-        if (queryCallCount >= afterQueryCalls) {
-          return { lastStatus };
-        }
-        return {
-          prompt: true,
-          rolePrompt: 'You are a builder',
-          initialMessage: 'Start working',
-        };
-      }),
-      mutation: vi.fn().mockResolvedValue(undefined),
-    },
-  });
+function getHandleNativeAgentEndCalls(deps: AgentProcessManagerDeps): Record<string, unknown>[] {
+  return getMutationCallsByArgs(deps, (args) => !('action' in args) && 'role' in args);
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -227,7 +211,7 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s emits native:waiting without resumeTurn',
+      'turn-end for %s calls handleNativeAgentEnd without resumeTurn',
       async (harness) => {
         const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
         deps.agentServices = new Map([[harness, service]]);
@@ -242,19 +226,14 @@ describe('AgentProcessManager', () => {
         await triggerAgentEnd(manager, agentEndCb);
 
         expect(resumeTurn).not.toHaveBeenCalled();
-        const nativeWaitingCalls = getMutationCallsByArgs(
-          deps,
-          (args) => args.action === 'native:waiting'
-        );
-        expect(nativeWaitingCalls).toHaveLength(1);
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
       }
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s completes missed handoff when task is in progress',
+      'turn-end for %s always calls handleNativeAgentEnd (backend decides active work)',
       async (harness) => {
         const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps = createDepsWithParticipantStatus('task.inProgress');
         deps.agentServices = new Map([[harness, service]]);
         manager = new AgentProcessManager(deps);
 
@@ -267,11 +246,7 @@ describe('AgentProcessManager', () => {
         await triggerAgentEnd(manager, agentEndCb);
 
         expect(resumeTurn).not.toHaveBeenCalled();
-        const fallbackCalls = getMutationCallsByArgs(
-          deps,
-          (args) => 'bufferedContent' in args && !('action' in args)
-        );
-        expect(fallbackCalls).toHaveLength(1);
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'
@@ -281,10 +256,9 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s completes missed handoff when task is acknowledged',
+      'turn-end for %s delegates missed handoff to handleNativeAgentEnd',
       async (harness) => {
         const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps = createDepsWithParticipantStatus('task.acknowledged');
         deps.agentServices = new Map([[harness, service]]);
         manager = new AgentProcessManager(deps);
 
@@ -296,11 +270,7 @@ describe('AgentProcessManager', () => {
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
-        const fallbackCalls = getMutationCallsByArgs(
-          deps,
-          (args) => 'bufferedContent' in args && !('action' in args)
-        );
-        expect(fallbackCalls).toHaveLength(1);
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'
@@ -310,7 +280,7 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'onAgentEnd for %s still emits native:waiting when wantResume is false',
+      'onAgentEnd for %s still calls handleNativeAgentEnd when wantResume is false',
       async (harness) => {
         const resumeTurn = vi.fn().mockResolvedValue(undefined);
         const onAgentEndRegistrar = vi.fn();
@@ -342,11 +312,7 @@ describe('AgentProcessManager', () => {
 
         expect(resumeTurn).not.toHaveBeenCalled();
         expect(deps.processes.kill).not.toHaveBeenCalled();
-        const nativeWaitingCalls = getMutationCallsByArgs(
-          deps,
-          (args) => args.action === 'native:waiting'
-        );
-        expect(nativeWaitingCalls).toHaveLength(1);
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
       }
     );
 
@@ -1839,11 +1805,7 @@ describe('AgentProcessManager', () => {
       // 3. Verify: resumeTurn was NOT called; native harness idles in-process
       expect(resumeTurn).not.toHaveBeenCalled();
       expect(localDeps.processes.kill).not.toHaveBeenCalled();
-      const nativeWaitingCalls = getMutationCallsByArgs(
-        localDeps,
-        (args) => args.action === 'native:waiting'
-      );
-      expect(nativeWaitingCalls).toHaveLength(1);
+      expect(getHandleNativeAgentEndCalls(localDeps)).toHaveLength(1);
 
       // 4. Clear mocks for next phase
       (localDeps.processes.kill as ReturnType<typeof vi.fn>).mockClear();

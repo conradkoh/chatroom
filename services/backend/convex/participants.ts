@@ -24,7 +24,7 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
-import { completeNativeTurnWithoutHandoff as completeNativeTurnWithoutHandoffUsecase } from '../src/domain/usecase/participant/complete-native-turn-without-handoff';
+import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import {
   findActiveAssignedTaskForRole,
@@ -337,8 +337,8 @@ export const getByRole = query({
   },
 });
 
-/** Completes an active task and returns control when a native harness ends a turn without handoff. */
-export const completeNativeTurnWithoutHandoff = mutation({
+/** Idempotent handler for native harness agent_end — completes active work, delivers buffered text, returns to waiting. */
+export const handleNativeAgentEnd = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
@@ -347,23 +347,12 @@ export const completeNativeTurnWithoutHandoff = mutation({
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const result = await completeNativeTurnWithoutHandoffUsecase(ctx, {
+    return await handleNativeAgentEndUsecase(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       bufferedContent: args.bufferedContent,
       ownerId: chatroom.ownerId,
     });
-
-    const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
-    if (participant) {
-      const now = Date.now();
-      await ctx.db.patch('chatroom_participants', participant._id, {
-        lastSeenAction: NATIVE_WAITING_ACTION,
-        lastSeenAt: now,
-      });
-    }
-
-    return result;
   },
 });
 
