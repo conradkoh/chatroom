@@ -12,7 +12,7 @@
  * - Reminder footer
  */
 
-import type { DeliveryAttachmentsInput } from '../../../src/domain/entities/message-attachments.js';
+import type { PrimaryDeliveryAttachments } from '../../../src/domain/entities/message-attachments.js';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
 import {
   appendCliTaskDeliveryFooter,
@@ -56,11 +56,6 @@ export interface FullCliOutputParams {
     senderRole: string;
     content: string;
     classification?: string | null;
-    attachedMessages?: {
-      _id: string;
-      content: string;
-      senderRole: string;
-    }[];
   } | null;
 
   /** Number of follow-up messages since origin */
@@ -78,8 +73,8 @@ export interface FullCliOutputParams {
   /** When true, omit get-next-task language (native harness task injection). */
   nativeIntegration?: boolean;
 
-  /** Attachments from the task SOURCE message (snippets; backlog excluded from primary delivery). */
-  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
+  /** Attachments from the task SOURCE message (primary delivery kinds only). */
+  sourceAttachments?: PrimaryDeliveryAttachments;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -109,7 +104,6 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     task,
     message: message ? { _id: message._id, senderRole: message.senderRole } : null,
     availableHandoffTargets,
-    attachedMessages: originMessage?.attachedMessages ?? [],
     isEntryPoint,
     sourceAttachments,
     currentContext,

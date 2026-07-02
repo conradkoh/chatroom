@@ -29,6 +29,8 @@ export interface RenderTaskPromptInput {
   attachedBacklogItems?: { _id: string; content: string; status: string }[];
   // fallow-ignore-next-line code-duplication
   attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+  attachedTasks?: { _id: string; content: string; status: string }[];
+  attachedMessages?: { _id: string; content: string; senderRole: string }[];
 }
 
 /**
@@ -56,6 +58,8 @@ function renderAttachments(
     {
       attachedBacklogItems: input.attachedBacklogItems,
       attachedSnippets: input.attachedSnippets,
+      attachedTasks: input.attachedTasks,
+      attachedMessages: input.attachedMessages,
     },
     { chatroomId, role, mode: 'task-read' }
   );

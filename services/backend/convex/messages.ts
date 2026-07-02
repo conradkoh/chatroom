@@ -15,6 +15,10 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
+import {
+  assemblePrimaryDeliveryAttachments,
+  resolvePrimaryDeliveryAssemblyInput,
+} from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -1678,8 +1682,11 @@ export const getTaskDeliveryPrompt = query({
     const contextMessagesSlice =
       originIndex >= 0 ? contextMessages.slice(originIndex) : contextMessages;
 
-    // Fetch attached tasks if any exist in context messages
+    // Fetch attached tasks if any exist in context messages or the task source message
     const allAttachedTaskIds: Id<'chatroom_tasks'>[] = [];
+    if (message?.attachedTaskIds && message.attachedTaskIds.length > 0) {
+      allAttachedTaskIds.push(...message.attachedTaskIds);
+    }
     if (originMessage?.attachedTaskIds && originMessage.attachedTaskIds.length > 0) {
       allAttachedTaskIds.push(...originMessage.attachedTaskIds);
     }
@@ -1709,8 +1716,11 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
-    // Fetch attached backlog items if any exist in context messages
+    // Fetch attached backlog items if any exist in context messages or the task source message
     const allAttachedBacklogItemIds: Id<'chatroom_backlog'>[] = [];
+    if (message?.attachedBacklogItemIds && message.attachedBacklogItemIds.length > 0) {
+      allAttachedBacklogItemIds.push(...message.attachedBacklogItemIds);
+    }
     if (originMessage?.attachedBacklogItemIds && originMessage.attachedBacklogItemIds.length > 0) {
       allAttachedBacklogItemIds.push(...originMessage.attachedBacklogItemIds);
     }
@@ -1740,28 +1750,49 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
-    // Fetch attached messages if any exist in origin message
+    // Fetch attached messages from the task source message
     const attachedMessagesMap = new Map<
       string,
       { id: string; content: string; senderRole: string }
     >();
-    if (originMessage?.attachedMessageIds && originMessage.attachedMessageIds.length > 0) {
-      for (const msgId of originMessage.attachedMessageIds) {
-        const msg = await ctx.db.get('chatroom_messages', msgId);
-        if (msg) {
+    if (message?.attachedMessageIds && message.attachedMessageIds.length > 0) {
+      for (const msgId of message.attachedMessageIds) {
+        const attachedMsg = await ctx.db.get('chatroom_messages', msgId);
+        if (attachedMsg) {
           attachedMessagesMap.set(msgId, {
-            id: msg._id,
-            content: msg.content,
-            senderRole: msg.senderRole,
+            id: attachedMsg._id,
+            content: attachedMsg.content,
+            senderRole: attachedMsg.senderRole,
           });
         }
       }
     }
 
-    const sourceSnippets =
-      message && 'attachedSnippets' in message && message.attachedSnippets?.length
-        ? message.attachedSnippets
-        : undefined;
+    // Primary-delivery attachments: resolve from source message, then assemble typed payload.
+    // @see ../src/domain/entities/assemble-primary-delivery-attachments.ts
+    const primaryDeliveryInput = resolvePrimaryDeliveryAssemblyInput(
+      message
+        ? {
+            ...('attachedSnippets' in message && message.attachedSnippets?.length
+              ? { attachedSnippets: message.attachedSnippets }
+              : {}),
+            ...('attachedBacklogItemIds' in message && message.attachedBacklogItemIds?.length
+              ? { attachedBacklogItemIds: message.attachedBacklogItemIds }
+              : {}),
+            ...('attachedTaskIds' in message && message.attachedTaskIds?.length
+              ? { attachedTaskIds: message.attachedTaskIds }
+              : {}),
+            ...('attachedMessageIds' in message && message.attachedMessageIds?.length
+              ? { attachedMessageIds: message.attachedMessageIds }
+              : {}),
+          }
+        : null,
+      attachedBacklogItemsMap,
+      attachedTasksMap,
+      attachedMessagesMap
+    );
+    const sourceAttachments = assemblePrimaryDeliveryAttachments(primaryDeliveryInput);
+    const sourceSnippets = primaryDeliveryInput.attachedSnippets;
 
     // Build context for prompt generation
     const deliveryContext = {
@@ -1894,10 +1925,6 @@ export const getTaskDeliveryPrompt = query({
             senderRole: originMessage.senderRole,
             content: originMessage.content,
             classification: originMessage.classification,
-            attachedMessages: originMessage.attachedMessageIds?.flatMap((id) => {
-              const m = attachedMessagesMap.get(id);
-              return m ? [{ _id: m.id, content: m.content, senderRole: m.senderRole }] : [];
-            }),
           }
         : null,
       followUpCountSinceOrigin,
@@ -1905,7 +1932,7 @@ export const getTaskDeliveryPrompt = query({
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
       nativeIntegration,
-      sourceAttachments: sourceSnippets ? { attachedSnippets: sourceSnippets } : undefined,
+      sourceAttachments,
     });
 
     return {

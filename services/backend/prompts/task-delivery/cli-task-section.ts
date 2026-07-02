@@ -3,7 +3,7 @@
  */
 
 import { appendTaskDeliveryContextSection } from './context-staleness.js';
-import type { DeliveryAttachmentsInput } from '../../src/domain/entities/message-attachments.js';
+import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
 import { getTokenActivityInProgressNote } from '../base/shared/token-activity-note';
 import { getCompactionRecoveryOneLiner, getNextTaskReminder } from '../cli/get-next-task/reminder';
@@ -20,29 +20,10 @@ export interface CliTaskSectionParams {
   currentContext: { elapsedHours: number } | null;
   originMessage: {
     senderRole: string;
-    attachedMessages?: { _id: string; content: string; senderRole: string }[];
   } | null;
   followUpCountSinceOrigin: number;
   originMessageCreatedAt: number | null;
-  sourceAttachments?: Pick<DeliveryAttachmentsInput, 'attachedSnippets'>;
-}
-
-function appendCliAttachedMessages(
-  lines: string[],
-  attachedMessages: { _id: string; content: string; senderRole: string }[]
-): void {
-  if (attachedMessages.length === 0) return;
-
-  lines.push('');
-  lines.push(`## Attached Messages (${attachedMessages.length})`);
-  for (const attached of attachedMessages) {
-    lines.push('<attached-message>');
-    lines.push(`From: ${attached.senderRole}`);
-    lines.push(`ID: ${attached._id}`);
-    lines.push('---');
-    lines.push(attached.content);
-    lines.push('</attached-message>');
-  }
+  sourceAttachments?: PrimaryDeliveryAttachments;
 }
 
 // fallow-ignore-next-line complexity
@@ -79,13 +60,9 @@ export function appendCliTaskSection(lines: string[], params: CliTaskSectionPara
 
   lines.push('', '## Chatroom task', task.content);
   lines.push(
-    ...renderDeliveryAttachmentsBlock(
-      { attachedSnippets: sourceAttachments?.attachedSnippets },
-      { chatroomId, role, mode: 'cli' }
-    )
+    ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'cli' })
   );
   lines.push('', getTokenActivityInProgressNote());
-  appendCliAttachedMessages(lines, originMessage?.attachedMessages ?? []);
   lines.push('</task>');
 }
 

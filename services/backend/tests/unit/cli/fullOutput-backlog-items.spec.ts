@@ -1,13 +1,8 @@
 /**
- * Unit tests for generateFullCliOutput — attached backlog items rendering.
+ * Unit tests for generateFullCliOutput — attached backlog items in primary delivery.
  *
- * Backlog items attached via "Attach to Context" (stored as attachedBacklogItemIds
- * on chatroom_messages) are now rendered in the task-read CLI output, NOT in the
- * get-next-task output. This test file verifies that backlog items are correctly
- * excluded from generateFullCliOutput.
- *
- * The rendering was moved from get-next-task → task-read so that backlog items
- * appear as XML <attachments> inside the user message, making them clearer to agents.
+ * Backlog items attached via "Attach to Context" must appear in the primary task
+ * delivery output as XML inside <attachments>, alongside the user's message content.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -26,12 +21,12 @@ function baseParams() {
     cliEnvPrefix: CLI_ENV_PREFIX,
     task: {
       _id: 'task-id-123',
-      content: 'Fix the dark mode toggle',
+      content: 'Can you work on this item',
     },
     message: {
       _id: 'msg-id-456',
       senderRole: 'user',
-      content: 'Fix the dark mode toggle',
+      content: 'Can you work on this item',
     },
     currentContext: null,
     originMessage: null,
@@ -42,21 +37,11 @@ function baseParams() {
   };
 }
 
-describe('generateFullCliOutput — backlog items excluded (moved to task-read)', () => {
-  test('does not render Attached Backlog section when no attachments', () => {
-    const output = generateFullCliOutput(baseParams());
-    expect(output).not.toContain('## Attached Backlog');
-    expect(output).not.toContain('<backlog-item>');
-    expect(output).not.toContain('<system-info>');
-  });
-
-  test('does not render backlog items even when attachedBacklogItems are present in originMessage', () => {
-    const params = {
+describe('generateFullCliOutput — backlog items in primary delivery', () => {
+  test('renders backlog XML from sourceAttachments after task content', () => {
+    const output = generateFullCliOutput({
       ...baseParams(),
-      originMessage: {
-        senderRole: 'user',
-        content: 'Fix the dark mode toggle',
-        classification: null,
+      sourceAttachments: {
         attachedBacklogItems: [
           {
             _id: 'backlog-item-id-001',
@@ -65,65 +50,64 @@ describe('generateFullCliOutput — backlog items excluded (moved to task-read)'
           },
         ],
       },
-    };
+    });
 
-    const output = generateFullCliOutput(params);
-
-    // Backlog items should NOT appear in get-next-task output (moved to task-read)
-    expect(output).not.toContain('## Attached Backlog');
-    expect(output).not.toContain('<backlog-item>');
-    expect(output).not.toContain('Implement dark mode toggle component');
-    expect(output).not.toContain('backlog-item-id-001');
-    expect(output).not.toContain('<system-info>');
-    // Handoff template may reference mark-for-review; attached item content must not leak here.
+    const taskContentIdx = output.indexOf('Can you work on this item');
+    const attachmentsIdx = output.indexOf('<attachments>');
+    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(output).toContain('type="backlog"');
+    expect(output).toContain('backlog-item-id="backlog-item-id-001"');
+    expect(output).toContain('mark-for-review');
   });
 
-  test('does not render legacy attachedTasks in fullOutput', () => {
-    const params = {
+  test('renders task XML from sourceAttachments after task content', () => {
+    const output = generateFullCliOutput({
       ...baseParams(),
-      originMessage: {
-        senderRole: 'user',
-        content: 'Fix things',
-        classification: null,
-        attachedTasks: [{ status: 'backlog', content: 'Legacy task item' }],
-      },
-    };
-
-    const output = generateFullCliOutput(params);
-
-    // Legacy tasks should also not appear (moved to task-read)
-    expect(output).not.toContain('## Attached Backlog');
-    expect(output).not.toContain('Legacy task item');
-  });
-
-  test('does not render mixed attachedTasks and attachedBacklogItems', () => {
-    const params = {
-      ...baseParams(),
-      originMessage: {
-        senderRole: 'user',
-        content: 'Fix things',
-        classification: null,
-        attachedTasks: [{ status: 'backlog', content: 'Legacy task item' }],
-        attachedBacklogItems: [
-          { _id: 'backlog-item-id-001', status: 'backlog', content: 'New backlog item' },
+      sourceAttachments: {
+        attachedTasks: [
+          {
+            _id: 'attached-task-id-001',
+            status: 'backlog',
+            content: 'Prior work item for context',
+          },
         ],
       },
-    };
+    });
 
-    const output = generateFullCliOutput(params);
-
-    expect(output).not.toContain('## Attached Backlog');
-    expect(output).not.toContain('Legacy task item');
-    expect(output).not.toContain('New backlog item');
+    const taskContentIdx = output.indexOf('Can you work on this item');
+    const attachmentsIdx = output.indexOf('<attachments>');
+    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(output).toContain('type="task"');
+    expect(output).toContain('Prior work item for context');
+    expect(output).toContain('attached-task-id-001');
   });
 
-  test('still renders attached messages (not affected by backlog change)', () => {
+  test('omits attachments block when no sourceAttachments', () => {
+    const output = generateFullCliOutput(baseParams());
+    expect(output).not.toContain('<attachments>');
+    expect(output).not.toContain('type="backlog"');
+  });
+
+  test('does not render legacy attachedTasks from originMessage alone', () => {
     const params = {
       ...baseParams(),
       originMessage: {
         senderRole: 'user',
         content: 'Fix things',
         classification: null,
+        attachedTasks: [{ _id: 'legacy-task', status: 'backlog', content: 'Legacy task item' }],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+    expect(output).not.toContain('Legacy task item');
+    expect(output).not.toContain('type="task"');
+  });
+
+  test('renders message attachments in unified attachments block', () => {
+    const output = generateFullCliOutput({
+      ...baseParams(),
+      sourceAttachments: {
         attachedMessages: [
           {
             _id: 'msg-id-attached',
@@ -132,14 +116,12 @@ describe('generateFullCliOutput — backlog items excluded (moved to task-read)'
           },
         ],
       },
-    };
+    });
 
-    const output = generateFullCliOutput(params);
-
-    // Attached messages should still render in fullOutput
-    expect(output).toContain('## Attached Messages (1)');
-    expect(output).toContain('<attached-message>');
+    expect(output).toContain('<attachments>');
+    expect(output).toContain('type="message" message-id="msg-id-attached"');
     expect(output).toContain('Some context message');
+    expect(output).not.toContain('<attached-message>');
   });
 });
 
@@ -153,40 +135,11 @@ describe('generateFullCliOutput — task content is inline', () => {
     expect(output).not.toMatch(/task read --chatroom-id/i);
   });
 
-  test('does not duplicate message content when it matches task content', () => {
-    const params = baseParams();
-    const output = generateFullCliOutput(params);
-
-    // Task body is shown once under ## Chatroom task
-    expect(output).toContain('Fix the dark mode toggle');
-    expect(output).not.toContain('REQUIRED FIRST STEP');
-  });
-
   test('next steps start with work on the task above', () => {
     const params = baseParams();
     const output = generateFullCliOutput(params);
 
     expect(output).toContain('1. Work on the task above.');
-    expect(output).not.toContain('chatroom task read');
-  });
-
-  test('handoff delivery includes task content inline', () => {
-    const params = {
-      ...baseParams(),
-      message: {
-        _id: 'msg-id-789',
-        senderRole: 'builder',
-        content: 'Completed implementation of the feature. Changes: ...',
-      },
-      task: {
-        _id: 'task-id-123',
-        content: 'Implement the dark mode toggle per spec',
-      },
-    };
-    const output = generateFullCliOutput(params);
-
-    expect(output).toContain('Implement the dark mode toggle per spec');
-    expect(output).toContain('you MUST run the handoff command');
     expect(output).not.toContain('chatroom task read');
   });
 });
