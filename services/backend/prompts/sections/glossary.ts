@@ -59,9 +59,7 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'attachments',
     definition:
-      'Message attachment types (task, backlog, message, snippet) and their compose, delivery, and task-read paths. ' +
-      'Use when adding or changing attachment UI, delivery XML, or agent-facing attachment formats.',
-    linkedSkillId: 'attachments',
+      'Message attachment types (task, backlog, message, snippet) delivered in agent prompts as XML when users attach context to messages.',
   },
   {
     term: 'code-review',
