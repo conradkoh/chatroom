@@ -473,7 +473,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <evidence the goal was met — list every file you modified>
 
       ## Code Change Verification
-      - [ ] I confirm that I have run \`pnpm typecheck && pnpm test\` (only required if code changes were made)
+      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
       <anything needing planner decision, or "Not Applicable">
