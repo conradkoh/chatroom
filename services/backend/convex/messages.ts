@@ -585,15 +585,32 @@ async function _handoffHandler(
   ]);
   const tasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
 
+  if (isHandoffToUser) {
+    const pendingForSender = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status_assignedTo', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .eq('status', 'pending')
+          .eq('assignedTo', args.senderRole)
+      )
+      .collect();
+    const topPending = pendingForSender.sort((a, b) => a.queuePosition - b.queuePosition)[0];
+    if (topPending) {
+      tasksToComplete.push(topPending);
+    }
+  }
+
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
 
   for (const task of tasksToComplete) {
     // All tasks complete to 'completed' status
     const newStatus = 'completed' as const;
+    const completionTrigger = task.status === 'pending' ? 'completeTaskById' : 'completeTask';
 
     // Use FSM for transition — skip auto-promotion because the handoff handler
     // manages promotion explicitly (Step 6 for handoff-to-user).
-    await transitionTask(ctx, task._id, newStatus, 'completeTask', undefined, {
+    await transitionTask(ctx, task._id, newStatus, completionTrigger, undefined, {
       skipAutoPromotion: true,
     });
     completedTaskIds.push(task._id);
