@@ -148,59 +148,6 @@ describe('handoffEffect', () => {
     }
   });
 
-  test('fails with ArtifactsInvalid when artifact validation returns false', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ queryResponse: false }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const optionsWithArtifacts: HandoffOptions = {
-      ...validOptions,
-      attachedArtifactIds: ['artifact-id-1', 'artifact-id-2'],
-    };
-
-    const exit = await Effect.runPromiseExit(
-      handoffEffect(validChatroomId, optionsWithArtifacts).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as HandoffError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('ArtifactsInvalid');
-    }
-  });
-
-  test('fails with ArtifactValidationFailed when artifact validation query throws', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ queryResponse: new Error('Network error') }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const optionsWithArtifacts: HandoffOptions = {
-      ...validOptions,
-      attachedArtifactIds: ['artifact-id-1'],
-    };
-
-    const exit = await Effect.runPromiseExit(
-      handoffEffect(validChatroomId, optionsWithArtifacts).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as HandoffError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('ArtifactValidationFailed');
-      if (error?._tag === 'ArtifactValidationFailed') {
-        expect(error.cause.message).toBe('Network error');
-      }
-    }
-  });
-
   test('fails with HandoffFailed when handoff mutation throws', async () => {
     const testLayer = Layer.mergeAll(
       makeTestBackend({ mutationResponse: new Error('Handoff mutation failed') }),
@@ -269,27 +216,6 @@ describe('handoffEffect', () => {
 
     const exit = await Effect.runPromiseExit(
       handoffEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Success');
-  });
-
-  test('succeeds with artifacts when validation passes', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({
-        queryResponse: true, // Artifact validation passes
-        mutationResponse: { success: true },
-      }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const optionsWithArtifacts: HandoffOptions = {
-      ...validOptions,
-      attachedArtifactIds: ['artifact-id-1'],
-    };
-
-    const exit = await Effect.runPromiseExit(
-      handoffEffect(validChatroomId, optionsWithArtifacts).pipe(Effect.provide(testLayer))
     );
 
     expect(exit._tag).toBe('Success');

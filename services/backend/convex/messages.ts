@@ -27,6 +27,7 @@ import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/r
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
+import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
@@ -690,39 +691,9 @@ async function _handoffHandler(
   // because areAllAgentsWaiting() returns false at this point (the sender is still
   // marked as "working"). We check: no active tasks remain → promote next queued task.
   if (isHandoffToUser) {
-    // Check if there are any remaining active tasks (pending, acknowledged, or in_progress).
-    // 'acknowledged' must be included: a claimed task is actively being worked on.
-    // Promoting a queued message while an acknowledged task exists would create a
-    // race condition where two tasks compete for agent attention simultaneously.
-    // Check if any active task exists using indexed lookups instead of
-    // loading all tasks. Short-circuit: stop as soon as one is found.
-    const pendingTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-      )
-      .first();
-    const acknowledgedTask = pendingTask
-      ? null
-      : await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-          )
-          .first();
-    const inProgressTask =
-      pendingTask || acknowledgedTask
-        ? null
-        : await ctx.db
-            .query('chatroom_tasks')
-            .withIndex('by_chatroom_status', (q) =>
-              q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-            )
-            .first();
-    const hasActiveTask = !!(pendingTask || acknowledgedTask || inProgressTask);
+    const { hasActiveTask } = await getChatroomQueueState(ctx, args.chatroomId);
 
     if (!hasActiveTask) {
-      // No active tasks — find oldest queued message and promote it
       const queuedMessages = await ctx.db
         .query('chatroom_messageQueue')
         .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
@@ -738,11 +709,15 @@ async function _handoffHandler(
     }
   }
 
-  // Update unread status for chatroom owner
-  // Handoff-to-user is specially flagged
+  // Update unread status for chatroom owner.
+  // Handoff-to-user notification only when no tasks or queued messages remain.
   if (chatroom?.ownerId) {
-    const isHandoffToUser = args.targetRole?.toLowerCase() === 'user';
-    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
+    let shouldFlagHandoffNotification = false;
+    if (isHandoffToUser) {
+      const { isWorkQueueEmpty } = await getChatroomQueueState(ctx, args.chatroomId);
+      shouldFlagHandoffNotification = isWorkQueueEmpty;
+    }
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, shouldFlagHandoffNotification);
   }
 
   const agentConfigResult = await getAgentConfig(ctx, {

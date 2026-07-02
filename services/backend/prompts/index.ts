@@ -41,6 +41,10 @@ export { getContextGainingGuidance } from './base/shared/getting-started-content
 // Shared utilities
 export { getHandoffFileSnippet } from './utils/index';
 
+// Developer attachment guide (synced from ATTACHMENTS_GUIDE.md)
+// fallow-ignore-next-line unused-export
+export { ATTACHMENTS_GUIDE_CONTENT } from './attachments/attachments-guide-content.js';
+
 // Guidelines and policies
 export { getReviewGuidelines } from './review-guidelines';
 export { getSecurityPolicy } from './policies/security';

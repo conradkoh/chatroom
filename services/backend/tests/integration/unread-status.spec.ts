@@ -116,4 +116,117 @@ describe('Unread Status Tracking', () => {
 
     expect(afterSecond?.updatedAt).toBe(afterFirst?.updatedAt);
   });
+
+  test('handoff-to-user with queued messages does not set hasUnreadHandoff', async () => {
+    const { sessionId } = await createTestSession('test-unread-handoff-queue');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'first message',
+      type: 'message',
+    });
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'second message',
+      type: 'message',
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Done with first — more queued',
+    });
+
+    const status = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      return await ctx.db
+        .query('chatroom_unreadStatus')
+        .withIndex('by_userId_chatroomId', (q: any) =>
+          q.eq('userId', chatroom!.ownerId).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+
+    expect(status).not.toBeNull();
+    expect(status!.hasUnread).toBe(true);
+    expect(status!.hasUnreadHandoff).toBe(false);
+  });
+
+  test('handoff-to-user with empty queue sets hasUnreadHandoff', async () => {
+    const { sessionId } = await createTestSession('test-unread-handoff-empty');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'only message',
+      type: 'message',
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'All done',
+    });
+
+    const status = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      return await ctx.db
+        .query('chatroom_unreadStatus')
+        .withIndex('by_userId_chatroomId', (q: any) =>
+          q.eq('userId', chatroom!.ownerId).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+
+    expect(status).not.toBeNull();
+    expect(status!.hasUnread).toBe(true);
+    expect(status!.hasUnreadHandoff).toBe(true);
+  });
 });
