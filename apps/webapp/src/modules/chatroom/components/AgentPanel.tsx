@@ -9,7 +9,11 @@ import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
 import { getCompactModelId, type AgentConfig } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
-import { getIndicatorClass, getLabelColorClass } from './AgentPanel/AgentStatusRow';
+import {
+  getIndicatorClass,
+  getLabelColorClass,
+  getRowHighlightClass,
+} from './AgentPanel/AgentStatusRow';
 import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
@@ -92,20 +96,17 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   onOpen,
 }: AgentSidebarRowProps) {
   const online_ = agentStatus?.online ?? false;
-  const working_ = agentStatus?.isWorking ?? false;
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
   const statusVariant = agentStatus?.statusVariant;
   const lastSeenLabel = useRelativeTime(lastSeenAt);
   const indicatorClass = getIndicatorClass(statusVariant, online_);
-  const labelColorClass = working_
-    ? 'text-chatroom-status-info animate-pulse'
-    : getLabelColorClass(statusVariant, online_);
+  const labelColorClass = getLabelColorClass(statusVariant, online_);
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
       <div
-        className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''}`}
+        className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${getRowHighlightClass(statusVariant)}`}
         role="button"
         tabIndex={0}
         aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}. Click to view all agents.`}

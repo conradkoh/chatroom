@@ -16,6 +16,7 @@ export interface GlossarySectionParams {
   chatroomId?: string;
   role?: string;
   nativeIntegration?: boolean;
+  compactSkills?: boolean;
 }
 
 export interface GlossaryTerm {
@@ -132,7 +133,14 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
     lines.push(...formatGlossaryEntry(entry));
   }
 
-  lines.push(...buildSkillsSection(cliEnvPrefix));
+  if (params.compactSkills) {
+    lines.push('# Skills', '');
+    lines.push(
+      `Run \`${cliEnvPrefix}chatroom skill list --chatroom-id=<id> --role=<role>\` to list available skills. Activate skills proactively when your task matches their purpose.`
+    );
+  } else {
+    lines.push(...buildSkillsSection(cliEnvPrefix));
+  }
 
   return createSection('glossary', 'knowledge', lines.join('\n'));
 }

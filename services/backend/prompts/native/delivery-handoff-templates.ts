@@ -24,7 +24,7 @@ function getNativeDeliveryTemplateTargets(
 }
 
 function renderNativeDeliveryTemplateBlock(
-  params: { teamId?: string; role: string },
+  params: { teamId?: string; role: string; chatroomId?: string; cliEnvPrefix?: string },
   toRole: string
 ): string[] | null {
   const template = getHandoffTemplate({
@@ -32,6 +32,9 @@ function renderNativeDeliveryTemplateBlock(
     fromRole: params.role,
     toRole,
     nativeIntegration: true,
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix: params.cliEnvPrefix,
   });
   if (!template) return null;
   return [`### Handoff to \`${toRole}\``, template, ''];
@@ -39,7 +42,7 @@ function renderNativeDeliveryTemplateBlock(
 
 export function appendNativeDeliveryHandoffTemplates(
   lines: string[],
-  params: { teamId?: string; role: string }
+  params: { teamId?: string; role: string; chatroomId?: string; cliEnvPrefix?: string }
 ): void {
   const targets = getNativeDeliveryTemplateTargets(params.teamId, params.role);
   const blocks = targets.flatMap(

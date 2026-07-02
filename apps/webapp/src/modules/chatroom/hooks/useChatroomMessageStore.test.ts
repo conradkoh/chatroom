@@ -5,6 +5,7 @@ import {
   hasMoreOlderAfterPage,
   inferHasMoreOlder,
   MESSAGE_STORE_LIMIT,
+  removeMessagesForTaskId,
 } from './useChatroomMessageStore';
 import type { Message } from '../types/message';
 
@@ -88,5 +89,31 @@ describe('applyVisibleUpdates', () => {
     const existing = [makeMsg('1')];
     const result = applyVisibleUpdates(existing, []);
     expect(result).toBe(existing);
+  });
+});
+
+describe('removeMessagesForTaskId', () => {
+  function makeMsg(id: string, taskId?: string): Message {
+    return {
+      _id: id,
+      _creationTime: 100,
+      type: 'message',
+      senderRole: 'user',
+      content: 'hello',
+      taskId: taskId as Message['taskId'],
+    } as Message;
+  }
+
+  it('removes messages matching taskId and keeps others', () => {
+    const messages = [makeMsg('a'), makeMsg('b', 'task-1'), makeMsg('c', 'task-2')];
+    const result = removeMessagesForTaskId(messages, 'task-1');
+    expect(result).toHaveLength(2);
+    expect(result.map((m) => m._id)).toEqual(['a', 'c']);
+  });
+
+  it('returns an empty list when all messages match the deleted task', () => {
+    const messages = [makeMsg('a', 'task-1'), makeMsg('b', 'task-1')];
+    const result = removeMessagesForTaskId(messages, 'task-1');
+    expect(result).toEqual([]);
   });
 });

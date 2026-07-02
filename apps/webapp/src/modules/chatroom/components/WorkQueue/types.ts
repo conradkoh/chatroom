@@ -41,4 +41,6 @@ export interface WorkQueueProps {
   lifecycle?: TeamLifecycle | null;
   /** Optional ref to expose imperative open actions to parent (e.g. command palette) */
   onRegisterActions?: (actions: { openBacklog: () => void; openPendingReview: () => void }) => void;
+  /** Called after a task is deleted so the timeline can evict linked messages immediately. */
+  onTaskDeleted?: (taskId: string) => void;
 }

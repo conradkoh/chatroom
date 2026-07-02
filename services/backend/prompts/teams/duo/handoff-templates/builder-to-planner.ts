@@ -11,14 +11,19 @@
  *  3. Proof of completion — evidence the delegation goal was met (files changed).
  */
 
+import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
+import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
+import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
  * Returns the markdown handoff template the builder uses when returning work
  * to the planner.
  */
-export function getBuilderToPlannerHandoffTemplate(): string {
+export function getBuilderToPlannerHandoffTemplate(
+  roleGuidanceContext?: RoleGuidanceCommandParams
+): string {
   return `${getHandoffRecipientVisibilityCallout('planner')}
 
 **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section below. If a section does not apply, write \`Not Applicable\` (do not delete the section):
@@ -29,6 +34,7 @@ export function getBuilderToPlannerHandoffTemplate(): string {
 
 ## Template Disclosure Confirmation
 - [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
+${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
 ## Proof of Principle
 <!-- Demonstrate adherence to:
@@ -38,6 +44,7 @@ export function getBuilderToPlannerHandoffTemplate(): string {
 <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
 ## Proof of Completion
+${getContextReadDisclosureBlock(roleGuidanceContext)}
 - \`path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you modified>
 

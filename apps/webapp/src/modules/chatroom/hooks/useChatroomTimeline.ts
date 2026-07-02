@@ -8,10 +8,9 @@
 
 import { useMemo } from 'react';
 
+import { useChatroomMessageStore } from './useChatroomMessageStore';
 import { mapMessageToTimelineEvent } from '../timeline/mapMessageToTimelineEvent';
 import type { TimelineEvent } from '../timeline/types';
-
-import { useChatroomMessageStore } from './useChatroomMessageStore';
 
 export interface UseChatroomTimelineResult {
   events: TimelineEvent[];
@@ -19,6 +18,7 @@ export interface UseChatroomTimelineResult {
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   loadOlderEvents: () => void;
+  removeMessagesForTask: (taskId: string) => void;
 }
 
 export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResult {
@@ -28,12 +28,10 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     hasMoreOlder,
     isLoadingOlder,
     loadOlderMessages,
+    removeMessagesForTask,
   } = useChatroomMessageStore(chatroomId);
 
-  const events = useMemo(
-    () => messages.map(mapMessageToTimelineEvent),
-    [messages]
-  );
+  const events = useMemo(() => messages.map(mapMessageToTimelineEvent), [messages]);
 
   return {
     events,
@@ -41,5 +39,6 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     hasMoreOlder,
     isLoadingOlder,
     loadOlderEvents: loadOlderMessages,
+    removeMessagesForTask,
   };
 }

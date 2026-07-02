@@ -5,7 +5,7 @@
  * Wraps getRoleGuidanceFromContext into a PromptSection.
  */
 
-import { buildSelectorContext, getRoleGuidanceFromContext } from '../generator';
+import { buildSelectorContext, getRoleGuidanceFromContext } from '../selector-context';
 import type { SelectorContext, PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 

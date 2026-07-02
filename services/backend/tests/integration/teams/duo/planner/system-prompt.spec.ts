@@ -330,10 +330,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Replace \`[Your message here]\` with:
-      - **Summary**: Brief description of what was done
-      - **Changes Made**: Key changes (bullets)
-      - **Testing**: How to verify the work
+      Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
@@ -348,6 +345,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
+      - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
 
       ### Next

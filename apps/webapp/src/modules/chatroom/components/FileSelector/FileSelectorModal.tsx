@@ -129,6 +129,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                           <CommandItem
                             key={`recent:${path}`}
                             value={`recent:${path}`}
+                            keywords={[getFileName(path)]}
                             onSelect={() => handleSelect(path)}
                             // u05: Compact 28px height, u07: Full-width solid bg highlight
                             className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
@@ -167,6 +168,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
                         <CommandItem
                           key={file.path}
                           value={file.path}
+                          keywords={[getFileName(file.path)]}
                           onSelect={() => handleSelect(file.path)}
                           // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
                           className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"

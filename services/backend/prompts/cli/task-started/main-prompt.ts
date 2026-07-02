@@ -2,6 +2,7 @@
  * Main CLI prompt for the task-started command.
  */
 
+import { getContextRuleBlock } from '../../base/shared/context-rule';
 import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { contextNewCommand, contextNewHint } from '../context/new';
 
@@ -25,11 +26,7 @@ export function getTaskStartedPrompt(ctx: {
 
 ${getTokenActivityInProgressNote()}
 
-**Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
-\`\`\`bash
-${contextNewCmd}
-\`\`\`
-${contextNewHint()}`;
+${getContextRuleBlock(contextNewCmd, contextNewHint())}`;
 }
 
 /**

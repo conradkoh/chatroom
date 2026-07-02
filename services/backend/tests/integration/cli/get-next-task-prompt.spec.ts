@@ -355,10 +355,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Replace \`[Your message here]\` with:
-      - **Summary**: Brief description of what was done
-      - **Changes Made**: Key changes (bullets)
-      - **Testing**: How to verify the work
+      Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
@@ -373,6 +370,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
+      - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
 
       ### Next
@@ -447,6 +445,8 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ## Template Disclosure Confirmation
       - [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
+      - [ ] I confirm that I've read and followed the role guidance before starting any work
+      <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principle
       <!-- Demonstrate adherence to:
@@ -456,6 +456,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
       ## Proof of Completion
+      - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
+      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. State the context goal and confirm it was achieved. -->
       - \`path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 

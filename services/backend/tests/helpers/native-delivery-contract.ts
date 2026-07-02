@@ -25,6 +25,7 @@ export function assertNativeDeliveryContract(
   expect(output).not.toContain('task injection');
   expect(output).not.toContain('Level A');
   expect(output).not.toContain('Level B');
+  expect(output).not.toContain('<role-guidance>');
   expect(output).toContain('<task>');
   expect(output).toContain('<next-steps>');
   expect(output).toContain('you MUST run the handoff command');
@@ -41,7 +42,18 @@ export function assertNativeDeliveryContract(
   }
 }
 
-/** Assert handoff CLI output for native harnesses. */
+/** Assert native task delivery includes per-task task intake only (role guidance is in init). */
+export function assertNativeDeliveryTaskIntake(
+  output: string,
+  options: { entryPoint?: boolean; role: string; teamId?: string }
+): void {
+  expect(output).not.toContain('<role-guidance>');
+  expect(output).toContain('<task-intake>');
+  if (options.entryPoint) {
+    expect(output).toContain('Start working');
+  }
+}
+
 export function assertNativeHandoffOutput(output: string): void {
   expect(output).not.toContain('get-next-task');
   expect(output).not.toContain('task injection');
