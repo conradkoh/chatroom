@@ -155,7 +155,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       \`\`\`
 
       ## Code Change Verification
-      - [ ] I confirm that I have run \`pnpm typecheck && pnpm test\` (only required if code changes were made)
+      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Notes / Next steps
       <anything the user should know, follow-ups, or open questions, or "Not Applicable">
@@ -211,7 +211,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you modified>
 
       ## Code Change Verification
-      - [ ] I confirm that I have run \`pnpm typecheck && pnpm test\` (only required if code changes were made)
+      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
       <anything needing planner decision, or "Not Applicable">
@@ -509,7 +509,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       \`\`\`
 
       ## Code Change Verification
-      - [ ] I confirm that I have run \`pnpm typecheck && pnpm test\` (only required if code changes were made)
+      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Notes / Next steps
       <anything the user should know, follow-ups, or open questions, or "Not Applicable">
