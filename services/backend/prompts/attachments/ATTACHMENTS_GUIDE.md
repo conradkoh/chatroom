@@ -3,8 +3,7 @@
 End-to-end steps for adding a new message attachment type to Chatroom.
 
 > **Canonical source:** `services/backend/prompts/attachments/ATTACHMENTS_GUIDE.md` (this file).  
-> Webapp copy: symlink at `apps/webapp/src/modules/chatroom/attachments/ATTACHMENTS_GUIDE.md`.  
-> Agents: `chatroom skill activate attachments --chatroom-id=<id> --role=<role>`
+> Webapp copy: symlink at `apps/webapp/src/modules/chatroom/attachments/ATTACHMENTS_GUIDE.md`.
 
 ---
 

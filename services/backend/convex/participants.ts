@@ -16,7 +16,6 @@ import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
   PARTICIPANT_EXITED_ACTION,
-  GET_NEXT_TASK_STOPPED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -26,12 +25,12 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { completeNativeTurnWithoutHandoff as completeNativeTurnWithoutHandoffUsecase } from '../src/domain/usecase/participant/complete-native-turn-without-handoff';
+import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
 } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
-import { readTask } from '../src/domain/usecase/task/read-task';
 
 async function getParticipantByChatroomRole(
   ctx: QueryCtx | MutationCtx,
@@ -42,33 +41,6 @@ async function getParticipantByChatroomRole(
     .query('chatroom_participants')
     .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
     .unique();
-}
-
-async function maybeStartAcknowledgedTaskFromTokenActivity(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string },
-  participant: NonNullable<Awaited<ReturnType<typeof getParticipantByChatroomRole>>>
-): Promise<void> {
-  const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, {
-    chatroomId: args.chatroomId,
-    role: args.role,
-  });
-
-  const shouldStartTask =
-    acknowledgedTask?.status === 'acknowledged' &&
-    (participant.lastStatus === 'task.acknowledged' ||
-      participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION ||
-      participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION);
-
-  if (!shouldStartTask) {
-    return;
-  }
-
-  await readTask(ctx, {
-    chatroomId: args.chatroomId,
-    role: args.role,
-    taskId: acknowledgedTask._id,
-  });
 }
 
 /** Upserts a chatroom participant record.
@@ -336,7 +308,7 @@ export const updateTokenActivity = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
     if (participant) {
-      await maybeStartAcknowledgedTaskFromTokenActivity(ctx, args, participant);
+      await startTaskFromTokenActivity(ctx, args, participant);
 
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenTokenAt: Date.now(),

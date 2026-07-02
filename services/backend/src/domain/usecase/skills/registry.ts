@@ -6,7 +6,6 @@
  * and add it to SKILLS_REGISTRY below. No Convex changes needed.
  */
 
-import { attachmentsSkill } from './modules/attachments/index';
 import { backlogSkill } from './modules/backlog/index';
 import { codeReviewSkill } from './modules/code-review/index';
 import type { SkillId } from '../../types/skills';
@@ -18,8 +17,4 @@ export interface SkillModule {
   getPrompt(cliEnvPrefix: string): string;
 }
 
-export const SKILLS_REGISTRY: readonly SkillModule[] = [
-  backlogSkill,
-  attachmentsSkill,
-  codeReviewSkill,
-];
+export const SKILLS_REGISTRY: readonly SkillModule[] = [backlogSkill, codeReviewSkill];
