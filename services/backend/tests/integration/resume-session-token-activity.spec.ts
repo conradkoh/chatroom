@@ -135,4 +135,24 @@ describe('Resume session token activity', () => {
     expect(task?.status).toBe('in_progress');
     expect(task?.assignedTo).toBe('planner');
   });
+
+  test('does not restart work when participant is agent.waiting but no tasks exist', async () => {
+    const { sessionId } = await createTestSession('test-resume-no-tasks');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await setParticipantState(chatroomId, 'builder', {
+      lastStatus: 'agent.waiting',
+      lastSeenAction: 'native:waiting',
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('agent.waiting');
+  });
 });
