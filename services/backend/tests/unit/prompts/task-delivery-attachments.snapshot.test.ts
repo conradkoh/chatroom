@@ -72,10 +72,48 @@ describe('task delivery attachment snapshots — CLI', () => {
       Can you work on this item
 
       <attachments>
-        <attachment type="backlog-item">
+        <attachment type="backlog" backlog-item-id="backlog-item-snapshot-001">
           - [BACKLOG] Refactor: extract shared auth helpers into a utility module
-            ID: backlog-item-snapshot-001
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001</hint>
+        </attachment>
+      </attachments>
+
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      </task>"
+    `);
+  });
+
+  test('task attachment in primary delivery task envelope', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: false,
+      sourceAttachments: {
+        attachedTasks: [
+          {
+            _id: 'attached-task-snapshot-001',
+            status: 'backlog',
+            content: 'Prior task: implement OAuth callback handler',
+          },
+        ],
+      },
+    });
+
+    expect(extractTaskEnvelope(output)).toMatchInlineSnapshot(`
+      "<task>
+      ============================================================
+      📋 CHATROOM TASK
+      ============================================================
+      Task ID: task-snapshot-001
+      Origin Message ID: msg-snapshot-001
+      From: user
+
+      ## Chatroom task
+      Can you work on this item
+
+      <attachments>
+        <attachment type="task" task-id="attached-task-snapshot-001">
+          - [BACKLOG] Prior task: implement OAuth callback handler
+          <hint>Referenced task attached by user.</hint>
         </attachment>
       </attachments>
 
@@ -119,12 +157,11 @@ describe('task delivery attachment snapshots — CLI', () => {
       Can you work on this item
 
       <attachments>
-        <attachment type="backlog-item">
+        <attachment type="backlog" backlog-item-id="backlog-item-snapshot-002">
           - [BACKLOG] Add login page
-            ID: backlog-item-snapshot-002
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-002</hint>
         </attachment>
-        <attachment reference="attachment-reference-001">
+        <attachment type="snippet" reference="attachment-reference-001">
         <snippet file-source="./src/auth.ts">
           <user-selected-content>
       export function login() {}
@@ -164,9 +201,8 @@ describe('task delivery attachment snapshots — native', () => {
       Can you work on this item
 
       <attachments>
-        <attachment type="backlog-item">
+        <attachment type="backlog" backlog-item-id="backlog-item-snapshot-003">
           - [BACKLOG] Refactor: extract shared auth helpers into a utility module
-            ID: backlog-item-snapshot-003
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003</hint>
         </attachment>
       </attachments>

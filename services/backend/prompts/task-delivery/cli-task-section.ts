@@ -20,29 +20,10 @@ export interface CliTaskSectionParams {
   currentContext: { elapsedHours: number } | null;
   originMessage: {
     senderRole: string;
-    attachedMessages?: { _id: string; content: string; senderRole: string }[];
   } | null;
   followUpCountSinceOrigin: number;
   originMessageCreatedAt: number | null;
   sourceAttachments?: PrimaryDeliveryAttachments;
-}
-
-function appendCliAttachedMessages(
-  lines: string[],
-  attachedMessages: { _id: string; content: string; senderRole: string }[]
-): void {
-  if (attachedMessages.length === 0) return;
-
-  lines.push('');
-  lines.push(`## Attached Messages (${attachedMessages.length})`);
-  for (const attached of attachedMessages) {
-    lines.push('<attached-message>');
-    lines.push(`From: ${attached.senderRole}`);
-    lines.push(`ID: ${attached._id}`);
-    lines.push('---');
-    lines.push(attached.content);
-    lines.push('</attached-message>');
-  }
 }
 
 // fallow-ignore-next-line complexity
@@ -82,7 +63,6 @@ export function appendCliTaskSection(lines: string[], params: CliTaskSectionPara
     ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'cli' })
   );
   lines.push('', getTokenActivityInProgressNote());
-  appendCliAttachedMessages(lines, originMessage?.attachedMessages ?? []);
   lines.push('</task>');
 }
 

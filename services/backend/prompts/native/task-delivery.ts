@@ -37,15 +37,6 @@ function appendNativeTaskIntake(
   lines.push('', '<task-intake>', taskIntakeContent, '</task-intake>');
 }
 
-function appendNativeAttachedMessages(
-  lines: string[],
-  attachedMessages: { content: string; senderRole: string }[]
-): void {
-  for (const attached of attachedMessages) {
-    lines.push('', '<attached>', `From: ${attached.senderRole}`, attached.content, '</attached>');
-  }
-}
-
 function appendNativeTaskSection(
   lines: string[],
   params: Pick<
@@ -55,7 +46,6 @@ function appendNativeTaskSection(
     | 'cliEnvPrefix'
     | 'task'
     | 'message'
-    | 'attachedMessages'
     | 'isEntryPoint'
     | 'sourceAttachments'
     | 'currentContext'
@@ -70,7 +60,6 @@ function appendNativeTaskSection(
     cliEnvPrefix,
     task,
     message,
-    attachedMessages = [],
     isEntryPoint,
     sourceAttachments,
     currentContext = null,
@@ -95,7 +84,6 @@ function appendNativeTaskSection(
   lines.push(
     ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'native' })
   );
-  appendNativeAttachedMessages(lines, attachedMessages);
   lines.push('</task>');
 }
 
@@ -109,7 +97,6 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     task,
     message,
     availableHandoffTargets,
-    attachedMessages,
     isEntryPoint,
     sourceAttachments,
     currentContext,
@@ -125,7 +112,6 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     cliEnvPrefix,
     task,
     message,
-    attachedMessages,
     isEntryPoint,
     sourceAttachments,
     currentContext,

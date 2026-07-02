@@ -56,11 +56,6 @@ export interface FullCliOutputParams {
     senderRole: string;
     content: string;
     classification?: string | null;
-    attachedMessages?: {
-      _id: string;
-      content: string;
-      senderRole: string;
-    }[];
   } | null;
 
   /** Number of follow-up messages since origin */
@@ -109,7 +104,6 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     task,
     message: message ? { _id: message._id, senderRole: message.senderRole } : null,
     availableHandoffTargets,
-    attachedMessages: originMessage?.attachedMessages ?? [],
     isEntryPoint,
     sourceAttachments,
     currentContext,

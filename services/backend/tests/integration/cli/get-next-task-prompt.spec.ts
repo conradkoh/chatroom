@@ -401,11 +401,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
       <attachments>
-        <attachment type="backlog-item">
+        <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
           - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
-            ID: 0000000000010005chatroom_backlog
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>
@@ -1144,9 +1143,8 @@ describe('Get-Next-Task Recent Improvements', () => {
     // ── Verify CLI output includes backlog attachment in primary delivery ──
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
     expect(fullOutput).toContain('<attachments>');
-    expect(fullOutput).toContain('type="backlog-item"');
-    expect(fullOutput).toContain('Refactor: extract shared auth helpers into a utility module');
-    expect(fullOutput).toContain(backlogItemId);
+    expect(fullOutput).toContain('type="backlog"');
+    expect(fullOutput).toContain(`backlog-item-id="${backlogItemId}"`);
     const taskContentIdx = fullOutput.indexOf('Can you work on this backlog item?');
     const attachmentsIdx = fullOutput.indexOf('<attachments>');
     expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);

@@ -17,7 +17,6 @@ export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
   task: { _id: string; content: string };
   message: { _id: string; senderRole: string } | null;
   availableHandoffTargets: string[];
-  attachedMessages?: { _id: string; content: string; senderRole: string }[];
   isEntryPoint?: boolean;
   sourceAttachments?: PrimaryDeliveryAttachments;
 }

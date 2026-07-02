@@ -10,20 +10,20 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 
 ## 1. Attachment kinds
 
-| Kind     | Schema field             | Compose (webapp) | Primary delivery        | Task read |
-| -------- | ------------------------ | ---------------- | ----------------------- | --------- |
-| task     | `attachedTaskIds`        | ✅ chip          | ❌ (separate)           | ❌        |
-| backlog  | `attachedBacklogItemIds` | ✅ chip          | ✅ `<attachments>` XML  | ✅ XML    |
-| message  | `attachedMessageIds`     | ✅ chip          | ✅ `<attached-message>` | ❌        |
-| snippet  | `attachedSnippets`       | ✅ chip + Cmd+I  | ✅ `<attachments>` XML  | ✅ XML    |
-| artifact | `attachedArtifactIds`    | ❌ reserved      | ❌ reserved             | ❌        |
+| Kind     | Schema field             | Compose (webapp) | Primary delivery       | Task read |
+| -------- | ------------------------ | ---------------- | ---------------------- | --------- |
+| task     | `attachedTaskIds`        | ✅ chip          | ✅ `<attachments>` XML | ❌        |
+| backlog  | `attachedBacklogItemIds` | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
+| message  | `attachedMessageIds`     | ✅ chip          | ✅ `<attachments>` XML | ❌        |
+| snippet  | `attachedSnippets`       | ✅ chip + Cmd+I  | ✅ `<attachments>` XML | ✅ XML    |
+| artifact | `attachedArtifactIds`    | ❌ reserved      | ❌ reserved            | ❌        |
 
 **Policy notes**
 
 - **Snippets** appear in primary delivery (`get-next-task` / native injection) and `task read`, using the shared XML renderer.
 - **Backlog** items appear in primary delivery and `task read`, using the shared `<attachments>` XML renderer.
-- **Attached messages** use a separate format in primary delivery (`<attached-message>` in CLI, `<attached>` in native) — not the `<attachments>` block.
-- **Tasks** link to `chatroom_tasks` records; compose-only chips, no delivery XML yet.
+- **Attached messages** appear in primary delivery as `<attachment type="message" message-id="...">` inside the shared `<attachments>` block (source message only).
+- **Tasks** appear in primary delivery as `<attachment type="task">` inside the shared `<attachments>` block (source message only).
 
 ---
 
@@ -144,16 +144,19 @@ export const DELIVERY_ATTACHMENT_FIELD_MAP = {
   attachedMessageIds: 'message',
   attachedSnippets: 'snippet',
   attachedArtifactIds: 'artifact', // reserved — no renderer yet
+  attachedTaskIds: 'task',
 } as const;
 ```
 
 **Primary delivery kinds** (`message-attachments.ts`):
 
 ```typescript
-export const PRIMARY_DELIVERY_ATTACHMENT_KINDS = ['backlog', 'snippet'] as const;
+export const PRIMARY_DELIVERY_ATTACHMENT_KINDS = ['backlog', 'snippet', 'task', 'message'] as const;
 export const PRIMARY_DELIVERY_INPUT_KEY_BY_KIND = {
   backlog: 'attachedBacklogItems',
   snippet: 'attachedSnippets',
+  task: 'attachedTasks',
+  message: 'attachedMessages',
 } as const satisfies Record<PrimaryDeliveryAttachmentKind, keyof DeliveryAttachmentsInput>;
 ```
 
@@ -189,6 +192,34 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
 
 ## 7. XML conventions (agent-facing)
 
+### Backlog (primary delivery + task read)
+
+```xml
+  <attachment type="backlog" backlog-item-id="item-111">
+    - [PENDING] Add login page
+    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111</hint>
+  </attachment>
+```
+
+### Task (primary delivery)
+
+```xml
+  <attachment type="task" task-id="task-abc123">
+    - [BACKLOG] Fix login redirect
+    <hint>Referenced task attached by user.</hint>
+  </attachment>
+```
+
+### Message (primary delivery)
+
+```xml
+  <attachment type="message" message-id="msg-abc123">
+    From: builder
+    ---
+    Prior discussion content here
+  </attachment>
+```
+
 ### Snippet (primary delivery + task read)
 
 Rendered by `renderDeliveryAttachmentsBlock` — identical in both paths:
@@ -196,7 +227,7 @@ Rendered by `renderDeliveryAttachmentsBlock` — identical in both paths:
 ```xml
 
 <attachments>
-  <attachment reference="attachment-reference-001">
+  <attachment type="snippet" reference="attachment-reference-001">
   <snippet file-source="./windsurfrules">
     <user-selected-content>
 # Shadcn
@@ -204,16 +235,6 @@ Rendered by `renderDeliveryAttachmentsBlock` — identical in both paths:
   </snippet>
   </attachment>
 </attachments>
-```
-
-### Backlog (primary delivery + task read)
-
-```xml
-  <attachment type="backlog-item">
-    - [PENDING] Add login page
-      ID: item-111
-    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111</hint>
-  </attachment>
 ```
 
 ### Inline reference token (composer)
@@ -234,8 +255,8 @@ Created by `renderInlineReference()` in `attachments/snippet/explorerSelectionAt
 | ----------- | ---------------------- | ------------------------------------------------------------------------------- |
 | **Snippet** | `attachments/snippet/` | Most complete: Cmd+I (`composerPrefill.ts`), chip, primary delivery + task read |
 | **Backlog** | `attachments/backlog/` | Compose chip + primary delivery + task-read XML                                 |
-| **Message** | `attachments/message/` | Compose chip + primary delivery via separate `<attached-message>` format        |
-| **Task**    | `attachments/task/`    | Compose-only chip linking to `chatroom_tasks`                                   |
+| **Message** | `attachments/message/` | Compose chip + primary delivery XML (`type="message"`)                          |
+| **Task**    | `attachments/task/`    | Compose chip + primary delivery XML (`type="task"`)                             |
 
 **Snippet Cmd+I flow** (copy this pattern for explorer-driven attachments):
 

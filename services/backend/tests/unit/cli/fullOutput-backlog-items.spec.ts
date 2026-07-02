@@ -55,16 +55,37 @@ describe('generateFullCliOutput — backlog items in primary delivery', () => {
     const taskContentIdx = output.indexOf('Can you work on this item');
     const attachmentsIdx = output.indexOf('<attachments>');
     expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
-    expect(output).toContain('type="backlog-item"');
-    expect(output).toContain('Implement dark mode toggle component');
-    expect(output).toContain('backlog-item-id-001');
+    expect(output).toContain('type="backlog"');
+    expect(output).toContain('backlog-item-id="backlog-item-id-001"');
     expect(output).toContain('mark-for-review');
+  });
+
+  test('renders task XML from sourceAttachments after task content', () => {
+    const output = generateFullCliOutput({
+      ...baseParams(),
+      sourceAttachments: {
+        attachedTasks: [
+          {
+            _id: 'attached-task-id-001',
+            status: 'backlog',
+            content: 'Prior work item for context',
+          },
+        ],
+      },
+    });
+
+    const taskContentIdx = output.indexOf('Can you work on this item');
+    const attachmentsIdx = output.indexOf('<attachments>');
+    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(output).toContain('type="task"');
+    expect(output).toContain('Prior work item for context');
+    expect(output).toContain('attached-task-id-001');
   });
 
   test('omits attachments block when no sourceAttachments', () => {
     const output = generateFullCliOutput(baseParams());
     expect(output).not.toContain('<attachments>');
-    expect(output).not.toContain('type="backlog-item"');
+    expect(output).not.toContain('type="backlog"');
   });
 
   test('does not render legacy attachedTasks from originMessage alone', () => {
@@ -74,21 +95,19 @@ describe('generateFullCliOutput — backlog items in primary delivery', () => {
         senderRole: 'user',
         content: 'Fix things',
         classification: null,
-        attachedTasks: [{ status: 'backlog', content: 'Legacy task item' }],
+        attachedTasks: [{ _id: 'legacy-task', status: 'backlog', content: 'Legacy task item' }],
       },
     };
 
     const output = generateFullCliOutput(params);
     expect(output).not.toContain('Legacy task item');
+    expect(output).not.toContain('type="task"');
   });
 
-  test('still renders attached messages (separate from <attachments> block)', () => {
-    const params = {
+  test('renders message attachments in unified attachments block', () => {
+    const output = generateFullCliOutput({
       ...baseParams(),
-      originMessage: {
-        senderRole: 'user',
-        content: 'Fix things',
-        classification: null,
+      sourceAttachments: {
         attachedMessages: [
           {
             _id: 'msg-id-attached',
@@ -97,13 +116,12 @@ describe('generateFullCliOutput — backlog items in primary delivery', () => {
           },
         ],
       },
-    };
+    });
 
-    const output = generateFullCliOutput(params);
-
-    expect(output).toContain('## Attached Messages (1)');
-    expect(output).toContain('<attached-message>');
+    expect(output).toContain('<attachments>');
+    expect(output).toContain('type="message" message-id="msg-id-attached"');
     expect(output).toContain('Some context message');
+    expect(output).not.toContain('<attached-message>');
   });
 });
 

@@ -60,7 +60,7 @@ const STALE_INPUT: RenderTaskPromptInput = {
  * Captured manually — used for the size-constraint assertion.
  * DO NOT update without verifying against the actual renderer output.
  */
-const OLD_GOLDEN_LENGTH = 988;
+const OLD_GOLDEN_LENGTH = 994;
 
 // =========================================================================
 // Layout
@@ -232,7 +232,7 @@ describe('snippet attachments', () => {
     const contentIdx = output.indexOf('What library is');
     const attachmentsIdx = output.indexOf('<attachments>');
     expect(contentIdx).toBeLessThan(attachmentsIdx);
-    expect(output).toContain('<attachment reference="attachment-reference-001">');
+    expect(output).toContain('<attachment type="snippet" reference="attachment-reference-001">');
     expect(output).toContain('file-source="./windsurfrules"');
     expect(output).toContain('# Shadcn');
     expect(output).not.toContain('<message>');
@@ -252,8 +252,8 @@ describe('snippet attachments', () => {
       ],
     });
     expect(output).toContain('<attachments>');
-    expect(output).toContain('type="backlog-item"');
-    expect(output).toContain('<attachment reference="attachment-reference-001">');
+    expect(output).toContain('type="backlog"');
+    expect(output).toContain('<attachment type="snippet" reference="attachment-reference-001">');
     expect(output).toContain('file-source="src/foo.ts"');
     expect(output.match(/<attachments>/g)?.length).toBe(1);
     expect(output.match(/<\/attachments>/g)?.length).toBe(1);

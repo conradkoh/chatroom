@@ -18,6 +18,8 @@ test('every primary-delivery kind has a renderer, input field mapping, and assem
   const assembled = assemblePrimaryDeliveryAttachments({
     attachedBacklogItems: [{ _id: 'b1', content: 'Backlog', status: 'backlog' }],
     attachedSnippets: [{ reference: 'r1', fileSource: 'a.ts', selectedContent: 'code' }],
+    attachedTasks: [{ _id: 't1', content: 'Task', status: 'backlog' }],
+    attachedMessages: [{ _id: 'm1', content: 'Message', senderRole: 'user' }],
   });
   for (const kind of PRIMARY_DELIVERY_ATTACHMENT_KINDS) {
     const key = PRIMARY_DELIVERY_INPUT_KEY_BY_KIND[kind];
