@@ -10,29 +10,11 @@ import {
   formatBashRunningPayload,
   resolveBashCommandForLog,
 } from '../agent-log-format.js';
+import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
 
-type AgentEndCallback = () => void;
-type OutputCallback = () => void;
-
-export class PiSdkStreamAdapter {
-  private readonly agentEndCallbacks: AgentEndCallback[] = [];
-  private readonly outputCallbacks: OutputCallback[] = [];
-  private agentEndEmitted = false;
+export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
   private thinkingBuffer = '';
-
-  constructor(
-    private readonly logPrefix: string,
-    private readonly emitLogLine?: (line: string) => void
-  ) {}
-
-  onAgentEnd(cb: AgentEndCallback): void {
-    this.agentEndCallbacks.push(cb);
-  }
-
-  onOutput(cb: OutputCallback): void {
-    this.outputCallbacks.push(cb);
-  }
 
   handleEvent(event: AgentSessionEvent): void {
     this.notifyOutput();
@@ -98,6 +80,7 @@ export class PiSdkStreamAdapter {
   private appendText(delta: string): void {
     this.flushThinking();
     this.textBuffer += delta;
+    this.assistantTextCapture.captureAssistantText(delta);
     if (this.textBuffer.includes('\n')) this.flushText();
   }
 
@@ -131,11 +114,7 @@ export class PiSdkStreamAdapter {
     this.thinkingBuffer = remaining;
   }
 
-  private notifyOutput(): void {
-    for (const cb of this.outputCallbacks) cb();
-  }
-
-  private writeLine(line: string): void {
+  protected override writeLine(line: string): void {
     process.stderr.write(`${line}\n`);
     this.emitLogLine?.(line);
   }

@@ -126,6 +126,8 @@ export interface AgentSlot {
   wantResume?: boolean;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean;
+  /** Buffered native harness assistant text for missed-handoff delivery. */
+  turnResponseBuffer?: string;
 }
 
 export interface AgentProcessManagerDeps {
@@ -313,11 +315,18 @@ export class AgentProcessManager {
     if (!slot?.pid || !slot.harness) {
       throw new Error(`No running agent for ${args.role}@${args.chatroomId}`);
     }
+    slot.turnResponseBuffer = undefined;
     const service = this.deps.agentServices.get(slot.harness);
     if (!service?.resumeTurn) {
       throw new Error(`Harness ${slot.harness} does not support resumeTurn`);
     }
     await service.resumeTurn(slot.pid, args.prompt);
+  }
+
+  appendTurnResponseBuffer(chatroomId: string, role: string, text: string): void {
+    const slot = this.slots.get(agentKey(chatroomId, role));
+    if (!slot) return;
+    slot.turnResponseBuffer = (slot.turnResponseBuffer ?? '') + text;
   }
 
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
@@ -516,6 +525,37 @@ export class AgentProcessManager {
         `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
       );
       return;
+    }
+
+    const bufferedContent = slot?.turnResponseBuffer?.trim() || undefined;
+
+    try {
+      const participant = await this.deps.backend.query(api.participants.getByRole, {
+        sessionId: this.deps.sessionId,
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+      });
+      const hasActiveWork =
+        participant?.lastStatus === 'task.inProgress' ||
+        participant?.lastStatus === 'task.acknowledged';
+
+      if (hasActiveWork) {
+        await this.deps.backend.mutation(api.participants.completeNativeTurnWithoutHandoff, {
+          sessionId: this.deps.sessionId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          bufferedContent,
+        });
+        if (slot) slot.turnResponseBuffer = undefined;
+        console.log(
+          `[AgentProcessManager] ✅ Native turn-end fallback for ${opts.role} (missed handoff)`
+        );
+        return;
+      }
+    } catch (err) {
+      console.log(
+        `   ⚠️  Failed native turn-end fallback for ${opts.role}: ${(err as Error).message}`
+      );
     }
 
     const emitted = await this.emitNativeWaiting(
@@ -1595,6 +1635,12 @@ export class AgentProcessManager {
   ): void {
     if (spawnResult.onLogLine) {
       spawnResult.onLogLine((line) => appendRecentLogLine(slot, line));
+    }
+
+    if (spawnResult.onAssistantText) {
+      spawnResult.onAssistantText((text) => {
+        this.appendTurnResponseBuffer(opts.chatroomId, opts.role, text);
+      });
     }
 
     spawnResult.onExit(({ code, signal }) => {
