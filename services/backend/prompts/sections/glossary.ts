@@ -59,8 +59,7 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'attachments',
     definition:
-      'Message attachment types (task, backlog, message, snippet) delivered in agent prompts as XML. ' +
-      'Developer guide: services/backend/prompts/attachments/ATTACHMENTS_GUIDE.md',
+      'Message attachment types (task, backlog, message, snippet) delivered in agent prompts as XML when users attach context to messages.',
   },
   {
     term: 'code-review',

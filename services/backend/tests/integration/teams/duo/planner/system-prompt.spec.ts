@@ -101,7 +101,7 @@ describe('Duo Team > Planner > System Prompt', () => {
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
       - \`attachments\`
-          - Message attachment types (task, backlog, message, snippet) delivered in agent prompts as XML. Developer guide: services/backend/prompts/attachments/ATTACHMENTS_GUIDE.md
+          - Message attachment types (task, backlog, message, snippet) delivered in agent prompts as XML when users attach context to messages.
 
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
