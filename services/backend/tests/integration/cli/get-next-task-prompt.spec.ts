@@ -402,9 +402,11 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       <attachments>
         <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
-          - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
+          <content>
+      Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
+          </content>
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>

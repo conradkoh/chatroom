@@ -58,10 +58,23 @@ describe('backlog attachment hint', () => {
     );
     const block = lines.join('\n');
     expect(block).toContain('type="backlog" backlog-item-id="item-111"');
+    expect(block).toContain('<content>Add login page</content>');
+    expect(block).not.toMatch(/\[PENDING\]|\[BACKLOG\]/);
     expect(block).toContain('mark-for-review');
     expect(block).toContain(
       'chatroom backlog mark-for-review --chatroom-id="test-chatroom-456" --role="planner" --backlog-item-id=item-111'
     );
+  });
+
+  test('escapes XML-special characters in backlog content', () => {
+    const lines = renderDeliveryAttachmentsBlock(
+      {
+        attachedBacklogItems: [{ _id: 'item-111', content: 'foo & bar <baz>', status: 'pending' }],
+      },
+      { chatroomId: 'test-chatroom-456', role: 'planner' }
+    );
+    const block = lines.join('\n');
+    expect(block).toContain('<content>foo &amp; bar &lt;baz&gt;</content>');
   });
 });
 
@@ -122,7 +135,8 @@ describe('task attachments', () => {
     const block = lines.join('\n');
     expect(block).toContain('<attachments>');
     expect(block).toContain('type="task" task-id="task-abc123"');
-    expect(block).toContain('Fix login redirect');
+    expect(block).toContain('<content>Fix login redirect</content>');
+    expect(block).not.toMatch(/\[BACKLOG\]/);
     expect(block).toContain('Referenced task attached by user');
   });
 });
@@ -140,8 +154,9 @@ describe('message attachments', () => {
     const block = lines.join('\n');
     expect(block).toContain('<attachments>');
     expect(block).toContain('type="message" message-id="msg-abc123"');
-    expect(block).toContain('From: builder');
-    expect(block).toContain('Some context message');
+    expect(block).toContain('<sender-role>builder</sender-role>');
+    expect(block).toContain('<content>Some context message</content>');
+    expect(block).not.toContain('From: builder');
   });
 
   test('renders all attachment kinds in one block', () => {

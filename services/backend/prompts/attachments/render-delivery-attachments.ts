@@ -2,6 +2,7 @@
  * Shared delivery attachment XML renderer.
  * @see ./ATTACHMENTS_GUIDE.md — end-to-end guide for implementing message attachments
  */
+import { escapeXmlAttribute, escapeXmlText, xmlTextElement } from './xml.js';
 import type {
   DeliveryAttachedMessage,
   DeliveryAttachmentsInput,
@@ -28,10 +29,10 @@ export type AttachmentRenderer<K extends MessageAttachmentKind> = (
 
 function renderSnippetAttachment(snippet: DeliverySnippet): string[] {
   return [
-    `  <attachment type="snippet" reference="${snippet.reference}">`,
-    `  <snippet file-source="${snippet.fileSource}">`,
+    `  <attachment type="snippet" reference="${escapeXmlAttribute(snippet.reference)}">`,
+    `  <snippet file-source="${escapeXmlAttribute(snippet.fileSource)}">`,
     `    <user-selected-content>`,
-    snippet.selectedContent,
+    escapeXmlText(snippet.selectedContent),
     `    </user-selected-content>`,
     `  </snippet>`,
     `  </attachment>`,
@@ -44,10 +45,10 @@ function renderBacklogAttachments(
 ): string[] {
   const lines: string[] = [];
   for (const item of items) {
-    lines.push(`  <attachment type="backlog" backlog-item-id="${item._id}">`);
-    lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
+    lines.push(`  <attachment type="backlog" backlog-item-id="${escapeXmlAttribute(item._id)}">`);
+    lines.push(...xmlTextElement('content', item.content, '    '));
     lines.push(
-      `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${ctx.chatroomId}" --role="${ctx.role}" --backlog-item-id=${item._id}</hint>`
+      `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${escapeXmlAttribute(ctx.chatroomId)}" --role="${escapeXmlAttribute(ctx.role)}" --backlog-item-id=${item._id}</hint>`
     );
     lines.push(`  </attachment>`);
   }
@@ -68,8 +69,8 @@ function renderTaskAttachments(
 ): string[] {
   const lines: string[] = [];
   for (const item of items) {
-    lines.push(`  <attachment type="task" task-id="${item._id}">`);
-    lines.push(`    - [${item.status.toUpperCase()}] ${item.content}`);
+    lines.push(`  <attachment type="task" task-id="${escapeXmlAttribute(item._id)}">`);
+    lines.push(...xmlTextElement('content', item.content, '    '));
     lines.push(`    <hint>Referenced task attached by user.</hint>`);
     lines.push(`  </attachment>`);
   }
@@ -79,10 +80,9 @@ function renderTaskAttachments(
 function renderMessageAttachments(items: DeliveryAttachedMessage[]): string[] {
   const lines: string[] = [];
   for (const item of items) {
-    lines.push(`  <attachment type="message" message-id="${item._id}">`);
-    lines.push(`    From: ${item.senderRole}`);
-    lines.push(`    ---`);
-    lines.push(`    ${item.content}`);
+    lines.push(`  <attachment type="message" message-id="${escapeXmlAttribute(item._id)}">`);
+    lines.push(...xmlTextElement('sender-role', item.senderRole, '    '));
+    lines.push(...xmlTextElement('content', item.content, '    '));
     lines.push(`  </attachment>`);
   }
   return lines;

@@ -196,7 +196,7 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
 
 ```xml
   <attachment type="backlog" backlog-item-id="item-111">
-    - [PENDING] Add login page
+    <content>Add login page</content>
     <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111</hint>
   </attachment>
 ```
@@ -205,7 +205,7 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
 
 ```xml
   <attachment type="task" task-id="task-abc123">
-    - [BACKLOG] Fix login redirect
+    <content>Fix login redirect</content>
     <hint>Referenced task attached by user.</hint>
   </attachment>
 ```
@@ -214,9 +214,8 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
 
 ```xml
   <attachment type="message" message-id="msg-abc123">
-    From: builder
-    ---
-    Prior discussion content here
+    <sender-role>builder</sender-role>
+    <content>Prior discussion content here</content>
   </attachment>
 ```
 

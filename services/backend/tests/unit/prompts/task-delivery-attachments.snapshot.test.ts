@@ -73,7 +73,7 @@ describe('task delivery attachment snapshots — CLI', () => {
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-001">
-          - [BACKLOG] Refactor: extract shared auth helpers into a utility module
+          <content>Refactor: extract shared auth helpers into a utility module</content>
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001</hint>
         </attachment>
       </attachments>
@@ -112,7 +112,7 @@ describe('task delivery attachment snapshots — CLI', () => {
 
       <attachments>
         <attachment type="task" task-id="attached-task-snapshot-001">
-          - [BACKLOG] Prior task: implement OAuth callback handler
+          <content>Prior task: implement OAuth callback handler</content>
           <hint>Referenced task attached by user.</hint>
         </attachment>
       </attachments>
@@ -158,7 +158,7 @@ describe('task delivery attachment snapshots — CLI', () => {
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-002">
-          - [BACKLOG] Add login page
+          <content>Add login page</content>
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-002</hint>
         </attachment>
         <attachment type="snippet" reference="attachment-reference-001">
@@ -202,7 +202,7 @@ describe('task delivery attachment snapshots — native', () => {
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-003">
-          - [BACKLOG] Refactor: extract shared auth helpers into a utility module
+          <content>Refactor: extract shared auth helpers into a utility module</content>
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003</hint>
         </attachment>
       </attachments>
