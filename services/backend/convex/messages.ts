@@ -721,11 +721,49 @@ async function _handoffHandler(
     }
   }
 
-  // Update unread status for chatroom owner
-  // Handoff-to-user is specially flagged
+  // Update unread status for chatroom owner.
+  // Handoff-to-user notification only when no tasks or queued messages remain.
   if (chatroom?.ownerId) {
-    const isHandoffToUser = args.targetRole?.toLowerCase() === 'user';
-    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, isHandoffToUser);
+    let shouldFlagHandoffNotification = false;
+    if (isHandoffToUser) {
+      const pendingTask = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .first();
+      const acknowledgedTask = pendingTask
+        ? null
+        : await ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+            )
+            .first();
+      const inProgressTask =
+        pendingTask || acknowledgedTask
+          ? null
+          : await ctx.db
+              .query('chatroom_tasks')
+              .withIndex('by_chatroom_status', (q) =>
+                q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+              )
+              .first();
+      const queuedMessage =
+        pendingTask || acknowledgedTask || inProgressTask
+          ? null
+          : await ctx.db
+              .query('chatroom_messageQueue')
+              .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
+              .first();
+      shouldFlagHandoffNotification = !(
+        pendingTask ||
+        acknowledgedTask ||
+        inProgressTask ||
+        queuedMessage
+      );
+    }
+    await markChatroomUnread(ctx, args.chatroomId, chatroom.ownerId, shouldFlagHandoffNotification);
   }
 
   const agentConfigResult = await getAgentConfig(ctx, {
