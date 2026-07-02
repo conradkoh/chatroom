@@ -251,7 +251,7 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s skips native:waiting while task is in progress',
+      'turn-end for %s completes missed handoff when task is in progress',
       async (harness) => {
         const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
         deps = createDepsWithParticipantStatus('task.inProgress');
@@ -267,6 +267,11 @@ describe('AgentProcessManager', () => {
         await triggerAgentEnd(manager, agentEndCb);
 
         expect(resumeTurn).not.toHaveBeenCalled();
+        const fallbackCalls = getMutationCallsByArgs(
+          deps,
+          (args) => 'bufferedContent' in args && !('action' in args)
+        );
+        expect(fallbackCalls).toHaveLength(1);
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'
@@ -276,7 +281,7 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s skips native:waiting while task is acknowledged',
+      'turn-end for %s completes missed handoff when task is acknowledged',
       async (harness) => {
         const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
         deps = createDepsWithParticipantStatus('task.acknowledged');
@@ -291,6 +296,11 @@ describe('AgentProcessManager', () => {
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
+        const fallbackCalls = getMutationCallsByArgs(
+          deps,
+          (args) => 'bufferedContent' in args && !('action' in args)
+        );
+        expect(fallbackCalls).toHaveLength(1);
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'
