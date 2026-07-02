@@ -75,6 +75,8 @@ type TaskReadMutationResult = {
   context?: string | null;
   attachedBacklogItems?: unknown[] | null;
   attachedSnippets?: unknown[] | null;
+  attachedTasks?: unknown[] | null;
+  attachedMessages?: unknown[] | null;
 };
 
 // fallow-ignore-next-line complexity
@@ -99,6 +101,12 @@ function buildTaskPromptFromReadResult(
           fileSource: string;
           selectedContent: string;
         }[])
+      : undefined,
+    attachedTasks: Array.isArray(result.attachedTasks)
+      ? (result.attachedTasks as { _id: string; content: string; status: string }[])
+      : undefined,
+    attachedMessages: Array.isArray(result.attachedMessages)
+      ? (result.attachedMessages as { _id: string; content: string; senderRole: string }[])
       : undefined,
   });
 }
