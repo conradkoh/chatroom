@@ -15,8 +15,11 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
+import {
+  assemblePrimaryDeliveryAttachments,
+  resolvePrimaryDeliveryAssemblyInput,
+} from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
-import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -1762,26 +1765,23 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
-    const sourceSnippets =
-      message && 'attachedSnippets' in message && message.attachedSnippets?.length
-        ? message.attachedSnippets
-        : undefined;
-
-    const sourceBacklogItems =
-      message && 'attachedBacklogItemIds' in message && message.attachedBacklogItemIds?.length
-        ? message.attachedBacklogItemIds.flatMap((id) => {
-            const item = attachedBacklogItemsMap.get(id);
-            return item ? [{ _id: item.id, content: item.content, status: item.status }] : [];
-          })
-        : undefined;
-
-    const sourceAttachments: PrimaryDeliveryAttachments | undefined =
-      sourceSnippets || sourceBacklogItems?.length
+    // Primary-delivery attachments: resolve from source message, then assemble typed payload.
+    // @see ../src/domain/entities/assemble-primary-delivery-attachments.ts
+    const primaryDeliveryInput = resolvePrimaryDeliveryAssemblyInput(
+      message
         ? {
-            ...(sourceBacklogItems?.length && { attachedBacklogItems: sourceBacklogItems }),
-            ...(sourceSnippets && { attachedSnippets: sourceSnippets }),
+            ...('attachedSnippets' in message && message.attachedSnippets?.length
+              ? { attachedSnippets: message.attachedSnippets }
+              : {}),
+            ...('attachedBacklogItemIds' in message && message.attachedBacklogItemIds?.length
+              ? { attachedBacklogItemIds: message.attachedBacklogItemIds }
+              : {}),
           }
-        : undefined;
+        : null,
+      attachedBacklogItemsMap
+    );
+    const sourceAttachments = assemblePrimaryDeliveryAttachments(primaryDeliveryInput);
+    const sourceSnippets = primaryDeliveryInput.attachedSnippets;
 
     // Build context for prompt generation
     const deliveryContext = {
