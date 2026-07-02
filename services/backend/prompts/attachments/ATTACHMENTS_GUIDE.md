@@ -12,9 +12,9 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 
 | Kind     | Schema field             | Compose (webapp) | Primary delivery       | Task read |
 | -------- | ------------------------ | ---------------- | ---------------------- | --------- |
-| task     | `attachedTaskIds`        | ✅ chip          | ✅ `<attachments>` XML | ❌        |
+| task     | `attachedTaskIds`        | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
 | backlog  | `attachedBacklogItemIds` | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
-| message  | `attachedMessageIds`     | ✅ chip          | ✅ `<attachments>` XML | ❌        |
+| message  | `attachedMessageIds`     | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
 | snippet  | `attachedSnippets`       | ✅ chip + Cmd+I  | ✅ `<attachments>` XML | ✅ XML    |
 | artifact | `attachedArtifactIds`    | ❌ reserved      | ❌ reserved            | ❌        |
 
@@ -22,8 +22,8 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 
 - **Snippets** appear in primary delivery (`get-next-task` / native injection) and `task read`, using the shared XML renderer.
 - **Backlog** items appear in primary delivery and `task read`, using the shared `<attachments>` XML renderer.
-- **Attached messages** appear in primary delivery as `<attachment type="message" message-id="...">` inside the shared `<attachments>` block (source message only).
-- **Tasks** appear in primary delivery as `<attachment type="task">` inside the shared `<attachments>` block (source message only).
+- **Attached messages** appear in primary delivery and `task read` as `<attachment type="message" message-id="...">` inside the shared `<attachments>` block (source message only).
+- **Tasks** appear in primary delivery and `task read` as `<attachment type="task">` inside the shared `<attachments>` block (source message only).
 
 ---
 
@@ -120,7 +120,7 @@ flowchart LR
 3. **Persist** — Convex `sendMessage` stores attachment fields on `chatroom_messages` or `chatroom_messageQueue`.
 4. **Enrich** — Timeline/queue queries resolve IDs to full objects for display (`MessageAttachmentChips`).
 5. **Deliver** — `getTaskDeliveryPrompt` reads **source message** snippets → `generateFullCliOutput` / native → `renderDeliveryAttachmentsBlock`.
-6. **Task read** — `readTask` + CLI `render.ts` delegate to the same renderer for snippets + backlog.
+6. **Task read** — `readTask` + CLI `render.ts` delegate to the same renderer for all four kinds via shared renderer.
 
 ---
 
@@ -201,7 +201,7 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
   </attachment>
 ```
 
-### Task (primary delivery)
+### Task (primary delivery + task read)
 
 ```xml
   <attachment type="task" task-id="task-abc123">
@@ -210,7 +210,7 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
   </attachment>
 ```
 
-### Message (primary delivery)
+### Message (primary delivery + task read)
 
 ```xml
   <attachment type="message" message-id="msg-abc123">
@@ -255,8 +255,8 @@ Created by `renderInlineReference()` in `attachments/snippet/explorerSelectionAt
 | ----------- | ---------------------- | ------------------------------------------------------------------------------- |
 | **Snippet** | `attachments/snippet/` | Most complete: Cmd+I (`composerPrefill.ts`), chip, primary delivery + task read |
 | **Backlog** | `attachments/backlog/` | Compose chip + primary delivery + task-read XML                                 |
-| **Message** | `attachments/message/` | Compose chip + primary delivery XML (`type="message"`)                          |
-| **Task**    | `attachments/task/`    | Compose chip + primary delivery XML (`type="task"`)                             |
+| **Message** | `attachments/message/` | Compose chip + primary delivery + task-read XML (`type="message"`)              |
+| **Task**    | `attachments/task/`    | Compose chip + primary delivery + task-read XML (`type="task"`)                 |
 
 **Snippet Cmd+I flow** (copy this pattern for explorer-driven attachments):
 

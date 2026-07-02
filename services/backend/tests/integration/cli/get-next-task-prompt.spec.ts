@@ -1251,6 +1251,108 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(result.attachedSnippets![0].selectedContent).toBe('# Shadcn');
   });
 
+  test('readTask mutation returns attached tasks from source message', async () => {
+    const { sessionId } = await createTestSession('test-readtask-attached-tasks');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const attachedTaskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        content: 'Fix login redirect',
+        createdBy: 'user',
+        status: 'backlog',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+      });
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please work on this attached task',
+      type: 'message',
+      attachedTaskIds: [attachedTaskId],
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    expect(result.attachedTasks).toBeDefined();
+    expect(result.attachedTasks).toHaveLength(1);
+    expect(result.attachedTasks![0].content).toBe('Fix login redirect');
+    expect(result.attachedTasks![0].status).toBe('backlog');
+    expect(result.attachedTasks![0]._id).toBe(attachedTaskId);
+  });
+
+  test('readTask mutation returns attached messages from source message', async () => {
+    const { sessionId } = await createTestSession('test-readtask-attached-messages');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const priorMessageId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Prior discussion about login',
+        type: 'message',
+      });
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please review the prior discussion',
+      type: 'message',
+      attachedMessageIds: [priorMessageId],
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+
+    const acknowledgedTask = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'acknowledged')
+        )
+        .first();
+    });
+    expect(acknowledgedTask).not.toBeNull();
+
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: acknowledgedTask!._id,
+    });
+
+    expect(result.attachedMessages).toBeDefined();
+    expect(result.attachedMessages).toHaveLength(1);
+    expect(result.attachedMessages![0].content).toBe('Prior discussion about login');
+    expect(result.attachedMessages![0].senderRole).toBe('user');
+    expect(result.attachedMessages![0]._id).toBe(priorMessageId);
+  });
+
   test('getTaskDeliveryPrompt.fullCliOutput includes attached snippets from source message', async () => {
     const { sessionId } = await createTestSession('test-delivery-snippets');
     const chatroomId = await createDuoTeamChatroom(sessionId);

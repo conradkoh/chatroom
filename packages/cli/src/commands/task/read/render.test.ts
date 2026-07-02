@@ -259,3 +259,39 @@ describe('snippet attachments', () => {
     expect(output.match(/<\/attachments>/g)?.length).toBe(1);
   });
 });
+
+describe('task and message attachments', () => {
+  it('renders task attachment XML in attachments block', () => {
+    const output = renderTaskPrompt({
+      ...MINIMAL_INPUT,
+      attachedTasks: [{ _id: 'task-abc123', content: 'Fix login redirect', status: 'backlog' }],
+    });
+    expect(output).toContain('<attachment type="task" task-id="task-abc123">');
+    expect(output).toContain('Fix login redirect');
+  });
+
+  it('renders message attachment XML in attachments block', () => {
+    const output = renderTaskPrompt({
+      ...MINIMAL_INPUT,
+      attachedMessages: [{ _id: 'msg-abc123', content: 'Prior discussion', senderRole: 'builder' }],
+    });
+    expect(output).toContain('<attachment type="message" message-id="msg-abc123">');
+    expect(output).toContain('From: builder');
+    expect(output).toContain('Prior discussion');
+  });
+
+  it('renders all four kinds in one attachments block', () => {
+    const output = renderTaskPrompt({
+      ...MINIMAL_INPUT,
+      attachedBacklogItems: [{ _id: 'item-1', content: 'Backlog', status: 'pending' }],
+      attachedSnippets: [{ reference: 'ref-1', fileSource: 'a.ts', selectedContent: 'x' }],
+      attachedTasks: [{ _id: 'task-1', content: 'Task', status: 'backlog' }],
+      attachedMessages: [{ _id: 'msg-1', content: 'Msg', senderRole: 'user' }],
+    });
+    expect(output.match(/<attachments>/g)?.length).toBe(1);
+    expect(output).toContain('type="backlog"');
+    expect(output).toContain('type="snippet"');
+    expect(output).toContain('type="task"');
+    expect(output).toContain('type="message"');
+  });
+});

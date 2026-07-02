@@ -58,6 +58,16 @@ export interface ReadTaskResult {
     fileSource: string;
     selectedContent: string;
   }[];
+  attachedTasks?: {
+    _id: string;
+    content: string;
+    status: string;
+  }[];
+  attachedMessages?: {
+    _id: string;
+    content: string;
+    senderRole: string;
+  }[];
 }
 
 // ============================================================================
@@ -150,6 +160,8 @@ async function buildReadTaskResult(
   const context = await fetchCurrentContext(ctx, chatroomId);
   const attachedBacklogItems = await fetchAttachedBacklogItems(ctx, task);
   const attachedSnippets = await fetchAttachedSnippets(ctx, task);
+  const attachedTasks = await fetchAttachedTasks(ctx, task);
+  const attachedMessages = await fetchAttachedMessages(ctx, task);
 
   return {
     taskId,
@@ -158,6 +170,8 @@ async function buildReadTaskResult(
     ...(context && { context }),
     ...(attachedBacklogItems.length > 0 && { attachedBacklogItems }),
     ...(attachedSnippets.length > 0 && { attachedSnippets }),
+    ...(attachedTasks.length > 0 && { attachedTasks }),
+    ...(attachedMessages.length > 0 && { attachedMessages }),
   };
 }
 
@@ -245,4 +259,41 @@ async function fetchAttachedSnippets(
 
   const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
   return sourceMessage?.attachedSnippets ?? [];
+}
+
+// fallow-ignore-next-line complexity
+async function fetchAttachedTasks(
+  ctx: MutationCtx,
+  task: { sourceMessageId?: Id<'chatroom_messages'> }
+): Promise<NonNullable<ReadTaskResult['attachedTasks']>> {
+  if (!task.sourceMessageId) return [];
+  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+  if (!sourceMessage?.attachedTaskIds || sourceMessage.attachedTaskIds.length === 0) return [];
+  const items: { _id: string; content: string; status: string }[] = [];
+  for (const taskId of sourceMessage.attachedTaskIds) {
+    const attached = await ctx.db.get('chatroom_tasks', taskId);
+    if (attached) {
+      items.push({ _id: attached._id, content: attached.content, status: attached.status });
+    }
+  }
+  return items;
+}
+
+// fallow-ignore-next-line complexity
+async function fetchAttachedMessages(
+  ctx: MutationCtx,
+  task: { sourceMessageId?: Id<'chatroom_messages'> }
+): Promise<NonNullable<ReadTaskResult['attachedMessages']>> {
+  if (!task.sourceMessageId) return [];
+  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+  if (!sourceMessage?.attachedMessageIds || sourceMessage.attachedMessageIds.length === 0)
+    return [];
+  const items: { _id: string; content: string; senderRole: string }[] = [];
+  for (const messageId of sourceMessage.attachedMessageIds) {
+    const attached = await ctx.db.get('chatroom_messages', messageId);
+    if (attached) {
+      items.push({ _id: attached._id, content: attached.content, senderRole: attached.senderRole });
+    }
+  }
+  return items;
 }
