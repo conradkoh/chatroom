@@ -185,13 +185,11 @@ describe('startDirListingSubscriptionEffect', () => {
       withDeps(deps, { sessionId: 'session-tree', machineId: 'machine-tree' })
     );
 
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-tree', machineId: 'machine-tree' }),
-      expect.any(Function),
-      expect.any(Function)
-    );
     expect(wsClient.onUpdate).toHaveBeenCalledTimes(2);
+    const firstCall = vi.mocked(wsClient.onUpdate).mock.calls[0];
+    expect(firstCall?.[1]).toEqual(
+      expect.objectContaining({ sessionId: 'session-tree', machineId: 'machine-tree' })
+    );
   });
 });
 

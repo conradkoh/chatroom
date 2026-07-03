@@ -3,7 +3,7 @@
  * and which file content can be read remotely.
  */
 
-import { exec } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
@@ -35,7 +35,6 @@ export const SECRET_PATH_PATTERNS: RegExp[] = [
   /^\.aws(\/|$)/,
 ];
 
-// fallow-ignore-next-line unused-export
 export function isAlwaysExcludedDirName(name: string): boolean {
   return ALWAYS_EXCLUDE_DIR_NAMES.has(name);
 }
@@ -52,8 +51,6 @@ export function hasExcludedDirSegment(relativePath: string): boolean {
   return segments.some((segment) => isAlwaysExcludedDirName(segment));
 }
 
-/** Path is visible in directory listings (not secret, no excluded dir segment). */
-// fallow-ignore-next-line unused-export
 export function isPathVisible(relativePath: string): boolean {
   if (!relativePath) return true;
   return !isSecretPath(relativePath) && !hasExcludedDirSegment(relativePath);
@@ -78,7 +75,7 @@ export async function isGitRepo(rootDir: string): Promise<boolean> {
 }
 
 /** Batch git check-ignore; returns Set of ignored paths from input. */
-// fallow-ignore-next-line complexity unused-export
+// fallow-ignore-next-line complexity
 export async function filterGitIgnored(
   rootDir: string,
   relativePaths: string[]
@@ -89,25 +86,30 @@ export async function filterGitIgnored(
   if (!inRepo) return new Set();
 
   try {
-    const input = relativePaths.join('\n');
-    const { stdout } = await execAsync('git check-ignore --stdin -z', {
-      cwd: rootDir,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
-      input,
-      maxBuffer: 10 * 1024 * 1024,
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = spawn('git', ['check-ignore', '--stdin', '-z'], {
+        cwd: rootDir,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
+      });
+      let output = '';
+      child.stdout.on('data', (chunk: Buffer) => {
+        output += chunk.toString();
+      });
+      child.on('error', reject);
+      child.on('close', () => resolve(output));
+      child.stdin.write(relativePaths.join('\n'));
+      child.stdin.end();
     });
 
     const ignored = new Set<string>();
     if (!stdout) return ignored;
 
-    // NUL-delimited output from -z flag
     for (const entry of stdout.split('\0')) {
       const trimmed = entry.trim();
       if (trimmed) ignored.add(trimmed);
     }
     return ignored;
   } catch {
-    // git check-ignore exits 1 when no paths are ignored
     return new Set();
   }
 }
