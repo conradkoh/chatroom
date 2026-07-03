@@ -1,6 +1,8 @@
 /**
  * File tree scanner for workspace directories.
  *
+ * @deprecated Use dir-listing-scanner.ts. Kept for reference/tests only.
+ *
  * NOTE: "workspace" here refers to a chatroom workspace (the workingDir / project root),
  * not a package manager sub-workspace (e.g., monorepo packages). For sub-workspace
  * resolution, see workspace-resolver.ts.
@@ -14,6 +16,8 @@ import { exec } from 'node:child_process';
 import { promises as fsPromises, type Dirent } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+
+import { isGitRepo } from './workspace-visibility-policy.js';
 
 const execAsync = promisify(exec);
 
@@ -111,22 +115,8 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
 
 // ─── Internal Helpers ───────────────────────────────────────────────────────
 
-/**
- * Check if a directory is a git repository.
- */
 // fallow-ignore-next-line unused-export
-export async function isGitRepo(rootDir: string): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', {
-      cwd: rootDir,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
-      maxBuffer: 1024 * 1024,
-    });
-    return stdout.trim() === 'true';
-  } catch {
-    return false;
-  }
-}
+export { isGitRepo } from './workspace-visibility-policy.js';
 
 /**
  * Walks `rootDir` depth-first as a fallback when git is unavailable.

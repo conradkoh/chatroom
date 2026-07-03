@@ -11,9 +11,10 @@ import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';
 
 /** Max file content size (500KB). */
 const MAX_CONTENT_BYTES = 500 * 1024;
@@ -66,6 +67,33 @@ function isBinaryFile(path: string): boolean {
   return BINARY_EXTENSIONS.has(path.slice(lastDot).toLowerCase());
 }
 
+function gzipPlainText(text: string): string {
+  return gzipSync(Buffer.from(text)).toString('base64');
+}
+
+function fulfillGzippedContentEffect(
+  session: DaemonSessionServiceShape,
+  workingDir: string,
+  filePath: string,
+  plainText: string,
+  truncated: boolean
+): Effect.Effect<void> {
+  return Effect.catchAll(
+    Effect.tryPromise(() =>
+      session.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        workingDir,
+        filePath,
+        data: { compression: 'gzip' as const, content: gzipPlainText(plainText) },
+        encoding: 'utf8',
+        truncated,
+      })
+    ),
+    () => Effect.void
+  );
+}
+
 /** Effect twin for fulfillFileContentRequests — yields DaemonSessionService. */
 export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, DaemonSessionService> =
   Effect.gen(function* () {
@@ -104,24 +132,25 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
       }
 
       if (isBinaryFile(filePath)) {
-        const binaryCompressed = gzipSync(Buffer.from('[Binary file]')).toString('base64');
-        yield* Effect.catchAll(
-          Effect.tryPromise(() =>
-            session.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
-              sessionId: session.sessionId,
-              machineId: session.machineId,
-              workingDir,
-              filePath,
-              data: { compression: 'gzip' as const, content: binaryCompressed },
-              encoding: 'utf8',
-              truncated: false,
-            })
-          ),
-          () => Effect.void
-        );
+        yield* fulfillGzippedContentEffect(session, workingDir, filePath, '[Binary file]', false);
         const elapsed = Date.now() - startTime;
         console.log(
           `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} [binary] (${elapsed}ms)`
+        );
+        continue;
+      }
+
+      if (!isPathContentReadable(filePath)) {
+        yield* fulfillGzippedContentEffect(
+          session,
+          workingDir,
+          filePath,
+          '[File blocked: cannot open sensitive path in remote explorer]',
+          false
+        );
+        const elapsed = Date.now() - startTime;
+        console.log(
+          `[${formatTimestamp()}] 📄 File content blocked: ${filePath} [secret] (${elapsed}ms)`
         );
         continue;
       }
