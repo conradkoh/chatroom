@@ -337,21 +337,18 @@ export const getByRole = query({
   },
 });
 
-/** Idempotent handler for native harness agent_end — completes active work, delivers buffered text, returns to waiting. */
+/** Idempotent handler for native harness agent_end — returns handoff reminder signal or transitions to waiting. */
 export const handleNativeAgentEnd = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    bufferedContent: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return await handleNativeAgentEndUsecase(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
-      bufferedContent: args.bufferedContent,
-      ownerId: chatroom.ownerId,
     });
   },
 });

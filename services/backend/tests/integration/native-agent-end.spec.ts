@@ -1,8 +1,8 @@
 /**
  * Native agent_end handler — Integration Tests
  *
- * Verifies handleNativeAgentEnd completes active tasks, delivers buffered
- * assistant text, transitions to waiting, and is idempotent on repeat calls.
+ * Verifies handleNativeAgentEnd signals handoff reminder when active work
+ * remains, transitions to waiting when idle, and is idempotent on repeat calls.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -37,7 +37,7 @@ async function createAcknowledgedTask(
   const { taskId } = await t.mutation(api.tasks.createTask, {
     sessionId,
     chatroomId,
-    content: 'Native agent_end fallback test task',
+    content: 'Native agent_end reminder test task',
     createdBy: 'user',
   });
 
@@ -52,8 +52,8 @@ async function createAcknowledgedTask(
 }
 
 describe('Native agent_end handler', () => {
-  test('completes acknowledged task and delivers buffered handoff message to user', async () => {
-    const { sessionId } = await createTestSession('test-native-agent-end-fallback');
+  test('returns needsHandoffReminder when acknowledged task active', async () => {
+    const { sessionId } = await createTestSession('test-native-agent-end-reminder');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
@@ -70,35 +70,42 @@ describe('Native agent_end handler', () => {
       sessionId,
       chatroomId,
       role: 'builder',
-      bufferedContent: 'Work finished without explicit handoff.',
     });
 
     expect(result).toEqual({
-      taskCompleted: true,
-      messageDelivered: true,
-      transitionedToWaiting: true,
+      needsHandoffReminder: true,
+      transitionedToWaiting: false,
     });
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.status).toBe('completed');
+    expect(task?.status).toBe('acknowledged');
 
-    const messages = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).not.toBe('agent.waiting');
+  });
+
+  test('transitions to waiting when no active task', async () => {
+    const { sessionId } = await createTestSession('test-native-agent-end-waiting');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    const result = await t.mutation(api.participants.handleNativeAgentEnd, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
     });
-    const handoff = messages.find(
-      (m) => m.type === 'handoff' && m.targetRole === 'user' && m.senderRole === 'builder'
-    );
-    expect(handoff?.content).toBe('Work finished without explicit handoff.');
+
+    expect(result).toEqual({
+      needsHandoffReminder: false,
+      transitionedToWaiting: true,
+    });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.waiting');
     expect(status.lastSeenAction).toBe('native:waiting');
   });
 
-  test('is idempotent when called again while already waiting', async () => {
+  test('is idempotent when already waiting', async () => {
     const { sessionId } = await createTestSession('test-native-agent-end-idempotent');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -122,12 +129,10 @@ describe('Native agent_end handler', () => {
       sessionId,
       chatroomId,
       role: 'builder',
-      bufferedContent: 'Should not duplicate on idle repeat.',
     });
 
     expect(second).toEqual({
-      taskCompleted: false,
-      messageDelivered: false,
+      needsHandoffReminder: false,
       transitionedToWaiting: false,
     });
 

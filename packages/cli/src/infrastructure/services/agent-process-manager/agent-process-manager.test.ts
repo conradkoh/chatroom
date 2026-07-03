@@ -1,3 +1,4 @@
+import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 
 import {
@@ -61,7 +62,10 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
         rolePrompt: 'You are a builder',
         initialMessage: 'Start working',
       }),
-      mutation: vi.fn().mockResolvedValue(undefined),
+      mutation: vi.fn().mockResolvedValue({
+        needsHandoffReminder: false,
+        transitionedToWaiting: true,
+      }),
     },
     sessionId: 'test-session',
     machineId: 'test-machine',
@@ -143,7 +147,19 @@ function createNativeSdkService(harness: NativeSdkHarness) {
 }
 
 function getHandleNativeAgentEndCalls(deps: AgentProcessManagerDeps): Record<string, unknown>[] {
-  return getMutationCallsByArgs(deps, (args) => !('action' in args) && 'role' in args);
+  const matches = getMutationCallsByArgs(
+    deps,
+    (args) =>
+      'sessionId' in args &&
+      'chatroomId' in args &&
+      'role' in args &&
+      !('action' in args) &&
+      !('pid' in args) &&
+      !('machineId' in args) &&
+      !('model' in args) &&
+      !('reason' in args)
+  );
+  return matches.length > 0 ? [matches[matches.length - 1]!] : [];
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -211,7 +227,7 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s calls handleNativeAgentEnd without resumeTurn',
+      'turn-end for %s calls handleNativeAgentEnd without resumeTurn when idle',
       async (harness) => {
         const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
         deps.agentServices = new Map([[harness, service]]);
@@ -231,7 +247,7 @@ describe('AgentProcessManager', () => {
     );
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s always calls handleNativeAgentEnd (backend decides active work)',
+      'turn-end for %s injects handoff reminder when backend signals missed handoff',
       async (harness) => {
         const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
         deps.agentServices = new Map([[harness, service]]);
@@ -241,36 +257,17 @@ describe('AgentProcessManager', () => {
           createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
         );
         (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-        await triggerAgentEnd(manager, agentEndCb);
-
-        expect(resumeTurn).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-        const nativeWaitingCalls = getMutationCallsByArgs(
-          deps,
-          (args) => args.action === 'native:waiting'
-        );
-        expect(nativeWaitingCalls).toHaveLength(0);
-      }
-    );
-
-    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
-      'turn-end for %s delegates missed handoff to handleNativeAgentEnd',
-      async (harness) => {
-        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
-        deps.agentServices = new Map([[harness, service]]);
-        manager = new AgentProcessManager(deps);
-
-        await manager.ensureRunning(
-          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
-        );
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          needsHandoffReminder: true,
+          transitionedToWaiting: false,
+        });
 
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
         expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+        expect(getHandleNativeAgentEndCalls(deps)[0]).not.toHaveProperty('bufferedContent');
+        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'

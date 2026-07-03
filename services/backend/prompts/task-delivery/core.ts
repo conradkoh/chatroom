@@ -6,8 +6,8 @@
 
 import type { TaskDeliveryContextWindow } from './context-staleness';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
+import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
-import { inferPrimaryHandoffTarget } from '../utils/infer-primary-handoff-target';
 
 export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
   chatroomId: string;
