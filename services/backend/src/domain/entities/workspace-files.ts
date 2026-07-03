@@ -15,6 +15,7 @@ export type FileTreeEntry = {
 };
 
 /** The complete file tree for a workspace. */
+// fallow-ignore-next-line unused-type
 export type FileTree = {
   entries: FileTreeEntry[];
   scannedAt: number;

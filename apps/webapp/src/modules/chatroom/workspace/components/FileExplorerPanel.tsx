@@ -1,8 +1,6 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -169,7 +167,6 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
-  const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
   const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
@@ -190,13 +187,9 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   const effectiveRevealPath = revealPath ?? effectiveSelectedPath;
 
   const handleRefresh = useCallback(() => {
-    if (machineId && workingDir) {
-      requestTree({ machineId, workingDir, force: true }).catch(() => {
-        // Silently ignore
-      });
-    }
+    window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
     setRefreshKey((k) => k + 1);
-  }, [machineId, workingDir, requestTree]);
+  }, []);
 
   // fallow-ignore-next-line complexity
   const handleConfirmDelete = useCallback(async () => {
@@ -217,15 +210,6 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
       toast.error(message);
     }
   }, [confirmDelete, deleteTarget, explorerFileOps, onFileDeleted, requestDelete]);
-
-  // Request file tree on initial mount (or when workspace changes)
-  useEffect(() => {
-    if (machineId && workingDir) {
-      requestTree({ machineId, workingDir }).catch(() => {
-        // Silently ignore — tree may already exist
-      });
-    }
-  }, [machineId, workingDir, requestTree]);
 
   // Listen for external refresh requests (e.g. from command palette "Open File Explorer")
   useEffect(() => {

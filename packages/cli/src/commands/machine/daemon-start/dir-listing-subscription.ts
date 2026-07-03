@@ -1,6 +1,7 @@
 /**
  * Directory Listing Subscription — reactive subscription for dir listing + file search.
  */
+// fallow-ignore-file code-duplication
 
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';

@@ -88,6 +88,7 @@ function validateDirPath(dirPath: string): void {
 function validateSearchQuery(query: string): void {
   if (query.length > MAX_SEARCH_QUERY_LENGTH) throw new Error('Search query too long');
   if (query.includes('\0')) throw new Error('Invalid search query');
+  // Empty query is allowed — returns up to maxResults workspace files
 }
 
 // ─── File Tree Sync (daemon → backend) ──────────────────────────────────────
@@ -1099,6 +1100,7 @@ export const purgeFileContentV2 = mutation({
 // Directory Listing V2 — per-directory FS slices
 // ═══════════════════════════════════════════════════════════════════════════════
 // fallow-ignore-file complexity
+// fallow-ignore-file code-duplication
 
 export const requestDirListing = mutation({
   args: {

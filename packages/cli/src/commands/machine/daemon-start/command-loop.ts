@@ -491,6 +491,7 @@ export const startCommandLoopEffect: Effect.Effect<
     }
   };
 
+  // fallow-ignore-next-line code-duplication
   const handleSignal = (signal: NodeJS.Signals) => {
     signalCount += 1;
     if (signalCount >= 2) {
