@@ -7,7 +7,7 @@ End-to-end steps for adding a new remote agent harness to the Chatroom CLI.
 | Kind          | When to use                                              | Examples                                                       |
 | ------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
 | **CLI-based** | The runtime is a subprocess with stdout/stderr you parse | `cursor`, `claude`, `pi`, `opencode`, `copilot`, `commandcode` |
-| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`, `pi-sdk`                         |
+| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`           |
 
 Both kinds implement the same `RemoteAgentService` contract and register in `init-registry.ts`.
 
@@ -23,7 +23,7 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 
 **Task injection:** Native SDK harnesses use `resumeTurn` only when the daemon injects user work — not for turn-end auto-resume.
 
-**Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk` (`supportsNativeIntegration: true` in `types.ts`).
+**Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk` (`supportsNativeIntegration: true` in `types.ts`).
 
 **Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn` when the agent has no active assigned work (`task.acknowledged` / `task.inProgress`). Task injection uses `resumeTurn` only when delivering user work.
 
@@ -49,7 +49,7 @@ CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge
 
 ### Context compaction vs hard restart vs new session
 
-| Mode          | Native (`cursor-sdk`, `opencode-sdk`)                           | CLI harnesses                                      |
+| Mode          | Native (`cursor-sdk`, `opencode-sdk`, `claude-sdk`)             | CLI harnesses                                      |
 | ------------- | --------------------------------------------------------------- | -------------------------------------------------- |
 | `none`        | Continue prior session; plain task injection                    | Resume prior session (`wantResume=true`)           |
 | `compact`     | In-session compaction via SDK; compaction preamble on injection | Not supported — treat like `none` at runtime       |
@@ -174,7 +174,7 @@ Implement `onAgentEnd` when the daemon should restart the process between turns.
 
 ### 3.5 Log lines for resume-storm classification (`onLogLine`)
 
-Native SDK harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`) idle in-process between turns. When the agent hits API/auth/config errors, it may end turns in rapid succession and trigger a **resume storm** abort.
+Native SDK harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`) idle in-process between turns. When the agent hits API/auth/config errors, it may end turns in rapid succession and trigger a **resume storm** abort.
 
 `AgentProcessManager` registers `spawnResult.onLogLine` and keeps the last ~100 lines per agent slot. On storm abort, `classifyResumeStormReason()` scans those lines for rate-limit, auth, and config patterns.
 
@@ -190,6 +190,7 @@ Reference implementations:
 | `opencode-sdk` | `session-event-forwarder.ts` — `writeLogLine`; serve stderr in `registerRunningSession`                        |
 | `cursor-sdk`   | `cursor-sdk-stream-adapter.ts` — `writeLine`; `writeSpawnError` / `run-error` in `cursor-sdk-agent-service.ts` |
 | `pi-sdk`       | `pi-sdk-stream-adapter.ts` — formatted log lines from session events                                           |
+| `claude-sdk`   | `claude-sdk-stream-adapter.ts` — formatted log lines from SDK messages                                         |
 
 Single-shot CLI harnesses (kill-and-respawn per turn) do **not** need `onLogLine`.
 
@@ -199,7 +200,7 @@ Single-shot CLI harnesses (kill-and-respawn per turn) do **not** need `onLogLine
 
 Use when integration happens through a Node SDK rather than parsing CLI stdout.
 
-Reference implementations: `cursor-sdk/` (in-process SDK + keeper PID), `opencode-sdk/` (spawn server + SDK client).
+Reference implementations: `cursor-sdk/` (in-process SDK + keeper PID), `opencode-sdk/` (spawn server + SDK client), `claude-sdk/` (Claude Agent SDK `query()` + keeper PID).
 
 Both still extend `BaseCLIAgentService` for registry and default lifecycle helpers.
 
@@ -219,7 +220,9 @@ async function loadSdk() {
 
 Use type-only imports at the top (`import type { ... }`) so module load never crashes the daemon. Gate `isInstalled()` on a successful `loadSdk()` call.
 
-See `cursor-sdk-agent-service.ts`.
+See `cursor-sdk-agent-service.ts` and `claude-sdk-package.ts` (lazy load + `extractFromBunfs` for compiled CLI).
+
+For `@anthropic-ai/claude-agent-sdk`, defer import via `importBundledClaudeSdk()` in `claude-sdk-package.ts` (same pin-check pattern as pi-sdk/cursor-sdk). Resolve the bundled Claude Code binary with `resolveClaudeCodeExecutable()` from the platform optional package (`@anthropic-ai/claude-agent-sdk-darwin-arm64`, etc.) and pass `pathToClaudeCodeExecutable` when auto-resolution fails. For `bun build --compile` single-file executables, use `extractFromBunfs()` from `@anthropic-ai/claude-agent-sdk/extract` per the [Agent SDK docs](https://code.claude.com/docs/en/agent-sdk/typescript).
 
 ### 4.2 Keeper process (PID compatibility)
 
@@ -337,7 +340,7 @@ Use `createSpawnPrompt('test prompt')` from `spawn-prompt.ts` for valid spawn in
 
 ### 6.2 SDK harness tests
 
-Pattern (see `cursor-sdk-agent-service.test.ts`, `opencode-sdk-agent-service.test.ts`):
+Pattern (see `cursor-sdk-agent-service.test.ts`, `opencode-sdk-agent-service.test.ts`, `claude-sdk-agent-service.test.ts`):
 
 ```ts
 vi.mock('@cursor/sdk', () => ({ Agent: { create: vi.fn() }, ... }));
@@ -376,11 +379,13 @@ Inject optional deps (`sessionMetadataStore`, etc.) for opencode-sdk isolation t
 | ID             | Kind         | Key files                                                                  |
 | -------------- | ------------ | -------------------------------------------------------------------------- |
 | `claude`       | CLI          | `claude/claude-code-agent-service.ts`, `claude-stream-reader.ts`           |
+| `claude-sdk`   | SDK          | `claude-sdk/claude-sdk-agent-service.ts`, `claude-sdk-stream-adapter.ts`   |
 | `commandcode`  | CLI          | `commandcode/command-code-agent-service.ts`                                |
 | `copilot`      | CLI          | `copilot/copilot-agent-service.ts`                                         |
 | `cursor`       | CLI          | `cursor/cursor-agent-service.ts`, `cursor-stream-reader.ts`                |
 | `opencode`     | CLI          | `opencode/opencode-agent-service.ts`                                       |
 | `pi`           | CLI (RPC)    | `pi/pi-agent-service.ts`, `pi-rpc-reader.ts`                               |
+| `pi-sdk`       | SDK          | `pi-sdk/pi-sdk-agent-service.ts`, `pi-sdk-stream-adapter.ts`               |
 | `cursor-sdk`   | SDK          | `cursor-sdk/cursor-sdk-agent-service.ts`, `cursor-sdk-stream-adapter.ts`   |
 | `opencode-sdk` | SDK (server) | `opencode-sdk/opencode-sdk-agent-service.ts`, `session-event-forwarder.ts` |
 
@@ -398,6 +403,7 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 | `cursor`       | Direct `agent` child     | Single-shot CLI                     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 | `cursor-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG          | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop       | `stopPersistedProcess` → override stop |
 | `claude`       | Direct `claude` child    | Single-shot CLI (agentic turns)     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
+| `claude-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG          | Override: abort resume wait → `query.interrupt()` → base stop                                             | `doStop` → override stop       | `stopPersistedProcess` → override stop |
 | `commandcode`  | Direct `cmd` child       | Long-lived headless (`--max-turns`) | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 | `copilot`      | Direct `copilot` child   | Single-shot CLI                     | Base group kill                                                                                           | `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 
@@ -406,7 +412,7 @@ When a new `agent.requestStart` arrives for the same chatroom+role, `AgentProces
 - **opencode-sdk**: `user.stop` with an active harness session uses `preserveForResume` (skips `session.abort`). `AgentProcessManager.lastHarnessSessions` stores reconnect metadata in daemon memory on spawn and on preserve-for-resume stop; non-preserve stop clears the entry. The next start with `wantResume` calls `OpenCodeSdkAgentService.resumeFromDaemonMemory` (new `opencode serve`, `session.get`, `session.promptAsync` on the same `sessionId`). The daemon emits `agent.sessionResumeRequested` before the reconnect attempt, then `agent.sessionResumed` on success or `agent.sessionResumeFailed` and cold `spawn` on failure. Daemon restart loses memory → fresh spawn (no events). A different `workingDir` clears memory, emits `working directory changed` via `agent.sessionResumeFailed`, then fresh spawn.
 - **cursor-sdk**: Same daemon-memory model as opencode-sdk. `spawn` returns `harnessSessionId` (`agent.agentId`) and `harnessReconnect` metadata. `user.stop` with `preserveForResume` skips `agent.close()` so the Cursor agent stays resumable. The next start with `wantResume` calls `CursorSdkAgentService.resumeFromDaemonMemory` (`Agent.resume(agentId)`, then `agent.send` with the spawn prompt). The daemon emits `agent.sessionResumeRequested` before the reconnect attempt, then `agent.sessionResumed` on success or `agent.sessionResumeFailed` and cold `spawn` on failure. Daemon restart loses memory → fresh spawn (no events).
 
-Native harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`) idle in-process after each turn; the daemon injects tasks via `resumeTurnForSlot` instead of turn-end auto-resume.
+Native harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`) idle in-process after each turn; the daemon injects tasks via `resumeTurnForSlot` instead of turn-end auto-resume.
 
 A **requestStart replace** always kills via `doStop` regardless of resume state.
 

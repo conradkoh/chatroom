@@ -1,4 +1,5 @@
 import { ClaudeCodeAgentService } from './claude/index.js';
+import { ClaudeSdkAgentService } from './claude-sdk/index.js';
 import { CommandCodeAgentService } from './commandcode/index.js';
 import { CopilotAgentService } from './copilot/index.js';
 import { CursorAgentService } from './cursor/index.js';
@@ -23,6 +24,7 @@ export function initHarnessRegistry(): void {
   registerHarness(new CursorAgentService());
   registerHarness(new CursorSdkAgentService());
   registerHarness(new ClaudeCodeAgentService());
+  registerHarness(new ClaudeSdkAgentService());
   registerHarness(new CommandCodeAgentService());
   registerHarness(new CopilotAgentService());
   initialized = true;
