@@ -5,8 +5,8 @@
  * not a package manager sub-workspace (e.g., monorepo packages). For sub-workspace
  * resolution, see workspace-resolver.ts.
  *
- * Uses `git ls-files` for fast scanning that respects .gitignore.
- * Falls back to tracked + untracked files approach.
+ * Uses git for fast candidate enumeration with .gitignore pruning.
+ * Filesystem access() is the final arbiter for what exists on disk.
  * Produces a flat array of FileTreeEntry objects.
  */
 
@@ -224,7 +224,7 @@ async function walkSubtree(
 
 /**
  * Gets all files using git ls-files (tracked + untracked).
- * Returns relative paths from rootDir.
+ * Returns relative paths from rootDir that exist on disk.
  */
 async function getGitFiles(rootDir: string): Promise<string[]> {
   const env = {
@@ -241,12 +241,6 @@ async function getGitFiles(rootDir: string): Promise<string[]> {
       maxBuffer: 10 * 1024 * 1024,
     });
 
-    const deleted = await execAsync('git ls-files --deleted', {
-      cwd: rootDir,
-      env,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-
     const untracked = await execAsync('git ls-files --others --exclude-standard', {
       cwd: rootDir,
       env,
@@ -254,16 +248,36 @@ async function getGitFiles(rootDir: string): Promise<string[]> {
     });
 
     const trackedFiles = parseLines(tracked.stdout);
-    const deletedFiles = new Set(parseLines(deleted.stdout));
-    const existingTracked = trackedFiles.filter((filePath) => !deletedFiles.has(filePath));
     const untrackedFiles = parseLines(untracked.stdout);
+    const candidates = [...new Set([...trackedFiles, ...untrackedFiles])];
 
-    const allFiles = new Set([...existingTracked, ...untrackedFiles]);
-    return Array.from(allFiles);
+    return filterToExistingPaths(rootDir, candidates);
   } catch {
     // Not a git repo or git not available — return empty
     return [];
   }
+}
+
+/**
+ * Filter candidate paths to those that exist on disk.
+ * Filesystem is the source of truth for existence; git only provides candidates.
+ */
+// fallow-ignore-next-line unused-export
+export async function filterToExistingPaths(
+  rootDir: string,
+  filePaths: string[]
+): Promise<string[]> {
+  const checks = await Promise.all(
+    filePaths.map(async (filePath) => {
+      try {
+        await fsPromises.access(path.join(rootDir, filePath));
+        return filePath;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return checks.filter((p): p is string => p !== null);
 }
 
 /** Parse newline-separated output into non-empty lines. */
