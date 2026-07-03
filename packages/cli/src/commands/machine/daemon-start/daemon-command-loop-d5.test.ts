@@ -151,10 +151,10 @@ vi.mock('./file-content-subscription.js', async () => {
   };
 });
 
-vi.mock('./file-tree-subscription.js', async () => {
+vi.mock('./dir-listing-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
-    startFileTreeSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
+    startDirListingSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 

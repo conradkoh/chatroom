@@ -161,27 +161,27 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// A. file-tree-subscription Effect twin (E4.2 — DaemonSessionService)
+// A. dir-listing-subscription Effect twin (E4.2 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
-describe('startFileTreeSubscriptionEffect', () => {
+describe('startDirListingSubscriptionEffect', () => {
   it('returns a handle with a stop() method', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const { startDirListingSubscriptionEffect } = await import('./dir-listing-subscription.js');
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithSession(startFileTreeSubscriptionEffect(wsClient));
+    const handle = await runWithSession(startDirListingSubscriptionEffect(wsClient));
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
   });
 
-  it('calls onUpdate with sessionId and machineId from session', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+  it('calls onUpdate for dir listing and file search with sessionId and machineId', async () => {
+    const { startDirListingSubscriptionEffect } = await import('./dir-listing-subscription.js');
     const wsClient = makeMockWsClient();
     const deps = createMockDaemonDeps();
 
     await runWithSession(
-      startFileTreeSubscriptionEffect(wsClient),
+      startDirListingSubscriptionEffect(wsClient),
       withDeps(deps, { sessionId: 'session-tree', machineId: 'machine-tree' })
     );
 
@@ -191,6 +191,7 @@ describe('startFileTreeSubscriptionEffect', () => {
       expect.any(Function),
       expect.any(Function)
     );
+    expect(wsClient.onUpdate).toHaveBeenCalledTimes(2);
   });
 });
 
