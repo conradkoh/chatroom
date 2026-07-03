@@ -274,4 +274,91 @@ describe('Resume session token activity', () => {
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', claimResult.taskId));
     expect(task?.status).toBe('in_progress');
   });
+
+  test('native harness resumes released pending task when participant still shows stale task.inProgress', async () => {
+    const { sessionId } = await createTestSession('test-native-resume-stale-participant');
+    const machineId = 'machine-native-resume-stale-participant';
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['cursor-sdk', 'opencode'],
+      availableModels: {
+        'cursor-sdk': ['claude-sonnet-4'],
+        opencode: ['claude-sonnet-4'],
+      },
+    });
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId,
+      machineId,
+      connected: true,
+    });
+
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder', {
+      agentHarness: 'cursor-sdk',
+    });
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Native harness work released with stale participant',
+      type: 'message',
+    });
+
+    const claimResult = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: claimResult.taskId,
+    });
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      if (config) {
+        await ctx.db.patch(config._id, { spawnedAgentPid: 7777, desiredState: 'running' });
+      }
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 7777,
+      stopReason: 'user.stop',
+    });
+
+    await setParticipantState(chatroomId, 'builder', {
+      lastStatus: 'task.inProgress',
+      lastSeenAction: 'native:waiting',
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', claimResult.taskId));
+    expect(task?.status).toBe('in_progress');
+  });
 });

@@ -227,7 +227,7 @@ describe('startTaskFromTokenActivity — acknowledged path', () => {
       await startTaskFromTokenActivity(
         ctx,
         { chatroomId, role: 'builder' },
-        { lastStatus: 'agent.started', lastSeenAction: 'native:waiting' }
+        { lastStatus: 'agent.exited', lastSeenAction: 'native:waiting' }
       );
     });
 
@@ -344,6 +344,56 @@ describe('startTaskFromTokenActivity — pending path', () => {
         ctx,
         { chatroomId, role: 'builder' },
         { lastStatus: 'agent.waiting', lastSeenAction: NATIVE_WAITING_ACTION }
+      );
+    });
+
+    expect(await getTaskStatus(taskId)).toBe('in_progress');
+    expect(await getParticipantStatus(chatroomId, 'builder')).toBe('task.inProgress');
+  });
+
+  test('resumes native pending task when participant still shows stale task.inProgress after release', async () => {
+    const { sessionId } = await createTestSession('stta-pending-native-stale-participant');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await seedNativeHarnessConfig(chatroomId, 'builder');
+
+    const taskId = await seedPendingTask(chatroomId, {
+      assignedTo: 'builder',
+      queuePosition: 0,
+      content: 'released with stale participant',
+    });
+
+    await t.run(async (ctx) => {
+      await startTaskFromTokenActivity(
+        ctx,
+        { chatroomId, role: 'builder' },
+        { lastStatus: 'task.inProgress', lastSeenAction: NATIVE_WAITING_ACTION }
+      );
+    });
+
+    expect(await getTaskStatus(taskId)).toBe('in_progress');
+    expect(await getParticipantStatus(chatroomId, 'builder')).toBe('task.inProgress');
+  });
+
+  test('resumes native pending task on agent.started before native:waiting is emitted', async () => {
+    const { sessionId } = await createTestSession('stta-pending-native-agent-started');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await seedNativeHarnessConfig(chatroomId, 'builder');
+    const sourceMessageId = await seedAcknowledgedSourceMessage(chatroomId);
+
+    const taskId = await seedPendingTask(chatroomId, {
+      assignedTo: 'builder',
+      queuePosition: 0,
+      content: 'token before native waiting',
+      sourceMessageId,
+    });
+
+    await t.run(async (ctx) => {
+      await startTaskFromTokenActivity(
+        ctx,
+        { chatroomId, role: 'builder' },
+        { lastStatus: 'agent.started', lastSeenAction: NATIVE_WAITING_ACTION }
       );
     });
 
