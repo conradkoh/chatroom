@@ -128,7 +128,8 @@ export async function setupRemoteAgentConfig(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string,
-  role: string
+  role: string,
+  options?: { agentHarness?: string; workingDir?: string }
 ): Promise<void> {
   // Start agent via sendCommand to create both team and machine agent configs
   await t.mutation(api.machines.sendCommand, {
@@ -139,8 +140,8 @@ export async function setupRemoteAgentConfig(
       chatroomId,
       role,
       model: 'claude-sonnet-4',
-      agentHarness: 'opencode',
-      workingDir: '/test/workspace',
+      agentHarness: options?.agentHarness ?? 'opencode',
+      workingDir: options?.workingDir ?? '/test/workspace',
     },
   });
   // Note: sendCommand for start-agent now emits an agent.requestStart event to the

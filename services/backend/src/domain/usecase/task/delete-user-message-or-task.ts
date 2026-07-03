@@ -1,4 +1,4 @@
-import { promoteNextTask } from './promote-next-task';
+import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import {
   resolveMessageForTask,
   resolveUserMessageRef,
@@ -7,7 +7,6 @@ import {
 import { adjustTaskCount, statusToCountField } from './task-counts';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import { ACTIVE_TASK_STATUSES } from '../../entities/task';
 
 export type DeleteUserMessageOrTaskArgs =
@@ -137,5 +136,5 @@ async function promoteQueueIfTaskWasActive(
   if (!ACTIVE_TASK_STATUSES.has(task.status)) {
     return;
   }
-  await promoteNextTask(task.chatroomId, makePromoteNextTaskDeps(ctx));
+  await maybePromoteNextQueuedTask(ctx, task.chatroomId);
 }
