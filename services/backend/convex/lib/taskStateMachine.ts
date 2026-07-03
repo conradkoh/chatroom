@@ -94,6 +94,16 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
+    from: 'pending',
+    to: 'in_progress',
+    trigger: 'resumeFromTokenActivity',
+    setFields: {
+      acknowledgedAt: 'NOW',
+      startedAt: 'NOW',
+    },
+  },
+
+  {
     from: 'acknowledged',
     to: 'in_progress',
     trigger: 'startTask',
@@ -282,8 +292,15 @@ export async function transitionTask(
     });
   }
 
-  // Apply first matching transition rule
-  const rule = validTransitions[0]!;
+  // Apply first matching transition rule (length checked above)
+  const rule = validTransitions[0];
+  if (!rule) {
+    throw new InvalidTransitionError({
+      code: 'TASK_INVALID_TRANSITION',
+      message: `Cannot transition task from ${currentStatus} to ${newStatus} via ${trigger}`,
+      variables: { taskId, currentStatus, attemptedStatus: newStatus, trigger },
+    });
+  }
 
   // Custom validation
   if (rule.validate && !rule.validate(task)) {

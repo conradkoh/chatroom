@@ -21,6 +21,9 @@ const config: BuildConfig = {
     // @cursor/sdk is loaded at runtime via importBundledCursorSdk(). Keeping it
     // external preserves resolution from the chatroom-cli install root.
     '@cursor/sdk',
+    // @anthropic-ai/claude-agent-sdk is loaded at runtime via importBundledClaudeSdk().
+    '@anthropic-ai/claude-agent-sdk',
+    '@anthropic-ai/claude-agent-sdk/extract',
   ],
 };
 

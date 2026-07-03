@@ -595,6 +595,7 @@
     "packages/cli/src/infrastructure/services/remote-agents/base-cli-agent-service.ts:BaseCLIAgentService.getTrackedProcesses",
     "packages/cli/src/infrastructure/services/remote-agents/base-cli-agent-service.ts:BaseCLIAgentService.detectInstallation",
     "packages/cli/src/infrastructure/services/remote-agents/claude/claude-code-agent-service.ts:ClaudeCodeAgentService.getVersion",
+    "packages/cli/src/infrastructure/services/remote-agents/claude-sdk/claude-sdk-agent-service.ts:ClaudeSdkAgentService.getVersion",
     "packages/cli/src/infrastructure/services/remote-agents/commandcode/command-code-agent-service.ts:CommandCodeAgentService.getVersion",
     "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts:CopilotAgentService.getVersion",
     "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-stream-reader.ts:CopilotStreamReader.onToolCall",

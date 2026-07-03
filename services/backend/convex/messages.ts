@@ -33,7 +33,7 @@ import {
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
 import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
-import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
@@ -691,21 +691,9 @@ async function _handoffHandler(
   // because areAllAgentsWaiting() returns false at this point (the sender is still
   // marked as "working"). We check: no active tasks remain → promote next queued task.
   if (isHandoffToUser) {
-    const { hasActiveTask } = await getChatroomQueueState(ctx, args.chatroomId);
-
-    if (!hasActiveTask) {
-      const queuedMessages = await ctx.db
-        .query('chatroom_messageQueue')
-        .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
-        .order('asc')
-        .first();
-
-      if (queuedMessages) {
-        const promoted = await promoteQueuedMessage(ctx, queuedMessages._id);
-        if (promoted) {
-          promotedTaskId = promoted.taskId;
-        }
-      }
+    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
+    if (promoteResult.promoted) {
+      promotedTaskId = promoteResult.promoted;
     }
   }
 

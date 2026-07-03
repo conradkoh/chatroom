@@ -50,6 +50,7 @@ export const HARNESS_WIRE_EVENT_KINDS = [
   'sdk.opencode.session.idle',
   'sdk.opencode.session.event',
   'sdk.pi.session.event',
+  'sdk.claude.message',
 ] as const satisfies readonly HarnessWireEventKind[];
 
 export interface HarnessWireEventSpec {
@@ -135,6 +136,12 @@ export const HARNESS_WIRE_EVENT_SPECS: Record<HarnessWireEventKind, HarnessWireE
   'sdk.pi.session.event': {
     kind: 'sdk.pi.session.event',
     description: 'Pi SDK AgentSessionEvent from session.subscribe().',
+    emittedBy: ['sdk'],
+    cliOnly: false,
+  },
+  'sdk.claude.message': {
+    kind: 'sdk.claude.message',
+    description: 'Claude Agent SDK query() stream message (assistant, stream_event, result, etc.).',
     emittedBy: ['sdk'],
     cliOnly: false,
   },

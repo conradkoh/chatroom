@@ -27,11 +27,10 @@
  * instead of a backend ensure-agent handler.
  */
 
-import { promoteNextTask } from './promote-next-task';
+import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import { adjustTaskCountsForTransition } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
@@ -185,7 +184,7 @@ export async function transitionTask(
   if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAutoPromotion) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
-      await promoteNextTask(task.chatroomId, makePromoteNextTaskDeps(ctx));
+      await maybePromoteNextQueuedTask(ctx, task.chatroomId);
     }
   }
 
