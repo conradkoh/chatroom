@@ -341,6 +341,7 @@ export const requestFileTree = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     workingDir: v.string(),
+    force: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -350,16 +351,17 @@ export const requestFileTree = mutation({
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
 
-    // Check if existing tree is fresh enough
-    const existingTree = await ctx.db
-      .query('chatroom_workspaceFileTree')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
-      )
-      .first();
+    if (!args.force) {
+      const existingTree = await ctx.db
+        .query('chatroom_workspaceFileTreeV2')
+        .withIndex('by_machine_workingDir', (q: any) =>
+          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        )
+        .first();
 
-    if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
-      return { status: 'cached' as const };
+      if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
+        return { status: 'cached' as const };
+      }
     }
 
     // Check for existing pending request

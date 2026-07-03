@@ -124,6 +124,7 @@ describe('scanFileTree', () => {
     // First call: isGitRepo check, then tracked files, then untracked files
     mockSuccess('true\n'); // isGitRepo
     mockSuccess('src/index.ts\nREADME.md\n'); // tracked
+    mockSuccess(''); // deleted
     mockSuccess('draft.txt\n'); // untracked
 
     const tree = await scanFileTree('/test/repo');
@@ -140,6 +141,7 @@ describe('scanFileTree', () => {
   it('deduplicates tracked and untracked files', async () => {
     mockSuccess('true\n'); // isGitRepo
     mockSuccess('src/index.ts\n'); // tracked
+    mockSuccess(''); // deleted
     mockSuccess('src/index.ts\n'); // untracked (duplicate)
 
     const tree = await scanFileTree('/test/repo');
@@ -150,6 +152,7 @@ describe('scanFileTree', () => {
   it('filters out excluded paths', async () => {
     mockSuccess('true\n'); // isGitRepo
     mockSuccess('src/app.ts\nnode_modules/pkg/index.js\ndist/bundle.js\n'); // tracked
+    mockSuccess(''); // deleted
     mockSuccess(''); // untracked
 
     const tree = await scanFileTree('/test/repo');
@@ -164,6 +167,7 @@ describe('scanFileTree', () => {
     const manyFiles = Array.from({ length: 200 }, (_, i) => `file${i}.ts`).join('\n');
     mockSuccess('true\n'); // isGitRepo
     mockSuccess(manyFiles); // tracked
+    mockSuccess(''); // deleted
     mockSuccess(''); // untracked
 
     const tree = await scanFileTree('/test/repo', { maxEntries: 50 });
@@ -177,6 +181,22 @@ describe('scanFileTree', () => {
     // Should fall back to FS walk, but the directory doesn't exist
     // so it will return empty
     expect(tree.entries).toHaveLength(0);
+  });
+
+  it('excludes tracked files deleted from the working tree (git ls-files --deleted)', async () => {
+    mockSuccess('true\n'); // isGitRepo
+    mockSuccess('docs/readme.md\nsrc/index.ts\n'); // tracked
+    mockSuccess('docs/readme.md\n'); // deleted from working tree
+    mockSuccess(''); // untracked
+
+    const tree = await scanFileTree('/test/repo');
+
+    const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
+    const dirPaths = tree.entries.filter((e) => e.type === 'directory').map((e) => e.path);
+
+    expect(filePaths).toContain('src/index.ts');
+    expect(filePaths).not.toContain('docs/readme.md');
+    expect(dirPaths).not.toContain('docs');
   });
 });
 
@@ -272,9 +292,10 @@ describe('FS-walk fallback (non-git directories)', () => {
       await writeFile(join(tmpDir, 'tracked.txt'), 'tracked');
       await execAsync('git add tracked.txt', { cwd: tmpDir });
 
-      // Mock git commands for scanFileTree: isGitRepo, tracked, untracked
+      // Mock git commands for scanFileTree: isGitRepo, tracked, deleted, untracked
       mockSuccess('true\n'); // isGitRepo
       mockSuccess('tracked.txt\n'); // tracked
+      mockSuccess(''); // deleted
       mockSuccess(''); // untracked files
 
       const tree = await scanFileTree(tmpDir);

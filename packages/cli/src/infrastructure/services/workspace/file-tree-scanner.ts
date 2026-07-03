@@ -235,14 +235,18 @@ async function getGitFiles(rootDir: string): Promise<string[]> {
   };
 
   try {
-    // Get tracked files
     const tracked = await execAsync('git ls-files', {
       cwd: rootDir,
       env,
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large repos
+      maxBuffer: 10 * 1024 * 1024,
     });
 
-    // Get untracked files (respects .gitignore)
+    const deleted = await execAsync('git ls-files --deleted', {
+      cwd: rootDir,
+      env,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
     const untracked = await execAsync('git ls-files --others --exclude-standard', {
       cwd: rootDir,
       env,
@@ -250,10 +254,11 @@ async function getGitFiles(rootDir: string): Promise<string[]> {
     });
 
     const trackedFiles = parseLines(tracked.stdout);
+    const deletedFiles = new Set(parseLines(deleted.stdout));
+    const existingTracked = trackedFiles.filter((filePath) => !deletedFiles.has(filePath));
     const untrackedFiles = parseLines(untracked.stdout);
 
-    // Combine and deduplicate
-    const allFiles = new Set([...trackedFiles, ...untrackedFiles]);
+    const allFiles = new Set([...existingTracked, ...untrackedFiles]);
     return Array.from(allFiles);
   } catch {
     // Not a git repo or git not available — return empty
