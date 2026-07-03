@@ -8,6 +8,7 @@
  */
 
 import type { AgentHarness } from '../agent';
+import { claudeSdkCapabilities } from './claude-sdk.config';
 import { claudeCapabilities } from './claude.config';
 import { commandcodeCapabilities } from './commandcode.config';
 import { copilotCapabilities } from './copilot.config';
@@ -43,7 +44,8 @@ export type HarnessWireEventKind =
   | 'sdk.cursor.run.completed'
   | 'sdk.opencode.session.idle'
   | 'sdk.opencode.session.event'
-  | 'sdk.pi.session.event';
+  | 'sdk.pi.session.event'
+  | 'sdk.claude.message';
 
 /** Which lifecycle callbacks a harness implements on `SpawnResult`. */
 export interface HarnessLifecycleCapabilities {
@@ -76,6 +78,7 @@ export interface HarnessCapabilities {
 
 const HARNESS_CAPABILITIES: Record<AgentHarness, HarnessCapabilities> = {
   claude: claudeCapabilities,
+  'claude-sdk': claudeSdkCapabilities,
   commandcode: commandcodeCapabilities,
   copilot: copilotCapabilities,
   cursor: cursorCapabilities,

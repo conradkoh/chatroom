@@ -27,6 +27,7 @@ describe('initHarnessRegistry', () => {
     expect(ids).toEqual(
       [
         'claude',
+        'claude-sdk',
         'commandcode',
         'copilot',
         'cursor',
