@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { daemonSessionToLayers } from './daemon-layers.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
+import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
@@ -26,6 +27,7 @@ vi.mock('../../../api.js', () => ({
 
 vi.mock('../../../infrastructure/services/workspace/file-tree-scanner.js', () => ({
   scanFileTree: vi.fn().mockResolvedValue({
+    rootDir: '/mock',
     entries: [],
     scannedAt: Date.now(),
   }),
@@ -200,5 +202,42 @@ describe('fulfillFileWriteRequestsEffect', () => {
         fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
       )
     ).resolves.toBeUndefined();
+  });
+
+  it('leaves request pending on transient write failure (no error completion)', async () => {
+    vi.mocked(scanFileTree).mockRejectedValueOnce(new Error('Network unreachable'));
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'transient-fail.md', 'create', 'content'),
+    ]);
+
+    vi.mocked(scanFileTree).mockResolvedValue({
+      rootDir: workingDir,
+      entries: [],
+      scannedAt: Date.now(),
+    });
+
+    const content = await readFile(join(workingDir, 'transient-fail.md'), 'utf8');
+    expect(content).toBe('content');
+
+    const errorCompletions = vi
+      .mocked(backend.mutation)
+      .mock.calls.filter(([, args]) => (args as { status?: string }).status === 'error');
+    expect(errorCompletions).toHaveLength(0);
+  });
+
+  it('still completes terminal validation errors immediately', async () => {
+    const filePath = 'terminal-duplicate.md';
+    await writeFile(join(workingDir, filePath), 'already here');
+
+    const backend = await runFulfillment([makeRequest(workingDir, filePath, 'create', 'new')]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'File already exists',
+      })
+    );
   });
 });

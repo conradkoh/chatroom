@@ -28,6 +28,19 @@ export type PendingFileWriteRequest = {
   data?: { compression: 'gzip'; content: string };
 };
 
+/** Errors that will not succeed on retry — complete request as terminal error. */
+function isTerminalFileWriteError(errorMessage: string): boolean {
+  const terminalMessages = new Set([
+    'Invalid file path',
+    'Path escapes workspace',
+    'Missing file data',
+    'File content too large',
+    'File already exists',
+    'File does not exist',
+  ]);
+  return terminalMessages.has(errorMessage);
+}
+
 /** Reject path traversal and paths that escape the workspace root. */
 function resolveWorkspaceWritePath(
   workingDir: string,
@@ -192,11 +205,19 @@ async function fulfillOneFileWriteRequest(
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Write failed';
-    await completeWriteRequest(session, request._id, {
-      status: 'error',
-      errorMessage: message,
-    });
-    console.warn(`[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${message}`);
+    if (isTerminalFileWriteError(message)) {
+      await completeWriteRequest(session, request._id, {
+        status: 'error',
+        errorMessage: message,
+      });
+      console.warn(`[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${message}`);
+      return;
+    }
+
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  File write transient failure for ${filePath}: ${message} (will retry)`
+    );
+    // Intentionally leave request pending — no completeWriteRequest call
   }
 }
 
