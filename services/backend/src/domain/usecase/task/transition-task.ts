@@ -33,7 +33,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
+import { TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
 
@@ -66,6 +66,15 @@ export interface TransitionTaskOptions {
    * or task creation logic.
    */
   skipAutoPromotion?: boolean;
+
+  /**
+   * When true, skips all chatroom_eventStream writes for this transition.
+   *
+   * Use this when releasing tasks on agent exit — the task was already
+   * visible in the event stream at creation/claim time and re-emitting
+   * task.activated on re-queue would duplicate events during recovery.
+   */
+  skipEventStreamWrite?: boolean;
 }
 
 // ============================================================================
@@ -111,7 +120,7 @@ export async function transitionTask(
   // 2. Write event to chatroom_eventStream based on new status.
   //    Re-fetch the task to get current fields (assignedTo, chatroomId).
   const eventTask = await ctx.db.get('chatroom_tasks', taskId);
-  if (eventTask) {
+  if (eventTask && !options?.skipEventStreamWrite) {
     if (newStatus === 'in_progress') {
       // Emit task.inProgress for in_progress status — this is the event type
       // that the UI uses to show "WORKING" status (agentStatusLabel.ts maps it).
@@ -127,9 +136,8 @@ export async function transitionTask(
         role,
         timestamp: Date.now(),
       });
-    } else if (ACTIVE_TASK_STATUSES.has(newStatus)) {
-      // Emit task.activated for other active statuses (pending, acknowledged).
-      // Note: This event is NOT mapped to UI status — it's only for the event stream.
+    } else if (newStatus === 'pending') {
+      // Emit task.activated only for pending (task creation / re-queue visibility).
       const chatroom = eventTask.assignedTo
         ? null
         : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
@@ -139,10 +147,12 @@ export async function transitionTask(
         chatroomId: eventTask.chatroomId,
         taskId,
         role,
-        taskStatus: newStatus,
+        taskStatus: 'pending',
         taskContent: eventTask.content,
         timestamp: Date.now(),
       });
+    } else if (newStatus === 'acknowledged') {
+      // No event here — acknowledgePendingTask emits task.acknowledged at claim time.
     } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
       const completedRole = eventTask.assignedTo ?? 'unknown';
 

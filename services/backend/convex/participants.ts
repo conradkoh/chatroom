@@ -229,15 +229,9 @@ export const join = mutation({
       });
 
       if (acknowledgedTask) {
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'task.acknowledged',
-          chatroomId: args.chatroomId,
-          role: args.role,
-          taskId: acknowledgedTask._id,
-          timestamp: now,
-        });
+        // Do NOT re-emit task.acknowledged — claim already wrote it.
+        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
       }
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
     }
 
     await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
