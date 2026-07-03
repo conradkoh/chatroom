@@ -4,6 +4,7 @@ import { BookOpen, Copy } from 'lucide-react';
 import { memo, useCallback, useRef, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 
+import { pendingOptimisticNewFilePaths } from '../hooks/pendingOptimisticNewFilePaths';
 import { useMarkdownFileEditor } from '../hooks/useMarkdownFileEditor';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -25,9 +26,10 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
   filePath,
   onOpenPreview,
 }: MarkdownFileEditorPaneProps) {
+  const initialEmpty = pendingOptimisticNewFilePaths.has(filePath);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const { content, setContent, isDirty, contentRef, save, saving, error, isLoading } =
-    useMarkdownFileEditor({ machineId, workingDir, filePath });
+    useMarkdownFileEditor({ machineId, workingDir, filePath, initialEmpty });
 
   const handleKeyDown = useCallback(
     // fallow-ignore-next-line complexity

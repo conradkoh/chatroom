@@ -1,13 +1,10 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useConvex } from 'convex/react';
-import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
 import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
-import { waitForFileWriteRequest } from '../hooks/fileWritePolling';
-import { compressGzip, normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
+import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
+import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,8 +18,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-const DEFAULT_NEW_FILE_CONTENT = '# New file\n';
-
 interface NewFileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,6 +25,8 @@ interface NewFileDialogProps {
   workingDir: string;
   defaultDir?: string;
   onCreated: (filePath: string) => void;
+  onCreateFailed?: (filePath: string, error: string) => void;
+  onCreateConfirmed?: (filePath: string) => void;
 }
 
 // fallow-ignore-next-line complexity
@@ -40,76 +37,53 @@ export function NewFileDialog({
   workingDir,
   defaultDir,
   onCreated,
+  onCreateFailed,
+  onCreateConfirmed,
 }: NewFileDialogProps) {
-  const convex = useConvex();
-  const [sessionId] = useSessionId();
-  const requestFileWrite = useSessionMutation(api.workspaceFiles.requestFileWrite);
+  const { createFile } = useWorkspaceFileCreate({ machineId, workingDir });
 
   const [pathInput, setPathInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setPathInput(defaultDir ? `${defaultDir.replace(/\/$/, '')}/` : '');
     setValidationError(null);
-    setSubmitError(null);
-    setCreating(false);
   }, [defaultDir, open]);
 
-  const handleCreate = useCallback(
+  const runBackgroundCreate = useCallback(
     // fallow-ignore-next-line complexity
-    async () => {
-      const normalizedPath = normalizeNewFilePath(
-        defaultDir && !pathInput.includes('/')
-          ? `${defaultDir.replace(/\/$/, '')}/${pathInput}`
-          : pathInput
-      );
-
-      const pathError = validateRelativeFilePath(normalizedPath);
-      if (pathError) {
-        setValidationError(pathError);
-        return;
-      }
-
-      setValidationError(null);
-      setSubmitError(null);
-      setCreating(true);
-
+    async (normalizedPath: string) => {
       try {
-        const data = await compressGzip(DEFAULT_NEW_FILE_CONTENT);
-        const result = await requestFileWrite({
-          machineId,
-          workingDir,
-          filePath: normalizedPath,
-          operation: 'create',
-          data,
-        });
-
-        await waitForFileWriteRequest(convex, sessionId, result.requestId);
-
+        await createFile(normalizedPath, '');
         window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
-        onCreated(normalizedPath);
-        onOpenChange(false);
+        onCreateConfirmed?.(normalizedPath);
       } catch (err) {
-        setSubmitError(err instanceof Error ? err.message : 'Failed to create file');
-      } finally {
-        setCreating(false);
+        const message = err instanceof Error ? err.message : 'Failed to create file';
+        onCreateFailed?.(normalizedPath, message);
       }
     },
-    [
-      convex,
-      defaultDir,
-      machineId,
-      onCreated,
-      onOpenChange,
-      pathInput,
-      requestFileWrite,
-      sessionId,
-      workingDir,
-    ]
+    [createFile, onCreateConfirmed, onCreateFailed]
   );
+
+  const handleCreate = useCallback(() => {
+    const normalizedPath = normalizeNewFilePath(
+      defaultDir && !pathInput.includes('/')
+        ? `${defaultDir.replace(/\/$/, '')}/${pathInput}`
+        : pathInput
+    );
+
+    const pathError = validateRelativeFilePath(normalizedPath);
+    if (pathError) {
+      setValidationError(pathError);
+      return;
+    }
+
+    setValidationError(null);
+    onCreated(normalizedPath);
+    onOpenChange(false);
+    void runBackgroundCreate(normalizedPath);
+  }, [defaultDir, onCreated, onOpenChange, pathInput, runBackgroundCreate]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,7 +103,6 @@ export function NewFileDialog({
             onChange={(event) => {
               setPathInput(event.target.value);
               setValidationError(null);
-              setSubmitError(null);
             }}
             placeholder="docs/notes.md"
             className={cn(
@@ -141,32 +114,26 @@ export function NewFileDialog({
             onKeyDown={(event) => {
               if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
                 event.preventDefault();
-                void handleCreate();
+                handleCreate();
                 return;
               }
               if (event.key === 'Enter') {
                 event.preventDefault();
-                void handleCreate();
+                handleCreate();
               }
             }}
           />
           {validationError && (
             <p className="text-xs text-chatroom-status-error">{validationError}</p>
           )}
-          {submitError && <p className="text-xs text-chatroom-status-error">{submitError}</p>}
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={creating}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void handleCreate()} disabled={creating}>
-            {creating ? 'Saving…' : 'Save'}
+          <Button type="button" onClick={handleCreate}>
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>

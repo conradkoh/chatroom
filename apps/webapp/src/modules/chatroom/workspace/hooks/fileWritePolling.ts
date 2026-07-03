@@ -2,6 +2,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ConvexReactClient } from 'convex/react';
+import type { SessionId } from 'convex-helpers/server/sessions';
 
 const FILE_WRITE_POLL_INTERVAL_MS = 500;
 const FILE_WRITE_POLL_TIMEOUT_MS = 30_000;
@@ -41,7 +42,7 @@ export async function pollFileWriteRequest(
 /** Poll a write request via Convex until it completes or times out. */
 export async function waitForFileWriteRequest(
   convex: ConvexReactClient,
-  sessionId: string | null,
+  sessionId: SessionId | null | undefined,
   requestId: Id<'chatroom_workspaceFileWriteRequests'>
 ): Promise<void> {
   await pollFileWriteRequest(async (id) => {

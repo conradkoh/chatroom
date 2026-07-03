@@ -4,38 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NewFileDialog } from './NewFileDialog';
 import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
 
-const mockRequestFileWrite = vi.fn();
-const mockWaitForFileWriteRequest = vi.fn();
+const mockCreateFile = vi.fn();
 
-vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionId: () => ['session-new-file'],
-  useSessionMutation: () => mockRequestFileWrite,
+vi.mock('../hooks/useWorkspaceFileCreate', () => ({
+  useWorkspaceFileCreate: () => ({
+    createFile: mockCreateFile,
+    creating: false,
+  }),
 }));
-
-vi.mock('convex/react', () => ({
-  useConvex: () => ({ query: vi.fn() }),
-}));
-
-vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: {
-    workspaceFiles: {
-      requestFileWrite: 'requestFileWrite',
-      getFileWriteRequest: 'getFileWriteRequest',
-    },
-  },
-}));
-
-vi.mock('../hooks/fileWritePolling', () => ({
-  waitForFileWriteRequest: (...args: unknown[]) => mockWaitForFileWriteRequest(...args),
-}));
-
-vi.mock('../utils/gzipContent', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    compressGzip: vi.fn().mockResolvedValue({ compression: 'gzip', content: 'dGVzdA==' }),
-  };
-});
 
 describe('validateRelativeFilePath', () => {
   it('rejects path traversal', () => {
@@ -64,14 +40,14 @@ describe('normalizeNewFilePath', () => {
 describe('NewFileDialog', () => {
   const onCreated = vi.fn();
   const onOpenChange = vi.fn();
+  const onCreateFailed = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequestFileWrite.mockResolvedValue({ requestId: 'req-create-1' });
-    mockWaitForFileWriteRequest.mockResolvedValue(undefined);
+    mockCreateFile.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
   });
 
-  it('creates a file when Cmd+S is pressed in the path input', async () => {
+  it('calls onCreated immediately before background create resolves', async () => {
     render(
       <NewFileDialog
         open
@@ -86,18 +62,35 @@ describe('NewFileDialog', () => {
     fireEvent.change(input, { target: { value: 'notes.md' } });
     fireEvent.keyDown(input, { key: 's', metaKey: true });
 
-    await waitFor(() => {
-      expect(mockRequestFileWrite).toHaveBeenCalledWith(
-        expect.objectContaining({
-          machineId: 'machine-1',
-          workingDir: '/workspace',
-          filePath: 'notes.md',
-          operation: 'create',
-        })
-      );
-    });
-
-    expect(mockWaitForFileWriteRequest).toHaveBeenCalledOnce();
     expect(onCreated).toHaveBeenCalledWith('notes.md');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(mockCreateFile).toHaveBeenCalledWith('notes.md', '');
+
+    await waitFor(() => {
+      expect(mockCreateFile).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('calls onCreateFailed when background create rejects', async () => {
+    mockCreateFile.mockRejectedValue(new Error('File already exists'));
+
+    render(
+      <NewFileDialog
+        open
+        onOpenChange={onOpenChange}
+        machineId="machine-1"
+        workingDir="/workspace"
+        onCreated={onCreated}
+        onCreateFailed={onCreateFailed}
+      />
+    );
+
+    const input = screen.getByPlaceholderText('docs/notes.md');
+    fireEvent.change(input, { target: { value: 'notes.md' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onCreateFailed).toHaveBeenCalledWith('notes.md', 'File already exists');
+    });
   });
 });

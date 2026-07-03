@@ -11,12 +11,15 @@ interface UseMarkdownFileEditorArgs {
   machineId: string;
   workingDir: string;
   filePath: string;
+  /** When true, show empty editor immediately while content is not yet cached (optimistic new file). */
+  initialEmpty?: boolean;
 }
 
 export function useMarkdownFileEditor({
   machineId,
   workingDir,
   filePath,
+  initialEmpty = false,
 }: UseMarkdownFileEditorArgs) {
   const loadedContent = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
   const requestFileContent = useSessionMutation(api.workspaceFiles.requestFileContent);
@@ -80,7 +83,7 @@ export function useMarkdownFileEditor({
     }
   }, [filePath, machineId, requestFileContent, saveToDisk, workingDir]);
 
-  const isLoading = loadedContent === undefined || loadedContent === null;
+  const isLoading = !initialEmpty && (loadedContent === undefined || loadedContent === null);
 
   return {
     content,

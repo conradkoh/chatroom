@@ -8,6 +8,8 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 import { NewFileDialog } from './NewFileDialog';
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
+import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 
 import {
@@ -41,6 +43,7 @@ interface FileExplorerPanelProps {
   chatroomId?: string;
   machineId: string | null;
   workingDir: string | null;
+  fileTabs: UseFileTabsReturn;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
   /** When set, auto-expand tree to reveal this file path (always honored) */
@@ -53,6 +56,10 @@ interface FileExplorerPanelProps {
   onToggleSync: (enabled: boolean) => void;
   /** Called after a new file is created from the explorer */
   onFileCreated?: (filePath: string) => void;
+  /** Called when background create succeeds */
+  onFileCreateConfirmed?: (filePath: string) => void;
+  /** Called when background create fails after optimistic open */
+  onFileCreateFailed?: (filePath: string, error: string) => void;
   /** Called after a file is deleted from the explorer */
   onFileDeleted?: (filePath: string) => void;
 }
@@ -125,6 +132,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   chatroomId,
   machineId,
   workingDir,
+  fileTabs,
   onFileSelect,
   onFileDoubleClick,
   revealPath,
@@ -132,6 +140,8 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   explorerSyncEnabled,
   onToggleSync,
   onFileCreated,
+  onFileCreateFailed,
+  onFileCreateConfirmed,
   onFileDeleted,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -144,6 +154,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
   });
+  const explorerFileOps = useExplorerNewFileOps(fileTabs);
 
   const openNewFileDialog = useCallback((defaultDir = '') => {
     setNewFileDefaultDir(defaultDir);
@@ -167,11 +178,13 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
     setRefreshKey((k) => k + 1);
   }, [machineId, workingDir, requestTree]);
 
+  // fallow-ignore-next-line complexity
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTargetPath) return;
     try {
       await deleteFile(deleteTargetPath);
       window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+      explorerFileOps.onFileDeleted(deleteTargetPath);
       onFileDeleted?.(deleteTargetPath);
       handleRefresh();
     } catch {
@@ -179,7 +192,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
     } finally {
       setDeleteTargetPath(null);
     }
-  }, [deleteTargetPath, deleteFile, handleRefresh, onFileDeleted]);
+  }, [deleteTargetPath, deleteFile, explorerFileOps, handleRefresh, onFileDeleted]);
 
   // Request file tree on initial mount (or when workspace changes)
   useEffect(() => {
@@ -224,8 +237,16 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         workingDir={workingDir}
         defaultDir={newFileDefaultDir}
         onCreated={(filePath) => {
+          explorerFileOps.onFileCreated(filePath);
           onFileCreated?.(filePath);
-          handleRefresh();
+        }}
+        onCreateFailed={(filePath, error) => {
+          explorerFileOps.onFileCreateFailed(filePath, error);
+          onFileCreateFailed?.(filePath, error);
+        }}
+        onCreateConfirmed={(filePath) => {
+          explorerFileOps.onFileCreateConfirmed(filePath);
+          onFileCreateConfirmed?.(filePath);
         }}
       />
 

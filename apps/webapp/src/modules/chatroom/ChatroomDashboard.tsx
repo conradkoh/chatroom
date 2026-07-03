@@ -1398,9 +1398,9 @@ export function ChatroomDashboard({
                       chatroomId={chatroomId}
                       machineId={activeWorkspace.machineId}
                       workingDir={activeWorkspace.workingDir}
+                      fileTabs={fileTabs}
                       onFileSelect={handleFileSelect}
                       onFileDoubleClick={handleFileDoubleClick}
-                      onFileCreated={(path) => fileTabs.pinTab(path)}
                       revealPath={revealPath}
                       activeTabPath={fileTabs.activeTabPath}
                       explorerSyncEnabled={explorerSyncEnabled}
