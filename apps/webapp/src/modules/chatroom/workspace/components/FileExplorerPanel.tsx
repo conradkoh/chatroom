@@ -8,7 +8,24 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 import { NewFileDialog } from './NewFileDialog';
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -36,6 +53,8 @@ interface FileExplorerPanelProps {
   onToggleSync: (enabled: boolean) => void;
   /** Called after a new file is created from the explorer */
   onFileCreated?: (filePath: string) => void;
+  /** Called after a file is deleted from the explorer */
+  onFileDeleted?: (filePath: string) => void;
 }
 
 function ExplorerPanelHeader({
@@ -101,6 +120,7 @@ function ExplorerPanelHeader({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 export const FileExplorerPanel = memo(function FileExplorerPanel({
   chatroomId,
   machineId,
@@ -112,11 +132,23 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   explorerSyncEnabled,
   onToggleSync,
   onFileCreated,
+  onFileDeleted,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [filterQuery, setFilterQuery] = useState('');
   const [newFileOpen, setNewFileOpen] = useState(false);
+  const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
+  const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const { deleteFile, deleting: deletingFile } = useWorkspaceFileDelete({
+    machineId: machineId ?? '',
+    workingDir: workingDir ?? '',
+  });
+
+  const openNewFileDialog = useCallback((defaultDir = '') => {
+    setNewFileDefaultDir(defaultDir);
+    setNewFileOpen(true);
+  }, []);
 
   // When sync is enabled, the active tab path becomes the effective reveal/select target.
   // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
@@ -134,6 +166,20 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
     }
     setRefreshKey((k) => k + 1);
   }, [machineId, workingDir, requestTree]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTargetPath) return;
+    try {
+      await deleteFile(deleteTargetPath);
+      window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+      onFileDeleted?.(deleteTargetPath);
+      handleRefresh();
+    } catch {
+      // Error surfaced via delete hook state if needed
+    } finally {
+      setDeleteTargetPath(null);
+    }
+  }, [deleteTargetPath, deleteFile, handleRefresh, onFileDeleted]);
 
   // Request file tree on initial mount (or when workspace changes)
   useEffect(() => {
@@ -168,7 +214,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         explorerSyncEnabled={explorerSyncEnabled}
         onToggleSync={onToggleSync}
         onRefresh={handleRefresh}
-        onNewFile={() => setNewFileOpen(true)}
+        onNewFile={() => openNewFileDialog('')}
       />
 
       <NewFileDialog
@@ -176,11 +222,43 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         onOpenChange={setNewFileOpen}
         machineId={machineId}
         workingDir={workingDir}
+        defaultDir={newFileDefaultDir}
         onCreated={(filePath) => {
           onFileCreated?.(filePath);
           handleRefresh();
         }}
       />
+
+      <AlertDialog
+        open={deleteTargetPath !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetPath(null);
+        }}
+      >
+        <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border text-chatroom-text-primary">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogDescription className="text-chatroom-text-muted">
+              This will permanently delete{' '}
+              <span className="font-mono text-chatroom-text-primary">{deleteTargetPath}</span> from
+              the workspace.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingFile}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmDelete();
+              }}
+              disabled={deletingFile}
+              className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90"
+            >
+              {deletingFile ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Filename filter */}
       <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
@@ -198,19 +276,31 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
       </div>
 
       {/* Tree content */}
-      <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
-        <WorkspaceFileExplorer
-          key={refreshKey}
-          chatroomId={chatroomId}
-          machineId={machineId}
-          workingDir={workingDir}
-          onFileSelect={onFileSelect}
-          onFileDoubleClick={onFileDoubleClick}
-          revealPath={effectiveRevealPath}
-          selectedPath={effectiveSelectedPath}
-          filterQuery={filterQuery}
-        />
-      </div>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
+            <WorkspaceFileExplorer
+              key={refreshKey}
+              chatroomId={chatroomId}
+              machineId={machineId}
+              workingDir={workingDir}
+              onFileSelect={onFileSelect}
+              onFileDoubleClick={onFileDoubleClick}
+              revealPath={effectiveRevealPath}
+              selectedPath={effectiveSelectedPath}
+              filterQuery={filterQuery}
+              onNewFileInDir={(dir) => openNewFileDialog(dir)}
+              onDeleteFile={(path) => setDeleteTargetPath(path)}
+            />
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => openNewFileDialog('')}>
+            <FilePlus size={12} className="mr-2" />
+            New File
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   );
 });

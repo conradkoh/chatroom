@@ -1,7 +1,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { pollFileWriteRequest } from './useWorkspaceFileSave';
+import { pollFileWriteRequest } from './fileWritePolling';
 
 const FILE_WRITE_POLL_INTERVAL_MS = 500;
 

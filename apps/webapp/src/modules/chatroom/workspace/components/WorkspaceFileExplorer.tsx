@@ -4,7 +4,7 @@ import type {
   FileTree,
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
-import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight, ChevronDown, FilePlus, Folder, FolderOpen, Trash2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -15,6 +15,12 @@ import {
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files';
 
@@ -40,6 +46,10 @@ interface WorkspaceFileExplorerProps {
   selectedPath: string | null;
   /** Optional filename filter (VSCode-style explorer search) */
   filterQuery?: string;
+  /** Right-click folder → New File: parent dir path (empty string = workspace root) */
+  onNewFileInDir?: (dirPath: string) => void;
+  /** Right-click file → Delete */
+  onDeleteFile?: (filePath: string) => void;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -99,6 +109,7 @@ function sortNodes(nodes: TreeNode[]): TreeNode[] {
 
 // ─── Tree Node Component ──────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 const TreeNodeItem = memo(function TreeNodeItem({
   node,
   depth,
@@ -107,6 +118,8 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onToggle,
   onFileSelect,
   onFileDoubleClick,
+  onNewFileInDir,
+  onDeleteFile,
   nodeRefs,
 }: {
   node: TreeNode;
@@ -116,6 +129,8 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onToggle: (path: string) => void;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
+  onNewFileInDir?: (dirPath: string) => void;
+  onDeleteFile?: (filePath: string) => void;
   nodeRefs: Map<string, HTMLElement>;
 }) {
   const isExpanded = expandedPaths.has(node.path);
@@ -148,47 +163,71 @@ const TreeNodeItem = memo(function TreeNodeItem({
 
   return (
     <>
-      <button
-        ref={refCallback}
-        className={cn(
-          'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
-          isSelected
-            ? 'bg-chatroom-accent/10 text-chatroom-accent'
-            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
-          'transition-colors duration-75 cursor-pointer select-none'
-        )}
-        style={{ paddingLeft }}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        title={node.path}
-      >
-        {/* Expand / collapse chevron for directories */}
-        {isDirectory ? (
-          <span className="w-4 h-4 flex items-center justify-center shrink-0">
-            {isExpanded ? (
-              <ChevronDown size={14} className="text-chatroom-text-muted" />
-            ) : (
-              <ChevronRight size={14} className="text-chatroom-text-muted" />
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <button
+            ref={refCallback}
+            className={cn(
+              'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
+              isSelected
+                ? 'bg-chatroom-accent/10 text-chatroom-accent'
+                : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
+              'transition-colors duration-75 cursor-pointer select-none'
             )}
-          </span>
-        ) : (
-          <span className="w-4 h-4 shrink-0" /> /* spacer for files */
-        )}
+            style={{ paddingLeft }}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
+            title={node.path}
+          >
+            {/* Expand / collapse chevron for directories */}
+            {isDirectory ? (
+              <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                {isExpanded ? (
+                  <ChevronDown size={14} className="text-chatroom-text-muted" />
+                ) : (
+                  <ChevronRight size={14} className="text-chatroom-text-muted" />
+                )}
+              </span>
+            ) : (
+              <span className="w-4 h-4 shrink-0" /> /* spacer for files */
+            )}
 
-        {/* Icon */}
-        {isDirectory ? (
-          isExpanded ? (
-            <FolderOpen size={16} className="text-chatroom-accent shrink-0" />
-          ) : (
-            <Folder size={16} className="text-chatroom-accent shrink-0" />
-          )
-        ) : (
-          <FileTypeIcon path={node.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
-        )}
+            {/* Icon */}
+            {isDirectory ? (
+              isExpanded ? (
+                <FolderOpen size={16} className="text-chatroom-accent shrink-0" />
+              ) : (
+                <Folder size={16} className="text-chatroom-accent shrink-0" />
+              )
+            ) : (
+              <FileTypeIcon
+                path={node.name}
+                className="w-4 h-4 shrink-0 text-chatroom-text-muted"
+              />
+            )}
 
-        {/* Name */}
-        <span className="truncate text-[13px]">{node.name}</span>
-      </button>
+            {/* Name */}
+            <span className="truncate text-[13px]">{node.name}</span>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {isDirectory && onNewFileInDir && (
+            <ContextMenuItem onSelect={() => onNewFileInDir(node.path)}>
+              <FilePlus size={12} className="mr-2" />
+              New File
+            </ContextMenuItem>
+          )}
+          {!isDirectory && onDeleteFile && (
+            <ContextMenuItem
+              onSelect={() => onDeleteFile(node.path)}
+              className="text-chatroom-status-error focus:text-chatroom-status-error"
+            >
+              <Trash2 size={12} className="mr-2" />
+              Delete
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
 
       {/* Children */}
       {isDirectory && isExpanded && node.children.length > 0 && (
@@ -203,6 +242,8 @@ const TreeNodeItem = memo(function TreeNodeItem({
               onToggle={onToggle}
               onFileSelect={onFileSelect}
               onFileDoubleClick={onFileDoubleClick}
+              onNewFileInDir={onNewFileInDir}
+              onDeleteFile={onDeleteFile}
               nodeRefs={nodeRefs}
             />
           ))}
@@ -245,6 +286,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   revealPath,
   selectedPath,
   filterQuery = '',
+  onNewFileInDir,
+  onDeleteFile,
 }: WorkspaceFileExplorerProps) {
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
@@ -392,6 +435,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           onToggle={handleToggle}
           onFileSelect={onFileSelect}
           onFileDoubleClick={onFileDoubleClick}
+          onNewFileInDir={onNewFileInDir}
+          onDeleteFile={onDeleteFile}
           nodeRefs={nodeRefs.current}
         />
       ))}

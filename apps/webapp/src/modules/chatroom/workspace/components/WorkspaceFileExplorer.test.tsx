@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+
+import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 const mockTreeJson = JSON.stringify({
   entries: [
@@ -16,8 +18,6 @@ vi.mock('@/modules/chatroom/workspace/files', () => ({
     isLoading: false,
   }),
 }));
-
-import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 describe('WorkspaceFileExplorer', () => {
   const defaultProps = {
@@ -40,11 +40,7 @@ describe('WorkspaceFileExplorer', () => {
 
   it('does not apply highlight class when selectedPath is null', () => {
     render(
-      <WorkspaceFileExplorer
-        {...defaultProps}
-        selectedPath={null}
-        revealPath="src/index.ts"
-      />
+      <WorkspaceFileExplorer {...defaultProps} selectedPath={null} revealPath="src/index.ts" />
     );
 
     const button = screen.getByTitle('src/index.ts');
@@ -62,5 +58,21 @@ describe('WorkspaceFileExplorer', () => {
 
     const selectedButton = screen.getByTitle('src/utils/helpers.ts');
     expect(selectedButton.className).toContain('bg-chatroom-accent/10');
+  });
+
+  it('accepts onNewFileInDir and onDeleteFile callbacks without crashing', () => {
+    const onNewFileInDir = vi.fn();
+    const onDeleteFile = vi.fn();
+
+    render(
+      <WorkspaceFileExplorer
+        {...defaultProps}
+        selectedPath={null}
+        onNewFileInDir={onNewFileInDir}
+        onDeleteFile={onDeleteFile}
+      />
+    );
+
+    expect(screen.getByTitle('src/index.ts')).toBeInTheDocument();
   });
 });

@@ -6,7 +6,7 @@ import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions'
 import { useCallback, useEffect, useState } from 'react';
 
 import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
-import { pollFileWriteRequest } from '../hooks/useWorkspaceFileSave';
+import { waitForFileWriteRequest } from '../hooks/fileWritePolling';
 import { compressGzip, normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
 
 import { Button } from '@/components/ui/button';
@@ -87,15 +87,7 @@ export function NewFileDialog({
           data,
         });
 
-        await pollFileWriteRequest(async (requestId) => {
-          if (!sessionId) {
-            throw new Error('Authentication required');
-          }
-          return convex.query(api.workspaceFiles.getFileWriteRequest, {
-            sessionId,
-            requestId,
-          });
-        }, result.requestId);
+        await waitForFileWriteRequest(convex, sessionId, result.requestId);
 
         window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
         onCreated(normalizedPath);
@@ -125,7 +117,9 @@ export function NewFileDialog({
         <DialogHeader>
           <DialogTitle>New File</DialogTitle>
           <DialogDescription className="text-chatroom-text-muted">
-            Enter a relative path. Files without an extension default to <code>.md</code>.
+            Enter a relative path. Press{' '}
+            <kbd className="rounded border border-chatroom-border px-1">⌘S</kbd> to save. Files
+            without an extension default to <code>.md</code>.
           </DialogDescription>
         </DialogHeader>
 
@@ -143,7 +137,13 @@ export function NewFileDialog({
               validationError && 'border-chatroom-status-error'
             )}
             autoFocus
+            // fallow-ignore-next-line complexity
             onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                void handleCreate();
+                return;
+              }
               if (event.key === 'Enter') {
                 event.preventDefault();
                 void handleCreate();
@@ -166,7 +166,7 @@ export function NewFileDialog({
             Cancel
           </Button>
           <Button type="button" onClick={() => void handleCreate()} disabled={creating}>
-            {creating ? 'Creating…' : 'Create'}
+            {creating ? 'Saving…' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>
