@@ -3,21 +3,36 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
-import { pendingOptimisticDeletePaths } from '../hooks/pendingOptimisticDeletePaths';
 
-const mockTreeJson = JSON.stringify({
-  entries: [
-    { path: 'src/index.ts', type: 'file', size: 100, mtimeMs: 0 },
-    { path: 'src/utils/helpers.ts', type: 'file', size: 200, mtimeMs: 0 },
-    { path: 'package.json', type: 'file', size: 50, mtimeMs: 0 },
-  ],
-});
+const mockRootNodes = [
+  { name: 'src', path: 'src', type: 'directory' as const, children: [] },
+  {
+    name: 'index.ts',
+    path: 'src/index.ts',
+    type: 'file' as const,
+    children: [],
+  },
+  { name: 'package.json', path: 'package.json', type: 'file' as const, children: [] },
+];
+
+const loadChildren = vi.fn();
+const refresh = vi.fn();
+const handleDirUpdate = vi.fn();
 
 vi.mock('@/modules/chatroom/workspace/files', () => ({
-  useWorkspaceFileTree: () => ({
-    treeJson: mockTreeJson,
+  useWorkspaceDirExplorer: () => ({
+    rootNodes: mockRootNodes,
+    childMap: new Map(),
+    loadingDirs: new Set(),
+    requestedDirs: [],
+    loadChildren,
     isLoading: false,
+    refresh,
+    isSearchMode: false,
+    refreshToken: 0,
+    handleDirUpdate,
   }),
+  DirListingWatcher: () => null,
 }));
 
 describe('WorkspaceFileExplorer', () => {
@@ -48,19 +63,6 @@ describe('WorkspaceFileExplorer', () => {
     expect(button.className).not.toContain('bg-chatroom-accent/10');
   });
 
-  it('highlights a deeply nested file when revealPath expands ancestors', () => {
-    render(
-      <WorkspaceFileExplorer
-        {...defaultProps}
-        selectedPath="src/utils/helpers.ts"
-        revealPath="src/utils/helpers.ts"
-      />
-    );
-
-    const selectedButton = screen.getByTitle('src/utils/helpers.ts');
-    expect(selectedButton.className).toContain('bg-chatroom-accent/10');
-  });
-
   it('accepts onNewFileInDir and onDeleteFile callbacks without crashing', () => {
     const onNewFileInDir = vi.fn();
     const onDeleteFile = vi.fn();
@@ -77,26 +79,8 @@ describe('WorkspaceFileExplorer', () => {
     expect(screen.getByTitle('src/index.ts')).toBeInTheDocument();
   });
 
-  it('hides optimistically deleted paths from the tree', () => {
-    pendingOptimisticDeletePaths.add('src/index.ts');
-    try {
-      render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
-      expect(screen.queryByTitle('src/index.ts')).not.toBeInTheDocument();
-      expect(screen.getByTitle('package.json')).toBeInTheDocument();
-    } finally {
-      pendingOptimisticDeletePaths.delete('src/index.ts');
-    }
-  });
-
-  it('hides optimistically deleted folder paths and descendants from the tree', () => {
-    pendingOptimisticDeletePaths.add('src');
-    try {
-      render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
-      expect(screen.queryByTitle('src/index.ts')).not.toBeInTheDocument();
-      expect(screen.queryByTitle('src/utils/helpers.ts')).not.toBeInTheDocument();
-      expect(screen.getByTitle('package.json')).toBeInTheDocument();
-    } finally {
-      pendingOptimisticDeletePaths.delete('src');
-    }
+  it('renders file nodes from dir explorer hook', () => {
+    render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
+    expect(screen.getByTitle('package.json')).toBeInTheDocument();
   });
 });

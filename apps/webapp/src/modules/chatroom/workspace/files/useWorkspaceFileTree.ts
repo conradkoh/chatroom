@@ -2,11 +2,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+
+import { useFileEntries } from './useFileEntries';
+import { useFileSearch } from './useFileSearch';
 
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
-import { useFileEntries } from './useFileEntries';
-import { useFileTree } from './useFileTree';
 
 const REFRESH_DEDUP_WINDOW_MS = 1500;
 
@@ -32,11 +33,23 @@ export function useWorkspaceFileTree({
   enabled = true,
   includeDirectories = false,
 }: UseWorkspaceFileTreeArgs): UseWorkspaceFileTreeResult {
-  const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const requestFileSearchMutation = useSessionMutation(api.workspaceFiles.requestFileSearch);
   const lastRefreshAtRef = useRef<number | null>(null);
 
-  const treeResult = useFileTree(enabled ? { machineId, workingDir } : 'skip');
-  const entries = useFileEntries(enabled ? treeResult : null, { includeDirectories });
+  const searchResult = useFileSearch(
+    enabled ? { machineId, workingDir, query: '', enabled: true } : 'skip'
+  );
+
+  // Empty query triggers workspace-wide file listing on daemon
+  useEffect(() => {
+    if (!enabled) return;
+    requestFileSearchMutation({ machineId, workingDir, query: '' }).catch(() => {});
+  }, [enabled, machineId, workingDir, requestFileSearchMutation]);
+
+  const entries = useFileEntries(
+    enabled ? { entries: searchResult.entries as FileEntry[] } : null,
+    { includeDirectories }
+  );
 
   const refresh = useCallback(() => {
     if (!enabled) return;
@@ -50,10 +63,9 @@ export function useWorkspaceFileTree({
     }
 
     lastRefreshAtRef.current = now;
-    requestFileTreeMutation({ machineId, workingDir }).catch(() => {
-      // Non-blocking — tree may already be cached.
-    });
-  }, [machineId, workingDir, enabled, requestFileTreeMutation]);
+    requestFileSearchMutation({ machineId, workingDir, query: '', force: true }).catch(() => {});
+    searchResult.refresh();
+  }, [machineId, workingDir, enabled, requestFileSearchMutation, searchResult]);
 
   if (!enabled) {
     return {
@@ -67,9 +79,9 @@ export function useWorkspaceFileTree({
 
   return {
     entries,
-    treeJson: treeResult?.treeJson ?? null,
-    scannedAt: treeResult?.scannedAt ?? null,
+    treeJson: null,
+    scannedAt: null,
     refresh,
-    isLoading: treeResult === undefined && enabled,
+    isLoading: searchResult.isLoading,
   };
 }

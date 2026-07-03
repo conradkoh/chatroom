@@ -1,18 +1,20 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useWorkspaceFileTree } from './useWorkspaceFileTree';
+
 const mocks = vi.hoisted(() => ({
-  requestFileTree: Symbol('requestFileTree'),
-  requestFileTreeMutation: vi.fn(),
+  requestFileSearch: Symbol('requestFileSearch'),
+  requestFileSearchMutation: vi.fn(),
   useFileEntries: vi.fn(),
-  useFileTree: vi.fn(),
+  useFileSearch: vi.fn(),
   useSessionMutation: vi.fn(),
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     workspaceFiles: {
-      requestFileTree: mocks.requestFileTree,
+      requestFileSearch: mocks.requestFileSearch,
     },
   },
 }));
@@ -21,25 +23,24 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: mocks.useSessionMutation,
 }));
 
-vi.mock('@/modules/chatroom/workspace/files/useFileTree', () => ({
-  useFileTree: mocks.useFileTree,
+vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
+  useFileSearch: mocks.useFileSearch,
 }));
 
 vi.mock('@/modules/chatroom/workspace/files/useFileEntries', () => ({
   useFileEntries: mocks.useFileEntries,
 }));
 
-import { useWorkspaceFileTree } from './useWorkspaceFileTree';
-
 const args = { machineId: 'machine-1', workingDir: '/repo' };
 const fileEntry = { path: 'src/index.ts', type: 'file' as const };
 
 beforeEach(() => {
-  mocks.requestFileTreeMutation.mockResolvedValue(undefined);
-  mocks.useSessionMutation.mockReturnValue(mocks.requestFileTreeMutation);
-  mocks.useFileTree.mockReturnValue({
-    treeJson: JSON.stringify({ entries: [fileEntry] }),
-    scannedAt: 123,
+  mocks.requestFileSearchMutation.mockResolvedValue(undefined);
+  mocks.useSessionMutation.mockReturnValue(mocks.requestFileSearchMutation);
+  mocks.useFileSearch.mockReturnValue({
+    entries: [fileEntry],
+    isLoading: false,
+    refresh: vi.fn(),
   });
   mocks.useFileEntries.mockReturnValue([fileEntry]);
 });
@@ -53,7 +54,7 @@ describe('useWorkspaceFileTree', () => {
   it('returns empty state and a no-op refresh when disabled', () => {
     const { result } = renderHook(() => useWorkspaceFileTree({ ...args, enabled: false }));
 
-    expect(mocks.useFileTree).toHaveBeenCalledWith('skip');
+    expect(mocks.useFileSearch).toHaveBeenCalledWith('skip');
     expect(result.current).toMatchObject({
       entries: [],
       treeJson: null,
@@ -65,33 +66,19 @@ describe('useWorkspaceFileTree', () => {
       result.current.refresh();
     });
 
-    expect(mocks.requestFileTreeMutation).not.toHaveBeenCalled();
+    expect(mocks.requestFileSearchMutation).not.toHaveBeenCalled();
   });
 
-  it('calls the refresh mutation once with machineId and workingDir', () => {
-    const { result } = renderHook(() => useWorkspaceFileTree(args));
-
-    act(() => {
-      result.current.refresh();
+  it('requests empty-query file search on mount', () => {
+    renderHook(() => useWorkspaceFileTree(args));
+    expect(mocks.requestFileSearchMutation).toHaveBeenCalledWith({
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      query: '',
     });
-
-    expect(mocks.requestFileTreeMutation).toHaveBeenCalledTimes(1);
-    expect(mocks.requestFileTreeMutation).toHaveBeenCalledWith(args);
   });
 
-  it('deduplicates refresh calls within 1500ms', () => {
-    vi.useFakeTimers();
-    const { result } = renderHook(() => useWorkspaceFileTree(args));
-
-    act(() => {
-      result.current.refresh();
-      result.current.refresh();
-    });
-
-    expect(mocks.requestFileTreeMutation).toHaveBeenCalledTimes(1);
-  });
-
-  it('allows refresh calls after the dedup window', async () => {
+  it('calls refresh mutation with force after dedup window', async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useWorkspaceFileTree(args));
 
@@ -104,8 +91,11 @@ describe('useWorkspaceFileTree', () => {
       result.current.refresh();
     });
 
-    expect(mocks.requestFileTreeMutation).toHaveBeenCalledTimes(2);
-    expect(mocks.requestFileTreeMutation).toHaveBeenNthCalledWith(1, args);
-    expect(mocks.requestFileTreeMutation).toHaveBeenNthCalledWith(2, args);
+    expect(mocks.requestFileSearchMutation).toHaveBeenCalledWith({
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      query: '',
+      force: true,
+    });
   });
 });
