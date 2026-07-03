@@ -13,23 +13,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { daemonSessionToLayers } from './daemon-layers.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
-import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
+import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
       getPendingFileWriteRequests: 'mock-getPendingFileWriteRequests',
       completeFileWriteRequest: 'mock-completeFileWriteRequest',
-      syncFileTreeV2: 'mock-syncFileTreeV2',
+      syncDirListingV2: 'mock-syncDirListingV2',
     },
   },
 }));
 
-vi.mock('../../../infrastructure/services/workspace/file-tree-scanner.js', () => ({
-  scanFileTree: vi.fn().mockResolvedValue({
-    rootDir: '/mock',
+vi.mock('../../../infrastructure/services/workspace/dir-listing-scanner.js', () => ({
+  listDirectory: vi.fn().mockResolvedValue({
+    dirPath: '',
     entries: [],
     scannedAt: Date.now(),
+    truncated: false,
+    totalCount: 0,
   }),
 }));
 
@@ -245,16 +247,18 @@ describe('fulfillFileWriteRequestsEffect', () => {
   });
 
   it('leaves request pending on transient write failure (no error completion)', async () => {
-    vi.mocked(scanFileTree).mockRejectedValueOnce(new Error('Network unreachable'));
+    vi.mocked(listDirectory).mockRejectedValueOnce(new Error('Network unreachable'));
 
     const backend = await runFulfillment([
       makeRequest(workingDir, 'transient-fail.md', 'create', 'content'),
     ]);
 
-    vi.mocked(scanFileTree).mockResolvedValue({
-      rootDir: workingDir,
+    vi.mocked(listDirectory).mockResolvedValue({
+      dirPath: '',
       entries: [],
       scannedAt: Date.now(),
+      truncated: false,
+      totalCount: 0,
     });
 
     const content = await readFile(join(workingDir, 'transient-fail.md'), 'utf8');

@@ -15,7 +15,7 @@ import { Effect } from 'effect';
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
+import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
 
 /** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
 const MAX_CONTENT_BYTES = 512 * 1024;
@@ -60,23 +60,33 @@ function resolveWorkspaceWritePath(
   return { ok: true, absolutePath };
 }
 
-async function syncFileTreeAfterWrite(
-  session: DaemonSessionServiceShape,
-  workingDir: string
-): Promise<void> {
-  const tree = await scanFileTree(workingDir);
-  const treeJson = JSON.stringify(tree);
-  const treeHash = createHash('md5').update(treeJson).digest('hex');
-  const compressed = gzipSync(Buffer.from(treeJson));
-  const treeJsonCompressed = compressed.toString('base64');
+function parentDirPath(filePath: string): string {
+  const idx = filePath.lastIndexOf('/');
+  return idx === -1 ? '' : filePath.slice(0, idx);
+}
 
-  await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
+/** Refresh only the parent directory listing after a create/update/delete. */
+async function syncParentDirListingAfterWrite(
+  session: DaemonSessionServiceShape,
+  workingDir: string,
+  filePath: string
+): Promise<void> {
+  const dirPath = parentDirPath(filePath);
+  const listing = await listDirectory(workingDir, dirPath);
+  const json = JSON.stringify(listing);
+  const dataHash = createHash('md5').update(json).digest('hex');
+  const compressed = gzipSync(Buffer.from(json)).toString('base64');
+
+  await session.backend.mutation(api.workspaceFiles.syncDirListingV2, {
     sessionId: session.sessionId,
     machineId: session.machineId,
     workingDir,
-    data: { compression: 'gzip' as const, content: treeJsonCompressed },
-    dataHash: treeHash,
-    scannedAt: tree.scannedAt,
+    dirPath,
+    data: { compression: 'gzip' as const, content: compressed },
+    dataHash,
+    scannedAt: listing.scannedAt,
+    truncated: listing.truncated,
+    totalCount: listing.totalCount,
   });
 }
 
@@ -178,7 +188,7 @@ async function fulfillOneFileWriteRequest(
       }
 
       await rm(resolved.absolutePath, { recursive: true, force: false });
-      await syncFileTreeAfterWrite(session, workingDir);
+      await syncParentDirListingAfterWrite(session, workingDir, filePath);
       await completeWriteRequest(session, request._id, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
@@ -205,7 +215,7 @@ async function fulfillOneFileWriteRequest(
     }
 
     await writePayloadToDisk(resolved.absolutePath, operation, payload.content);
-    await syncFileTreeAfterWrite(session, workingDir);
+    await syncParentDirListingAfterWrite(session, workingDir, filePath);
     await completeWriteRequest(session, request._id, { status: 'done' });
 
     const elapsed = Date.now() - startTime;
