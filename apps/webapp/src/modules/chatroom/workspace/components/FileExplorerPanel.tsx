@@ -2,9 +2,11 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MoreHorizontal, RefreshCw, Search } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
+import { NewFileDialog } from './NewFileDialog';
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
 import {
@@ -14,8 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-/** Event name dispatched to request a file explorer refresh (e.g. from command palette) */
-export const FILE_EXPLORER_REFRESH_EVENT = 'chatroom:file-explorer-refresh';
+export { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,16 +34,20 @@ interface FileExplorerPanelProps {
   explorerSyncEnabled: boolean;
   /** Toggle for Explorer↔active-editor sync */
   onToggleSync: (enabled: boolean) => void;
+  /** Called after a new file is created from the explorer */
+  onFileCreated?: (filePath: string) => void;
 }
 
 function ExplorerPanelHeader({
   explorerSyncEnabled,
   onToggleSync,
   onRefresh,
+  onNewFile,
 }: {
   explorerSyncEnabled?: boolean;
   onToggleSync?: (enabled: boolean) => void;
   onRefresh?: () => void;
+  onNewFile?: () => void;
 }) {
   const showActions = onToggleSync != null && onRefresh != null;
 
@@ -53,6 +58,16 @@ function ExplorerPanelHeader({
       </span>
       {showActions ? (
         <div className="flex items-center gap-1">
+          {onNewFile && (
+            <button
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
+              onClick={onNewFile}
+              title="New file"
+              aria-label="New file"
+            >
+              <FilePlus size={13} />
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -96,9 +111,11 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   activeTabPath,
   explorerSyncEnabled,
   onToggleSync,
+  onFileCreated,
 }: FileExplorerPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [filterQuery, setFilterQuery] = useState('');
+  const [newFileOpen, setNewFileOpen] = useState(false);
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
 
   // When sync is enabled, the active tab path becomes the effective reveal/select target.
@@ -151,6 +168,18 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
         explorerSyncEnabled={explorerSyncEnabled}
         onToggleSync={onToggleSync}
         onRefresh={handleRefresh}
+        onNewFile={() => setNewFileOpen(true)}
+      />
+
+      <NewFileDialog
+        open={newFileOpen}
+        onOpenChange={setNewFileOpen}
+        machineId={machineId}
+        workingDir={workingDir}
+        onCreated={(filePath) => {
+          onFileCreated?.(filePath);
+          handleRefresh();
+        }}
       />
 
       {/* Filename filter */}

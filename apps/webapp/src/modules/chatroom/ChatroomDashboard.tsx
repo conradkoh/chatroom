@@ -63,10 +63,12 @@ import { FileContentViewer } from './workspace/components/FileContentViewer';
 import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
+import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
+import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -164,6 +166,7 @@ interface ExplorerContentProps {
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
 }
 
+// fallow-ignore-next-line complexity
 const ExplorerContent = memo(function ExplorerContent({
   fileTabs,
   activeWorkspace,
@@ -195,15 +198,26 @@ const ExplorerContent = memo(function ExplorerContent({
               fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
             )}
           >
-            <FileContentViewer
-              key={fileTabs.activeTabPath}
-              machineId={activeWorkspace.machineId}
-              workingDir={activeWorkspace.workingDir}
-              filePath={fileTabs.activeTabPath}
-              onSendSelectionToComposer={onSendSelectionToComposer}
-              onOpenPreview={onOpenPreview}
-              onOpenTableView={onOpenTableView}
-            />
+            {isMarkdownFile(fileTabs.activeTabPath) ? (
+              <MarkdownFileEditorPane
+                key={fileTabs.activeTabPath}
+                machineId={activeWorkspace.machineId}
+                workingDir={activeWorkspace.workingDir}
+                filePath={fileTabs.activeTabPath}
+                onSendSelectionToComposer={onSendSelectionToComposer}
+                onOpenPreview={onOpenPreview}
+              />
+            ) : (
+              <FileContentViewer
+                key={fileTabs.activeTabPath}
+                machineId={activeWorkspace.machineId}
+                workingDir={activeWorkspace.workingDir}
+                filePath={fileTabs.activeTabPath}
+                onSendSelectionToComposer={onSendSelectionToComposer}
+                onOpenPreview={onOpenPreview}
+                onOpenTableView={onOpenTableView}
+              />
+            )}
           </div>
 
           {/* Right Pane — preview/table */}
@@ -429,8 +443,11 @@ export function ChatroomDashboard({
   const handleFileDoubleClick = useCallback(
     (filePath: string) => {
       fileTabs.pinTab(filePath);
+      if (isMarkdownFile(filePath)) {
+        fileTabs.openRight(filePath, 'preview');
+      }
     },
-    [fileTabs.pinTab]
+    [fileTabs.pinTab, fileTabs.openRight]
   );
 
   // Track the path to reveal in the file tree
@@ -1383,6 +1400,7 @@ export function ChatroomDashboard({
                       workingDir={activeWorkspace.workingDir}
                       onFileSelect={handleFileSelect}
                       onFileDoubleClick={handleFileDoubleClick}
+                      onFileCreated={(path) => fileTabs.pinTab(path)}
                       revealPath={revealPath}
                       activeTabPath={fileTabs.activeTabPath}
                       explorerSyncEnabled={explorerSyncEnabled}
