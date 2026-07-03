@@ -170,4 +170,44 @@ describe('workspace file write requests', () => {
     expect(request?.status).toBe('error');
     expect(request?.errorMessage).toBe('File does not exist');
   });
+
+  test('requestFileWrite creates a pending delete request without data', async () => {
+    const { sessionId } = await createTestSession('test-wfw-delete');
+    const machineId = 'machine-wfw-delete';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    const result = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: '/tmp/workspace',
+      filePath: 'docs/readme.md',
+      operation: 'delete',
+    });
+
+    expect(result.status).toBe('requested');
+
+    const pending = await t.query(api.workspaceFiles.getPendingFileWriteRequests, {
+      sessionId,
+      machineId,
+    });
+    expect(pending[0]?.operation).toBe('delete');
+    expect(pending[0]?.data).toBeUndefined();
+  });
+
+  test('requestFileWrite rejects delete with data payload', async () => {
+    const { sessionId } = await createTestSession('test-wfw-delete-data');
+    const machineId = 'machine-wfw-delete-data';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: '/tmp/workspace',
+        filePath: 'docs/readme.md',
+        operation: 'delete',
+        data: gzipContent('nope'),
+      })
+    ).rejects.toThrow(/must not include/i);
+  });
 });

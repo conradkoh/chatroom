@@ -11,7 +11,7 @@ import { compressGzip } from '../utils/gzipContent';
 const FILE_WRITE_POLL_INTERVAL_MS = 500;
 const FILE_WRITE_POLL_TIMEOUT_MS = 30_000;
 
-export type FileWriteOperation = 'create' | 'update';
+export type FileWriteOperation = 'create' | 'update' | 'delete';
 
 export type FileWriteRequestStatus = {
   status: 'pending' | 'done' | 'error';

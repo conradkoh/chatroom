@@ -1974,12 +1974,14 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    operation: v.union(v.literal('create'), v.literal('update')),
-    /** gzip base64 content, same shape as file content V2 */
-    data: v.object({
-      compression: v.literal('gzip'),
-      content: v.string(),
-    }),
+    operation: v.union(v.literal('create'), v.literal('update'), v.literal('delete')),
+    /** gzip base64 content — required for create/update, omitted for delete */
+    data: v.optional(
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
     status: v.union(v.literal('pending'), v.literal('done'), v.literal('error')),
     errorMessage: v.optional(v.string()),
     requestedAt: v.number(),

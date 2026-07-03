@@ -6,7 +6,7 @@
 // fallow-ignore-file code-duplication
 
 import { createHash } from 'node:crypto';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
@@ -24,8 +24,8 @@ export type PendingFileWriteRequest = {
   _id: string;
   workingDir: string;
   filePath: string;
-  operation: 'create' | 'update';
-  data: { compression: 'gzip'; content: string };
+  operation: 'create' | 'update' | 'delete';
+  data?: { compression: 'gzip'; content: string };
 };
 
 /** Reject path traversal and paths that escape the workspace root. */
@@ -88,6 +88,9 @@ async function fileExistsAt(absolutePath: string): Promise<boolean> {
 function decodeWritePayload(
   request: PendingFileWriteRequest
 ): { ok: true; content: Buffer } | { ok: false; errorMessage: string } {
+  if (!request.data) {
+    return { ok: false, errorMessage: 'Missing file data' };
+  }
   const content = gunzipSync(Buffer.from(request.data.content, 'base64'));
   if (content.length > MAX_CONTENT_BYTES) {
     return { ok: false, errorMessage: 'File content too large' };
@@ -107,12 +110,15 @@ async function validateWriteOperation(
   if (operation === 'update' && !exists) {
     return { ok: false, errorMessage: 'File does not exist' };
   }
+  if (operation === 'delete' && !exists) {
+    return { ok: false, errorMessage: 'File does not exist' };
+  }
   return { ok: true };
 }
 
 async function writePayloadToDisk(
   absolutePath: string,
-  operation: PendingFileWriteRequest['operation'],
+  operation: 'create' | 'update',
   content: Buffer
 ): Promise<void> {
   if (operation === 'create') {
@@ -139,6 +145,25 @@ async function fulfillOneFileWriteRequest(
   }
 
   try {
+    if (operation === 'delete') {
+      const operationCheck = await validateWriteOperation(operation, resolved.absolutePath);
+      if (!operationCheck.ok) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: operationCheck.errorMessage,
+        });
+        return;
+      }
+
+      await unlink(resolved.absolutePath);
+      await syncFileTreeAfterWrite(session, workingDir);
+      await completeWriteRequest(session, request._id, { status: 'done' });
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[${formatTimestamp()}] ✏️  File delete fulfilled: ${filePath} (${elapsed}ms)`);
+      return;
+    }
+
     const payload = decodeWritePayload(request);
     if (!payload.ok) {
       await completeWriteRequest(session, request._id, {

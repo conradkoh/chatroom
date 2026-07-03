@@ -34,8 +34,8 @@ vi.mock('../../../infrastructure/services/workspace/file-tree-scanner.js', () =>
 function makeRequest(
   workingDir: string,
   filePath: string,
-  operation: 'create' | 'update',
-  content: string,
+  operation: 'create' | 'update' | 'delete',
+  content?: string,
   requestId = 'req-1'
 ) {
   return {
@@ -43,14 +43,20 @@ function makeRequest(
     workingDir,
     filePath,
     operation,
-    data: {
-      compression: 'gzip' as const,
-      content: gzipSync(Buffer.from(content)).toString('base64'),
-    },
+    ...(operation === 'delete'
+      ? {}
+      : {
+          data: {
+            compression: 'gzip' as const,
+            content: gzipSync(Buffer.from(content ?? '')).toString('base64'),
+          },
+        }),
   };
 }
 
-async function runFulfillment(requests: ReturnType<typeof makeRequest>[]) {
+type FulfillmentRequest = ReturnType<typeof makeRequest>;
+
+async function runFulfillment(requests: FulfillmentRequest[]) {
   const init = createMockDaemonSessionInit({
     machineId: 'machine-write-test',
     backend: {
@@ -138,6 +144,46 @@ describe('fulfillFileWriteRequestsEffect', () => {
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ status: 'error' })
+    );
+  });
+
+  it('delete removes an existing file', async () => {
+    const filePath = 'notes.md';
+    const absolutePath = join(workingDir, filePath);
+    await writeFile(absolutePath, '# hello');
+
+    const backend = await runFulfillment([
+      {
+        _id: 'req-del-1',
+        workingDir,
+        filePath,
+        operation: 'delete',
+      },
+    ]);
+
+    await expect(access(absolutePath)).rejects.toThrow();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('delete errors when file does not exist', async () => {
+    const backend = await runFulfillment([
+      {
+        _id: 'req-del-missing',
+        workingDir,
+        filePath: 'missing.md',
+        operation: 'delete',
+      },
+    ]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'File does not exist',
+      })
     );
   });
 

@@ -784,7 +784,7 @@ export const getFileContentV2 = query({
 // fallow-ignore-next-line code-duplication
 
 /**
- * Requests a file create or update on the daemon's local filesystem.
+ * Requests a file create, update, or delete on the daemon's local filesystem.
  * Returns an existing pending request for the same path, or creates a new one.
  */
 export const requestFileWrite = mutation({
@@ -793,11 +793,13 @@ export const requestFileWrite = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    operation: v.union(v.literal('create'), v.literal('update')),
-    data: v.object({
-      compression: v.literal('gzip'),
-      content: v.string(),
-    }),
+    operation: v.union(v.literal('create'), v.literal('update'), v.literal('delete')),
+    data: v.optional(
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -808,8 +810,17 @@ export const requestFileWrite = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     validateFilePath(args.filePath);
 
-    if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
-      throw new Error('File content too large');
+    if (args.operation === 'delete') {
+      if (args.data !== undefined) {
+        throw new Error('Delete requests must not include file data');
+      }
+    } else {
+      if (!args.data) {
+        throw new Error('File data is required for create and update');
+      }
+      if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
+        throw new Error('File content too large');
+      }
     }
 
     const existingRequest = await ctx.db
@@ -827,16 +838,17 @@ export const requestFileWrite = mutation({
     }
 
     const now = Date.now();
+    const requestPatch = {
+      operation: args.operation,
+      status: 'pending' as const,
+      errorMessage: undefined,
+      requestedAt: now,
+      updatedAt: now,
+      ...(args.operation === 'delete' ? { data: undefined } : { data: args.data }),
+    };
 
     if (existingRequest) {
-      await ctx.db.patch('chatroom_workspaceFileWriteRequests', existingRequest._id, {
-        operation: args.operation,
-        data: args.data,
-        status: 'pending',
-        errorMessage: undefined,
-        requestedAt: now,
-        updatedAt: now,
-      });
+      await ctx.db.patch('chatroom_workspaceFileWriteRequests', existingRequest._id, requestPatch);
       return { status: 'requested' as const, requestId: existingRequest._id };
     }
 
@@ -844,11 +856,7 @@ export const requestFileWrite = mutation({
       machineId: args.machineId,
       workingDir: args.workingDir,
       filePath: args.filePath,
-      operation: args.operation,
-      data: args.data,
-      status: 'pending',
-      requestedAt: now,
-      updatedAt: now,
+      ...requestPatch,
     });
 
     return { status: 'requested' as const, requestId };
