@@ -57,6 +57,23 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
 }
 
 describe('runNativeInjectionEffect', () => {
+  test('delivers promoted pending task after agent_end when participant is idle-after-complete', async () => {
+    const deps = createDeps();
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      participant: {
+        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+        lastSeenAt: 1_000,
+        lastStatus: 'task.completed',
+      },
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps, ledger));
+
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
+    expect(ledger.isDelivered(task.taskId, HARNESS_SESSION_ID)).toBe(true);
+  });
+
   test('claim → query → join → resumeTurn in order', async () => {
     const deps = createDeps();
     const ledger = new NativeDeliveryLedger();
@@ -300,6 +317,20 @@ Add dark mode toggle
 });
 
 describe('shouldDeliverNativeTask integration with ledger', () => {
+  test('delivers when promoted pending task follows task.completed + native:task-injected', () => {
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      participant: {
+        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+        lastSeenAt: 1_000,
+        lastStatus: 'task.completed',
+      },
+    });
+    expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
+      true
+    );
+  });
+
   test('deliver once per taskId per harness session across duplicate events', () => {
     const ledger = new NativeDeliveryLedger();
     const task = makeTask();

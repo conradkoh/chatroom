@@ -257,6 +257,7 @@ Do not put pure heartbeat fields in `revisionKey`; let reconcile handle them. Do
 1. Incremental signal rows are **small** — IDs and volatile fields only.
 2. Blobs only in the action query.
 3. `revisionKey` from meaningful changes only; exclude noise (e.g. pure `lastSeenAt` ticks).
+   For assigned-task signals, any participant field encoded in `revisionKey` (`lastSeenAction`, `lastStatus`) must also appear on the incremental signal payload, not only on the hydrate snapshot. Pure heartbeats (`lastSeenAt`) use the **presence** channel instead.
 4. Prefer index-backed cursor scans.
 
 ### Signal projection tables (future backend optimization)
