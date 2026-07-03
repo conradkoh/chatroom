@@ -1,4 +1,4 @@
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isNativeHarness } from '../../entities/harness/types';
 import {
@@ -45,24 +45,24 @@ async function maybeStartAcknowledgedTaskFromTokenActivity(
   return true;
 }
 
+/** Pending task released after agent exit — source message was previously claimed. */
+async function isReleasedNativePendingResume(
+  ctx: MutationCtx,
+  pendingTask: Doc<'chatroom_tasks'>
+): Promise<boolean> {
+  if (!pendingTask.sourceMessageId) {
+    return false;
+  }
+  const sourceMessage = await ctx.db.get('chatroom_messages', pendingTask.sourceMessageId);
+  return sourceMessage?.acknowledgedAt != null;
+}
+
 async function maybeStartPendingTaskFromTokenActivity(
   ctx: MutationCtx,
   args: { chatroomId: Id<'chatroom_rooms'>; role: string },
   participant: ParticipantSnapshot
 ): Promise<void> {
   if (participant.lastStatus !== 'agent.waiting') {
-    return;
-  }
-
-  const agentConfig = await getAgentConfig(ctx, {
-    chatroomId: args.chatroomId,
-    role: args.role,
-  });
-  if (
-    agentConfig.found &&
-    agentConfig.config.agentHarness &&
-    isNativeHarness(agentConfig.config.agentHarness)
-  ) {
     return;
   }
 
@@ -76,6 +76,21 @@ async function maybeStartPendingTaskFromTokenActivity(
   const topPending = pendingTasks.sort((a, b) => a.queuePosition - b.queuePosition)[0];
   if (!topPending) {
     return;
+  }
+
+  const agentConfig = await getAgentConfig(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
+  const isNative =
+    agentConfig.found &&
+    agentConfig.config.agentHarness &&
+    isNativeHarness(agentConfig.config.agentHarness);
+  if (isNative) {
+    const isResume = await isReleasedNativePendingResume(ctx, topPending);
+    if (!isResume) {
+      return;
+    }
   }
 
   await acknowledgePendingTask(ctx, {
