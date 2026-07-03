@@ -9,11 +9,26 @@
 import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { TaskStatus } from '../../../../convex/lib/taskStateMachine';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
+import { transitionAgentStatus } from '../agent/transition-agent-status';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
 const RELEASE_FROM_STATUSES: TaskStatus[] = ['acknowledged', 'in_progress'];
+
+const STALE_IN_FLIGHT_PARTICIPANT_STATUSES = new Set(['task.inProgress', 'task.acknowledged']);
+
+async function syncParticipantAfterTaskRelease(
+  ctx: MutationCtx,
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
+): Promise<void> {
+  const participant = await getParticipantForChatroomRole(ctx, args.chatroomId, args.role);
+  if (!participant?.lastStatus) return;
+  if (!STALE_IN_FLIGHT_PARTICIPANT_STATUSES.has(participant.lastStatus)) return;
+
+  await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.exited');
+}
 
 /**
  * Whether agent exit should release tasks back to pending for the exiting role.
@@ -48,6 +63,10 @@ export async function releaseTasksOnAgentExit(
     }
   }
 
+  if (released > 0) {
+    await syncParticipantAfterTaskRelease(ctx, args);
+  }
+
   return released;
 }
 
@@ -72,9 +91,7 @@ export async function reassignInFlightTasksOnTeamSwitch(
   for (const status of RELEASE_FROM_STATUSES) {
     const tasks = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', chatroomId).eq('status', status)
-      )
+      .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', status))
       .collect();
 
     for (const task of tasks) {
@@ -97,9 +114,7 @@ export async function reassignInFlightTasksOnTeamSwitch(
   // the entry point (or unassigned, which resolve to it dynamically) are skipped.
   const pendingTasks = await ctx.db
     .query('chatroom_tasks')
-    .withIndex('by_chatroom_status', (q) =>
-      q.eq('chatroomId', chatroomId).eq('status', 'pending')
-    )
+    .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', 'pending'))
     .collect();
 
   for (const task of pendingTasks) {
@@ -189,8 +204,7 @@ export async function releaseOrphanedTasksForRole(
     .first();
 
   const agentAlive =
-    config != null &&
-    (config.spawnedAgentPid != null || config.desiredState === 'running');
+    config != null && (config.spawnedAgentPid != null || config.desiredState === 'running');
 
   if (agentAlive) {
     return 0;

@@ -387,4 +387,14 @@ test('releaseOrphanedTasksForRole releases acknowledged task when PID cleared wi
   expect(pending).toBeDefined();
   expect(pending?.assignedTo).toBe('builder');
   expect(pending?.acknowledgedAt).toBeUndefined();
+
+  const participant = await t.run(async (ctx) => {
+    return await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      )
+      .unique();
+  });
+  expect(participant?.lastStatus).toBe('agent.exited');
 });

@@ -50,6 +50,66 @@ async function seedAcknowledgedBuilderTask(
   });
 }
 
+async function joinBuilderParticipant(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<void> {
+  await t.mutation(api.participants.join, {
+    sessionId,
+    chatroomId,
+    role: 'builder',
+  });
+}
+
+async function seedParticipantWithStatus(
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  lastStatus: string
+): Promise<void> {
+  await t.run(async (ctx) => {
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+      .unique();
+    if (participant) {
+      await ctx.db.patch(participant._id, { lastStatus });
+    }
+  });
+}
+
+async function getParticipantLastStatus(
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<string | undefined> {
+  return await t.run(async (ctx) => {
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+      .unique();
+    return participant?.lastStatus ?? undefined;
+  });
+}
+
+async function seedInProgressBuilderTask(
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<Id<'chatroom_tasks'>> {
+  const now = Date.now();
+  return await t.run(async (ctx) => {
+    return await ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content: 'in-progress builder task',
+      status: 'in_progress',
+      assignedTo: 'builder',
+      acknowledgedAt: now,
+      startedAt: now,
+      queuePosition: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
 describe('releaseTasksOnAgentExit', () => {
   test('retains assignedTo, sets pending, clears acknowledgedAt and startedAt', async () => {
     const { sessionId } = await createTestSession('release-exit-1');
@@ -86,6 +146,48 @@ describe('releaseTasksOnAgentExit', () => {
         taskId,
       })
     ).rejects.toThrow(/not claimable by role planner/i);
+  });
+
+  test('clears stale task.inProgress participant status after release', async () => {
+    const { sessionId } = await createTestSession('release-exit-stale-inprogress');
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
+    await joinBuilderParticipant(sessionId, chatroomId);
+    await seedInProgressBuilderTask(chatroomId);
+    await seedParticipantWithStatus(chatroomId, 'builder', 'task.inProgress');
+
+    await t.run(async (ctx) => {
+      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+    });
+
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('agent.exited');
+  });
+
+  test('clears stale task.acknowledged participant status after release', async () => {
+    const { sessionId } = await createTestSession('release-exit-stale-acknowledged');
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
+    await joinBuilderParticipant(sessionId, chatroomId);
+    await seedAcknowledgedBuilderTask(chatroomId);
+    await seedParticipantWithStatus(chatroomId, 'builder', 'task.acknowledged');
+
+    await t.run(async (ctx) => {
+      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+    });
+
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('agent.exited');
+  });
+
+  test('does not overwrite agent.exited participant status', async () => {
+    const { sessionId } = await createTestSession('release-exit-already-exited');
+    const chatroomId = await createBuilderEntryThreeRoleChatroom(sessionId);
+    await joinBuilderParticipant(sessionId, chatroomId);
+    await seedAcknowledgedBuilderTask(chatroomId);
+    await seedParticipantWithStatus(chatroomId, 'builder', 'agent.exited');
+
+    await t.run(async (ctx) => {
+      await releaseTasksOnAgentExit(ctx, { chatroomId, role: 'builder' });
+    });
+
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('agent.exited');
   });
 });
 
