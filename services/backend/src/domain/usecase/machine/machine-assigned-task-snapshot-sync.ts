@@ -73,6 +73,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     revisionKey: doc.revisionKey,
     sessionAugmentation: doc.sessionAugmentation,
     lastSeenAction: doc.lastSeenAction ?? null,
+    lastStatus: doc.lastStatus ?? null,
     spawnedAgentPid: doc.spawnedAgentPid,
     desiredState: doc.desiredState,
     machineId: doc.machineId,

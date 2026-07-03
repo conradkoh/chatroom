@@ -94,6 +94,7 @@ describe('assignedTaskSignalSchema', () => {
       'spawnedAgentPid',
       'desiredState',
       'lastSeenAction',
+      'lastStatus',
     ]);
     const schemaKeys = new Set(Object.keys(assignedTaskSignalBootstrapFields));
     for (const key of bootstrapKeys) {
@@ -101,5 +102,14 @@ describe('assignedTaskSignalSchema', () => {
     }
     // Exercise bootstrap path so drift surfaces in tests.
     applyAssignedTaskSignal(undefined, minimalSignal());
+  });
+
+  it('revisionKey participant fields are present on signal schema', () => {
+    // Keep in sync with buildAssignedTaskRevisionKey participant segments (not taskId/role/timestamps).
+    const revisionKeyParticipantFields = ['lastSeenAction', 'lastStatus'] as const;
+    const schemaKeys = new Set(Object.keys(assignedTaskSignalBootstrapFields));
+    for (const field of revisionKeyParticipantFields) {
+      expect(schemaKeys.has(field), `signal schema missing revisionKey field: ${field}`).toBe(true);
+    }
   });
 });

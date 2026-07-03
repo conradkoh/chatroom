@@ -51,6 +51,7 @@ export const assignedTaskSignalBootstrapFields = {
   workingDir: z.string().optional(),
   assignedTo: z.string().optional(),
   lastSeenAction: z.string().nullable().optional(),
+  lastStatus: z.string().nullable().optional(),
   spawnedAgentPid: z.number().optional(),
   desiredState: z.string().optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
