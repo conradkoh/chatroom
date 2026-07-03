@@ -38,6 +38,7 @@ import {
   importBundledPiSdk,
 } from './pi-sdk-package.js';
 import { PiSdkStreamAdapter } from './pi-sdk-stream-adapter.js';
+import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 
 type LoadedPiSdk = Awaited<ReturnType<typeof importBundledPiSdk>>;
 
@@ -331,6 +332,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     const outputCallbacks: (() => void)[] = [];
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
+    const assistantTextCallbacks: ((text: string) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
     };
@@ -353,6 +355,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       finishExit,
       outputCallbacks,
       agentEndCallbacks,
+      assistantTextCallbacks,
       emitLogLine,
     });
 
@@ -371,6 +374,9 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
       },
+      onAssistantText: (cb) => {
+        assistantTextCallbacks.push(cb);
+      },
     };
   }
 
@@ -383,6 +389,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
+    assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
   }): void {
     const {
@@ -394,6 +401,7 @@ export class PiSdkAgentService extends BaseCLIAgentService {
       entry,
       outputCallbacks,
       agentEndCallbacks,
+      assistantTextCallbacks,
       emitLogLine,
     } = args;
 
@@ -426,12 +434,12 @@ export class PiSdkAgentService extends BaseCLIAgentService {
             }
 
             const adapter = new PiSdkStreamAdapter(logPrefix, emitLogLine);
-            adapter.onOutput(() => {
-              entry.lastOutputAt = Date.now();
-              for (const cb of outputCallbacks) cb();
-            });
-            adapter.onAgentEnd(() => {
-              for (const cb of agentEndCallbacks) cb();
+            wireNativeStreamAdapter({
+              adapter,
+              assistantTextCallbacks,
+              outputCallbacks,
+              agentEndCallbacks,
+              entry,
             });
 
             const onSessionEvent = (event: AgentSessionEvent) => {

@@ -28,11 +28,7 @@ import {
   SessionService,
   validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
-import {
-  formatError,
-  formatAuthError,
-  formatChatroomIdError,
-} from '../../utils/error-formatting.js';
+import { formatAuthError, formatChatroomIdError } from '../../utils/error-formatting.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -44,7 +40,6 @@ export interface HandoffOptions {
   role: string;
   message: string;
   nextRole: string;
-  attachedArtifactIds?: string[];
 }
 
 // ─── Domain errors ─────────────────────────────────────────────────────────
@@ -52,8 +47,6 @@ export interface HandoffOptions {
 export type HandoffError =
   | { readonly _tag: 'NotAuthenticated'; readonly convexUrl: string; readonly otherUrls: string[] }
   | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
-  | { readonly _tag: 'ArtifactsInvalid' }
-  | { readonly _tag: 'ArtifactValidationFailed'; readonly cause: Error }
   | {
       readonly _tag: 'HandoffFailed';
       readonly cause: Error;
@@ -101,7 +94,7 @@ export const handoffEffect = (
   Effect.gen(function* () {
     const session = yield* SessionService;
     const backend = yield* BackendService;
-    const { role, message, nextRole, attachedArtifactIds = [] } = options;
+    const { role, message, nextRole } = options;
 
     const sessionId = yield* requireSessionIdEffect((a) => ({
       _tag: 'NotAuthenticated' as const,
@@ -114,23 +107,6 @@ export const handoffEffect = (
       id,
     }));
 
-    // Validate artifact IDs if provided
-    if (attachedArtifactIds.length > 0) {
-      const areValid = yield* backend
-        .query<boolean>(api.artifacts.validateArtifactIds, {
-          sessionId,
-          artifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
-        })
-        .pipe(
-          Effect.mapError((cause): HandoffError => ({ _tag: 'ArtifactValidationFailed', cause }))
-        );
-
-      if (!areValid) {
-        return yield* Effect.fail<HandoffError>({ _tag: 'ArtifactsInvalid' });
-      }
-    }
-
-    // Execute handoff mutation
     const result = yield* backend
       .mutation<{
         success: boolean;
@@ -147,13 +123,9 @@ export const handoffEffect = (
         senderRole: role,
         content: message,
         targetRole: nextRole,
-        ...(attachedArtifactIds.length > 0 && {
-          attachedArtifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
-        }),
       })
       .pipe(
         Effect.mapError((cause): HandoffError => {
-          // Extract Convex error data if available
           let errorData: { code?: string; message?: string } | undefined;
           if (cause instanceof ConvexError) {
             errorData = cause.data as { code?: string; message?: string };
@@ -162,7 +134,6 @@ export const handoffEffect = (
         })
       );
 
-    // Check for handoff restriction errors
     if (!result.success && result.error) {
       return yield* Effect.fail<HandoffError>({
         _tag: 'HandoffRejected',
@@ -170,7 +141,6 @@ export const handoffEffect = (
       });
     }
 
-    // Print success output
     const convexUrl = yield* session.getConvexUrl();
 
     yield* Effect.sync(() => {
@@ -183,13 +153,6 @@ export const handoffEffect = (
           supportsNativeIntegration: result.supportsNativeIntegration,
         })
       );
-
-      if (attachedArtifactIds.length > 0) {
-        console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);
-        attachedArtifactIds.forEach((id) => {
-          console.log(`   • ${id}`);
-        });
-      }
     });
   });
 
@@ -208,15 +171,6 @@ function handleHandoffError(err: HandoffError): Effect.Effect<void> {
       process.exit(1);
     } else if (err._tag === 'InvalidChatroomId') {
       formatChatroomIdError(err.id);
-      process.exit(1);
-    } else if (err._tag === 'ArtifactsInvalid') {
-      formatError('One or more artifacts not found', [
-        'Please create artifacts first:',
-        `chatroom artifact create <chatroom-id> --from-file=... --filename=...`,
-      ]);
-      process.exit(1);
-    } else if (err._tag === 'ArtifactValidationFailed') {
-      formatError('Failed to validate artifacts', [String(err.cause)]);
       process.exit(1);
     } else if (err._tag === 'HandoffFailed') {
       console.error(`\n❌ ERROR: Handoff failed`);
@@ -250,7 +204,6 @@ function handleHandoffError(err: HandoffError): Effect.Effect<void> {
     } else if (err._tag === 'HandoffRejected') {
       console.error(`\n❌ ERROR: ${err.error.message}`);
 
-      // For invalid target role, show available targets
       if (err.error.code === 'INVALID_TARGET_ROLE' && err.error.suggestedTargets) {
         console.error(`\n📋 Available handoff targets for this team:`);
         for (const target of err.error.suggestedTargets) {

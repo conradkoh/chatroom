@@ -18,5 +18,7 @@ describe('attachments-guide-content', () => {
     expect(ATTACHMENTS_GUIDE_CONTENT).toContain('renderDeliveryAttachmentsBlock');
     expect(ATTACHMENTS_GUIDE_CONTENT).toContain('AttachmentChipShell');
     expect(ATTACHMENTS_GUIDE_CONTENT).not.toContain('AttachedTaskDetailModal');
+    expect(ATTACHMENTS_GUIDE_CONTENT).not.toContain('chatroom skill activate attachments');
+    expect(ATTACHMENTS_GUIDE_CONTENT).not.toContain('--attach-artifact');
   });
 });

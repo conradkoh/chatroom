@@ -19,7 +19,6 @@
  */
 const SKILLS = {
   backlog: { customizationType: null },
-  attachments: { customizationType: null },
   'code-review': { customizationType: null },
 } as const satisfies Record<string, { customizationType: string | null }>;
 

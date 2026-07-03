@@ -14,6 +14,7 @@ import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroo
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
@@ -166,32 +167,11 @@ export const claimTask = mutation({
       }
     }
 
-    const now = Date.now();
-
-    // Transition: pending → acknowledged using FSM
-    await transitionTask(ctx, pendingTask._id, 'acknowledged', 'claimTask', {
-      assignedTo: args.role,
-    });
-
-    // Set acknowledgedAt on the source message (if not already set)
-    if (pendingTask.sourceMessageId) {
-      const sourceMessage = await ctx.db.get('chatroom_messages', pendingTask.sourceMessageId);
-      if (sourceMessage && !sourceMessage.acknowledgedAt) {
-        await ctx.db.patch('chatroom_messages', pendingTask.sourceMessageId, {
-          acknowledgedAt: now,
-        });
-      }
-    }
-
-    // Emit task.acknowledged event so UI can derive agent status from event stream
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'task.acknowledged',
+    await acknowledgePendingTask(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
-      taskId: pendingTask._id,
-      timestamp: now,
+      pendingTask,
     });
-    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
 
     return { taskId: pendingTask._id, content: pendingTask.content };
   },
