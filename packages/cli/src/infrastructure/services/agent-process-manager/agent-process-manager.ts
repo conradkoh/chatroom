@@ -20,7 +20,10 @@
  */
 
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import {
+  NATIVE_HANDOFF_REMINDER,
+  NATIVE_WAITING_ACTION,
+} from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
@@ -59,7 +62,6 @@ import {
 } from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
-import { shouldEmitNativeWaitingOnTurnEnd } from '../../../domain/native-integration/predicates.js';
 import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
@@ -320,6 +322,19 @@ export class AgentProcessManager {
     await service.resumeTurn(slot.pid, args.prompt);
   }
 
+  private async injectHarnessReminder(
+    chatroomId: string,
+    role: string,
+    prompt: string
+  ): Promise<void> {
+    const key = agentKey(chatroomId, role);
+    const slot = this.slots.get(key);
+    if (!slot?.pid || !slot.harness) return;
+    const service = this.deps.agentServices.get(slot.harness);
+    if (!service?.resumeTurn) return;
+    await service.resumeTurn(slot.pid, prompt);
+  }
+
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -518,14 +533,22 @@ export class AgentProcessManager {
       return;
     }
 
-    const emitted = await this.emitNativeWaiting(
-      opts.chatroomId,
-      opts.role,
-      opts.harness,
-      'turn-end'
-    );
-    if (emitted) {
-      console.log(`[AgentProcessManager] ✅ Native harness idle for ${opts.role} (native:waiting)`);
+    try {
+      const result = await this.deps.backend.mutation(api.participants.handleNativeAgentEnd, {
+        sessionId: this.deps.sessionId,
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+      });
+
+      if (result?.needsHandoffReminder) {
+        await this.injectHarnessReminder(opts.chatroomId, opts.role, NATIVE_HANDOFF_REMINDER);
+        console.log(`[AgentProcessManager] ⏩ Handoff reminder injected for ${opts.role}`);
+        return;
+      }
+
+      console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role}`);
+    } catch (err) {
+      console.log(`   ⚠️  Failed native agent_end for ${opts.role}: ${(err as Error).message}`);
     }
   }
 
@@ -1667,31 +1690,9 @@ export class AgentProcessManager {
   private async emitNativeWaiting(
     chatroomId: string,
     role: string,
-    harness: AgentHarness,
-    reason: 'spawn' | 'turn-end' = 'spawn'
+    harness: AgentHarness
   ): Promise<boolean> {
     if (!getHarnessCapabilities(harness).supportsNativeIntegration) return false;
-
-    if (reason === 'turn-end') {
-      try {
-        const participant = await this.deps.backend.query(api.participants.getByRole, {
-          sessionId: this.deps.sessionId,
-          chatroomId,
-          role,
-        });
-        if (!shouldEmitNativeWaitingOnTurnEnd(participant?.lastStatus)) {
-          console.log(
-            `[AgentProcessManager] Skipping native:waiting for ${role} — active work (${participant?.lastStatus})`
-          );
-          return false;
-        }
-      } catch (err) {
-        console.log(
-          `   ⚠️  Failed to check status before native:waiting for ${role}: ${(err as Error).message}`
-        );
-        return false;
-      }
-    }
 
     try {
       await this.deps.backend.mutation(api.participants.join, {

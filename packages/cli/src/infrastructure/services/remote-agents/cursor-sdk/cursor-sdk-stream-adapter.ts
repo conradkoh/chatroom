@@ -11,28 +11,10 @@ import {
   formatAgentLogLine,
   formatBashRunningPayload,
 } from '../agent-log-format.js';
+import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
 
-type AgentEndCallback = () => void;
-type OutputCallback = () => void;
-
-export class CursorSdkStreamAdapter {
-  private readonly agentEndCallbacks: AgentEndCallback[] = [];
-  private readonly outputCallbacks: OutputCallback[] = [];
-  private agentEndEmitted = false;
+export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
-
-  constructor(
-    private readonly logPrefix: string,
-    private readonly emitLogLine?: (line: string) => void
-  ) {}
-
-  onAgentEnd(cb: AgentEndCallback): void {
-    this.agentEndCallbacks.push(cb);
-  }
-
-  onOutput(cb: OutputCallback): void {
-    this.outputCallbacks.push(cb);
-  }
 
   // fallow-ignore-next-line complexity
   handleMessage(message: SDKMessage): void {
@@ -92,6 +74,7 @@ export class CursorSdkStreamAdapter {
     for (const block of message.message.content) {
       if (block.type === 'text') {
         this.textBuffer += block.text;
+        this.assistantTextCapture.captureAssistantText(block.text);
         if (this.textBuffer.includes('\n')) {
           this.flushText();
         }
@@ -115,12 +98,8 @@ export class CursorSdkStreamAdapter {
     for (const cb of this.agentEndCallbacks) cb();
   }
 
-  private writeLine(formatted: string): void {
+  protected override writeLine(formatted: string): void {
     process.stdout.write(`${formatted}\n`);
     this.emitLogLine?.(formatted);
-  }
-
-  private notifyOutput(): void {
-    for (const cb of this.outputCallbacks) cb();
   }
 }

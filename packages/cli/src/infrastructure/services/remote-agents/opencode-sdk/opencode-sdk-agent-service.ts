@@ -94,6 +94,8 @@ function buildDisabledToolsPromptBody(args: {
 export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   /** Per-pid agent_end callbacks — preserved across in-turn session fallback. */
   private readonly agentEndCallbacksByPid = new Map<number, (() => void)[]>();
+  /** Per-pid assistant text callbacks — preserved across in-turn session fallback. */
+  private readonly assistantTextCallbacksByPid = new Map<number, ((text: string) => void)[]>();
   readonly id = 'opencode-sdk';
   readonly displayName = 'OpenCode (SDK)';
   protected readonly listModelsHarnessId = 'opencode-sdk';
@@ -236,6 +238,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     model: string | undefined;
     workingDir: string;
     logLineCallbacks: ((line: string) => void)[];
+    assistantTextCallbacks?: ((text: string) => void)[];
     deferredSystemPrompt?: string;
     outputCallbacks?: (() => void)[];
   }): SpawnResult {
@@ -270,6 +273,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
 
     const entry = this.registerProcess(pid, context);
     if (forwarder) this.forwarders.set(pid, forwarder);
+    if (args.assistantTextCallbacks) {
+      this.assistantTextCallbacksByPid.set(pid, args.assistantTextCallbacks);
+    }
 
     const outputCallbacks = args.outputCallbacks ?? [];
     this.wireChildOutput(childProcess, pid, entry, emitLogLine, outputCallbacks);
@@ -290,6 +296,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
           }
           this.sessionStore.remove(sessionId);
           this.agentEndCallbacksByPid.delete(pid);
+          this.assistantTextCallbacksByPid.delete(pid);
           this.deleteProcess(pid);
           cb({ code, signal, context });
         });
@@ -306,6 +313,12 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
       },
+      onAssistantText: (cb) => {
+        const callbacks =
+          this.assistantTextCallbacksByPid.get(pid) ?? args.assistantTextCallbacks ?? [];
+        callbacks.push(cb);
+        this.assistantTextCallbacksByPid.set(pid, callbacks);
+      },
     };
   }
 
@@ -318,6 +331,19 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       logLineCallbacks,
       emitLogLine: (line: string) => {
         for (const cb of logLineCallbacks) cb(line);
+      },
+    };
+  }
+
+  private createAssistantTextEmitter(): {
+    assistantTextCallbacks: ((text: string) => void)[];
+    emitAssistantText: (text: string) => void;
+  } {
+    const assistantTextCallbacks: ((text: string) => void)[] = [];
+    return {
+      assistantTextCallbacks,
+      emitAssistantText: (text: string) => {
+        for (const cb of assistantTextCallbacks) cb(text);
       },
     };
   }
@@ -419,6 +445,10 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     const forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
       sessionId: newSessionId,
       role: args.context.role,
+      onAssistantText: (text) => {
+        const callbacks = this.assistantTextCallbacksByPid.get(args.pid) ?? [];
+        for (const cb of callbacks) cb(text);
+      },
     });
 
     const callbacks = this.agentEndCallbacksByPid.get(args.pid) ?? [];
@@ -470,6 +500,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
 
     let forwarder: SessionEventForwarderHandle | undefined;
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
+    const { assistantTextCallbacks, emitAssistantText } = this.createAssistantTextEmitter();
     const outputCallbacks: (() => void)[] = [];
     try {
       const sessionInfo = await withTimeout(
@@ -487,6 +518,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         sessionId,
         role: context.role,
         onLogLine: emitLogLine,
+        onAssistantText: emitAssistantText,
         onActivity: () => {
           for (const cb of outputCallbacks) cb();
         },
@@ -524,6 +556,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       model: modelForSession,
       workingDir,
       logLineCallbacks,
+      assistantTextCallbacks,
       outputCallbacks,
     });
   }
@@ -542,6 +575,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     let agentName: string | undefined;
     let deferredSystemPrompt: string | undefined;
     const { logLineCallbacks, emitLogLine } = this.createLogLineEmitter();
+    const { assistantTextCallbacks, emitAssistantText } = this.createAssistantTextEmitter();
     const outputCallbacks: (() => void)[] = [];
     try {
       const sessionCreateResult = await withTimeout(
@@ -560,6 +594,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         sessionId,
         role: context.role,
         onLogLine: emitLogLine,
+        onAssistantText: emitAssistantText,
         onActivity: () => {
           for (const cb of outputCallbacks) cb();
         },
@@ -614,6 +649,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       model,
       workingDir: options.workingDir,
       logLineCallbacks,
+      assistantTextCallbacks,
       deferredSystemPrompt,
       outputCallbacks,
     });

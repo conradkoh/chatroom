@@ -33,6 +33,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
+import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
   formatCursorSdkLoadError,
@@ -408,6 +409,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const outputCallbacks: (() => void)[] = [];
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
+    const assistantTextCallbacks: ((text: string) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
     };
@@ -433,6 +435,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       finishExit,
       outputCallbacks,
       agentEndCallbacks,
+      assistantTextCallbacks,
       emitLogLine,
     });
 
@@ -455,6 +458,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       onLogLine: (cb) => {
         logLineCallbacks.push(cb);
       },
+      onAssistantText: (cb) => {
+        assistantTextCallbacks.push(cb);
+      },
     };
   }
 
@@ -471,6 +477,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     finishExit: (code: number | null, signal: string | null) => void;
     outputCallbacks: (() => void)[];
     agentEndCallbacks: (() => void)[];
+    assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
   }): void {
     const {
@@ -484,6 +491,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       entry,
       outputCallbacks,
       agentEndCallbacks,
+      assistantTextCallbacks,
       emitLogLine,
     } = args;
 
@@ -531,12 +539,12 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             isFirstTurn = false;
 
             const adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
-            adapter.onOutput(() => {
-              entry.lastOutputAt = Date.now();
-              for (const cb of outputCallbacks) cb();
-            });
-            adapter.onAgentEnd(() => {
-              for (const cb of agentEndCallbacks) cb();
+            wireNativeStreamAdapter({
+              adapter,
+              assistantTextCallbacks,
+              outputCallbacks,
+              agentEndCallbacks,
+              entry,
             });
 
             try {

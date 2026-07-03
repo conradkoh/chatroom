@@ -89,6 +89,8 @@ export interface SpawnResult {
    * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
    */
   onAgentEnd?: (cb: () => void) => void;
+  /** Raw assistant text deltas for missed-handoff delivery on native turn-end. */
+  onAssistantText?: (cb: (text: string) => void) => void;
   /** Harness session ID for daemon-memory reconnect metadata. Undefined if not applicable. */
   harnessSessionId?: string;
   /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */

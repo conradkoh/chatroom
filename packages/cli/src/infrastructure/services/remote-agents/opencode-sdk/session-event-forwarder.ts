@@ -14,6 +14,8 @@ export interface SessionEventForwarderOptions {
   now?: () => string;
   /** Human-readable log lines for resume-storm reason classification. */
   onLogLine?: (line: string) => void;
+  /** Raw assistant text deltas for missed-handoff delivery. */
+  onAssistantText?: (text: string) => void;
   /** Fires on agent token/tool activity (drives task.in_progress via updateTokenActivity). */
   onActivity?: () => void;
 }
@@ -193,7 +195,10 @@ export function startSessionEventForwarder(
     part: { text?: string }
   ): Promise<void> {
     const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) logLine(target, 'text', chunk);
+    if (chunk) {
+      options.onAssistantText?.(chunk);
+      logLine(target, 'text', chunk);
+    }
   }
 
   async function handleReasoningPartUpdate(
