@@ -1,9 +1,13 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import { NATIVE_WAITING_ACTION } from '../../entities/participant';
+import { getTeamEntryPoint } from '../../entities/team';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
+import { promoteNextTask } from '../task/promote-next-task';
+import { transitionTask } from '../task/transition-task';
 
 export type HandleNativeAgentEndResult = {
   needsHandoffReminder: boolean;
@@ -36,6 +40,22 @@ async function patchParticipantNativeWaiting(
   });
 }
 
+async function completeActiveTaskForRole(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<boolean> {
+  const activeTask = await findActiveAssignedTaskForRole(ctx, { chatroomId, role });
+  if (
+    !activeTask ||
+    (activeTask.status !== 'acknowledged' && activeTask.status !== 'in_progress')
+  ) {
+    return false;
+  }
+  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask');
+  return true;
+}
+
 /**
  * Idempotent server-side handler for native harness agent_end.
  * When active work remains, signals the CLI to inject a handoff reminder.
@@ -59,6 +79,7 @@ export async function handleNativeAgentEnd(
     activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress';
 
   if (hasActiveTask) {
+    await completeActiveTaskForRole(ctx, args.chatroomId, role);
     return { needsHandoffReminder: true, transitionedToWaiting: false };
   }
 
@@ -68,6 +89,12 @@ export async function handleNativeAgentEnd(
   }
   if (participant) {
     await patchParticipantNativeWaiting(ctx, participant, now);
+  }
+
+  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  const entryPoint = getTeamEntryPoint(chatroom ?? {})?.toLowerCase();
+  if (entryPoint === role) {
+    await promoteNextTask(args.chatroomId, makePromoteNextTaskDeps(ctx));
   }
 
   return { needsHandoffReminder: false, transitionedToWaiting };

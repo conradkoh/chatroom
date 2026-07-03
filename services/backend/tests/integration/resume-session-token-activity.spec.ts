@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
@@ -105,6 +106,22 @@ describe('Resume session token activity', () => {
     const { sessionId } = await createTestSession('test-resume-pending-waiting');
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'planner');
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'planner'),
+        chatroomId,
+        role: 'planner',
+        type: 'remote',
+        machineId: 'machine-cli-planner',
+        agentHarness: 'claude',
+        model: 'claude-sonnet-4-6',
+        workingDir: '/tmp/test',
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
 
     const { taskId } = await t.mutation(api.tasks.createTask, {
       sessionId,

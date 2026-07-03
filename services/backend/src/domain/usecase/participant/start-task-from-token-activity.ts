@@ -1,9 +1,11 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { isNativeHarness } from '../../entities/harness/types';
 import {
   GET_NEXT_TASK_STOPPED_ACTION,
   NATIVE_TASK_INJECTED_ACTION,
 } from '../../entities/participant';
+import { getAgentConfig } from '../agent/get-agent-config';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { findAcknowledgedTaskForRole } from '../task/find-acknowledged-task-for-role';
 import { readTask } from '../task/read-task';
@@ -49,6 +51,18 @@ async function maybeStartPendingTaskFromTokenActivity(
   participant: ParticipantSnapshot
 ): Promise<void> {
   if (participant.lastStatus !== 'agent.waiting') {
+    return;
+  }
+
+  const agentConfig = await getAgentConfig(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
+  if (
+    agentConfig.found &&
+    agentConfig.config.agentHarness &&
+    isNativeHarness(agentConfig.config.agentHarness)
+  ) {
     return;
   }
 

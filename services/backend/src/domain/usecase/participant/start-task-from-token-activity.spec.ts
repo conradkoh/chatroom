@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { startTaskFromTokenActivity } from './start-task-from-token-activity';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import {
   GET_NEXT_TASK_STOPPED_ACTION,
@@ -259,6 +260,45 @@ describe('startTaskFromTokenActivity — pending path', () => {
       );
     });
 
+    expect(await getParticipantStatus(chatroomId, 'builder')).not.toBe('task.inProgress');
+  });
+
+  test('does not claim pending task for native-integration harness on token activity', async () => {
+    const { sessionId } = await createTestSession('stta-pending-native-skip');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'builder'),
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        machineId: 'machine-native-skip',
+        agentHarness: 'pi-sdk',
+        model: 'anthropic/claude-sonnet-4',
+        workingDir: '/tmp/test',
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const taskId = await seedPendingTask(chatroomId, {
+      assignedTo: 'builder',
+      queuePosition: 0,
+      content: 'native pending task',
+    });
+
+    await t.run(async (ctx) => {
+      await startTaskFromTokenActivity(
+        ctx,
+        { chatroomId, role: 'builder' },
+        { lastStatus: 'agent.waiting' }
+      );
+    });
+
+    expect(await getTaskStatus(taskId)).toBe('pending');
     expect(await getParticipantStatus(chatroomId, 'builder')).not.toBe('task.inProgress');
   });
 });
