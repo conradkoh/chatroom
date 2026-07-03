@@ -1967,6 +1967,28 @@ export default defineSchema({
     .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
   /**
+   * Pending file write requests.
+   * Frontend creates requests; daemon fulfills by writing to disk.
+   */
+  chatroom_workspaceFileWriteRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    operation: v.union(v.literal('create'), v.literal('update')),
+    /** gzip base64 content, same shape as file content V2 */
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    status: v.union(v.literal('pending'), v.literal('done'), v.literal('error')),
+    errorMessage: v.optional(v.string()),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
    * On-demand file tree scan requests.
    * Frontend requests a fresh tree scan; daemon fulfills by scanning and calling syncFileTree.
    */

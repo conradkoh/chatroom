@@ -11,6 +11,10 @@ import type { FunctionReturnType } from 'convex/server';
 import { Effect, Ref, Runtime, type Context } from 'effect';
 
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
+import {
+  startFileTreeSubscriptionEffect,
+  type FileTreeSubscriptionHandle,
+} from './file-tree-subscription.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
@@ -35,9 +39,9 @@ import {
   type FileContentSubscriptionHandle,
 } from './file-content-subscription.js';
 import {
-  startFileTreeSubscriptionEffect,
-  type FileTreeSubscriptionHandle,
-} from './file-tree-subscription.js';
+  startFileWriteSubscriptionEffect,
+  type FileWriteSubscriptionHandle,
+} from './file-write-subscription.js';
 import { pushGitStateEffect, pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
@@ -371,6 +375,7 @@ export const startCommandLoopEffect: Effect.Effect<
   // ── Subscription handles ──────────────────────────────────────────────
   let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
   let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
+  let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
@@ -454,6 +459,7 @@ export const startCommandLoopEffect: Effect.Effect<
   const stopSubscriptions = (): void => {
     gitSubscriptionHandle?.stop();
     fileContentSubscriptionHandle?.stop();
+    fileWriteSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     observedSyncSubscriptionHandle?.stop();
@@ -506,6 +512,7 @@ export const startCommandLoopEffect: Effect.Effect<
 
   gitSubscriptionHandle = yield* startGitRequestSubscriptionEffect(wsClient);
   fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
+  fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
   fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
 

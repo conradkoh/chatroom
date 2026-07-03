@@ -10,8 +10,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
-import { requireAccess } from '../modules/auth/accessCheck';
 import { getSession } from './auth/session';
+import { requireAccess } from '../modules/auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -196,7 +196,7 @@ export const requestFileContent = mutation({
 
     if (existingRequest) {
       // Re-use existing request row
-      await ctx.db.patch("chatroom_workspaceFileContentRequests", existingRequest._id, {
+      await ctx.db.patch('chatroom_workspaceFileContentRequests', existingRequest._id, {
         status: 'pending',
         requestedAt: now,
         updatedAt: now,
@@ -377,7 +377,7 @@ export const requestFileTree = mutation({
     const now = Date.now();
 
     if (existingRequest) {
-      await ctx.db.patch("chatroom_workspaceFileTreeRequests", existingRequest._id, {
+      await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
         status: 'pending',
         requestedAt: now,
         updatedAt: now,
@@ -461,7 +461,7 @@ export const fulfillFileTreeRequest = mutation({
       .first();
 
     if (request) {
-      await ctx.db.patch("chatroom_workspaceFileTreeRequests", request._id, {
+      await ctx.db.patch('chatroom_workspaceFileTreeRequests', request._id, {
         status: 'done',
         updatedAt: Date.now(),
       });
@@ -497,7 +497,7 @@ export const purgeFileTree = mutation({
       )
       .first();
     if (tree) {
-      await ctx.db.delete("chatroom_workspaceFileTree", tree._id);
+      await ctx.db.delete('chatroom_workspaceFileTree', tree._id);
     }
 
     // Delete pending requests
@@ -508,7 +508,7 @@ export const purgeFileTree = mutation({
       )
       .collect();
     for (const req of requests) {
-      await ctx.db.delete("chatroom_workspaceFileTreeRequests", req._id);
+      await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
     }
 
     // Delete file content cache
@@ -519,7 +519,7 @@ export const purgeFileTree = mutation({
       )
       .collect();
     for (const content of contents) {
-      await ctx.db.delete("chatroom_workspaceFileContent", content._id);
+      await ctx.db.delete('chatroom_workspaceFileContent', content._id);
     }
 
     // Delete file content requests (uses different index)
@@ -529,7 +529,7 @@ export const purgeFileTree = mutation({
       .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
     for (const req of contentRequests) {
-      await ctx.db.delete("chatroom_workspaceFileContentRequests", req._id);
+      await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
     }
   },
 });
@@ -597,7 +597,7 @@ export const syncFileTreeV2 = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch("chatroom_workspaceFileTreeV2", existing._id, row);
+      await ctx.db.patch('chatroom_workspaceFileTreeV2', existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceFileTreeV2', row);
     }
@@ -707,7 +707,7 @@ export const fulfillFileContentV2 = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch("chatroom_workspaceFileContentV2", existing._id, row);
+      await ctx.db.patch('chatroom_workspaceFileContentV2', existing._id, row);
     } else {
       await ctx.db.insert('chatroom_workspaceFileContentV2', row);
     }
@@ -724,7 +724,7 @@ export const fulfillFileContentV2 = mutation({
       .first();
 
     if (request) {
-      await ctx.db.patch("chatroom_workspaceFileContentRequests", request._id, {
+      await ctx.db.patch('chatroom_workspaceFileContentRequests', request._id, {
         status: 'done' as const,
         updatedAt: now,
       });
@@ -780,6 +780,200 @@ export const getFileContentV2 = query({
   },
 });
 
+// ─── File Write Request (frontend → daemon) ─────────────────────────────────
+// fallow-ignore-next-line code-duplication
+
+/**
+ * Requests a file create or update on the daemon's local filesystem.
+ * Returns an existing pending request for the same path, or creates a new one.
+ */
+export const requestFileWrite = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    operation: v.union(v.literal('create'), v.literal('update')),
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    validateFilePath(args.filePath);
+
+    if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
+      throw new Error('File content too large');
+    }
+
+    const existingRequest = await ctx.db
+      .query('chatroom_workspaceFileWriteRequests')
+      .withIndex('by_machine_workingDir_path', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('filePath', args.filePath)
+      )
+      .first();
+
+    if (existingRequest && existingRequest.status === 'pending') {
+      return { status: 'pending' as const, requestId: existingRequest._id };
+    }
+
+    const now = Date.now();
+
+    if (existingRequest) {
+      await ctx.db.patch('chatroom_workspaceFileWriteRequests', existingRequest._id, {
+        operation: args.operation,
+        data: args.data,
+        status: 'pending',
+        errorMessage: undefined,
+        requestedAt: now,
+        updatedAt: now,
+      });
+      return { status: 'requested' as const, requestId: existingRequest._id };
+    }
+
+    const requestId = await ctx.db.insert('chatroom_workspaceFileWriteRequests', {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      filePath: args.filePath,
+      operation: args.operation,
+      data: args.data,
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    });
+
+    return { status: 'requested' as const, requestId };
+  },
+});
+
+/**
+ * Returns the status of a file write request for polling.
+ */
+export const getFileWriteRequest = query({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_workspaceFileWriteRequests'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return null;
+    }
+
+    const request = await ctx.db.get('chatroom_workspaceFileWriteRequests', args.requestId);
+    if (!request) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, request.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    return {
+      status: request.status,
+      errorMessage: request.errorMessage,
+    };
+  },
+});
+
+/**
+ * Returns pending file write requests for a machine.
+ * Daemon subscribes to this reactively.
+ */
+export const getPendingFileWriteRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return [];
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileWriteRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      filePath: r.filePath,
+      operation: r.operation,
+      data: r.data,
+    }));
+  },
+});
+
+/**
+ * Marks a file write request as done or error.
+ * On success, purges cached file content so the next read fetches fresh data.
+ */
+export const completeFileWriteRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_workspaceFileWriteRequests'),
+    status: v.union(v.literal('done'), v.literal('error')),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    const request = await ctx.db.get('chatroom_workspaceFileWriteRequests', args.requestId);
+    if (!request) {
+      throw new Error('Write request not found');
+    }
+
+    await requireMachineAccess(ctx, request.machineId, auth.userId);
+
+    const now = Date.now();
+    await ctx.db.patch('chatroom_workspaceFileWriteRequests', args.requestId, {
+      status: args.status,
+      errorMessage: args.errorMessage,
+      updatedAt: now,
+    });
+
+    if (args.status === 'done') {
+      const cached = await ctx.db
+        .query('chatroom_workspaceFileContentV2')
+        .withIndex('by_machine_workingDir_path', (q: any) =>
+          q
+            .eq('machineId', request.machineId)
+            .eq('workingDir', request.workingDir)
+            .eq('filePath', request.filePath)
+        )
+        .first();
+
+      if (cached) {
+        await ctx.db.delete('chatroom_workspaceFileContentV2', cached._id);
+      }
+    }
+  },
+});
+
 // ─── Purge V2 Functions ─────────────────────────────────────────────────────
 
 /**
@@ -805,7 +999,7 @@ export const purgeFileTreeV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (treeV2) await ctx.db.delete("chatroom_workspaceFileTreeV2", treeV2._id);
+    if (treeV2) await ctx.db.delete('chatroom_workspaceFileTreeV2', treeV2._id);
 
     // Delete v1 file tree
     const treeV1 = await ctx.db
@@ -814,7 +1008,7 @@ export const purgeFileTreeV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
-    if (treeV1) await ctx.db.delete("chatroom_workspaceFileTree", treeV1._id);
+    if (treeV1) await ctx.db.delete('chatroom_workspaceFileTree', treeV1._id);
 
     // Delete pending requests
     const requests = await ctx.db
@@ -823,7 +1017,7 @@ export const purgeFileTreeV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
-    for (const req of requests) await ctx.db.delete("chatroom_workspaceFileTreeRequests", req._id);
+    for (const req of requests) await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
   },
 });
 
@@ -850,7 +1044,7 @@ export const purgeFileContentV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
-    for (const c of contentsV2) await ctx.db.delete("chatroom_workspaceFileContentV2", c._id);
+    for (const c of contentsV2) await ctx.db.delete('chatroom_workspaceFileContentV2', c._id);
 
     // Delete v1 file content
     const contentsV1 = await ctx.db
@@ -859,7 +1053,7 @@ export const purgeFileContentV2 = mutation({
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
-    for (const c of contentsV1) await ctx.db.delete("chatroom_workspaceFileContent", c._id);
+    for (const c of contentsV1) await ctx.db.delete('chatroom_workspaceFileContent', c._id);
 
     // Delete file content requests
     const requests = await ctx.db
@@ -867,6 +1061,7 @@ export const purgeFileContentV2 = mutation({
       .withIndex('by_machine_status', (q: any) => q.eq('machineId', args.machineId))
       .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
-    for (const req of requests) await ctx.db.delete("chatroom_workspaceFileContentRequests", req._id);
+    for (const req of requests)
+      await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
   },
 });
