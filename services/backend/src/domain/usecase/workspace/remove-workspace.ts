@@ -30,13 +30,13 @@ export async function removeWorkspace(
   ctx: MutationCtx,
   input: RemoveWorkspaceInput
 ): Promise<void> {
-  const workspace = await ctx.db.get("chatroom_workspaces", input.workspaceId);
+  const workspace = await ctx.db.get('chatroom_workspaces', input.workspaceId);
   if (!workspace) {
     throw new Error(`Workspace not found: ${input.workspaceId}`);
   }
 
   // Soft-delete the workspace
-  await ctx.db.patch("chatroom_workspaces", input.workspaceId, {
+  await ctx.db.patch('chatroom_workspaces', input.workspaceId, {
     removedAt: Date.now(),
   });
 
@@ -96,7 +96,7 @@ async function purgeTeamAgentConfigsForMachine(
     .collect();
 
   for (const config of configs) {
-    await ctx.db.delete("chatroom_teamAgentConfigs", config._id);
+    await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
   }
 }
 
@@ -116,6 +116,7 @@ async function purgeTeamAgentConfigsForMachine(
  * @param machineId - The machine ID
  * @param workingDir - The working directory being removed
  */
+// fallow-ignore-next-line complexity
 async function purgeWorkspaceScopedData(
   ctx: MutationCtx,
   machineId: string,
@@ -129,7 +130,7 @@ async function purgeWorkspaceScopedData(
     )
     .collect();
   for (const state of gitStates) {
-    await ctx.db.delete("chatroom_workspaceGitState", state._id);
+    await ctx.db.delete('chatroom_workspaceGitState', state._id);
   }
 
   // Purge chatroom_workspaceFileTree
@@ -140,7 +141,7 @@ async function purgeWorkspaceScopedData(
     )
     .collect();
   for (const tree of fileTrees) {
-    await ctx.db.delete("chatroom_workspaceFileTree", tree._id);
+    await ctx.db.delete('chatroom_workspaceFileTree', tree._id);
   }
 
   // Purge chatroom_workspaceFileContent
@@ -151,6 +152,46 @@ async function purgeWorkspaceScopedData(
     )
     .collect();
   for (const content of fileContents) {
-    await ctx.db.delete("chatroom_workspaceFileContent", content._id);
+    await ctx.db.delete('chatroom_workspaceFileContent', content._id);
+  }
+
+  const dirListings = await ctx.db
+    .query('chatroom_workspaceDirListingV2')
+    .withIndex('by_machine_workingDir_dirPath', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const row of dirListings) {
+    await ctx.db.delete('chatroom_workspaceDirListingV2', row._id);
+  }
+
+  const dirListingRequests = await ctx.db
+    .query('chatroom_workspaceDirListingRequests')
+    .withIndex('by_machine_workingDir_dirPath', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const row of dirListingRequests) {
+    await ctx.db.delete('chatroom_workspaceDirListingRequests', row._id);
+  }
+
+  const fileSearches = await ctx.db
+    .query('chatroom_workspaceFileSearchV2')
+    .withIndex('by_machine_workingDir_query', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const row of fileSearches) {
+    await ctx.db.delete('chatroom_workspaceFileSearchV2', row._id);
+  }
+
+  const fileSearchRequests = await ctx.db
+    .query('chatroom_workspaceFileSearchRequests')
+    .withIndex('by_machine_workingDir_query', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const row of fileSearchRequests) {
+    await ctx.db.delete('chatroom_workspaceFileSearchRequests', row._id);
   }
 }

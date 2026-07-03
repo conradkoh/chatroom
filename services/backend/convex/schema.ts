@@ -2220,6 +2220,66 @@ export default defineSchema({
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
+  /** V2 per-directory listing cache — one row per (machine, workingDir, dirPath). */
+  chatroom_workspaceDirListingV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Relative directory path; empty string = workspace root. */
+    dirPath: v.string(),
+    data: v.union(
+      v.string(),
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    truncated: v.boolean(),
+    totalCount: v.number(),
+  }).index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
+
+  /** Pending directory listing requests (frontend → daemon). */
+  chatroom_workspaceDirListingRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    dirPath: v.string(),
+    status: v.union(v.literal('pending'), v.literal('done')),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
+
+  /** Cached file search results per (machine, workingDir, query). */
+  chatroom_workspaceFileSearchV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+    data: v.union(
+      v.string(),
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    truncated: v.boolean(),
+    totalCount: v.number(),
+  }).index('by_machine_workingDir_query', ['machineId', 'workingDir', 'query']),
+
+  chatroom_workspaceFileSearchRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+    status: v.union(v.literal('pending'), v.literal('done')),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_query', ['machineId', 'workingDir', 'query']),
+
   /**
    * V2 workspace full diff - compressed only.
    * `data` is a discriminated union object containing compression format and content.
