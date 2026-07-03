@@ -6,7 +6,6 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
-import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
@@ -18,7 +17,6 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
-import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -30,7 +28,7 @@ import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
 } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
-import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
+import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 
 async function getParticipantByChatroomRole(
   ctx: QueryCtx | MutationCtx,
@@ -152,19 +150,12 @@ export const join = mutation({
       });
     }
 
-    // Auto-promote queued tasks when the entry point (primary) role joins
-    // AND all other agents are ready (waiting, not active)
-    // This ensures resilience - if a worker reconnects after being stuck, queued items get promoted
-    const entryPoint = getTeamEntryPoint(chatroom);
+    // Auto-promote queued tasks when the entry point role joins.
+    // maybePromoteNextQueuedTask skips non-entry-point roles internally.
     const normalizedRole = args.role.toLowerCase();
-    const normalizedEntryPoint = entryPoint?.toLowerCase();
-
-    if (normalizedRole === normalizedEntryPoint) {
-      // Attempt queue promotion — promoteNextTask internally checks that
-      // no active tasks (pending/acknowledged/in_progress) exist before
-      // promoting, so no pre-check is needed here.
-      await promoteNextTask(args.chatroomId, makePromoteNextTaskDeps(ctx));
-    }
+    await maybePromoteNextQueuedTask(ctx, args.chatroomId, {
+      entryPointRole: normalizedRole,
+    });
 
     // Reset circuit breaker when agent successfully registers (proves it's healthy)
     let teamConfig = null;

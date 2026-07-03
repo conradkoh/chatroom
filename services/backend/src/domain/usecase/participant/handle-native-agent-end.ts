@@ -1,12 +1,10 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import { NATIVE_WAITING_ACTION } from '../../entities/participant';
-import { getTeamEntryPoint } from '../../entities/team';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
-import { promoteNextTask } from '../task/promote-next-task';
+import { maybePromoteNextQueuedTask } from '../task/maybe-promote-next-queued-task';
 import { transitionTask } from '../task/transition-task';
 
 export type HandleNativeAgentEndResult = {
@@ -91,11 +89,7 @@ export async function handleNativeAgentEnd(
     await patchParticipantNativeWaiting(ctx, participant, now);
   }
 
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  const entryPoint = getTeamEntryPoint(chatroom ?? {})?.toLowerCase();
-  if (entryPoint === role) {
-    await promoteNextTask(args.chatroomId, makePromoteNextTaskDeps(ctx));
-  }
+  await maybePromoteNextQueuedTask(ctx, args.chatroomId, { entryPointRole: role });
 
   return { needsHandoffReminder: false, transitionedToWaiting };
 }
