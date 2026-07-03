@@ -13,6 +13,7 @@ import {
   type ExplorerTreeNode,
 } from './explorerTreeFilter';
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
+import { isPathPendingDelete } from '../hooks/pendingOptimisticDeletePaths';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
@@ -34,6 +35,8 @@ interface TreeNode {
   children: TreeNode[];
 }
 
+export type ExplorerDeleteTarget = { path: string; type: 'file' | 'directory' };
+
 interface WorkspaceFileExplorerProps {
   chatroomId?: string;
   machineId: string;
@@ -48,8 +51,8 @@ interface WorkspaceFileExplorerProps {
   filterQuery?: string;
   /** Right-click folder → New File: parent dir path (empty string = workspace root) */
   onNewFileInDir?: (dirPath: string) => void;
-  /** Right-click file → Delete */
-  onDeleteFile?: (filePath: string) => void;
+  /** Right-click file or folder → Delete */
+  onDeleteFile?: (target: ExplorerDeleteTarget) => void;
 }
 
 // ─── Tree Building ────────────────────────────────────────────────────────────
@@ -130,7 +133,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
   onNewFileInDir?: (dirPath: string) => void;
-  onDeleteFile?: (filePath: string) => void;
+  onDeleteFile?: (target: ExplorerDeleteTarget) => void;
   nodeRefs: Map<string, HTMLElement>;
 }) {
   const isExpanded = expandedPaths.has(node.path);
@@ -217,9 +220,9 @@ const TreeNodeItem = memo(function TreeNodeItem({
               New File
             </ContextMenuItem>
           )}
-          {!isDirectory && onDeleteFile && (
+          {onDeleteFile && node.path !== '' && (
             <ContextMenuItem
-              onSelect={() => onDeleteFile(node.path)}
+              onSelect={() => onDeleteFile({ path: node.path, type: node.type })}
               className="text-chatroom-status-error focus:text-chatroom-status-error"
             >
               <Trash2 size={12} className="mr-2" />
@@ -310,7 +313,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     if (!treeJson) return [];
     try {
       const parsed: FileTree = JSON.parse(treeJson);
-      return buildTree(parsed.entries ?? []);
+      const entries = (parsed.entries ?? []).filter((entry) => !isPathPendingDelete(entry.path));
+      return buildTree(entries);
     } catch {
       return [];
     }

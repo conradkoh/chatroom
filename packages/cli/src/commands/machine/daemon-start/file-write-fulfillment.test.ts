@@ -2,7 +2,7 @@
  * File Write Fulfillment — unit tests
  */
 
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -167,6 +167,46 @@ describe('fulfillFileWriteRequestsEffect', () => {
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('delete removes a non-empty directory recursively', async () => {
+    const dirPath = 'docs';
+    await mkdir(join(workingDir, dirPath), { recursive: true });
+    await writeFile(join(workingDir, dirPath, 'readme.md'), '# hi');
+
+    const backend = await runFulfillment([
+      {
+        _id: 'req-del-dir',
+        workingDir,
+        filePath: dirPath,
+        operation: 'delete',
+      },
+    ]);
+
+    await expect(access(join(workingDir, dirPath))).rejects.toThrow();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('delete rejects empty path (workspace root)', async () => {
+    const backend = await runFulfillment([
+      {
+        _id: 'req-del-root',
+        workingDir,
+        filePath: '',
+        operation: 'delete',
+      },
+    ]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Cannot delete workspace root',
+      })
     );
   });
 

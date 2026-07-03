@@ -1,13 +1,15 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 import { NewFileDialog } from './NewFileDialog';
-import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
@@ -36,6 +38,24 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
+
+async function confirmDeleteInBackground(
+  path: string,
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  confirmDelete: (requestId: Id<'chatroom_workspaceFileWriteRequests'>) => Promise<void>,
+  explorerFileOps: ReturnType<typeof useExplorerNewFileOps>,
+  onRefresh: () => void
+): Promise<void> {
+  try {
+    await confirmDelete(requestId);
+    explorerFileOps.onFileDeleteConfirmed(path);
+    window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'File delete failed';
+    explorerFileOps.onFileDeleteFailed(path, message);
+    onRefresh();
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,9 +168,9 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   const [filterQuery, setFilterQuery] = useState('');
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
-  const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
   const requestTree = useSessionMutation(api.workspaceFiles.requestFileTree);
-  const { deleteFile, deleting: deletingFile } = useWorkspaceFileDelete({
+  const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
   });
@@ -180,19 +200,23 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
 
   // fallow-ignore-next-line complexity
   const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTargetPath) return;
+    if (!deleteTarget) return;
+    const path = deleteTarget.path;
+    setDeleteTarget(null);
+
     try {
-      await deleteFile(deleteTargetPath);
-      window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
-      explorerFileOps.onFileDeleted(deleteTargetPath);
-      onFileDeleted?.(deleteTargetPath);
-      handleRefresh();
-    } catch {
-      // Error surfaced via delete hook state if needed
-    } finally {
-      setDeleteTargetPath(null);
+      const { requestId } = await requestDelete(path);
+      explorerFileOps.onFileDeleteSubmitted(path);
+      onFileDeleted?.(path);
+      setRefreshKey((k) => k + 1);
+      void confirmDeleteInBackground(path, requestId, confirmDelete, explorerFileOps, () =>
+        setRefreshKey((k) => k + 1)
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'File delete failed';
+      toast.error(message);
     }
-  }, [deleteTargetPath, deleteFile, explorerFileOps, handleRefresh, onFileDeleted]);
+  }, [confirmDelete, deleteTarget, explorerFileOps, onFileDeleted, requestDelete]);
 
   // Request file tree on initial mount (or when workspace changes)
   useEffect(() => {
@@ -251,31 +275,44 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
       />
 
       <AlertDialog
-        open={deleteTargetPath !== null}
+        open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTargetPath(null);
+          if (!open) setDeleteTarget(null);
         }}
       >
-        <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border text-chatroom-text-primary">
+        <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete file?</AlertDialogTitle>
-            <AlertDialogDescription className="text-chatroom-text-muted">
-              This will permanently delete{' '}
-              <span className="font-mono text-chatroom-text-primary">{deleteTargetPath}</span> from
-              the workspace.
+            <AlertDialogTitle className="text-chatroom-text-primary">
+              {deleteTarget?.type === 'directory' ? 'Delete folder?' : 'Delete file?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-chatroom-text-secondary">
+              {deleteTarget?.type === 'directory' ? (
+                <>
+                  This will permanently delete the folder{' '}
+                  <span className="font-mono text-chatroom-text-primary">{deleteTarget.path}</span>{' '}
+                  and all of its contents from the workspace.
+                </>
+              ) : (
+                <>
+                  This will permanently delete{' '}
+                  <span className="font-mono text-chatroom-text-primary">{deleteTarget?.path}</span>{' '}
+                  from the workspace.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingFile}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+            <AlertDialogCancel className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
                 void handleConfirmDelete();
               }}
-              disabled={deletingFile}
-              className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90"
+              className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
             >
-              {deletingFile ? 'Deleting…' : 'Delete'}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -311,7 +348,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
               selectedPath={effectiveSelectedPath}
               filterQuery={filterQuery}
               onNewFileInDir={(dir) => openNewFileDialog(dir)}
-              onDeleteFile={(path) => setDeleteTargetPath(path)}
+              onDeleteFile={(target) => setDeleteTarget(target)}
             />
           </div>
         </ContextMenuTrigger>

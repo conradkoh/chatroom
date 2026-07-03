@@ -87,10 +87,10 @@ export function NewFileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-chatroom-bg-primary border-chatroom-border text-chatroom-text-primary sm:max-w-md">
+      <DialogContent className="rounded-none border-2 border-chatroom-border-strong bg-chatroom-bg-primary text-chatroom-text-primary sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New File</DialogTitle>
-          <DialogDescription className="text-chatroom-text-muted">
+          <DialogTitle className="text-chatroom-text-primary">New File</DialogTitle>
+          <DialogDescription className="text-chatroom-text-secondary">
             Enter a relative path. Press{' '}
             <kbd className="rounded border border-chatroom-border px-1">⌘S</kbd> to save. Files
             without an extension default to <code>.md</code>.
@@ -128,11 +128,20 @@ export function NewFileDialog({
           )}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="border-t border-chatroom-border pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
+          >
             Cancel
           </Button>
-          <Button type="button" onClick={handleCreate}>
+          <Button
+            type="button"
+            onClick={handleCreate}
+            className="bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-accent/90 border-0"
+          >
             Save
           </Button>
         </DialogFooter>

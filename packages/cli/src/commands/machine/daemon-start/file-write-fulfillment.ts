@@ -6,7 +6,7 @@
 // fallow-ignore-file code-duplication
 
 import { createHash } from 'node:crypto';
-import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
@@ -37,6 +37,7 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'File content too large',
     'File already exists',
     'File does not exist',
+    'Cannot delete workspace root',
   ]);
   return terminalMessages.has(errorMessage);
 }
@@ -159,6 +160,14 @@ async function fulfillOneFileWriteRequest(
 
   try {
     if (operation === 'delete') {
+      if (filePath === '') {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Cannot delete workspace root',
+        });
+        return;
+      }
+
       const operationCheck = await validateWriteOperation(operation, resolved.absolutePath);
       if (!operationCheck.ok) {
         await completeWriteRequest(session, request._id, {
@@ -168,7 +177,7 @@ async function fulfillOneFileWriteRequest(
         return;
       }
 
-      await unlink(resolved.absolutePath);
+      await rm(resolved.absolutePath, { recursive: true, force: false });
       await syncFileTreeAfterWrite(session, workingDir);
       await completeWriteRequest(session, request._id, { status: 'done' });
 

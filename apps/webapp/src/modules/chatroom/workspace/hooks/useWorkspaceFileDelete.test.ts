@@ -36,13 +36,13 @@ describe('useWorkspaceFileDelete', () => {
     mockWaitForFileWriteRequest.mockResolvedValue(undefined);
   });
 
-  it('calls requestFileWrite with delete operation and polls to done', async () => {
+  it('requestDelete calls requestFileWrite without polling', async () => {
     const { result } = renderHook(() =>
       useWorkspaceFileDelete({ machineId: 'machine-1', workingDir: '/workspace' })
     );
 
     await act(async () => {
-      await result.current.deleteFile('docs/readme.md');
+      await result.current.requestDelete('docs/readme.md');
     });
 
     expect(mockRequestFileWrite).toHaveBeenCalledWith({
@@ -51,6 +51,18 @@ describe('useWorkspaceFileDelete', () => {
       filePath: 'docs/readme.md',
       operation: 'delete',
     });
+    expect(mockWaitForFileWriteRequest).not.toHaveBeenCalled();
+  });
+
+  it('confirmDelete polls until done', async () => {
+    const { result } = renderHook(() =>
+      useWorkspaceFileDelete({ machineId: 'machine-1', workingDir: '/workspace' })
+    );
+
+    await act(async () => {
+      await result.current.confirmDelete('req-delete-1' as never);
+    });
+
     expect(mockWaitForFileWriteRequest).toHaveBeenCalledOnce();
   });
 });

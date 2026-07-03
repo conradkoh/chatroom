@@ -3,6 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+import { pendingOptimisticDeletePaths } from '../hooks/pendingOptimisticDeletePaths';
 
 const mockTreeJson = JSON.stringify({
   entries: [
@@ -74,5 +75,28 @@ describe('WorkspaceFileExplorer', () => {
     );
 
     expect(screen.getByTitle('src/index.ts')).toBeInTheDocument();
+  });
+
+  it('hides optimistically deleted paths from the tree', () => {
+    pendingOptimisticDeletePaths.add('src/index.ts');
+    try {
+      render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
+      expect(screen.queryByTitle('src/index.ts')).not.toBeInTheDocument();
+      expect(screen.getByTitle('package.json')).toBeInTheDocument();
+    } finally {
+      pendingOptimisticDeletePaths.delete('src/index.ts');
+    }
+  });
+
+  it('hides optimistically deleted folder paths and descendants from the tree', () => {
+    pendingOptimisticDeletePaths.add('src');
+    try {
+      render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
+      expect(screen.queryByTitle('src/index.ts')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('src/utils/helpers.ts')).not.toBeInTheDocument();
+      expect(screen.getByTitle('package.json')).toBeInTheDocument();
+    } finally {
+      pendingOptimisticDeletePaths.delete('src');
+    }
   });
 });
