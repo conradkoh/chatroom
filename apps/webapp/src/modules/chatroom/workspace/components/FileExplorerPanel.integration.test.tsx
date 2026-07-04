@@ -1,0 +1,218 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { FileExplorerPanel } from './FileExplorerPanel';
+import type { UseFileTabsReturn } from '../hooks/useFileTabs';
+
+const mocks = vi.hoisted(() => {
+  const STABLE_EMPTY: never[] = [];
+  const rootEntries = [
+    { name: 'src', path: 'src', type: 'directory' as const },
+    { name: 'package.json', path: 'package.json', type: 'file' as const },
+  ];
+
+  const rootRefresh = vi.fn();
+  const childRefresh = vi.fn();
+  const searchRefresh = vi.fn();
+  const skipRefresh = vi.fn();
+
+  const rootListing = {
+    get entries() {
+      return rootEntries;
+    },
+    isLoading: false,
+    refresh: rootRefresh,
+    scannedAt: 1,
+    truncated: false,
+  };
+
+  const skipListing = {
+    entries: STABLE_EMPTY,
+    isLoading: false,
+    refresh: skipRefresh,
+    scannedAt: null,
+    truncated: false,
+  };
+
+  const searchListing = {
+    entries: STABLE_EMPTY,
+    isLoading: false,
+    refresh: searchRefresh,
+  };
+
+  return {
+    STABLE_EMPTY,
+    rootEntries,
+    rootRefresh,
+    childRefresh,
+    searchRefresh,
+    rootListing,
+    skipListing,
+    searchListing,
+    childStates: new Map<string, { entries: typeof rootEntries; isLoading: boolean }>(),
+  };
+});
+
+const mockCreateFile = vi.hoisted(() => vi.fn());
+const mockRequestDelete = vi.hoisted(() => vi.fn());
+const mockConfirmDelete = vi.hoisted(() => vi.fn());
+
+vi.mock('@/modules/chatroom/workspace/files/useDirListing', () => ({
+  useDirListing: (args: { dirPath: string } | 'skip') => {
+    if (args === 'skip') return mocks.skipListing;
+
+    if (args.dirPath === '') return mocks.rootListing;
+
+    const childState = mocks.childStates.get(args.dirPath) ?? {
+      entries: mocks.STABLE_EMPTY,
+      isLoading: true,
+    };
+
+    return {
+      entries: childState.entries,
+      isLoading: childState.isLoading,
+      refresh: mocks.childRefresh,
+      scannedAt: null,
+      truncated: false,
+    };
+  },
+}));
+
+vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
+  useFileSearch: () => mocks.searchListing,
+}));
+
+vi.mock('../hooks/useWorkspaceFileCreate', () => ({
+  useWorkspaceFileCreate: () => ({
+    createFile: mockCreateFile,
+    creating: false,
+  }),
+}));
+
+vi.mock('../hooks/useWorkspaceFileDelete', () => ({
+  useWorkspaceFileDelete: () => ({
+    requestDelete: mockRequestDelete,
+    confirmDelete: mockConfirmDelete,
+  }),
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}));
+
+const fileTabs = {
+  tabs: [],
+  activeTabPath: null,
+  expandedTabPath: null,
+  openPreview: vi.fn(),
+  pinTab: vi.fn(),
+  closeTab: vi.fn(),
+  setActiveTab: vi.fn(),
+  toggleExpanded: vi.fn(),
+  rightTabs: [],
+  activeRightTabKey: null,
+  openRight: vi.fn(),
+  closeRight: vi.fn(),
+  setActiveRightTab: vi.fn(),
+} satisfies UseFileTabsReturn;
+
+const defaultProps = {
+  machineId: 'machine-1',
+  workingDir: '/workspace',
+  fileTabs,
+  activeTabPath: null,
+  explorerSyncEnabled: false,
+  onToggleSync: vi.fn(),
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.clearAllMocks();
+
+  mocks.rootEntries.length = 0;
+  mocks.rootEntries.push(
+    { name: 'src', path: 'src', type: 'directory' as const },
+    { name: 'package.json', path: 'package.json', type: 'file' as const }
+  );
+  mocks.childStates.clear();
+
+  mockCreateFile.mockResolvedValue(undefined);
+  mockRequestDelete.mockResolvedValue({ requestId: 'req-delete-1' });
+  mockConfirmDelete.mockResolvedValue(undefined);
+});
+
+describe('FileExplorerPanel create/delete integration', () => {
+  it('refreshes the explorer after a new file is created', async () => {
+    const onFileCreated = vi.fn();
+
+    render(<FileExplorerPanel {...defaultProps} onFileCreated={onFileCreated} />);
+
+    expect(screen.getByTitle('package.json')).toBeInTheDocument();
+    expect(mocks.rootRefresh).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByLabelText('New file'));
+
+    const input = await screen.findByPlaceholderText('docs/notes.md');
+    fireEvent.change(input, { target: { value: 'notes.md' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onFileCreated).toHaveBeenCalledWith('notes.md');
+    expect(mockCreateFile).toHaveBeenCalledWith('notes.md', '');
+
+    await waitFor(() => {
+      expect(mocks.rootRefresh).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.getByTitle('package.json')).toBeInTheDocument();
+  });
+
+  it('refreshes the explorer after confirming file deletion from the context menu', async () => {
+    const onFileDeleted = vi.fn();
+
+    render(<FileExplorerPanel {...defaultProps} onFileDeleted={onFileDeleted} />);
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+
+    const deleteMenuItem = await screen.findByRole('menuitem', { name: /delete/i });
+    fireEvent.click(deleteMenuItem);
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/delete file\?/i)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(mockRequestDelete).toHaveBeenCalledWith('package.json');
+      expect(onFileDeleted).toHaveBeenCalledWith('package.json');
+      expect(mocks.rootRefresh).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(mockConfirmDelete).toHaveBeenCalledWith('req-delete-1');
+    });
+
+    expect(screen.getByTitle('package.json')).toBeInTheDocument();
+  });
+
+  it('does not enter a refresh loop after create completes', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByLabelText('New file'));
+    const input = await screen.findByPlaceholderText('docs/notes.md');
+    fireEvent.change(input, { target: { value: 'docs/new-note.md' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockCreateFile).toHaveBeenCalledWith('docs/new-note.md', '');
+      expect(mocks.rootRefresh).toHaveBeenCalled();
+    });
+
+    const callsAfterSettle = mocks.rootRefresh.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mocks.rootRefresh.mock.calls.length).toBe(callsAfterSettle);
+    expect(screen.getByTitle('package.json')).toBeInTheDocument();
+  });
+});

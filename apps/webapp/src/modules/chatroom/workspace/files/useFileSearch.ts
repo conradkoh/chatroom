@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { isFileSearchQueryActive } from './explorer-tree';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 
+const EMPTY_FILE_SEARCH_ENTRIES: { path: string; type: 'file' }[] = [];
+
 // fallow-ignore-next-line complexity
 export function useFileSearch(
   args: { machineId: string; workingDir: string; query: string; enabled?: boolean } | 'skip'
@@ -32,21 +34,21 @@ export function useFileSearch(
 
   // fallow-ignore-next-line complexity
   const { entries, isParsed } = useMemo(() => {
-    if (!searchEnabled) return { entries: [], isParsed: true };
-    if (raw === undefined) return { entries: [], isParsed: false };
-    if (raw === null) return { entries: [], isParsed: true };
+    if (!searchEnabled) return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: true };
+    if (raw === undefined) return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: false };
+    if (raw === null) return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: true };
     if (raw !== undefined && raw !== null && json === null) {
-      return { entries: [], isParsed: false };
+      return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: false };
     }
-    if (json === undefined) return { entries: [], isParsed: false };
-    if (json === null) return { entries: [], isParsed: true };
+    if (json === undefined) return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: false };
+    if (json === null) return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: true };
     try {
       const result = JSON.parse(json) as {
         entries?: { path: string; type: 'file' }[];
       };
-      return { entries: result.entries ?? [], isParsed: true };
+      return { entries: result.entries ?? EMPTY_FILE_SEARCH_ENTRIES, isParsed: true };
     } catch {
-      return { entries: [], isParsed: true };
+      return { entries: EMPTY_FILE_SEARCH_ENTRIES, isParsed: true };
     }
   }, [json, searchEnabled, raw]);
 
@@ -60,9 +62,12 @@ export function useFileSearch(
     requestMutation({ machineId, workingDir, query: trimmedQuery, force: true }).catch(() => {});
   }, [searchEnabled, machineId, workingDir, trimmedQuery, requestMutation]);
 
-  return {
-    entries: searchEnabled ? entries : [],
-    isLoading: searchEnabled && !isParsed,
-    refresh,
-  };
+  return useMemo(
+    () => ({
+      entries: searchEnabled ? entries : EMPTY_FILE_SEARCH_ENTRIES,
+      isLoading: searchEnabled && !isParsed,
+      refresh,
+    }),
+    [searchEnabled, entries, isParsed, refresh]
+  );
 }

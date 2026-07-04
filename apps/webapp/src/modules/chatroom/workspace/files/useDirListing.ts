@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 
+const EMPTY_DIR_ENTRIES: DirListingEntry[] = [];
+
 export interface UseDirListingArgs {
   machineId: string;
   workingDir: string;
@@ -45,7 +47,7 @@ export function useDirListing(args: UseDirListingArgs | 'skip'): {
         truncated?: boolean;
       };
       return {
-        entries: listing.entries ?? [],
+        entries: listing.entries ?? EMPTY_DIR_ENTRIES,
         scannedAt: raw.scannedAt,
         truncated: listing.truncated ?? raw.truncated,
       };
@@ -64,21 +66,18 @@ export function useDirListing(args: UseDirListingArgs | 'skip'): {
     requestMutation({ machineId, workingDir, dirPath, force: true }).catch(() => {});
   }, [isActive, machineId, workingDir, dirPath, requestMutation]);
 
-  if (!isActive) {
-    return {
-      entries: [],
-      scannedAt: null,
-      truncated: false,
-      isLoading: false,
-      refresh,
-    };
-  }
+  const entries = isActive ? (parsed?.entries ?? EMPTY_DIR_ENTRIES) : EMPTY_DIR_ENTRIES;
+  const isLoading = isActive && parsed === undefined;
 
-  return {
-    entries: parsed?.entries ?? [],
-    scannedAt: parsed?.scannedAt ?? null,
-    truncated: parsed?.truncated ?? false,
-    isLoading: parsed === undefined,
-    refresh,
-  };
+  return useMemo(
+    // fallow-ignore-next-line complexity
+    () => ({
+      entries,
+      scannedAt: parsed?.scannedAt ?? null,
+      truncated: parsed?.truncated ?? false,
+      isLoading,
+      refresh,
+    }),
+    [entries, parsed?.scannedAt, parsed?.truncated, isLoading, refresh]
+  );
 }

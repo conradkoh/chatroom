@@ -40,15 +40,15 @@ export function DirListingWatcher({
   refreshToken: number;
   onUpdate: (dirPath: string, entries: DirListingEntry[], isLoading: boolean) => void;
 }) {
-  const listing = useDirListing({ machineId, workingDir, dirPath });
+  const { entries, isLoading, refresh } = useDirListing({ machineId, workingDir, dirPath });
 
   useEffect(() => {
-    if (refreshToken > 0) listing.refresh();
-  }, [refreshToken, listing.refresh]);
+    if (refreshToken > 0) refresh();
+  }, [refreshToken, refresh]);
 
   useEffect(() => {
-    onUpdate(dirPath, listing.entries, listing.isLoading);
-  }, [dirPath, listing.entries, listing.isLoading, onUpdate]);
+    onUpdate(dirPath, entries, isLoading);
+  }, [dirPath, entries, isLoading, onUpdate]);
 
   return null;
 }
@@ -71,10 +71,16 @@ export function useWorkspaceDirExplorer({
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = isExplorerSearchMode(trimmedSearch);
 
-  const rootListing = useDirListing(
-    enabled && !isSearchMode ? { machineId, workingDir, dirPath: '' } : 'skip'
-  );
-  const fileSearch = useFileSearch(
+  const {
+    entries: rootEntries,
+    isLoading: rootIsLoading,
+    refresh: refreshRootListing,
+  } = useDirListing(enabled && !isSearchMode ? { machineId, workingDir, dirPath: '' } : 'skip');
+  const {
+    entries: searchEntries,
+    isLoading: searchIsLoading,
+    refresh: refreshFileSearch,
+  } = useFileSearch(
     enabled && isSearchMode ? { machineId, workingDir, query: trimmedSearch } : 'skip'
   );
 
@@ -87,7 +93,7 @@ export function useWorkspaceDirExplorer({
     (dirPath: string, entries: DirListingEntry[], isLoading: boolean) => {
       setChildMap((prev) => {
         const existing = prev.get(dirPath);
-        if (!isLoading && dirEntriesEqual(existing, entries)) return prev;
+        if (dirEntriesEqual(existing, entries)) return prev;
         const next = new Map(prev);
         next.set(dirPath, entries);
         return next;
@@ -106,14 +112,19 @@ export function useWorkspaceDirExplorer({
 
   const loadChildren = useCallback((dirPath: string) => {
     setRequestedDirs((prev) => (prev.includes(dirPath) ? prev : [...prev, dirPath]));
-    setLoadingDirs((prev) => new Set(prev).add(dirPath));
+    setLoadingDirs((prev) => {
+      if (prev.has(dirPath)) return prev;
+      const next = new Set(prev);
+      next.add(dirPath);
+      return next;
+    });
   }, []);
 
   const refresh = useCallback(() => {
-    rootListing.refresh();
-    fileSearch.refresh();
+    refreshRootListing();
+    refreshFileSearch();
     setRefreshToken((t) => t + 1);
-  }, [rootListing, fileSearch]);
+  }, [refreshRootListing, refreshFileSearch]);
 
   useEffect(() => {
     if (refreshSignal > 0) refresh();
@@ -131,9 +142,9 @@ export function useWorkspaceDirExplorer({
   );
 
   const rootNodes = useMemo(() => {
-    if (isSearchMode) return searchEntriesToNodes(fileSearch.entries);
-    return attachChildren(sortExplorerNodes(dirEntriesToNodes(rootListing.entries)));
-  }, [isSearchMode, fileSearch.entries, rootListing.entries, attachChildren]);
+    if (isSearchMode) return searchEntriesToNodes(searchEntries);
+    return attachChildren(sortExplorerNodes(dirEntriesToNodes(rootEntries)));
+  }, [isSearchMode, searchEntries, rootEntries, attachChildren]);
 
   return {
     rootNodes,
@@ -141,7 +152,7 @@ export function useWorkspaceDirExplorer({
     loadingDirs,
     requestedDirs,
     loadChildren,
-    isLoading: isSearchMode ? fileSearch.isLoading : rootListing.isLoading,
+    isLoading: isSearchMode ? searchIsLoading : rootIsLoading,
     refresh,
     isSearchMode,
     refreshToken,
