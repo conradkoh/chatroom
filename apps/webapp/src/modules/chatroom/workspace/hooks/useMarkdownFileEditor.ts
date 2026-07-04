@@ -6,6 +6,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useRequestWorkspaceFileContent } from './useRequestWorkspaceFileContent';
 import { useWorkspaceFileSave } from './useWorkspaceFileSave';
+import {
+  isPendingOptimisticNewFile,
+  isTransientNewFileReadError,
+} from '../utils/fileContentSentinels';
 
 interface UseMarkdownFileEditorArgs {
   machineId: string;
@@ -15,6 +19,7 @@ interface UseMarkdownFileEditorArgs {
   initialEmpty?: boolean;
 }
 
+// fallow-ignore-next-line complexity
 export function useMarkdownFileEditor({
   machineId,
   workingDir,
@@ -60,12 +65,21 @@ export function useMarkdownFileEditor({
     }
   }, [filePath]);
 
+  // fallow-ignore-next-line complexity
   useEffect(() => {
-    if (loadedContent === undefined || loadedContent === null) return;
+    if (loadedContent === undefined) return;
+    if (loadedContent === null) {
+      if (!isDirty && (initialEmpty || isPendingOptimisticNewFile(filePath))) {
+        contentRef.current = '';
+        setContentState('');
+      }
+      return;
+    }
     if (isDirty) return;
+    if (isTransientNewFileReadError(loadedContent.content, filePath)) return;
     contentRef.current = loadedContent.content;
     setContentState(loadedContent.content);
-  }, [loadedContent, isDirty]);
+  }, [filePath, initialEmpty, isDirty, loadedContent]);
 
   const save = useCallback(async () => {
     if (saveInFlightRef.current) return;
@@ -83,7 +97,13 @@ export function useMarkdownFileEditor({
     }
   }, [filePath, machineId, requestFileContent, saveToDisk, workingDir]);
 
-  const isLoading = !initialEmpty && (loadedContent === undefined || loadedContent === null);
+  const isPendingCreate = isPendingOptimisticNewFile(filePath);
+  const isLoading =
+    !initialEmpty &&
+    !isPendingCreate &&
+    (loadedContent === undefined ||
+      loadedContent === null ||
+      isTransientNewFileReadError(loadedContent?.content, filePath));
 
   return {
     content,

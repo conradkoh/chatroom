@@ -7,6 +7,11 @@ import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
 import { useExplorerSelectionKeyboard } from '../hooks/useExplorerSelectionKeyboard';
 import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
+import {
+  FILE_READ_ERROR_PLACEHOLDER,
+  isPendingOptimisticNewFile,
+  isTransientNewFileReadError,
+} from '../utils/fileContentSentinels';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
@@ -62,6 +67,7 @@ export const FileContentViewer = memo(function FileContentViewer({
 
 // ─── Inner Component (handles data fetching) ─────────────────────────────────
 
+// fallow-ignore-next-line complexity
 const FileContentInner = memo(function FileContentInner({
   machineId,
   workingDir,
@@ -74,6 +80,22 @@ const FileContentInner = memo(function FileContentInner({
 
   useExplorerSelectionKeyboard(contentContainerRef, filePath, onSendSelectionToComposer);
   const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
+  const isPendingCreate = isPendingOptimisticNewFile(filePath);
+
+  if (isPendingCreate) {
+    if (
+      content === undefined ||
+      content === null ||
+      isTransientNewFileReadError(content?.content, filePath)
+    ) {
+      return (
+        <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+          <ChatroomLoader size="sm" />
+          {content === undefined ? 'Loading…' : 'Creating file…'}
+        </div>
+      );
+    }
+  }
 
   // Loading state
   if (content === undefined) {
@@ -93,6 +115,17 @@ const FileContentInner = memo(function FileContentInner({
         Waiting for file content…
       </div>
     );
+  }
+
+  if (content.content === FILE_READ_ERROR_PLACEHOLDER) {
+    if (isPendingOptimisticNewFile(filePath)) {
+      return (
+        <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
+          <ChatroomLoader size="sm" />
+          Creating file…
+        </div>
+      );
+    }
   }
 
   const isMd = isMarkdownFile(filePath);

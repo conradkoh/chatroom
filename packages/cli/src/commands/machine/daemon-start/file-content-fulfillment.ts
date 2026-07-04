@@ -19,6 +19,28 @@ import { isPathContentReadable } from '../../../infrastructure/services/workspac
 /** Max file content size (500KB). */
 const MAX_CONTENT_BYTES = 500 * 1024;
 
+function getErrorCause(error: unknown): unknown {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'cause' in error &&
+    (error as { cause?: unknown }).cause !== undefined
+  ) {
+    return (error as { cause: unknown }).cause;
+  }
+  return error;
+}
+
+function isENOENT(error: unknown): boolean {
+  const cause = getErrorCause(error);
+  return (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'code' in cause &&
+    (cause as NodeJS.ErrnoException).code === 'ENOENT'
+  );
+}
+
 /** Known binary file extensions. */
 const BINARY_EXTENSIONS = new Set([
   '.png',
@@ -95,6 +117,7 @@ function fulfillGzippedContentEffect(
 }
 
 /** Effect twin for fulfillFileContentRequests — yields DaemonSessionService. */
+// fallow-ignore-next-line complexity
 export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, DaemonSessionService> =
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
@@ -155,20 +178,44 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
         continue;
       }
 
-      const { content, truncated } = yield* Effect.catchAll(
+      const readOutcome = yield* Effect.catchAll(
         Effect.tryPromise(() => readFile(absolutePath)).pipe(
           Effect.map((buffer) => {
             if (buffer.length > MAX_CONTENT_BYTES) {
               return {
+                kind: 'ok' as const,
                 content: buffer.subarray(0, MAX_CONTENT_BYTES).toString('utf8'),
                 truncated: true,
               };
             }
-            return { content: buffer.toString('utf8'), truncated: false };
+            return {
+              kind: 'ok' as const,
+              content: buffer.toString('utf8'),
+              truncated: false,
+            };
           })
         ),
-        () => Effect.succeed({ content: '[Error reading file]', truncated: false })
+        (error) =>
+          isENOENT(error)
+            ? Effect.succeed({ kind: 'missing' as const })
+            : Effect.succeed({
+                kind: 'error' as const,
+                content: '[Error reading file]',
+                truncated: false,
+              })
       );
+
+      if (readOutcome.kind === 'missing') {
+        console.log(
+          `[${formatTimestamp()}] ⏳ File not on disk yet, deferring content sync: ${filePath}`
+        );
+        continue;
+      }
+
+      const { content, truncated } =
+        readOutcome.kind === 'ok'
+          ? readOutcome
+          : { content: readOutcome.content, truncated: readOutcome.truncated };
 
       const compressed = gzipSync(Buffer.from(content));
       const contentCompressed = compressed.toString('base64');
