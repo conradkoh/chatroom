@@ -35,8 +35,10 @@ export function useDirListing(args: UseDirListingArgs | 'skip'): {
 
   // fallow-ignore-next-line complexity
   const parsed = useMemo(() => {
+    if (raw === undefined) return undefined;
+    if (raw === null) return null;
     if (json === undefined) return undefined;
-    if (json === null || raw === null || raw === undefined) return null;
+    if (json === null) return null;
     try {
       const listing = JSON.parse(json) as {
         entries?: DirListingEntry[];

@@ -60,4 +60,27 @@ describe('useDecompressedQueryJson', () => {
       expect(result.current).toBeNull();
     });
   });
+
+  it('does not restart decompression when Convex returns a new row object with same payload', async () => {
+    const rowA = { data: { compression: 'gzip' as const, content: 'abc' } };
+    const rowB = { data: { compression: 'gzip' as const, content: 'abc' } };
+
+    const { result, rerender } = renderHook(({ row }) => useDecompressedQueryJson(row, true), {
+      initialProps: { row: rowA },
+    });
+
+    await waitFor(() => {
+      expect(result.current).toBe('decompressed:abc');
+    });
+
+    const callsBeforeRerender = vi.mocked(decompressGzip).mock.calls.length;
+
+    rerender({ row: rowB });
+
+    await waitFor(() => {
+      expect(result.current).toBe('decompressed:abc');
+    });
+
+    expect(decompressGzip).toHaveBeenCalledTimes(callsBeforeRerender);
+  });
 });

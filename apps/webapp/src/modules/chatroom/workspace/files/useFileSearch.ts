@@ -33,6 +33,11 @@ export function useFileSearch(
   // fallow-ignore-next-line complexity
   const { entries, isParsed } = useMemo(() => {
     if (!searchEnabled) return { entries: [], isParsed: true };
+    if (raw === undefined) return { entries: [], isParsed: false };
+    if (raw === null) return { entries: [], isParsed: true };
+    if (raw !== undefined && raw !== null && json === null) {
+      return { entries: [], isParsed: false };
+    }
     if (json === undefined) return { entries: [], isParsed: false };
     if (json === null) return { entries: [], isParsed: true };
     try {
@@ -43,7 +48,7 @@ export function useFileSearch(
     } catch {
       return { entries: [], isParsed: true };
     }
-  }, [json, searchEnabled]);
+  }, [json, searchEnabled, raw]);
 
   useEffect(() => {
     if (!searchEnabled) return;
