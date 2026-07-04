@@ -186,9 +186,12 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
   }, [explorerSyncEnabled, activeTabPath]);
   const effectiveRevealPath = revealPath ?? effectiveSelectedPath;
 
-  const handleRefresh = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+  const bumpExplorerRemount = useCallback(() => {
     setRefreshKey((k) => k + 1);
+  }, []);
+
+  const requestFileExplorerRefresh = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
   }, []);
 
   // fallow-ignore-next-line complexity
@@ -202,21 +205,33 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
       explorerFileOps.onFileDeleteSubmitted(path);
       onFileDeleted?.(path);
       setRefreshKey((k) => k + 1);
-      void confirmDeleteInBackground(path, requestId, confirmDelete, explorerFileOps, () =>
-        setRefreshKey((k) => k + 1)
+      void confirmDeleteInBackground(
+        path,
+        requestId,
+        confirmDelete,
+        explorerFileOps,
+        requestFileExplorerRefresh
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'File delete failed';
       toast.error(message);
     }
-  }, [confirmDelete, deleteTarget, explorerFileOps, onFileDeleted, requestDelete]);
+  }, [
+    confirmDelete,
+    deleteTarget,
+    explorerFileOps,
+    onFileDeleted,
+    requestDelete,
+    requestFileExplorerRefresh,
+  ]);
 
-  // Listen for external refresh requests (e.g. from command palette "Open File Explorer")
+  // Listen for external refresh requests (e.g. new file, delete confirm, command palette).
+  // Only bump remount key — do NOT re-dispatch the event (would recurse infinitely).
   useEffect(() => {
-    const handler = () => handleRefresh();
+    const handler = () => bumpExplorerRemount();
     window.addEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
     return () => window.removeEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
-  }, [handleRefresh]);
+  }, [bumpExplorerRemount]);
 
   if (!machineId || !workingDir) {
     return (
@@ -234,7 +249,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
       <ExplorerPanelHeader
         explorerSyncEnabled={explorerSyncEnabled}
         onToggleSync={onToggleSync}
-        onRefresh={handleRefresh}
+        onRefresh={requestFileExplorerRefresh}
         onNewFile={() => openNewFileDialog('')}
       />
 
