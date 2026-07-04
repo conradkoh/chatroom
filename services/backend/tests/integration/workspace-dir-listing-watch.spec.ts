@@ -5,8 +5,29 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import {
+  createTestSession,
+  createDuoTeamChatroom,
+  registerMachineWithDaemon,
+} from '../helpers/integration';
+
+async function registerWorkspace(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.mutation(api.workspaces.registerWorkspace, {
+    sessionId: sessionId as any,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'builder',
+  });
+}
 
 describe('workspace dir listing watch registry', () => {
   test('observe increments observerCount and seeds root path', async () => {
@@ -131,5 +152,48 @@ describe('workspace dir listing watch registry', () => {
       machineId,
     });
     expect(targets).toHaveLength(0);
+  });
+
+  test('removeWorkspace purges watch registry row for that machine and working dir', async () => {
+    const { sessionId } = await createTestSession('test-wdlw-remove');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-wdlw-remove';
+    const workingDir = '/tmp/workspace-remove';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const workspaceId = await registerWorkspace(sessionId, chatroomId, machineId, workingDir);
+
+    await t.mutation(api.workspaceFiles.setDirListingExplorerObserver, {
+      sessionId,
+      machineId,
+      workingDir,
+      observing: true,
+    });
+
+    let targets = await t.query(api.workspaceFiles.listDirListingWatchTargets, {
+      sessionId,
+      machineId,
+    });
+    expect(targets).toHaveLength(1);
+
+    await t.mutation(api.workspaces.removeWorkspace, {
+      sessionId,
+      workspaceId,
+    });
+
+    targets = await t.query(api.workspaceFiles.listDirListingWatchTargets, {
+      sessionId,
+      machineId,
+    });
+    expect(targets).toHaveLength(0);
+
+    const watchRow = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_workspaceDirListingWatch')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', workingDir)
+        )
+        .first()
+    );
+    expect(watchRow).toBeNull();
   });
 });

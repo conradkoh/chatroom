@@ -76,4 +76,46 @@ describe('workspace-fs-watcher', () => {
 
     expect(mockClose).toHaveBeenCalled();
   });
+
+  it('coalesces multiple events into one debounced flush with multiple dirs', async () => {
+    const onRefreshDirs = vi.fn().mockResolvedValue(undefined);
+
+    createWorkspaceFsWatcher({
+      workingDir: '/workspace',
+      activeDirPaths: new Set(['', 'src']),
+      onRefreshDirs,
+      debounceMs: 400,
+    });
+
+    const listener = watchListeners[0]!;
+    listener('change', 'package.json');
+    listener('change', 'src/foo.ts');
+
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(onRefreshDirs).toHaveBeenCalledTimes(1);
+    expect(onRefreshDirs).toHaveBeenCalledWith(expect.arrayContaining(['', 'src']));
+  });
+
+  it('updateActiveDirPaths changes which dirs are eligible for refresh', async () => {
+    const onRefreshDirs = vi.fn().mockResolvedValue(undefined);
+
+    const handle = createWorkspaceFsWatcher({
+      workingDir: '/workspace',
+      activeDirPaths: new Set(['']),
+      onRefreshDirs,
+      debounceMs: 400,
+    });
+
+    const listener = watchListeners[0]!;
+    listener('change', 'src/foo.ts');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(onRefreshDirs).not.toHaveBeenCalled();
+
+    handle.updateActiveDirPaths(new Set(['', 'src']));
+    listener('change', 'src/foo.ts');
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(onRefreshDirs).toHaveBeenCalledWith(['src']);
+  });
 });

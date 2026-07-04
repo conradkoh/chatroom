@@ -22,4 +22,13 @@ describe('computeDirListingContentHash', () => {
     });
     expect(h1).not.toBe(h2);
   });
+
+  it('changes when truncated or totalCount changes', () => {
+    const entries = [{ name: 'a.ts', path: 'a.ts', type: 'file' as const }];
+    const base = computeDirListingContentHash({ entries, truncated: false, totalCount: 1 });
+    const truncated = computeDirListingContentHash({ entries, truncated: true, totalCount: 1 });
+    const count = computeDirListingContentHash({ entries, truncated: false, totalCount: 2 });
+    expect(base).not.toBe(truncated);
+    expect(base).not.toBe(count);
+  });
 });

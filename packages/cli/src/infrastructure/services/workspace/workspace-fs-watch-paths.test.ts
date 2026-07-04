@@ -24,6 +24,7 @@ describe('workspace-fs-watch-paths', () => {
       expect(shouldIgnoreWatchRelativePath('services/backend/convex/_generated/server.js')).toBe(
         true
       );
+      expect(shouldIgnoreWatchRelativePath('.vercel/output/static/index.html')).toBe(true);
     });
   });
 

@@ -123,4 +123,47 @@ describe('workspace dir listing batch sync', () => {
 
     expect(result).toEqual({ written: 0, skipped: 0 });
   });
+
+  test('syncDirListingV2 skips write when dataHash unchanged', async () => {
+    const { sessionId } = await createTestSession('test-wdl-single-skip');
+    const machineId = 'machine-wdl-single-skip';
+    const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceDirListingV2', {
+        machineId,
+        workingDir,
+        dirPath: '',
+        data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
+        dataHash: 'existing-hash',
+        scannedAt: 1,
+        truncated: false,
+        totalCount: 1,
+      });
+    });
+
+    await t.mutation(api.workspaceFiles.syncDirListingV2, {
+      sessionId,
+      machineId,
+      workingDir,
+      dirPath: '',
+      data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
+      dataHash: 'existing-hash',
+      scannedAt: Date.now(),
+      truncated: false,
+      totalCount: 1,
+    });
+
+    const row = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_workspaceDirListingV2')
+        .withIndex('by_machine_workingDir_dirPath', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', workingDir).eq('dirPath', '')
+        )
+        .first()
+    );
+
+    expect(row?.scannedAt).toBe(1);
+  });
 });

@@ -144,4 +144,103 @@ describe('startDirListingWatchSubscriptionEffect', () => {
     expect(unsub).toHaveBeenCalled();
     expect(mockWatcherStop).toHaveBeenCalled();
   });
+
+  it('calls syncDirListingsToBackend when watcher refreshes dirs', async () => {
+    const { startDirListingWatchSubscriptionEffect } =
+      await import('./dir-listing-watch-subscription.js');
+    const { syncDirListingsToBackend } =
+      await import('../../../infrastructure/services/workspace/dir-listing-sync.js');
+    const wsClient = makeMockWsClient();
+
+    let onRefreshDirs: ((dirPaths: string[]) => Promise<void>) | undefined;
+    mockCreateWatcher.mockImplementation(
+      (opts: { onRefreshDirs: (dirPaths: string[]) => Promise<void> }) => {
+        onRefreshDirs = opts.onRefreshDirs;
+        return { stop: mockWatcherStop, updateActiveDirPaths: mockWatcherUpdate };
+      }
+    );
+
+    await runWithSession(startDirListingWatchSubscriptionEffect(wsClient as any), {
+      sessionId: 'session-sync',
+      machineId: 'machine-sync',
+    });
+
+    const onTargets = wsClient.onUpdate.mock.calls[0]?.[2] as
+      | ((targets: { workingDir: string; activeDirPaths: string[] }[]) => void)
+      | undefined;
+    onTargets?.([{ workingDir: '/workspace', activeDirPaths: ['', 'src'] }]);
+
+    await onRefreshDirs?.(['', 'src']);
+
+    expect(syncDirListingsToBackend).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-sync', machineId: 'machine-sync' }),
+      '/workspace',
+      ['', 'src']
+    );
+  });
+
+  it('updates active dirs on existing watcher when targets change', async () => {
+    const { startDirListingWatchSubscriptionEffect } =
+      await import('./dir-listing-watch-subscription.js');
+    const wsClient = makeMockWsClient();
+
+    await runWithSession(startDirListingWatchSubscriptionEffect(wsClient as any));
+
+    const onTargets = wsClient.onUpdate.mock.calls[0]?.[2] as
+      | ((targets: { workingDir: string; activeDirPaths: string[] }[]) => void)
+      | undefined;
+
+    onTargets?.([{ workingDir: '/workspace', activeDirPaths: [''] }]);
+    onTargets?.([{ workingDir: '/workspace', activeDirPaths: ['', 'src'] }]);
+
+    expect(mockCreateWatcher).toHaveBeenCalledTimes(1);
+    expect(mockWatcherUpdate).toHaveBeenCalledWith(new Set(['', 'src']));
+  });
+
+  it('stops watcher when working dir is removed from targets', async () => {
+    const { startDirListingWatchSubscriptionEffect } =
+      await import('./dir-listing-watch-subscription.js');
+    const wsClient = makeMockWsClient();
+
+    await runWithSession(startDirListingWatchSubscriptionEffect(wsClient as any));
+
+    const onTargets = wsClient.onUpdate.mock.calls[0]?.[2] as
+      | ((targets: { workingDir: string; activeDirPaths: string[] }[]) => void)
+      | undefined;
+
+    onTargets?.([{ workingDir: '/workspace', activeDirPaths: [''] }]);
+    onTargets?.([]);
+
+    expect(mockWatcherStop).toHaveBeenCalled();
+  });
+
+  it('logs warning when sync fails but does not throw', async () => {
+    const { startDirListingWatchSubscriptionEffect } =
+      await import('./dir-listing-watch-subscription.js');
+    const { syncDirListingsToBackend } =
+      await import('../../../infrastructure/services/workspace/dir-listing-sync.js');
+    const wsClient = makeMockWsClient();
+
+    let onRefreshDirs: ((dirPaths: string[]) => Promise<void>) | undefined;
+    mockCreateWatcher.mockImplementation(
+      (opts: { onRefreshDirs: (dirPaths: string[]) => Promise<void> }) => {
+        onRefreshDirs = opts.onRefreshDirs;
+        return { stop: mockWatcherStop, updateActiveDirPaths: mockWatcherUpdate };
+      }
+    );
+    vi.mocked(syncDirListingsToBackend).mockRejectedValueOnce(new Error('network down'));
+
+    await runWithSession(startDirListingWatchSubscriptionEffect(wsClient as any));
+
+    const onTargets = wsClient.onUpdate.mock.calls[0]?.[2] as
+      | ((targets: { workingDir: string; activeDirPaths: string[] }[]) => void)
+      | undefined;
+    onTargets?.([{ workingDir: '/workspace', activeDirPaths: [''] }]);
+
+    await onRefreshDirs?.(['']);
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('FS watch sync failed for /workspace')
+    );
+  });
 });
