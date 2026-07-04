@@ -20,16 +20,9 @@ import {
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { DirListingWatcher, useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
+import { isExplorerSearchMode } from '@/modules/chatroom/workspace/files/explorer-tree';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-/** A node in the hierarchical tree */
-interface TreeNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  children: TreeNode[];
-}
 
 export type ExplorerDeleteTarget = { path: string; type: 'file' | 'directory' };
 
@@ -67,7 +60,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   nodeRefs,
   loadingDirs,
 }: {
-  node: TreeNode;
+  node: ExplorerTreeNode;
   depth: number;
   expandedPaths: Set<string>;
   selectedPath: string | null;
@@ -257,7 +250,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   } = useWorkspaceDirExplorer({
     machineId,
     workingDir,
-    searchQuery: trimmedFilter.length >= 2 ? trimmedFilter : '',
+    searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
   });
 
   useEffect(() => {
@@ -266,12 +259,10 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     return () => window.removeEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
   }, [refresh]);
 
-  const treeNodes = useMemo<TreeNode[]>(() => rootNodes as TreeNode[], [rootNodes]);
-
-  const displayNodes = useMemo<ExplorerTreeNode[]>(() => {
-    if (isSearchMode) return treeNodes as ExplorerTreeNode[];
-    return filterExplorerTreeNodes(treeNodes as ExplorerTreeNode[], filterQuery);
-  }, [treeNodes, filterQuery, isSearchMode]);
+  const displayNodes = useMemo(() => {
+    if (isSearchMode) return rootNodes;
+    return filterExplorerTreeNodes(rootNodes, filterQuery);
+  }, [rootNodes, filterQuery, isSearchMode]);
 
   const filterExpandedDirs = useMemo(() => {
     if (!filterQuery.trim()) return null;
@@ -367,7 +358,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   }
 
   // Empty state
-  if (treeNodes.length === 0) {
+  if (rootNodes.length === 0) {
     return (
       <div className="px-4 py-8 text-center text-chatroom-text-muted text-xs">
         No files found. Ensure the workspace daemon is running.
@@ -398,7 +389,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
       {displayNodes.map((node) => (
         <TreeNodeItem
           key={node.path}
-          node={node as TreeNode}
+          node={node}
           depth={0}
           expandedPaths={effectiveExpandedPaths}
           selectedPath={selectedPath}

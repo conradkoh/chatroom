@@ -133,7 +133,7 @@ function ExplorerPanelHeader({
           <button
             className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer"
             onClick={onRefresh}
-            title="Refresh file tree"
+            title="Refresh files"
           >
             <RefreshCw size={13} />
           </button>

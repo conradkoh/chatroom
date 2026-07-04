@@ -4,6 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
+import { isFileSearchQueryActive } from './explorer-tree';
 import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
 // fallow-ignore-next-line complexity
@@ -19,7 +20,7 @@ export function useFileSearch(
   const machineId = args !== 'skip' ? args.machineId : '';
   const workingDir = args !== 'skip' ? args.workingDir : '';
   const trimmedQuery = args !== 'skip' ? args.query.trim() : '';
-  const queryActive = trimmedQuery === '' || trimmedQuery.length >= 2;
+  const queryActive = isFileSearchQueryActive(trimmedQuery);
   const searchEnabled = isActive && queryActive;
 
   const queryArgs = searchEnabled

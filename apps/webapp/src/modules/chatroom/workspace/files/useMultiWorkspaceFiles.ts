@@ -99,39 +99,39 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspa
 
   // ── Fixed hook calls (one per slot) ──────────────────────────────────────
   // IMPORTANT: These must be unconditional, fixed-count calls.
-  const fileTree0 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[0]));
-  const fileTree1 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[1]));
-  const fileTree2 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[2]));
-  const fileTree3 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[3]));
-  const fileTree4 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[4]));
-  const fileTree5 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[5]));
-  const fileTree6 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[6]));
-  const fileTree7 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[7]));
-  const fileTree8 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[8]));
-  const fileTree9 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[9]));
+  const listing0 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[0]));
+  const listing1 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[1]));
+  const listing2 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[2]));
+  const listing3 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[3]));
+  const listing4 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[4]));
+  const listing5 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[5]));
+  const listing6 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[6]));
+  const listing7 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[7]));
+  const listing8 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[8]));
+  const listing9 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[9]));
 
   const refreshAll = useCallback(() => {
-    fileTree0.refresh();
-    fileTree1.refresh();
-    fileTree2.refresh();
-    fileTree3.refresh();
-    fileTree4.refresh();
-    fileTree5.refresh();
-    fileTree6.refresh();
-    fileTree7.refresh();
-    fileTree8.refresh();
-    fileTree9.refresh();
+    listing0.refresh();
+    listing1.refresh();
+    listing2.refresh();
+    listing3.refresh();
+    listing4.refresh();
+    listing5.refresh();
+    listing6.refresh();
+    listing7.refresh();
+    listing8.refresh();
+    listing9.refresh();
   }, [
-    fileTree0.refresh,
-    fileTree1.refresh,
-    fileTree2.refresh,
-    fileTree3.refresh,
-    fileTree4.refresh,
-    fileTree5.refresh,
-    fileTree6.refresh,
-    fileTree7.refresh,
-    fileTree8.refresh,
-    fileTree9.refresh,
+    listing0.refresh,
+    listing1.refresh,
+    listing2.refresh,
+    listing3.refresh,
+    listing4.refresh,
+    listing5.refresh,
+    listing6.refresh,
+    listing7.refresh,
+    listing8.refresh,
+    listing9.refresh,
   ]);
 
   useEffect(() => {
@@ -141,16 +141,16 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspa
   // ── Merge & tag ──────────────────────────────────────────────────────────
   const files = useMemo(() => {
     const allEntries = [
-      fileTree0.entries,
-      fileTree1.entries,
-      fileTree2.entries,
-      fileTree3.entries,
-      fileTree4.entries,
-      fileTree5.entries,
-      fileTree6.entries,
-      fileTree7.entries,
-      fileTree8.entries,
-      fileTree9.entries,
+      listing0.entries,
+      listing1.entries,
+      listing2.entries,
+      listing3.entries,
+      listing4.entries,
+      listing5.entries,
+      listing6.entries,
+      listing7.entries,
+      listing8.entries,
+      listing9.entries,
     ];
     const merged: FileEntry[] = [];
     for (let i = 0; i < MAX_WORKSPACES; i++) {
@@ -161,16 +161,16 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspa
     }
     return merged;
   }, [
-    fileTree0.entries,
-    fileTree1.entries,
-    fileTree2.entries,
-    fileTree3.entries,
-    fileTree4.entries,
-    fileTree5.entries,
-    fileTree6.entries,
-    fileTree7.entries,
-    fileTree8.entries,
-    fileTree9.entries,
+    listing0.entries,
+    listing1.entries,
+    listing2.entries,
+    listing3.entries,
+    listing4.entries,
+    listing5.entries,
+    listing6.entries,
+    listing7.entries,
+    listing8.entries,
+    listing9.entries,
     slots,
   ]);
 

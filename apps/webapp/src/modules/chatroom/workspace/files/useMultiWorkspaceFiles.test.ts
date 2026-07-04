@@ -31,7 +31,6 @@ beforeEach(() => {
     if (enabled) mocks.refreshFns.push(refresh);
     return {
       entries: [],
-      scannedAt: null,
       isLoading: false,
       refresh,
     };

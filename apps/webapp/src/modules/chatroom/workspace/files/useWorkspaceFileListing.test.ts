@@ -4,23 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspaceFileListing } from './useWorkspaceFileListing';
 
 const mocks = vi.hoisted(() => ({
-  requestFileSearch: Symbol('requestFileSearch'),
-  requestFileSearchMutation: vi.fn(),
+  searchRefresh: vi.fn(),
   useFileEntries: vi.fn(),
   useFileSearch: vi.fn(),
-  useSessionMutation: vi.fn(),
-}));
-
-vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: {
-    workspaceFiles: {
-      requestFileSearch: mocks.requestFileSearch,
-    },
-  },
-}));
-
-vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionMutation: mocks.useSessionMutation,
 }));
 
 vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
@@ -35,12 +21,11 @@ const args = { machineId: 'machine-1', workingDir: '/repo' };
 const fileEntry = { path: 'src/index.ts', type: 'file' as const };
 
 beforeEach(() => {
-  mocks.requestFileSearchMutation.mockResolvedValue(undefined);
-  mocks.useSessionMutation.mockReturnValue(mocks.requestFileSearchMutation);
+  mocks.searchRefresh.mockReset();
   mocks.useFileSearch.mockReturnValue({
     entries: [fileEntry],
     isLoading: false,
-    refresh: vi.fn(),
+    refresh: mocks.searchRefresh,
   });
   mocks.useFileEntries.mockReturnValue([fileEntry]);
 });
@@ -57,7 +42,6 @@ describe('useWorkspaceFileListing', () => {
     expect(mocks.useFileSearch).toHaveBeenCalledWith('skip');
     expect(result.current).toMatchObject({
       entries: [],
-      scannedAt: null,
       isLoading: false,
     });
 
@@ -65,36 +49,34 @@ describe('useWorkspaceFileListing', () => {
       result.current.refresh();
     });
 
-    expect(mocks.requestFileSearchMutation).not.toHaveBeenCalled();
+    expect(mocks.searchRefresh).not.toHaveBeenCalled();
   });
 
-  it('requests empty-query file search on mount', () => {
+  it('delegates to useFileSearch with empty query when enabled', () => {
     renderHook(() => useWorkspaceFileListing(args));
-    expect(mocks.requestFileSearchMutation).toHaveBeenCalledWith({
+    expect(mocks.useFileSearch).toHaveBeenCalledWith({
       machineId: args.machineId,
       workingDir: args.workingDir,
       query: '',
+      enabled: true,
     });
   });
 
-  it('calls refresh mutation with force after dedup window', async () => {
+  it('calls searchResult.refresh after dedup window', async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useWorkspaceFileListing(args));
 
     act(() => {
       result.current.refresh();
+      result.current.refresh();
     });
+    expect(mocks.searchRefresh).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
       result.current.refresh();
     });
 
-    expect(mocks.requestFileSearchMutation).toHaveBeenCalledWith({
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      query: '',
-      force: true,
-    });
+    expect(mocks.searchRefresh).toHaveBeenCalledTimes(2);
   });
 });

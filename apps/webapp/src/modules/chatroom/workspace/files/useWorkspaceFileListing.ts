@@ -1,8 +1,6 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { useFileEntries } from './useFileEntries';
 import { useFileSearch } from './useFileSearch';
@@ -21,7 +19,6 @@ export interface UseWorkspaceFileListingArgs {
 
 export interface UseWorkspaceFileListingResult {
   entries: FileEntry[];
-  scannedAt: number | null;
   refresh: () => void;
   isLoading: boolean;
 }
@@ -32,18 +29,11 @@ export function useWorkspaceFileListing({
   enabled = true,
   includeDirectories = false,
 }: UseWorkspaceFileListingArgs): UseWorkspaceFileListingResult {
-  const requestFileSearchMutation = useSessionMutation(api.workspaceFiles.requestFileSearch);
   const lastRefreshAtRef = useRef<number | null>(null);
 
   const searchResult = useFileSearch(
     enabled ? { machineId, workingDir, query: '', enabled: true } : 'skip'
   );
-
-  // Empty query triggers workspace-wide file listing on daemon
-  useEffect(() => {
-    if (!enabled) return;
-    requestFileSearchMutation({ machineId, workingDir, query: '' }).catch(() => {});
-  }, [enabled, machineId, workingDir, requestFileSearchMutation]);
 
   const entries = useFileEntries(
     enabled ? { entries: searchResult.entries as FileEntry[] } : null,
@@ -62,23 +52,12 @@ export function useWorkspaceFileListing({
     }
 
     lastRefreshAtRef.current = now;
-    requestFileSearchMutation({ machineId, workingDir, query: '', force: true }).catch(() => {});
     searchResult.refresh();
-  }, [machineId, workingDir, enabled, requestFileSearchMutation, searchResult]);
+  }, [enabled, searchResult]);
 
   if (!enabled) {
-    return {
-      entries: [],
-      scannedAt: null,
-      refresh,
-      isLoading: false,
-    };
+    return { entries: [], refresh, isLoading: false };
   }
 
-  return {
-    entries,
-    scannedAt: null,
-    refresh,
-    isLoading: searchResult.isLoading,
-  };
+  return { entries, refresh, isLoading: searchResult.isLoading };
 }

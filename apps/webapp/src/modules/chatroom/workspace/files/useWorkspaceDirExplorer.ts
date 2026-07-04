@@ -3,74 +3,15 @@
 import type { DirListingEntry } from '@workspace/backend/src/domain/entities/workspace-files';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import {
+  dirEntriesToNodes,
+  isExplorerSearchMode,
+  searchEntriesToNodes,
+  sortExplorerNodes,
+  type ExplorerTreeNode,
+} from './explorer-tree';
 import { useDirListing } from './useDirListing';
 import { useFileSearch } from './useFileSearch';
-
-import { isPathPendingDelete } from '@/modules/chatroom/workspace/hooks/pendingOptimisticDeletePaths';
-
-export interface ExplorerTreeNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  children: ExplorerTreeNode[];
-}
-
-function dirEntriesToNodes(entries: DirListingEntry[]): ExplorerTreeNode[] {
-  return entries
-    .filter((e) => !isPathPendingDelete(e.path))
-    .map((e) => ({
-      name: e.name,
-      path: e.path,
-      type: e.type,
-      children: [],
-    }));
-}
-
-function sortNodes(nodes: ExplorerTreeNode[]): ExplorerTreeNode[] {
-  return (
-    nodes
-      .map((n) => ({
-        ...n,
-        children: n.type === 'directory' ? sortNodes(n.children) : [],
-      }))
-      // fallow-ignore-next-line complexity code-duplication
-      .sort((a, b) => {
-        if (a.type === 'directory' && b.type === 'file') return -1;
-        if (a.type === 'file' && b.type === 'directory') return 1;
-        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-      })
-  );
-}
-
-// fallow-ignore-next-line complexity
-function searchEntriesToNodes(entries: { path: string; type: 'file' }[]): ExplorerTreeNode[] {
-  const root: ExplorerTreeNode = { name: '', path: '', type: 'directory', children: [] };
-
-  for (const entry of entries) {
-    if (isPathPendingDelete(entry.path)) continue;
-    const parts = entry.path.split('/').filter(Boolean);
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (!part) continue;
-      const isLast = i === parts.length - 1;
-      const childPath = parts.slice(0, i + 1).join('/');
-
-      if (isLast) {
-        current.children.push({ name: part, path: entry.path, type: 'file', children: [] });
-      } else {
-        let child = current.children.find((c) => c.path === childPath && c.type === 'directory');
-        if (!child) {
-          child = { name: part, path: childPath, type: 'directory', children: [] };
-          current.children.push(child);
-        }
-        current = child;
-      }
-    }
-  }
-
-  return sortNodes(root.children);
-}
 
 /** Hidden component that subscribes to one directory listing and reports updates. */
 export function DirListingWatcher({
@@ -112,7 +53,7 @@ export function useWorkspaceDirExplorer({
   searchQuery?: string;
 }) {
   const trimmedSearch = searchQuery.trim();
-  const isSearchMode = trimmedSearch.length >= 2;
+  const isSearchMode = isExplorerSearchMode(trimmedSearch);
 
   const rootListing = useDirListing(
     enabled && !isSearchMode ? { machineId, workingDir, dirPath: '' } : 'skip'
@@ -167,7 +108,7 @@ export function useWorkspaceDirExplorer({
 
   const rootNodes = useMemo(() => {
     if (isSearchMode) return searchEntriesToNodes(fileSearch.entries);
-    return attachChildren(sortNodes(dirEntriesToNodes(rootListing.entries)));
+    return attachChildren(sortExplorerNodes(dirEntriesToNodes(rootListing.entries)));
   }, [isSearchMode, fileSearch.entries, rootListing.entries, attachChildren]);
 
   return {
