@@ -5,6 +5,11 @@
  * instant open animation, and consistent positioning.
  */
 
+import {
+  chatroomIndustrialPanelBorderClassName,
+  chatroomIndustrialSurfaceClassName,
+} from './industrialDialogStyles';
+
 /**
  * Classes for DialogPrimitive.Content in command-style dialogs.
  *
@@ -18,9 +23,10 @@ export const COMMAND_DIALOG_CONTENT_CLASSES = [
   'fixed left-[50%] z-50 w-[600px] max-w-[90vw] translate-x-[-50%]',
   'top-[10%] sm:top-[15%]',
   // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
-  'rounded-none border-2 border-chatroom-border shadow-lg',
-  // Background
-  'bg-chatroom-bg-primary overflow-hidden',
+  'rounded-none shadow-lg',
+  chatroomIndustrialPanelBorderClassName,
+  chatroomIndustrialSurfaceClassName,
+  'overflow-hidden',
   // Animation: open instantly (duration-0), close with smooth fade+zoom-out
   'data-[state=open]:animate-in data-[state=closed]:animate-out',
   'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',

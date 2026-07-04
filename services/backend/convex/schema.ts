@@ -1902,6 +1902,7 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
   // ─── Workspace File Tree ─────────────────────────────────────────────────────
@@ -1960,6 +1961,38 @@ export default defineSchema({
       v.literal('done'),
       v.literal('error')
     ),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
+
+  /**
+   * Pending file write requests.
+   * Frontend creates requests; daemon fulfills by writing to disk.
+   */
+  chatroom_workspaceFileWriteRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    filePath: v.string(),
+    operation: v.union(
+      v.literal('create'),
+      v.literal('update'),
+      v.literal('delete'),
+      v.literal('rename'),
+      v.literal('mkdir')
+    ),
+    /** gzip base64 content — required for create/update, omitted for delete/rename/mkdir */
+    data: v.optional(
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
+    /** Destination path — required for rename */
+    targetFilePath: v.optional(v.string()),
+    status: v.union(v.literal('pending'), v.literal('done'), v.literal('error')),
+    errorMessage: v.optional(v.string()),
     requestedAt: v.number(),
     updatedAt: v.number(),
   })
@@ -2195,6 +2228,79 @@ export default defineSchema({
     /** When the tree was last scanned. */
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /** V2 per-directory listing cache — one row per (machine, workingDir, dirPath). */
+  chatroom_workspaceDirListingV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Relative directory path; empty string = workspace root. */
+    dirPath: v.string(),
+    data: v.union(
+      v.string(),
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    truncated: v.boolean(),
+    totalCount: v.number(),
+  }).index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
+
+  /** Pending directory listing requests (frontend → daemon). */
+  chatroom_workspaceDirListingRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    dirPath: v.string(),
+    status: v.union(v.literal('pending'), v.literal('done')),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
+
+  /** Explorer FS watch registry — one row per (machineId, workingDir). */
+  chatroom_workspaceDirListingWatch: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Refcount of mounted explorer surfaces for this workspace. */
+    observerCount: v.number(),
+    /** Hot dir paths to refresh on external FS events; includes '' for root. */
+    activeDirPaths: v.array(v.string()),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machineId_observerCount', ['machineId', 'observerCount']),
+
+  /** Cached file search results per (machine, workingDir, query). */
+  chatroom_workspaceFileSearchV2: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+    data: v.union(
+      v.string(),
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+      })
+    ),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    truncated: v.boolean(),
+    totalCount: v.number(),
+  }).index('by_machine_workingDir_query', ['machineId', 'workingDir', 'query']),
+
+  chatroom_workspaceFileSearchRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+    status: v.union(v.literal('pending'), v.literal('done')),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_query', ['machineId', 'workingDir', 'query']),
 
   /**
    * V2 workspace full diff - compressed only.
