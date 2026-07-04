@@ -191,7 +191,7 @@ export const FileExplorerPanel = memo(function FileExplorerPanel({
 
   const handleRefresh = useCallback(() => {
     if (machineId && workingDir) {
-      requestTree({ machineId, workingDir }).catch(() => {
+      requestTree({ machineId, workingDir, force: true }).catch(() => {
         // Silently ignore
       });
     }

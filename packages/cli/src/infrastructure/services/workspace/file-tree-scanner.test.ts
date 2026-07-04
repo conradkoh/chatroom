@@ -115,20 +115,53 @@ describe('buildEntries', () => {
   });
 });
 
+describe('filterToExistingPaths', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-exists-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('keeps paths that exist on disk and drops missing ones', async () => {
+    const { filterToExistingPaths } = await import('./file-tree-scanner.js');
+    await writeFile(join(tmpDir, 'keep.txt'), 'yes');
+    // 'gone.txt' is in candidate list but not on disk
+
+    const result = await filterToExistingPaths(tmpDir, ['keep.txt', 'gone.txt']);
+
+    expect(result).toEqual(['keep.txt']);
+  });
+});
+
 describe('scanFileTree', () => {
-  beforeEach(() => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
+    tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-scan-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
   });
 
   it('returns file tree with entries from git ls-files', async () => {
-    // First call: isGitRepo check, then tracked files, then untracked files
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'index.ts'), 'export {}');
+    await writeFile(join(tmpDir, 'README.md'), '# readme');
+    await writeFile(join(tmpDir, 'draft.txt'), 'draft');
+
     mockSuccess('true\n'); // isGitRepo
     mockSuccess('src/index.ts\nREADME.md\n'); // tracked
     mockSuccess('draft.txt\n'); // untracked
 
-    const tree = await scanFileTree('/test/repo');
+    const tree = await scanFileTree(tmpDir);
 
-    expect(tree.rootDir).toBe('/test/repo');
+    expect(tree.rootDir).toBe(tmpDir);
     expect(tree.scannedAt).toBeGreaterThan(0);
 
     const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
@@ -138,21 +171,27 @@ describe('scanFileTree', () => {
   });
 
   it('deduplicates tracked and untracked files', async () => {
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'index.ts'), 'export {}');
+
     mockSuccess('true\n'); // isGitRepo
     mockSuccess('src/index.ts\n'); // tracked
     mockSuccess('src/index.ts\n'); // untracked (duplicate)
 
-    const tree = await scanFileTree('/test/repo');
+    const tree = await scanFileTree(tmpDir);
     const files = tree.entries.filter((e) => e.type === 'file');
     expect(files).toHaveLength(1);
   });
 
   it('filters out excluded paths', async () => {
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'app.ts'), 'app');
+
     mockSuccess('true\n'); // isGitRepo
     mockSuccess('src/app.ts\nnode_modules/pkg/index.js\ndist/bundle.js\n'); // tracked
     mockSuccess(''); // untracked
 
-    const tree = await scanFileTree('/test/repo');
+    const tree = await scanFileTree(tmpDir);
     const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
 
     expect(filePaths).toContain('src/app.ts');
@@ -161,12 +200,15 @@ describe('scanFileTree', () => {
   });
 
   it('caps at maxEntries', async () => {
+    for (let i = 0; i < 200; i++) {
+      await writeFile(join(tmpDir, `file${i}.ts`), `content ${i}`);
+    }
     const manyFiles = Array.from({ length: 200 }, (_, i) => `file${i}.ts`).join('\n');
     mockSuccess('true\n'); // isGitRepo
     mockSuccess(manyFiles); // tracked
     mockSuccess(''); // untracked
 
-    const tree = await scanFileTree('/test/repo', { maxEntries: 50 });
+    const tree = await scanFileTree(tmpDir, { maxEntries: 50 });
     expect(tree.entries.length).toBeLessThanOrEqual(50);
   });
 
@@ -177,6 +219,48 @@ describe('scanFileTree', () => {
     // Should fall back to FS walk, but the directory doesn't exist
     // so it will return empty
     expect(tree.entries).toHaveLength(0);
+  });
+
+  it('excludes tracked files deleted from the working tree (git ls-files --deleted)', async () => {
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'src', 'index.ts'), 'export {}');
+    // docs/readme.md is in git index mock but not on disk
+
+    mockSuccess('true\n'); // isGitRepo
+    mockSuccess('docs/readme.md\nsrc/index.ts\n'); // tracked
+    mockSuccess(''); // untracked
+
+    const tree = await scanFileTree(tmpDir);
+
+    const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
+    const dirPaths = tree.entries.filter((e) => e.type === 'directory').map((e) => e.path);
+
+    expect(filePaths).toContain('src/index.ts');
+    expect(filePaths).not.toContain('docs/readme.md');
+    expect(dirPaths).not.toContain('docs');
+  });
+
+  it('excludes tracked index entries missing from disk (existence gate)', async () => {
+    const { exec } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execAsync = promisify(exec);
+
+    const gitDir = await mkdtemp(join(tmpdir(), 'chatroom-git-exists-'));
+    try {
+      await execAsync('git init', { cwd: gitDir });
+      await execAsync('git config user.email test@test.com', { cwd: gitDir });
+      await execAsync('git config user.name test', { cwd: gitDir });
+      await writeFile(join(gitDir, 'tracked.txt'), 'content');
+      await execAsync('git add tracked.txt', { cwd: gitDir });
+      await execAsync('git commit -m init', { cwd: gitDir });
+      await rm(join(gitDir, 'tracked.txt'));
+
+      const tree = await scanFileTree(gitDir);
+      const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
+      expect(filePaths).not.toContain('tracked.txt');
+    } finally {
+      await rm(gitDir, { recursive: true, force: true });
+    }
   });
 });
 
