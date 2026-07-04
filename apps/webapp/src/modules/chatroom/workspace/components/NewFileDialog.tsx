@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
 import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
 
@@ -27,6 +26,7 @@ interface NewFileDialogProps {
   onCreated: (filePath: string) => void;
   onCreateFailed?: (filePath: string, error: string) => void;
   onCreateConfirmed?: (filePath: string) => void;
+  onExplorerRefresh?: () => void;
 }
 
 // fallow-ignore-next-line complexity
@@ -39,6 +39,7 @@ export function NewFileDialog({
   onCreated,
   onCreateFailed,
   onCreateConfirmed,
+  onExplorerRefresh,
 }: NewFileDialogProps) {
   const { createFile } = useWorkspaceFileCreate({ machineId, workingDir });
 
@@ -56,14 +57,14 @@ export function NewFileDialog({
     async (normalizedPath: string) => {
       try {
         await createFile(normalizedPath, '');
-        window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+        onExplorerRefresh?.();
         onCreateConfirmed?.(normalizedPath);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to create file';
         onCreateFailed?.(normalizedPath, message);
       }
     },
-    [createFile, onCreateConfirmed, onCreateFailed]
+    [createFile, onCreateConfirmed, onCreateFailed, onExplorerRefresh]
   );
 
   const handleCreate = useCallback(() => {

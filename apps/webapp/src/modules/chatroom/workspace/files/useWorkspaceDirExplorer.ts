@@ -46,11 +46,14 @@ export function useWorkspaceDirExplorer({
   workingDir,
   enabled = true,
   searchQuery = '',
+  refreshSignal = 0,
 }: {
   machineId: string;
   workingDir: string;
   enabled?: boolean;
   searchQuery?: string;
+  /** Increment to refetch listings without remounting the explorer tree. */
+  refreshSignal?: number;
 }) {
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = isExplorerSearchMode(trimmedSearch);
@@ -94,6 +97,10 @@ export function useWorkspaceDirExplorer({
     fileSearch.refresh();
     setRefreshToken((t) => t + 1);
   }, [rootListing, fileSearch]);
+
+  useEffect(() => {
+    if (refreshSignal > 0) refresh();
+  }, [refreshSignal, refresh]);
 
   const attachChildren = useCallback(
     (nodes: ExplorerTreeNode[]): ExplorerTreeNode[] =>

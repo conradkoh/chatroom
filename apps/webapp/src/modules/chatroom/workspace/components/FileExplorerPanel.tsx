@@ -2,10 +2,9 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 import { NewFileDialog } from './NewFileDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
@@ -35,7 +34,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
+export interface FileExplorerPanelHandle {
+  refresh: () => void;
+}
 
 async function confirmDeleteInBackground(
   path: string,
@@ -47,7 +48,7 @@ async function confirmDeleteInBackground(
   try {
     await confirmDelete(requestId);
     explorerFileOps.onFileDeleteConfirmed(path);
-    window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+    onRefresh();
   } catch (err) {
     const message = err instanceof Error ? err.message : 'File delete failed';
     explorerFileOps.onFileDeleteFailed(path, message);
@@ -145,219 +146,221 @@ function ExplorerPanelHeader({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-// fallow-ignore-next-line complexity
-export const FileExplorerPanel = memo(function FileExplorerPanel({
-  chatroomId,
-  machineId,
-  workingDir,
-  fileTabs,
-  onFileSelect,
-  onFileDoubleClick,
-  revealPath,
-  activeTabPath,
-  explorerSyncEnabled,
-  onToggleSync,
-  onFileCreated,
-  onFileCreateFailed,
-  onFileCreateConfirmed,
-  onFileDeleted,
-}: FileExplorerPanelProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [filterQuery, setFilterQuery] = useState('');
-  const [newFileOpen, setNewFileOpen] = useState(false);
-  const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
-  const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
-    machineId: machineId ?? '',
-    workingDir: workingDir ?? '',
-  });
-  const explorerFileOps = useExplorerNewFileOps(fileTabs);
+export const FileExplorerPanel = memo(
+  forwardRef<FileExplorerPanelHandle, FileExplorerPanelProps>(
+    // fallow-ignore-next-line complexity
+    function FileExplorerPanel(
+      {
+        chatroomId,
+        machineId,
+        workingDir,
+        fileTabs,
+        onFileSelect,
+        onFileDoubleClick,
+        revealPath,
+        activeTabPath,
+        explorerSyncEnabled,
+        onToggleSync,
+        onFileCreated,
+        onFileCreateFailed,
+        onFileCreateConfirmed,
+        onFileDeleted,
+      },
+      ref
+    ) {
+      const [refreshSignal, setRefreshSignal] = useState(0);
+      const [filterQuery, setFilterQuery] = useState('');
+      const [newFileOpen, setNewFileOpen] = useState(false);
+      const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
+      const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
+      const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
+        machineId: machineId ?? '',
+        workingDir: workingDir ?? '',
+      });
+      const explorerFileOps = useExplorerNewFileOps(fileTabs);
 
-  const openNewFileDialog = useCallback((defaultDir = '') => {
-    setNewFileDefaultDir(defaultDir);
-    setNewFileOpen(true);
-  }, []);
+      const openNewFileDialog = useCallback((defaultDir = '') => {
+        setNewFileDefaultDir(defaultDir);
+        setNewFileOpen(true);
+      }, []);
 
-  // When sync is enabled, the active tab path becomes the effective reveal/select target.
-  // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
-  const effectiveSelectedPath = useMemo<string | null>(() => {
-    if (explorerSyncEnabled && activeTabPath) return activeTabPath;
-    return null;
-  }, [explorerSyncEnabled, activeTabPath]);
-  const effectiveRevealPath = revealPath ?? effectiveSelectedPath;
+      // When sync is enabled, the active tab path becomes the effective reveal/select target.
+      // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
+      const effectiveSelectedPath = useMemo<string | null>(() => {
+        if (explorerSyncEnabled && activeTabPath) return activeTabPath;
+        return null;
+      }, [explorerSyncEnabled, activeTabPath]);
+      const effectiveRevealPath = revealPath ?? effectiveSelectedPath;
 
-  const bumpExplorerRemount = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
+      const refreshExplorer = useCallback(() => {
+        setRefreshSignal((signal) => signal + 1);
+      }, []);
 
-  const requestFileExplorerRefresh = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
-  }, []);
+      useImperativeHandle(ref, () => ({ refresh: refreshExplorer }), [refreshExplorer]);
 
-  // fallow-ignore-next-line complexity
-  const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    const path = deleteTarget.path;
-    setDeleteTarget(null);
+      // fallow-ignore-next-line complexity
+      const handleConfirmDelete = useCallback(async () => {
+        if (!deleteTarget) return;
+        const path = deleteTarget.path;
+        setDeleteTarget(null);
 
-    try {
-      const { requestId } = await requestDelete(path);
-      explorerFileOps.onFileDeleteSubmitted(path);
-      onFileDeleted?.(path);
-      setRefreshKey((k) => k + 1);
-      void confirmDeleteInBackground(
-        path,
-        requestId,
+        try {
+          const { requestId } = await requestDelete(path);
+          explorerFileOps.onFileDeleteSubmitted(path);
+          onFileDeleted?.(path);
+          refreshExplorer();
+          void confirmDeleteInBackground(
+            path,
+            requestId,
+            confirmDelete,
+            explorerFileOps,
+            refreshExplorer
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'File delete failed';
+          toast.error(message);
+        }
+      }, [
         confirmDelete,
+        deleteTarget,
         explorerFileOps,
-        requestFileExplorerRefresh
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'File delete failed';
-      toast.error(message);
-    }
-  }, [
-    confirmDelete,
-    deleteTarget,
-    explorerFileOps,
-    onFileDeleted,
-    requestDelete,
-    requestFileExplorerRefresh,
-  ]);
+        onFileDeleted,
+        requestDelete,
+        refreshExplorer,
+      ]);
 
-  // Listen for external refresh requests (e.g. new file, delete confirm, command palette).
-  // Only bump remount key — do NOT re-dispatch the event (would recurse infinitely).
-  useEffect(() => {
-    const handler = () => bumpExplorerRemount();
-    window.addEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
-    return () => window.removeEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
-  }, [bumpExplorerRemount]);
-
-  if (!machineId || !workingDir) {
-    return (
-      <div className="h-full flex flex-col min-w-0">
-        <ExplorerPanelHeader />
-        <div className="flex flex-1 items-center justify-center text-chatroom-text-muted text-xs px-4 text-center">
-          No workspace connected
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full flex flex-col min-w-0">
-      <ExplorerPanelHeader
-        explorerSyncEnabled={explorerSyncEnabled}
-        onToggleSync={onToggleSync}
-        onRefresh={requestFileExplorerRefresh}
-        onNewFile={() => openNewFileDialog('')}
-      />
-
-      <NewFileDialog
-        open={newFileOpen}
-        onOpenChange={setNewFileOpen}
-        machineId={machineId}
-        workingDir={workingDir}
-        defaultDir={newFileDefaultDir}
-        onCreated={(filePath) => {
-          explorerFileOps.onFileCreated(filePath);
-          onFileCreated?.(filePath);
-        }}
-        onCreateFailed={(filePath, error) => {
-          explorerFileOps.onFileCreateFailed(filePath, error);
-          onFileCreateFailed?.(filePath, error);
-        }}
-        onCreateConfirmed={(filePath) => {
-          explorerFileOps.onFileCreateConfirmed(filePath);
-          onFileCreateConfirmed?.(filePath);
-        }}
-      />
-
-      <AlertDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
-      >
-        <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-chatroom-text-primary">
-              {deleteTarget?.type === 'directory' ? 'Delete folder?' : 'Delete file?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-chatroom-text-secondary">
-              {deleteTarget?.type === 'directory' ? (
-                <>
-                  This will permanently delete the folder{' '}
-                  <span className="font-mono text-chatroom-text-primary">{deleteTarget.path}</span>{' '}
-                  and all of its contents from the workspace.
-                </>
-              ) : (
-                <>
-                  This will permanently delete{' '}
-                  <span className="font-mono text-chatroom-text-primary">{deleteTarget?.path}</span>{' '}
-                  from the workspace.
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="border-t border-chatroom-border pt-4">
-            <AlertDialogCancel className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault();
-                void handleConfirmDelete();
-              }}
-              className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Filename filter */}
-      <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-sm">
-          <Search size={12} className="text-chatroom-text-muted shrink-0" />
-          <input
-            type="search"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            placeholder="Filter files…"
-            aria-label="Filter files in explorer"
-            className="w-full bg-transparent text-[12px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Tree content */}
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
-            <WorkspaceFileExplorer
-              key={refreshKey}
-              chatroomId={chatroomId}
-              machineId={machineId}
-              workingDir={workingDir}
-              onFileSelect={onFileSelect}
-              onFileDoubleClick={onFileDoubleClick}
-              revealPath={effectiveRevealPath}
-              selectedPath={effectiveSelectedPath}
-              filterQuery={filterQuery}
-              onNewFileInDir={(dir) => openNewFileDialog(dir)}
-              onDeleteFile={(target) => setDeleteTarget(target)}
-            />
+      if (!machineId || !workingDir) {
+        return (
+          <div className="h-full flex flex-col min-w-0">
+            <ExplorerPanelHeader />
+            <div className="flex flex-1 items-center justify-center text-chatroom-text-muted text-xs px-4 text-center">
+              No workspace connected
+            </div>
           </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem onSelect={() => openNewFileDialog('')}>
-            <FilePlus size={12} className="mr-2" />
-            New File
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    </div>
-  );
-});
+        );
+      }
+
+      return (
+        <div className="h-full flex flex-col min-w-0">
+          <ExplorerPanelHeader
+            explorerSyncEnabled={explorerSyncEnabled}
+            onToggleSync={onToggleSync}
+            onRefresh={refreshExplorer}
+            onNewFile={() => openNewFileDialog('')}
+          />
+
+          <NewFileDialog
+            open={newFileOpen}
+            onOpenChange={setNewFileOpen}
+            machineId={machineId}
+            workingDir={workingDir}
+            defaultDir={newFileDefaultDir}
+            onCreated={(filePath) => {
+              explorerFileOps.onFileCreated(filePath);
+              onFileCreated?.(filePath);
+            }}
+            onCreateFailed={(filePath, error) => {
+              explorerFileOps.onFileCreateFailed(filePath, error);
+              onFileCreateFailed?.(filePath, error);
+            }}
+            onCreateConfirmed={(filePath) => {
+              explorerFileOps.onFileCreateConfirmed(filePath);
+              onFileCreateConfirmed?.(filePath);
+            }}
+            onExplorerRefresh={refreshExplorer}
+          />
+
+          <AlertDialog
+            open={deleteTarget !== null}
+            onOpenChange={(open) => {
+              if (!open) setDeleteTarget(null);
+            }}
+          >
+            <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-chatroom-text-primary">
+                  {deleteTarget?.type === 'directory' ? 'Delete folder?' : 'Delete file?'}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-chatroom-text-secondary">
+                  {deleteTarget?.type === 'directory' ? (
+                    <>
+                      This will permanently delete the folder{' '}
+                      <span className="font-mono text-chatroom-text-primary">
+                        {deleteTarget.path}
+                      </span>{' '}
+                      and all of its contents from the workspace.
+                    </>
+                  ) : (
+                    <>
+                      This will permanently delete{' '}
+                      <span className="font-mono text-chatroom-text-primary">
+                        {deleteTarget?.path}
+                      </span>{' '}
+                      from the workspace.
+                    </>
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+                <AlertDialogCancel className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void handleConfirmDelete();
+                  }}
+                  className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Filename filter */}
+          <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-sm">
+              <Search size={12} className="text-chatroom-text-muted shrink-0" />
+              <input
+                type="search"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder="Filter files…"
+                aria-label="Filter files in explorer"
+                className="w-full bg-transparent text-[12px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Tree content */}
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
+                <WorkspaceFileExplorer
+                  refreshSignal={refreshSignal}
+                  chatroomId={chatroomId}
+                  machineId={machineId}
+                  workingDir={workingDir}
+                  onFileSelect={onFileSelect}
+                  onFileDoubleClick={onFileDoubleClick}
+                  revealPath={effectiveRevealPath}
+                  selectedPath={effectiveSelectedPath}
+                  filterQuery={filterQuery}
+                  onNewFileInDir={(dir) => openNewFileDialog(dir)}
+                  onDeleteFile={(target) => setDeleteTarget(target)}
+                />
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => openNewFileDialog('')}>
+                <FilePlus size={12} className="mr-2" />
+                New File
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </div>
+      );
+    }
+  )
+);

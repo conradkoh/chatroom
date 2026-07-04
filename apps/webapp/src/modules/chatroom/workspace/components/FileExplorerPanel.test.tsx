@@ -1,16 +1,15 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import React, { createRef } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
-import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
-import { FileExplorerPanel } from './FileExplorerPanel';
+import { FileExplorerPanel, type FileExplorerPanelHandle } from './FileExplorerPanel';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 
-let explorerMountCount = 0;
+let lastRefreshSignal = 0;
 
 vi.mock('./WorkspaceFileExplorer', () => ({
-  WorkspaceFileExplorer: () => {
-    explorerMountCount += 1;
+  WorkspaceFileExplorer: ({ refreshSignal }: { refreshSignal?: number }) => {
+    lastRefreshSignal = refreshSignal ?? 0;
     return <div data-testid="file-explorer" />;
   },
 }));
@@ -62,39 +61,25 @@ const defaultProps = {
   onToggleSync: vi.fn(),
 };
 
-describe('FileExplorerPanel refresh event', () => {
-  let dispatchSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    explorerMountCount = 0;
-    dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-  });
-
-  afterEach(() => {
-    dispatchSpy.mockRestore();
-  });
-
-  it('does not re-dispatch when handling an external refresh event', async () => {
+describe('FileExplorerPanel refresh', () => {
+  it('increments refreshSignal when the refresh button is clicked', () => {
+    lastRefreshSignal = 0;
     render(<FileExplorerPanel {...defaultProps} />);
-    dispatchSpy.mockClear();
-
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
-    });
-
-    expect(dispatchSpy).toHaveBeenCalledTimes(1);
-    expect(explorerMountCount).toBe(2);
-  });
-
-  it('dispatches exactly once when the refresh button is clicked', () => {
-    render(<FileExplorerPanel {...defaultProps} />);
-    dispatchSpy.mockClear();
 
     fireEvent.click(screen.getByTitle('Refresh files'));
 
-    expect(dispatchSpy).toHaveBeenCalledTimes(1);
-    expect(dispatchSpy.mock.calls[0]?.[0]).toBeInstanceOf(CustomEvent);
-    expect((dispatchSpy.mock.calls[0]?.[0] as CustomEvent).type).toBe(FILE_EXPLORER_REFRESH_EVENT);
-    expect(explorerMountCount).toBe(2);
+    expect(lastRefreshSignal).toBe(1);
+  });
+
+  it('exposes refresh via imperative handle', () => {
+    lastRefreshSignal = 0;
+    const ref = createRef<FileExplorerPanelHandle>();
+    render(<FileExplorerPanel {...defaultProps} ref={ref} />);
+
+    act(() => {
+      ref.current?.refresh();
+    });
+
+    expect(lastRefreshSignal).toBe(1);
   });
 });

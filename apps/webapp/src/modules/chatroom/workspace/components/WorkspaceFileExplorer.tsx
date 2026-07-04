@@ -8,7 +8,6 @@ import {
   filterExplorerTreeNodes,
   type ExplorerTreeNode,
 } from './explorerTreeFilter';
-import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -30,6 +29,8 @@ interface WorkspaceFileExplorerProps {
   chatroomId?: string;
   machineId: string;
   workingDir: string;
+  /** Increment to refetch directory listings (parent-owned refresh signal). */
+  refreshSignal?: number;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
   /** When set, auto-expand tree to reveal this file path */
@@ -223,6 +224,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   chatroomId,
   machineId,
   workingDir,
+  refreshSignal = 0,
   onFileSelect,
   onFileDoubleClick,
   revealPath,
@@ -243,7 +245,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     requestedDirs,
     loadChildren,
     isLoading,
-    refresh,
     isSearchMode,
     refreshToken,
     handleDirUpdate,
@@ -251,13 +252,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     machineId,
     workingDir,
     searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
+    refreshSignal,
   });
-
-  useEffect(() => {
-    const handler = () => refresh();
-    window.addEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
-    return () => window.removeEventListener(FILE_EXPLORER_REFRESH_EVENT, handler);
-  }, [refresh]);
 
   const displayNodes = useMemo(() => {
     if (isSearchMode) return rootNodes;
