@@ -6,9 +6,7 @@
  * captured and returned as `{ status: 'error' }` or `{ status: 'not_found' }`.
  */
 
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-
+import { runGh, runGit } from './run-command.js';
 import type {
   DiffStat,
   GitBranchResult,
@@ -20,31 +18,10 @@ import type {
 } from './types.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
 
-const execAsync = promisify(exec);
-
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
-/**
- * Run a git command in `cwd`.
- * Returns `{ stdout, stderr }` on success, `{ error }` on failure.
- * Never throws.
- */
-async function runGit(
-  args: string,
-  cwd: string
-): Promise<{ stdout: string; stderr: string } | { error: Error & { code?: number } }> {
-  try {
-    const result = await execAsync(`git ${args}`, {
-      cwd,
-      // Disable paging and colour for scriptable output
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
-      // Increase buffer for large diffs; we'll cap in the caller
-      maxBuffer: FULL_DIFF_MAX_BYTES + 64 * 1024,
-    });
-    return result;
-  } catch (err) {
-    return { error: err as Error & { code?: number } };
-  }
+function repoArgs(repoSlug: string | null): string[] {
+  return repoSlug ? ['--repo', repoSlug] : [];
 }
 
 /** Returns true if the error message indicates git is not installed. */
@@ -104,7 +81,7 @@ function classifyError(
  * Returns `false` for non-git directories, missing git, or any error.
  */
 export async function isGitRepo(workingDir: string): Promise<boolean> {
-  const result = await runGit('rev-parse --git-dir', workingDir);
+  const result = await runGit(['rev-parse', '--git-dir'], workingDir);
   if ('error' in result) return false;
   return result.stdout.trim().length > 0;
 }
@@ -116,7 +93,7 @@ export async function isGitRepo(workingDir: string): Promise<boolean> {
  * For a non-git directory, returns `{ status: 'not_found' }`.
  */
 export async function getBranch(workingDir: string): Promise<GitBranchResult> {
-  const result = await runGit('rev-parse --abbrev-ref HEAD', workingDir);
+  const result = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], workingDir);
 
   if ('error' in result) {
     const errMsg = result.error.message;
@@ -144,7 +121,7 @@ export async function getBranch(workingDir: string): Promise<GitBranchResult> {
  * Returns `false` for a clean tree, empty repo, or non-git directory.
  */
 export async function isDirty(workingDir: string): Promise<boolean> {
-  const result = await runGit('status --porcelain', workingDir);
+  const result = await runGit(['status', '--porcelain'], workingDir);
   if ('error' in result) return false;
   return result.stdout.trim().length > 0;
 }
@@ -174,7 +151,7 @@ export function parseDiffStatLine(statLine: string): DiffStat {
  * Returns zero-value stats for a clean tree (no changes).
  */
 export async function getDiffStat(workingDir: string): Promise<GitDiffStatResult> {
-  const result = await runGit('diff HEAD --stat', workingDir);
+  const result = await runGit(['diff', 'HEAD', '--stat'], workingDir);
 
   if ('error' in result) {
     const errMsg = result.error.message;
@@ -219,7 +196,9 @@ export async function getDiffStat(workingDir: string): Promise<GitDiffStatResult
  * transparently (no special treatment needed; output is valid UTF-8 text).
  */
 export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult> {
-  const result = await runGit('diff HEAD', workingDir);
+  const result = await runGit(['diff', 'HEAD'], workingDir, {
+    maxBuffer: FULL_DIFF_MAX_BYTES + 64 * 1024,
+  });
 
   if ('error' in result) {
     const errMsg = result.error.message;
@@ -254,9 +233,8 @@ export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult
  */
 export async function getPRDiffByNumber(cwd: string, prNumber: number): Promise<GitFullDiffResult> {
   const repoSlug = await getOriginRepoSlug(cwd);
-  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
 
-  const result = await runCommand(`gh pr diff ${prNumber}${repoFlag}`, cwd);
+  const result = await runGh(['pr', 'diff', String(prNumber), ...repoArgs(repoSlug)], cwd);
 
   if ('error' in result) {
     return { status: 'error', message: result.error.message };
@@ -293,8 +271,10 @@ export async function getRecentCommits(
   // This is safer than \x00 when %b (body) can span multiple lines.
   // Neither \x1f nor \x1e appears in real-world commit messages.
   const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%aI%x1e';
-  const skipArg = skip > 0 ? ` --skip=${skip}` : '';
-  const result = await runGit(`log -${count}${skipArg} --format=${format}`, workingDir);
+  const logArgs = ['log', `-${count}`];
+  if (skip > 0) logArgs.push(`--skip=${skip}`);
+  logArgs.push(`--format=${format}`);
+  const result = await runGit(logArgs, workingDir);
 
   if ('error' in result) {
     // Empty repo or non-git directory — return empty list, not an error
@@ -337,7 +317,7 @@ export async function getCommitDetail(
   sha: string
 ): Promise<GitCommitDetailResult> {
   // --format="" suppresses the commit header; we only want the diff
-  const result = await runGit(`show ${sha} --format="" --stat -p`, workingDir);
+  const result = await runGit(['show', sha, '--format=', '--stat', '-p'], workingDir);
 
   if ('error' in result) {
     const errMsg = result.error.message;
@@ -383,7 +363,7 @@ export async function getCommitMetadata(
 ): Promise<{ message: string; body?: string; author: string; date: string } | null> {
   // Use US (\x1f) as field separator. %b may contain newlines but not \x1f.
   const format = '%s%x1f%b%x1f%an%x1f%aI';
-  const result = await runGit(`log -1 --format=${format} ${sha}`, workingDir);
+  const result = await runGit(['log', '-1', `--format=${format}`, sha], workingDir);
   if ('error' in result) return null;
   const output = result.stdout.trim();
   if (!output) return null;
@@ -395,27 +375,6 @@ export async function getCommitMetadata(
 }
 
 // ─── GitHub CLI Integration ──────────────────────────────────────────────────
-
-/**
- * Run an arbitrary command in `cwd`.
- * Returns `{ stdout, stderr }` on success, `{ error }` on failure.
- * Never throws.
- */
-async function runCommand(
-  command: string,
-  cwd: string
-): Promise<{ stdout: string; stderr: string } | { error: Error & { code?: number } }> {
-  try {
-    const result = await execAsync(command, {
-      cwd,
-      env: { ...process.env, NO_COLOR: '1' },
-      timeout: 15_000, // 15s timeout for gh commands
-    });
-    return result;
-  } catch (err) {
-    return { error: err as Error & { code?: number } };
-  }
-}
 
 /**
  * Parse a git remote URL into an `owner/repo` slug.
@@ -460,7 +419,7 @@ export function parseRepoSlug(remoteUrl: string): string | null {
  * Exported for unit testing.
  */
 export async function getOriginRepoSlug(cwd: string): Promise<string | null> {
-  const result = await runGit('remote get-url origin', cwd);
+  const result = await runGit(['remote', 'get-url', 'origin'], cwd);
   if ('error' in result) return null;
 
   const url = result.stdout.trim();
@@ -481,12 +440,24 @@ export async function getOriginRepoSlug(cwd: string): Promise<string | null> {
 export async function getOpenPRsForBranch(cwd: string, branch: string): Promise<GitPullRequest[]> {
   // Resolve the origin repo slug to target the correct repository
   const repoSlug = await getOriginRepoSlug(cwd);
-  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
-  // Extract owner from repo slug (e.g., 'owner/repo' → 'owner')
   const repoOwner = repoSlug?.split('/')[0] ?? null;
 
-  const result = await runCommand(
-    `gh pr list --head ${JSON.stringify(branch)} --state open --author @me --json number,title,url,headRefName,state,headRepositoryOwner --limit 5${repoFlag}`,
+  const result = await runGh(
+    [
+      'pr',
+      'list',
+      '--head',
+      branch,
+      '--state',
+      'open',
+      '--author',
+      '@me',
+      '--json',
+      'number,title,url,headRefName,state,headRepositoryOwner',
+      '--limit',
+      '5',
+      ...repoArgs(repoSlug),
+    ],
     cwd
   );
 
@@ -572,10 +543,19 @@ function isGHPRItem(item: unknown): item is GHPRItem {
  */
 export async function getAllPRs(cwd: string): Promise<GitPullRequest[]> {
   const repoSlug = await getOriginRepoSlug(cwd);
-  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
 
-  const result = await runCommand(
-    `gh pr list --limit 20 --state all --json number,title,state,headRefName,baseRefName,url,author,createdAt,updatedAt,mergedAt,closedAt,isDraft${repoFlag}`,
+  const result = await runGh(
+    [
+      'pr',
+      'list',
+      '--limit',
+      '20',
+      '--state',
+      'all',
+      '--json',
+      'number,title,state,headRefName,baseRefName,url,author,createdAt,updatedAt,mergedAt,closedAt,isDraft',
+      ...repoArgs(repoSlug),
+    ],
     cwd
   );
 
@@ -630,9 +610,11 @@ export interface PRCommitEntry {
  */
 export async function getPRCommits(cwd: string, prNumber: number): Promise<PRCommitEntry[]> {
   const repoSlug = await getOriginRepoSlug(cwd);
-  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
 
-  const result = await runCommand(`gh pr view ${prNumber} --json commits${repoFlag}`, cwd);
+  const result = await runGh(
+    ['pr', 'view', String(prNumber), '--json', 'commits', ...repoArgs(repoSlug)],
+    cwd
+  );
 
   if ('error' in result) {
     return [];
@@ -693,7 +675,7 @@ export interface GitRemoteEntry {
  * Returns an empty array if no remotes are configured or the command fails.
  */
 export async function getRemotes(cwd: string): Promise<GitRemoteEntry[]> {
-  const result = await runGit('remote -v', cwd);
+  const result = await runGit(['remote', '-v'], cwd);
   if ('error' in result) return [];
   if (!result.stdout.trim()) return [];
 
@@ -736,7 +718,7 @@ export async function getRemotes(cwd: string): Promise<GitRemoteEntry[]> {
  * should never cause the git state push to fail.
  */
 export async function getCommitsAhead(workingDir: string): Promise<number> {
-  const result = await runGit('rev-list --count @{upstream}..HEAD', workingDir);
+  const result = await runGit(['rev-list', '--count', '@{upstream}..HEAD'], workingDir);
   if ('error' in result) return 0;
   const count = parseInt(result.stdout.trim(), 10);
   return Number.isNaN(count) ? 0 : count;
@@ -749,7 +731,7 @@ export async function getCommitsAhead(workingDir: string): Promise<number> {
  * Uses `git rev-list --count HEAD..@{upstream}`.
  */
 export async function getCommitsBehind(workingDir: string): Promise<number> {
-  const result = await runGit('rev-list --count HEAD..@{upstream}', workingDir);
+  const result = await runGit(['rev-list', '--count', 'HEAD..@{upstream}'], workingDir);
   if ('error' in result) return 0;
   const count = parseInt(result.stdout.trim(), 10);
   return Number.isNaN(count) ? 0 : count;
@@ -821,15 +803,22 @@ export async function getCommitStatusChecks(
   try {
     // Fetch modern check-runs and legacy statuses list in parallel
     const [checkRunsResult, legacyStatusesResult] = await Promise.all([
-      runCommand(
-        `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/check-runs --jq '{check_runs: [.check_runs[] | {name: .name, status: .status, conclusion: .conclusion}], total_count: .total_count}'`,
+      runGh(
+        [
+          'api',
+          `repos/${repoSlug}/commits/${encodeURIComponent(ref)}/check-runs`,
+          '--jq',
+          '{check_runs: [.check_runs[] | {name: .name, status: .status, conclusion: .conclusion}], total_count: .total_count}',
+        ],
         cwd
       ),
-      runCommand(
-        // Fetch all status events for this commit, deduplicate per context keeping the most
-        // recent entry, and return minimal fields. The /status rollup is NOT used because
-        // it can mask failures when check-runs are also present.
-        `gh api repos/${repoSlug}/commits/${encodeURIComponent(ref)}/statuses --jq '[group_by(.context)[] | max_by(.created_at) | {context: .context, state: .state, target_url: .target_url}]'`,
+      runGh(
+        [
+          'api',
+          `repos/${repoSlug}/commits/${encodeURIComponent(ref)}/statuses`,
+          '--jq',
+          '[group_by(.context)[] | max_by(.created_at) | {context: .context, state: .state, target_url: .target_url}]',
+        ],
         cwd
       ),
     ]);
@@ -913,7 +902,7 @@ export async function getDefaultBranch(cwd: string): Promise<string | null> {
   if (!repoSlug) return null;
 
   try {
-    const result = await runCommand(`gh api repos/${repoSlug} --jq '.default_branch'`, cwd);
+    const result = await runGh(['api', `repos/${repoSlug}`, '--jq', '.default_branch'], cwd);
     if ('error' in result) return null;
     const branch = result.stdout.trim();
     return branch || null;

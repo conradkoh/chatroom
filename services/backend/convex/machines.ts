@@ -13,6 +13,7 @@ import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
+import { validateWorkingDir } from './workspacePathSecurity';
 import { DAEMON_LIVENESS_WRITE_INTERVAL_MS, OBSERVATION_TTL_MS } from '../config/reliability';
 import {
   agentStopReasonValidator,
@@ -57,42 +58,6 @@ function resolveAllowNewMachineForStart(
 }
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
-
-/** Validates an absolute working directory path, rejecting unsafe characters. */
-function validateWorkingDir(workingDir: string): void {
-  if (!workingDir || workingDir.trim().length === 0) {
-    throw new Error('Working directory cannot be empty');
-  }
-
-  if (workingDir.length > 1024) {
-    throw new Error('Working directory path is too long (max 1024 characters)');
-  }
-
-  // Must be an absolute path
-  if (!workingDir.startsWith('/')) {
-    throw new Error('Working directory must be an absolute path (starting with /)');
-  }
-
-  // Reject null bytes
-  if (workingDir.includes('\0')) {
-    throw new Error('Working directory contains invalid characters (null byte)');
-  }
-
-  // Reject newlines / carriage returns
-  if (/[\n\r]/.test(workingDir)) {
-    throw new Error('Working directory must not contain newlines');
-  }
-
-  // Reject shell metacharacters that could enable injection
-  // These have no legitimate use in directory paths
-  const shellMetaChars = /[;|&$`(){}<>!#~\\]/;
-  if (shellMetaChars.test(workingDir)) {
-    throw new Error(
-      'Working directory contains disallowed characters. ' +
-        'Only alphanumeric characters, hyphens, underscores, dots, slashes, and spaces are allowed.'
-    );
-  }
-}
 
 /**
  * Look up a machine by its machineId. Throws if not found.

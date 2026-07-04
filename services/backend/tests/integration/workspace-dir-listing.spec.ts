@@ -5,21 +5,49 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import {
+  createDuoTeamChatroom,
+  createTestSession,
+  registerMachineWithDaemon,
+} from '../helpers/integration';
+
+const WORKING_DIR = '/tmp/workspace';
+
+async function registerWorkspace(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.mutation(api.workspaces.registerWorkspace, {
+    sessionId: sessionId as never,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'builder',
+  });
+}
+
+async function setupMachine(sessionKey: string, machineId: string) {
+  const { sessionId } = await createTestSession(sessionKey);
+  await registerMachineWithDaemon(sessionId, machineId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  await registerWorkspace(sessionId, chatroomId, machineId, WORKING_DIR);
+  return { sessionId, machineId };
+}
 
 describe('workspace dir listing requests', () => {
   test('requestDirListing returns cached when fresh', async () => {
-    const { sessionId } = await createTestSession('test-wdl-cached');
-    const machineId = 'machine-wdl-cached';
-    const workingDir = '/tmp/workspace';
+    const { sessionId, machineId } = await setupMachine('test-wdl-cached', 'machine-wdl-cached');
     const dirPath = '';
-    await registerMachineWithDaemon(sessionId, machineId);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceDirListingV2', {
         machineId,
-        workingDir,
+        workingDir: WORKING_DIR,
         dirPath,
         data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
         dataHash: 'fresh-dir-hash',
@@ -32,7 +60,7 @@ describe('workspace dir listing requests', () => {
     const result = await t.mutation(api.workspaceFiles.requestDirListing, {
       sessionId,
       machineId,
-      workingDir,
+      workingDir: WORKING_DIR,
       dirPath,
     });
 
@@ -40,16 +68,13 @@ describe('workspace dir listing requests', () => {
   });
 
   test('requestDirListing with force creates pending request', async () => {
-    const { sessionId } = await createTestSession('test-wdl-force');
-    const machineId = 'machine-wdl-force';
-    const workingDir = '/tmp/workspace';
+    const { sessionId, machineId } = await setupMachine('test-wdl-force', 'machine-wdl-force');
     const dirPath = 'src';
-    await registerMachineWithDaemon(sessionId, machineId);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceDirListingV2', {
         machineId,
-        workingDir,
+        workingDir: WORKING_DIR,
         dirPath,
         data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
         dataHash: 'fresh-dir-hash',
@@ -62,7 +87,7 @@ describe('workspace dir listing requests', () => {
     const result = await t.mutation(api.workspaceFiles.requestDirListing, {
       sessionId,
       machineId,
-      workingDir,
+      workingDir: WORKING_DIR,
       dirPath,
       force: true,
     });
@@ -70,17 +95,29 @@ describe('workspace dir listing requests', () => {
     expect(result.status).toBe('requested');
   });
 
-  test('requestFileSearch with force bypasses staleness', async () => {
-    const { sessionId } = await createTestSession('test-wfs-force');
-    const machineId = 'machine-wfs-force';
-    const workingDir = '/tmp/workspace';
-    const query = 'app';
+  test('requestDirListing rejects unregistered workingDir', async () => {
+    const { sessionId } = await createTestSession('test-wdl-unregistered');
+    const machineId = 'machine-wdl-unregistered';
     await registerMachineWithDaemon(sessionId, machineId);
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestDirListing, {
+        sessionId,
+        machineId,
+        workingDir: '/tmp/unregistered-workspace',
+        dirPath: '',
+      })
+    ).rejects.toThrow(/not registered/i);
+  });
+
+  test('requestFileSearch with force bypasses staleness', async () => {
+    const { sessionId, machineId } = await setupMachine('test-wfs-force', 'machine-wfs-force');
+    const query = 'app';
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_workspaceFileSearchV2', {
         machineId,
-        workingDir,
+        workingDir: WORKING_DIR,
         query,
         data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
         dataHash: 'search-hash',
@@ -93,7 +130,7 @@ describe('workspace dir listing requests', () => {
     const result = await t.mutation(api.workspaceFiles.requestFileSearch, {
       sessionId,
       machineId,
-      workingDir,
+      workingDir: WORKING_DIR,
       query,
       force: true,
     });

@@ -1,11 +1,9 @@
 /**
  * git-reader Unit Tests
  *
- * Tests all exported functions using mocked child_process.exec.
+ * Tests all exported functions using mocked runGit/runGh.
  * No actual git commands are run — all responses are simulated via mocks.
  */
-
-import { exec } from 'node:child_process';
 
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 
@@ -29,41 +27,55 @@ import {
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
 
-// Mock the node built-ins before importing the module under test
-vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
-}));
+type QueuedResponse = { stdout: string; stderr: string } | { error: Error & { code?: number } };
 
-vi.mock('node:util', () => ({
-  promisify: (fn: Function) => fn,
-}));
+const responseQueue: QueuedResponse[] = [];
 
-const mockExec = vi.mocked(exec);
-
-// ─── Helper: mock exec to return success ────────────────────────────────────
-
-function mockSuccess(stdout: string, stderr = ''): void {
-  // exec is promisified — mock returns a promise that resolves
-  mockExec.mockImplementationOnce((_cmd, _opts, callback) => {
-    // promisify wraps the node-style callback; return the raw value
-    return Promise.resolve({ stdout, stderr }) as unknown as ReturnType<typeof exec>;
-  });
+function dequeue(): QueuedResponse {
+  const next = responseQueue.shift();
+  if (!next) throw new Error('No mocked command response queued');
+  return next;
 }
 
-function mockFailure(message: string, code = 1): void {
-  const err = Object.assign(new Error(message), { code });
-  mockExec.mockImplementationOnce(() => {
-    return Promise.reject(err) as unknown as ReturnType<typeof exec>;
-  });
-}
+const mockRunGit =
+  vi.fn<
+    (args: string[], cwd: string) => Promise<{ stdout: string; stderr: string } | { error: Error }>
+  >();
 
-// ─── Restore mocks between tests ────────────────────────────────────────────
+const mockRunGh =
+  vi.fn<
+    (args: string[], cwd: string) => Promise<{ stdout: string; stderr: string } | { error: Error }>
+  >();
+
+vi.mock('./run-command.js', () => ({
+  runGit: (args: string[], cwd: string) => mockRunGit(args, cwd),
+  runGh: (args: string[], cwd: string) => mockRunGh(args, cwd),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  responseQueue.length = 0;
+  mockRunGit.mockImplementation(async () => {
+    const next = dequeue();
+    if ('error' in next) return { error: next.error };
+    return { stdout: next.stdout, stderr: next.stderr };
+  });
+  mockRunGh.mockImplementation(async () => {
+    const next = dequeue();
+    if ('error' in next) return { error: next.error };
+    return { stdout: next.stdout, stderr: next.stderr };
+  });
 });
 
-// ─── parseDiffStatLine ───────────────────────────────────────────────────────
+function mockSuccess(stdout: string, stderr = ''): void {
+  responseQueue.push({ stdout, stderr });
+}
+
+function mockFailure(message: string, code = 1): void {
+  responseQueue.push({ error: Object.assign(new Error(message), { code }) });
+}
+
+// ─── Helper: queue command responses in call order ───────────────────────────
 
 describe('parseDiffStatLine', () => {
   test('parses standard stat line with all fields', () => {
@@ -335,13 +347,13 @@ describe('getRecentCommits', () => {
   test('defaults to 20 commits', async () => {
     mockSuccess('');
     await getRecentCommits('/repo');
-    expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('log -20'), expect.any(Object));
+    expect(mockRunGit).toHaveBeenCalledWith(expect.arrayContaining(['log', '-20']), '/repo');
   });
 
   test('passes custom count to git log', async () => {
     mockSuccess('');
     await getRecentCommits('/repo', 5);
-    expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('log -5'), expect.any(Object));
+    expect(mockRunGit).toHaveBeenCalledWith(expect.arrayContaining(['log', '-5']), '/repo');
   });
 });
 
@@ -500,25 +512,25 @@ describe('getOpenPRsForBranch', () => {
 
     await getOpenPRsForBranch('/repo', 'feat/x');
 
-    // Second call should include --repo
-    expect(mockExec).toHaveBeenCalledTimes(2);
-    const ghCall = mockExec.mock.calls[1]![0] as string;
-    expect(ghCall).toContain('--repo');
-    expect(ghCall).toContain('myuser/myrepo');
+    expect(mockRunGh).toHaveBeenCalled();
+    const ghCall = mockRunGh.mock.calls[0] as [string[], string] | undefined;
+    const ghArgs = ghCall?.[0];
+    expect(ghArgs).toBeDefined();
+    expect(ghArgs).toContain('--repo');
+    expect(ghArgs).toContain('myuser/myrepo');
   });
 
   test('falls back to no --repo when origin slug cannot be resolved', async () => {
-    // First call: git remote get-url origin fails
     mockFailure("fatal: No such remote 'origin'");
-    // Second call: gh pr list
     mockSuccess('[]');
 
     await getOpenPRsForBranch('/repo', 'feat/x');
 
-    // Second call should NOT include --repo
-    expect(mockExec).toHaveBeenCalledTimes(2);
-    const ghCall = mockExec.mock.calls[1]![0] as string;
-    expect(ghCall).not.toContain('--repo');
+    expect(mockRunGh).toHaveBeenCalled();
+    const ghCall = mockRunGh.mock.calls[0] as [string[], string] | undefined;
+    const ghArgs = ghCall?.[0];
+    expect(ghArgs).toBeDefined();
+    expect(ghArgs).not.toContain('--repo');
   });
 
   test('returns empty array for empty JSON array output', async () => {
@@ -675,12 +687,16 @@ describe('getCommitStatusChecks', () => {
     mockSuccess('https://github.com/owner/repo.git\n');
     mockSuccess(
       JSON.stringify({
-        check_runs: [{ name: 'Vercel Preview Comments', status: 'completed', conclusion: 'success' }],
+        check_runs: [
+          { name: 'Vercel Preview Comments', status: 'completed', conclusion: 'success' },
+        ],
         total_count: 1,
       })
     );
     mockSuccess(
-      JSON.stringify([{ context: 'Vercel', state: 'failure', target_url: 'https://vercel.com/deploy/123' }])
+      JSON.stringify([
+        { context: 'Vercel', state: 'failure', target_url: 'https://vercel.com/deploy/123' },
+      ])
     );
 
     const result = await getCommitStatusChecks('/repo', 'main');
@@ -719,7 +735,10 @@ describe('getCommitStatusChecks', () => {
 
   test('pending legacy status while check-runs complete → pending', async () => {
     mockCheckRuns(
-      { check_runs: [{ name: 'build', status: 'completed', conclusion: 'success' }], total_count: 1 },
+      {
+        check_runs: [{ name: 'build', status: 'completed', conclusion: 'success' }],
+        total_count: 1,
+      },
       [{ context: 'deploy', state: 'pending', target_url: null }]
     );
 
@@ -745,10 +764,9 @@ describe('getCommitStatusChecks', () => {
   });
 
   test('no check-runs, only legacy statuses', async () => {
-    mockCheckRuns(
-      { check_runs: [], total_count: 0 },
-      [{ context: 'CI', state: 'success', target_url: 'https://ci.example.com' }]
-    );
+    mockCheckRuns({ check_runs: [], total_count: 0 }, [
+      { context: 'CI', state: 'success', target_url: 'https://ci.example.com' },
+    ]);
 
     const result = await getCommitStatusChecks('/repo', 'main');
     expect(result).not.toBeNull();
@@ -824,7 +842,9 @@ describe('getCommitMetadata', () => {
   });
 
   test('parses commit body when present', async () => {
-    mockSuccess('Feat: big change\x1fThis explains things\nover two lines\x1fBob\x1f2026-01-02T00:00:00Z');
+    mockSuccess(
+      'Feat: big change\x1fThis explains things\nover two lines\x1fBob\x1f2026-01-02T00:00:00Z'
+    );
     const result = await getCommitMetadata('/repo', 'def5678');
     expect(result?.body).toBe('This explains things\nover two lines');
   });

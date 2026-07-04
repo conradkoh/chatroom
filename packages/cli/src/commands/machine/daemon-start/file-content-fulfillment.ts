@@ -6,7 +6,6 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
@@ -14,6 +13,8 @@ import { Effect } from 'effect';
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
+import { resolvePathWithinWorkspace } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';
 
 /** Max file content size (500KB). */
@@ -148,16 +149,45 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
       const startTime = Date.now();
       const { workingDir, filePath } = request;
 
-      if (filePath.includes('..') || filePath.startsWith('/')) {
-        console.warn(`[${formatTimestamp()}] ⚠️  Rejected path traversal attempt: ${filePath}`);
+      const registered = yield* Effect.catchAll(
+        Effect.tryPromise(() => assertRegisteredWorkingDir(session, workingDir)),
+        (): Effect.Effect<{ ok: true } | { ok: false; error: string }> =>
+          Effect.succeed({ ok: false, error: 'Workspace check failed' })
+      );
+      if (!registered.ok) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Rejected unregistered workspace: ${workingDir} (${registered.error})`
+        );
+        yield* fulfillGzippedContentEffect(
+          session,
+          workingDir,
+          filePath,
+          '[Error: workspace not registered]',
+          false
+        );
         continue;
       }
 
-      const absolutePath = resolve(workingDir, filePath);
-      if (!absolutePath.startsWith(resolve(workingDir))) {
-        console.warn(`[${formatTimestamp()}] ⚠️  Path escapes workspace: ${absolutePath}`);
+      const resolved = yield* Effect.catchAll(
+        Effect.tryPromise(() => resolvePathWithinWorkspace(workingDir, filePath)),
+        (): Effect.Effect<{ ok: true; absolutePath: string } | { ok: false; error: string }> =>
+          Effect.succeed({ ok: false, error: 'Invalid file path' })
+      );
+      if (!resolved.ok) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Rejected file path: ${filePath} (${resolved.error})`
+        );
+        yield* fulfillGzippedContentEffect(
+          session,
+          workingDir,
+          filePath,
+          '[Error reading file]',
+          false
+        );
         continue;
       }
+
+      const absolutePath = resolved.absolutePath;
 
       if (isBinaryFile(filePath)) {
         yield* fulfillGzippedContentEffect(session, workingDir, filePath, '[Binary file]', false);

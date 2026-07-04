@@ -11,6 +11,11 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
+import {
+  requireRegisteredWorkspaceForMachine,
+  validateDirPath,
+  validateFilePath,
+} from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -24,14 +29,10 @@ const MAX_CONTENT_BYTES = 512 * 1024;
 /** Max pending requests returned per query (prevent unbounded reads). */
 const MAX_PENDING_REQUESTS = 50;
 
-/** Max file path length to prevent abuse. */
-const MAX_FILE_PATH_LENGTH = 1024;
-
 const MAX_DIR_LISTING_BYTES = 200 * 1024;
 const MAX_SEARCH_BYTES = 200 * 1024;
 const DIR_LISTING_STALENESS_MS = 30 * 1000;
 const FILE_SEARCH_STALENESS_MS = 30 * 1000;
-const MAX_DIR_PATH_LENGTH = 1024;
 const MAX_SEARCH_QUERY_LENGTH = 200;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -57,32 +58,6 @@ async function requireMachineAccess(
     resource: { type: 'machine', id: machineId },
     permission: 'write-access',
   });
-}
-
-/**
- * Validate a file path for security.
- * Rejects path traversal, absolute paths, null bytes, and overly long paths.
- */
-function validateFilePath(filePath: string): void {
-  if (filePath.length > MAX_FILE_PATH_LENGTH) {
-    throw new Error('File path too long');
-  }
-  if (filePath.includes('..')) {
-    throw new Error('Invalid file path: path traversal not allowed');
-  }
-  if (filePath.startsWith('/')) {
-    throw new Error('Invalid file path: absolute paths not allowed');
-  }
-  if (filePath.includes('\0')) {
-    throw new Error('Invalid file path: null bytes not allowed');
-  }
-}
-
-function validateDirPath(dirPath: string): void {
-  if (dirPath.length > MAX_DIR_PATH_LENGTH) throw new Error('Directory path too long');
-  if (dirPath.includes('..')) throw new Error('Invalid directory path');
-  if (dirPath.startsWith('/')) throw new Error('Invalid directory path');
-  if (dirPath.includes('\0')) throw new Error('Invalid directory path');
 }
 
 function validateSearchQuery(query: string): void {
@@ -177,6 +152,7 @@ export const requestFileContent = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
 
     // Security: validate file path
     validateFilePath(args.filePath);
@@ -837,6 +813,7 @@ export const requestFileWrite = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
     validateFilePath(args.filePath);
 
     if (args.operation === 'mkdir') {
@@ -1295,6 +1272,7 @@ export const requestDirListing = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
     validateDirPath(args.dirPath);
 
     if (!args.force) {
@@ -1576,6 +1554,7 @@ export const requestFileSearch = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
     validateSearchQuery(args.query);
 
     if (!args.force) {

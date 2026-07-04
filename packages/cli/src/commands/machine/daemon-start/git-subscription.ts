@@ -17,9 +17,7 @@
  * This subscription is only for on-demand requests that require low latency.
  */
 
-import { exec } from 'child_process';
 import { gzipSync } from 'node:zlib';
-import { promisify } from 'util';
 
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
@@ -34,6 +32,7 @@ import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
+import { runGh } from '../../../infrastructure/git/run-command.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -190,26 +189,25 @@ async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): 
     throw new Error('pr_action request missing prNumber or prAction');
   }
 
-  let cmd: string;
+  let ghArgs: string[];
   switch (action) {
     case 'merge_squash':
-      cmd = `gh pr merge ${prNumber} --squash --delete-branch`;
+      ghArgs = ['pr', 'merge', String(prNumber), '--squash', '--delete-branch'];
       break;
     case 'merge_no_squash':
-      cmd = `gh pr merge ${prNumber} --merge`;
+      ghArgs = ['pr', 'merge', String(prNumber), '--merge'];
       break;
     case 'close':
-      cmd = `gh pr close ${prNumber}`;
+      ghArgs = ['pr', 'close', String(prNumber)];
       break;
     default:
       throw new Error(`Unknown PR action: ${action}`);
   }
 
-  const execAsync = promisify(exec);
-  const result = await execAsync(cmd, {
-    cwd: req.workingDir,
-    timeout: EXEC_TIMEOUT_MS,
-  });
+  const result = await runGh(ghArgs, req.workingDir, { timeout: EXEC_TIMEOUT_MS });
+  if ('error' in result) {
+    throw result.error;
+  }
   console.log(
     `[${formatTimestamp()}] ✅ PR action: ${action} on #${prNumber}${result.stdout ? ` — ${result.stdout.trim()}` : ''}`
   );

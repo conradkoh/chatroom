@@ -6,8 +6,8 @@
 // fallow-ignore-file code-duplication
 
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { dirname } from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 
@@ -15,8 +15,13 @@ import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-s
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import { computeDirListingContentHash } from '../../../infrastructure/services/workspace/dir-listing-content-hash.js';
 import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
+import {
+  gunzipBase64Payload,
+  resolvePathWithinWorkspace,
+} from '../../../infrastructure/services/workspace/workspace-path-security.js';
 
 /** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
 const MAX_CONTENT_BYTES = 512 * 1024;
@@ -44,27 +49,10 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'Target path is required for rename',
     'Rename target must differ from source path',
     'Directory already exists',
+    'Workspace not registered for this machine',
   ]);
   if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
-}
-
-/** Reject path traversal and paths that escape the workspace root. */
-function resolveWorkspaceWritePath(
-  workingDir: string,
-  filePath: string
-): { ok: true; absolutePath: string } | { ok: false; error: string } {
-  if (filePath.includes('..') || filePath.startsWith('/')) {
-    return { ok: false, error: 'Invalid file path' };
-  }
-
-  const absolutePath = resolve(workingDir, filePath);
-  const workspaceRoot = resolve(workingDir);
-  if (!absolutePath.startsWith(workspaceRoot)) {
-    return { ok: false, error: 'Path escapes workspace' };
-  }
-
-  return { ok: true, absolutePath };
 }
 
 function parentDirPath(filePath: string): string {
@@ -122,11 +110,7 @@ function decodeWritePayload(
   if (!request.data) {
     return { ok: false, errorMessage: 'Missing file data' };
   }
-  const content = gunzipSync(Buffer.from(request.data.content, 'base64'));
-  if (content.length > MAX_CONTENT_BYTES) {
-    return { ok: false, errorMessage: 'File content too large' };
-  }
-  return { ok: true, content };
+  return gunzipBase64Payload(request.data.content, MAX_CONTENT_BYTES);
 }
 
 // fallow-ignore-next-line complexity
@@ -166,7 +150,16 @@ async function fulfillOneFileWriteRequest(
   const startTime = Date.now();
   const { workingDir, filePath, operation } = request;
 
-  const resolved = resolveWorkspaceWritePath(workingDir, filePath);
+  const registered = await assertRegisteredWorkingDir(session, workingDir);
+  if (!registered.ok) {
+    await completeWriteRequest(session, request._id, {
+      status: 'error',
+      errorMessage: registered.error,
+    });
+    return;
+  }
+
+  const resolved = await resolvePathWithinWorkspace(workingDir, filePath);
   if (!resolved.ok) {
     await completeWriteRequest(session, request._id, {
       status: 'error',
@@ -192,7 +185,7 @@ async function fulfillOneFileWriteRequest(
         return;
       }
 
-      const targetResolved = resolveWorkspaceWritePath(workingDir, request.targetFilePath);
+      const targetResolved = await resolvePathWithinWorkspace(workingDir, request.targetFilePath);
       if (!targetResolved.ok) {
         await completeWriteRequest(session, request._id, {
           status: 'error',

@@ -64,8 +64,13 @@ function makeRequest(
 type FulfillmentRequest = ReturnType<typeof makeRequest>;
 
 async function runFulfillment(requests: FulfillmentRequest[]) {
+  const workingDir = requests[0]?.workingDir ?? '';
   const init = createMockDaemonSessionInit({
     machineId: 'machine-write-test',
+    workspaceListStore: {
+      workspaces: [{ workingDir }],
+      updatedAt: Date.now(),
+    },
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue(requests),
@@ -369,6 +374,30 @@ describe('fulfillFileWriteRequestsEffect', () => {
         errorMessage: 'Directory already exists',
       })
     );
+  });
+
+  it('rejects unregistered workingDir before touching disk', async () => {
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: { workspaces: [], updatedAt: Date.now() },
+      backend: {
+        mutation: vi.fn().mockResolvedValue(undefined),
+        query: vi.fn().mockResolvedValue([makeRequest(workingDir, 'notes.md', 'create', 'hi')]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Workspace not registered for this machine',
+      })
+    );
+    await expect(access(join(workingDir, 'notes.md'))).rejects.toThrow();
   });
 });
 

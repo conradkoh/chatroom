@@ -10,6 +10,7 @@ import type {
   DirListingEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files.js';
 
+import { isPathInsideRoot } from './workspace-path-security.js';
 import {
   filterGitIgnored,
   isAlwaysExcludedDirName,
@@ -31,7 +32,7 @@ export async function listDirectory(
   const resolvedRoot = path.resolve(rootDir);
   const resolvedDir = path.resolve(absDir);
 
-  if (!resolvedDir.startsWith(resolvedRoot)) {
+  if (!isPathInsideRoot(resolvedRoot, resolvedDir)) {
     return { dirPath, entries: [], scannedAt, truncated: false, totalCount: 0 };
   }
 

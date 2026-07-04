@@ -1902,6 +1902,7 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
   // ─── Workspace File Tree ─────────────────────────────────────────────────────

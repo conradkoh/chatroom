@@ -18,11 +18,15 @@ vi.mock('../../../api.js', () => ({
   },
 }));
 
-async function runFulfillment(deps: ReturnType<typeof createMockDaemonDeps>) {
+async function runFulfillment(deps: ReturnType<typeof createMockDaemonDeps>, workingDir: string) {
   const { fulfillFileContentRequestsEffect } = await import('./file-content-fulfillment.js');
   const layer = daemonSessionToLayers(
     createMockDaemonSessionInit({
       backend: deps.backend,
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
     })
   );
   await Effect.runPromise(fulfillFileContentRequestsEffect.pipe(Effect.provide(layer)));
@@ -43,7 +47,7 @@ describe('fulfillFileContentRequestsEffect', () => {
         { _id: 'req-1', workingDir, filePath: 'notes.md' },
       ]);
 
-      await runFulfillment(deps);
+      await runFulfillment(deps, workingDir);
 
       expect(deps.backend.mutation).not.toHaveBeenCalled();
     } finally {
@@ -60,7 +64,7 @@ describe('fulfillFileContentRequestsEffect', () => {
         { _id: 'req-1', workingDir, filePath: 'notes.md' },
       ]);
 
-      await runFulfillment(deps);
+      await runFulfillment(deps, workingDir);
 
       expect(deps.backend.mutation).toHaveBeenCalledWith(
         'mock-fulfillFileContentV2',
