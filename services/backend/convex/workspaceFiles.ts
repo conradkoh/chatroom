@@ -815,13 +815,19 @@ export const requestFileWrite = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    operation: v.union(v.literal('create'), v.literal('update'), v.literal('delete')),
+    operation: v.union(
+      v.literal('create'),
+      v.literal('update'),
+      v.literal('delete'),
+      v.literal('rename')
+    ),
     data: v.optional(
       v.object({
         compression: v.literal('gzip'),
         content: v.string(),
       })
     ),
+    targetFilePath: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -832,7 +838,18 @@ export const requestFileWrite = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     validateFilePath(args.filePath);
 
-    if (args.operation === 'delete') {
+    if (args.operation === 'rename') {
+      if (!args.targetFilePath) {
+        throw new Error('Target path is required for rename');
+      }
+      if (args.data !== undefined) {
+        throw new Error('Rename requests must not include file data');
+      }
+      validateFilePath(args.targetFilePath);
+      if (args.targetFilePath === args.filePath) {
+        throw new Error('Rename target must differ from source path');
+      }
+    } else if (args.operation === 'delete') {
       if (args.data !== undefined) {
         throw new Error('Delete requests must not include file data');
       }
@@ -866,7 +883,11 @@ export const requestFileWrite = mutation({
       errorMessage: undefined,
       requestedAt: now,
       updatedAt: now,
-      ...(args.operation === 'delete' ? { data: undefined } : { data: args.data }),
+      ...(args.operation === 'rename'
+        ? { data: undefined, targetFilePath: args.targetFilePath }
+        : args.operation === 'delete'
+          ? { data: undefined, targetFilePath: undefined }
+          : { data: args.data, targetFilePath: undefined }),
     };
 
     if (existingRequest) {
@@ -951,6 +972,7 @@ export const getPendingFileWriteRequests = query({
       filePath: r.filePath,
       operation: r.operation,
       data: r.data,
+      targetFilePath: r.targetFilePath,
     }));
   },
 });

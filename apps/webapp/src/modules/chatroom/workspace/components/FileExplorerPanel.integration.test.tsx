@@ -56,6 +56,8 @@ const mocks = vi.hoisted(() => {
 const mockCreateFile = vi.hoisted(() => vi.fn());
 const mockRequestDelete = vi.hoisted(() => vi.fn());
 const mockConfirmDelete = vi.hoisted(() => vi.fn());
+const mockRequestRename = vi.hoisted(() => vi.fn());
+const mockConfirmRename = vi.hoisted(() => vi.fn());
 
 vi.mock('@/modules/chatroom/workspace/files/useDirListing', () => ({
   useDirListing: (args: { dirPath: string } | 'skip') => {
@@ -100,6 +102,13 @@ vi.mock('../hooks/useWorkspaceFileDelete', () => ({
   }),
 }));
 
+vi.mock('../hooks/useWorkspaceFileRename', () => ({
+  useWorkspaceFileRename: () => ({
+    requestRename: mockRequestRename,
+    confirmRename: mockConfirmRename,
+  }),
+}));
+
 vi.mock('sonner', () => ({
   toast: {
     error: vi.fn(),
@@ -116,6 +125,7 @@ const fileTabs = {
   closeTab: vi.fn(),
   setActiveTab: vi.fn(),
   toggleExpanded: vi.fn(),
+  renamePath: vi.fn(),
   rightTabs: [],
   activeRightTabKey: null,
   openRight: vi.fn(),
@@ -146,6 +156,8 @@ beforeEach(() => {
   mockCreateFile.mockResolvedValue(undefined);
   mockRequestDelete.mockResolvedValue({ requestId: 'req-delete-1' });
   mockConfirmDelete.mockResolvedValue(undefined);
+  mockRequestRename.mockResolvedValue({ requestId: 'req-rename-1' });
+  mockConfirmRename.mockResolvedValue(undefined);
 });
 
 describe('FileExplorerPanel create/delete integration', () => {
@@ -212,6 +224,24 @@ describe('FileExplorerPanel create/delete integration', () => {
     fireEvent.click(newFileItem);
 
     expect(await screen.findByPlaceholderText('docs/notes.md')).toBeInTheDocument();
+  });
+
+  it('renames a file from the context menu', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+
+    const renameMenuItem = await screen.findByRole('menuitem', { name: /rename/i });
+    fireEvent.click(renameMenuItem);
+
+    const input = await screen.findByLabelText('New file name');
+    fireEvent.change(input, { target: { value: 'manifest.json' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockRequestRename).toHaveBeenCalledWith('package.json', 'manifest.json');
+      expect(fileTabs.renamePath).toHaveBeenCalledWith('package.json', 'manifest.json');
+    });
   });
 
   it('does not enter a refresh loop after create completes', async () => {

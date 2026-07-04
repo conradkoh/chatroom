@@ -178,7 +178,7 @@ describe('NewFileDialog', () => {
     fireEvent.change(input, { target: { value: 'nested/notes.md' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(screen.getByText('Enter a file name only')).toBeInTheDocument();
+    expect(screen.getByText('Enter a name only')).toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,10 @@ vi.mock('./NewFileDialog', () => ({
   NewFileDialog: () => null,
 }));
 
+vi.mock('./RenameDialog', () => ({
+  RenameDialog: () => null,
+}));
+
 vi.mock('../hooks/useExplorerNewFileOps', () => ({
   useExplorerNewFileOps: () => ({
     onFileCreated: vi.fn(),
@@ -28,6 +32,9 @@ vi.mock('../hooks/useExplorerNewFileOps', () => ({
     onFileDeleteSubmitted: vi.fn(),
     onFileDeleteConfirmed: vi.fn(),
     onFileDeleteFailed: vi.fn(),
+    onFileRenamed: vi.fn(),
+    onFileRenameFailed: vi.fn(),
+    onFileRenameConfirmed: vi.fn(),
   }),
 }));
 
@@ -47,6 +54,7 @@ const fileTabs = {
   closeTab: vi.fn(),
   setActiveTab: vi.fn(),
   toggleExpanded: vi.fn(),
+  renamePath: vi.fn(),
   rightTabs: [],
   activeRightTabKey: null,
   openRight: vi.fn(),

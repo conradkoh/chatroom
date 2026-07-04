@@ -5,7 +5,7 @@
  */
 // fallow-ignore-file code-duplication
 
-import { access, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
@@ -24,7 +24,8 @@ export type PendingFileWriteRequest = {
   _id: string;
   workingDir: string;
   filePath: string;
-  operation: 'create' | 'update' | 'delete';
+  operation: 'create' | 'update' | 'delete' | 'rename';
+  targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
 };
 
@@ -38,6 +39,9 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'File already exists',
     'File does not exist',
     'Cannot delete workspace root',
+    'Target path already exists',
+    'Target path is required for rename',
+    'Rename target must differ from source path',
   ]);
   return terminalMessages.has(errorMessage);
 }
@@ -169,6 +173,66 @@ async function fulfillOneFileWriteRequest(
   }
 
   try {
+    if (operation === 'rename') {
+      if (!request.targetFilePath) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Target path is required for rename',
+        });
+        return;
+      }
+      if (request.targetFilePath === filePath) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Rename target must differ from source path',
+        });
+        return;
+      }
+
+      const targetResolved = resolveWorkspaceWritePath(workingDir, request.targetFilePath);
+      if (!targetResolved.ok) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: targetResolved.error,
+        });
+        return;
+      }
+
+      const sourceExists = await fileExistsAt(resolved.absolutePath);
+      if (!sourceExists) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'File does not exist',
+        });
+        return;
+      }
+
+      const targetExists = await fileExistsAt(targetResolved.absolutePath);
+      if (targetExists) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Target path already exists',
+        });
+        return;
+      }
+
+      await mkdir(dirname(targetResolved.absolutePath), { recursive: true });
+      await rename(resolved.absolutePath, targetResolved.absolutePath);
+
+      await syncParentDirListingAfterWrite(session, workingDir, filePath);
+      if (parentDirPath(filePath) !== parentDirPath(request.targetFilePath)) {
+        await syncParentDirListingAfterWrite(session, workingDir, request.targetFilePath);
+      }
+
+      await completeWriteRequest(session, request._id, { status: 'done' });
+
+      const elapsed = Date.now() - startTime;
+      console.log(
+        `[${formatTimestamp()}] ✏️  File rename fulfilled: ${filePath} → ${request.targetFilePath} (${elapsed}ms)`
+      );
+      return;
+    }
+
     if (operation === 'delete') {
       if (filePath === '') {
         await completeWriteRequest(session, request._id, {

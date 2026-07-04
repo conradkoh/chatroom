@@ -52,6 +52,21 @@ export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
     toast.error(`Failed to delete ${path}: ${error}`);
   }, []);
 
+  const onFileRenamed = useCallback(
+    (oldPath: string, newPath: string) => {
+      fileTabs.renamePath(oldPath, newPath);
+    },
+    [fileTabs]
+  );
+
+  const onFileRenameFailed = useCallback((oldPath: string, error: string) => {
+    toast.error(`Failed to rename ${oldPath}: ${error}`);
+  }, []);
+
+  const onFileRenameConfirmed = useCallback((_oldPath: string, _newPath: string) => {
+    // no-op for now (mirror onFileCreateConfirmed)
+  }, []);
+
   return {
     onFileCreated,
     onFileCreateFailed,
@@ -59,5 +74,8 @@ export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
     onFileDeleteSubmitted,
     onFileDeleteConfirmed,
     onFileDeleteFailed,
+    onFileRenamed,
+    onFileRenameFailed,
+    onFileRenameConfirmed,
   };
 }

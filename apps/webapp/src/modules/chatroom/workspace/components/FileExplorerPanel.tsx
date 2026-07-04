@@ -1,12 +1,13 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { MoreHorizontal, RefreshCw, Search, FilePlus, Trash2 } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Search, FilePlus, Pencil, Trash2 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
+import { RenameDialog } from './RenameDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import {
   AlertDialog,
@@ -171,6 +172,11 @@ export const FileExplorerPanel = memo(
       const [filterQuery, setFilterQuery] = useState('');
       const [newFileOpen, setNewFileOpen] = useState(false);
       const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
+      const [renameOpen, setRenameOpen] = useState(false);
+      const [renameTarget, setRenameTarget] = useState<{
+        path: string;
+        type: 'file' | 'directory';
+      } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
       const [contextMenuOpen, setContextMenuOpen] = useState(false);
       const [contextMenuTarget, setContextMenuTarget] = useState<ExplorerContextTarget | null>(
@@ -186,6 +192,11 @@ export const FileExplorerPanel = memo(
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
         setNewFileOpen(true);
+      }, []);
+
+      const openRenameDialog = useCallback((path: string, type: 'file' | 'directory') => {
+        setRenameTarget({ path, type });
+        setRenameOpen(true);
       }, []);
 
       const openContextMenu = useCallback((target: ExplorerContextTarget, event: MouseEvent) => {
@@ -278,6 +289,28 @@ export const FileExplorerPanel = memo(
             onCreateConfirmed={(filePath) => {
               explorerFileOps.onFileCreateConfirmed(filePath);
               onFileCreateConfirmed?.(filePath);
+            }}
+            onExplorerRefresh={refreshExplorer}
+          />
+
+          <RenameDialog
+            open={renameOpen}
+            onOpenChange={setRenameOpen}
+            machineId={machineId}
+            workingDir={workingDir}
+            targetPath={renameTarget?.path ?? ''}
+            targetType={renameTarget?.type ?? 'file'}
+            onRenamed={(oldPath, newPath) => {
+              explorerFileOps.onFileRenamed(oldPath, newPath);
+              refreshExplorer();
+            }}
+            onRenameFailed={(oldPath, error) => {
+              explorerFileOps.onFileRenameFailed(oldPath, error);
+              refreshExplorer();
+            }}
+            onRenameConfirmed={(oldPath, newPath) => {
+              explorerFileOps.onFileRenameConfirmed(oldPath, newPath);
+              refreshExplorer();
             }}
             onExplorerRefresh={refreshExplorer}
           />
@@ -392,6 +425,14 @@ export const FileExplorerPanel = memo(
                 <DropdownMenuItem onSelect={() => openNewFileDialog('')}>
                   <FilePlus size={12} className="mr-2" />
                   New File
+                </DropdownMenuItem>
+              )}
+              {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
+                <DropdownMenuItem
+                  onSelect={() => openRenameDialog(contextMenuTarget.path, contextMenuTarget.type)}
+                >
+                  <Pencil size={12} className="mr-2" />
+                  Rename
                 </DropdownMenuItem>
               )}
               {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (

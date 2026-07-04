@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { handleDialogSaveKeyDown, validateEntryName } from './explorerDialogInputUtils';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
@@ -31,29 +32,6 @@ interface NewFileDialogProps {
   onCreateFailed?: (filePath: string, error: string) => void;
   onCreateConfirmed?: (filePath: string) => void;
   onExplorerRefresh?: () => void;
-}
-
-// fallow-ignore-next-line complexity
-function validateFileName(fileName: string): string | null {
-  const trimmed = fileName.trim();
-  if (!trimmed) return 'File name is required';
-  if (trimmed.includes('/') || trimmed.includes('\\')) return 'Enter a file name only';
-  if (trimmed.includes('..')) return 'Invalid file name';
-  if (trimmed.includes('\0')) return 'Invalid file name';
-  return null;
-}
-
-// fallow-ignore-next-line complexity
-function handleDialogSaveKeyDown(event: KeyboardEvent<HTMLInputElement>, onSave: () => void): void {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-    event.preventDefault();
-    onSave();
-    return;
-  }
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    onSave();
-  }
 }
 
 // fallow-ignore-next-line complexity
@@ -107,7 +85,7 @@ export function NewFileDialog({
       : normalizeNewFilePath(pathInput);
 
     const pathError = isFolderCreate
-      ? (validateFileName(fileNameInput) ?? validateRelativeFilePath(normalizedPath))
+      ? (validateEntryName(fileNameInput, 'File name') ?? validateRelativeFilePath(normalizedPath))
       : validateRelativeFilePath(normalizedPath);
     if (pathError) {
       setValidationError(pathError);

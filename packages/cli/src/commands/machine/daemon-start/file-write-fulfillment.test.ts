@@ -38,16 +38,18 @@ vi.mock('../../../infrastructure/services/workspace/dir-listing-scanner.js', () 
 function makeRequest(
   workingDir: string,
   filePath: string,
-  operation: 'create' | 'update' | 'delete',
+  operation: 'create' | 'update' | 'delete' | 'rename',
   content?: string,
-  requestId = 'req-1'
+  requestId = 'req-1',
+  targetFilePath?: string
 ) {
   return {
     _id: requestId,
     workingDir,
     filePath,
     operation,
-    ...(operation === 'delete'
+    ...(operation === 'rename' ? { targetFilePath } : {}),
+    ...(operation === 'delete' || operation === 'rename'
       ? {}
       : {
           data: {
@@ -281,6 +283,53 @@ describe('fulfillFileWriteRequestsEffect', () => {
       expect.objectContaining({
         status: 'error',
         errorMessage: 'File already exists',
+      })
+    );
+  });
+
+  it('rename moves a file to a new basename in the same directory', async () => {
+    await writeFile(join(workingDir, 'old.txt'), 'hello');
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'old.txt', 'rename', undefined, 'req-rename-1', 'new.txt'),
+    ]);
+
+    expect(await readFile(join(workingDir, 'new.txt'), 'utf8')).toBe('hello');
+    await expect(access(join(workingDir, 'old.txt'))).rejects.toThrow();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('rename moves a directory', async () => {
+    await mkdir(join(workingDir, 'old-dir'));
+    await writeFile(join(workingDir, 'old-dir', 'child.txt'), 'x');
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'old-dir', 'rename', undefined, 'req-rename-2', 'new-dir'),
+    ]);
+
+    expect(await readFile(join(workingDir, 'new-dir', 'child.txt'), 'utf8')).toBe('x');
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('rename errors when target already exists', async () => {
+    await writeFile(join(workingDir, 'a.txt'), 'a');
+    await writeFile(join(workingDir, 'b.txt'), 'b');
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'a.txt', 'rename', undefined, 'req-rename-3', 'b.txt'),
+    ]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Target path already exists',
       })
     );
   });
