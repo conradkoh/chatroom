@@ -347,7 +347,13 @@ export const FileExplorerPanel = memo(
           </div>
 
           {/* Tree content */}
-          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
+          <div
+            className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden"
+            onContextMenu={(event) => {
+              if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
+              openContextMenu({ kind: 'root' }, event);
+            }}
+          >
             <WorkspaceFileExplorer
               refreshSignal={refreshSignal}
               chatroomId={chatroomId}

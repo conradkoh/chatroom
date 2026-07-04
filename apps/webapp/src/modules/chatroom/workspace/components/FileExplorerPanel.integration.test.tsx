@@ -201,6 +201,19 @@ describe('FileExplorerPanel create/delete integration', () => {
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
   });
 
+  it('opens New File from empty-area context menu', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    const scrollArea = screen.getByTitle('package.json').closest('.overflow-y-auto');
+    expect(scrollArea).not.toBeNull();
+    fireEvent.contextMenu(scrollArea!);
+
+    const newFileItem = await screen.findByRole('menuitem', { name: /new file/i });
+    fireEvent.click(newFileItem);
+
+    expect(await screen.findByPlaceholderText('docs/notes.md')).toBeInTheDocument();
+  });
+
   it('does not enter a refresh loop after create completes', async () => {
     render(<FileExplorerPanel {...defaultProps} />);
 
