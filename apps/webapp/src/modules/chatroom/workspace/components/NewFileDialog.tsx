@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import {
   chatroomIndustrialButtonPrimaryClassName,
@@ -76,6 +76,7 @@ export function NewFileDialog({
   const [pathInput, setPathInput] = useState('');
   const [fileNameInput, setFileNameInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -131,7 +132,13 @@ export function NewFileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>New File</DialogTitle>
           <DialogDescription>
@@ -165,6 +172,7 @@ export function NewFileDialog({
                 {targetDir}/
               </span>
               <input
+                ref={inputRef}
                 value={fileNameInput}
                 onChange={(event) => {
                   setFileNameInput(event.target.value);
@@ -173,12 +181,12 @@ export function NewFileDialog({
                 placeholder="notes.md"
                 aria-label={`File name in ${targetDir}`}
                 className="h-9 w-full border-0 bg-transparent px-3 text-sm text-chatroom-text-primary outline-none placeholder:text-chatroom-text-muted"
-                autoFocus
                 onKeyDown={(event) => handleDialogSaveKeyDown(event, handleCreate)}
               />
             </div>
           ) : (
             <input
+              ref={inputRef}
               value={pathInput}
               onChange={(event) => {
                 setPathInput(event.target.value);
@@ -191,7 +199,6 @@ export function NewFileDialog({
                 chatroomIndustrialInputClassName,
                 validationError && chatroomIndustrialInputErrorClassName
               )}
-              autoFocus
               onKeyDown={(event) => handleDialogSaveKeyDown(event, handleCreate)}
             />
           )}

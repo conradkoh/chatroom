@@ -47,6 +47,37 @@ describe('NewFileDialog', () => {
     mockCreateFile.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
   });
 
+  it('focuses the path input when the dialog opens', () => {
+    render(
+      <NewFileDialog
+        open
+        onOpenChange={onOpenChange}
+        machineId="machine-1"
+        workingDir="/workspace"
+        onCreated={onCreated}
+      />
+    );
+
+    const input = screen.getByPlaceholderText('docs/notes.md');
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('focuses the filename input when opened from a folder', () => {
+    render(
+      <NewFileDialog
+        open
+        onOpenChange={onOpenChange}
+        machineId="machine-1"
+        workingDir="/workspace"
+        defaultDir="src"
+        onCreated={onCreated}
+      />
+    );
+
+    const input = screen.getByLabelText('File name in src');
+    expect(document.activeElement).toBe(input);
+  });
+
   it('calls onCreated immediately before background create resolves', async () => {
     render(
       <NewFileDialog
