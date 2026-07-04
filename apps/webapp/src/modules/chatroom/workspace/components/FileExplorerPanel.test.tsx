@@ -6,10 +6,12 @@ import { FileExplorerPanel, type FileExplorerPanelHandle } from './FileExplorerP
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 
 let lastRefreshSignal = 0;
+let lastExplorerProps: Record<string, unknown> = {};
 
 vi.mock('./WorkspaceFileExplorer', () => ({
-  WorkspaceFileExplorer: ({ refreshSignal }: { refreshSignal?: number }) => {
-    lastRefreshSignal = refreshSignal ?? 0;
+  WorkspaceFileExplorer: (props: Record<string, unknown>) => {
+    lastExplorerProps = props;
+    lastRefreshSignal = (props.refreshSignal as number | undefined) ?? 0;
     return <div data-testid="file-explorer" />;
   },
 }));
@@ -81,5 +83,17 @@ describe('FileExplorerPanel refresh', () => {
     });
 
     expect(lastRefreshSignal).toBe(1);
+  });
+});
+
+describe('FileExplorerPanel context menu', () => {
+  it('passes context menu callbacks to explorer without wrapping it in ContextMenuTrigger', () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    expect(lastExplorerProps.onNodeContextMenu).toEqual(expect.any(Function));
+    expect(lastExplorerProps.onEmptyAreaContextMenu).toEqual(expect.any(Function));
+    expect(
+      screen.getByTestId('file-explorer').closest('[data-slot="context-menu-trigger"]')
+    ).toBeNull();
   });
 });

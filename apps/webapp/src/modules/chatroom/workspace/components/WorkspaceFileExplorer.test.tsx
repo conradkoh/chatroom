@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -63,20 +63,31 @@ describe('WorkspaceFileExplorer', () => {
     expect(button.className).not.toContain('bg-chatroom-accent/10');
   });
 
-  it('accepts onNewFileInDir and onDeleteFile callbacks without crashing', () => {
-    const onNewFileInDir = vi.fn();
-    const onDeleteFile = vi.fn();
+  it('renders tree nodes without per-node ContextMenu', () => {
+    render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
+
+    expect(screen.getByTitle('package.json')).toHaveAttribute('data-tree-node');
+    expect(document.querySelectorAll('[data-slot="context-menu"]')).toHaveLength(0);
+  });
+
+  it('forwards node context menu events to parent', () => {
+    const onNodeContextMenu = vi.fn();
 
     render(
       <WorkspaceFileExplorer
         {...defaultProps}
         selectedPath={null}
-        onNewFileInDir={onNewFileInDir}
-        onDeleteFile={onDeleteFile}
+        onNodeContextMenu={onNodeContextMenu}
       />
     );
 
-    expect(screen.getByTitle('src/index.ts')).toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByTitle('src/index.ts'));
+
+    expect(onNodeContextMenu).toHaveBeenCalledTimes(1);
+    expect(onNodeContextMenu.mock.calls[0]?.[0]).toMatchObject({
+      path: 'src/index.ts',
+      type: 'file',
+    });
   });
 
   it('renders file nodes from dir explorer hook', () => {

@@ -1,7 +1,8 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Search, FilePlus, Trash2 } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -22,15 +23,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -57,6 +53,10 @@ async function confirmDeleteInBackground(
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type ExplorerContextTarget =
+  | { kind: 'root' }
+  | { kind: 'node'; path: string; type: 'file' | 'directory' };
 
 interface FileExplorerPanelProps {
   chatroomId?: string;
@@ -173,6 +173,11 @@ export const FileExplorerPanel = memo(
       const [newFileOpen, setNewFileOpen] = useState(false);
       const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
+      const [contextMenuOpen, setContextMenuOpen] = useState(false);
+      const [contextMenuTarget, setContextMenuTarget] = useState<ExplorerContextTarget | null>(
+        null
+      );
+      const [contextMenuPoint, setContextMenuPoint] = useState({ x: 0, y: 0 });
       const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
         machineId: machineId ?? '',
         workingDir: workingDir ?? '',
@@ -182,6 +187,14 @@ export const FileExplorerPanel = memo(
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
         setNewFileOpen(true);
+      }, []);
+
+      const openContextMenu = useCallback((target: ExplorerContextTarget, event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setContextMenuTarget(target);
+        setContextMenuPoint({ x: event.clientX, y: event.clientY });
+        setContextMenuOpen(true);
       }, []);
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
@@ -334,31 +347,64 @@ export const FileExplorerPanel = memo(
           </div>
 
           {/* Tree content */}
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
-                <WorkspaceFileExplorer
-                  refreshSignal={refreshSignal}
-                  chatroomId={chatroomId}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  onFileSelect={onFileSelect}
-                  onFileDoubleClick={onFileDoubleClick}
-                  revealPath={effectiveRevealPath}
-                  selectedPath={effectiveSelectedPath}
-                  filterQuery={filterQuery}
-                  onNewFileInDir={(dir) => openNewFileDialog(dir)}
-                  onDeleteFile={(target) => setDeleteTarget(target)}
-                />
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem onSelect={() => openNewFileDialog('')}>
-                <FilePlus size={12} className="mr-2" />
-                New File
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
+          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden">
+            <WorkspaceFileExplorer
+              refreshSignal={refreshSignal}
+              chatroomId={chatroomId}
+              machineId={machineId}
+              workingDir={workingDir}
+              onFileSelect={onFileSelect}
+              onFileDoubleClick={onFileDoubleClick}
+              revealPath={effectiveRevealPath}
+              selectedPath={effectiveSelectedPath}
+              filterQuery={filterQuery}
+              onNodeContextMenu={(node, event) =>
+                openContextMenu({ kind: 'node', path: node.path, type: node.type }, event)
+              }
+              onEmptyAreaContextMenu={(event) => openContextMenu({ kind: 'root' }, event)}
+            />
+          </div>
+
+          <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen} modal={false}>
+            <DropdownMenuTrigger asChild>
+              <span
+                aria-hidden
+                style={{
+                  position: 'fixed',
+                  left: contextMenuPoint.x,
+                  top: contextMenuPoint.y,
+                  width: 1,
+                  height: 1,
+                  pointerEvents: 'none',
+                }}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'directory' && (
+                <DropdownMenuItem onSelect={() => openNewFileDialog(contextMenuTarget.path)}>
+                  <FilePlus size={12} className="mr-2" />
+                  New File
+                </DropdownMenuItem>
+              )}
+              {contextMenuTarget?.kind === 'root' && (
+                <DropdownMenuItem onSelect={() => openNewFileDialog('')}>
+                  <FilePlus size={12} className="mr-2" />
+                  New File
+                </DropdownMenuItem>
+              )}
+              {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
+                <DropdownMenuItem
+                  onSelect={() =>
+                    setDeleteTarget({ path: contextMenuTarget.path, type: contextMenuTarget.type })
+                  }
+                  className="text-chatroom-status-error focus:text-chatroom-status-error"
+                >
+                  <Trash2 size={12} className="mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       );
     }

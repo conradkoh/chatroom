@@ -13,6 +13,19 @@ import {
 import { useDirListing } from './useDirListing';
 import { useFileSearch } from './useFileSearch';
 
+// fallow-ignore-next-line complexity
+function dirEntriesEqual(a: DirListingEntry[] | undefined, b: DirListingEntry[]): boolean {
+  if (!a) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i];
+    const right = b[i];
+    if (!left || !right) return false;
+    if (left.name !== right.name || left.type !== right.type) return false;
+  }
+  return true;
+}
+
 /** Hidden component that subscribes to one directory listing and reports updates. */
 export function DirListingWatcher({
   machineId,
@@ -73,11 +86,15 @@ export function useWorkspaceDirExplorer({
   const handleDirUpdate = useCallback(
     (dirPath: string, entries: DirListingEntry[], isLoading: boolean) => {
       setChildMap((prev) => {
+        const existing = prev.get(dirPath);
+        if (!isLoading && dirEntriesEqual(existing, entries)) return prev;
         const next = new Map(prev);
         next.set(dirPath, entries);
         return next;
       });
       setLoadingDirs((prev) => {
+        const wasLoading = prev.has(dirPath);
+        if (isLoading === wasLoading) return prev;
         const next = new Set(prev);
         if (isLoading) next.add(dirPath);
         else next.delete(dirPath);

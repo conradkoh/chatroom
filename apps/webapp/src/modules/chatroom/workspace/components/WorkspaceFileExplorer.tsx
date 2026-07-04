@@ -1,7 +1,7 @@
 'use client';
 
-import { ChevronRight, ChevronDown, FilePlus, Folder, FolderOpen, Trash2 } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 
 import {
   collectExpandedDirsForFilter,
@@ -11,12 +11,6 @@ import {
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { DirListingWatcher, useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
 import { isExplorerSearchMode } from '@/modules/chatroom/workspace/files/explorer-tree';
@@ -39,10 +33,8 @@ interface WorkspaceFileExplorerProps {
   selectedPath: string | null;
   /** Optional filename filter (VSCode-style explorer search) */
   filterQuery?: string;
-  /** Right-click folder → New File: parent dir path (empty string = workspace root) */
-  onNewFileInDir?: (dirPath: string) => void;
-  /** Right-click file or folder → Delete */
-  onDeleteFile?: (target: ExplorerDeleteTarget) => void;
+  onNodeContextMenu?: (node: ExplorerTreeNode, event: MouseEvent) => void;
+  onEmptyAreaContextMenu?: (event: MouseEvent) => void;
 }
 
 // ─── Tree Node Component ──────────────────────────────────────────────────────
@@ -56,8 +48,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onToggle,
   onFileSelect,
   onFileDoubleClick,
-  onNewFileInDir,
-  onDeleteFile,
+  onNodeContextMenu,
   nodeRefs,
   loadingDirs,
 }: {
@@ -68,8 +59,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onToggle: (path: string) => void;
   onFileSelect?: (filePath: string) => void;
   onFileDoubleClick?: (filePath: string) => void;
-  onNewFileInDir?: (dirPath: string) => void;
-  onDeleteFile?: (target: ExplorerDeleteTarget) => void;
+  onNodeContextMenu?: (node: ExplorerTreeNode, event: MouseEvent) => void;
   nodeRefs: Map<string, HTMLElement>;
   loadingDirs: Set<string>;
 }) {
@@ -103,73 +93,51 @@ const TreeNodeItem = memo(function TreeNodeItem({
 
   return (
     <>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <button
-            ref={refCallback}
-            className={cn(
-              'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
-              isSelected
-                ? 'bg-chatroom-accent/10 text-chatroom-accent'
-                : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
-              'transition-colors duration-75 cursor-pointer select-none'
-            )}
-            style={{ paddingLeft }}
-            onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
-            title={node.path}
-          >
-            {/* Expand / collapse chevron for directories */}
-            {isDirectory ? (
-              <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                {loadingDirs.has(node.path) ? (
-                  <ChatroomLoader size="sm" />
-                ) : isExpanded ? (
-                  <ChevronDown size={14} className="text-chatroom-text-muted" />
-                ) : (
-                  <ChevronRight size={14} className="text-chatroom-text-muted" />
-                )}
-              </span>
+      <button
+        data-tree-node
+        ref={refCallback}
+        className={cn(
+          'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
+          isSelected
+            ? 'bg-chatroom-accent/10 text-chatroom-accent'
+            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
+          'transition-colors duration-75 cursor-pointer select-none'
+        )}
+        style={{ paddingLeft }}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={(event) => onNodeContextMenu?.(node, event)}
+        title={node.path}
+      >
+        {/* Expand / collapse chevron for directories */}
+        {isDirectory ? (
+          <span className="w-4 h-4 flex items-center justify-center shrink-0">
+            {loadingDirs.has(node.path) ? (
+              <ChatroomLoader size="sm" />
+            ) : isExpanded ? (
+              <ChevronDown size={14} className="text-chatroom-text-muted" />
             ) : (
-              <span className="w-4 h-4 shrink-0" /> /* spacer for files */
+              <ChevronRight size={14} className="text-chatroom-text-muted" />
             )}
+          </span>
+        ) : (
+          <span className="w-4 h-4 shrink-0" /> /* spacer for files */
+        )}
 
-            {/* Icon */}
-            {isDirectory ? (
-              isExpanded ? (
-                <FolderOpen size={16} className="text-chatroom-accent shrink-0" />
-              ) : (
-                <Folder size={16} className="text-chatroom-accent shrink-0" />
-              )
-            ) : (
-              <FileTypeIcon
-                path={node.name}
-                className="w-4 h-4 shrink-0 text-chatroom-text-muted"
-              />
-            )}
+        {/* Icon */}
+        {isDirectory ? (
+          isExpanded ? (
+            <FolderOpen size={16} className="text-chatroom-accent shrink-0" />
+          ) : (
+            <Folder size={16} className="text-chatroom-accent shrink-0" />
+          )
+        ) : (
+          <FileTypeIcon path={node.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
+        )}
 
-            {/* Name */}
-            <span className="truncate text-[13px]">{node.name}</span>
-          </button>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          {isDirectory && onNewFileInDir && (
-            <ContextMenuItem onSelect={() => onNewFileInDir(node.path)}>
-              <FilePlus size={12} className="mr-2" />
-              New File
-            </ContextMenuItem>
-          )}
-          {onDeleteFile && node.path !== '' && (
-            <ContextMenuItem
-              onSelect={() => onDeleteFile({ path: node.path, type: node.type })}
-              className="text-chatroom-status-error focus:text-chatroom-status-error"
-            >
-              <Trash2 size={12} className="mr-2" />
-              Delete
-            </ContextMenuItem>
-          )}
-        </ContextMenuContent>
-      </ContextMenu>
+        {/* Name */}
+        <span className="truncate text-[13px]">{node.name}</span>
+      </button>
 
       {/* Children */}
       {isDirectory && isExpanded && node.children.length > 0 && (
@@ -184,8 +152,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
               onToggle={onToggle}
               onFileSelect={onFileSelect}
               onFileDoubleClick={onFileDoubleClick}
-              onNewFileInDir={onNewFileInDir}
-              onDeleteFile={onDeleteFile}
+              onNodeContextMenu={onNodeContextMenu}
               nodeRefs={nodeRefs}
               loadingDirs={loadingDirs}
             />
@@ -230,8 +197,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   revealPath,
   selectedPath,
   filterQuery = '',
-  onNewFileInDir,
-  onDeleteFile,
+  onNodeContextMenu,
+  onEmptyAreaContextMenu,
 }: WorkspaceFileExplorerProps) {
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
@@ -271,6 +238,14 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     }
     return expandedPaths;
   }, [expandedPaths, filterExpandedDirs]);
+
+  const handleEmptyAreaContextMenu = useCallback(
+    (event: MouseEvent) => {
+      if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
+      onEmptyAreaContextMenu?.(event);
+    },
+    [onEmptyAreaContextMenu]
+  );
 
   // Auto-expand tree to reveal a specific file path
   useEffect(() => {
@@ -346,7 +321,10 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-chatroom-text-muted text-xs">
+      <div
+        className="flex flex-1 flex-col items-center justify-center gap-2 text-chatroom-text-muted text-xs"
+        onContextMenu={onEmptyAreaContextMenu}
+      >
         <ChatroomLoader size="sm" />
         Loading files…
       </div>
@@ -356,7 +334,10 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   // Empty state
   if (rootNodes.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-chatroom-text-muted text-xs">
+      <div
+        className="px-4 py-8 text-center text-chatroom-text-muted text-xs"
+        onContextMenu={onEmptyAreaContextMenu}
+      >
         No files found. Ensure the workspace daemon is running.
       </div>
     );
@@ -364,14 +345,17 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
 
   if (displayNodes.length === 0 && filterQuery.trim()) {
     return (
-      <div className="px-4 py-8 text-center text-chatroom-text-muted text-xs">
+      <div
+        className="px-4 py-8 text-center text-chatroom-text-muted text-xs"
+        onContextMenu={onEmptyAreaContextMenu}
+      >
         No files match &ldquo;{filterQuery.trim()}&rdquo;
       </div>
     );
   }
 
   return (
-    <div className="py-1">
+    <div className="py-1" onContextMenu={handleEmptyAreaContextMenu}>
       {requestedDirs.map((dirPath) => (
         <DirListingWatcher
           key={dirPath}
@@ -392,8 +376,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           onToggle={handleToggle}
           onFileSelect={onFileSelect}
           onFileDoubleClick={onFileDoubleClick}
-          onNewFileInDir={onNewFileInDir}
-          onDeleteFile={onDeleteFile}
+          onNodeContextMenu={onNodeContextMenu}
           nodeRefs={nodeRefs.current}
           loadingDirs={loadingDirs}
         />
