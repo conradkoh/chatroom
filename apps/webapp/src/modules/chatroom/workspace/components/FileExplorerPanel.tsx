@@ -8,10 +8,6 @@ import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
-import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
-import type { UseFileTabsReturn } from '../hooks/useFileTabs';
-import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,14 +17,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from '../../components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '../../components/ui/dropdown-menu';
+import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
+import type { UseFileTabsReturn } from '../hooks/useFileTabs';
+import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -116,7 +115,7 @@ function ExplorerPanelHeader({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-sm p-0.5"
+                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-none p-0.5"
                 aria-label="Explorer options"
               >
                 <MoreHorizontal size={13} />
@@ -289,12 +288,12 @@ export const FileExplorerPanel = memo(
               if (!open) setDeleteTarget(null);
             }}
           >
-            <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+            <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-chatroom-text-primary">
+                <AlertDialogTitle>
                   {deleteTarget?.type === 'directory' ? 'Delete folder?' : 'Delete file?'}
                 </AlertDialogTitle>
-                <AlertDialogDescription className="text-chatroom-text-secondary">
+                <AlertDialogDescription>
                   {deleteTarget?.type === 'directory' ? (
                     <>
                       This will permanently delete the folder{' '}
@@ -314,16 +313,13 @@ export const FileExplorerPanel = memo(
                   )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter className="border-t border-chatroom-border pt-4">
-                <AlertDialogCancel className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary">
-                  Cancel
-                </AlertDialogCancel>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={(event) => {
                     event.preventDefault();
                     void handleConfirmDelete();
                   }}
-                  className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
                 >
                   Delete
                 </AlertDialogAction>
@@ -333,7 +329,7 @@ export const FileExplorerPanel = memo(
 
           {/* Filename filter */}
           <div className="px-2 py-1.5 border-b border-chatroom-border-strong shrink-0">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-sm">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-chatroom-bg-secondary border border-chatroom-border rounded-none">
               <Search size={12} className="text-chatroom-text-muted shrink-0" />
               <input
                 type="search"
@@ -403,7 +399,7 @@ export const FileExplorerPanel = memo(
                   onSelect={() =>
                     setDeleteTarget({ path: contextMenuTarget.path, type: contextMenuTarget.type })
                   }
-                  className="text-chatroom-status-error focus:text-chatroom-status-error"
+                  className="text-chatroom-status-error data-[highlighted]:text-chatroom-status-error focus:text-chatroom-status-error"
                 >
                   <Trash2 size={12} className="mr-2" />
                   Delete

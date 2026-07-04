@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
-import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
-import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
-
-import { Button } from '@/components/ui/button';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+  chatroomIndustrialInputClassName,
+  chatroomIndustrialInputErrorClassName,
+} from '../../components/shared/industrialDialogStyles';
 import {
   Dialog,
   DialogContent,
@@ -13,8 +15,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from '../../components/ui/dialog';
+import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
+import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
+
 import { cn } from '@/lib/utils';
 
 interface NewFileDialogProps {
@@ -123,22 +127,23 @@ export function NewFileDialog({
     targetDir,
   ]);
 
+  const kbdClassName = 'rounded-none border border-chatroom-border px-1';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-none border-2 border-chatroom-border-strong bg-chatroom-bg-primary text-chatroom-text-primary sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-chatroom-text-primary">New File</DialogTitle>
-          <DialogDescription className="text-chatroom-text-secondary">
+          <DialogTitle>New File</DialogTitle>
+          <DialogDescription>
             {isFolderCreate ? (
               <>
                 Enter a file name in <code className="font-mono">{targetDir}/</code>. Press{' '}
-                <kbd className="rounded border border-chatroom-border px-1">⌘S</kbd> to save. Files
-                without an extension default to <code>.md</code>.
+                <kbd className={kbdClassName}>⌘S</kbd> to save. Files without an extension default
+                to <code>.md</code>.
               </>
             ) : (
               <>
-                Enter a relative path. Press{' '}
-                <kbd className="rounded border border-chatroom-border px-1">⌘S</kbd> to save. Files
+                Enter a relative path. Press <kbd className={kbdClassName}>⌘S</kbd> to save. Files
                 without an extension default to <code>.md</code>.
               </>
             )}
@@ -149,8 +154,8 @@ export function NewFileDialog({
           {isFolderCreate ? (
             <div
               className={cn(
-                'flex items-center overflow-hidden rounded-sm border bg-chatroom-bg-secondary',
-                validationError ? 'border-chatroom-status-error' : 'border-chatroom-border'
+                'flex items-center overflow-hidden rounded-none border bg-chatroom-bg-secondary',
+                validationError ? chatroomIndustrialInputErrorClassName : 'border-chatroom-border'
               )}
             >
               <span
@@ -159,7 +164,7 @@ export function NewFileDialog({
               >
                 {targetDir}/
               </span>
-              <Input
+              <input
                 value={fileNameInput}
                 onChange={(event) => {
                   setFileNameInput(event.target.value);
@@ -167,13 +172,13 @@ export function NewFileDialog({
                 }}
                 placeholder="notes.md"
                 aria-label={`File name in ${targetDir}`}
-                className="border-0 bg-transparent text-chatroom-text-primary focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-9 w-full border-0 bg-transparent px-3 text-sm text-chatroom-text-primary outline-none placeholder:text-chatroom-text-muted"
                 autoFocus
                 onKeyDown={(event) => handleDialogSaveKeyDown(event, handleCreate)}
               />
             </div>
           ) : (
-            <Input
+            <input
               value={pathInput}
               onChange={(event) => {
                 setPathInput(event.target.value);
@@ -182,8 +187,9 @@ export function NewFileDialog({
               placeholder="docs/notes.md"
               aria-label="Relative file path"
               className={cn(
-                'bg-chatroom-bg-secondary border-chatroom-border text-chatroom-text-primary',
-                validationError && 'border-chatroom-status-error'
+                'h-9 w-full px-3 text-sm',
+                chatroomIndustrialInputClassName,
+                validationError && chatroomIndustrialInputErrorClassName
               )}
               autoFocus
               onKeyDown={(event) => handleDialogSaveKeyDown(event, handleCreate)}
@@ -194,22 +200,21 @@ export function NewFileDialog({
           )}
         </div>
 
-        <DialogFooter className="border-t border-chatroom-border pt-4">
-          <Button
+        <DialogFooter>
+          <button
             type="button"
-            variant="outline"
             onClick={() => onOpenChange(false)}
-            className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
+            className={chatroomIndustrialButtonSecondaryClassName}
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
             onClick={handleCreate}
-            className="bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-accent/90 border-0"
+            className={chatroomIndustrialButtonPrimaryClassName}
           >
             Save
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
