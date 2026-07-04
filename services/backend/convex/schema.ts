@@ -2251,6 +2251,19 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
 
+  /** Explorer FS watch registry — one row per (machineId, workingDir). */
+  chatroom_workspaceDirListingWatch: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Refcount of mounted explorer surfaces for this workspace. */
+    observerCount: v.number(),
+    /** Hot dir paths to refresh on external FS events; includes '' for root. */
+    activeDirPaths: v.array(v.string()),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machineId_observerCount', ['machineId', 'observerCount']),
+
   /** Cached file search results per (machine, workingDir, query). */
   chatroom_workspaceFileSearchV2: defineTable({
     machineId: v.string(),

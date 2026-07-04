@@ -14,6 +14,7 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 import { DirListingWatcher, useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
 import { isExplorerSearchMode } from '@/modules/chatroom/workspace/files/explorer-tree';
+import { useDirListingWatch } from '@/modules/chatroom/workspace/files/useDirListingWatch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -238,6 +239,20 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     }
     return expandedPaths;
   }, [expandedPaths, filterExpandedDirs]);
+
+  const activeWatchPaths = useMemo(() => {
+    const paths = new Set<string>(['']);
+    for (const dirPath of effectiveExpandedPaths) {
+      paths.add(dirPath);
+    }
+    return [...paths].sort((a, b) => a.localeCompare(b));
+  }, [effectiveExpandedPaths]);
+
+  useDirListingWatch({
+    machineId,
+    workingDir,
+    activeDirPaths: activeWatchPaths,
+  });
 
   const handleEmptyAreaContextMenu = useCallback(
     (event: MouseEvent) => {

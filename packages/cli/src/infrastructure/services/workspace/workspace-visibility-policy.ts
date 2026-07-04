@@ -21,6 +21,8 @@ export const ALWAYS_EXCLUDE_DIR_NAMES = new Set([
   '.cache',
   '.tmp',
   'tmp',
+  '_generated', // Convex codegen and similar generated output dirs
+  '.vercel',
 ]);
 
 // fallow-ignore-next-line unused-export
@@ -45,7 +47,6 @@ export function isSecretPath(relativePath: string): boolean {
   return SECRET_PATH_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-// fallow-ignore-next-line unused-export
 export function hasExcludedDirSegment(relativePath: string): boolean {
   const segments = relativePath.split('/');
   return segments.some((segment) => isAlwaysExcludedDirName(segment));
@@ -61,7 +62,7 @@ export function isPathContentReadable(relativePath: string): boolean {
   return isPathVisible(relativePath);
 }
 
-export async function isGitRepo(rootDir: string): Promise<boolean> {
+async function isGitRepo(rootDir: string): Promise<boolean> {
   try {
     const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', {
       cwd: rootDir,

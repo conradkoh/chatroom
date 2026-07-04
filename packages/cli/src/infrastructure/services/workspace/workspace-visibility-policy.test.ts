@@ -30,6 +30,13 @@ describe('workspace-visibility-policy', () => {
     expect(isPathVisible('dist/bundle.js')).toBe(false);
   });
 
+  it('hides generated and cache paths from listings', () => {
+    expect(isPathVisible('convex/_generated/api.js')).toBe(false);
+    expect(isPathVisible('.turbo/cache/foo')).toBe(false);
+    expect(isPathVisible('.next/cache/webpack.json')).toBe(false);
+    expect(isPathVisible('.vercel/output/foo')).toBe(false);
+  });
+
   it('blocks secret file content reads', () => {
     expect(isPathContentReadable('README.md')).toBe(true);
     expect(isPathContentReadable('.env')).toBe(false);

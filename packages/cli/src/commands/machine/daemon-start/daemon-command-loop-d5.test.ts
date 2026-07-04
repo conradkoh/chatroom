@@ -159,6 +159,13 @@ vi.mock('./dir-listing-subscription.js', async () => {
   };
 });
 
+vi.mock('./dir-listing-watch-subscription.js', async () => {
+  const { Effect } = await import('effect');
+  return {
+    startDirListingWatchSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
+  };
+});
+
 vi.mock('./workspace-list-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {

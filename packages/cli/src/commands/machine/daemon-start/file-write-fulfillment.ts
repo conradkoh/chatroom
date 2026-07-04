@@ -5,7 +5,6 @@
  */
 // fallow-ignore-file code-duplication
 
-import { createHash } from 'node:crypto';
 import { access, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
@@ -15,6 +14,7 @@ import { Effect } from 'effect';
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { computeDirListingContentHash } from '../../../infrastructure/services/workspace/dir-listing-content-hash.js';
 import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
 
 /** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
@@ -74,7 +74,7 @@ async function syncParentDirListingAfterWrite(
   const dirPath = parentDirPath(filePath);
   const listing = await listDirectory(workingDir, dirPath);
   const json = JSON.stringify(listing);
-  const dataHash = createHash('md5').update(json).digest('hex');
+  const dataHash = computeDirListingContentHash(listing);
   const compressed = gzipSync(Buffer.from(json)).toString('base64');
 
   await session.backend.mutation(api.workspaceFiles.syncDirListingV2, {

@@ -35,6 +35,10 @@ vi.mock('@/modules/chatroom/workspace/files', () => ({
   DirListingWatcher: () => null,
 }));
 
+vi.mock('@/modules/chatroom/workspace/files/useDirListingWatch', () => ({
+  useDirListingWatch: vi.fn(),
+}));
+
 describe('WorkspaceFileExplorer', () => {
   const defaultProps = {
     machineId: 'test-machine',

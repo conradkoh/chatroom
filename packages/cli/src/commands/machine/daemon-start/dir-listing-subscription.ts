@@ -12,7 +12,7 @@ import { Effect } from 'effect';
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
+import { syncDirListingToBackend } from '../../../infrastructure/services/workspace/dir-listing-sync.js';
 import { searchWorkspaceFiles } from '../../../infrastructure/services/workspace/workspace-file-search.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -29,22 +29,7 @@ async function uploadDirListing(
   workingDir: string,
   dirPath: string
 ): Promise<void> {
-  const listing = await listDirectory(workingDir, dirPath);
-  const json = JSON.stringify(listing);
-  const dataHash = createHash('md5').update(json).digest('hex');
-  const compressed = gzipSync(Buffer.from(json)).toString('base64');
-
-  await session.backend.mutation(api.workspaceFiles.syncDirListingV2, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir,
-    dirPath,
-    data: { compression: 'gzip' as const, content: compressed },
-    dataHash,
-    scannedAt: listing.scannedAt,
-    truncated: listing.truncated,
-    totalCount: listing.totalCount,
-  });
+  await syncDirListingToBackend(session, workingDir, dirPath);
 
   await session.backend.mutation(api.workspaceFiles.fulfillDirListingRequest, {
     sessionId: session.sessionId,

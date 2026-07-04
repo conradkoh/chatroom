@@ -82,6 +82,10 @@ vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
   useFileSearch: () => mocks.searchListing,
 }));
 
+vi.mock('@/modules/chatroom/workspace/files/useDirListingWatch', () => ({
+  useDirListingWatch: vi.fn(),
+}));
+
 vi.mock('../hooks/useWorkspaceFileCreate', () => ({
   useWorkspaceFileCreate: () => ({
     createFile: mockCreateFile,

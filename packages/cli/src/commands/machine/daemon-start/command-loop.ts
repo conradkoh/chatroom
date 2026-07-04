@@ -14,6 +14,10 @@ import {
   startDirListingSubscriptionEffect,
   type DirListingSubscriptionHandle,
 } from './dir-listing-subscription.js';
+import {
+  startDirListingWatchSubscriptionEffect,
+  type DirListingWatchSubscriptionHandle,
+} from './dir-listing-watch-subscription.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
@@ -377,6 +381,7 @@ export const startCommandLoopEffect: Effect.Effect<
   let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
   let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
   let dirListingSubscriptionHandle: DirListingSubscriptionHandle | null = null;
+  let dirListingWatchSubscriptionHandle: DirListingWatchSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
@@ -461,6 +466,7 @@ export const startCommandLoopEffect: Effect.Effect<
     fileContentSubscriptionHandle?.stop();
     fileWriteSubscriptionHandle?.stop();
     dirListingSubscriptionHandle?.stop();
+    dirListingWatchSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     observedSyncSubscriptionHandle?.stop();
     taskMonitorHandle?.stop();
@@ -505,6 +511,7 @@ export const startCommandLoopEffect: Effect.Effect<
     });
   };
 
+  // fallow-ignore-next-line code-duplication
   process.on('SIGINT', () => handleSignal('SIGINT'));
   process.on('SIGTERM', () => handleSignal('SIGTERM'));
   process.on('SIGHUP', () => handleSignal('SIGHUP'));
@@ -515,6 +522,7 @@ export const startCommandLoopEffect: Effect.Effect<
   fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
   fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
   dirListingSubscriptionHandle = yield* startDirListingSubscriptionEffect(wsClient);
+  dirListingWatchSubscriptionHandle = yield* startDirListingWatchSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
 
   if (observedSyncEnabled) {

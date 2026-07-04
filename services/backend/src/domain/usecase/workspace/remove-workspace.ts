@@ -198,6 +198,16 @@ async function purgeWorkspaceScopedData(
     await ctx.db.delete('chatroom_workspaceDirListingRequests', row._id);
   }
 
+  const dirListingWatch = await ctx.db
+    .query('chatroom_workspaceDirListingWatch')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  if (dirListingWatch) {
+    await ctx.db.delete('chatroom_workspaceDirListingWatch', dirListingWatch._id);
+  }
+
   const fileSearches = await ctx.db
     .query('chatroom_workspaceFileSearchV2')
     .withIndex('by_machine_workingDir_query', (q) =>

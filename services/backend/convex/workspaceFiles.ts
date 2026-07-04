@@ -1102,6 +1102,156 @@ export const purgeFileContentV2 = mutation({
 // fallow-ignore-file complexity
 // fallow-ignore-file code-duplication
 
+/** Normalize, dedupe, and sort active dir paths for stable storage. */
+function normalizeActiveDirPaths(dirPaths: string[]): string[] {
+  const unique = new Set<string>();
+  for (const raw of dirPaths) {
+    const normalized = raw.replace(/\\/g, '/');
+    validateDirPath(normalized);
+    unique.add(normalized);
+  }
+  return [...unique].sort((a, b) => a.localeCompare(b));
+}
+
+async function getOrCreateDirListingWatchRow(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+) {
+  const existing = await ctx.db
+    .query('chatroom_workspaceDirListingWatch')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  return existing;
+}
+
+/**
+ * Increment/decrement explorer observer refcount for a workspace.
+ * On first observe, seed activeDirPaths to [''] (root).
+ * On unobserve to 0, clear activeDirPaths.
+ */
+export const setDirListingExplorerObserver = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    observing: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const now = Date.now();
+    const existing = await getOrCreateDirListingWatchRow(ctx, args.machineId, args.workingDir);
+
+    if (args.observing) {
+      const nextCount = (existing?.observerCount ?? 0) + 1;
+      const row = {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        observerCount: nextCount,
+        activeDirPaths: existing?.activeDirPaths?.length ? existing.activeDirPaths : [''],
+        updatedAt: now,
+      };
+      if (existing) {
+        await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, row);
+      } else {
+        await ctx.db.insert('chatroom_workspaceDirListingWatch', row);
+      }
+      return { observerCount: nextCount };
+    }
+
+    const current = existing?.observerCount ?? 0;
+    const nextCount = Math.max(0, current - 1);
+    if (!existing) return { observerCount: 0 };
+
+    if (nextCount === 0) {
+      await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, {
+        observerCount: 0,
+        activeDirPaths: [],
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, {
+        observerCount: nextCount,
+        updatedAt: now,
+      });
+    }
+    return { observerCount: nextCount };
+  },
+});
+
+/**
+ * Replace active dir paths for a workspace with an active observer.
+ * No-op (return current state) when observerCount is 0.
+ */
+export const setDirListingWatchPaths = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    activeDirPaths: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const existing = await getOrCreateDirListingWatchRow(ctx, args.machineId, args.workingDir);
+    if (!existing || (existing.observerCount ?? 0) <= 0) {
+      return { observerCount: 0, activeDirPaths: [] as string[] };
+    }
+
+    const normalized = normalizeActiveDirPaths(args.activeDirPaths);
+    // Ensure root is always watched when explorer is open
+    if (!normalized.includes('')) {
+      normalized.unshift('');
+    }
+
+    const now = Date.now();
+    await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, {
+      activeDirPaths: normalized,
+      updatedAt: now,
+    });
+
+    return {
+      observerCount: existing.observerCount,
+      activeDirPaths: normalized,
+    };
+  },
+});
+
+/** Daemon subscription: workspaces on this machine with active explorer observers. */
+export const listDirListingWatchTargets = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const rows = await ctx.db
+      .query('chatroom_workspaceDirListingWatch')
+      .withIndex('by_machineId_observerCount', (q: any) =>
+        q.eq('machineId', args.machineId).gte('observerCount', 1)
+      )
+      .collect();
+
+    return rows.map((row) => ({
+      workingDir: row.workingDir,
+      observerCount: row.observerCount,
+      activeDirPaths: row.activeDirPaths,
+      updatedAt: row.updatedAt,
+    }));
+  },
+});
+
 export const requestDirListing = mutation({
   args: {
     ...SessionIdArg,

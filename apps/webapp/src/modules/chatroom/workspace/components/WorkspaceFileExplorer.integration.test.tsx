@@ -79,6 +79,10 @@ vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
   useFileSearch: () => listingMocks.searchListing,
 }));
 
+vi.mock('@/modules/chatroom/workspace/files/useDirListingWatch', () => ({
+  useDirListingWatch: vi.fn(),
+}));
+
 const defaultProps = {
   machineId: 'machine-1',
   workingDir: '/workspace',
