@@ -3,9 +3,9 @@
  * compressed object format `{ compression: "gzip", content: string }`.
  * This helper extracts the base64 content regardless of shape.
  */
-export function extractBase64Content(
-  data: string | { compression: 'gzip'; content: string }
-): string {
+export type CompressedQueryData = string | { compression: 'gzip'; content: string };
+
+export function extractBase64Content(data: CompressedQueryData): string {
   if (typeof data === 'string') {
     return data;
   }

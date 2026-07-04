@@ -2,10 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { isFileSearchQueryActive } from './explorer-tree';
-import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
+import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 
 // fallow-ignore-next-line complexity
 export function useFileSearch(
@@ -28,50 +28,27 @@ export function useFileSearch(
     : ('skip' as const);
 
   const raw = useSessionQuery(api.workspaceFiles.getFileSearchV2, queryArgs);
-  const [entries, setEntries] = useState<{ path: string; type: 'file' }[]>([]);
-  const [isParsed, setIsParsed] = useState(false);
+  const json = useDecompressedQueryJson(raw, searchEnabled);
 
-  useEffect(() => {
-    if (!searchEnabled) {
-      setEntries([]);
-      setIsParsed(true);
-      return;
+  // fallow-ignore-next-line complexity
+  const { entries, isParsed } = useMemo(() => {
+    if (!searchEnabled) return { entries: [], isParsed: true };
+    if (json === undefined) return { entries: [], isParsed: false };
+    if (json === null) return { entries: [], isParsed: true };
+    try {
+      const result = JSON.parse(json) as {
+        entries?: { path: string; type: 'file' }[];
+      };
+      return { entries: result.entries ?? [], isParsed: true };
+    } catch {
+      return { entries: [], isParsed: true };
     }
-    requestMutation({ machineId, workingDir, query: trimmedQuery }).catch(() => {});
-  }, [searchEnabled, machineId, workingDir, trimmedQuery, requestMutation]);
+  }, [json, searchEnabled]);
 
   useEffect(() => {
     if (!searchEnabled) return;
-    if (raw === undefined) {
-      setIsParsed(false);
-      return;
-    }
-    if (raw === null) {
-      setEntries([]);
-      setIsParsed(true);
-      return;
-    }
-
-    let cancelled = false;
-    decompressGzip(extractBase64Content(raw.data))
-      .then((json) => {
-        if (cancelled) return;
-        const result = JSON.parse(json) as {
-          entries?: { path: string; type: 'file' }[];
-        };
-        setEntries(result.entries ?? []);
-        setIsParsed(true);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setEntries([]);
-          setIsParsed(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [raw, searchEnabled]);
+    requestMutation({ machineId, workingDir, query: trimmedQuery }).catch(() => {});
+  }, [searchEnabled, machineId, workingDir, trimmedQuery, requestMutation]);
 
   const refresh = useCallback(() => {
     if (!searchEnabled) return;
