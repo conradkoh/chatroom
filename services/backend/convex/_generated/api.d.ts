@@ -95,6 +95,7 @@ import type * as web_directHarness_messages from "../web/directHarness/messages.
 import type * as web_directHarness_sessions from "../web/directHarness/sessions.js";
 import type * as web_directHarness_turns from "../web/directHarness/turns.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
+import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -191,6 +192,7 @@ declare const fullApi: ApiFromModules<{
   "web/directHarness/sessions": typeof web_directHarness_sessions;
   "web/directHarness/turns": typeof web_directHarness_turns;
   workspaceFiles: typeof workspaceFiles;
+  workspacePathSecurity: typeof workspacePathSecurity;
   workspaces: typeof workspaces;
 }>;
 

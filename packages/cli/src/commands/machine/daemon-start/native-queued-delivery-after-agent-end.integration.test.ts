@@ -78,7 +78,6 @@ describe('native queued delivery after agent_end', () => {
     expect(row).toBeDefined();
 
     const backendMutation = vi.fn().mockResolvedValue(undefined);
-    const backendQuery = vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' });
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const agentMgr = {
       getSlot: vi.fn().mockReturnValue({ harnessSessionId: HARNESS_SESSION_ID }),
@@ -101,18 +100,23 @@ describe('native queued delivery after agent_end', () => {
         machineId: MACHINE_ID,
         backend: {
           mutation: backendMutation,
-          query: async (fn, args) => {
-            if (fn === api.machines.getAssignedTaskForAction) {
+          query: vi.fn(async (fn, args) => {
+            if (args && 'machineId' in args && !('chatroomId' in args)) {
               return makeFullTaskFromSnapshot(row!);
             }
-            return backendQuery(fn, args);
-          },
+            if (args && 'chatroomId' in args) {
+              return { fullCliOutput: 'DELIVERY OUTPUT' };
+            }
+            throw new Error(`Unexpected query: ${String(fn)}`);
+          }),
         },
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await vi.waitFor(() => {
+      expect(resumeTurnForSlot).toHaveBeenCalled();
+    });
 
     expect(resumeTurnForSlot).toHaveBeenCalledWith({
       chatroomId: row!.chatroomId,

@@ -1,23 +1,43 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-
-const mockTreeJson = JSON.stringify({
-  entries: [
-    { path: 'src/index.ts', type: 'file', size: 100, mtimeMs: 0 },
-    { path: 'src/utils/helpers.ts', type: 'file', size: 200, mtimeMs: 0 },
-    { path: 'package.json', type: 'file', size: 50, mtimeMs: 0 },
-  ],
-});
-
-vi.mock('@/modules/chatroom/workspace/files', () => ({
-  useWorkspaceFileTree: () => ({
-    treeJson: mockTreeJson,
-    isLoading: false,
-  }),
-}));
+import { describe, it, expect, vi } from 'vitest';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
+
+const mockRootNodes = [
+  { name: 'src', path: 'src', type: 'directory' as const, children: [] },
+  {
+    name: 'index.ts',
+    path: 'src/index.ts',
+    type: 'file' as const,
+    children: [],
+  },
+  { name: 'package.json', path: 'package.json', type: 'file' as const, children: [] },
+];
+
+const loadChildren = vi.fn();
+const refresh = vi.fn();
+const handleDirUpdate = vi.fn();
+
+vi.mock('@/modules/chatroom/workspace/files', () => ({
+  useWorkspaceDirExplorer: () => ({
+    rootNodes: mockRootNodes,
+    childMap: new Map(),
+    loadingDirs: new Set(),
+    requestedDirs: [],
+    loadChildren,
+    isLoading: false,
+    refresh,
+    isSearchMode: false,
+    refreshToken: 0,
+    handleDirUpdate,
+  }),
+  DirListingWatcher: () => null,
+}));
+
+vi.mock('@/modules/chatroom/workspace/files/useDirListingWatch', () => ({
+  useDirListingWatch: vi.fn(),
+}));
 
 describe('WorkspaceFileExplorer', () => {
   const defaultProps = {
@@ -40,27 +60,42 @@ describe('WorkspaceFileExplorer', () => {
 
   it('does not apply highlight class when selectedPath is null', () => {
     render(
-      <WorkspaceFileExplorer
-        {...defaultProps}
-        selectedPath={null}
-        revealPath="src/index.ts"
-      />
+      <WorkspaceFileExplorer {...defaultProps} selectedPath={null} revealPath="src/index.ts" />
     );
 
     const button = screen.getByTitle('src/index.ts');
     expect(button.className).not.toContain('bg-chatroom-accent/10');
   });
 
-  it('highlights a deeply nested file when revealPath expands ancestors', () => {
+  it('renders tree nodes without per-node ContextMenu', () => {
+    render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
+
+    expect(screen.getByTitle('package.json')).toHaveAttribute('data-tree-node');
+    expect(document.querySelectorAll('[data-slot="context-menu"]')).toHaveLength(0);
+  });
+
+  it('forwards node context menu events to parent', () => {
+    const onNodeContextMenu = vi.fn();
+
     render(
       <WorkspaceFileExplorer
         {...defaultProps}
-        selectedPath="src/utils/helpers.ts"
-        revealPath="src/utils/helpers.ts"
+        selectedPath={null}
+        onNodeContextMenu={onNodeContextMenu}
       />
     );
 
-    const selectedButton = screen.getByTitle('src/utils/helpers.ts');
-    expect(selectedButton.className).toContain('bg-chatroom-accent/10');
+    fireEvent.contextMenu(screen.getByTitle('src/index.ts'));
+
+    expect(onNodeContextMenu).toHaveBeenCalledTimes(1);
+    expect(onNodeContextMenu.mock.calls[0]?.[0]).toMatchObject({
+      path: 'src/index.ts',
+      type: 'file',
+    });
+  });
+
+  it('renders file nodes from dir explorer hook', () => {
+    render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
+    expect(screen.getByTitle('package.json')).toBeInTheDocument();
   });
 });

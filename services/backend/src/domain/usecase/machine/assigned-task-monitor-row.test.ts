@@ -82,16 +82,44 @@ describe('bootstrapMonitorRowFromSignal', () => {
         spawnedAgentPid: 200,
         desiredState: 'running',
         lastSeenAction: 'get-next-task:started',
+        lastStatus: 'agent.waiting',
       })
     );
     expect(row.agentConfig.workingDir).toBe('/tmp/project');
     expect(row.assignedTo).toBe('builder');
     expect(row.agentConfig.spawnedAgentPid).toBe(200);
     expect(row.participant?.lastSeenAction).toBe('get-next-task:started');
+    expect(row.participant?.lastStatus).toBe('agent.waiting');
+  });
+
+  it('preserves lastStatus for post-completion queue promotion delivery', () => {
+    const row = applyAssignedTaskSignal(
+      undefined,
+      makeSignal({
+        lastSeenAction: 'native:task-injected',
+        lastStatus: 'task.completed',
+      })
+    );
+    expect(row.participant?.lastSeenAction).toBe('native:task-injected');
+    expect(row.participant?.lastStatus).toBe('task.completed');
   });
 });
 
 describe('patchMonitorRowFromSignal', () => {
+  it('patches lastStatus when signal carries a newer participant status', () => {
+    const existing = makeExistingRow();
+    const patched = applyAssignedTaskSignal(
+      existing,
+      makeSignal({
+        lastSeenAction: 'native:task-injected',
+        lastStatus: 'task.completed',
+      })
+    );
+
+    expect(patched.participant?.lastSeenAction).toBe('native:task-injected');
+    expect(patched.participant?.lastStatus).toBe('task.completed');
+  });
+
   it('preserves createdAt, lastSeenAt, and workingDir on partial signals', () => {
     const existing = makeExistingRow();
     const patched = applyAssignedTaskSignal(
@@ -158,7 +186,10 @@ describe('applyAssignedTaskPresence', () => {
 
 describe('doc → signal → apply round-trip', () => {
   it('matches monitorRowFromSnapshotDoc for bootstrap-capable signals', () => {
-    const doc = makeSnapshotDoc();
+    const doc = makeSnapshotDoc({
+      lastSeenAction: 'native:task-injected',
+      lastStatus: 'task.completed',
+    });
     const fromDoc = monitorRowFromSnapshotDoc(doc);
     const fromSignal = applyAssignedTaskSignal(undefined, snapshotDocToSignal(doc));
 
@@ -168,6 +199,10 @@ describe('doc → signal → apply round-trip', () => {
       status: fromDoc.status,
       assignedTo: fromDoc.assignedTo,
       createdAt: fromDoc.createdAt,
+      participant: {
+        lastSeenAction: 'native:task-injected',
+        lastStatus: 'task.completed',
+      },
       agentConfig: {
         role: fromDoc.agentConfig.role,
         machineId: fromDoc.agentConfig.machineId,
@@ -177,5 +212,20 @@ describe('doc → signal → apply round-trip', () => {
         desiredState: fromDoc.agentConfig.desiredState,
       },
     });
+  });
+
+  it('preserves revisionKey participant fields on signal bootstrap (not presence channel)', () => {
+    const doc = makeSnapshotDoc({
+      lastSeenAction: 'native:task-injected',
+      lastStatus: 'task.completed',
+      lastSeenAt: 9_999,
+    });
+    const fromDoc = monitorRowFromSnapshotDoc(doc);
+    const fromSignal = applyAssignedTaskSignal(undefined, snapshotDocToSignal(doc));
+
+    expect(fromSignal.participant?.lastSeenAction).toBe(fromDoc.participant?.lastSeenAction);
+    expect(fromSignal.participant?.lastStatus).toBe(fromDoc.participant?.lastStatus);
+    // lastSeenAt is presence-channel only — signal bootstrap must not pretend to carry it.
+    expect(fromSignal.participant?.lastSeenAt).toBeNull();
   });
 });

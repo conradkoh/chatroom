@@ -15,6 +15,7 @@ export type FileTreeEntry = {
 };
 
 /** The complete file tree for a workspace. */
+// fallow-ignore-next-line unused-type
 export type FileTree = {
   entries: FileTreeEntry[];
   scannedAt: number;
@@ -27,4 +28,30 @@ export type FileContent = {
   content: string;
   encoding: 'utf8';
   truncated: boolean;
+};
+
+/** A single entry returned by listDir (immediate children only). */
+export type DirListingEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+};
+
+/** Directory listing for one path (dirPath '' = workspace root). */
+export type DirListing = {
+  dirPath: string;
+  entries: DirListingEntry[];
+  scannedAt: number;
+  truncated: boolean;
+  totalCount: number;
+};
+
+/** File search results (flat file paths only). */
+export type FileSearchResult = {
+  query: string;
+  entries: { path: string; type: 'file' }[];
+  scannedAt: number;
+  truncated: boolean;
+  totalCount: number;
 };

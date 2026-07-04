@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useWorkspaceFileTree } from '@/modules/chatroom/workspace/files';
+import { useWorkspaceFileListing } from '@/modules/chatroom/workspace/files';
 
 interface UseFileSelectorOptions {
   chatroomId?: string;
@@ -46,16 +46,15 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   const hasWorkspace = !!machineId && !!workingDir;
   const {
     entries: files,
-    treeJson,
     refresh,
     isLoading,
-  } = useWorkspaceFileTree({
+  } = useWorkspaceFileListing({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
     enabled: open && hasWorkspace,
   });
 
-  // Request a fresh file tree scan when the selector opens
+  // Request a fresh file listing when the selector opens
   useEffect(() => {
     if (open && hasWorkspace) {
       refresh();
@@ -117,7 +116,6 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     recentFiles,
     selectedFile,
     selectFile,
-    hasTree: treeJson !== null,
     isLoading,
     hasWorkspace,
   };

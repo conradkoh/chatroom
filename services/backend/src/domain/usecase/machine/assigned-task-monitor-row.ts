@@ -81,7 +81,7 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
     participant: {
       lastSeenAction: signal.lastSeenAction ?? null,
       lastSeenAt: null,
-      lastStatus: null,
+      lastStatus: signal.lastStatus ?? null,
     },
   };
 }
@@ -102,7 +102,7 @@ function patchMonitorRowFromSignal(
     participant: {
       lastSeenAction: signal.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,
       lastSeenAt: existing.participant?.lastSeenAt ?? null,
-      lastStatus: existing.participant?.lastStatus ?? null,
+      lastStatus: signal.lastStatus ?? existing.participant?.lastStatus ?? null,
     },
   };
 }
