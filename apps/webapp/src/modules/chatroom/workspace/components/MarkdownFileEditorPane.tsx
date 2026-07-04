@@ -11,6 +11,8 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { getFileName } from '@/lib/pathUtils';
 import { cn } from '@/lib/utils';
 
+const EMPTY_FILE_PLACEHOLDER = 'This file is empty.';
+
 interface MarkdownFileEditorPaneProps {
   machineId: string;
   workingDir: string;
@@ -119,10 +121,12 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
       <textarea
         value={content}
         onChange={(event) => setContent(event.target.value)}
+        placeholder={EMPTY_FILE_PLACEHOLDER}
         spellCheck={false}
         className={cn(
           'flex-1 min-h-0 w-full resize-none bg-transparent p-4',
           'font-mono text-[13px] leading-relaxed text-chatroom-text-primary',
+          'placeholder:italic placeholder:text-chatroom-text-muted',
           'outline-none border-0'
         )}
         aria-label={`Edit ${filePath}`}

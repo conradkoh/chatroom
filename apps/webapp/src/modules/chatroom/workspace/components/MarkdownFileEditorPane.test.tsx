@@ -9,17 +9,19 @@ const mockSave = vi.fn();
 const mockSetContent = vi.fn();
 const contentRef = { current: '# Hello' };
 
+const mockUseMarkdownFileEditor = vi.fn(() => ({
+  content: '# Hello',
+  setContent: mockSetContent,
+  isDirty: true,
+  contentRef,
+  save: mockSave,
+  saving: false,
+  error: null,
+  isLoading: false,
+}));
+
 vi.mock('../hooks/useMarkdownFileEditor', () => ({
-  useMarkdownFileEditor: () => ({
-    content: '# Hello',
-    setContent: mockSetContent,
-    isDirty: true,
-    contentRef,
-    save: mockSave,
-    saving: false,
-    error: null,
-    isLoading: false,
-  }),
+  useMarkdownFileEditor: () => mockUseMarkdownFileEditor(),
 }));
 
 vi.mock('sonner', () => ({
@@ -32,6 +34,16 @@ vi.mock('sonner', () => ({
 describe('MarkdownFileEditorPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: '# Hello',
+      setContent: mockSetContent,
+      isDirty: true,
+      contentRef,
+      save: mockSave,
+      saving: false,
+      error: null,
+      isLoading: false,
+    });
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
       configurable: true,
@@ -65,6 +77,29 @@ describe('MarkdownFileEditorPane', () => {
     await user.keyboard('{Meta>}s{/Meta}');
 
     expect(mockSave).toHaveBeenCalledOnce();
+  });
+
+  it('shows empty-file placeholder when content is blank', () => {
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: '',
+      setContent: mockSetContent,
+      isDirty: false,
+      contentRef: { current: '' },
+      save: mockSave,
+      saving: false,
+      error: null,
+      isLoading: false,
+    });
+
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/workspace"
+        filePath="docs/empty.md"
+      />
+    );
+
+    expect(screen.getByPlaceholderText('This file is empty.')).toBeInTheDocument();
   });
 
   it('copies markdown when Copy button is clicked', async () => {

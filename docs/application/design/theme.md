@@ -332,6 +332,21 @@ Tight spacing:         0.5rem (gap-2)
 
 ## Implementation Guidelines
 
+### Canonical chatroom UI primitives (webapp)
+
+Industrial styling for portaled surfaces inside the chatroom module should use these locations — not `@/components/ui/*` defaults (which use `rounded-lg` and shadcn accent colors).
+
+| Surface                      | Module path                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| Theme tokens (CSS variables) | `apps/webapp/src/app/globals.css` (`--chatroom-*`)                             |
+| Shared class constants       | `apps/webapp/src/modules/chatroom/components/shared/industrialDialogStyles.ts` |
+| Command palette dialogs      | `apps/webapp/src/modules/chatroom/components/shared/commandDialogStyles.ts`    |
+| Dropdown / context menus     | `apps/webapp/src/modules/chatroom/components/ui/dropdown-menu.tsx`             |
+| Modals (create, edit)        | `apps/webapp/src/modules/chatroom/components/ui/dialog.tsx`                    |
+| Confirmations (delete)       | `apps/webapp/src/modules/chatroom/components/ui/alert-dialog.tsx`              |
+
+Rules: `rounded-none`, `border-2` on modals, `bg-chatroom-bg-primary` / `text-chatroom-*` tokens (light and dark via CSS variables).
+
 ### Tailwind Classes
 
 **Common Patterns:**

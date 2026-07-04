@@ -5,17 +5,23 @@
  */
 // fallow-ignore-file code-duplication
 
-import { createHash } from 'node:crypto';
-import { access, mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
+import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
+import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
+import { computeDirListingContentHash } from '../../../infrastructure/services/workspace/dir-listing-content-hash.js';
+import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
+import {
+  gunzipBase64Payload,
+  resolvePathWithinWorkspace,
+} from '../../../infrastructure/services/workspace/workspace-path-security.js';
 
 /** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
 const MAX_CONTENT_BYTES = 512 * 1024;
@@ -24,7 +30,8 @@ export type PendingFileWriteRequest = {
   _id: string;
   workingDir: string;
   filePath: string;
-  operation: 'create' | 'update' | 'delete';
+  operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir';
+  targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
 };
 
@@ -38,45 +45,43 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'File already exists',
     'File does not exist',
     'Cannot delete workspace root',
+    'Target path already exists',
+    'Target path is required for rename',
+    'Rename target must differ from source path',
+    'Directory already exists',
+    'Workspace not registered for this machine',
   ]);
+  if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
 }
 
-/** Reject path traversal and paths that escape the workspace root. */
-function resolveWorkspaceWritePath(
-  workingDir: string,
-  filePath: string
-): { ok: true; absolutePath: string } | { ok: false; error: string } {
-  if (filePath.includes('..') || filePath.startsWith('/')) {
-    return { ok: false, error: 'Invalid file path' };
-  }
-
-  const absolutePath = resolve(workingDir, filePath);
-  const workspaceRoot = resolve(workingDir);
-  if (!absolutePath.startsWith(workspaceRoot)) {
-    return { ok: false, error: 'Path escapes workspace' };
-  }
-
-  return { ok: true, absolutePath };
+function parentDirPath(filePath: string): string {
+  const idx = filePath.lastIndexOf('/');
+  return idx === -1 ? '' : filePath.slice(0, idx);
 }
 
-async function syncFileTreeAfterWrite(
+/** Refresh only the parent directory listing after a create/update/delete. */
+async function syncParentDirListingAfterWrite(
   session: DaemonSessionServiceShape,
-  workingDir: string
+  workingDir: string,
+  filePath: string
 ): Promise<void> {
-  const tree = await scanFileTree(workingDir);
-  const treeJson = JSON.stringify(tree);
-  const treeHash = createHash('md5').update(treeJson).digest('hex');
-  const compressed = gzipSync(Buffer.from(treeJson));
-  const treeJsonCompressed = compressed.toString('base64');
+  const dirPath = parentDirPath(filePath);
+  const listing = await listDirectory(workingDir, dirPath);
+  const json = JSON.stringify(listing);
+  const dataHash = computeDirListingContentHash(listing);
+  const compressed = gzipSync(Buffer.from(json)).toString('base64');
 
-  await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
+  await session.backend.mutation(api.workspaceFiles.syncDirListingV2, {
     sessionId: session.sessionId,
     machineId: session.machineId,
     workingDir,
-    data: { compression: 'gzip' as const, content: treeJsonCompressed },
-    dataHash: treeHash,
-    scannedAt: tree.scannedAt,
+    dirPath,
+    data: { compression: 'gzip' as const, content: compressed },
+    dataHash,
+    scannedAt: listing.scannedAt,
+    truncated: listing.truncated,
+    totalCount: listing.totalCount,
   });
 }
 
@@ -105,11 +110,7 @@ function decodeWritePayload(
   if (!request.data) {
     return { ok: false, errorMessage: 'Missing file data' };
   }
-  const content = gunzipSync(Buffer.from(request.data.content, 'base64'));
-  if (content.length > MAX_CONTENT_BYTES) {
-    return { ok: false, errorMessage: 'File content too large' };
-  }
-  return { ok: true, content };
+  return gunzipBase64Payload(request.data.content, MAX_CONTENT_BYTES);
 }
 
 // fallow-ignore-next-line complexity
@@ -149,7 +150,16 @@ async function fulfillOneFileWriteRequest(
   const startTime = Date.now();
   const { workingDir, filePath, operation } = request;
 
-  const resolved = resolveWorkspaceWritePath(workingDir, filePath);
+  const registered = await assertRegisteredWorkingDir(session, workingDir);
+  if (!registered.ok) {
+    await completeWriteRequest(session, request._id, {
+      status: 'error',
+      errorMessage: registered.error,
+    });
+    return;
+  }
+
+  const resolved = await resolvePathWithinWorkspace(workingDir, filePath);
   if (!resolved.ok) {
     await completeWriteRequest(session, request._id, {
       status: 'error',
@@ -159,6 +169,87 @@ async function fulfillOneFileWriteRequest(
   }
 
   try {
+    if (operation === 'rename') {
+      if (!request.targetFilePath) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Target path is required for rename',
+        });
+        return;
+      }
+      if (request.targetFilePath === filePath) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Rename target must differ from source path',
+        });
+        return;
+      }
+
+      const targetResolved = await resolvePathWithinWorkspace(workingDir, request.targetFilePath);
+      if (!targetResolved.ok) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: targetResolved.error,
+        });
+        return;
+      }
+
+      const sourceExists = await fileExistsAt(resolved.absolutePath);
+      if (!sourceExists) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'File does not exist',
+        });
+        return;
+      }
+
+      const targetExists = await fileExistsAt(targetResolved.absolutePath);
+      if (targetExists) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Target path already exists',
+        });
+        return;
+      }
+
+      await mkdir(dirname(targetResolved.absolutePath), { recursive: true });
+      await rename(resolved.absolutePath, targetResolved.absolutePath);
+
+      await syncParentDirListingAfterWrite(session, workingDir, filePath);
+      if (parentDirPath(filePath) !== parentDirPath(request.targetFilePath)) {
+        await syncParentDirListingAfterWrite(session, workingDir, request.targetFilePath);
+      }
+
+      await completeWriteRequest(session, request._id, { status: 'done' });
+
+      const elapsed = Date.now() - startTime;
+      console.log(
+        `[${formatTimestamp()}] ✏️  File rename fulfilled: ${filePath} → ${request.targetFilePath} (${elapsed}ms)`
+      );
+      return;
+    }
+
+    if (operation === 'mkdir') {
+      const exists = await fileExistsAt(resolved.absolutePath);
+      if (exists) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Directory already exists',
+        });
+        return;
+      }
+
+      await mkdir(resolved.absolutePath, { recursive: true });
+      await syncParentDirListingAfterWrite(session, workingDir, filePath);
+      await completeWriteRequest(session, request._id, { status: 'done' });
+
+      const elapsed = Date.now() - startTime;
+      console.log(
+        `[${formatTimestamp()}] ✏️  Directory mkdir fulfilled: ${filePath} (${elapsed}ms)`
+      );
+      return;
+    }
+
     if (operation === 'delete') {
       if (filePath === '') {
         await completeWriteRequest(session, request._id, {
@@ -178,11 +269,19 @@ async function fulfillOneFileWriteRequest(
       }
 
       await rm(resolved.absolutePath, { recursive: true, force: false });
-      await syncFileTreeAfterWrite(session, workingDir);
+      await syncParentDirListingAfterWrite(session, workingDir, filePath);
       await completeWriteRequest(session, request._id, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
       console.log(`[${formatTimestamp()}] ✏️  File delete fulfilled: ${filePath} (${elapsed}ms)`);
+      return;
+    }
+
+    if (operation !== 'create' && operation !== 'update') {
+      await completeWriteRequest(session, request._id, {
+        status: 'error',
+        errorMessage: unsupportedFileWriteOperationMessage(operation),
+      });
       return;
     }
 
@@ -205,7 +304,7 @@ async function fulfillOneFileWriteRequest(
     }
 
     await writePayloadToDisk(resolved.absolutePath, operation, payload.content);
-    await syncFileTreeAfterWrite(session, workingDir);
+    await syncParentDirListingAfterWrite(session, workingDir, filePath);
     await completeWriteRequest(session, request._id, { status: 'done' });
 
     const elapsed = Date.now() - startTime;

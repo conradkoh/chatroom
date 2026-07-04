@@ -4,12 +4,17 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ConvexReactClient } from 'convex/react';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
+import { formatFileWriteError, type FileWriteOperation } from './fileWriteErrorFormatting';
+
 const FILE_WRITE_POLL_INTERVAL_MS = 500;
 const FILE_WRITE_POLL_TIMEOUT_MS = 30_000;
+
+export type { FileWriteOperation };
 
 export type FileWriteRequestStatus = {
   status: 'pending' | 'done' | 'error';
   errorMessage?: string;
+  operation?: FileWriteOperation;
 };
 
 function sleep(ms: number): Promise<void> {
@@ -31,7 +36,9 @@ export async function pollFileWriteRequest(
     const result = await queryFn(requestId);
     if (result?.status === 'done') return;
     if (result?.status === 'error') {
-      throw new Error(result.errorMessage ?? 'File write failed');
+      throw new Error(
+        formatFileWriteError(result.errorMessage ?? 'File write failed', result.operation)
+      );
     }
     await sleep(FILE_WRITE_POLL_INTERVAL_MS);
   }

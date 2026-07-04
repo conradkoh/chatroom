@@ -9,8 +9,39 @@ import { gzipSync } from 'node:zlib';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import {
+  createDuoTeamChatroom,
+  createTestSession,
+  registerMachineWithDaemon,
+} from '../helpers/integration';
+
+const WORKING_DIR = '/tmp/workspace';
+
+async function registerWorkspace(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.mutation(api.workspaces.registerWorkspace, {
+    sessionId: sessionId as never,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'builder',
+  });
+}
+
+async function setupMachine(sessionKey: string, machineId: string) {
+  const { sessionId } = await createTestSession(sessionKey);
+  await registerMachineWithDaemon(sessionId, machineId);
+  const chatroomId = await createDuoTeamChatroom(sessionId);
+  await registerWorkspace(sessionId, chatroomId, machineId, WORKING_DIR);
+  return { sessionId, machineId };
+}
 
 function gzipContent(text: string) {
   return {
@@ -21,14 +52,12 @@ function gzipContent(text: string) {
 
 describe('workspace file write requests', () => {
   test('requestFileWrite creates a pending request with validated path', async () => {
-    const { sessionId } = await createTestSession('test-wfw-create');
-    const machineId = 'machine-wfw-create';
-    await registerMachineWithDaemon(sessionId, machineId);
+    const { sessionId, machineId } = await setupMachine('test-wfw-create', 'machine-wfw-create');
 
     const result = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
-      workingDir: '/tmp/workspace',
+      workingDir: WORKING_DIR,
       filePath: 'docs/readme.md',
       operation: 'create',
       data: gzipContent('# Hello'),
@@ -52,16 +81,52 @@ describe('workspace file write requests', () => {
     expect(pending[0]?.operation).toBe('create');
   });
 
-  test('requestFileWrite rejects path traversal', async () => {
-    const { sessionId } = await createTestSession('test-wfw-traversal');
-    const machineId = 'machine-wfw-traversal';
+  test('requestFileWrite rejects unregistered workingDir', async () => {
+    const { sessionId } = await createTestSession('test-wfw-unregistered-wd');
+    const machineId = 'machine-wfw-unregistered-wd';
     await registerMachineWithDaemon(sessionId, machineId);
 
     await expect(
       t.mutation(api.workspaceFiles.requestFileWrite, {
         sessionId,
         machineId,
-        workingDir: '/tmp/workspace',
+        workingDir: '/tmp/unregistered-workspace',
+        filePath: 'foo.md',
+        operation: 'create',
+        data: gzipContent('x'),
+      })
+    ).rejects.toThrow(/not registered/i);
+  });
+
+  test('requestFileWrite accepts registered workingDir', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-registered-wd',
+      'machine-wfw-registered-wd'
+    );
+
+    const result = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'registered.md',
+      operation: 'create',
+      data: gzipContent('ok'),
+    });
+
+    expect(result.status).toBe('requested');
+  });
+
+  test('requestFileWrite rejects path traversal', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-traversal',
+      'machine-wfw-traversal'
+    );
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
         filePath: '../etc/passwd',
         operation: 'create',
         data: gzipContent('bad'),
@@ -70,14 +135,12 @@ describe('workspace file write requests', () => {
   });
 
   test('requestFileWrite returns pending when same path already has pending request', async () => {
-    const { sessionId } = await createTestSession('test-wfw-dedup');
-    const machineId = 'machine-wfw-dedup';
-    await registerMachineWithDaemon(sessionId, machineId);
+    const { sessionId, machineId } = await setupMachine('test-wfw-dedup', 'machine-wfw-dedup');
 
     const first = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
-      workingDir: '/tmp/workspace',
+      workingDir: WORKING_DIR,
       filePath: 'notes.md',
       operation: 'create',
       data: gzipContent('v1'),
@@ -86,7 +149,7 @@ describe('workspace file write requests', () => {
     const second = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
-      workingDir: '/tmp/workspace',
+      workingDir: WORKING_DIR,
       filePath: 'notes.md',
       operation: 'update',
       data: gzipContent('v2'),
@@ -97,16 +160,16 @@ describe('workspace file write requests', () => {
   });
 
   test('completeFileWriteRequest sets done and purges cached content', async () => {
-    const { sessionId } = await createTestSession('test-wfw-complete');
-    const machineId = 'machine-wfw-complete';
-    await registerMachineWithDaemon(sessionId, machineId);
-    const workingDir = '/tmp/workspace';
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-complete',
+      'machine-wfw-complete'
+    );
     const filePath = 'src/app.ts';
 
     const { requestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
-      workingDir,
+      workingDir: WORKING_DIR,
       filePath,
       operation: 'update',
       data: gzipContent('export {}'),
@@ -115,7 +178,7 @@ describe('workspace file write requests', () => {
     const cacheId = await t.run(async (ctx) => {
       return ctx.db.insert('chatroom_workspaceFileContentV2', {
         machineId,
-        workingDir,
+        workingDir: WORKING_DIR,
         filePath,
         data: gzipContent('stale'),
         encoding: 'utf8',
@@ -143,14 +206,12 @@ describe('workspace file write requests', () => {
   });
 
   test('completeFileWriteRequest sets error with message', async () => {
-    const { sessionId } = await createTestSession('test-wfw-error');
-    const machineId = 'machine-wfw-error';
-    await registerMachineWithDaemon(sessionId, machineId);
+    const { sessionId, machineId } = await setupMachine('test-wfw-error', 'machine-wfw-error');
 
     const { requestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
-      workingDir: '/tmp/workspace',
+      workingDir: WORKING_DIR,
       filePath: 'missing.ts',
       operation: 'update',
       data: gzipContent('noop'),
@@ -172,14 +233,12 @@ describe('workspace file write requests', () => {
   });
 
   test('requestFileWrite creates a pending delete request without data', async () => {
-    const { sessionId } = await createTestSession('test-wfw-delete');
-    const machineId = 'machine-wfw-delete';
-    await registerMachineWithDaemon(sessionId, machineId);
+    const { sessionId, machineId } = await setupMachine('test-wfw-delete', 'machine-wfw-delete');
 
     const result = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
-      workingDir: '/tmp/workspace',
+      workingDir: WORKING_DIR,
       filePath: 'docs/readme.md',
       operation: 'delete',
     });
@@ -195,15 +254,16 @@ describe('workspace file write requests', () => {
   });
 
   test('requestFileWrite rejects delete with data payload', async () => {
-    const { sessionId } = await createTestSession('test-wfw-delete-data');
-    const machineId = 'machine-wfw-delete-data';
-    await registerMachineWithDaemon(sessionId, machineId);
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-delete-data',
+      'machine-wfw-delete-data'
+    );
 
     await expect(
       t.mutation(api.workspaceFiles.requestFileWrite, {
         sessionId,
         machineId,
-        workingDir: '/tmp/workspace',
+        workingDir: WORKING_DIR,
         filePath: 'docs/readme.md',
         operation: 'delete',
         data: gzipContent('nope'),

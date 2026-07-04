@@ -11,6 +11,11 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
+import {
+  requireRegisteredWorkspaceForMachine,
+  validateDirPath,
+  validateFilePath,
+} from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -24,8 +29,11 @@ const MAX_CONTENT_BYTES = 512 * 1024;
 /** Max pending requests returned per query (prevent unbounded reads). */
 const MAX_PENDING_REQUESTS = 50;
 
-/** Max file path length to prevent abuse. */
-const MAX_FILE_PATH_LENGTH = 1024;
+const MAX_DIR_LISTING_BYTES = 200 * 1024;
+const MAX_SEARCH_BYTES = 200 * 1024;
+const DIR_LISTING_STALENESS_MS = 30 * 1000;
+const FILE_SEARCH_STALENESS_MS = 30 * 1000;
+const MAX_SEARCH_QUERY_LENGTH = 200;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -52,23 +60,10 @@ async function requireMachineAccess(
   });
 }
 
-/**
- * Validate a file path for security.
- * Rejects path traversal, absolute paths, null bytes, and overly long paths.
- */
-function validateFilePath(filePath: string): void {
-  if (filePath.length > MAX_FILE_PATH_LENGTH) {
-    throw new Error('File path too long');
-  }
-  if (filePath.includes('..')) {
-    throw new Error('Invalid file path: path traversal not allowed');
-  }
-  if (filePath.startsWith('/')) {
-    throw new Error('Invalid file path: absolute paths not allowed');
-  }
-  if (filePath.includes('\0')) {
-    throw new Error('Invalid file path: null bytes not allowed');
-  }
+function validateSearchQuery(query: string): void {
+  if (query.length > MAX_SEARCH_QUERY_LENGTH) throw new Error('Search query too long');
+  if (query.includes('\0')) throw new Error('Invalid search query');
+  // Empty query is allowed — returns up to maxResults workspace files
 }
 
 // ─── File Tree Sync (daemon → backend) ──────────────────────────────────────
@@ -157,6 +152,7 @@ export const requestFileContent = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
 
     // Security: validate file path
     validateFilePath(args.filePath);
@@ -795,13 +791,20 @@ export const requestFileWrite = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     filePath: v.string(),
-    operation: v.union(v.literal('create'), v.literal('update'), v.literal('delete')),
+    operation: v.union(
+      v.literal('create'),
+      v.literal('update'),
+      v.literal('delete'),
+      v.literal('rename'),
+      v.literal('mkdir')
+    ),
     data: v.optional(
       v.object({
         compression: v.literal('gzip'),
         content: v.string(),
       })
     ),
+    targetFilePath: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -810,9 +813,28 @@ export const requestFileWrite = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
     validateFilePath(args.filePath);
 
-    if (args.operation === 'delete') {
+    if (args.operation === 'mkdir') {
+      if (args.data !== undefined) {
+        throw new Error('Mkdir requests must not include file data');
+      }
+      if (args.targetFilePath !== undefined) {
+        throw new Error('Mkdir requests must not include targetFilePath');
+      }
+    } else if (args.operation === 'rename') {
+      if (!args.targetFilePath) {
+        throw new Error('Target path is required for rename');
+      }
+      if (args.data !== undefined) {
+        throw new Error('Rename requests must not include file data');
+      }
+      validateFilePath(args.targetFilePath);
+      if (args.targetFilePath === args.filePath) {
+        throw new Error('Rename target must differ from source path');
+      }
+    } else if (args.operation === 'delete') {
       if (args.data !== undefined) {
         throw new Error('Delete requests must not include file data');
       }
@@ -846,7 +868,11 @@ export const requestFileWrite = mutation({
       errorMessage: undefined,
       requestedAt: now,
       updatedAt: now,
-      ...(args.operation === 'delete' ? { data: undefined } : { data: args.data }),
+      ...(args.operation === 'rename'
+        ? { data: undefined, targetFilePath: args.targetFilePath }
+        : args.operation === 'delete' || args.operation === 'mkdir'
+          ? { data: undefined, targetFilePath: undefined }
+          : { data: args.data, targetFilePath: undefined }),
     };
 
     if (existingRequest) {
@@ -893,6 +919,7 @@ export const getFileWriteRequest = query({
     return {
       status: request.status,
       errorMessage: request.errorMessage,
+      operation: request.operation,
     };
   },
 });
@@ -931,6 +958,7 @@ export const getPendingFileWriteRequests = query({
       filePath: r.filePath,
       operation: r.operation,
       data: r.data,
+      targetFilePath: r.targetFilePath,
     }));
   },
 });
@@ -1073,5 +1101,693 @@ export const purgeFileContentV2 = mutation({
       .collect();
     for (const req of requests)
       await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
+  },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Directory Listing V2 — per-directory FS slices
+// ═══════════════════════════════════════════════════════════════════════════════
+// fallow-ignore-file complexity
+// fallow-ignore-file code-duplication
+
+/** Normalize, dedupe, and sort active dir paths for stable storage. */
+function normalizeActiveDirPaths(dirPaths: string[]): string[] {
+  const unique = new Set<string>();
+  for (const raw of dirPaths) {
+    const normalized = raw.replace(/\\/g, '/');
+    validateDirPath(normalized);
+    unique.add(normalized);
+  }
+  return [...unique].sort((a, b) => a.localeCompare(b));
+}
+
+async function getOrCreateDirListingWatchRow(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+) {
+  const existing = await ctx.db
+    .query('chatroom_workspaceDirListingWatch')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  return existing;
+}
+
+/**
+ * Increment/decrement explorer observer refcount for a workspace.
+ * On first observe, seed activeDirPaths to [''] (root).
+ * On unobserve to 0, clear activeDirPaths.
+ */
+export const setDirListingExplorerObserver = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    observing: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const now = Date.now();
+    const existing = await getOrCreateDirListingWatchRow(ctx, args.machineId, args.workingDir);
+
+    if (args.observing) {
+      const nextCount = (existing?.observerCount ?? 0) + 1;
+      const row = {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        observerCount: nextCount,
+        activeDirPaths: existing?.activeDirPaths?.length ? existing.activeDirPaths : [''],
+        updatedAt: now,
+      };
+      if (existing) {
+        await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, row);
+      } else {
+        await ctx.db.insert('chatroom_workspaceDirListingWatch', row);
+      }
+      return { observerCount: nextCount };
+    }
+
+    const current = existing?.observerCount ?? 0;
+    const nextCount = Math.max(0, current - 1);
+    if (!existing) return { observerCount: 0 };
+
+    if (nextCount === 0) {
+      await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, {
+        observerCount: 0,
+        activeDirPaths: [],
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, {
+        observerCount: nextCount,
+        updatedAt: now,
+      });
+    }
+    return { observerCount: nextCount };
+  },
+});
+
+/**
+ * Replace active dir paths for a workspace with an active observer.
+ * No-op (return current state) when observerCount is 0.
+ */
+export const setDirListingWatchPaths = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    activeDirPaths: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const existing = await getOrCreateDirListingWatchRow(ctx, args.machineId, args.workingDir);
+    if (!existing || (existing.observerCount ?? 0) <= 0) {
+      return { observerCount: 0, activeDirPaths: [] as string[] };
+    }
+
+    const normalized = normalizeActiveDirPaths(args.activeDirPaths);
+    // Ensure root is always watched when explorer is open
+    if (!normalized.includes('')) {
+      normalized.unshift('');
+    }
+
+    const now = Date.now();
+    await ctx.db.patch('chatroom_workspaceDirListingWatch', existing._id, {
+      activeDirPaths: normalized,
+      updatedAt: now,
+    });
+
+    return {
+      observerCount: existing.observerCount,
+      activeDirPaths: normalized,
+    };
+  },
+});
+
+/** Daemon subscription: workspaces on this machine with active explorer observers. */
+export const listDirListingWatchTargets = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const rows = await ctx.db
+      .query('chatroom_workspaceDirListingWatch')
+      .withIndex('by_machineId_observerCount', (q: any) =>
+        q.eq('machineId', args.machineId).gte('observerCount', 1)
+      )
+      .collect();
+
+    return rows.map((row) => ({
+      workingDir: row.workingDir,
+      observerCount: row.observerCount,
+      activeDirPaths: row.activeDirPaths,
+      updatedAt: row.updatedAt,
+    }));
+  },
+});
+
+export const requestDirListing = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    dirPath: v.string(),
+    force: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
+    validateDirPath(args.dirPath);
+
+    if (!args.force) {
+      const existing = await ctx.db
+        .query('chatroom_workspaceDirListingV2')
+        .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+          q
+            .eq('machineId', args.machineId)
+            .eq('workingDir', args.workingDir)
+            .eq('dirPath', args.dirPath)
+        )
+        .first();
+      if (existing && Date.now() - existing.scannedAt < DIR_LISTING_STALENESS_MS) {
+        return { status: 'cached' as const };
+      }
+    }
+
+    const existingRequest = await ctx.db
+      .query('chatroom_workspaceDirListingRequests')
+      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('dirPath', args.dirPath)
+      )
+      .first();
+
+    if (existingRequest?.status === 'pending') {
+      return { status: 'pending' as const };
+    }
+
+    const now = Date.now();
+    if (existingRequest) {
+      await ctx.db.patch('chatroom_workspaceDirListingRequests', existingRequest._id, {
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspaceDirListingRequests', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        dirPath: args.dirPath,
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    }
+    return { status: 'requested' as const };
+  },
+});
+
+export const getDirListingV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    dirPath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const row = await ctx.db
+      .query('chatroom_workspaceDirListingV2')
+      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('dirPath', args.dirPath)
+      )
+      .first();
+
+    if (!row) return null;
+    return {
+      data: row.data,
+      scannedAt: row.scannedAt,
+      truncated: row.truncated,
+      totalCount: row.totalCount,
+    };
+  },
+});
+
+export const getPendingDirListingRequests = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceDirListingRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      dirPath: r.dirPath,
+    }));
+  },
+});
+
+/** Shared upsert logic for one dir listing row. Returns whether a write occurred. */
+async function upsertDirListingV2Row(
+  ctx: MutationCtx,
+  args: {
+    machineId: string;
+    workingDir: string;
+    dirPath: string;
+    data: { compression: 'gzip'; content: string };
+    dataHash: string;
+    scannedAt: number;
+    truncated: boolean;
+    totalCount: number;
+  }
+): Promise<boolean> {
+  validateDirPath(args.dirPath);
+  const sizeBytes = new TextEncoder().encode(args.data.content).length;
+  if (sizeBytes > MAX_DIR_LISTING_BYTES) {
+    throw new Error('Directory listing too large');
+  }
+
+  const existing = await ctx.db
+    .query('chatroom_workspaceDirListingV2')
+    .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      q
+        .eq('machineId', args.machineId)
+        .eq('workingDir', args.workingDir)
+        .eq('dirPath', args.dirPath)
+    )
+    .first();
+
+  if (existing && existing.dataHash === args.dataHash) return false;
+
+  const row = {
+    machineId: args.machineId,
+    workingDir: args.workingDir,
+    dirPath: args.dirPath,
+    data: args.data,
+    dataHash: args.dataHash,
+    scannedAt: args.scannedAt,
+    truncated: args.truncated,
+    totalCount: args.totalCount,
+  };
+
+  if (existing) {
+    await ctx.db.patch('chatroom_workspaceDirListingV2', existing._id, row);
+  } else {
+    await ctx.db.insert('chatroom_workspaceDirListingV2', row);
+  }
+
+  return true;
+}
+
+export const syncDirListingV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    dirPath: v.string(),
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    truncated: v.boolean(),
+    totalCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    await upsertDirListingV2Row(ctx, {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      dirPath: args.dirPath,
+      data: args.data,
+      dataHash: args.dataHash,
+      scannedAt: args.scannedAt,
+      truncated: args.truncated,
+      totalCount: args.totalCount,
+    });
+  },
+});
+
+export const syncDirListingV2Batch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    items: v.array(
+      v.object({
+        dirPath: v.string(),
+        data: v.object({
+          compression: v.literal('gzip'),
+          content: v.string(),
+        }),
+        dataHash: v.string(),
+        scannedAt: v.number(),
+        truncated: v.boolean(),
+        totalCount: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    let written = 0;
+    for (const item of args.items) {
+      const didWrite = await upsertDirListingV2Row(ctx, {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        ...item,
+      });
+      if (didWrite) written++;
+    }
+    return { written, skipped: args.items.length - written };
+  },
+});
+
+export const fulfillDirListingRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    dirPath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const request = await ctx.db
+      .query('chatroom_workspaceDirListingRequests')
+      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', args.workingDir)
+          .eq('dirPath', args.dirPath)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch('chatroom_workspaceDirListingRequests', request._id, {
+        status: 'done',
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+// ─── File Search V2 ─────────────────────────────────────────────────────────
+
+export const requestFileSearch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+    force: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
+    validateSearchQuery(args.query);
+
+    if (!args.force) {
+      const existing = await ctx.db
+        .query('chatroom_workspaceFileSearchV2')
+        .withIndex('by_machine_workingDir_query', (q: any) =>
+          q
+            .eq('machineId', args.machineId)
+            .eq('workingDir', args.workingDir)
+            .eq('query', args.query)
+        )
+        .first();
+      if (existing && Date.now() - existing.scannedAt < FILE_SEARCH_STALENESS_MS) {
+        return { status: 'cached' as const };
+      }
+    }
+
+    const existingRequest = await ctx.db
+      .query('chatroom_workspaceFileSearchRequests')
+      .withIndex('by_machine_workingDir_query', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
+      )
+      .first();
+
+    if (existingRequest?.status === 'pending') {
+      return { status: 'pending' as const };
+    }
+
+    const now = Date.now();
+    if (existingRequest) {
+      await ctx.db.patch('chatroom_workspaceFileSearchRequests', existingRequest._id, {
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileSearchRequests', {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        query: args.query,
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    }
+    return { status: 'requested' as const };
+  },
+});
+
+export const getFileSearchV2 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    const row = await ctx.db
+      .query('chatroom_workspaceFileSearchV2')
+      .withIndex('by_machine_workingDir_query', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
+      )
+      .first();
+
+    if (!row) return null;
+    return {
+      data: row.data,
+      scannedAt: row.scannedAt,
+      truncated: row.truncated,
+      totalCount: row.totalCount,
+    };
+  },
+});
+
+export const getPendingFileSearchRequests = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileSearchRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      query: r.query,
+    }));
+  },
+});
+
+export const syncFileSearchV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    truncated: v.boolean(),
+    totalCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    validateSearchQuery(args.query);
+
+    const sizeBytes = new TextEncoder().encode(args.data.content).length;
+    if (sizeBytes > MAX_SEARCH_BYTES) {
+      throw new Error('File search result too large');
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileSearchV2')
+      .withIndex('by_machine_workingDir_query', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
+      )
+      .first();
+
+    if (existing && existing.dataHash === args.dataHash) return;
+
+    const row = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      query: args.query,
+      data: args.data,
+      dataHash: args.dataHash,
+      scannedAt: args.scannedAt,
+      truncated: args.truncated,
+      totalCount: args.totalCount,
+    };
+
+    if (existing) {
+      await ctx.db.patch('chatroom_workspaceFileSearchV2', existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileSearchV2', row);
+    }
+  },
+});
+
+export const fulfillFileSearchRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    query: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const request = await ctx.db
+      .query('chatroom_workspaceFileSearchRequests')
+      .withIndex('by_machine_workingDir_query', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch('chatroom_workspaceFileSearchRequests', request._id, {
+        status: 'done',
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const purgeDirListingsV2 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    const listings = await ctx.db
+      .query('chatroom_workspaceDirListingV2')
+      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const row of listings) await ctx.db.delete('chatroom_workspaceDirListingV2', row._id);
+
+    const listingRequests = await ctx.db
+      .query('chatroom_workspaceDirListingRequests')
+      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const row of listingRequests)
+      await ctx.db.delete('chatroom_workspaceDirListingRequests', row._id);
+
+    const searches = await ctx.db
+      .query('chatroom_workspaceFileSearchV2')
+      .withIndex('by_machine_workingDir_query', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const row of searches) await ctx.db.delete('chatroom_workspaceFileSearchV2', row._id);
+
+    const searchRequests = await ctx.db
+      .query('chatroom_workspaceFileSearchRequests')
+      .withIndex('by_machine_workingDir_query', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const row of searchRequests)
+      await ctx.db.delete('chatroom_workspaceFileSearchRequests', row._id);
   },
 });

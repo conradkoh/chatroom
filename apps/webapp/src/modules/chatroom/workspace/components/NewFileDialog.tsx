@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { FILE_EXPLORER_REFRESH_EVENT } from './fileExplorerEvents';
-import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
-import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
-
-import { Button } from '@/components/ui/button';
+import { validateEntryName } from './explorerDialogInputUtils';
+import { ExplorerDialogPathFields } from './ExplorerDialogPathFields';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '../../components/shared/industrialDialogStyles';
 import {
   Dialog,
   DialogContent,
@@ -14,9 +15,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+} from '../../components/ui/dialog';
+import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
+import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
 
 interface NewFileDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface NewFileDialogProps {
   onCreated: (filePath: string) => void;
   onCreateFailed?: (filePath: string, error: string) => void;
   onCreateConfirmed?: (filePath: string) => void;
+  onExplorerRefresh?: () => void;
 }
 
 // fallow-ignore-next-line complexity
@@ -39,15 +41,22 @@ export function NewFileDialog({
   onCreated,
   onCreateFailed,
   onCreateConfirmed,
+  onExplorerRefresh,
 }: NewFileDialogProps) {
   const { createFile } = useWorkspaceFileCreate({ machineId, workingDir });
 
+  const targetDir = useMemo(() => (defaultDir ? defaultDir.replace(/\/$/, '') : ''), [defaultDir]);
+  const isFolderCreate = targetDir !== '';
+
   const [pathInput, setPathInput] = useState('');
+  const [fileNameInput, setFileNameInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    setPathInput(defaultDir ? `${defaultDir.replace(/\/$/, '')}/` : '');
+    setPathInput('');
+    setFileNameInput('');
     setValidationError(null);
   }, [defaultDir, open]);
 
@@ -56,24 +65,25 @@ export function NewFileDialog({
     async (normalizedPath: string) => {
       try {
         await createFile(normalizedPath, '');
-        window.dispatchEvent(new CustomEvent(FILE_EXPLORER_REFRESH_EVENT));
+        onExplorerRefresh?.();
         onCreateConfirmed?.(normalizedPath);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to create file';
         onCreateFailed?.(normalizedPath, message);
       }
     },
-    [createFile, onCreateConfirmed, onCreateFailed]
+    [createFile, onCreateConfirmed, onCreateFailed, onExplorerRefresh]
   );
 
+  // fallow-ignore-next-line complexity
   const handleCreate = useCallback(() => {
-    const normalizedPath = normalizeNewFilePath(
-      defaultDir && !pathInput.includes('/')
-        ? `${defaultDir.replace(/\/$/, '')}/${pathInput}`
-        : pathInput
-    );
+    const normalizedPath = isFolderCreate
+      ? normalizeNewFilePath(`${targetDir}/${fileNameInput.trim()}`)
+      : normalizeNewFilePath(pathInput);
 
-    const pathError = validateRelativeFilePath(normalizedPath);
+    const pathError = isFolderCreate
+      ? (validateEntryName(fileNameInput, 'File name') ?? validateRelativeFilePath(normalizedPath))
+      : validateRelativeFilePath(normalizedPath);
     if (pathError) {
       setValidationError(pathError);
       return;
@@ -83,67 +93,82 @@ export function NewFileDialog({
     onCreated(normalizedPath);
     onOpenChange(false);
     void runBackgroundCreate(normalizedPath);
-  }, [defaultDir, onCreated, onOpenChange, pathInput, runBackgroundCreate]);
+  }, [
+    fileNameInput,
+    isFolderCreate,
+    onCreated,
+    onOpenChange,
+    pathInput,
+    runBackgroundCreate,
+    targetDir,
+  ]);
+
+  const kbdClassName = 'rounded-none border border-chatroom-border px-1';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-none border-2 border-chatroom-border-strong bg-chatroom-bg-primary text-chatroom-text-primary sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
         <DialogHeader>
-          <DialogTitle className="text-chatroom-text-primary">New File</DialogTitle>
-          <DialogDescription className="text-chatroom-text-secondary">
-            Enter a relative path. Press{' '}
-            <kbd className="rounded border border-chatroom-border px-1">⌘S</kbd> to save. Files
-            without an extension default to <code>.md</code>.
+          <DialogTitle>New File</DialogTitle>
+          <DialogDescription>
+            {isFolderCreate ? (
+              <>
+                Enter a file name in <code className="font-mono">{targetDir}/</code>. Press{' '}
+                <kbd className={kbdClassName}>⌘S</kbd> to save. Files without an extension default
+                to <code>.md</code>.
+              </>
+            ) : (
+              <>
+                Enter a relative path. Press <kbd className={kbdClassName}>⌘S</kbd> to save. Files
+                without an extension default to <code>.md</code>.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
-          <Input
-            value={pathInput}
-            onChange={(event) => {
-              setPathInput(event.target.value);
-              setValidationError(null);
-            }}
-            placeholder="docs/notes.md"
-            className={cn(
-              'bg-chatroom-bg-secondary border-chatroom-border text-chatroom-text-primary',
-              validationError && 'border-chatroom-status-error'
-            )}
-            autoFocus
-            // fallow-ignore-next-line complexity
-            onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-                event.preventDefault();
-                handleCreate();
-                return;
-              }
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                handleCreate();
-              }
-            }}
-          />
-          {validationError && (
-            <p className="text-xs text-chatroom-status-error">{validationError}</p>
-          )}
-        </div>
+        <ExplorerDialogPathFields
+          isNested={isFolderCreate}
+          targetDir={targetDir}
+          nestedValue={fileNameInput}
+          onNestedChange={(value) => {
+            setFileNameInput(value);
+            setValidationError(null);
+          }}
+          pathValue={pathInput}
+          onPathChange={(value) => {
+            setPathInput(value);
+            setValidationError(null);
+          }}
+          nestedPlaceholder="notes.md"
+          rootPlaceholder="docs/notes.md"
+          nestedAriaLabel={`File name in ${targetDir}`}
+          rootAriaLabel="Relative file path"
+          inputRef={inputRef}
+          validationError={validationError}
+          onSave={handleCreate}
+        />
 
-        <DialogFooter className="border-t border-chatroom-border pt-4">
-          <Button
+        <DialogFooter>
+          <button
             type="button"
-            variant="outline"
             onClick={() => onOpenChange(false)}
-            className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
+            className={chatroomIndustrialButtonSecondaryClassName}
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
             onClick={handleCreate}
-            className="bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-accent/90 border-0"
+            className={chatroomIndustrialButtonPrimaryClassName}
           >
             Save
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

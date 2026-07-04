@@ -143,6 +143,7 @@ export interface UseFileTabsReturn {
   closeTab: (filePath: string) => void;
   setActiveTab: (filePath: string) => void;
   toggleExpanded: (filePath: string) => void;
+  renamePath: (oldPath: string, newPath: string) => void;
   // Right pane
   rightTabs: RightPaneTab[];
   activeRightTabKey: string | null;
@@ -256,6 +257,51 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setExpandedTabPath((prev) => (prev === filePath ? null : filePath));
   }, []);
 
+  const renamePath = useCallback((oldPath: string, newPath: string) => {
+    const remapFilePath = (filePath: string): string => {
+      if (filePath === oldPath) return newPath;
+      if (filePath.startsWith(`${oldPath}/`)) {
+        return `${newPath}${filePath.slice(oldPath.length)}`;
+      }
+      return filePath;
+    };
+
+    setTabs((prev) =>
+      prev.map((tab) => {
+        const remapped = remapFilePath(tab.filePath);
+        if (remapped === tab.filePath) return tab;
+        return { ...tab, filePath: remapped, name: getFileName(remapped) };
+      })
+    );
+
+    setActiveTabPath((prev) => (prev ? remapFilePath(prev) : prev));
+    setExpandedTabPath((prev) => (prev ? remapFilePath(prev) : prev));
+
+    setRightTabs((prev) =>
+      prev.map((tab) => {
+        const remapped = remapFilePath(tab.filePath);
+        if (remapped === tab.filePath) return tab;
+        const key = rightTabKey(remapped, tab.viewType);
+        return {
+          ...tab,
+          filePath: remapped,
+          name: rightTabName(remapped, tab.viewType),
+          key,
+        };
+      })
+    );
+
+    setActiveRightTabKey((prev) => {
+      if (!prev) return prev;
+      const separator = prev.indexOf('::');
+      if (separator === -1) return prev;
+      const filePath = prev.slice(0, separator);
+      const viewType = prev.slice(separator + 2) as RightPaneViewType;
+      const remapped = remapFilePath(filePath);
+      return remapped === filePath ? prev : rightTabKey(remapped, viewType);
+    });
+  }, []);
+
   // ─── Right pane ─────────────────────────────────────────────
 
   const openRight = useCallback((filePath: string, viewType: RightPaneViewType) => {
@@ -295,6 +341,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     closeTab,
     setActiveTab: setActive,
     toggleExpanded,
+    renamePath,
     // Right
     rightTabs,
     activeRightTabKey,

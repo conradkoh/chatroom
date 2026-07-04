@@ -11,41 +11,46 @@ import { Effect } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
+import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
-import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
+import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
       getPendingFileWriteRequests: 'mock-getPendingFileWriteRequests',
       completeFileWriteRequest: 'mock-completeFileWriteRequest',
-      syncFileTreeV2: 'mock-syncFileTreeV2',
+      syncDirListingV2: 'mock-syncDirListingV2',
     },
   },
 }));
 
-vi.mock('../../../infrastructure/services/workspace/file-tree-scanner.js', () => ({
-  scanFileTree: vi.fn().mockResolvedValue({
-    rootDir: '/mock',
+vi.mock('../../../infrastructure/services/workspace/dir-listing-scanner.js', () => ({
+  listDirectory: vi.fn().mockResolvedValue({
+    dirPath: '',
     entries: [],
     scannedAt: Date.now(),
+    truncated: false,
+    totalCount: 0,
   }),
 }));
 
 function makeRequest(
   workingDir: string,
   filePath: string,
-  operation: 'create' | 'update' | 'delete',
+  operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir',
   content?: string,
-  requestId = 'req-1'
+  requestId = 'req-1',
+  targetFilePath?: string
 ) {
   return {
     _id: requestId,
     workingDir,
     filePath,
     operation,
-    ...(operation === 'delete'
+    ...(operation === 'rename' ? { targetFilePath } : {}),
+    ...(operation === 'delete' || operation === 'rename' || operation === 'mkdir'
       ? {}
       : {
           data: {
@@ -59,8 +64,13 @@ function makeRequest(
 type FulfillmentRequest = ReturnType<typeof makeRequest>;
 
 async function runFulfillment(requests: FulfillmentRequest[]) {
+  const workingDir = requests[0]?.workingDir ?? '';
   const init = createMockDaemonSessionInit({
     machineId: 'machine-write-test',
+    workspaceListStore: {
+      workspaces: [{ workingDir }],
+      updatedAt: Date.now(),
+    },
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue(requests),
@@ -245,16 +255,18 @@ describe('fulfillFileWriteRequestsEffect', () => {
   });
 
   it('leaves request pending on transient write failure (no error completion)', async () => {
-    vi.mocked(scanFileTree).mockRejectedValueOnce(new Error('Network unreachable'));
+    vi.mocked(listDirectory).mockRejectedValueOnce(new Error('Network unreachable'));
 
     const backend = await runFulfillment([
       makeRequest(workingDir, 'transient-fail.md', 'create', 'content'),
     ]);
 
-    vi.mocked(scanFileTree).mockResolvedValue({
-      rootDir: workingDir,
+    vi.mocked(listDirectory).mockResolvedValue({
+      dirPath: '',
       entries: [],
       scannedAt: Date.now(),
+      truncated: false,
+      totalCount: 0,
     });
 
     const content = await readFile(join(workingDir, 'transient-fail.md'), 'utf8');
@@ -279,5 +291,121 @@ describe('fulfillFileWriteRequestsEffect', () => {
         errorMessage: 'File already exists',
       })
     );
+  });
+
+  it('rename moves a file to a new basename in the same directory', async () => {
+    await writeFile(join(workingDir, 'old.txt'), 'hello');
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'old.txt', 'rename', undefined, 'req-rename-1', 'new.txt'),
+    ]);
+
+    expect(await readFile(join(workingDir, 'new.txt'), 'utf8')).toBe('hello');
+    await expect(access(join(workingDir, 'old.txt'))).rejects.toThrow();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('rename moves a directory', async () => {
+    await mkdir(join(workingDir, 'old-dir'));
+    await writeFile(join(workingDir, 'old-dir', 'child.txt'), 'x');
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'old-dir', 'rename', undefined, 'req-rename-2', 'new-dir'),
+    ]);
+
+    expect(await readFile(join(workingDir, 'new-dir', 'child.txt'), 'utf8')).toBe('x');
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('rename errors when target already exists', async () => {
+    await writeFile(join(workingDir, 'a.txt'), 'a');
+    await writeFile(join(workingDir, 'b.txt'), 'b');
+
+    const backend = await runFulfillment([
+      makeRequest(workingDir, 'a.txt', 'rename', undefined, 'req-rename-3', 'b.txt'),
+    ]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Target path already exists',
+      })
+    );
+  });
+
+  it('mkdir creates a directory at workspace root', async () => {
+    const backend = await runFulfillment([makeRequest(workingDir, 'docs', 'mkdir')]);
+
+    await expect(access(join(workingDir, 'docs'))).resolves.toBeUndefined();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('mkdir creates a nested directory under a parent', async () => {
+    await mkdir(join(workingDir, 'src'));
+
+    const backend = await runFulfillment([makeRequest(workingDir, 'src/components', 'mkdir')]);
+
+    await expect(access(join(workingDir, 'src/components'))).resolves.toBeUndefined();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('mkdir errors when directory already exists', async () => {
+    await mkdir(join(workingDir, 'docs'));
+
+    const backend = await runFulfillment([makeRequest(workingDir, 'docs', 'mkdir')]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Directory already exists',
+      })
+    );
+  });
+
+  it('rejects unregistered workingDir before touching disk', async () => {
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: { workspaces: [], updatedAt: Date.now() },
+      backend: {
+        mutation: vi.fn().mockResolvedValue(undefined),
+        query: vi.fn().mockResolvedValue([makeRequest(workingDir, 'notes.md', 'create', 'hi')]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Workspace not registered for this machine',
+      })
+    );
+    await expect(access(join(workingDir, 'notes.md'))).rejects.toThrow();
+  });
+});
+
+describe('unsupportedFileWriteOperationMessage', () => {
+  it('names the operation and mentions upgrading the CLI', () => {
+    const msg = unsupportedFileWriteOperationMessage('mkdir');
+    expect(msg).toContain('mkdir');
+    expect(msg).toContain('upgrade');
+    expect(msg).toContain('chatroom-cli');
   });
 });

@@ -60,7 +60,7 @@ import type { SavedCommand } from './types/savedCommand';
 import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
-import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
@@ -141,8 +141,9 @@ const ProcessesPanel = dynamic(
 const ALL_MACHINES = '';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
-// NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`
-// (chatroom highlight colors, modal={false} default) or explicit `bg-chatroom-bg-primary` on content.
+// NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`.
+// For modals and delete confirmations, use `modules/chatroom/components/ui/dialog` and `alert-dialog`.
+// Shared tokens: `modules/chatroom/components/shared/industrialDialogStyles.ts`.
 // Do NOT use `bg-chatroom-bg-surface` (glassmorphism/semi-transparent) on portaled menus.
 
 interface ChatroomDashboardProps {
@@ -387,6 +388,7 @@ export function ChatroomDashboard({
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
+  const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -1156,8 +1158,7 @@ export function ChatroomDashboard({
       ? () => {
           setActivityView('explorer');
           setExplorerSidebarVisible(true);
-          // Dispatch refresh event so the file tree reloads
-          window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
+          fileExplorerPanelRef.current?.refresh();
         }
       : null,
     onShowMessages: () => setActivityView('messages'),
@@ -1395,6 +1396,7 @@ export function ChatroomDashboard({
                 explorerSidebarVisible && (
                   <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
                     <FileExplorerPanel
+                      ref={fileExplorerPanelRef}
                       chatroomId={chatroomId}
                       machineId={activeWorkspace.machineId}
                       workingDir={activeWorkspace.workingDir}
