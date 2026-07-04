@@ -11,6 +11,7 @@ import { Effect } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
+import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
@@ -38,7 +39,7 @@ vi.mock('../../../infrastructure/services/workspace/dir-listing-scanner.js', () 
 function makeRequest(
   workingDir: string,
   filePath: string,
-  operation: 'create' | 'update' | 'delete' | 'rename',
+  operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir',
   content?: string,
   requestId = 'req-1',
   targetFilePath?: string
@@ -49,7 +50,7 @@ function makeRequest(
     filePath,
     operation,
     ...(operation === 'rename' ? { targetFilePath } : {}),
-    ...(operation === 'delete' || operation === 'rename'
+    ...(operation === 'delete' || operation === 'rename' || operation === 'mkdir'
       ? {}
       : {
           data: {
@@ -332,5 +333,50 @@ describe('fulfillFileWriteRequestsEffect', () => {
         errorMessage: 'Target path already exists',
       })
     );
+  });
+
+  it('mkdir creates a directory at workspace root', async () => {
+    const backend = await runFulfillment([makeRequest(workingDir, 'docs', 'mkdir')]);
+
+    await expect(access(join(workingDir, 'docs'))).resolves.toBeUndefined();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('mkdir creates a nested directory under a parent', async () => {
+    await mkdir(join(workingDir, 'src'));
+
+    const backend = await runFulfillment([makeRequest(workingDir, 'src/components', 'mkdir')]);
+
+    await expect(access(join(workingDir, 'src/components'))).resolves.toBeUndefined();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'done' })
+    );
+  });
+
+  it('mkdir errors when directory already exists', async () => {
+    await mkdir(join(workingDir, 'docs'));
+
+    const backend = await runFulfillment([makeRequest(workingDir, 'docs', 'mkdir')]);
+
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Directory already exists',
+      })
+    );
+  });
+});
+
+describe('unsupportedFileWriteOperationMessage', () => {
+  it('names the operation and mentions upgrading the CLI', () => {
+    const msg = unsupportedFileWriteOperationMessage('mkdir');
+    expect(msg).toContain('mkdir');
+    expect(msg).toContain('upgrade');
+    expect(msg).toContain('chatroom-cli');
   });
 });

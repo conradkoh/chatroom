@@ -1978,9 +1978,10 @@ export default defineSchema({
       v.literal('create'),
       v.literal('update'),
       v.literal('delete'),
-      v.literal('rename')
+      v.literal('rename'),
+      v.literal('mkdir')
     ),
-    /** gzip base64 content — required for create/update, omitted for delete/rename */
+    /** gzip base64 content — required for create/update, omitted for delete/rename/mkdir */
     data: v.optional(
       v.object({
         compression: v.literal('gzip'),

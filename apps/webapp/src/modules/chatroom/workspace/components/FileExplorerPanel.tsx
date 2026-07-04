@@ -1,12 +1,21 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { MoreHorizontal, RefreshCw, Search, FilePlus, Pencil, Trash2 } from 'lucide-react';
+import {
+  MoreHorizontal,
+  RefreshCw,
+  Search,
+  FilePlus,
+  FolderPlus,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
+import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import {
@@ -172,6 +181,8 @@ export const FileExplorerPanel = memo(
       const [filterQuery, setFilterQuery] = useState('');
       const [newFileOpen, setNewFileOpen] = useState(false);
       const [newFileDefaultDir, setNewFileDefaultDir] = useState('');
+      const [newFolderOpen, setNewFolderOpen] = useState(false);
+      const [newFolderDefaultDir, setNewFolderDefaultDir] = useState('');
       const [renameOpen, setRenameOpen] = useState(false);
       const [renameTarget, setRenameTarget] = useState<{
         path: string;
@@ -192,6 +203,11 @@ export const FileExplorerPanel = memo(
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
         setNewFileOpen(true);
+      }, []);
+
+      const openNewFolderDialog = useCallback((defaultDir = '') => {
+        setNewFolderDefaultDir(defaultDir);
+        setNewFolderOpen(true);
       }, []);
 
       const openRenameDialog = useCallback((path: string, type: 'file' | 'directory') => {
@@ -290,6 +306,18 @@ export const FileExplorerPanel = memo(
               explorerFileOps.onFileCreateConfirmed(filePath);
               onFileCreateConfirmed?.(filePath);
             }}
+            onExplorerRefresh={refreshExplorer}
+          />
+
+          <NewFolderDialog
+            open={newFolderOpen}
+            onOpenChange={setNewFolderOpen}
+            machineId={machineId}
+            workingDir={workingDir}
+            defaultDir={newFolderDefaultDir}
+            onCreated={() => refreshExplorer()}
+            onCreateFailed={(_dirPath, error) => toast.error(error)}
+            onCreateConfirmed={() => refreshExplorer()}
             onExplorerRefresh={refreshExplorer}
           />
 
@@ -416,16 +444,28 @@ export const FileExplorerPanel = memo(
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'directory' && (
-                <DropdownMenuItem onSelect={() => openNewFileDialog(contextMenuTarget.path)}>
-                  <FilePlus size={12} className="mr-2" />
-                  New File
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onSelect={() => openNewFileDialog(contextMenuTarget.path)}>
+                    <FilePlus size={12} className="mr-2" />
+                    New File
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openNewFolderDialog(contextMenuTarget.path)}>
+                    <FolderPlus size={12} className="mr-2" />
+                    New Folder
+                  </DropdownMenuItem>
+                </>
               )}
               {contextMenuTarget?.kind === 'root' && (
-                <DropdownMenuItem onSelect={() => openNewFileDialog('')}>
-                  <FilePlus size={12} className="mr-2" />
-                  New File
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onSelect={() => openNewFileDialog('')}>
+                    <FilePlus size={12} className="mr-2" />
+                    New File
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openNewFolderDialog('')}>
+                    <FolderPlus size={12} className="mr-2" />
+                    New Folder
+                  </DropdownMenuItem>
+                </>
               )}
               {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
                 <DropdownMenuItem

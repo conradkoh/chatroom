@@ -58,6 +58,8 @@ const mockRequestDelete = vi.hoisted(() => vi.fn());
 const mockConfirmDelete = vi.hoisted(() => vi.fn());
 const mockRequestRename = vi.hoisted(() => vi.fn());
 const mockConfirmRename = vi.hoisted(() => vi.fn());
+const mockRequestMkdir = vi.hoisted(() => vi.fn());
+const mockConfirmMkdir = vi.hoisted(() => vi.fn());
 
 vi.mock('@/modules/chatroom/workspace/files/useDirListing', () => ({
   useDirListing: (args: { dirPath: string } | 'skip') => {
@@ -106,6 +108,13 @@ vi.mock('../hooks/useWorkspaceFileRename', () => ({
   useWorkspaceFileRename: () => ({
     requestRename: mockRequestRename,
     confirmRename: mockConfirmRename,
+  }),
+}));
+
+vi.mock('../hooks/useWorkspaceFileMkdir', () => ({
+  useWorkspaceFileMkdir: () => ({
+    requestMkdir: mockRequestMkdir,
+    confirmMkdir: mockConfirmMkdir,
   }),
 }));
 
@@ -158,6 +167,8 @@ beforeEach(() => {
   mockConfirmDelete.mockResolvedValue(undefined);
   mockRequestRename.mockResolvedValue({ requestId: 'req-rename-1' });
   mockConfirmRename.mockResolvedValue(undefined);
+  mockRequestMkdir.mockResolvedValue({ requestId: 'req-mkdir-1' });
+  mockConfirmMkdir.mockResolvedValue(undefined);
 });
 
 describe('FileExplorerPanel create/delete integration', () => {
@@ -261,5 +272,46 @@ describe('FileExplorerPanel create/delete integration', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mocks.rootRefresh.mock.calls.length).toBe(callsAfterSettle);
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
+  });
+
+  it('creates a folder from the root context menu', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    const scrollArea = screen.getByTitle('package.json').closest('.overflow-y-auto');
+    expect(scrollArea).not.toBeNull();
+    fireEvent.contextMenu(scrollArea!);
+
+    const newFolderItem = await screen.findByRole('menuitem', { name: /new folder/i });
+    fireEvent.click(newFolderItem);
+
+    const input = await screen.findByPlaceholderText('docs');
+    fireEvent.change(input, { target: { value: 'docs' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockRequestMkdir).toHaveBeenCalledWith('docs');
+    });
+
+    await waitFor(() => {
+      expect(mockConfirmMkdir).toHaveBeenCalledWith('req-mkdir-1');
+      expect(mocks.rootRefresh).toHaveBeenCalled();
+    });
+  });
+
+  it('creates a folder from a directory context menu', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src'));
+
+    const newFolderItem = await screen.findByRole('menuitem', { name: /new folder/i });
+    fireEvent.click(newFolderItem);
+
+    const input = await screen.findByLabelText('Folder name in src');
+    fireEvent.change(input, { target: { value: 'components' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockRequestMkdir).toHaveBeenCalledWith('src/components');
+    });
   });
 });

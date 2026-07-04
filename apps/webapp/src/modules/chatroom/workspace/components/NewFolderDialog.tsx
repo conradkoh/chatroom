@@ -16,23 +16,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
-import { useWorkspaceFileCreate } from '../hooks/useWorkspaceFileCreate';
-import { normalizeNewFilePath, validateRelativeFilePath } from '../utils/gzipContent';
+import { useWorkspaceFileMkdir } from '../hooks/useWorkspaceFileMkdir';
+import { validateRelativeFilePath } from '../utils/gzipContent';
 
-interface NewFileDialogProps {
+interface NewFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   machineId: string;
   workingDir: string;
   defaultDir?: string;
-  onCreated: (filePath: string) => void;
-  onCreateFailed?: (filePath: string, error: string) => void;
-  onCreateConfirmed?: (filePath: string) => void;
+  onCreated: (dirPath: string) => void;
+  onCreateFailed?: (dirPath: string, error: string) => void;
+  onCreateConfirmed?: (dirPath: string) => void;
   onExplorerRefresh?: () => void;
 }
 
 // fallow-ignore-next-line complexity
-export function NewFileDialog({
+export function NewFolderDialog({
   open,
   onOpenChange,
   machineId,
@@ -42,64 +42,63 @@ export function NewFileDialog({
   onCreateFailed,
   onCreateConfirmed,
   onExplorerRefresh,
-}: NewFileDialogProps) {
-  const { createFile } = useWorkspaceFileCreate({ machineId, workingDir });
+}: NewFolderDialogProps) {
+  const { requestMkdir, confirmMkdir } = useWorkspaceFileMkdir({ machineId, workingDir });
 
   const targetDir = useMemo(() => (defaultDir ? defaultDir.replace(/\/$/, '') : ''), [defaultDir]);
-  const isFolderCreate = targetDir !== '';
+  const isNestedCreate = targetDir !== '';
 
   const [pathInput, setPathInput] = useState('');
-  const [fileNameInput, setFileNameInput] = useState('');
+  const [folderNameInput, setFolderNameInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setPathInput('');
-    setFileNameInput('');
+    setFolderNameInput('');
     setValidationError(null);
   }, [defaultDir, open]);
 
-  const runBackgroundCreate = useCallback(
+  const runBackgroundMkdir = useCallback(
     // fallow-ignore-next-line complexity
-    async (normalizedPath: string) => {
+    async (dirPath: string) => {
       try {
-        await createFile(normalizedPath, '');
+        const { requestId } = await requestMkdir(dirPath);
+        await confirmMkdir(requestId);
         onExplorerRefresh?.();
-        onCreateConfirmed?.(normalizedPath);
+        onCreateConfirmed?.(dirPath);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to create file';
-        onCreateFailed?.(normalizedPath, message);
+        const message = err instanceof Error ? err.message : 'Failed to create folder';
+        onCreateFailed?.(dirPath, message);
       }
     },
-    [createFile, onCreateConfirmed, onCreateFailed, onExplorerRefresh]
+    [confirmMkdir, onCreateConfirmed, onCreateFailed, onExplorerRefresh, requestMkdir]
   );
 
   // fallow-ignore-next-line complexity
   const handleCreate = useCallback(() => {
-    const normalizedPath = isFolderCreate
-      ? normalizeNewFilePath(`${targetDir}/${fileNameInput.trim()}`)
-      : normalizeNewFilePath(pathInput);
+    const dirPath = isNestedCreate ? `${targetDir}/${folderNameInput.trim()}` : pathInput.trim();
 
-    const pathError = isFolderCreate
-      ? (validateEntryName(fileNameInput, 'File name') ?? validateRelativeFilePath(normalizedPath))
-      : validateRelativeFilePath(normalizedPath);
+    const pathError = isNestedCreate
+      ? (validateEntryName(folderNameInput, 'Folder name') ?? validateRelativeFilePath(dirPath))
+      : validateRelativeFilePath(dirPath);
     if (pathError) {
       setValidationError(pathError);
       return;
     }
 
     setValidationError(null);
-    onCreated(normalizedPath);
+    onCreated(dirPath);
     onOpenChange(false);
-    void runBackgroundCreate(normalizedPath);
+    void runBackgroundMkdir(dirPath);
   }, [
-    fileNameInput,
-    isFolderCreate,
+    folderNameInput,
+    isNestedCreate,
     onCreated,
     onOpenChange,
     pathInput,
-    runBackgroundCreate,
+    runBackgroundMkdir,
     targetDir,
   ]);
 
@@ -115,29 +114,27 @@ export function NewFileDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>New File</DialogTitle>
+          <DialogTitle>New Folder</DialogTitle>
           <DialogDescription>
-            {isFolderCreate ? (
+            {isNestedCreate ? (
               <>
-                Enter a file name in <code className="font-mono">{targetDir}/</code>. Press{' '}
-                <kbd className={kbdClassName}>⌘S</kbd> to save. Files without an extension default
-                to <code>.md</code>.
+                Enter a folder name in <code className="font-mono">{targetDir}/</code>. Press{' '}
+                <kbd className={kbdClassName}>⌘S</kbd> to save.
               </>
             ) : (
               <>
-                Enter a relative path. Press <kbd className={kbdClassName}>⌘S</kbd> to save. Files
-                without an extension default to <code>.md</code>.
+                Enter a relative folder path. Press <kbd className={kbdClassName}>⌘S</kbd> to save.
               </>
             )}
           </DialogDescription>
         </DialogHeader>
 
         <ExplorerDialogPathFields
-          isNested={isFolderCreate}
+          isNested={isNestedCreate}
           targetDir={targetDir}
-          nestedValue={fileNameInput}
+          nestedValue={folderNameInput}
           onNestedChange={(value) => {
-            setFileNameInput(value);
+            setFolderNameInput(value);
             setValidationError(null);
           }}
           pathValue={pathInput}
@@ -145,10 +142,10 @@ export function NewFileDialog({
             setPathInput(value);
             setValidationError(null);
           }}
-          nestedPlaceholder="notes.md"
-          rootPlaceholder="docs/notes.md"
-          nestedAriaLabel={`File name in ${targetDir}`}
-          rootAriaLabel="Relative file path"
+          nestedPlaceholder="components"
+          rootPlaceholder="docs"
+          nestedAriaLabel={`Folder name in ${targetDir}`}
+          rootAriaLabel="Relative folder path"
           inputRef={inputRef}
           validationError={validationError}
           onSave={handleCreate}

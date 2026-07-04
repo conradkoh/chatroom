@@ -819,7 +819,8 @@ export const requestFileWrite = mutation({
       v.literal('create'),
       v.literal('update'),
       v.literal('delete'),
-      v.literal('rename')
+      v.literal('rename'),
+      v.literal('mkdir')
     ),
     data: v.optional(
       v.object({
@@ -838,7 +839,14 @@ export const requestFileWrite = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     validateFilePath(args.filePath);
 
-    if (args.operation === 'rename') {
+    if (args.operation === 'mkdir') {
+      if (args.data !== undefined) {
+        throw new Error('Mkdir requests must not include file data');
+      }
+      if (args.targetFilePath !== undefined) {
+        throw new Error('Mkdir requests must not include targetFilePath');
+      }
+    } else if (args.operation === 'rename') {
       if (!args.targetFilePath) {
         throw new Error('Target path is required for rename');
       }
@@ -885,7 +893,7 @@ export const requestFileWrite = mutation({
       updatedAt: now,
       ...(args.operation === 'rename'
         ? { data: undefined, targetFilePath: args.targetFilePath }
-        : args.operation === 'delete'
+        : args.operation === 'delete' || args.operation === 'mkdir'
           ? { data: undefined, targetFilePath: undefined }
           : { data: args.data, targetFilePath: undefined }),
     };
@@ -934,6 +942,7 @@ export const getFileWriteRequest = query({
     return {
       status: request.status,
       errorMessage: request.errorMessage,
+      operation: request.operation,
     };
   },
 });

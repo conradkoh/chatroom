@@ -12,6 +12,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
+import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { computeDirListingContentHash } from '../../../infrastructure/services/workspace/dir-listing-content-hash.js';
@@ -24,7 +25,7 @@ export type PendingFileWriteRequest = {
   _id: string;
   workingDir: string;
   filePath: string;
-  operation: 'create' | 'update' | 'delete' | 'rename';
+  operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir';
   targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
 };
@@ -42,7 +43,9 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'Target path already exists',
     'Target path is required for rename',
     'Rename target must differ from source path',
+    'Directory already exists',
   ]);
+  if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
 }
 
@@ -233,6 +236,27 @@ async function fulfillOneFileWriteRequest(
       return;
     }
 
+    if (operation === 'mkdir') {
+      const exists = await fileExistsAt(resolved.absolutePath);
+      if (exists) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: 'Directory already exists',
+        });
+        return;
+      }
+
+      await mkdir(resolved.absolutePath, { recursive: true });
+      await syncParentDirListingAfterWrite(session, workingDir, filePath);
+      await completeWriteRequest(session, request._id, { status: 'done' });
+
+      const elapsed = Date.now() - startTime;
+      console.log(
+        `[${formatTimestamp()}] ✏️  Directory mkdir fulfilled: ${filePath} (${elapsed}ms)`
+      );
+      return;
+    }
+
     if (operation === 'delete') {
       if (filePath === '') {
         await completeWriteRequest(session, request._id, {
@@ -257,6 +281,14 @@ async function fulfillOneFileWriteRequest(
 
       const elapsed = Date.now() - startTime;
       console.log(`[${formatTimestamp()}] ✏️  File delete fulfilled: ${filePath} (${elapsed}ms)`);
+      return;
+    }
+
+    if (operation !== 'create' && operation !== 'update') {
+      await completeWriteRequest(session, request._id, {
+        status: 'error',
+        errorMessage: unsupportedFileWriteOperationMessage(operation),
+      });
       return;
     }
 
