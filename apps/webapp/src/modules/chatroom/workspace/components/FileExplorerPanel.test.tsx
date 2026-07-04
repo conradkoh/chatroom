@@ -20,6 +20,10 @@ vi.mock('./NewFileDialog', () => ({
   NewFileDialog: () => null,
 }));
 
+vi.mock('./NewFolderDialog', () => ({
+  NewFolderDialog: () => null,
+}));
+
 vi.mock('./RenameDialog', () => ({
   RenameDialog: () => null,
 }));
