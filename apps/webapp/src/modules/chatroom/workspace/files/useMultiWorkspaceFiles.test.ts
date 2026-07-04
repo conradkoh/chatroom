@@ -7,11 +7,11 @@ import type { Workspace } from '@/modules/chatroom/types/workspace';
 
 const mocks = vi.hoisted(() => ({
   refreshFns: [] as ReturnType<typeof vi.fn>[],
-  useWorkspaceFileTree: vi.fn(),
+  useWorkspaceFileListing: vi.fn(),
 }));
 
-vi.mock('./useWorkspaceFileTree', () => ({
-  useWorkspaceFileTree: mocks.useWorkspaceFileTree,
+vi.mock('./useWorkspaceFileListing', () => ({
+  useWorkspaceFileListing: mocks.useWorkspaceFileListing,
 }));
 
 function makeWorkspace(machineId: string | null, workingDir: string): Workspace {
@@ -26,12 +26,11 @@ function makeWorkspace(machineId: string | null, workingDir: string): Workspace 
 
 beforeEach(() => {
   mocks.refreshFns = [];
-  mocks.useWorkspaceFileTree.mockImplementation(({ enabled }: { enabled?: boolean }) => {
+  mocks.useWorkspaceFileListing.mockImplementation(({ enabled }: { enabled?: boolean }) => {
     const refresh = vi.fn();
     if (enabled) mocks.refreshFns.push(refresh);
     return {
       entries: [],
-      treeJson: null,
       scannedAt: null,
       isLoading: false,
       refresh,

@@ -49,7 +49,8 @@ vi.mock('../../../api.js', () => ({
       resetProcessingRequests: 'mock-resetProcessingRequests',
     },
     workspaceFiles: {
-      getPendingFileTreeRequests: 'mock-getPendingFileTreeRequests',
+      getPendingDirListingRequests: 'mock-getPendingDirListingRequests',
+      getPendingFileSearchRequests: 'mock-getPendingFileSearchRequests',
       getPendingFileContentRequests: 'mock-getPendingFileContentRequests',
     },
     commands: {

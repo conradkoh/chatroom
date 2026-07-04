@@ -10,6 +10,8 @@
  * - chatroom_teamAgentConfigs (agent configs for this machine+chatroom)
  * - chatroom_workspaceGitState (git state for this workspace)
  * - chatroom_workspaceFileTree (file tree snapshots)
+ * - chatroom_workspaceFileTreeV2 (compressed file tree snapshots)
+ * - chatroom_workspaceFileTreeRequests (pending file tree requests)
  * - chatroom_workspaceFileContent (cached file content)
  *
  * Throws if the workspace document does not exist.
@@ -109,7 +111,8 @@ async function purgeTeamAgentConfigsForMachine(
  *
  * Tables cleaned up:
  * - chatroom_workspaceGitState (git state for this workspace)
- * - chatroom_workspaceFileTree (file tree snapshots)
+ * - chatroom_workspaceFileTree / chatroom_workspaceFileTreeV2 (file tree snapshots)
+ * - chatroom_workspaceFileTreeRequests (pending file tree requests)
  * - chatroom_workspaceFileContent (cached file content)
  *
  * @param ctx - Mutation context
@@ -142,6 +145,26 @@ async function purgeWorkspaceScopedData(
     .collect();
   for (const tree of fileTrees) {
     await ctx.db.delete('chatroom_workspaceFileTree', tree._id);
+  }
+
+  const fileTreesV2 = await ctx.db
+    .query('chatroom_workspaceFileTreeV2')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const tree of fileTreesV2) {
+    await ctx.db.delete('chatroom_workspaceFileTreeV2', tree._id);
+  }
+
+  const fileTreeRequests = await ctx.db
+    .query('chatroom_workspaceFileTreeRequests')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .collect();
+  for (const req of fileTreeRequests) {
+    await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
   }
 
   // Purge chatroom_workspaceFileContent

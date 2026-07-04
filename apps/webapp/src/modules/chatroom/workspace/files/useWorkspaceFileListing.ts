@@ -11,7 +11,7 @@ import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFi
 
 const REFRESH_DEDUP_WINDOW_MS = 1500;
 
-export interface UseWorkspaceFileTreeArgs {
+export interface UseWorkspaceFileListingArgs {
   machineId: string;
   workingDir: string;
   enabled?: boolean;
@@ -19,20 +19,19 @@ export interface UseWorkspaceFileTreeArgs {
   includeDirectories?: boolean;
 }
 
-export interface UseWorkspaceFileTreeResult {
+export interface UseWorkspaceFileListingResult {
   entries: FileEntry[];
-  treeJson: string | null;
   scannedAt: number | null;
   refresh: () => void;
   isLoading: boolean;
 }
 
-export function useWorkspaceFileTree({
+export function useWorkspaceFileListing({
   machineId,
   workingDir,
   enabled = true,
   includeDirectories = false,
-}: UseWorkspaceFileTreeArgs): UseWorkspaceFileTreeResult {
+}: UseWorkspaceFileListingArgs): UseWorkspaceFileListingResult {
   const requestFileSearchMutation = useSessionMutation(api.workspaceFiles.requestFileSearch);
   const lastRefreshAtRef = useRef<number | null>(null);
 
@@ -70,7 +69,6 @@ export function useWorkspaceFileTree({
   if (!enabled) {
     return {
       entries: [],
-      treeJson: null,
       scannedAt: null,
       refresh,
       isLoading: false,
@@ -79,7 +77,6 @@ export function useWorkspaceFileTree({
 
   return {
     entries,
-    treeJson: null,
     scannedAt: null,
     refresh,
     isLoading: searchResult.isLoading,

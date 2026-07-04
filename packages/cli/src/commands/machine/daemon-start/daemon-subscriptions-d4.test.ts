@@ -4,7 +4,7 @@
  * Tests for the Effect twins of subscription starter functions, all migrated
  * to DaemonSessionService (E4.1–E4.4):
  *   startWorkspaceListSubscriptionEffect  (E4.1)
- *   startFileTreeSubscriptionEffect       (E4.2)
+ *   startDirListingSubscriptionEffect       (E4.2)
  *   startFileContentSubscriptionEffect    (E4.2)
  *   startGitRequestSubscriptionEffect     (E4.3)
  *   processRequestsEffect                 (E4.3)
@@ -32,9 +32,12 @@ import type { DaemonSessionInit } from './types.js';
 vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
-      getPendingFileTreeRequests: 'mock-getPendingFileTreeRequests',
-      syncFileTreeV2: 'mock-syncFileTreeV2',
-      fulfillFileTreeRequest: 'mock-fulfillFileTreeRequest',
+      getPendingDirListingRequests: 'mock-getPendingDirListingRequests',
+      getPendingFileSearchRequests: 'mock-getPendingFileSearchRequests',
+      syncDirListingV2: 'mock-syncDirListingV2',
+      syncFileSearchV2: 'mock-syncFileSearchV2',
+      fulfillDirListingRequest: 'mock-fulfillDirListingRequest',
+      fulfillFileSearchRequest: 'mock-fulfillFileSearchRequest',
       getPendingFileContentRequests: 'mock-getPendingFileContentRequests',
       fulfillFileContentV2: 'mock-fulfillFileContentV2',
     },

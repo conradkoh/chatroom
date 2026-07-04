@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useWorkspaceFileTree } from './useWorkspaceFileTree';
+import { useWorkspaceFileListing } from './useWorkspaceFileListing';
 
 const mocks = vi.hoisted(() => ({
   requestFileSearch: Symbol('requestFileSearch'),
@@ -50,14 +50,13 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('useWorkspaceFileTree', () => {
+describe('useWorkspaceFileListing', () => {
   it('returns empty state and a no-op refresh when disabled', () => {
-    const { result } = renderHook(() => useWorkspaceFileTree({ ...args, enabled: false }));
+    const { result } = renderHook(() => useWorkspaceFileListing({ ...args, enabled: false }));
 
     expect(mocks.useFileSearch).toHaveBeenCalledWith('skip');
     expect(result.current).toMatchObject({
       entries: [],
-      treeJson: null,
       scannedAt: null,
       isLoading: false,
     });
@@ -70,7 +69,7 @@ describe('useWorkspaceFileTree', () => {
   });
 
   it('requests empty-query file search on mount', () => {
-    renderHook(() => useWorkspaceFileTree(args));
+    renderHook(() => useWorkspaceFileListing(args));
     expect(mocks.requestFileSearchMutation).toHaveBeenCalledWith({
       machineId: args.machineId,
       workingDir: args.workingDir,
@@ -80,7 +79,7 @@ describe('useWorkspaceFileTree', () => {
 
   it('calls refresh mutation with force after dedup window', async () => {
     vi.useFakeTimers();
-    const { result } = renderHook(() => useWorkspaceFileTree(args));
+    const { result } = renderHook(() => useWorkspaceFileListing(args));
 
     act(() => {
       result.current.refresh();

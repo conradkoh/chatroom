@@ -1,19 +1,20 @@
 'use client';
+// fallow-ignore-file complexity
 
 import { useCallback, useEffect, useMemo } from 'react';
 
+import { useWorkspaceFileListing } from './useWorkspaceFileListing';
+
+import { encodeWorkspaceId } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import type { Workspace } from '@/modules/chatroom/types/workspace';
-import { encodeWorkspaceId } from '@/lib/workspaceIdentifier';
-
-import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /**
- * Maximum number of concurrent workspace file tree subscriptions.
+ * Maximum number of concurrent workspace file listing subscriptions.
  * React hooks cannot be called conditionally, so we allocate a fixed number
- * of slots and fill unused ones with disabled useWorkspaceFileTree calls.
+ * of slots and fill unused ones with disabled useWorkspaceFileListing calls.
  */
 const MAX_WORKSPACES = 10;
 
@@ -34,7 +35,7 @@ interface UseMultiWorkspaceFilesResult {
 
 /**
  * Prepare a fixed-size array of workspace slots (length = MAX_WORKSPACES).
- * Each slot is either a valid WorkspaceSlot or null (→ disabled useWorkspaceFileTree).
+ * Each slot is either a valid WorkspaceSlot or null (→ disabled useWorkspaceFileListing).
  */
 function prepareSlots(workspaces: Workspace[]): (WorkspaceSlot | null)[] {
   const slots: (WorkspaceSlot | null)[] = [];
@@ -53,8 +54,8 @@ function prepareSlots(workspaces: Workspace[]): (WorkspaceSlot | null)[] {
   return slots;
 }
 
-/** Convert a slot to useWorkspaceFileTree args. */
-function slotToWorkspaceFileTreeArgs(slot: WorkspaceSlot | null | undefined) {
+/** Convert a slot to useWorkspaceFileListing args. */
+function slotToWorkspaceFileListingArgs(slot: WorkspaceSlot | null | undefined) {
   return {
     machineId: slot?.machineId ?? '',
     workingDir: slot?.workingDir ?? '',
@@ -72,14 +73,14 @@ function tagEntries(entries: FileEntry[], workspaceId: string | undefined): File
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
- * Subscribe to file trees from multiple workspaces and merge their entries.
+ * Subscribe to file listings from multiple workspaces and merge their entries.
  *
  * Each file entry is tagged with `workspaceId` (base64url-encoded identifier)
  * so downstream consumers (e.g. file reference trigger) know which workspace
  * a file belongs to without needing a separate workspaceName prop.
  *
  * Uses a fixed-slot approach to satisfy React's rules of hooks: we always call
- * `useWorkspaceFileTree` exactly MAX_WORKSPACES times, disabling empty slots.
+ * `useWorkspaceFileListing` exactly MAX_WORKSPACES times, disabling empty slots.
  */
 export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspaceFilesResult {
   // Memoize the slot computation to avoid unnecessary re-renders.
@@ -98,16 +99,16 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspa
 
   // ── Fixed hook calls (one per slot) ──────────────────────────────────────
   // IMPORTANT: These must be unconditional, fixed-count calls.
-  const fileTree0 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[0]));
-  const fileTree1 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[1]));
-  const fileTree2 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[2]));
-  const fileTree3 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[3]));
-  const fileTree4 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[4]));
-  const fileTree5 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[5]));
-  const fileTree6 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[6]));
-  const fileTree7 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[7]));
-  const fileTree8 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[8]));
-  const fileTree9 = useWorkspaceFileTree(slotToWorkspaceFileTreeArgs(slots[9]));
+  const fileTree0 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[0]));
+  const fileTree1 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[1]));
+  const fileTree2 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[2]));
+  const fileTree3 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[3]));
+  const fileTree4 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[4]));
+  const fileTree5 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[5]));
+  const fileTree6 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[6]));
+  const fileTree7 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[7]));
+  const fileTree8 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[8]));
+  const fileTree9 = useWorkspaceFileListing(slotToWorkspaceFileListingArgs(slots[9]));
 
   const refreshAll = useCallback(() => {
     fileTree0.refresh();
@@ -153,7 +154,7 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspa
     ];
     const merged: FileEntry[] = [];
     for (let i = 0; i < MAX_WORKSPACES; i++) {
-      const tagged = tagEntries(allEntries[i]!, slots[i]?.workspaceId);
+      const tagged = tagEntries(allEntries[i] ?? [], slots[i]?.workspaceId);
       if (tagged.length > 0) {
         merged.push(...tagged);
       }
