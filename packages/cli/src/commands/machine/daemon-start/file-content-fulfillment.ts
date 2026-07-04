@@ -93,6 +93,11 @@ function gzipPlainText(text: string): string {
   return gzipSync(Buffer.from(text)).toString('base64');
 }
 
+type FileReadOutcome =
+  | { kind: 'ok'; content: string; truncated: boolean }
+  | { kind: 'missing' }
+  | { kind: 'error'; content: string; truncated: boolean };
+
 function fulfillGzippedContentEffect(
   session: DaemonSessionServiceShape,
   workingDir: string,
@@ -178,28 +183,28 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
         continue;
       }
 
-      const readOutcome = yield* Effect.catchAll(
+      const readOutcome: FileReadOutcome = yield* Effect.catchAll(
         Effect.tryPromise(() => readFile(absolutePath)).pipe(
-          Effect.map((buffer) => {
+          Effect.map((buffer): FileReadOutcome => {
             if (buffer.length > MAX_CONTENT_BYTES) {
               return {
-                kind: 'ok' as const,
+                kind: 'ok',
                 content: buffer.subarray(0, MAX_CONTENT_BYTES).toString('utf8'),
                 truncated: true,
               };
             }
             return {
-              kind: 'ok' as const,
+              kind: 'ok',
               content: buffer.toString('utf8'),
               truncated: false,
             };
           })
         ),
-        (error) =>
+        (error): Effect.Effect<FileReadOutcome> =>
           isENOENT(error)
-            ? Effect.succeed({ kind: 'missing' as const })
+            ? Effect.succeed({ kind: 'missing' })
             : Effect.succeed({
-                kind: 'error' as const,
+                kind: 'error',
                 content: '[Error reading file]',
                 truncated: false,
               })
