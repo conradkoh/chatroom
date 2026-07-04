@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+const EMPTY_FILE_PLACEHOLDER = 'This file is empty.';
+
 interface FileContentViewerProps {
   machineId: string;
   workingDir: string;
@@ -140,11 +142,17 @@ const FileContentInner = memo(function FileContentInner({
 
       {/* File content — source only */}
       <div ref={contentContainerRef} className="flex-1 overflow-auto">
-        <SyntaxHighlighter
-          code={content.content}
-          path={filePath}
-          className="p-4 text-[13px] leading-relaxed font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto block"
-        />
+        {content.content.length === 0 ? (
+          <p className="p-4 text-[13px] italic text-chatroom-text-muted">
+            {EMPTY_FILE_PLACEHOLDER}
+          </p>
+        ) : (
+          <SyntaxHighlighter
+            code={content.content}
+            path={filePath}
+            className="p-4 text-[13px] leading-relaxed font-mono text-chatroom-text-primary whitespace-pre overflow-x-auto block"
+          />
+        )}
       </div>
     </div>
   );
