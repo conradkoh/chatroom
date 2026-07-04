@@ -5,7 +5,7 @@ import { Effect } from 'effect';
 import { DaemonSessionService } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { syncDirListingToBackend } from '../../../infrastructure/services/workspace/dir-listing-sync.js';
+import { syncDirListingsToBackend } from '../../../infrastructure/services/workspace/dir-listing-sync.js';
 import { createWorkspaceFsWatcher } from '../../../infrastructure/services/workspace/workspace-fs-watcher.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -47,14 +47,12 @@ export const startDirListingWatchSubscriptionEffect = (
           workingDir: target.workingDir,
           activeDirPaths: activeSet,
           onRefreshDirs: async (dirPaths) => {
-            for (const dirPath of dirPaths) {
-              try {
-                await syncDirListingToBackend(session, target.workingDir, dirPath);
-              } catch (err) {
-                console.warn(
-                  `[${formatTimestamp()}] ⚠️  FS watch sync failed for ${target.workingDir}/${dirPath || '(root)'}: ${getErrorMessage(err)}`
-                );
-              }
+            try {
+              await syncDirListingsToBackend(session, target.workingDir, dirPaths);
+            } catch (err) {
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  FS watch sync failed for ${target.workingDir}: ${getErrorMessage(err)}`
+              );
             }
           },
         });

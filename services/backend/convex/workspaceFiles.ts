@@ -1378,6 +1378,58 @@ export const getPendingDirListingRequests = query({
   },
 });
 
+/** Shared upsert logic for one dir listing row. Returns whether a write occurred. */
+async function upsertDirListingV2Row(
+  ctx: MutationCtx,
+  args: {
+    machineId: string;
+    workingDir: string;
+    dirPath: string;
+    data: { compression: 'gzip'; content: string };
+    dataHash: string;
+    scannedAt: number;
+    truncated: boolean;
+    totalCount: number;
+  }
+): Promise<boolean> {
+  validateDirPath(args.dirPath);
+  const sizeBytes = new TextEncoder().encode(args.data.content).length;
+  if (sizeBytes > MAX_DIR_LISTING_BYTES) {
+    throw new Error('Directory listing too large');
+  }
+
+  const existing = await ctx.db
+    .query('chatroom_workspaceDirListingV2')
+    .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      q
+        .eq('machineId', args.machineId)
+        .eq('workingDir', args.workingDir)
+        .eq('dirPath', args.dirPath)
+    )
+    .first();
+
+  if (existing && existing.dataHash === args.dataHash) return false;
+
+  const row = {
+    machineId: args.machineId,
+    workingDir: args.workingDir,
+    dirPath: args.dirPath,
+    data: args.data,
+    dataHash: args.dataHash,
+    scannedAt: args.scannedAt,
+    truncated: args.truncated,
+    totalCount: args.totalCount,
+  };
+
+  if (existing) {
+    await ctx.db.patch('chatroom_workspaceDirListingV2', existing._id, row);
+  } else {
+    await ctx.db.insert('chatroom_workspaceDirListingV2', row);
+  }
+
+  return true;
+}
+
 export const syncDirListingV2 = mutation({
   args: {
     ...SessionIdArg,
@@ -1397,26 +1449,8 @@ export const syncDirListingV2 = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
-    validateDirPath(args.dirPath);
 
-    const sizeBytes = new TextEncoder().encode(args.data.content).length;
-    if (sizeBytes > MAX_DIR_LISTING_BYTES) {
-      throw new Error('Directory listing too large');
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceDirListingV2')
-      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('dirPath', args.dirPath)
-      )
-      .first();
-
-    if (existing && existing.dataHash === args.dataHash) return;
-
-    const row = {
+    await upsertDirListingV2Row(ctx, {
       machineId: args.machineId,
       workingDir: args.workingDir,
       dirPath: args.dirPath,
@@ -1425,13 +1459,44 @@ export const syncDirListingV2 = mutation({
       scannedAt: args.scannedAt,
       truncated: args.truncated,
       totalCount: args.totalCount,
-    };
+    });
+  },
+});
 
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceDirListingV2', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceDirListingV2', row);
+export const syncDirListingV2Batch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    items: v.array(
+      v.object({
+        dirPath: v.string(),
+        data: v.object({
+          compression: v.literal('gzip'),
+          content: v.string(),
+        }),
+        dataHash: v.string(),
+        scannedAt: v.number(),
+        truncated: v.boolean(),
+        totalCount: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    let written = 0;
+    for (const item of args.items) {
+      const didWrite = await upsertDirListingV2Row(ctx, {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        ...item,
+      });
+      if (didWrite) written++;
     }
+    return { written, skipped: args.items.length - written };
   },
 });
 

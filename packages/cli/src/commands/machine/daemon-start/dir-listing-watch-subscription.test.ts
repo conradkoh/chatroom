@@ -29,7 +29,7 @@ vi.mock('../../../api.js', () => ({
 }));
 
 vi.mock('../../../infrastructure/services/workspace/dir-listing-sync.js', () => ({
-  syncDirListingToBackend: vi.fn().mockResolvedValue(undefined),
+  syncDirListingsToBackend: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../../infrastructure/services/workspace/workspace-fs-watcher.js', () => ({
