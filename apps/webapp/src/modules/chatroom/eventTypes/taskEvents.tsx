@@ -2,6 +2,7 @@
 
 import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MarkdownDetailBlock, MachineDetailRow } from './shared';
+
 import type {
   TaskActivatedEvent,
   TaskAcknowledgedEvent,
@@ -12,10 +13,11 @@ import type {
 // ─── Task Activated ───────────────────────────────────────────────────────────
 
 function renderTaskActivatedCell(event: TaskActivatedEvent, isSelected: boolean): React.ReactNode {
+  const badgeText = event.taskStatus === 'pending' ? 'Queued' : 'Activated';
   return (
     <EventRow
       type="task.activated"
-      badgeText="Activated"
+      badgeText={badgeText}
       badgeColor="success"
       primaryInfo={event.role}
       secondaryInfo={event.taskStatus}
@@ -26,10 +28,11 @@ function renderTaskActivatedCell(event: TaskActivatedEvent, isSelected: boolean)
 }
 
 function renderTaskActivatedDetails(event: TaskActivatedEvent): React.ReactNode {
+  const title = event.taskStatus === 'pending' ? 'Task Queued' : 'Task Activated';
   return (
     <EventDetails
       eventId={event._id}
-      title="Task Activated"
+      title={title}
       timestamp={event.timestamp}
       type="task.activated"
     >
