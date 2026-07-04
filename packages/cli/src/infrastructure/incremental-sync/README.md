@@ -51,11 +51,11 @@ Read/subscribe queries use `chatroom_machineAssignedTaskSnapshots` (slim rows, i
 
 ## When to use this pattern
 
-| Use incremental sync when…                             | Use something else when…                                                                                                             |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| The feed is long-lived and daemon-side                 | The webapp needs sub-second UI reactivity (use cursor queries in `services/backend/.../messageList.ts`)                              |
-| Payloads would be large or grow with active work       | The result set is usually empty (e.g. pending file-tree requests — subscribe directly; see `daemon-start/file-tree-subscription.ts`) |
-| Dependencies include high-churn fields you do not need | A one-shot fetch is enough                                                                                                           |
+| Use incremental sync when…                             | Use something else when…                                                                                                                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| The feed is long-lived and daemon-side                 | The webapp needs sub-second UI reactivity (use cursor queries in `services/backend/.../messageList.ts`)                                  |
+| Payloads would be large or grow with active work       | The result set is usually empty (e.g. pending dir-listing requests — subscribe directly; see `daemon-start/dir-listing-subscription.ts`) |
+| Dependencies include high-churn fields you do not need | A one-shot fetch is enough                                                                                                               |
 
 **Rule of thumb:** if a query routinely reads many documents or returns more than ~4KB, do not put fat snapshots on `onUpdate`. Use incremental deltas + on-demand fetches for blobs.
 
@@ -353,7 +353,7 @@ Prove: cursor exclusivity, no blob in incremental path, signal omitted fields do
 | Pattern                             | Location                                                                            |
 | ----------------------------------- | ----------------------------------------------------------------------------------- |
 | Cursor-pinned message tail (webapp) | `services/backend/.../messageList.ts` — `subscribeNewMessages`                      |
-| Reactive pending work (small set)   | `packages/cli/src/commands/machine/daemon-start/file-tree-subscription.ts`          |
+| Reactive pending work (small set)   | `packages/cli/src/commands/machine/daemon-start/dir-listing-subscription.ts`        |
 | Subscribe + reconcile poll (legacy) | `packages/cli/src/commands/machine/daemon-start/observed-sync.ts`                   |
 | Daemon de-duplication ledger        | `packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts` — `seenShas` |
 
