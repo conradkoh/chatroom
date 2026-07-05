@@ -49,8 +49,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
 
-  // Keep a stable ref to inlineCommand.close so the dialog-close effect always
-  // calls the latest version without re-running on every render
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
 
@@ -68,14 +66,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     },
     [closeDialog]
   );
-
-  // Detach inline command state when dialog closes (don't kill the running process)
-  useEffect(() => {
-    if (!open) {
-      inlineCommandRef.current.detach();
-      setSearchValue('');
-    }
-  }, [open]);
 
   // Frécency-boosted ranking
   const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
@@ -133,10 +123,9 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     (command: CommandItem) => {
       trackUsage(command.label);
 
-      // If command wants to show output inline, delegate to the lifted state hook
       if (command.showOutputInline && command.script) {
-        // runCommand (inside inlineCommand.run) already handles "already running" case
         inlineCommandRef.current.run(command.label, command.script);
+        closeDialog();
         return;
       }
 

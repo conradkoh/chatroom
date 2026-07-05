@@ -5,6 +5,12 @@ import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 
+vi.mock('../../lib/commandFavoritesStore', () => ({
+  getCommandFavoritesStore: () => ({
+    getAll: () => new Set(['dev']),
+  }),
+}));
+
 describe('useCommandPaletteCommands', () => {
   const baseProps = {
     onOpenSettings: vi.fn(),
@@ -227,6 +233,27 @@ describe('useCommandPaletteCommands', () => {
       expect(result.current.some((command) => command.id === 'agents-start-all-remote')).toBe(
         false
       );
+    });
+  });
+
+  describe('favorited runnable commands', () => {
+    it('registers favorites with showOutputInline and script for streaming output modal', () => {
+      const runnableCommands = [{ name: 'dev', script: 'pnpm dev', source: 'package.json' }];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          runnableCommands,
+        })
+      );
+
+      const fav = result.current.find((c) => c.id === 'fav-dev');
+      expect(fav).toBeDefined();
+      expect(fav).toMatchObject({
+        label: 'dev',
+        showOutputInline: true,
+        script: 'pnpm dev',
+      });
     });
   });
 
