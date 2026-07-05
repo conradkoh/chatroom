@@ -1,8 +1,8 @@
 /**
  * Native queued delivery after agent_end — integration test
  *
- * Proves handleNativeAgentEnd completes active work, promotes queued message,
- * and projects a pending task snapshot the daemon can deliver.
+ * Proves handleNativeAgentEnd completes active work without promoting the queue,
+ * then handoff-to-user promotes the queued message and projects a deliverable snapshot.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -105,6 +105,26 @@ describe('Native queued delivery after agent_end', () => {
 
     const originalTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(originalTask?.status).toBe('completed');
+
+    await t.run(async (ctx) => {
+      const pendingBeforeHandoff = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending')
+        )
+        .collect();
+      expect(pendingBeforeHandoff).toHaveLength(0);
+    });
+
+    const handoffResult = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Handoff after agent_end — promote queued message next.',
+    });
+    expect(handoffResult.success).toBe(true);
+    expect(handoffResult.promotedTaskId).toBeTruthy();
 
     const promotedTask = await t.run(async (ctx) => {
       const pending = await ctx.db
