@@ -50,7 +50,9 @@ async function completeActiveTaskForRole(
   ) {
     return false;
   }
-  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask');
+  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask', undefined, {
+    skipAutoPromotion: true,
+  });
   return true;
 }
 

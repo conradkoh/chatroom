@@ -84,7 +84,7 @@ describe('Native agent_end handler', () => {
     expect(status.lastStatus).not.toBe('agent.waiting');
   });
 
-  test('completes active task and promotes queued message while signaling handoff reminder', async () => {
+  test('completes active task without promoting queue until handoff', async () => {
     const { sessionId } = await createTestSession('test-native-agent-end-promote-queue');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -126,7 +126,7 @@ describe('Native agent_end handler', () => {
 
     await t.run(async (ctx) => {
       const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId as any);
-      expect(queueRecord).toBeNull();
+      expect(queueRecord).not.toBeNull();
 
       const pendingTasks = await ctx.db
         .query('chatroom_tasks')
@@ -134,9 +134,7 @@ describe('Native agent_end handler', () => {
           q.eq('chatroomId', chatroomId).eq('status', 'pending')
         )
         .collect();
-      expect(pendingTasks).toHaveLength(1);
-      expect(pendingTasks[0]?.content).toBe('Queued follow-up message');
-      expect(pendingTasks[0]?.assignedTo).toBe('builder');
+      expect(pendingTasks).toHaveLength(0);
     });
   });
 
