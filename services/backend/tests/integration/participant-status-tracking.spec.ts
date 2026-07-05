@@ -206,6 +206,15 @@ describe('Participant Status Tracking', () => {
     await joinParticipant(sessionId, chatroomId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
 
+    const acknowledgedCountBefore = await t.run(async (ctx) => {
+      const events = await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      return events.filter((e) => e.type === 'task.acknowledged').length;
+    });
+    expect(acknowledgedCountBefore).toBe(1);
+
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
@@ -217,10 +226,14 @@ describe('Participant Status Tracking', () => {
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('task.acknowledged');
 
-    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes.filter((type) => type === 'task.acknowledged').length).toBeGreaterThanOrEqual(
-      1
-    );
+    const acknowledgedCountAfter = await t.run(async (ctx) => {
+      const events = await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      return events.filter((e) => e.type === 'task.acknowledged').length;
+    });
+    expect(acknowledgedCountAfter).toBe(acknowledgedCountBefore);
   });
 
   test('task.inProgress via updateTokenActivity when lastStatus is task.acknowledged', async () => {

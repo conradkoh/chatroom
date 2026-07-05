@@ -60,13 +60,15 @@ import type { SavedCommand } from './types/savedCommand';
 import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
-import { FILE_EXPLORER_REFRESH_EVENT } from './workspace/components/FileExplorerPanel';
+import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
+import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
+import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -139,8 +141,9 @@ const ProcessesPanel = dynamic(
 const ALL_MACHINES = '';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
-// NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`
-// (chatroom highlight colors, modal={false} default) or explicit `bg-chatroom-bg-primary` on content.
+// NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`.
+// For modals and delete confirmations, use `modules/chatroom/components/ui/dialog` and `alert-dialog`.
+// Shared tokens: `modules/chatroom/components/shared/industrialDialogStyles.ts`.
 // Do NOT use `bg-chatroom-bg-surface` (glassmorphism/semi-transparent) on portaled menus.
 
 interface ChatroomDashboardProps {
@@ -164,6 +167,7 @@ interface ExplorerContentProps {
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
 }
 
+// fallow-ignore-next-line complexity
 const ExplorerContent = memo(function ExplorerContent({
   fileTabs,
   activeWorkspace,
@@ -195,15 +199,26 @@ const ExplorerContent = memo(function ExplorerContent({
               fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
             )}
           >
-            <FileContentViewer
-              key={fileTabs.activeTabPath}
-              machineId={activeWorkspace.machineId}
-              workingDir={activeWorkspace.workingDir}
-              filePath={fileTabs.activeTabPath}
-              onSendSelectionToComposer={onSendSelectionToComposer}
-              onOpenPreview={onOpenPreview}
-              onOpenTableView={onOpenTableView}
-            />
+            {isMarkdownFile(fileTabs.activeTabPath) ? (
+              <MarkdownFileEditorPane
+                key={fileTabs.activeTabPath}
+                machineId={activeWorkspace.machineId}
+                workingDir={activeWorkspace.workingDir}
+                filePath={fileTabs.activeTabPath}
+                onSendSelectionToComposer={onSendSelectionToComposer}
+                onOpenPreview={onOpenPreview}
+              />
+            ) : (
+              <FileContentViewer
+                key={fileTabs.activeTabPath}
+                machineId={activeWorkspace.machineId}
+                workingDir={activeWorkspace.workingDir}
+                filePath={fileTabs.activeTabPath}
+                onSendSelectionToComposer={onSendSelectionToComposer}
+                onOpenPreview={onOpenPreview}
+                onOpenTableView={onOpenTableView}
+              />
+            )}
           </div>
 
           {/* Right Pane — preview/table */}
@@ -373,6 +388,7 @@ export function ChatroomDashboard({
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
+  const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -429,8 +445,11 @@ export function ChatroomDashboard({
   const handleFileDoubleClick = useCallback(
     (filePath: string) => {
       fileTabs.pinTab(filePath);
+      if (isMarkdownFile(filePath)) {
+        fileTabs.openRight(filePath, 'preview');
+      }
     },
-    [fileTabs.pinTab]
+    [fileTabs.pinTab, fileTabs.openRight]
   );
 
   // Track the path to reveal in the file tree
@@ -1139,8 +1158,7 @@ export function ChatroomDashboard({
       ? () => {
           setActivityView('explorer');
           setExplorerSidebarVisible(true);
-          // Dispatch refresh event so the file tree reloads
-          window.dispatchEvent(new Event(FILE_EXPLORER_REFRESH_EVENT));
+          fileExplorerPanelRef.current?.refresh();
         }
       : null,
     onShowMessages: () => setActivityView('messages'),
@@ -1378,9 +1396,11 @@ export function ChatroomDashboard({
                 explorerSidebarVisible && (
                   <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
                     <FileExplorerPanel
+                      ref={fileExplorerPanelRef}
                       chatroomId={chatroomId}
                       machineId={activeWorkspace.machineId}
                       workingDir={activeWorkspace.workingDir}
+                      fileTabs={fileTabs}
                       onFileSelect={handleFileSelect}
                       onFileDoubleClick={handleFileDoubleClick}
                       revealPath={revealPath}

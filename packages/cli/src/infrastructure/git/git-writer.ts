@@ -6,33 +6,8 @@
  * captured and returned as `{ status: 'error' }`.
  */
 
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-
+import { runGit } from './run-command.js';
 import type { GitDiscardResult, GitPullResult, GitPushResult } from './types.js';
-
-const execAsync = promisify(exec);
-
-/**
- * Run a git command in `cwd`.
- * Returns `{ stdout, stderr }` on success, `{ error }` on failure.
- * Never throws.
- */
-async function runGit(
-  args: string,
-  cwd: string
-): Promise<{ stdout: string; stderr: string } | { error: Error & { code?: number } }> {
-  try {
-    const result = await execAsync(`git ${args}`, {
-      cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
-      timeout: 30_000, // 30s timeout for destructive operations
-    });
-    return result;
-  } catch (err) {
-    return { error: err as Error & { code?: number } };
-  }
-}
 
 /**
  * Classify a git error into a structured result.
@@ -50,7 +25,7 @@ function classifyError(errMessage: string): { status: 'error'; message: string }
  * Returns `{ status: 'error', message }` on failure.
  */
 export async function discardFile(workingDir: string, filePath: string): Promise<GitDiscardResult> {
-  const result = await runGit(`checkout -- ${filePath}`, workingDir);
+  const result = await runGit(['checkout', '--', filePath], workingDir);
 
   if ('error' in result) {
     return classifyError(result.error.message);
@@ -71,14 +46,12 @@ export async function discardFile(workingDir: string, filePath: string): Promise
  * Note: This will permanently delete untracked files!
  */
 export async function discardAllChanges(workingDir: string): Promise<GitDiscardResult> {
-  // First, checkout all tracked files
-  const checkoutResult = await runGit('checkout -- .', workingDir);
+  const checkoutResult = await runGit(['checkout', '--', '.'], workingDir);
   if ('error' in checkoutResult) {
     return classifyError(checkoutResult.error.message);
   }
 
-  // Then, clean untracked files and directories
-  const cleanResult = await runGit('clean -fd', workingDir);
+  const cleanResult = await runGit(['clean', '-fd'], workingDir);
   if ('error' in cleanResult) {
     return classifyError(cleanResult.error.message);
   }
@@ -95,11 +68,10 @@ export async function discardAllChanges(workingDir: string): Promise<GitDiscardR
  * Returns `{ status: 'error', message }` on failure.
  */
 export async function gitPull(workingDir: string): Promise<GitPullResult> {
-  const result = await runGit('pull', workingDir);
+  const result = await runGit(['pull'], workingDir);
 
   if ('error' in result) {
     const message = result.error.message;
-    // Check for common specific errors to provide better messages
     if (message.includes('no tracking branch')) {
       return {
         status: 'error',
@@ -118,10 +90,8 @@ export async function gitPull(workingDir: string): Promise<GitPullResult> {
     return classifyError(message);
   }
 
-  // Check stderr for non-fatal warnings (like "Already up to date.")
   const stderr = result.stderr.trim();
   if (stderr && !stderr.includes('Already up to date')) {
-    // Pull succeeded but with warnings - still available
     return { status: 'available', message: stderr };
   }
 
@@ -132,7 +102,7 @@ export async function gitPull(workingDir: string): Promise<GitPullResult> {
  * Perform a git push to the upstream tracking branch.
  */
 export async function gitPush(workingDir: string): Promise<GitPushResult> {
-  const result = await runGit('push', workingDir);
+  const result = await runGit(['push'], workingDir);
 
   if ('error' in result) {
     const message = result.error.message;

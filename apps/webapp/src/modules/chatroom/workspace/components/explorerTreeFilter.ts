@@ -1,11 +1,8 @@
 /** Shared tree filter helpers for workspace file explorer views. */
 
-export interface ExplorerTreeNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  children: ExplorerTreeNode[];
-}
+import type { ExplorerTreeNode } from '../files/explorer-tree';
+
+export type { ExplorerTreeNode };
 
 /** Filter tree nodes by filename substring (case-insensitive). Prunes empty directories. */
 export function filterExplorerTreeNodes(
@@ -17,6 +14,7 @@ export function filterExplorerTreeNodes(
 
   const lowerFilter = trimmed.toLowerCase();
 
+  // fallow-ignore-next-line complexity code-duplication
   function filterNode(node: ExplorerTreeNode): ExplorerTreeNode | null {
     if (node.type === 'file') {
       return node.name.toLowerCase().includes(lowerFilter) ? node : null;

@@ -26,6 +26,7 @@ const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
  */
 export const cleanupWorkspaceFileTree = internalMutation({
   args: {},
+  // fallow-ignore-next-line complexity
   handler: async (ctx) => {
     const cutoff = Date.now() - THIRTY_DAYS_MS;
 
@@ -36,7 +37,7 @@ export const cleanupWorkspaceFileTree = internalMutation({
 
     let deleted = 0;
     for (const row of staleRows) {
-      await ctx.db.delete("chatroom_workspaceFileTree", row._id);
+      await ctx.db.delete('chatroom_workspaceFileTree', row._id);
       deleted++;
     }
 
@@ -46,7 +47,25 @@ export const cleanupWorkspaceFileTree = internalMutation({
       .filter((q) => q.lt(q.field('scannedAt'), cutoff))
       .take(BATCH_SIZE);
     for (const row of staleRowsV2) {
-      await ctx.db.delete("chatroom_workspaceFileTreeV2", row._id);
+      await ctx.db.delete('chatroom_workspaceFileTreeV2', row._id);
+      deleted++;
+    }
+
+    const staleDirListings = await ctx.db
+      .query('chatroom_workspaceDirListingV2')
+      .filter((q) => q.lt(q.field('scannedAt'), cutoff))
+      .take(BATCH_SIZE);
+    for (const row of staleDirListings) {
+      await ctx.db.delete('chatroom_workspaceDirListingV2', row._id);
+      deleted++;
+    }
+
+    const staleFileSearches = await ctx.db
+      .query('chatroom_workspaceFileSearchV2')
+      .filter((q) => q.lt(q.field('scannedAt'), cutoff))
+      .take(BATCH_SIZE);
+    for (const row of staleFileSearches) {
+      await ctx.db.delete('chatroom_workspaceFileSearchV2', row._id);
       deleted++;
     }
 
@@ -79,9 +98,9 @@ export const cleanupReadCursors = internalMutation({
 
     let deleted = 0;
     for (const cursor of cursors) {
-      const room = await ctx.db.get("chatroom_rooms", cursor.chatroomId);
+      const room = await ctx.db.get('chatroom_rooms', cursor.chatroomId);
       if (!room) {
-        await ctx.db.delete("chatroom_read_cursors", cursor._id);
+        await ctx.db.delete('chatroom_read_cursors', cursor._id);
         deleted++;
         // Cap deletes per mutation to avoid hitting write limits
         if (deleted >= MAX_DELETES_PER_MUTATION) break;
@@ -147,31 +166,31 @@ export const cleanupMachines = internalMutation({
         .query('chatroom_machineLiveness')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
-      for (const row of livenessRows) await ctx.db.delete("chatroom_machineLiveness", row._id);
+      for (const row of livenessRows) await ctx.db.delete('chatroom_machineLiveness', row._id);
 
       const statusRows = await ctx.db
         .query('chatroom_machineStatus')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
-      for (const row of statusRows) await ctx.db.delete("chatroom_machineStatus", row._id);
+      for (const row of statusRows) await ctx.db.delete('chatroom_machineStatus', row._id);
 
       const modelFilters = await ctx.db
         .query('chatroom_machineModelFilters')
         .withIndex('by_machine_harness', (q) => q.eq('machineId', mid))
         .collect();
-      for (const row of modelFilters) await ctx.db.delete("chatroom_machineModelFilters", row._id);
+      for (const row of modelFilters) await ctx.db.delete('chatroom_machineModelFilters', row._id);
 
       const teamConfigs = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
-      for (const row of teamConfigs) await ctx.db.delete("chatroom_teamAgentConfigs", row._id);
+      for (const row of teamConfigs) await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
 
       const workspaces = await ctx.db
         .query('chatroom_workspaces')
         .withIndex('by_machine', (q) => q.eq('machineId', mid))
         .collect();
-      for (const row of workspaces) await ctx.db.delete("chatroom_workspaces", row._id);
+      for (const row of workspaces) await ctx.db.delete('chatroom_workspaces', row._id);
 
       // ── Related rows keyed by machineId (filter-based — no direct index) ──
       // These tables use compound indexes with machineId as the first field
@@ -180,85 +199,91 @@ export const cleanupMachines = internalMutation({
         .query('chatroom_workspaceGitState')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of gitStates) await ctx.db.delete("chatroom_workspaceGitState", row._id);
+      for (const row of gitStates) await ctx.db.delete('chatroom_workspaceGitState', row._id);
 
       const fileTrees = await ctx.db
         .query('chatroom_workspaceFileTree')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fileTrees) await ctx.db.delete("chatroom_workspaceFileTree", row._id);
+      for (const row of fileTrees) await ctx.db.delete('chatroom_workspaceFileTree', row._id);
 
       const fileTreesV2 = await ctx.db
         .query('chatroom_workspaceFileTreeV2')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fileTreesV2) await ctx.db.delete("chatroom_workspaceFileTreeV2", row._id);
+      for (const row of fileTreesV2) await ctx.db.delete('chatroom_workspaceFileTreeV2', row._id);
 
       const fileContents = await ctx.db
         .query('chatroom_workspaceFileContent')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fileContents) await ctx.db.delete("chatroom_workspaceFileContent", row._id);
+      for (const row of fileContents) await ctx.db.delete('chatroom_workspaceFileContent', row._id);
 
       const fileContentsV2 = await ctx.db
         .query('chatroom_workspaceFileContentV2')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fileContentsV2) await ctx.db.delete("chatroom_workspaceFileContentV2", row._id);
+      for (const row of fileContentsV2)
+        await ctx.db.delete('chatroom_workspaceFileContentV2', row._id);
 
       const fullDiffs = await ctx.db
         .query('chatroom_workspaceFullDiff')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fullDiffs) await ctx.db.delete("chatroom_workspaceFullDiff", row._id);
+      for (const row of fullDiffs) await ctx.db.delete('chatroom_workspaceFullDiff', row._id);
 
       const fullDiffsV2 = await ctx.db
         .query('chatroom_workspaceFullDiffV2')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fullDiffsV2) await ctx.db.delete("chatroom_workspaceFullDiffV2", row._id);
+      for (const row of fullDiffsV2) await ctx.db.delete('chatroom_workspaceFullDiffV2', row._id);
 
       const prDiffs = await ctx.db
         .query('chatroom_workspacePRDiffs')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of prDiffs) await ctx.db.delete("chatroom_workspacePRDiffs", row._id);
+      for (const row of prDiffs) await ctx.db.delete('chatroom_workspacePRDiffs', row._id);
 
       const diffRequests = await ctx.db
         .query('chatroom_workspaceDiffRequests')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of diffRequests) await ctx.db.delete("chatroom_workspaceDiffRequests", row._id);
+      for (const row of diffRequests)
+        await ctx.db.delete('chatroom_workspaceDiffRequests', row._id);
 
       const fileContentReqs = await ctx.db
         .query('chatroom_workspaceFileContentRequests')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fileContentReqs) await ctx.db.delete("chatroom_workspaceFileContentRequests", row._id);
+      for (const row of fileContentReqs)
+        await ctx.db.delete('chatroom_workspaceFileContentRequests', row._id);
 
       const fileTreeReqs = await ctx.db
         .query('chatroom_workspaceFileTreeRequests')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of fileTreeReqs) await ctx.db.delete("chatroom_workspaceFileTreeRequests", row._id);
+      for (const row of fileTreeReqs)
+        await ctx.db.delete('chatroom_workspaceFileTreeRequests', row._id);
 
       const commitDetails = await ctx.db
         .query('chatroom_workspaceCommitDetail')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of commitDetails) await ctx.db.delete("chatroom_workspaceCommitDetail", row._id);
+      for (const row of commitDetails)
+        await ctx.db.delete('chatroom_workspaceCommitDetail', row._id);
 
       const commitDetailsV2 = await ctx.db
         .query('chatroom_workspaceCommitDetailV2')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of commitDetailsV2) await ctx.db.delete("chatroom_workspaceCommitDetailV2", row._id);
+      for (const row of commitDetailsV2)
+        await ctx.db.delete('chatroom_workspaceCommitDetailV2', row._id);
 
       const runnableCommands = await ctx.db
         .query('chatroom_runnableCommands')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
-      for (const row of runnableCommands) await ctx.db.delete("chatroom_runnableCommands", row._id);
+      for (const row of runnableCommands) await ctx.db.delete('chatroom_runnableCommands', row._id);
 
       const commandRuns = await ctx.db
         .query('chatroom_commandRuns')
@@ -270,12 +295,12 @@ export const cleanupMachines = internalMutation({
           .query('chatroom_commandOutput')
           .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', row._id))
           .collect();
-        for (const chunk of chunks) await ctx.db.delete("chatroom_commandOutput", chunk._id);
-        await ctx.db.delete("chatroom_commandRuns", row._id);
+        for (const chunk of chunks) await ctx.db.delete('chatroom_commandOutput', chunk._id);
+        await ctx.db.delete('chatroom_commandRuns', row._id);
       }
 
       // Finally delete the machine itself
-      await ctx.db.delete("chatroom_machines", machine._id);
+      await ctx.db.delete('chatroom_machines', machine._id);
       deletedMachines++;
     }
 
@@ -307,9 +332,9 @@ export const cleanupParticipants = internalMutation({
 
     let deleted = 0;
     for (const participant of participants) {
-      const room = await ctx.db.get("chatroom_rooms", participant.chatroomId);
+      const room = await ctx.db.get('chatroom_rooms', participant.chatroomId);
       if (!room) {
-        await ctx.db.delete("chatroom_participants", participant._id);
+        await ctx.db.delete('chatroom_participants', participant._id);
         deleted++;
         if (deleted >= MAX_DELETES_PER_MUTATION) break;
       }
@@ -353,7 +378,7 @@ export const cleanupCliSessions = internalMutation({
       .take(BATCH_SIZE);
 
     for (const session of inactiveSessions) {
-      await ctx.db.delete("cliSessions", session._id);
+      await ctx.db.delete('cliSessions', session._id);
       deletedIds.add(session._id);
     }
 
@@ -365,7 +390,7 @@ export const cleanupCliSessions = internalMutation({
 
     for (const session of staleSessions) {
       if (!deletedIds.has(session._id)) {
-        await ctx.db.delete("cliSessions", session._id);
+        await ctx.db.delete('cliSessions', session._id);
         deletedIds.add(session._id);
       }
     }
@@ -408,7 +433,7 @@ export const cleanupCliAuthRequests = internalMutation({
 
     let deleted = 0;
     for (const request of oldRequests) {
-      await ctx.db.delete("cliAuthRequests", request._id);
+      await ctx.db.delete('cliAuthRequests', request._id);
       deleted++;
     }
 
@@ -455,7 +480,7 @@ export const cleanupCompletedTasks = internalMutation({
       // Use completedAt if available, otherwise fall back to _creationTime
       const taskAge = task.completedAt ?? task._creationTime;
       if (taskAge < cutoff) {
-        await ctx.db.delete("chatroom_tasks", task._id);
+        await ctx.db.delete('chatroom_tasks', task._id);
         deleted++;
       }
     }
