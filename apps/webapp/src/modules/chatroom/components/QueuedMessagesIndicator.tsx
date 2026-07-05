@@ -2,12 +2,13 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Timer } from 'lucide-react';
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useState } from 'react';
 
 import type { Message } from '../types/message';
 import { QueuedMessageDetailModal } from './WorkQueue/QueuedMessageDetailModal';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -39,35 +40,8 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const deleteUserMessageOrTask = useSessionMutation(api.messages.deleteUserMessageOrTask);
-
-  const handlePromote = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await promoteSpecificTask({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        console.error('Failed to promote queued message:', error);
-      }
-    },
-    [promoteSpecificTask]
-  );
-
-  const handleDelete = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await deleteUserMessageOrTask({
-          type: 'message',
-          messageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        console.error('Failed to delete queued message:', error);
-      }
-    },
-    [deleteUserMessageOrTask]
-  );
+  const { promoteQueuedMessage: handlePromote, deleteQueuedMessage: handleDelete } =
+    useQueuedMessageActions();
 
   // Return null when there are no queued messages — no indicator shown.
   if (queuedMessages.length === 0) return null;
