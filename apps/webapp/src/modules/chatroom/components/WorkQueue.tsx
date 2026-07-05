@@ -26,9 +26,11 @@ import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
 import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
 import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
+import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
 
 import {
@@ -57,6 +59,7 @@ export function WorkQueue({
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
   const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
   const [isBacklogQueueModalOpen, setIsBacklogQueueModalOpen] = useState(false);
+  const [isQueuedMessagesModalOpen, setIsQueuedMessagesModalOpen] = useState(false);
 
   // Register imperative open actions for parent (e.g. command palette)
   useEffect(() => {
@@ -153,41 +156,14 @@ export function WorkQueue({
   // Note: cancelTask mutation was removed in Phase 3 backlog cleanup
 
   // Queued messages mutations
-  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
+  const { promoteQueuedMessage: handleQueuedPromote, deleteQueuedMessage: handleQueuedDelete } =
+    useQueuedMessageActions();
 
   // Fetch queued messages
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
     chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
-
-  // Queued message handlers
-  const handleQueuedPromote = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await promoteSpecificTask({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        console.error('Failed to promote queued message:', error);
-      }
-    },
-    [promoteSpecificTask]
-  );
-
-  const handleQueuedDelete = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await deleteUserMessageOrTask({
-          type: 'message',
-          messageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        console.error('Failed to delete queued message:', error);
-      }
-    },
-    [deleteUserMessageOrTask]
-  );
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -416,11 +392,10 @@ export function WorkQueue({
               />
             ))}
             {queuedMessages.length > 3 && (
-              <div className="px-3 py-1.5 text-center">
-                <span className="text-[10px] text-muted-foreground">
-                  + {queuedMessages.length - 3} more in queue
-                </span>
-              </div>
+              <ViewMoreButton
+                count={queuedMessages.length - 3}
+                onClick={() => setIsQueuedMessagesModalOpen(true)}
+              />
             )}
           </div>
         )}
@@ -562,6 +537,16 @@ export function WorkQueue({
           onItemClick={(item) => {
             setSelectedBacklogItemId(item._id);
           }}
+        />
+      )}
+
+      {isQueuedMessagesModalOpen && (
+        <QueuedMessagesModal
+          chatroomId={chatroomId}
+          messages={queuedMessages}
+          onClose={() => setIsQueuedMessagesModalOpen(false)}
+          onPromote={handleQueuedPromote}
+          onDelete={handleQueuedDelete}
         />
       )}
     </div>
