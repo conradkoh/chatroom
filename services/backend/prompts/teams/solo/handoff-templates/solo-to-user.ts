@@ -15,6 +15,7 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
+import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
 /**
  * Returns the markdown report template the solo agent uses when delivering
@@ -84,6 +85,8 @@ flowchart TD
 
 ## Code Change Verification
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
+
+${getUnresolvedDecisionsSectionBlock()}
 
 ## Notes / Next steps
 <anything the user should know, follow-ups, or open questions, or "Not Applicable">
