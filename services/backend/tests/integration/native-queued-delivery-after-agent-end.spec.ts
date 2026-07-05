@@ -16,6 +16,7 @@ import {
   joinParticipant,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_CURSOR_SDK, TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
 async function syncMachineSnapshots(sessionId: string, machineId: string): Promise<void> {
   await t.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
@@ -32,8 +33,8 @@ async function registerMachineWithCursorSdk(sessionId: string, machineId: string
     os: 'darwin',
     availableHarnesses: ['cursor-sdk', 'opencode'],
     availableModels: {
-      'cursor-sdk': ['claude-sonnet-4'],
-      opencode: ['claude-sonnet-4'],
+      'cursor-sdk': [TEST_MODEL_CURSOR_SDK],
+      opencode: [TEST_MODEL_OPENCODE],
     },
   });
   await t.mutation(api.machines.updateDaemonStatus, {

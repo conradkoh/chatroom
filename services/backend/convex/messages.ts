@@ -28,6 +28,7 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
+import { shouldSkipNativeHandoffPendingCompletion } from '../src/domain/usecase/task/complete-native-harness-active-work';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
@@ -586,18 +587,25 @@ async function _handoffHandler(
   const tasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
 
   if (isHandoffToUser) {
-    const pendingForSender = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status_assignedTo', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .eq('status', 'pending')
-          .eq('assignedTo', args.senderRole)
-      )
-      .collect();
-    const topPending = pendingForSender.sort((a, b) => a.queuePosition - b.queuePosition)[0];
-    if (topPending) {
-      tasksToComplete.push(topPending);
+    const skipPendingCompletion = await shouldSkipNativeHandoffPendingCompletion(
+      ctx,
+      args.chatroomId,
+      args.senderRole
+    );
+    if (!skipPendingCompletion) {
+      const pendingForSender = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('status', 'pending')
+            .eq('assignedTo', args.senderRole)
+        )
+        .collect();
+      const topPending = pendingForSender.sort((a, b) => a.queuePosition - b.queuePosition)[0];
+      if (topPending) {
+        tasksToComplete.push(topPending);
+      }
     }
   }
 

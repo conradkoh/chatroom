@@ -17,6 +17,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 async function getOwnerUserId(chatroomId: Id<'chatroom_rooms'>) {
   return t.run(async (ctx) => {
@@ -62,7 +63,7 @@ describe('getAgentConfigForStart — no defaults', () => {
       hostname: 'disconnected-host',
       os: 'darwin',
       availableHarnesses: ['opencode'],
-      availableModels: { opencode: ['claude-sonnet-4'] },
+      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
     });
 
     const result = await t.run(async (ctx) => {
@@ -100,7 +101,7 @@ describe('getAgentConfigForStart — team config fallback', () => {
 
     expect(result!.defaults.machineId).toBe(machineId);
     expect(result!.defaults.agentHarness).toBe('opencode');
-    expect(result!.defaults.model).toBe('claude-sonnet-4');
+    expect(result!.defaults.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(result!.defaults.workingDir).toBe('/test/workspace');
   });
 });

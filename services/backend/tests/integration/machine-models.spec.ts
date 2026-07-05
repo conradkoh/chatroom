@@ -11,17 +11,19 @@
  * 4. refreshCapabilities with availableModels=undefined → existing row NOT clobbered
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
+import { TEST_MODEL_PROVIDER_A, TEST_MODEL_PROVIDER_B } from '../helpers/test-models';
 
 describe('chatroom_machineModels dual-write', () => {
   test('register with availableModels creates a chatroom_machineModels row', async () => {
     const { sessionId } = await createTestSession('mm-register-create');
     const machineId = 'mm-machine-register-create';
-    const models = { opencode: ['provider/claude-4', 'provider/gpt-4o'] };
+    const models = { opencode: [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
@@ -48,8 +50,8 @@ describe('chatroom_machineModels dual-write', () => {
   test('re-registering the same machine updates the chatroom_machineModels row', async () => {
     const { sessionId } = await createTestSession('mm-register-update');
     const machineId = 'mm-machine-register-update';
-    const modelsV1 = { opencode: ['provider/claude-4'] };
-    const modelsV2 = { opencode: ['provider/claude-4', 'provider/claude-3-5'] };
+    const modelsV1 = { opencode: [TEST_MODEL_PROVIDER_A] };
+    const modelsV2 = { opencode: [TEST_MODEL_PROVIDER_A, TEST_MODEL_PROVIDER_B] };
 
     await t.mutation(api.machines.register, {
       sessionId,
@@ -84,8 +86,8 @@ describe('chatroom_machineModels dual-write', () => {
   test('refreshCapabilities with availableModels updates the chatroom_machineModels row', async () => {
     const { sessionId } = await createTestSession('mm-refresh-update');
     const machineId = 'mm-machine-refresh-update';
-    const modelsV1 = { opencode: ['provider/claude-4'] };
-    const modelsV2 = { opencode: ['provider/claude-4', 'provider/gpt-4o'], pi: ['pi-model'] };
+    const modelsV1 = { opencode: [TEST_MODEL_PROVIDER_A] };
+    const modelsV2 = { opencode: [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'], pi: ['pi-model'] };
 
     // First register to create the machine
     await t.mutation(api.machines.register, {
@@ -118,7 +120,7 @@ describe('chatroom_machineModels dual-write', () => {
   test('refreshCapabilities with SAME availableModels twice suppresses the second write (no-op)', async () => {
     const { sessionId } = await createTestSession('mm-refresh-noop');
     const machineId = 'mm-machine-refresh-noop';
-    const models = { opencode: ['provider/claude-4'] };
+    const models = { opencode: [TEST_MODEL_PROVIDER_A] };
 
     await t.mutation(api.machines.register, {
       sessionId,
@@ -170,7 +172,7 @@ describe('chatroom_machineModels dual-write', () => {
   test('refreshCapabilities with availableModels=undefined does NOT clobber existing row', async () => {
     const { sessionId } = await createTestSession('mm-refresh-undefined');
     const machineId = 'mm-machine-refresh-undefined';
-    const models = { opencode: ['provider/claude-4'] };
+    const models = { opencode: [TEST_MODEL_PROVIDER_A] };
 
     await t.mutation(api.machines.register, {
       sessionId,
@@ -206,7 +208,7 @@ describe('getMachineModels query', () => {
   test('returns models from new chatroom_machineModels table when row exists', async () => {
     const { sessionId } = await createTestSession('gmm-new-table');
     const machineId = 'gmm-machine-new-table';
-    const models = { opencode: ['provider/claude-4'], pi: ['pi-model'] };
+    const models = { opencode: [TEST_MODEL_PROVIDER_A], pi: ['pi-model'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
@@ -271,7 +273,7 @@ describe('getMachineModels query', () => {
 
   test('returns empty object when sessionId is unauthenticated', async () => {
     const result = await t.query(api.machines.getMachineModels, {
-      sessionId: 'not-a-real-session' as import('convex-helpers/server/sessions').SessionId,
+      sessionId: 'not-a-real-session' as SessionId,
       machineId: 'any-machine',
     });
     expect(result.availableModels).toEqual({});
@@ -280,7 +282,7 @@ describe('getMachineModels query', () => {
   test('listMachines response no longer carries availableModels', async () => {
     const { sessionId } = await createTestSession('gmm-list-slim');
     const machineId = 'gmm-machine-list-slim';
-    const models = { opencode: ['provider/claude-4'] };
+    const models = { opencode: [TEST_MODEL_PROVIDER_A] };
 
     await t.mutation(api.machines.register, {
       sessionId,

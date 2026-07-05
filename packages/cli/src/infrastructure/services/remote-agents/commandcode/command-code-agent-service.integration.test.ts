@@ -1,6 +1,9 @@
 /**
  * Integration tests for CommandCodeAgentService.
  *
+ * Requires external services (real `cmd` CLI + account). NOT included in default
+ * vitest runs — see vitest.config.ts exclude for `*.integration.test.ts`.
+ *
  * Spawns the real `cmd` binary using the deepseek-v4-flash model (cheapest
  * available) and verifies end-to-end spawn → stdout → exit behaviour.
  *
@@ -12,7 +15,7 @@
  * installed and this is expected behaviour.
  *
  * Run with:
- *   pnpm test -- --reporter=verbose command-code-agent-service.integration
+ *   pnpm test:integration -- --reporter=verbose command-code-agent-service.integration
  */
 
 import { execSync, spawn as nodeSpawn } from 'node:child_process';

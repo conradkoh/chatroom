@@ -1,10 +1,13 @@
 /**
  * Integration tests for the Pi SDK direct harness.
  *
+ * Requires external services (real Pi SDK + model). NOT included in default
+ * vitest runs — see vitest.config.ts exclude for `*.integration.test.ts`.
+ *
  * Requirements:
  *   - Pi SDK installed with opencode/big-pickle model available
  *
- * Run: pnpm test -- pi-harness.integration
+ * Run: pnpm test:integration -- pi-harness.integration
  */
 
 import path from 'node:path';

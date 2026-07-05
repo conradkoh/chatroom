@@ -11,10 +11,11 @@ import { describe, expect, test } from 'vitest';
 import { internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
+import { TEST_MODEL_PROVIDER_A } from '../helpers/test-models';
 
 describe('migration: dropEmbeddedAvailableModels', () => {
   test('clears availableModels from machines that have the field set', async () => {
-    const { sessionId } = await createTestSession('migrate-clear');
+    const { sessionId: _sessionId } = await createTestSession('migrate-clear');
     const machineId = 'migrate-machine-clear';
 
     // Register with models (populates chatroom_machines.availableModels legacy field)
@@ -29,7 +30,7 @@ describe('migration: dropEmbeddedAvailableModels', () => {
         hostname: 'test-host',
         os: 'darwin',
         availableHarnesses: ['opencode'],
-        availableModels: { opencode: ['provider/claude-4'] },
+        availableModels: { opencode: [TEST_MODEL_PROVIDER_A] },
         registeredAt: Date.now(),
         lastSeenAt: Date.now(),
         daemonConnected: false,
@@ -62,7 +63,7 @@ describe('migration: dropEmbeddedAvailableModels', () => {
   });
 
   test('skips rows that already have availableModels undefined (idempotent)', async () => {
-    const { sessionId } = await createTestSession('migrate-skip');
+    const { sessionId: _sessionId } = await createTestSession('migrate-skip');
     const machineId = 'migrate-machine-skip';
 
     // Register without models (no legacy field)

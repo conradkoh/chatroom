@@ -1,6 +1,9 @@
 /**
  * Integration tests for OpenCodeSdkAgentService native idle-spawn + injection flow.
  *
+ * Requires external services (real opencode CLI + model). NOT included in
+ * default vitest runs — see vitest.config.ts exclude for `*.integration.test.ts`.
+ *
  * Validates deferInitialTurn (no prompt on spawn) → resumeTurn (injected task) → agent_end.
  * Uses opencode/big-pickle on the opencode provider (cheap thinking model on local opencode).
  *
@@ -9,7 +12,7 @@
  *   - Model `opencode/big-pickle` reachable
  *
  * Run:
- *   pnpm --filter chatroom-cli test -- --reporter=verbose opencode-sdk-native-flow.integration
+ *   pnpm test:integration -- --reporter=verbose opencode-sdk-native-flow.integration
  */
 
 import { execSync } from 'node:child_process';

@@ -9,6 +9,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect } from 'vitest';
 
+import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
@@ -109,7 +110,7 @@ export async function registerMachineWithDaemon(
     hostname: 'test-host',
     os: 'darwin',
     availableHarnesses: ['opencode'],
-    availableModels: { opencode: ['claude-sonnet-4'] },
+    availableModels: { opencode: [TEST_MODEL_OPENCODE] },
   });
   await t.mutation(api.machines.updateDaemonStatus, {
     sessionId,
@@ -139,7 +140,7 @@ export async function setupRemoteAgentConfig(
     payload: {
       chatroomId,
       role,
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
       agentHarness: options?.agentHarness ?? 'opencode',
       workingDir: options?.workingDir ?? '/test/workspace',
     },
