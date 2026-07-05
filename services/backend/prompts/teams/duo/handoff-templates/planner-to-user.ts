@@ -19,6 +19,7 @@
  *  4. Backlog pending user review confirmation — attestation that implemented
  *     backlog items were moved to pending_user_review when a PR was raised.
  *  5. Key technical decisions, tradeoffs, tech debt, and system design.
+ *  6. Unresolved decisions — open questions carried forward until the user resolves them.
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
@@ -26,6 +27,7 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
+import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
 /**
  * Returns the markdown report template the planner uses when delivering the
@@ -95,6 +97,8 @@ flowchart TD
 
 ## Code Change Verification
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
+
+${getUnresolvedDecisionsSectionBlock()}
 
 ## Notes / Next steps
 <anything the user should know, follow-ups, or open questions, or "Not Applicable">
