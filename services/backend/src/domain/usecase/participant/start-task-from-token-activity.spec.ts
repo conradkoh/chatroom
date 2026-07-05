@@ -11,6 +11,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
 import {
   GET_NEXT_TASK_STOPPED_ACTION,
   NATIVE_TASK_INJECTED_ACTION,
@@ -105,7 +106,7 @@ async function seedNativeHarnessConfig(chatroomId: Id<'chatroom_rooms'>, role: s
       type: 'remote',
       machineId: `machine-native-${role}`,
       agentHarness: 'pi-sdk',
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
       createdAt: now,
       updatedAt: now,

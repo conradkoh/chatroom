@@ -17,6 +17,7 @@ import {
   joinParticipant,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_CURSOR_SDK, TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
 const NATIVE_MACHINE_ID_RACE = 'machine-native-harness-completion-race-1';
 const NATIVE_MACHINE_ID_HAPPY = 'machine-native-harness-completion-race-2';
@@ -33,8 +34,8 @@ async function setupNativeBuilder(
     os: 'darwin',
     availableHarnesses: ['cursor-sdk', 'opencode'],
     availableModels: {
-      'cursor-sdk': ['claude-sonnet-4'],
-      opencode: ['claude-sonnet-4'],
+      'cursor-sdk': [TEST_MODEL_CURSOR_SDK],
+      opencode: [TEST_MODEL_OPENCODE],
     },
   });
   await t.mutation(api.machines.updateDaemonStatus, {

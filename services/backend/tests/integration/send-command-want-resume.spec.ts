@@ -14,6 +14,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 describe('sendCommand start-agent wantResume', () => {
   test('accepts wantResume in payload and writes it on agent.requestStart', async () => {
@@ -29,7 +30,7 @@ describe('sendCommand start-agent wantResume', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        model: 'claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
         wantResume: true,
@@ -63,7 +64,7 @@ describe('sendCommand start-agent wantResume', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        model: 'claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
         wantResume: false,
@@ -97,7 +98,7 @@ describe('sendCommand start-agent wantResume', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        model: 'claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
         wantResume: false,
@@ -113,7 +114,7 @@ describe('sendCommand start-agent wantResume', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        model: 'claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/tmp/test',
       },

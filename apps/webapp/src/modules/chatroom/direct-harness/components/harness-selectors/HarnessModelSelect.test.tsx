@@ -23,9 +23,9 @@ const PROVIDERS = [
     ],
   },
   {
-    providerID: 'anthropic',
-    name: 'Anthropic',
-    models: [{ modelID: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }],
+    providerID: 'opencode',
+    name: 'OpenCode',
+    models: [{ modelID: 'big-pickle', name: 'Big Pickle' }],
   },
 ];
 
@@ -66,7 +66,7 @@ describe('HarnessModelSelect', () => {
     openDropdown();
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
     expect(screen.getByText('GPT-4 Turbo')).toBeInTheDocument();
-    expect(screen.getByText('Claude 3.5 Sonnet')).toBeInTheDocument();
+    expect(screen.getByText('Big Pickle')).toBeInTheDocument();
   });
 
   it('hides models for which isHidden returns true', () => {
@@ -82,11 +82,11 @@ describe('HarnessModelSelect', () => {
     openDropdown();
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
     expect(screen.queryByText('GPT-4 Turbo')).not.toBeInTheDocument();
-    expect(screen.getByText('Claude 3.5 Sonnet')).toBeInTheDocument();
+    expect(screen.getByText('Big Pickle')).toBeInTheDocument();
   });
 
   it('omits provider group entirely when ALL its models are hidden', () => {
-    const isHidden = (key: string) => key.startsWith('anthropic::');
+    const isHidden = (key: string) => key.startsWith('opencode::');
     render(
       <HarnessModelSelect
         providers={PROVIDERS}
@@ -98,10 +98,10 @@ describe('HarnessModelSelect', () => {
     openDropdown();
     // OpenAI models visible
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
-    // Anthropic group heading not rendered (no visible models)
-    expect(screen.queryByText('Claude 3.5 Sonnet')).not.toBeInTheDocument();
-    // The heading text for Anthropic should not appear since the group is skipped
-    expect(screen.queryByText('Anthropic')).not.toBeInTheDocument();
+    // OpenCode group heading not rendered (no visible models)
+    expect(screen.queryByText('Big Pickle')).not.toBeInTheDocument();
+    // The heading text for OpenCode should not appear since the group is skipped
+    expect(screen.queryByText('OpenCode')).not.toBeInTheDocument();
   });
 
   it('shows the trigger label for the selected model even when isHidden returns true for it', () => {

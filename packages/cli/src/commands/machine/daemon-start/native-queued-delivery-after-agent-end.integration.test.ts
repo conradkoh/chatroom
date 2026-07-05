@@ -1,6 +1,7 @@
 /**
  * Daemon native delivery after agent_end + queue promotion — integration test
  *
+ * Uses mocked harness (no real LLM calls). Included in default `pnpm test` suite.
  * Uses snapshot/participant shape produced by backend integration test.
  * Wires NativeTaskDeliveryCoordinator → runNativeInjectionEffect → resumeTurn.
  */

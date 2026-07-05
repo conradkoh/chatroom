@@ -126,9 +126,9 @@ describe('OpencodeSdkHarness', () => {
         all: [
           { name: 'OpenAI', id: 'openai', models: { 'gpt-4': { id: 'gpt-4', name: 'GPT-4' } } },
           {
-            name: 'Anthropic',
-            id: 'anthropic',
-            models: { 'claude-3': { id: 'claude-3', name: 'Claude 3' } },
+            name: 'OpenCode',
+            id: 'opencode',
+            models: { 'big-pickle': { id: 'big-pickle', name: 'Big Pickle' } },
           },
         ],
       },
@@ -144,7 +144,7 @@ describe('OpencodeSdkHarness', () => {
     expect(mockProviderList).toHaveBeenCalledOnce();
     expect(models).toEqual([
       { id: 'gpt-4', name: 'GPT-4', provider: 'OpenAI' },
-      { id: 'claude-3', name: 'Claude 3', provider: 'Anthropic' },
+      { id: 'big-pickle', name: 'Big Pickle', provider: 'OpenCode' },
     ]);
   });
 

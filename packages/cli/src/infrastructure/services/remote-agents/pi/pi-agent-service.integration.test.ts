@@ -1,6 +1,9 @@
 /**
  * Integration tests for PiAgentService with opencode/big-pickle.
  *
+ * Requires external services (real `pi` CLI + model). NOT included in default
+ * vitest runs — see vitest.config.ts exclude for `*.integration.test.ts`.
+ *
  * Requirements:
  *   - `pi` CLI on PATH
  *   - Model `opencode/big-pickle` available via `pi --list-models`
@@ -9,7 +12,7 @@
  * when tool calls or extended reasoning are involved. Timeouts are set accordingly.
  *
  * Run:
- *   pnpm --filter chatroom-cli test -- --reporter=verbose pi-agent-service.integration
+ *   pnpm test:integration -- --reporter=verbose pi-agent-service.integration
  */
 
 import { execSync } from 'node:child_process';

@@ -6,18 +6,19 @@ import {
   selectModel,
   UNPREFIXED_PROVIDER_KEY,
 } from './modelSelection';
+import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT } from '../../../test/test-models';
 
 // ─── getModelProviderKey ────────────────────────────────────────────
 
 describe('getModelProviderKey', () => {
   it('returns sentinel for bare slugs', () => {
-    expect(getModelProviderKey('claude-4.6-opus-high')).toBe(UNPREFIXED_PROVIDER_KEY);
+    expect(getModelProviderKey('gpt-5.4-high')).toBe(UNPREFIXED_PROVIDER_KEY);
     expect(getModelProviderKey('composer-2.5')).toBe(UNPREFIXED_PROVIDER_KEY);
   });
 
   it('returns prefix before slash for provider/model IDs', () => {
     expect(getModelProviderKey('openai/gpt-4')).toBe('openai');
-    expect(getModelProviderKey('anthropic/claude-3')).toBe('anthropic');
+    expect(getModelProviderKey(TEST_MODEL_OPENCODE)).toBe('opencode');
   });
 });
 
@@ -62,29 +63,34 @@ describe('isModelHidden', () => {
 
   it('does not hide models from a different provider', () => {
     const filter = { hiddenModels: [], hiddenProviders: ['openai'] };
-    expect(isModelHidden('anthropic/claude-3', filter)).toBe(false);
+    expect(isModelHidden(TEST_MODEL_OPENCODE, filter)).toBe(false);
   });
 
   it('hides all unprefixed models when sentinel provider is hidden', () => {
     const filter = { hiddenModels: [], hiddenProviders: [UNPREFIXED_PROVIDER_KEY] };
-    expect(isModelHidden('claude-4.6-opus-high', filter)).toBe(true);
     expect(isModelHidden('gpt-5.4-high', filter)).toBe(true);
+    expect(isModelHidden('composer-2.5', filter)).toBe(true);
   });
 
   it('un-hides an unprefixed model listed as exception when sentinel is hidden', () => {
     const filter = {
-      hiddenModels: ['claude-4.6-opus-high'],
+      hiddenModels: ['gpt-5.4-high'],
       hiddenProviders: [UNPREFIXED_PROVIDER_KEY],
     };
-    expect(isModelHidden('claude-4.6-opus-high', filter)).toBe(false);
-    expect(isModelHidden('gpt-5.4-high', filter)).toBe(true);
+    expect(isModelHidden('gpt-5.4-high', filter)).toBe(false);
+    expect(isModelHidden('composer-2.5', filter)).toBe(true);
   });
 });
 
 // ─── selectModel ────────────────────────────────────────────────────
 
 describe('selectModel', () => {
-  const allModels = ['openai/gpt-4', 'openai/gpt-3.5', 'anthropic/claude-3', 'anthropic/haiku'];
+  const allModels = [
+    'openai/gpt-4',
+    'openai/gpt-3.5',
+    TEST_MODEL_OPENCODE,
+    TEST_MODEL_OPENCODE_ALT,
+  ];
 
   describe('edge cases', () => {
     it('returns null when no harness selected', () => {
@@ -114,7 +120,7 @@ describe('selectModel', () => {
         selectModel({
           selectedHarness: 'pi',
           availableModels: allModels,
-          visibleModels: ['anthropic/claude-3', 'anthropic/haiku'], // openai models hidden
+          visibleModels: [TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT], // openai models hidden
           userChoice: 'openai/gpt-4', // hidden but explicitly chosen
         })
       ).toBe('openai/gpt-4');
@@ -124,11 +130,11 @@ describe('selectModel', () => {
       expect(
         selectModel({
           selectedHarness: 'pi',
-          availableModels: ['anthropic/claude-3'],
-          visibleModels: ['anthropic/claude-3'],
+          availableModels: [TEST_MODEL_OPENCODE],
+          visibleModels: [TEST_MODEL_OPENCODE],
           userChoice: 'openai/gpt-4', // not in availableModels
         })
-      ).toBe('anthropic/claude-3');
+      ).toBe(TEST_MODEL_OPENCODE);
     });
   });
 
@@ -139,9 +145,9 @@ describe('selectModel', () => {
           selectedHarness: 'pi',
           availableModels: allModels,
           visibleModels: allModels,
-          machineConfigModel: 'anthropic/claude-3',
+          machineConfigModel: TEST_MODEL_OPENCODE,
         })
-      ).toBe('anthropic/claude-3');
+      ).toBe(TEST_MODEL_OPENCODE);
     });
 
     it('skips machine config model when hidden', () => {
@@ -149,8 +155,8 @@ describe('selectModel', () => {
         selectModel({
           selectedHarness: 'pi',
           availableModels: allModels,
-          visibleModels: ['openai/gpt-4', 'openai/gpt-3.5'], // anthropic hidden
-          machineConfigModel: 'anthropic/claude-3',
+          visibleModels: ['openai/gpt-4', 'openai/gpt-3.5'], // opencode hidden
+          machineConfigModel: TEST_MODEL_OPENCODE,
         })
       ).toBe('openai/gpt-4'); // falls through to step 5
     });
@@ -163,9 +169,9 @@ describe('selectModel', () => {
           selectedHarness: 'pi',
           availableModels: allModels,
           visibleModels: allModels,
-          teamConfigModel: 'anthropic/haiku',
+          teamConfigModel: TEST_MODEL_OPENCODE_ALT,
         })
-      ).toBe('anthropic/haiku');
+      ).toBe(TEST_MODEL_OPENCODE_ALT);
     });
 
     it('skips team config model when hidden', () => {
@@ -174,7 +180,7 @@ describe('selectModel', () => {
           selectedHarness: 'pi',
           availableModels: allModels,
           visibleModels: ['openai/gpt-4'],
-          teamConfigModel: 'anthropic/haiku',
+          teamConfigModel: TEST_MODEL_OPENCODE_ALT,
         })
       ).toBe('openai/gpt-4'); // falls through to step 5
     });
@@ -197,10 +203,10 @@ describe('selectModel', () => {
         selectModel({
           selectedHarness: 'pi',
           availableModels: allModels,
-          visibleModels: ['anthropic/claude-3'],
+          visibleModels: [TEST_MODEL_OPENCODE],
           preferenceModel: 'openai/gpt-3.5',
         })
-      ).toBe('anthropic/claude-3');
+      ).toBe(TEST_MODEL_OPENCODE);
     });
   });
 
@@ -210,9 +216,9 @@ describe('selectModel', () => {
         selectModel({
           selectedHarness: 'pi',
           availableModels: allModels,
-          visibleModels: ['anthropic/claude-3', 'anthropic/haiku'],
+          visibleModels: [TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT],
         })
-      ).toBe('anthropic/claude-3');
+      ).toBe(TEST_MODEL_OPENCODE);
     });
 
     it('falls back to first available if ALL models are hidden', () => {
@@ -234,7 +240,7 @@ describe('selectModel', () => {
           availableModels: allModels,
           visibleModels: allModels,
           userChoice: 'openai/gpt-4',
-          machineConfigModel: 'anthropic/claude-3',
+          machineConfigModel: TEST_MODEL_OPENCODE,
         })
       ).toBe('openai/gpt-4');
     });
@@ -246,7 +252,7 @@ describe('selectModel', () => {
           availableModels: allModels,
           visibleModels: allModels,
           machineConfigModel: 'openai/gpt-4',
-          teamConfigModel: 'anthropic/claude-3',
+          teamConfigModel: TEST_MODEL_OPENCODE,
         })
       ).toBe('openai/gpt-4');
     });
@@ -258,7 +264,7 @@ describe('selectModel', () => {
           availableModels: allModels,
           visibleModels: allModels,
           teamConfigModel: 'openai/gpt-4',
-          preferenceModel: 'anthropic/claude-3',
+          preferenceModel: TEST_MODEL_OPENCODE,
         })
       ).toBe('openai/gpt-4');
     });
@@ -268,8 +274,8 @@ describe('selectModel', () => {
         selectModel({
           selectedHarness: 'pi',
           availableModels: allModels,
-          visibleModels: ['openai/gpt-4', 'openai/gpt-3.5'], // anthropic hidden
-          machineConfigModel: 'anthropic/claude-3', // hidden → skip
+          visibleModels: ['openai/gpt-4', 'openai/gpt-3.5'], // opencode hidden
+          machineConfigModel: TEST_MODEL_OPENCODE, // hidden → skip
           teamConfigModel: 'openai/gpt-4', // visible → selected
         })
       ).toBe('openai/gpt-4');

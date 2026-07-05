@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createSpawnPrompt } from '../spawn-prompt.js';
 import { getPiSessionDir, PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
+import { TEST_MODEL_PI } from '../../../../testing/test-models.js';
 
 const SAMPLE_SESSION_ID = '019e86d8-39ec-7ae8-8380-c5ee4c904c99';
 const SPAWN_READY_DELAY_MS = 500;
@@ -138,7 +139,7 @@ describe('PiAgentService', () => {
     it('skips the header row (no "provider/model" entry in output)', async () => {
       const tableOutput = [
         'provider  model              context  max-out  thinking  images',
-        'anthropic claude-3-5-sonnet  200000   8192     false     true',
+        'opencode    big-pickle         200000   8192     false     true',
         'openai    gpt-4o             128000   4096     false     true',
       ].join('\n');
 
@@ -151,14 +152,14 @@ describe('PiAgentService', () => {
       // Header row should be excluded
       expect(models).not.toContain('provider/model');
       // Real models should be included
-      expect(models).toContain('anthropic/claude-3-5-sonnet');
+      expect(models).toContain(TEST_MODEL_PI);
       expect(models).toContain('openai/gpt-4o');
     });
 
     it('formats models as "provider/model"', async () => {
       const tableOutput = [
         'provider  model              context  max-out  thinking  images',
-        'anthropic claude-3-5-sonnet  200000   8192     false     true',
+        'opencode    big-pickle         200000   8192     false     true',
         'openai    gpt-4o             128000   4096     false     true',
       ].join('\n');
 
@@ -168,7 +169,7 @@ describe('PiAgentService', () => {
       const service = new PiAgentService(deps);
       const models = await service.listModels();
 
-      expect(models).toEqual(['anthropic/claude-3-5-sonnet', 'openai/gpt-4o']);
+      expect(models).toEqual([TEST_MODEL_PI, 'openai/gpt-4o']);
     });
 
     it('returns empty array when output is empty', async () => {
@@ -203,7 +204,7 @@ describe('PiAgentService', () => {
       // The 2>&1 shell redirect in the command ensures stderr is merged into stdout
       const tableOutput = [
         'provider  model              context  max-out  thinking  images',
-        'anthropic claude-3-5-sonnet  200000   8192     false     true',
+        'opencode    big-pickle         200000   8192     false     true',
         'openai    gpt-4o             128000   4096     false     true',
       ].join('\n');
 
@@ -218,7 +219,7 @@ describe('PiAgentService', () => {
         'pi --list-models 2>&1',
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
-      expect(models).toEqual(['anthropic/claude-3-5-sonnet', 'openai/gpt-4o']);
+      expect(models).toEqual([TEST_MODEL_PI, 'openai/gpt-4o']);
     });
 
     it('skips lines starting with # or -', async () => {
@@ -226,7 +227,7 @@ describe('PiAgentService', () => {
         '# comment line',
         '---separator---',
         'provider  model  context',
-        'anthropic claude-3-opus  100000',
+        'opencode big-pickle-alt  100000',
       ].join('\n');
 
       const deps = createMockDeps({
@@ -234,7 +235,7 @@ describe('PiAgentService', () => {
       });
       const service = new PiAgentService(deps);
       const models = await service.listModels();
-      expect(models).toEqual(['anthropic/claude-3-opus']);
+      expect(models).toEqual(['opencode/big-pickle-alt']);
     });
   });
 
@@ -279,7 +280,7 @@ describe('PiAgentService', () => {
         workingDir: '/tmp/test',
         systemPrompt: 'You are a test agent',
         prompt: createSpawnPrompt('Hello world'),
-        model: 'github-copilot/claude-sonnet-4.6',
+        model: TEST_MODEL_PI,
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
         resolvedConvexUrl: 'http://test:3210',
       });
@@ -292,7 +293,7 @@ describe('PiAgentService', () => {
           '--session-dir',
           getPiSessionDir('/tmp/test'),
           '--model',
-          'github-copilot/claude-sonnet-4.6',
+          TEST_MODEL_PI,
           '--system-prompt',
           'You are a test agent',
         ],

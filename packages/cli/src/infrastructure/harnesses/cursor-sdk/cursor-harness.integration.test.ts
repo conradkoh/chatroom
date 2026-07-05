@@ -1,11 +1,14 @@
 /**
  * Integration tests for the Cursor SDK direct harness.
  *
+ * Requires external services (CURSOR_API_KEY). NOT included in default vitest
+ * runs — see vitest.config.ts exclude for `*.integration.test.ts`.
+ *
  * Requirements:
  *   - CURSOR_API_KEY must be set
  *   - Model composer-2.5 must be available
  *
- * Run: pnpm test -- cursor-harness.integration
+ * Run: pnpm test:integration -- cursor-harness.integration
  */
 
 import path from 'node:path';
