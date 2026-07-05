@@ -50,7 +50,9 @@ async function completeActiveTaskForRole(
   ) {
     return false;
   }
-  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask');
+  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask', undefined, {
+    skipAutoPromotion: true,
+  });
   return true;
 }
 
@@ -89,7 +91,13 @@ export async function handleNativeAgentEnd(
     await patchParticipantNativeWaiting(ctx, participant, now);
   }
 
-  await maybePromoteNextQueuedTask(ctx, args.chatroomId, { entryPointRole: role });
+  // A second agent_end can fire after active work was completed but before handoff-to-user
+  // runs. Idle-path promotion here would create a pending task that handoff Step 1 then
+  // force-completes without the agent ever receiving it. Defer promotion to handoff Step 6.
+  const awaitingHandoffAfterTaskComplete = participant?.lastStatus === 'task.completed';
+  if (!awaitingHandoffAfterTaskComplete) {
+    await maybePromoteNextQueuedTask(ctx, args.chatroomId, { entryPointRole: role });
+  }
 
   return { needsHandoffReminder: false, transitionedToWaiting };
 }

@@ -303,7 +303,7 @@ async function processTasksUpdate(
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
-  pass: TaskMonitorPass
+  _pass: TaskMonitorPass
 ): Promise<void> {
   if (tasks.length === 0) return;
 
@@ -332,18 +332,16 @@ async function processTasksUpdate(
     sessionDeps,
     machineId,
   });
-  if (pass === 'presence') {
-    await nudgeStuckTasks(
-      tasks,
-      now,
-      cooldown,
-      runtime,
-      effectContext,
-      agentMgr,
-      sessionDeps,
-      machineId
-    );
-  }
+  await nudgeStuckTasks(
+    tasks,
+    now,
+    cooldown,
+    runtime,
+    effectContext,
+    agentMgr,
+    sessionDeps,
+    machineId
+  );
 }
 
 // fallow-ignore-next-line complexity
