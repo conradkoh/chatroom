@@ -111,7 +111,7 @@ describe('getModelDisplayLabel', () => {
 
 describe('getCompactModelId', () => {
   it('returns the last segment of a provider/model path', () => {
-    expect(getCompactModelId('github-copilot/claude-sonnet-4.5')).toBe('claude-sonnet-4.5');
+    expect(getCompactModelId('github-copilot/gpt-4o')).toBe('gpt-4o');
   });
 
   it('returns the model unchanged when there is no slash', () => {

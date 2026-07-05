@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import { isInfoLine, parseModelId } from './pure.js';
+import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 
 describe('parseModelId', () => {
   it('parses single-slash model id', () => {
-    expect(parseModelId('anthropic/claude-sonnet-4')).toEqual({
-      providerID: 'anthropic',
-      modelID: 'claude-sonnet-4',
+    expect(parseModelId(TEST_MODEL_OPENCODE)).toEqual({
+      providerID: 'opencode',
+      modelID: 'big-pickle',
     });
   });
 
   it('splits on first slash only, preserving trailing path in modelID', () => {
-    expect(parseModelId('anthropic/claude-sonnet-4.5/thinking')).toEqual({
-      providerID: 'anthropic',
-      modelID: 'claude-sonnet-4.5/thinking',
+    expect(parseModelId(`${TEST_MODEL_OPENCODE}/thinking`)).toEqual({
+      providerID: 'opencode',
+      modelID: 'big-pickle/thinking',
     });
   });
 

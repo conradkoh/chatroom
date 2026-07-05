@@ -17,6 +17,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ describe('getAgentConfig', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        model: 'claude-opus-4',
+        model: TEST_MODEL_OPENCODE,
         agentHarness: 'opencode',
         workingDir: '/test/workspace',
       },
@@ -86,7 +87,7 @@ describe('getAgentConfig', () => {
     // ===== VERIFY =====
     expect(result.found).toBe(true);
     if (result.found) {
-      expect(result.config.model).toBe('claude-opus-4');
+      expect(result.config.model).toBe(TEST_MODEL_OPENCODE);
       expect(result.config.modelSource).toBe('team_config');
       expect(result.config.type).toBe('remote');
       expect(result.config.machineId).toBe(machineId);
@@ -110,7 +111,7 @@ describe('getAgentConfig', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        model: 'claude-opus-4',
+        model: TEST_MODEL_OPENCODE,
         agentHarness: 'opencode',
         workingDir: '/test/workspace',
       },
@@ -220,7 +221,7 @@ describe('getAgentConfig', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
     });
 
     // ===== ACTION =====

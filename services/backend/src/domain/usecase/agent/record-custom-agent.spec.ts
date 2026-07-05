@@ -12,6 +12,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,7 +62,7 @@ async function bindRoleToMachine(
     payload: {
       chatroomId,
       role,
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       agentHarness: 'opencode',
       workingDir: '/tmp/test',
     },

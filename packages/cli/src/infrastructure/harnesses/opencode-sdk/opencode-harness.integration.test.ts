@@ -1,6 +1,9 @@
 /**
  * Integration tests for the OpenCode SDK direct harness.
  *
+ * Requires external services (real opencode serve + LLM). NOT included in
+ * default vitest runs — see vitest.config.ts exclude for `*.integration.test.ts`.
+ *
  * These tests spawn a real `opencode serve` process and exercise the full
  * harness ↔ session ↔ event-stream pipeline with a live LLM call.
  *
@@ -9,7 +12,7 @@
  *   - The model "opencode-go/deepseek-v4-flash" must be reachable
  *
  * Run with:
- *   pnpm test -- --reporter=verbose opencode-harness.integration
+ *   pnpm test:integration -- --reporter=verbose opencode-harness.integration
  *
  * Or against a specific working directory:
  *   HARNESS_CWD=/path/to/project pnpm test -- opencode-harness.integration

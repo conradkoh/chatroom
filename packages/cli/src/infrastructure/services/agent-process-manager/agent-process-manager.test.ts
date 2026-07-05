@@ -12,6 +12,7 @@ import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
+import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../harnesses/registry.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
@@ -991,7 +992,7 @@ describe('AgentProcessManager', () => {
         }),
         getHarnessReconnectContext: vi.fn().mockReturnValue({
           agentName: 'build',
-          model: 'anthropic/claude-sonnet-4',
+          model: TEST_MODEL_OPENCODE,
         }),
         resumeFromDaemonMemory: vi.fn(),
       };

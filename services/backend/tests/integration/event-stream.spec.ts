@@ -20,6 +20,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 // ─── Test 1: agent.requestStart event ────────────────────────────────────────
 
@@ -45,7 +46,7 @@ test('startAgent use case writes agent.requestStart event', async () => {
         chatroomId,
         role: 'builder',
         userId: user!._id,
-        model: 'claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/test/workspace',
         reason: 'test',
@@ -70,7 +71,7 @@ test('startAgent use case writes agent.requestStart event', async () => {
     expect(evt.machineId).toBe(machineId);
     expect(evt.role).toBe('builder');
     expect(evt.agentHarness).toBe('opencode');
-    expect(evt.model).toBe('claude-sonnet-4');
+    expect(evt.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(evt.workingDir).toBe('/test/workspace');
     expect(evt.reason).toBe('test');
     expect(evt.wantResume).toBe(true);
@@ -312,7 +313,7 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
         chatroomId,
         role: 'builder',
         userId: user!._id,
-        model: 'claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE_LEGACY,
         agentHarness: 'opencode',
         workingDir: '/test/workspace',
         reason: 'test',

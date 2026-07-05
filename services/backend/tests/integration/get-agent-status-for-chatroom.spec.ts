@@ -18,6 +18,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -88,7 +89,7 @@ describe('getAgentStatusForChatroom — running agents', () => {
     expect(builder!.state).toBe('running');
     expect(builder!.machineName).toBe('test-host');
     expect(builder!.agentHarness).toBe('opencode');
-    expect(builder!.model).toBe('claude-sonnet-4');
+    expect(builder!.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(builder!.spawnedAt).toBeDefined();
   });
 

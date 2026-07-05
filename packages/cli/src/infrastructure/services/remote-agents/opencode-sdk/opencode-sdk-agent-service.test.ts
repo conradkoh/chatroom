@@ -9,6 +9,7 @@ import {
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
+import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
 
 // ---------------------------------------------------------------------------
@@ -227,13 +228,11 @@ describe('OpenCodeSdkAgentService', () => {
   describe('listModels', () => {
     it('falls back to CLI when SDK fails', async () => {
       const deps = createMockDeps({
-        execSync: vi
-          .fn()
-          .mockReturnValue(Buffer.from('anthropic/claude-3.5-sonnet\nopenai/gpt-4o\n')),
+        execSync: vi.fn().mockReturnValue(Buffer.from(`${TEST_MODEL_OPENCODE}\nopenai/gpt-4o\n`)),
       });
       const service = new OpenCodeSdkAgentService(deps);
       const models = await service.listModels();
-      expect(models).toEqual(['anthropic/claude-3.5-sonnet', 'openai/gpt-4o']);
+      expect(models).toEqual([TEST_MODEL_OPENCODE, 'openai/gpt-4o']);
     });
 
     it('returns empty array and warns when CLI also fails', async () => {
@@ -429,7 +428,7 @@ describe('OpenCodeSdkAgentService', () => {
         chatroomId: 'c1',
         role: 'builder',
         agentName: 'build',
-        model: 'anthropic/claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE,
         pid: 4321,
         createdAt: new Date().toISOString(),
         baseUrl: 'http://127.0.0.1:5678',
@@ -440,7 +439,7 @@ describe('OpenCodeSdkAgentService', () => {
 
       expect(service.getHarnessReconnectContext(4321)).toEqual({
         agentName: 'build',
-        model: 'anthropic/claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE,
       });
       expect(service.getHarnessReconnectContext(9999)).toBeUndefined();
     });
@@ -553,7 +552,7 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(
-        spawnOptions({ model: 'anthropic/claude-sonnet-4', systemPrompt: 'sys', prompt: 'hello' })
+        spawnOptions({ model: TEST_MODEL_OPENCODE, systemPrompt: 'sys', prompt: 'hello' })
       );
       child.stdout.emit(
         'data',
@@ -565,7 +564,7 @@ describe('OpenCodeSdkAgentService', () => {
       expect(result.pid).toBe(4321);
       expect(result.harnessReconnect).toEqual({
         agentName: 'build',
-        model: 'anthropic/claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE,
       });
       expect(deps.spawn).toHaveBeenCalledWith(
         'opencode',
@@ -584,8 +583,8 @@ describe('OpenCodeSdkAgentService', () => {
       );
       expect(promptCall.body.parts).toEqual([{ type: 'text', text: 'hello' }]);
       expect(promptCall.body.model).toEqual({
-        providerID: 'anthropic',
-        modelID: 'claude-sonnet-4',
+        providerID: 'opencode',
+        modelID: 'big-pickle',
       });
     });
 
@@ -1003,14 +1002,14 @@ describe('OpenCodeSdkAgentService', () => {
       const service = new OpenCodeSdkAgentService(deps);
 
       const spawnPromise = service.spawn(
-        spawnOptions({ model: 'anthropic/claude-sonnet-4.5/thinking' })
+        spawnOptions({ model: `${TEST_MODEL_OPENCODE}/thinking` })
       );
       child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
       await spawnPromise;
 
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toEqual({
-        providerID: 'anthropic',
-        modelID: 'claude-sonnet-4.5/thinking',
+        providerID: 'opencode',
+        modelID: 'big-pickle/thinking',
       });
     });
 
@@ -1087,7 +1086,7 @@ describe('OpenCodeSdkAgentService', () => {
     const SAMPLE_DAEMON_SESSION = {
       harnessSessionId: 'sess-resume-1',
       agentName: 'build',
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/resume-wd',
     };
 

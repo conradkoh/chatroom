@@ -21,6 +21,7 @@ import {
   TEAM_CONFIGS,
   type NativeAgentHarness,
 } from '../../helpers/native-workflow-fixtures';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../../helpers/test-models';
 
 async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
   const login = await t.mutation(api.auth.loginAnon, {
@@ -126,7 +127,7 @@ describe('Native init prompt (integration)', () => {
       type: 'remote',
       machineId: 'machine-native-opencode-cli',
       agentHarness: 'opencode',
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
       workingDir: '/test/workspace',
     });
 

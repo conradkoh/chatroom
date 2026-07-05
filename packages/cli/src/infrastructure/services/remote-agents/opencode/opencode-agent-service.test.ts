@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createSpawnPrompt } from '../spawn-prompt.js';
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
+import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 
 function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCodeAgentServiceDeps {
   return {
@@ -80,13 +81,11 @@ describe('OpenCodeAgentService', () => {
   describe('listModels', () => {
     it('returns parsed model list', async () => {
       const deps = createMockDeps({
-        execSync: vi
-          .fn()
-          .mockReturnValue(Buffer.from('anthropic/claude-3.5-sonnet\nopenai/gpt-4o\n')),
+        execSync: vi.fn().mockReturnValue(Buffer.from(`${TEST_MODEL_OPENCODE}\nopenai/gpt-4o\n`)),
       });
       const service = new OpenCodeAgentService(deps);
       const models = await service.listModels();
-      expect(models).toEqual(['anthropic/claude-3.5-sonnet', 'openai/gpt-4o']);
+      expect(models).toEqual([TEST_MODEL_OPENCODE, 'openai/gpt-4o']);
     });
 
     it('returns empty array when output is empty', async () => {
@@ -202,14 +201,14 @@ describe('OpenCodeAgentService', () => {
         workingDir: '/tmp/test',
         prompt: createSpawnPrompt('Hello agent'),
         systemPrompt: 'You are a test agent',
-        model: 'anthropic/claude-3.5-sonnet',
+        model: TEST_MODEL_OPENCODE,
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
         'opencode',
-        ['run', '--model', 'anthropic/claude-3.5-sonnet'],
+        ['run', '--model', TEST_MODEL_OPENCODE],
         expect.objectContaining({
           cwd: '/tmp/test',
           stdio: ['pipe', 'pipe', 'pipe'],

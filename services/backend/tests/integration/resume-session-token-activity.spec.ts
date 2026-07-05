@@ -18,6 +18,7 @@ import {
   joinParticipant,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_CURSOR_SDK, TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
 async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return t.run(async (ctx) => {
@@ -117,7 +118,7 @@ describe('Resume session token activity', () => {
         type: 'remote',
         machineId: 'machine-cli-planner',
         agentHarness: 'claude',
-        model: 'claude-sonnet-4-6',
+        model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
         createdAt: now,
         updatedAt: now,
@@ -185,8 +186,8 @@ describe('Resume session token activity', () => {
       os: 'darwin',
       availableHarnesses: ['cursor-sdk', 'opencode'],
       availableModels: {
-        'cursor-sdk': ['claude-sonnet-4'],
-        opencode: ['claude-sonnet-4'],
+        'cursor-sdk': [TEST_MODEL_CURSOR_SDK],
+        opencode: [TEST_MODEL_OPENCODE],
       },
     });
     await t.mutation(api.machines.updateDaemonStatus, {
@@ -286,8 +287,8 @@ describe('Resume session token activity', () => {
       os: 'darwin',
       availableHarnesses: ['cursor-sdk', 'opencode'],
       availableModels: {
-        'cursor-sdk': ['claude-sonnet-4'],
-        opencode: ['claude-sonnet-4'],
+        'cursor-sdk': [TEST_MODEL_CURSOR_SDK],
+        opencode: [TEST_MODEL_OPENCODE],
       },
     });
     await t.mutation(api.machines.updateDaemonStatus, {

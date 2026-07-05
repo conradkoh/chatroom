@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
+import { TEST_MODEL_OPENCODE } from '../../../../tests/helpers/test-models';
 
 const CHATROOM_ID = 'room123' as Id<'chatroom_rooms'>;
 
@@ -17,7 +18,7 @@ describe('buildAgentRequestStartEvent', () => {
     machineId: 'machine-1',
     role: 'builder',
     agentHarness: 'opencode' as const,
-    model: 'anthropic/claude-sonnet-4',
+    model: TEST_MODEL_OPENCODE,
     workingDir: '/tmp/test',
     reason: 'user.start',
   };

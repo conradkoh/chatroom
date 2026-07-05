@@ -17,6 +17,7 @@ import { describe, expect, test } from 'vitest';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
 import { t } from '../../../test.setup';
+import { TEST_MODEL_OPENCODE } from '../../../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,7 +67,7 @@ async function registerMachineAndConfig(
       type: 'remote',
       machineId,
       agentHarness: harness,
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
       createdAt: now,
       updatedAt: now,

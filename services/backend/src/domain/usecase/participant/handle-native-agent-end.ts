@@ -3,9 +3,9 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
+import { completeNativeHarnessActiveWork } from '../task/complete-native-harness-active-work';
 import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../task/maybe-promote-next-queued-task';
-import { transitionTask } from '../task/transition-task';
 
 export type HandleNativeAgentEndResult = {
   needsHandoffReminder: boolean;
@@ -38,24 +38,6 @@ async function patchParticipantNativeWaiting(
   });
 }
 
-async function completeActiveTaskForRole(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string
-): Promise<boolean> {
-  const activeTask = await findActiveAssignedTaskForRole(ctx, { chatroomId, role });
-  if (
-    !activeTask ||
-    (activeTask.status !== 'acknowledged' && activeTask.status !== 'in_progress')
-  ) {
-    return false;
-  }
-  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask', undefined, {
-    skipAutoPromotion: true,
-  });
-  return true;
-}
-
 /**
  * Idempotent server-side handler for native harness agent_end.
  * When active work remains, signals the CLI to inject a handoff reminder.
@@ -79,7 +61,7 @@ export async function handleNativeAgentEnd(
     activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress';
 
   if (hasActiveTask) {
-    await completeActiveTaskForRole(ctx, args.chatroomId, role);
+    await completeNativeHarnessActiveWork(ctx, args.chatroomId, role);
     return { needsHandoffReminder: true, transitionedToWaiting: false };
   }
 

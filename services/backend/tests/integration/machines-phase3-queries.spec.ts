@@ -16,6 +16,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 // ============================================================================
 // getAgentStatus
@@ -137,7 +138,7 @@ describe('machines.getAgentStartConfig', () => {
     expect(result).not.toBeNull();
     expect(result!.defaults.machineId).toBe(machineId);
     expect(result!.defaults.agentHarness).toBe('opencode');
-    expect(result!.defaults.model).toBe('claude-sonnet-4');
+    expect(result!.defaults.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(result!.defaults.workingDir).toBe('/test/workspace');
   });
 });

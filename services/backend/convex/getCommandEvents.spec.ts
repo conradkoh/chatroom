@@ -13,6 +13,7 @@ import { expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,7 +58,7 @@ async function insertCommandEvent(
         machineId,
         role: 'builder',
         agentHarness: 'opencode',
-        model: 'anthropic/claude-sonnet-4',
+        model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
         reason: 'test',
         deadline: Date.now() + 120_000,
@@ -87,7 +88,7 @@ async function insertNonCommandEvent(
       machineId,
       role: 'builder',
       agentHarness: 'opencode',
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
       pid: 1234,
       reason: 'test',
@@ -202,7 +203,7 @@ test('getCommandEvents — returns all agent.requestStart events for same chatro
       machineId,
       role: 'builder',
       agentHarness: 'opencode',
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
       reason: 'test',
       deadline: Date.now() + 120_000,
@@ -217,7 +218,7 @@ test('getCommandEvents — returns all agent.requestStart events for same chatro
       machineId,
       role: 'builder',
       agentHarness: 'opencode',
-      model: 'anthropic/claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test-2',
       reason: 'test',
       deadline: Date.now() + 120_000,

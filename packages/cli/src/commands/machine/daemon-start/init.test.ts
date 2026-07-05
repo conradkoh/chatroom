@@ -23,6 +23,7 @@ import {
   ensureMachineRegistered,
   loadMachineConfig,
 } from '../../../infrastructure/machine/index.js';
+import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { acquireLockWithRetry, releaseLock } from '../pid.js';
 
@@ -229,12 +230,12 @@ describe('discoverModels', () => {
   it('returns models from the remote agent service', async () => {
     const mockService = {
       isInstalled: vi.fn().mockResolvedValue(true),
-      listModels: vi.fn().mockResolvedValue(['gpt-4', 'claude-3']),
+      listModels: vi.fn().mockResolvedValue(['gpt-4', TEST_MODEL_OPENCODE]),
     } as any;
 
     const agentServices = new Map([['opencode', mockService]]);
     const models = await discoverModels(agentServices);
-    expect(models).toEqual({ opencode: ['gpt-4', 'claude-3'] });
+    expect(models).toEqual({ opencode: ['gpt-4', TEST_MODEL_OPENCODE] });
     expect(mockService.listModels).toHaveBeenCalledOnce();
   });
 
@@ -267,9 +268,7 @@ describe('discoverModels', () => {
     } as any;
     const piService = {
       isInstalled: vi.fn().mockResolvedValue(true),
-      listModels: vi
-        .fn()
-        .mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
+      listModels: vi.fn().mockResolvedValue([TEST_MODEL_OPENCODE, 'github-copilot/gpt-4o']),
     } as any;
 
     const agentServices = new Map([
@@ -280,7 +279,7 @@ describe('discoverModels', () => {
 
     expect(models).toEqual({
       opencode: ['opencode/model-a'],
-      pi: ['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o'],
+      pi: [TEST_MODEL_OPENCODE, 'github-copilot/gpt-4o'],
     });
   });
 

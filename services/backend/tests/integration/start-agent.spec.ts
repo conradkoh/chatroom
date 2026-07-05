@@ -17,6 +17,7 @@ import {
   getCommandEvents,
   registerMachineWithDaemon,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 // ─── Config persistence ──────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ describe('startAgent — config persistence', () => {
           chatroomId,
           role: 'builder',
           userId: user!._id,
-          model: 'claude-sonnet-4',
+          model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'test',
@@ -54,7 +55,7 @@ describe('startAgent — config persistence', () => {
 
     // ===== VERIFY =====
     expect(result.agentHarness).toBe('opencode');
-    expect(result.model).toBe('claude-sonnet-4');
+    expect(result.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(result.workingDir).toBe('/test/workspace');
 
     // Verify team agent config was created
@@ -66,7 +67,7 @@ describe('startAgent — config persistence', () => {
     );
     expect(relevantTeamConfig).toBeDefined();
     expect(relevantTeamConfig!.type).toBe('remote');
-    expect(relevantTeamConfig!.model).toBe('claude-sonnet-4');
+    expect(relevantTeamConfig!.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(relevantTeamConfig!.machineId).toBe(machineId);
   });
 
@@ -182,7 +183,7 @@ describe('startAgent — harness validation', () => {
             chatroomId,
             role: 'builder',
             userId: user!._id,
-            model: 'claude-sonnet-4',
+            model: TEST_MODEL_OPENCODE_LEGACY,
             agentHarness: 'opencode',
             workingDir: '/test/workspace',
             reason: 'test',
@@ -298,7 +299,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           chatroomId,
           role: 'builder',
           userId: user!._id,
-          model: 'claude-sonnet-4',
+          model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'test',
@@ -363,7 +364,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
           chatroomId,
           role: 'builder',
           userId: user!._id,
-          model: 'claude-sonnet-4',
+          model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'test',

@@ -8,6 +8,7 @@ import {
   resolveCursorCliModel,
   type CursorAgentServiceDeps,
 } from './cursor-agent-service.js';
+import { TEST_MODEL_CURSOR } from '../../../../testing/test-models.js';
 
 function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgentServiceDeps {
   return {
@@ -176,14 +177,14 @@ describe('CursorAgentService', () => {
         workingDir: '/tmp/test',
         prompt: createSpawnPrompt('Hello agent'),
         systemPrompt: 'You are a test agent',
-        model: 'claude-4-sonnet',
+        model: TEST_MODEL_CURSOR,
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         resolvedConvexUrl: 'http://test:3210',
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
         'agent',
-        ['-p', '--force', '--output-format', 'stream-json', '--model', 'claude-4-sonnet'],
+        ['-p', '--force', '--output-format', 'stream-json', '--model', TEST_MODEL_CURSOR],
         expect.objectContaining({
           cwd: '/tmp/test',
           stdio: ['pipe', 'pipe', 'pipe'],

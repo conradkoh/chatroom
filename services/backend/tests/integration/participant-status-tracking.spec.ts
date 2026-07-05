@@ -19,6 +19,7 @@ import {
   joinParticipant,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return t.run(async (ctx) => {
@@ -98,7 +99,7 @@ describe('Participant Status Tracking', () => {
       type: 'remote',
       machineId,
       agentHarness: 'opencode',
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
       workingDir: '/test/workspace',
     });
 
@@ -130,7 +131,7 @@ describe('Participant Status Tracking', () => {
           chatroomId,
           role: 'builder',
           userId: user._id,
-          model: 'claude-sonnet-4',
+          model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'user.start',
@@ -158,7 +159,7 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
@@ -504,7 +505,7 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
     });
 
     await t.mutation(api.machines.recordAgentExited, {
@@ -597,7 +598,7 @@ describe('Participant Status Tracking', () => {
           chatroomId,
           role: 'builder',
           userId: user._id,
-          model: 'claude-sonnet-4',
+          model: TEST_MODEL_OPENCODE_LEGACY,
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
           reason: 'user.start',
@@ -616,7 +617,7 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       pid: 99999,
-      model: 'claude-sonnet-4',
+      model: TEST_MODEL_OPENCODE_LEGACY,
     });
     expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe('agent.started');
 
