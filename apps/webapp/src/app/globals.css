@@ -432,25 +432,90 @@ input,
   }
 }
 
-/* Chatroom loader — four squares with staggered grey → black/white fade */
+/* Chatroom loader — four squares fade by side pairs: top → right → bottom → left */
 .chatroom-loader-square {
   background-color: var(--chatroom-text-primary);
-  animation: chatroom-loader-square-fade 1.8s ease-in-out infinite;
+  opacity: 0.2;
+  animation-duration: 2.4s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
-@keyframes chatroom-loader-square-fade {
+/* Grid layout: [0 TL] [1 TR] / [2 BL] [3 BR] */
+.chatroom-loader-square:nth-child(1) {
+  animation-name: chatroom-loader-fade-tl; /* active: top (0–25%) + left (75–100%) */
+}
+.chatroom-loader-square:nth-child(2) {
+  animation-name: chatroom-loader-fade-tr; /* active: top (0–25%) + right (25–50%) */
+}
+.chatroom-loader-square:nth-child(3) {
+  animation-name: chatroom-loader-fade-bl; /* active: bottom (50–75%) + left (75–100%) */
+}
+.chatroom-loader-square:nth-child(4) {
+  animation-name: chatroom-loader-fade-br; /* active: right (25–50%) + bottom (50–75%) */
+}
+
+@keyframes chatroom-loader-fade-tl {
   0%,
+  20% {
+    opacity: 1;
+  }
+  25%,
+  70% {
+    opacity: 0.2;
+  }
+  75%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes chatroom-loader-fade-tr {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  25%,
+  45% {
+    opacity: 1;
+  }
+  50%,
   100% {
     opacity: 0.2;
   }
-  25% {
-    opacity: 0.45;
+}
+
+@keyframes chatroom-loader-fade-bl {
+  0%,
+  45% {
+    opacity: 0.2;
   }
-  50% {
-    opacity: 0.7;
-  }
-  75% {
+  50%,
+  70% {
     opacity: 1;
+  }
+  75%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes chatroom-loader-fade-br {
+  0%,
+  20% {
+    opacity: 0.2;
+  }
+  25%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  70% {
+    opacity: 1;
+  }
+  75%,
+  100% {
+    opacity: 0.2;
   }
 }
 
