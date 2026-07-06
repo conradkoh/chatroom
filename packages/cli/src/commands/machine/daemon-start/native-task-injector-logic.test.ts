@@ -41,9 +41,10 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
 }
 
 describe('isNativeHarness', () => {
-  test('cursor-sdk and opencode-sdk are native', () => {
+  test('cursor-sdk, opencode-sdk, and claude-sdk are native', () => {
     expect(isNativeHarness('cursor-sdk')).toBe(true);
     expect(isNativeHarness('opencode-sdk')).toBe(true);
+    expect(isNativeHarness('claude-sdk')).toBe(true);
   });
 
   test('CLI harnesses are not native', () => {
@@ -60,6 +61,19 @@ describe('shouldDeliverNativeTask', () => {
         ledger,
         harnessSessionId: HARNESS_SESSION_ID,
       })
+    ).toBe(true);
+  });
+
+  test('delivers with UUID provisional harnessSessionId before first turn', () => {
+    const ledger = new NativeDeliveryLedger();
+    const provisionalId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    expect(
+      shouldDeliverNativeTask(
+        makeTask({
+          agentConfig: { ...makeTask().agentConfig, agentHarness: 'claude-sdk' },
+        }),
+        { ledger, harnessSessionId: provisionalId }
+      )
     ).toBe(true);
   });
 

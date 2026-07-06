@@ -9,6 +9,7 @@
  */
 
 import type { ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Effect } from 'effect';
@@ -19,10 +20,12 @@ import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../claude/claude-mode
 import { DetectionResult } from '../detection-result.js';
 import type {
   AgentStopOptions,
+  DaemonHarnessSessionContext,
   SpawnContext,
   SpawnOptions,
   SpawnResult,
   VersionInfo,
+  HarnessSessionIdUpdatedInfo,
 } from '../remote-agent-service.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { withTimeout } from '../with-timeout.js';
@@ -76,6 +79,7 @@ interface SdkSession {
   aborted: boolean;
   activeQuery?: Query;
   sessionId?: string;
+  resumeOnFirstQuery?: boolean;
   storedSystemPrompt?: string;
   resumeResolve?: (prompt: string) => void;
   abortResolve?: () => void;
@@ -120,9 +124,30 @@ function writeSpawnError(
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
 
-function captureSessionId(message: SDKMessage, session: SdkSession): void {
-  if ('session_id' in message && typeof message.session_id === 'string') {
-    session.sessionId = message.session_id;
+// fallow-ignore-next-line complexity
+function notifyResumableSessionId(
+  message: SDKMessage,
+  session: SdkSession,
+  correlationId: string,
+  callbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[]
+): void {
+  if (!('session_id' in message) || typeof message.session_id !== 'string') {
+    return;
+  }
+  const resumableId = message.session_id;
+  const previousResumableId = session.sessionId;
+  if (previousResumableId === resumableId) {
+    return;
+  }
+  session.sessionId = resumableId;
+  const info: HarnessSessionIdUpdatedInfo = {
+    correlationId,
+    resumableId,
+    source: previousResumableId ? 'provider_rotated' : 'provider_allocated',
+    ...(previousResumableId ? { previousResumableId } : {}),
+  };
+  for (const cb of callbacks) {
+    cb(info);
   }
 }
 
@@ -239,6 +264,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     deferInitialTurn?: boolean;
     storedSystemPrompt?: string;
     executablePath: string;
+    resumedProviderSessionId?: string;
   }): SpawnResult {
     const {
       pid,
@@ -250,6 +276,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       deferInitialTurn = false,
       storedSystemPrompt,
       executablePath,
+      resumedProviderSessionId,
     } = args;
 
     const entry = this.registerProcess(pid, context);
@@ -259,6 +286,9 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       keeper,
       aborted: false,
       storedSystemPrompt,
+      ...(resumedProviderSessionId
+        ? { sessionId: resumedProviderSessionId, resumeOnFirstQuery: true }
+        : {}),
     };
     this.sessions.set(pid, sdkSession);
 
@@ -271,9 +301,17 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
     const assistantTextCallbacks: ((text: string) => void)[] = [];
+    const sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[] = [];
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
     };
+    /**
+     * Claude's SDK only reveals a real session ID as a side effect of the first
+     * turn's stream — but native harnesses defer that first turn. Synthesize a
+     * stable per-spawn correlation UUID for delivery gating; provider session IDs
+     * are reported separately via onHarnessSessionIdUpdated for daemon-memory resume.
+     */
+    const harnessSessionId = randomUUID();
 
     const finishExit = (code: number | null, signal: string | null) => {
       sdkSession.activeQuery = undefined;
@@ -286,6 +324,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
 
     this.runTurnLoop({
       sdkSession,
+      correlationId: harnessSessionId,
+      sessionIdUpdatedCallbacks,
       entry,
       logPrefix,
       workingDir,
@@ -302,7 +342,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
 
     return {
       pid,
-      harnessSessionId: undefined,
+      harnessSessionId,
       onExit: (cb) => {
         exitCallbacks.push(cb);
       },
@@ -318,12 +358,24 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       onAssistantText: (cb) => {
         assistantTextCallbacks.push(cb);
       },
+      onHarnessSessionIdUpdated: (cb) => {
+        sessionIdUpdatedCallbacks.push(cb);
+        if (resumedProviderSessionId) {
+          cb({
+            correlationId: harnessSessionId,
+            resumableId: resumedProviderSessionId,
+            source: 'provider_allocated',
+          });
+        }
+      },
     };
   }
 
   // fallow-ignore-next-line complexity
   private runTurnLoop(args: {
     sdkSession: SdkSession;
+    correlationId: string;
+    sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[];
     entry: { lastOutputAt: number };
     logPrefix: string;
     workingDir: string;
@@ -339,6 +391,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }): void {
     const {
       sdkSession,
+      correlationId,
+      sessionIdUpdatedCallbacks,
       logPrefix,
       workingDir,
       model,
@@ -357,6 +411,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
 
     void this.executeTurnLoop({
       sdkSession,
+      correlationId,
+      sessionIdUpdatedCallbacks,
       logPrefix,
       workingDir,
       model,
@@ -389,6 +445,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   // fallow-ignore-next-line complexity
   private async executeTurnLoop(args: {
     sdkSession: SdkSession;
+    correlationId: string;
+    sessionIdUpdatedCallbacks: ((info: HarnessSessionIdUpdatedInfo) => void)[];
     logPrefix: string;
     workingDir: string;
     model?: string;
@@ -406,6 +464,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }): Promise<void> {
     const {
       sdkSession,
+      correlationId,
+      sessionIdUpdatedCallbacks,
       logPrefix,
       workingDir,
       model,
@@ -453,6 +513,10 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
             entry,
           });
 
+          const useResume =
+            Boolean(sdkSession.sessionId) &&
+            (!isFirstQuery || sdkSession.resumeOnFirstQuery === true);
+
           const queryInstance = query({
             prompt: nextPrompt,
             options: {
@@ -461,12 +525,21 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
               maxTurns: DEFAULT_MAX_TURNS,
               pathToClaudeCodeExecutable: executablePath,
               includePartialMessages: true,
-              systemPrompt: isFirstQuery ? sdkSession.storedSystemPrompt : undefined,
-              resume: !isFirstQuery ? sdkSession.sessionId : undefined,
+              systemPrompt:
+                isFirstQuery && !sdkSession.resumeOnFirstQuery
+                  ? sdkSession.storedSystemPrompt
+                  : undefined,
+              resume: useResume ? sdkSession.sessionId : undefined,
               settingSources: [],
+              permissionMode: 'bypassPermissions',
+              allowDangerouslySkipPermissions: true,
+              canUseTool: async (_toolName, input) => ({ behavior: 'allow', updatedInput: input }),
             },
           });
           sdkSession.activeQuery = queryInstance;
+          if (sdkSession.resumeOnFirstQuery) {
+            sdkSession.resumeOnFirstQuery = false;
+          }
           isFirstQuery = false;
           nextPrompt = null;
 
@@ -474,7 +547,12 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
             (async () => {
               for await (const message of queryInstance) {
                 if (sdkSession.aborted) break;
-                captureSessionId(message, sdkSession);
+                notifyResumableSessionId(
+                  message,
+                  sdkSession,
+                  correlationId,
+                  sessionIdUpdatedCallbacks
+                );
                 adapter.handleMessage(message);
                 if (message.type === 'result') break;
               }
@@ -544,5 +622,36 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       storedSystemPrompt: options.systemPrompt,
       executablePath,
     });
+  }
+
+  async resumeFromDaemonMemory(
+    options: SpawnOptions,
+    stored: DaemonHarnessSessionContext
+  ): Promise<SpawnResult> {
+    try {
+      const keeper = this.spawnKeeper(stored.workingDir);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
+      const pid = keeper.pid!;
+      await loadSdk();
+      const executablePath = await resolvePathToClaudeCodeExecutable();
+
+      return this.startRunningSession({
+        pid,
+        keeper,
+        context: options.context,
+        workingDir: stored.workingDir,
+        model: options.model ?? stored.model,
+        initialPrompt: options.prompt,
+        deferInitialTurn: false,
+        storedSystemPrompt: options.systemPrompt,
+        executablePath,
+        resumedProviderSessionId: stored.harnessSessionId,
+      });
+    } catch (err) {
+      writeSpawnError(buildAgentLogPrefix('claude-sdk', options.context), err, (line) =>
+        process.stderr.write(`${line}\n`)
+      );
+      return this.spawn(options);
+    }
   }
 }

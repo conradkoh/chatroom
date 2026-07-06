@@ -2794,6 +2794,46 @@ export const emitSessionAugmented = mutation({
   },
 });
 
+/** Emits agent.harnessSessionIdUpdated when a harness reports a new resumable session ID. */
+export const emitHarnessSessionIdUpdated = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    correlationId: v.string(),
+    previousResumableId: v.optional(v.string()),
+    resumableId: v.string(),
+    source: v.union(v.literal('provider_allocated'), v.literal('provider_rotated')),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.harnessSessionIdUpdated',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      correlationId: args.correlationId,
+      previousResumableId: args.previousResumableId,
+      resumableId: args.resumableId,
+      source: args.source,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
 /** Emits agent.sessionCompacted when native harness runs in-session compaction (`session_augmentation=compact`). */
 export const emitSessionCompacted = mutation({
   args: {

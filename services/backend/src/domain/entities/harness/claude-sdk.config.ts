@@ -2,7 +2,7 @@ import type { HarnessCapabilities } from './types';
 
 export const claudeSdkCapabilities: HarnessCapabilities = {
   runtimeKind: 'sdk',
-  supportsDaemonMemoryResume: false,
+  supportsDaemonMemoryResume: true,
   supportsNativeIntegration: true,
   lifecycle: {
     turnCompleted: true,

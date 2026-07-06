@@ -732,6 +732,176 @@ describe('AgentProcessManager', () => {
       });
     });
 
+    test('claude-sdk spawn stores provisional UUID harnessSessionId for native delivery', async () => {
+      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
+      const claudeSdkService = {
+        ...createMockService(),
+        id: 'claude-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: provisionalId,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe(provisionalId);
+      expect(getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.harnessSessionId).toBe(
+        provisionalId
+      );
+
+      const updateSpawnedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.pid === PID && args.reason === 'user.start'
+      );
+      expect(updateSpawnedCalls).toHaveLength(1);
+      expect(updateSpawnedCalls[0]).toMatchObject({
+        harnessSessionId: provisionalId,
+      });
+    });
+
+    test('claude-sdk onHarnessSessionIdUpdated updates slot and emits backend event', async () => {
+      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
+      const providerId = 'claude-provider-sess-abc';
+      let sessionIdUpdatedCb:
+        | ((info: {
+            correlationId: string;
+            resumableId: string;
+            source: 'provider_allocated' | 'provider_rotated';
+            previousResumableId?: string;
+          }) => void)
+        | undefined;
+      const claudeSdkService = {
+        ...createMockService(),
+        id: 'claude-sdk',
+        spawn: vi.fn().mockImplementation(async () => ({
+          pid: PID,
+          harnessSessionId: provisionalId,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+          onHarnessSessionIdUpdated: (
+            cb: (info: {
+              correlationId: string;
+              resumableId: string;
+              source: 'provider_allocated' | 'provider_rotated';
+              previousResumableId?: string;
+            }) => void
+          ) => {
+            sessionIdUpdatedCb = cb;
+          },
+        })),
+      };
+      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
+
+      sessionIdUpdatedCb!({
+        correlationId: provisionalId,
+        resumableId: providerId,
+        source: 'provider_allocated',
+      });
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.resumableHarnessSessionId).toBe(providerId);
+      expect(
+        getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
+      ).toBe(providerId);
+
+      const harnessSessionIdUpdatedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.correlationId === provisionalId && args.resumableId === providerId
+      );
+      expect(harnessSessionIdUpdatedCalls).toHaveLength(1);
+      expect(harnessSessionIdUpdatedCalls[0]).toMatchObject({
+        correlationId: provisionalId,
+        resumableId: providerId,
+        source: 'provider_allocated',
+      });
+    });
+
+    test('claude-sdk wantResume uses resumableHarnessSessionId for daemon-memory reconnect', async () => {
+      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
+      const providerId = 'claude-provider-sess-abc';
+      const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
+        pid: PID,
+        harnessSessionId: 'new-correlation-uuid',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: vi.fn(),
+      });
+      let sessionIdUpdatedCb:
+        | ((info: {
+            correlationId: string;
+            resumableId: string;
+            source: 'provider_allocated' | 'provider_rotated';
+          }) => void)
+        | undefined;
+      const claudeSdkService = {
+        ...createMockService(),
+        id: 'claude-sdk',
+        spawn: vi.fn().mockImplementation(async () => ({
+          pid: PID,
+          harnessSessionId: provisionalId,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+          onHarnessSessionIdUpdated: (
+            cb: (info: {
+              correlationId: string;
+              resumableId: string;
+              source: 'provider_allocated' | 'provider_rotated';
+            }) => void
+          ) => {
+            sessionIdUpdatedCb = cb;
+          },
+        })),
+        resumeFromDaemonMemory,
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'claude-sdk',
+          model: 'gpt-4',
+        }),
+      };
+      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
+      sessionIdUpdatedCb!({
+        correlationId: provisionalId,
+        resumableId: providerId,
+        source: 'provider_allocated',
+      });
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+      expect(
+        getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
+      ).toBe(providerId);
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      const result = await manager.ensureRunning(
+        createOpts({ agentHarness: 'claude-sdk', wantResume: true })
+      );
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(resumeFromDaemonMemory).toHaveBeenCalledOnce();
+      expect(resumeFromDaemonMemory.mock.calls[0][1]).toMatchObject({
+        harnessSessionId: providerId,
+      });
+      const sessionResumeRequestedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.harnessSessionId === providerId
+      );
+      expect(sessionResumeRequestedCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
     test('second start while running replaces PID', async () => {
       await manager.ensureRunning(createOpts());
 

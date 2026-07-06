@@ -15,11 +15,11 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
-  test('only cursor-sdk and opencode-sdk support daemon-memory resume on start', () => {
+  test('cursor-sdk, opencode-sdk, and claude-sdk support daemon-memory resume on start', () => {
     const withDaemonMemory = AGENT_HARNESSES.filter(
       (h) => getHarnessCapabilities(h).supportsDaemonMemoryResume
     );
-    expect(withDaemonMemory.sort()).toEqual(['cursor-sdk', 'opencode-sdk']);
+    expect(withDaemonMemory.sort()).toEqual(['claude-sdk', 'cursor-sdk', 'opencode-sdk']);
   });
 
   test('cursor-sdk, opencode-sdk, pi-sdk, and claude-sdk support native integration', () => {

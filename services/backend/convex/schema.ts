@@ -1284,6 +1284,18 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Provider-native harness session ID allocated or rotated (deferred-start SDK harnesses)
+      v.object({
+        type: v.literal('agent.harnessSessionIdUpdated'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        correlationId: v.string(),
+        previousResumableId: v.optional(v.string()),
+        resumableId: v.string(),
+        source: v.union(v.literal('provider_allocated'), v.literal('provider_rotated')),
+        timestamp: v.number(),
+      }),
       // Native harness in-process context compaction (legacy; prefer agent.sessionAugmented)
       v.object({
         type: v.literal('agent.sessionCompacted'),
