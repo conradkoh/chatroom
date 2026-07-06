@@ -349,3 +349,94 @@ describe('Native agent_end handler', () => {
     expect(eventsAfterSecond).toHaveLength(eventsAfterFirst.length);
   });
 });
+
+describe('Native agent_end completion status gate', () => {
+  test.each([
+    {
+      label: 'acknowledged-only (injected, no token activity)',
+      startWork: false,
+      expectCompleted: false,
+      expectReminder: false,
+      expectWaiting: true,
+    },
+    {
+      label: 'in_progress (token activity via readTask)',
+      startWork: true,
+      expectCompleted: true,
+      expectReminder: true,
+      expectWaiting: false,
+    },
+  ])(
+    '$label — agent_end completes only when work started',
+    async ({ startWork, expectCompleted, expectReminder, expectWaiting }) => {
+      const { sessionId } = await createTestSession(`test-native-agent-end-gate-${startWork}`);
+      const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+      await t.mutation(api.participants.join, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        action: 'native:task-injected',
+        taskId,
+      });
+      if (startWork) {
+        await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
+      }
+
+      const result = await t.mutation(api.participants.handleNativeAgentEnd, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        taskId,
+      });
+
+      expect(result).toEqual({
+        needsHandoffReminder: expectReminder,
+        transitionedToWaiting: expectWaiting,
+      });
+
+      const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+      expect(task?.status).toBe(expectCompleted ? 'completed' : 'acknowledged');
+
+      const participant = await t.run(async (ctx) => {
+        return ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'builder')
+          )
+          .unique();
+      });
+      expect(participant?.lastInFlightTaskId).toBe(taskId);
+    }
+  );
+
+  test('explicit taskId on acknowledged-only task does not complete via correlation', async () => {
+    const { sessionId } = await createTestSession('test-native-explicit-task-id-ack');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    const result = await t.mutation(api.participants.handleNativeAgentEnd, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+    });
+
+    expect(result.needsHandoffReminder).toBe(false);
+    expect(result.transitionedToWaiting).toBe(true);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('acknowledged');
+  });
+});

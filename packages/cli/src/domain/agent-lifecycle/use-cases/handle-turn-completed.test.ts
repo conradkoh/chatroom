@@ -85,6 +85,28 @@ describe('handleTurnCompleted', () => {
     });
   });
 
+  test('kills immediately on model load failure and skips task completion path', async () => {
+    const { deps, backend } = createDeps();
+    const slot: TurnEndSlot = {
+      state: 'running',
+      pid: 42,
+      recentLogLines: [
+        '[ts] role:builder error] Failed to load model "qwen/qwen3.6-35b-a3b". Model loading was stopped due to insufficient system resources.',
+      ],
+    };
+
+    const result = await handleTurnCompleted(deps, baseInput, slot);
+
+    expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
+    expect(slot.terminalProviderFailureHandled).toBe(true);
+    expect(deps.killProcess).toHaveBeenCalledWith(42);
+    expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      role: 'builder',
+      error: expect.stringContaining('Failed to load model'),
+    });
+  });
+
   test('stops agent when emitResumeStormAborted fails', async () => {
     const tracker = createTracker(3);
     let tick = 1_000_000;

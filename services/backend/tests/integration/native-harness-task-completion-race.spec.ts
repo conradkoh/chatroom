@@ -303,4 +303,79 @@ describe('Native harness task completion race', () => {
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(task?.status).toBe('completed');
   });
+
+  test('acknowledged-only error agent_end leaves queue for handoff step 6 promotion', async () => {
+    const { sessionId } = await createTestSession('test-native-ack-error-handoff-promote');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupNativeBuilder(sessionId, chatroomId, 'machine-native-ack-error-handoff');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'builder',
+        content: 'Queued after acknowledged-only error agent_end',
+        type: 'message',
+        queuePosition: 1,
+      });
+    });
+
+    const agentEndResult = await t.mutation(api.participants.handleNativeAgentEnd, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+    });
+    expect(agentEndResult).toEqual({
+      needsHandoffReminder: false,
+      transitionedToWaiting: true,
+    });
+
+    const originalTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(originalTask?.status).toBe('acknowledged');
+
+    await t.run(async (ctx) => {
+      const pending = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending')
+        )
+        .collect();
+      expect(pending).toHaveLength(0);
+
+      const queue = await ctx.db
+        .query('chatroom_messageQueue')
+        .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      expect(queue).toHaveLength(1);
+    });
+
+    const handoffResult = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Handoff after acknowledged-only error agent_end.',
+    });
+    expect(handoffResult.success).toBe(true);
+    expect(handoffResult.completedTaskIds).toContain(taskId);
+    expect(handoffResult.promotedTaskId).toBeTruthy();
+    expect(handoffResult.completedTaskIds).not.toContain(handoffResult.promotedTaskId);
+
+    const promotedTask = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_tasks', handoffResult.promotedTaskId!)
+    );
+    expect(promotedTask?.status).toBe('pending');
+    expect(promotedTask?.content).toBe('Queued after acknowledged-only error agent_end');
+  });
 });

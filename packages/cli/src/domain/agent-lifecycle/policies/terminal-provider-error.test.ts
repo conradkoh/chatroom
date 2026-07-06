@@ -83,6 +83,30 @@ describe('isTerminalProviderError', () => {
 });
 
 describe('isTerminalProviderFailureInLogs', () => {
+  test.each([
+    {
+      label: 'provider rate limit',
+      lines: [
+        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
+      ],
+      expected: true,
+    },
+    {
+      label: 'model load failure',
+      lines: [
+        '[ts] role:builder error] Failed to load model "qwen/qwen3.6-35b-a3b". Model loading was stopped due to insufficient system resources.',
+      ],
+      expected: true,
+    },
+    {
+      label: 'unrelated file error',
+      lines: ['[ts] role:builder error] ENOENT: file not found'],
+      expected: false,
+    },
+  ])('classifies $label consistently', ({ lines, expected }) => {
+    expect(isTerminalProviderFailureInLogs(lines)).toBe(expected);
+  });
+
   test('matches provider_rate_limit agent_end marker', () => {
     expect(
       isTerminalProviderFailureInLogs(['[ts] role:solo agent_end] reason: provider_rate_limit'])
