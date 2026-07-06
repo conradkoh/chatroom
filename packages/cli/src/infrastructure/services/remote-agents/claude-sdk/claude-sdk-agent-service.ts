@@ -128,7 +128,7 @@ function captureSessionId(message: SDKMessage, session: SdkSession): void {
 
 export class ClaudeSdkAgentService extends BaseCLIAgentService {
   readonly id = 'claude-sdk';
-  readonly displayName = 'Claude Code (SDK)';
+  readonly displayName = 'Claude (SDK)';
   readonly command = CLAUDE_SDK_COMMAND;
 
   private readonly sessions = new Map<number, SdkSession>();

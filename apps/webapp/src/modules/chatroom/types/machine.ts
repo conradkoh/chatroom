@@ -98,6 +98,8 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   'pi-sdk': 'Pi (SDK)',
   cursor: 'Cursor (CLI)',
   'cursor-sdk': 'Cursor (SDK)',
+  claude: 'Claude Code',
+  'claude-sdk': 'Claude (SDK)',
   commandcode: 'CommandCode',
 };
 
