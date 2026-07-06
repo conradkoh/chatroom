@@ -26,6 +26,13 @@ const QUOTA_PHRASES = [
 
 const PROVIDER_ERROR_NAMES = ['ai_apicallerror', 'ai_retryerror'] as const;
 
+/** Structured harness abort marker — not incidental mentions in bash/tool payloads. */
+const PROVIDER_RATE_LIMIT_AGENT_END_MARKER = /\bagent_end]\s*reason:\s*provider_rate_limit\b/;
+
+function isProviderRateLimitHarnessMarker(line: string): boolean {
+  return PROVIDER_RATE_LIMIT_AGENT_END_MARKER.test(line);
+}
+
 function matchesQuotaPhrase(blob: string): boolean {
   const text = blob.toLowerCase();
   return QUOTA_PHRASES.some((phrase) => text.includes(phrase));
@@ -79,7 +86,7 @@ export function isTerminalProviderError(error: unknown): boolean {
 export function isTerminalProviderFailureInLogs(logLines: readonly string[]): boolean {
   for (const line of logLines) {
     if (!isClassifiableHarnessLogLine(line)) continue;
-    if (line.includes('provider_rate_limit')) return true;
+    if (isProviderRateLimitHarnessMarker(line)) return true;
     if (isNonRetryableHarnessFailureText(line)) return true;
   }
   return false;
@@ -88,7 +95,6 @@ export function isTerminalProviderFailureInLogs(logLines: readonly string[]): bo
 // fallow-ignore-next-line complexity
 function isClassifiableHarnessLogLine(line: string): boolean {
   if (/\b(?:text|thinking)\]/.test(line)) return false;
-  if (line.includes('provider_rate_limit')) return true;
   if (line.includes('agent_end]')) return true;
   if (line.includes(' error]')) return true;
   if (line.includes(' run-error]')) return true;
