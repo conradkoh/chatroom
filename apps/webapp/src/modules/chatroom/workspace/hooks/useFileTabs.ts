@@ -172,20 +172,30 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   // Track which storage key was used for the current state to prevent cross-contamination
   const lastStorageKeyRef = useRef<string>(storageKey);
 
-  // Left pane state - initialize empty, restore from localStorage in effect
-  const [tabs, setTabs] = useState<FileTab[]>([]);
-  const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
-  const [expandedTabPath, setExpandedTabPath] = useState<string | null>(null);
+  // Synchronous restore on mount so the first persist cycle never writes empty state.
+  const [tabs, setTabs] = useState<FileTab[]>(() => readSavedState(storageKey).tabs);
+  const [activeTabPath, setActiveTabPath] = useState<string | null>(
+    () => readSavedState(storageKey).activeTabPath
+  );
+  const [expandedTabPath, setExpandedTabPath] = useState<string | null>(
+    () => readSavedState(storageKey).expandedTabPath
+  );
 
   // Right pane state
-  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>([]);
-  const [activeRightTabKey, setActiveRightTabKey] = useState<string | null>(null);
+  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>(
+    () => readSavedState(storageKey).rightTabs
+  );
+  const [activeRightTabKey, setActiveRightTabKey] = useState<string | null>(
+    () => readSavedState(storageKey).activeRightTabKey
+  );
 
-  // Track if state has been restored from localStorage to avoid persisting empty initial state
-  const hasRestoredRef = useRef(false);
+  /** Skip one persist cycle after the restore effect applies (chatroom switch). */
+  const skipNextPersistRef = useRef(false);
 
   // Restore state from localStorage when storage key changes (chatroom switch)
   useEffect(() => {
+    if (lastStorageKeyRef.current === storageKey) return;
+
     const saved = readSavedState(storageKey);
     setTabs(saved.tabs);
     setActiveTabPath(saved.activeTabPath);
@@ -193,15 +203,17 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setRightTabs(saved.rightTabs);
     setActiveRightTabKey(saved.activeRightTabKey);
     lastStorageKeyRef.current = storageKey;
-    hasRestoredRef.current = true;
+    skipNextPersistRef.current = true;
   }, [storageKey]);
 
   // Persist state to localStorage when it changes
   useEffect(() => {
-    // Skip if we haven't restored yet (initial mount) or if storage key is mismatched
-    if (!hasRestoredRef.current || lastStorageKeyRef.current !== storageKey) {
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
       return;
     }
+    if (lastStorageKeyRef.current !== storageKey) return;
+
     writeSavedState(storageKey, {
       tabs,
       activeTabPath,
