@@ -196,6 +196,7 @@ describe('task delivery attachment snapshots — native', () => {
     expect(extractTaskEnvelope(output)).toMatchInlineSnapshot(`
       "<task>
       Task ID: task-snapshot-001
+      Origin Message ID: msg-snapshot-001
       From: user
 
       Can you work on this item
