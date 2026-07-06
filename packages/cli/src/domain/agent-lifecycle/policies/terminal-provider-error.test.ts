@@ -176,6 +176,39 @@ describe('isTerminalProviderFailureInLogs', () => {
       ])
     ).toBe(false);
   });
+
+  test('ignores bash handoff heredoc mentioning provider_rate_limit in prose', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:planner@7z81x2 tool: bash] running: chatroom handoff --chatroom-id="c1" --role="planner" --next-role="user" << \'CHATROOM_HANDOFF_END\'\n## Tech Debt\n- abortTerminalProviderError still emits reason provider_rate_limit for model load failures\nCHATROOM_HANDOFF_END',
+      ])
+    ).toBe(false);
+  });
+
+  test('ignores bash handoff heredoc mentioning rate limit in prose', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:planner@7z81x2 tool: bash] running: chatroom handoff << EOF\nMirror existing rate-limit test patterns for model load failures\nEOF',
+      ])
+    ).toBe(false);
+  });
+
+  test('does not false-positive when bash handoff precedes agent_end in log buffer', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:planner@7z81x2 tool: bash] running: chatroom handoff << EOF\nprovider_rate_limit cosmetic issue\nEOF',
+        '[cursor-sdk:planner@7z81x2 agent_end]',
+      ])
+    ).toBe(false);
+  });
+
+  test('matches cursor-sdk agent_end reason provider_rate_limit marker', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:planner@7z81x2 agent_end] reason: provider_rate_limit',
+      ])
+    ).toBe(true);
+  });
 });
 
 describe('formatTerminalProviderFailureMessage', () => {
