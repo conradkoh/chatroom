@@ -23,6 +23,8 @@ const ALL_KNOWN_HARNESSES: string[] = [
   'pi-sdk',
   'cursor',
   'cursor-sdk',
+  'claude',
+  'claude-sdk',
   'commandcode',
 ];
 
@@ -50,6 +52,8 @@ describe('getHarnessDisplayName', () => {
     expect(getHarnessDisplayName('pi-sdk')).toBe('Pi (SDK)');
     expect(getHarnessDisplayName('cursor')).toBe('Cursor (CLI)');
     expect(getHarnessDisplayName('cursor-sdk')).toBe('Cursor (SDK)');
+    expect(getHarnessDisplayName('claude')).toBe('Claude Code');
+    expect(getHarnessDisplayName('claude-sdk')).toBe('Claude (SDK)');
     expect(getHarnessDisplayName('commandcode')).toBe('CommandCode');
   });
 
@@ -84,7 +88,7 @@ describe('harnessSupportsDaemonMemoryResume', () => {
 });
 
 describe('harnessSupportsNativeIntegration', () => {
-  it.each(['opencode-sdk', 'cursor-sdk', 'pi-sdk'] as const)(
+  it.each(['opencode-sdk', 'cursor-sdk', 'pi-sdk', 'claude-sdk'] as const)(
     'returns true for native integration harness "%s"',
     (harness) => {
       expect(harnessSupportsNativeIntegration(harness)).toBe(true);
