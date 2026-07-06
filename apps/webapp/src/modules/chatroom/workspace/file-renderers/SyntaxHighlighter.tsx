@@ -1,9 +1,10 @@
 'use client';
 
+import { useTheme } from 'next-themes';
 import { memo, useEffect, useState, useRef } from 'react';
-import { useTheme } from '@/modules/theme/ThemeProvider';
-import { useHighlighter } from './useHighlighter';
+
 import { detectLanguage, MAX_FILE_SIZE } from './language-detection';
+import { useHighlighter } from './useHighlighter';
 
 interface SyntaxHighlighterProps {
   code: string;
@@ -20,14 +21,21 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
   className = '',
 }: SyntaxHighlighterProps) {
   const { status, highlight } = useHighlighter();
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const [html, setHtml] = useState<string | null>(null);
   const latestRequest = useRef(0);
 
-  const resolvedTheme = theme === 'dark' ? 'dark' : 'light';
+  const shikiTheme = resolvedTheme === 'dark' ? 'dark' : 'light';
 
   const shouldHighlight =
     code.length <= MAX_FILE_SIZE && detectLanguage(path) !== null && status !== 'error';
+
+  const wrapperClassName = [
+    className,
+    '[&_.shiki]:bg-transparent [&_.shiki]:text-chatroom-text-primary',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   useEffect(() => {
     if (!shouldHighlight) {
@@ -40,7 +48,7 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
     const requestId = ++latestRequest.current;
     let cancelled = false;
 
-    highlight(code, path, resolvedTheme).then((result) => {
+    highlight(code, path, shikiTheme).then((result) => {
       if (cancelled || requestId !== latestRequest.current) return;
       setHtml(result);
     });
@@ -48,16 +56,14 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
     return () => {
       cancelled = true;
     };
-  }, [code, path, status, shouldHighlight, highlight, resolvedTheme]);
+  }, [code, path, status, shouldHighlight, highlight, shikiTheme]);
 
   if (!shouldHighlight || html === null) {
     if (lineNumbers) {
-      return (
-        <PlainTextWithLineNumbers code={code} className={className} />
-      );
+      return <PlainTextWithLineNumbers code={code} className={wrapperClassName} />;
     }
     return (
-      <pre className={className}>
+      <pre className={wrapperClassName}>
         <code>{code}</code>
       </pre>
     );
@@ -78,37 +84,20 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
             </div>
           ))}
         </div>
-        <div
-          className={className}
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className={wrapperClassName} dangerouslySetInnerHTML={{ __html: html }} />
       </>
     );
   }
 
-  return (
-    <div
-      className={className}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  return <div className={wrapperClassName} dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
-function PlainTextWithLineNumbers({
-  code,
-  className,
-}: {
-  code: string;
-  className: string;
-}) {
+function PlainTextWithLineNumbers({ code, className }: { code: string; className: string }) {
   return (
     <>
       <div className="sticky left-0 select-none border-r border-chatroom-border bg-chatroom-bg-primary py-4 pr-3 pl-2 text-right w-[3.5rem] shrink-0">
         {code.split('\n').map((_, i) => (
-          <div
-            key={i}
-            className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed"
-          >
+          <div key={i} className="text-[10px] font-mono text-chatroom-text-muted leading-relaxed">
             {i + 1}
           </div>
         ))}
