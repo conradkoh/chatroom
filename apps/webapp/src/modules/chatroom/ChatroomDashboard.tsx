@@ -44,6 +44,8 @@ import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
+import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
 import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
@@ -382,12 +384,16 @@ export function ChatroomDashboard({
     [handleOpenSavedCommandModal]
   );
 
-  // Sidebar visibility state - hidden by default on small screens
+  // Sidebar visibility state - persisted per chatroom; forced hidden on small screens
   const isSmallScreen = useIsSmallScreen();
-  const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
+  const [sidebarVisible, setSidebarVisible] = useAgentSidebarVisible(
+    chatroomId as Id<'chatroom_rooms'>
+  );
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
-  const [explorerSidebarVisible, setExplorerSidebarVisible] = useState(!isSmallScreen);
+  const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
+    chatroomId as Id<'chatroom_rooms'>
+  );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
 
   // Handle ActivityBar view changes with toggle sub-state support
@@ -420,7 +426,7 @@ export function ChatroomDashboard({
       if (view === activeView) {
         // Already on this view — toggle sub-state
         if (view === 'explorer') {
-          setExplorerSidebarVisible((prev) => !prev);
+          setExplorerSidebarVisible(!explorerSidebarVisible);
         }
       } else {
         // Switch to different view
@@ -431,7 +437,7 @@ export function ChatroomDashboard({
         }
       }
     },
-    [activeView]
+    [activeView, explorerSidebarVisible, setExplorerSidebarVisible, setActivityView]
   );
 
   // File select handler: single click = preview, double click = pin
@@ -470,11 +476,13 @@ export function ChatroomDashboard({
     [fileTabs.openRight]
   );
 
-  // Update sidebar visibility when screen size changes
+  // Force-hide sidebars on small screens; preserve stored desktop preference when expanding
   useEffect(() => {
-    setSidebarVisible(!isSmallScreen);
-    setExplorerSidebarVisible(!isSmallScreen);
-  }, [isSmallScreen]);
+    if (isSmallScreen) {
+      setSidebarVisible(false);
+      setExplorerSidebarVisible(false);
+    }
+  }, [isSmallScreen, setSidebarVisible, setExplorerSidebarVisible]);
 
   // Lock body scroll when sidebar overlay is visible on mobile
   useEffect(() => {
@@ -505,8 +513,8 @@ export function ChatroomDashboard({
   }, [sidebarVisible, isSmallScreen]);
 
   const toggleSidebar = useCallback(() => {
-    setSidebarVisible((prev) => !prev);
-  }, []);
+    setSidebarVisible(!sidebarVisible);
+  }, [sidebarVisible, setSidebarVisible]);
 
   // Header portal integration
   const { setContent: setHeaderContent, clearContent: clearHeaderContent } = useSetHeaderPortal();

@@ -328,10 +328,14 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     [expandedPathsStorageKey, loadChildren]
   );
 
-  // Restore saved state when chatroom or workingDir changes
+  // Restore saved state when chatroom or workingDir changes; load children for expanded dirs
   useEffect(() => {
-    setExpandedPaths(readExpandedPaths(expandedPathsStorageKey));
-  }, [expandedPathsStorageKey]);
+    const saved = readExpandedPaths(expandedPathsStorageKey);
+    setExpandedPaths(saved);
+    for (const dirPath of saved) {
+      void loadChildren(dirPath);
+    }
+  }, [expandedPathsStorageKey, loadChildren]);
 
   // Loading state
   if (isLoading) {
