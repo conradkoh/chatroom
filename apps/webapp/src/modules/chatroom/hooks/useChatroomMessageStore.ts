@@ -22,7 +22,7 @@ import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
 import type { Message } from '../types/message';
 
 export const MESSAGE_STORE_LIMIT = 5;
-export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 20;
+export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 5;
 /** How many of the most-recent messages to keep "live" for status/progress updates. */
 export const VISIBLE_UPDATE_WINDOW = 30;
 
