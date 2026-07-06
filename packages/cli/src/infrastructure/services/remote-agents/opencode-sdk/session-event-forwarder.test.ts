@@ -183,6 +183,23 @@ describe('SessionEventForwarder', () => {
     };
   }
 
+  async function* modelLoadErrorStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-1',
+        error: {
+          name: 'ModelLoadError',
+          data: {
+            message:
+              'Failed to load model "qwen/qwen3.6-35b-a3b". Model loading was stopped due to insufficient system resources.',
+          },
+        },
+      },
+    };
+  }
+
   async function* otherSessionStream(): AsyncGenerator<unknown> {
     await new Promise((r) => setTimeout(r, 10));
     yield {
@@ -355,6 +372,22 @@ describe('SessionEventForwarder', () => {
     await handle.done;
     vi.useRealTimers();
     expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
+    );
+  }, 10000);
+
+  it('session.error model load failure -> agent_end fired + logged', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(modelLoadErrorStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(errorTarget.write).toHaveBeenCalledWith(expect.stringContaining('Failed to load model'));
     expect(target.write).toHaveBeenCalledWith(
       '[fake-ts] role:builder agent_end] reason: provider_rate_limit\n'
     );

@@ -95,6 +95,9 @@ export class NativeTaskDeliveryCoordinator {
                 resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
               },
               convexUrl: sessionDeps.convexUrl,
+              onTaskDelivered: ({ chatroomId, role, taskId }) => {
+                Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, taskId));
+              },
             },
             ledger
           );

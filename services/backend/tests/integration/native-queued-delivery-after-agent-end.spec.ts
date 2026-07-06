@@ -82,6 +82,12 @@ describe('Native queued delivery after agent_end', () => {
       action: NATIVE_TASK_INJECTED_ACTION,
       taskId,
     });
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+    });
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_messageQueue', {

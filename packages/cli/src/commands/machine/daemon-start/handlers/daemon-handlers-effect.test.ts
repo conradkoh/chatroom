@@ -172,6 +172,7 @@ describe('executeStopAgentEffect', () => {
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     });
 
     const effect = executeStopAgentEffect({
@@ -197,6 +198,7 @@ describe('executeStopAgentEffect', () => {
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     });
 
     const effect = executeStopAgentEffect({
@@ -228,6 +230,7 @@ describe('handleStopAgentEffect', () => {
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     });
 
     const command = {

@@ -28,7 +28,6 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
-import { shouldSkipNativeHandoffPendingCompletion } from '../src/domain/usecase/task/complete-native-harness-active-work';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
@@ -587,23 +586,27 @@ async function _handoffHandler(
   const tasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
 
   if (isHandoffToUser) {
-    const skipPendingCompletion = await shouldSkipNativeHandoffPendingCompletion(
-      ctx,
-      args.chatroomId,
-      args.senderRole
-    );
-    if (!skipPendingCompletion) {
-      const pendingForSender = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status_assignedTo', (q) =>
-          q
-            .eq('chatroomId', args.chatroomId)
-            .eq('status', 'pending')
-            .eq('assignedTo', args.senderRole)
-        )
-        .collect();
-      const topPending = pendingForSender.sort((a, b) => a.queuePosition - b.queuePosition)[0];
-      if (topPending) {
+    const pendingForSender = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status_assignedTo', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .eq('status', 'pending')
+          .eq('assignedTo', args.senderRole)
+      )
+      .collect();
+    const topPending = pendingForSender.sort((a, b) => a.queuePosition - b.queuePosition)[0];
+    if (topPending) {
+      const agentConfigResult = await getAgentConfig(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.senderRole,
+      });
+      const isNative =
+        agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
+
+      // Native harness: pending must reach in_progress (token activity) before system completion.
+      // Non-native: preserve legacy handoff Step 1 pending force-complete (#798).
+      if (!isNative) {
         tasksToComplete.push(topPending);
       }
     }
@@ -686,6 +689,7 @@ async function _handoffHandler(
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAt: Date.now(),
+      ...(isHandoffToUser ? { lastInFlightTaskId: undefined } : {}),
     });
   }
 
@@ -702,6 +706,12 @@ async function _handoffHandler(
     const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
     if (promoteResult.promoted) {
       promotedTaskId = promoteResult.promoted;
+    }
+
+    if (participant) {
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        lastInFlightTaskId: undefined,
+      });
     }
   }
 

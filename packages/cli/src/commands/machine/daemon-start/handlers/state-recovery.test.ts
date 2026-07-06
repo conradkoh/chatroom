@@ -63,6 +63,7 @@ function makeApmLayer(overrides?: {
     getSlot: vi.fn().mockReturnValue(undefined),
     whenTurnEndsIdle: () => Effect.succeed(undefined as void),
     resumeTurnForSlot: () => Effect.succeed(undefined as void),
+    setLastInFlightTask: () => Effect.void,
   });
 }
 

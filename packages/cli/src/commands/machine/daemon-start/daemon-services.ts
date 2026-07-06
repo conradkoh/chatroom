@@ -102,6 +102,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     role: string;
     prompt: string;
   }) => Effect.Effect<void>;
+  setLastInFlightTask: (chatroomId: string, role: string, taskId: string) => Effect.Effect<void>;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -120,6 +121,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     listActive: () => mgr.listActive(),
     whenTurnEndsIdle: () => Effect.promise(() => mgr.whenTurnEndsIdle()),
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
+    setLastInFlightTask: (chatroomId, role, taskId) =>
+      Effect.sync(() => mgr.setLastInFlightTask(chatroomId, role, taskId)),
   });
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────

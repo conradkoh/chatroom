@@ -6,6 +6,12 @@
  * retried via resumeTurn or crash_recovery.
  */
 
+const FATAL_HARNESS_PHRASES = [
+  'failed to load model',
+  'model loading was stopped',
+  'insufficient system resources',
+] as const;
+
 const QUOTA_PHRASES = [
   'usagelimit',
   'usage limit',
@@ -31,26 +37,41 @@ function matchesStructuredProviderErrorText(blob: string): boolean {
   return hasProviderName && matchesQuotaPhrase(blob);
 }
 
+function matchesFatalHarnessErrorText(blob: string): boolean {
+  const text = blob.toLowerCase();
+  return FATAL_HARNESS_PHRASES.some((phrase) => text.includes(phrase));
+}
+
 /** Immediate match for stderr lines and unstructured error strings. */
-export function matchesTerminalProviderErrorText(blob: string): boolean {
+function matchesTerminalProviderErrorText(blob: string): boolean {
   return matchesQuotaPhrase(blob) || matchesStructuredProviderErrorText(blob);
+}
+
+/** Quota, provider, or fatal harness startup errors that must not retry or complete tasks. */
+export function isNonRetryableHarnessFailureText(blob: string): boolean {
+  return matchesTerminalProviderErrorText(blob) || matchesFatalHarnessErrorText(blob);
 }
 
 // fallow-ignore-next-line complexity
 export function isTerminalProviderError(error: unknown): boolean {
   if (typeof error === 'string') {
-    return matchesTerminalProviderErrorText(error);
+    return isNonRetryableHarnessFailureText(error);
   }
   if (!error || typeof error !== 'object') {
     return false;
   }
   const e = error as Record<string, unknown>;
-  if (typeof e.error === 'string' && matchesTerminalProviderErrorText(e.error)) {
+  if (typeof e.error === 'string' && isNonRetryableHarnessFailureText(e.error)) {
     return true;
   }
   const name = extractName(e);
   const message = extractMessage(e);
-  return matchesQuotaPhrase(message) || matchesQuotaPhrase(`${name} ${message}`);
+  return (
+    matchesQuotaPhrase(message) ||
+    matchesQuotaPhrase(`${name} ${message}`) ||
+    matchesFatalHarnessErrorText(message) ||
+    matchesFatalHarnessErrorText(`${name} ${message}`)
+  );
 }
 
 /** True when recent harness log lines indicate a non-retryable provider failure. */
@@ -59,7 +80,7 @@ export function isTerminalProviderFailureInLogs(logLines: readonly string[]): bo
   for (const line of logLines) {
     if (!isClassifiableHarnessLogLine(line)) continue;
     if (line.includes('provider_rate_limit')) return true;
-    if (matchesTerminalProviderErrorText(line)) return true;
+    if (isNonRetryableHarnessFailureText(line)) return true;
   }
   return false;
 }
@@ -104,6 +125,6 @@ function messageFromData(data: unknown): string | undefined {
 export function formatTerminalProviderFailureMessage(logLines: readonly string[]): string {
   const blob = logLines.join('\n').trim();
   return blob
-    ? `Provider rate limit or quota error (non-retryable): ${blob.slice(-500)}`
-    : 'Provider rate limit or quota error (non-retryable)';
+    ? `Fatal harness error (non-retryable): ${blob.slice(-500)}`
+    : 'Fatal harness error (non-retryable)';
 }

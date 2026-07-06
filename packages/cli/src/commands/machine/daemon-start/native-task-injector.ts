@@ -30,6 +30,7 @@ export interface NativeInjectorDeps {
     }) => Promise<void>;
   };
   convexUrl?: string;
+  onTaskDelivered?: (args: { chatroomId: string; role: string; taskId: string }) => void;
 }
 
 export function runNativeInjectionEffect(
@@ -141,5 +142,6 @@ export function runNativeInjectionEffect(
     }
 
     ledger.markDelivered(taskId, harnessSessionId);
+    deps.onTaskDelivered?.({ chatroomId, role, taskId: taskId as string });
   });
 }

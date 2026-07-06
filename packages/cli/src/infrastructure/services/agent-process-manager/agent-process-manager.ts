@@ -128,6 +128,8 @@ export interface AgentSlot {
   wantResume?: boolean;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean;
+  /** Task last delivered to this native harness slot — sent on agent_end. */
+  lastInFlightTaskId?: string;
 }
 
 export interface AgentProcessManagerDeps {
@@ -538,6 +540,7 @@ export class AgentProcessManager {
         sessionId: this.deps.sessionId,
         chatroomId: opts.chatroomId,
         role: opts.role,
+        ...(slot?.lastInFlightTaskId ? { taskId: slot.lastInFlightTaskId } : {}),
       });
 
       if (result?.needsHandoffReminder) {
@@ -911,6 +914,11 @@ export class AgentProcessManager {
 
   getSlot(chatroomId: string, role: string): AgentSlot | undefined {
     return this.getSlotFromMirror(chatroomId, role);
+  }
+
+  setLastInFlightTask(chatroomId: string, role: string, taskId: string): void {
+    const slot = this.getOrCreateSlot(agentKey(chatroomId, role));
+    slot.lastInFlightTaskId = taskId;
   }
 
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {
