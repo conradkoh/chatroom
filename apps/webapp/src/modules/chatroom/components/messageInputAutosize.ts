@@ -27,3 +27,12 @@ export function getEffectiveMaxTextareaHeightPx(
   if (viewportHeightPx <= 0) return lineCapPx;
   return Math.min(lineCapPx, Math.floor(viewportHeightPx * VIEWPORT_MAX_HEIGHT_FRACTION));
 }
+
+/** Measure textarea content height for autosize (collapse before measuring scrollHeight). */
+export function measureTextareaContentHeightPx(
+  textarea: HTMLTextAreaElement,
+  maxHeightPx: number
+): number {
+  textarea.style.height = '0px';
+  return Math.min(textarea.scrollHeight, maxHeightPx);
+}
