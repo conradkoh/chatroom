@@ -4,7 +4,6 @@ import { NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { completeNativeHarnessActiveWork } from '../task/complete-native-harness-active-work';
-import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../task/maybe-promote-next-queued-task';
 
 export type HandleNativeAgentEndResult = {
@@ -46,22 +45,17 @@ async function patchParticipantNativeWaiting(
 // fallow-ignore-next-line complexity
 export async function handleNativeAgentEnd(
   ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string; taskId?: Id<'chatroom_tasks'> }
 ): Promise<HandleNativeAgentEndResult> {
   const role = args.role.toLowerCase();
   const now = Date.now();
   const participant = await getParticipantForChatroomRole(ctx, args.chatroomId, role);
   const alreadyWaiting = participant?.lastStatus === 'agent.waiting';
 
-  const activeTask = await findActiveAssignedTaskForRole(ctx, {
-    chatroomId: args.chatroomId,
-    role,
+  const completedTaskId = await completeNativeHarnessActiveWork(ctx, args.chatroomId, role, {
+    taskId: args.taskId,
   });
-  const hasActiveTask =
-    activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress';
-
-  if (hasActiveTask) {
-    await completeNativeHarnessActiveWork(ctx, args.chatroomId, role);
+  if (completedTaskId) {
     return { needsHandoffReminder: true, transitionedToWaiting: false };
   }
 

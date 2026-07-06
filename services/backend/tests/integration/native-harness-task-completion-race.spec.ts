@@ -86,6 +86,16 @@ describe('Native harness task completion race', () => {
       taskId,
     });
 
+    const participantAfterInject = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participantAfterInject?.lastInFlightTaskId).toBe(taskId);
+
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_messageQueue', {
         chatroomId,
@@ -159,6 +169,16 @@ describe('Native harness task completion race', () => {
     );
     expect(promotedAfterHandoff?.status).toBe('pending');
     expect(promotedAfterHandoff?.content).toBe('Queued follow-up before erroneous promotion');
+
+    const participantAfterHandoff = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participantAfterHandoff?.lastInFlightTaskId).toBeUndefined();
   });
 
   test('agent_end recovery and handoff do not double-complete the same active task', async () => {
@@ -228,5 +248,42 @@ describe('Native harness task completion race', () => {
     expect(promotedTask._id).toBe(handoffResult.promotedTaskId);
     expect(promotedTask.content).toBe('Queued follow-up after agent_end handoff');
     expect(promotedTask.status).toBe('pending');
+
+    const participantAfterHandoff = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participantAfterHandoff?.lastInFlightTaskId).toBeUndefined();
+  });
+
+  test('handleNativeAgentEnd with explicit taskId completes only that task', async () => {
+    const { sessionId } = await createTestSession('test-native-explicit-task-id');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupNativeBuilder(sessionId, chatroomId, 'machine-native-explicit-task');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    const agentEndResult = await t.mutation(api.participants.handleNativeAgentEnd, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+    });
+    expect(agentEndResult.needsHandoffReminder).toBe(true);
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('completed');
   });
 });
