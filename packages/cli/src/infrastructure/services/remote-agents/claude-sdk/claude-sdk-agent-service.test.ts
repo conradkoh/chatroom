@@ -61,6 +61,8 @@ function stubQuery(messages: Record<string, unknown>[]) {
 }
 
 const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PROVIDER_SESSION_ID = 'claude-provider-sess-abc';
 
 describe('ClaudeSdkAgentService', () => {
   let stderrWriteSpy: MockInstance<typeof process.stderr.write>;
@@ -139,9 +141,7 @@ describe('ClaudeSdkAgentService', () => {
       });
 
       expect(result.pid).toBe(4321);
-      expect(result.harnessSessionId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      );
+      expect(result.harnessSessionId).toMatch(UUID_PATTERN);
       expect(deps.spawn).toHaveBeenCalled();
 
       result.onOutput(onOutput);
@@ -184,9 +184,7 @@ describe('ClaudeSdkAgentService', () => {
         deferInitialTurn: true,
       });
 
-      expect(result.harnessSessionId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      );
+      expect(result.harnessSessionId).toMatch(UUID_PATTERN);
 
       await vi.waitFor(() => expect(mockQueryFn).not.toHaveBeenCalled());
 
@@ -195,6 +193,133 @@ describe('ClaudeSdkAgentService', () => {
       expect(mockQueryFn.mock.calls[0][0]).toMatchObject({
         prompt: 'injected task',
         options: expect.objectContaining({ systemPrompt: 'you are helpful' }),
+      });
+    });
+
+    it('assigns distinct harnessSessionId per spawn for concurrent deferred sessions', async () => {
+      const childA = makeFakeChild(4321);
+      const childB = makeFakeChild(4322);
+      const deps = createMockDeps({
+        spawn: vi.fn().mockReturnValueOnce(childA).mockReturnValueOnce(childB),
+      });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const [resultA, resultB] = await Promise.all([
+        service.spawn({
+          workingDir: '/tmp/work-a',
+          prompt: createSpawnPrompt('bootstrap a'),
+          systemPrompt: 'you are helpful',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+          deferInitialTurn: true,
+        }),
+        service.spawn({
+          workingDir: '/tmp/work-b',
+          prompt: createSpawnPrompt('bootstrap b'),
+          systemPrompt: 'you are helpful',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+          deferInitialTurn: true,
+        }),
+      ]);
+
+      expect(resultA.harnessSessionId).toMatch(UUID_PATTERN);
+      expect(resultB.harnessSessionId).toMatch(UUID_PATTERN);
+      expect(resultA.harnessSessionId).not.toBe(resultB.harnessSessionId);
+    });
+  });
+
+  describe('deferred harness session ID', () => {
+    it('keeps provisional harnessSessionId after provider session_id is captured', async () => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+
+      const provisionalId = result.harnessSessionId;
+      expect(provisionalId).toMatch(UUID_PATTERN);
+
+      await service.resumeTurn(result.pid, 'first task');
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalledTimes(1));
+
+      expect(result.harnessSessionId).toBe(provisionalId);
+      expect(result.harnessSessionId).not.toBe(PROVIDER_SESSION_ID);
+    });
+
+    it('uses provider session_id for in-process resume on subsequent turns', async () => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+
+      await service.resumeTurn(result.pid, 'first task');
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalledTimes(1));
+      expect(mockQueryFn.mock.calls[0][0].options.resume).toBeUndefined();
+
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+      await service.resumeTurn(result.pid, 'second task');
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalledTimes(2));
+      expect(mockQueryFn.mock.calls[1][0]).toMatchObject({
+        prompt: 'second task',
+        options: expect.objectContaining({ resume: PROVIDER_SESSION_ID }),
+      });
+    });
+
+    it('canUseTool auto-allows headless tool execution', async () => {
+      stubQuery([
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalled());
+      const canUseTool = mockQueryFn.mock.calls[0][0].options.canUseTool as (
+        toolName: string,
+        input: Record<string, unknown>
+      ) => Promise<{ behavior: string; updatedInput: Record<string, unknown> }>;
+      const input = { command: 'ls' };
+      await expect(canUseTool('bash', input)).resolves.toEqual({
+        behavior: 'allow',
+        updatedInput: input,
       });
     });
   });

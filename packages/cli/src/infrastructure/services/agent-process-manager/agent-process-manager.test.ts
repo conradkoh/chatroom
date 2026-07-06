@@ -732,6 +732,39 @@ describe('AgentProcessManager', () => {
       });
     });
 
+    test('claude-sdk spawn stores provisional UUID harnessSessionId for native delivery', async () => {
+      const provisionalId = 'b9a4f2e1-3c7d-4a5b-9e8f-1a2b3c4d5e6f';
+      const claudeSdkService = {
+        ...createMockService(),
+        id: 'claude-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: provisionalId,
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+      };
+      deps.agentServices = new Map([['claude-sdk', claudeSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'claude-sdk', wantResume: false }));
+
+      expect(manager.getSlot(CHATROOM_ID, ROLE)!.harnessSessionId).toBe(provisionalId);
+      expect(getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.harnessSessionId).toBe(
+        provisionalId
+      );
+
+      const updateSpawnedCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.pid === PID && args.reason === 'user.start'
+      );
+      expect(updateSpawnedCalls).toHaveLength(1);
+      expect(updateSpawnedCalls[0]).toMatchObject({
+        harnessSessionId: provisionalId,
+      });
+    });
+
     test('second start while running replaces PID', async () => {
       await manager.ensureRunning(createOpts());
 

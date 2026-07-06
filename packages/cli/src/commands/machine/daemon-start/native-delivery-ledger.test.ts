@@ -36,4 +36,15 @@ describe('NativeDeliveryLedger', () => {
     expect(ledger.isDelivered('task_a', 'sess_1')).toBe(false);
     expect(ledger.isDelivered('task_b', 'sess_2')).toBe(true);
   });
+
+  test('tracks deliveries keyed by UUID provisional harness session id', () => {
+    const ledger = new NativeDeliveryLedger();
+    const provisionalId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    expect(ledger.tryAcquire('task_a', provisionalId)).toBe(true);
+    ledger.markDelivered('task_a', provisionalId);
+    expect(ledger.isDelivered('task_a', provisionalId)).toBe(true);
+    expect(
+      ledger.isDelivered('task_a', 'different-uuid-00000000-0000-4000-8000-000000000001')
+    ).toBe(false);
+  });
 });
