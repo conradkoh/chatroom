@@ -36,9 +36,12 @@ export const createContext = mutation({
         const handoffSinceContext = await ctx.db
           .query('chatroom_messages')
           .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('senderRole', args.role).eq('type', 'handoff')
+            q
+              .eq('chatroomId', args.chatroomId)
+              .eq('senderRole', args.role)
+              .eq('type', 'handoff')
+              .gt('_creationTime', currentContext.createdAt)
           )
-          .filter((q) => q.gt(q.field('_creationTime'), currentContext.createdAt))
           .first();
 
         if (!handoffSinceContext) {
