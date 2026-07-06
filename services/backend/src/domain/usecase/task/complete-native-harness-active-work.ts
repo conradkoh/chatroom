@@ -15,7 +15,9 @@ function isActiveNativeTaskForRole(
   if (!task) return false;
   if (task.chatroomId !== chatroomId) return false;
   if (task.assignedTo?.toLowerCase() !== role.toLowerCase()) return false;
-  return task.status === 'acknowledged' || task.status === 'in_progress';
+  // Only in_progress tasks were actually worked on (token activity via readTask).
+  // Acknowledged-only tasks may end via error agent_end before any harness output.
+  return task.status === 'in_progress';
 }
 
 async function resolveCorrelatedActiveTask(
@@ -37,7 +39,7 @@ async function resolveCorrelatedActiveTask(
 }
 
 /**
- * Completes the active (acknowledged or in_progress) task for a native harness role.
+ * Completes the in_progress task for a native harness role.
  * Single entry point for agent_end recovery completion.
  */
 export async function completeNativeHarnessActiveWork(

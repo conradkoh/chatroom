@@ -70,6 +70,20 @@ async function createAcknowledgedTask(
   return taskId;
 }
 
+async function startTaskInProgress(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  taskId: Id<'chatroom_tasks'>
+) {
+  await t.mutation(api.tasks.readTask, {
+    sessionId,
+    chatroomId,
+    role,
+    taskId,
+  });
+}
+
 describe('Native harness task completion race', () => {
   test('handoff-to-user must not complete a freshly promoted pending task after agent_end recovery', async () => {
     const { sessionId } = await createTestSession('test-native-harness-completion-race');
@@ -85,6 +99,7 @@ describe('Native harness task completion race', () => {
       action: 'native:task-injected',
       taskId,
     });
+    await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
 
     const participantAfterInject = await t.run(async (ctx) => {
       return await ctx.db
@@ -195,6 +210,7 @@ describe('Native harness task completion race', () => {
       action: 'native:task-injected',
       taskId,
     });
+    await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_messageQueue', {
@@ -274,6 +290,7 @@ describe('Native harness task completion race', () => {
       action: 'native:task-injected',
       taskId,
     });
+    await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
 
     const agentEndResult = await t.mutation(api.participants.handleNativeAgentEnd, {
       sessionId,

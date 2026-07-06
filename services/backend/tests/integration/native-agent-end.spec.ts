@@ -51,8 +51,51 @@ async function createAcknowledgedTask(
   return taskId;
 }
 
+async function startTaskInProgress(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  taskId: Id<'chatroom_tasks'>
+) {
+  await t.mutation(api.tasks.readTask, {
+    sessionId,
+    chatroomId,
+    role,
+    taskId,
+  });
+}
+
 describe('Native agent_end handler', () => {
-  test('returns needsHandoffReminder when acknowledged task active', async () => {
+  test('does not complete acknowledged-only task on error agent_end', async () => {
+    const { sessionId } = await createTestSession('test-native-agent-end-ack-only');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:task-injected',
+      taskId,
+    });
+
+    const result = await t.mutation(api.participants.handleNativeAgentEnd, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    expect(result).toEqual({
+      needsHandoffReminder: false,
+      transitionedToWaiting: true,
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('acknowledged');
+  });
+
+  test('returns needsHandoffReminder when in_progress task active', async () => {
     const { sessionId } = await createTestSession('test-native-agent-end-reminder');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -65,6 +108,7 @@ describe('Native agent_end handler', () => {
       action: 'native:task-injected',
       taskId,
     });
+    await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
 
     const result = await t.mutation(api.participants.handleNativeAgentEnd, {
       sessionId,
@@ -97,6 +141,7 @@ describe('Native agent_end handler', () => {
       action: 'native:task-injected',
       taskId,
     });
+    await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
 
     let queuedMessageId: string | undefined;
     await t.run(async (ctx) => {
@@ -151,6 +196,7 @@ describe('Native agent_end handler', () => {
       action: 'native:task-injected',
       taskId,
     });
+    await startTaskInProgress(sessionId, chatroomId, 'builder', taskId);
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_messageQueue', {
