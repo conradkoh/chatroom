@@ -1,8 +1,8 @@
 /**
  * Native queued delivery after agent_end — integration test
  *
- * Proves handleNativeAgentEnd completes active work without promoting the queue,
- * then handoff-to-user promotes the queued message and projects a deliverable snapshot.
+ * Proves handleNativeAgentEnd signals handoff reminder without completing active work
+ * or promoting the queue, then handoff-to-user completes the task, promotes the queued
  */
 
 import { describe, expect, test } from 'vitest';
@@ -45,7 +45,7 @@ async function registerMachineWithCursorSdk(sessionId: string, machineId: string
 }
 
 describe('Native queued delivery after agent_end', () => {
-  test('completes task, promotes queue, and emits deliverable machine snapshot', async () => {
+  test('defers completion and promotion to handoff-to-user, then emits deliverable snapshot', async () => {
     const { sessionId } = await createTestSession('test-native-queued-delivery-agent-end');
     const machineId = 'machine-native-queued-delivery-1';
     await registerMachineWithCursorSdk(sessionId, machineId);
@@ -111,7 +111,7 @@ describe('Native queued delivery after agent_end', () => {
     });
 
     const originalTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(originalTask?.status).toBe('completed');
+    expect(originalTask?.status).toBe('in_progress');
 
     await t.run(async (ctx) => {
       const pendingBeforeHandoff = await ctx.db
@@ -128,9 +128,10 @@ describe('Native queued delivery after agent_end', () => {
       chatroomId,
       senderRole: 'builder',
       targetRole: 'user',
-      content: 'Handoff after agent_end — promote queued message next.',
+      content: 'Handoff after agent_end — complete task and promote queued message next.',
     });
     expect(handoffResult.success).toBe(true);
+    expect(handoffResult.completedTaskIds).toContain(taskId);
     expect(handoffResult.promotedTaskId).toBeTruthy();
 
     const promotedTask = await t.run(async (ctx) => {
