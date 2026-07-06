@@ -1,11 +1,9 @@
 import { findActiveAssignedTaskForRole } from './find-acknowledged-task-for-role';
-import { transitionTask } from './transition-task';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
-// fallow-ignore-next-line complexity
-function isActiveNativeTaskForRole(
+function isInProgressNativeTaskForRole(
   task: Doc<'chatroom_tasks'> | null,
   chatroomId: Id<'chatroom_rooms'>,
   role: string
@@ -37,22 +35,18 @@ async function resolveCorrelatedActiveTask(
 }
 
 /**
- * Completes the in_progress task for a native harness role.
- * Single entry point for agent_end recovery completion.
+ * Finds the in_progress task for a native harness role without completing it.
+ * Completion and queue promotion are deferred to handoff-to-user.
  */
-export async function completeNativeHarnessActiveWork(
+export async function findNativeHarnessInProgressWork(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
   opts?: { taskId?: Id<'chatroom_tasks'> }
 ): Promise<Id<'chatroom_tasks'> | null> {
   const activeTask = await resolveCorrelatedActiveTask(ctx, chatroomId, role, opts?.taskId);
-  if (!isActiveNativeTaskForRole(activeTask, chatroomId, role)) {
+  if (!isInProgressNativeTaskForRole(activeTask, chatroomId, role)) {
     return null;
   }
-
-  await transitionTask(ctx, activeTask._id, 'completed', 'completeTask', undefined, {
-    skipAutoPromotion: true,
-  });
   return activeTask._id;
 }

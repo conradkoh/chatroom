@@ -1,7 +1,7 @@
 /**
  * Handoff reminder double agent_end — integration tests
  *
- * Simulates: agent_end (complete in_progress) → handoff reminder injected →
+ * Simulates: agent_end (signal handoff reminder) → handoff reminder injected →
  * second agent_end → handoff-to-user. Ensures only the worked task is completed
  * and queued follow-ups are promoted for agent delivery, not swallowed.
  */
@@ -46,7 +46,7 @@ async function setupNativeBuilder(
 }
 
 describe('Handoff reminder double agent_end', () => {
-  test('first agent_end completes in_progress only; second agent_end + handoff preserve queued task', async () => {
+  test('first agent_end signals reminder only; handoff-to-user completes and promotes queued task', async () => {
     const { sessionId } = await createTestSession('test-handoff-reminder-double-end');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -88,7 +88,7 @@ describe('Handoff reminder double agent_end', () => {
     expect(firstEnd).toEqual({ needsHandoffReminder: true, transitionedToWaiting: false });
 
     const afterFirst = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(afterFirst?.status).toBe('completed');
+    expect(afterFirst?.status).toBe('in_progress');
 
     const secondEnd = await t.mutation(api.participants.handleNativeAgentEnd, {
       sessionId,
@@ -96,7 +96,7 @@ describe('Handoff reminder double agent_end', () => {
       role: 'builder',
       taskId,
     });
-    expect(secondEnd.needsHandoffReminder).toBe(false);
+    expect(secondEnd.needsHandoffReminder).toBe(true);
 
     await t.run(async (ctx) => {
       const pending = await ctx.db
@@ -116,6 +116,7 @@ describe('Handoff reminder double agent_end', () => {
       content: 'Handoff after handoff reminder sequence.',
     });
     expect(handoff.success).toBe(true);
+    expect(handoff.completedTaskIds).toContain(taskId);
     expect(handoff.completedTaskIds).not.toContain(handoff.promotedTaskId);
     expect(handoff.promotedTaskId).toBeTruthy();
 
