@@ -34,6 +34,7 @@ import { notifyNativeHarnessSessionLostOnExit } from '../../../commands/machine/
 import { notifyNativeSessionLost } from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
 import type { HarnessSessionSnapshot, StopReason } from '../../../domain/agent-lifecycle/index.js';
 import {
+  resolveResumableHarnessSessionId,
   decideResumePathOnRestart,
   resolveStopReason,
   shouldAutoRestartAfterProcessExit,
@@ -81,6 +82,7 @@ import {
 } from '../agent-lifecycle/agent-lifecycle-types.js';
 import type {
   HarnessReconnectMetadata,
+  HarnessSessionIdUpdatedInfo,
   RemoteAgentService,
   SpawnResult,
 } from '../remote-agents/remote-agent-service.js';
@@ -104,6 +106,7 @@ interface ExitContext {
   model: string | undefined;
   workingDir: string | undefined;
   harnessSessionId: string | undefined;
+  resumableHarnessSessionId: string | undefined;
   wantResume: boolean | undefined;
   recentLogLines: string[] | undefined;
   stopReason: StopReason;
@@ -115,8 +118,10 @@ export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
   harness?: AgentHarness;
-  /** Harness-native session ID for daemon-memory reconnect metadata. */
+  /** Immutable spawn correlation ID for native delivery gating and ledger. */
   harnessSessionId?: string;
+  /** Latest provider-native session ID for daemon-memory resume. */
+  resumableHarnessSessionId?: string;
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -254,6 +259,7 @@ export class AgentProcessManager {
         pid: slot.pid,
         harness: slot.harness,
         harnessSessionId: slot.harnessSessionId,
+        resumableHarnessSessionId: slot.resumableHarnessSessionId,
         model: slot.model,
         workingDir: slot.workingDir,
         startedAt: slot.startedAt,
@@ -287,6 +293,7 @@ export class AgentProcessManager {
       slot.pid = undefined;
       slot.harness = undefined;
       slot.harnessSessionId = undefined;
+      slot.resumableHarnessSessionId = undefined;
       slot.model = undefined;
       slot.workingDir = undefined;
       slot.startedAt = undefined;
@@ -618,6 +625,7 @@ export class AgentProcessManager {
       model: slot.model,
       workingDir: slot.workingDir,
       harnessSessionId: slot.harnessSessionId,
+      resumableHarnessSessionId: slot.resumableHarnessSessionId,
       wantResume: slot.wantResume,
       recentLogLines: slot.recentLogLines,
       stopReason,
@@ -637,6 +645,7 @@ export class AgentProcessManager {
       service && slot.pid ? this.readHarnessReconnectMetadata(service, slot.pid) : undefined;
     this.recordLastHarnessSession(key, {
       harnessSessionId,
+      resumableHarnessSessionId: ctx.resumableHarnessSessionId,
       harness,
       agentName: harnessMeta?.agentName ?? '',
       workingDir: ctx.workingDir ?? '',
@@ -806,6 +815,7 @@ export class AgentProcessManager {
     return ctx.wantResume ?? true;
   }
 
+  // fallow-ignore-next-line complexity
   private async retryCursorSdkSessionReopen(
     opts: HandleExitOpts,
     ctx: ExitContext,
@@ -829,7 +839,8 @@ export class AgentProcessManager {
         }
 
         const wantResume = this.resolveCursorSdkReopenWantResume(hadRunError, attempt, ctx);
-        const storedSessionId = this.lastHarnessSessions.get(key)?.harnessSessionId;
+        const stored = this.lastHarnessSessions.get(key);
+        const storedSessionId = stored ? resolveResumableHarnessSessionId(stored) : undefined;
 
         await this.emitSessionReopenRetry(
           opts.chatroomId,
@@ -1216,11 +1227,12 @@ export class AgentProcessManager {
     }
 
     try {
+      const resumableId = resolveResumableHarnessSessionId(stored);
       await this.emitSessionResumeRequested(
         opts.chatroomId,
         opts.role,
         opts.agentHarness,
-        stored.harnessSessionId
+        resumableId
       );
       const spawnResult = await opts.service.resumeFromDaemonMemory(
         {
@@ -1236,13 +1248,13 @@ export class AgentProcessManager {
           resolvedConvexUrl: this.deps.convexUrl,
         },
         {
-          harnessSessionId: stored.harnessSessionId,
+          harnessSessionId: resumableId,
           agentName: stored.agentName,
           workingDir: stored.workingDir,
           model: stored.model,
         }
       );
-      await this.emitSessionResumed(opts.chatroomId, opts.role, stored.harnessSessionId);
+      await this.emitSessionResumed(opts.chatroomId, opts.role, resumableId);
       return spawnResult;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -1251,7 +1263,7 @@ export class AgentProcessManager {
         opts.chatroomId,
         opts.role,
         reason,
-        stored.harnessSessionId
+        resolveResumableHarnessSessionId(stored)
       );
       return null;
     }
@@ -1276,7 +1288,7 @@ export class AgentProcessManager {
         opts.chatroomId,
         opts.role,
         'working directory changed',
-        stored.harnessSessionId
+        resolveResumableHarnessSessionId(stored)
       );
       return 'working directory changed';
     }
@@ -1289,7 +1301,7 @@ export class AgentProcessManager {
         stored.harness !== opts.agentHarness
           ? 'harness changed'
           : 'incomplete session in daemon memory',
-        stored.harnessSessionId
+        resolveResumableHarnessSessionId(stored)
       );
       return 'validation failed';
     }
@@ -1299,7 +1311,7 @@ export class AgentProcessManager {
         opts.chatroomId,
         opts.role,
         'daemon-memory session resume not yet supported',
-        stored.harnessSessionId
+        resolveResumableHarnessSessionId(stored)
       );
       return 'not supported';
     }
@@ -1391,6 +1403,48 @@ export class AgentProcessManager {
       );
     } catch (err) {
       console.log(`   ⚠️  Failed to emit sessionReopenRetry event: ${(err as Error).message}`);
+    }
+  }
+
+  private applyHarnessSessionIdUpdate(
+    key: string,
+    slot: AgentSlot,
+    chatroomId: string,
+    role: string,
+    info: HarnessSessionIdUpdatedInfo
+  ): void {
+    if (!slot.harnessSessionId || slot.harnessSessionId !== info.correlationId) {
+      return;
+    }
+    slot.resumableHarnessSessionId = info.resumableId;
+    const stored = this.lastHarnessSessions.get(key);
+    if (stored?.harnessSessionId === info.correlationId) {
+      this.recordLastHarnessSession(key, {
+        ...stored,
+        resumableHarnessSessionId: info.resumableId,
+      });
+    }
+    void this.emitHarnessSessionIdUpdated(chatroomId, role, info);
+  }
+
+  private async emitHarnessSessionIdUpdated(
+    chatroomId: string,
+    role: string,
+    info: HarnessSessionIdUpdatedInfo
+  ): Promise<void> {
+    try {
+      await this.deps.backend.mutation(api.machines.emitHarnessSessionIdUpdated, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        correlationId: info.correlationId,
+        ...(info.previousResumableId ? { previousResumableId: info.previousResumableId } : {}),
+        resumableId: info.resumableId,
+        source: info.source,
+      });
+    } catch (err) {
+      console.log(`   ⚠️  Failed to emit harnessSessionIdUpdated event: ${(err as Error).message}`);
     }
   }
 
@@ -1579,9 +1633,11 @@ export class AgentProcessManager {
     slot.pid = pid;
     slot.harness = opts.agentHarness;
     slot.harnessSessionId = spawnResult.harnessSessionId;
+    slot.resumableHarnessSessionId = undefined;
     if (spawnResult.harnessSessionId) {
       this.recordLastHarnessSession(key, {
         harnessSessionId: spawnResult.harnessSessionId,
+        resumableHarnessSessionId: undefined,
         harness: opts.agentHarness,
         agentName: spawnResult.harnessReconnect?.agentName ?? '',
         workingDir: opts.workingDir,
@@ -1648,6 +1704,13 @@ export class AgentProcessManager {
             harness: opts.agentHarness,
           })
         );
+      });
+    }
+
+    if (spawnResult.onHarnessSessionIdUpdated) {
+      spawnResult.onHarnessSessionIdUpdated((info) => {
+        const slotKey = agentKey(opts.chatroomId, opts.role);
+        this.applyHarnessSessionIdUpdate(slotKey, slot, opts.chatroomId, opts.role, info);
       });
     }
 
@@ -1788,6 +1851,7 @@ export class AgentProcessManager {
     const harnessMeta = service ? this.readHarnessReconnectMetadata(service, pid) : undefined;
     this.recordLastHarnessSession(key, {
       harnessSessionId: slot.harnessSessionId as string,
+      resumableHarnessSessionId: slot.resumableHarnessSessionId,
       harness,
       agentName: harnessMeta?.agentName ?? '',
       workingDir: slot.workingDir ?? '',

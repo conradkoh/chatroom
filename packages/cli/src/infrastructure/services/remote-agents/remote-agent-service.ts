@@ -65,6 +65,17 @@ export interface DaemonHarnessSessionContext {
   model?: string;
 }
 
+/** When the harness learns or rotates its provider-native session ID. */
+export interface HarnessSessionIdUpdatedInfo {
+  /** Immutable correlation ID returned at spawn (UUID for deferred-start harnesses). */
+  correlationId: string;
+  /** Previous resumable ID, if any. */
+  previousResumableId?: string;
+  /** Latest provider-native session ID for daemon-memory resume. */
+  resumableId: string;
+  source: 'provider_allocated' | 'provider_rotated';
+}
+
 export interface SpawnResult {
   pid: number;
   /**
@@ -93,6 +104,8 @@ export interface SpawnResult {
   onAssistantText?: (cb: (text: string) => void) => void;
   /** Harness session ID for daemon-memory reconnect metadata. Undefined if not applicable. */
   harnessSessionId?: string;
+  /** Fired when the provider-native resumable session ID is allocated or changes. */
+  onHarnessSessionIdUpdated?: (cb: (info: HarnessSessionIdUpdatedInfo) => void) => void;
   /** Extra fields for daemon-memory resume (e.g. opencode-sdk agent name). */
   harnessReconnect?: HarnessReconnectMetadata;
 }

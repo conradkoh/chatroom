@@ -9,4 +9,4 @@ if [ -n "$UPSTREAM" ]; then
 else
   BASE="master"
 fi
-fallow audit --base "$BASE" --dead-code-baseline .fallow/baseline.json --health-baseline .fallow/health-baseline.json --quiet --gate-marker pre-commit
+fallow audit --base "$BASE" --dead-code-baseline .fallow/baseline.json --health-baseline .fallow/health-baseline.json --dupes-baseline .fallow/dupes-baseline.json --quiet --gate-marker pre-commit

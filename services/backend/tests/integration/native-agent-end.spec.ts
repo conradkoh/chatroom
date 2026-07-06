@@ -122,13 +122,13 @@ describe('Native agent_end handler', () => {
     });
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.status).toBe('completed');
+    expect(task?.status).toBe('in_progress');
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).not.toBe('agent.waiting');
   });
 
-  test('completes active task without promoting queue until handoff', async () => {
+  test('signals handoff reminder without completing task or promoting queue until handoff', async () => {
     const { sessionId } = await createTestSession('test-native-agent-end-promote-queue');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -167,7 +167,7 @@ describe('Native agent_end handler', () => {
     });
 
     const originalTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(originalTask?.status).toBe('completed');
+    expect(originalTask?.status).toBe('in_progress');
 
     await t.run(async (ctx) => {
       const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId as any);
@@ -183,7 +183,7 @@ describe('Native agent_end handler', () => {
     });
   });
 
-  test('second agent_end before handoff does not promote queue (race guard)', async () => {
+  test('second agent_end before handoff still signals reminder; handoff completes and promotes', async () => {
     const { sessionId } = await createTestSession('test-native-agent-end-double-end-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -215,13 +215,17 @@ describe('Native agent_end handler', () => {
       role: 'builder',
     });
 
-    await t.mutation(api.participants.handleNativeAgentEnd, {
+    const secondEnd = await t.mutation(api.participants.handleNativeAgentEnd, {
       sessionId,
       chatroomId,
       role: 'builder',
     });
+    expect(secondEnd.needsHandoffReminder).toBe(true);
 
     await t.run(async (ctx) => {
+      const task = await ctx.db.get('chatroom_tasks', taskId);
+      expect(task?.status).toBe('in_progress');
+
       const pending = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
@@ -245,6 +249,7 @@ describe('Native agent_end handler', () => {
       content: 'Handoff after double agent_end.',
     });
     expect(handoffResult.success).toBe(true);
+    expect(handoffResult.completedTaskIds).toContain(taskId);
     expect(handoffResult.promotedTaskId).toBeTruthy();
 
     const promoted = await t.run(async (ctx) => {
@@ -260,7 +265,7 @@ describe('Native agent_end handler', () => {
     expect(promoted.content).toBe('Queued follow-up after double agent_end');
   });
 
-  test('transitions to waiting when no active task', async () => {
+  test('transitions to waiting when no active task without promoting queue', async () => {
     const { sessionId } = await createTestSession('test-native-agent-end-waiting');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -294,7 +299,7 @@ describe('Native agent_end handler', () => {
 
     await t.run(async (ctx) => {
       const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId as any);
-      expect(queueRecord).toBeNull();
+      expect(queueRecord).not.toBeNull();
 
       const pendingTasks = await ctx.db
         .query('chatroom_tasks')
@@ -302,9 +307,18 @@ describe('Native agent_end handler', () => {
           q.eq('chatroomId', chatroomId).eq('status', 'pending')
         )
         .collect();
-      expect(pendingTasks).toHaveLength(1);
-      expect(pendingTasks[0]?.content).toBe('Idle-path queued message');
+      expect(pendingTasks).toHaveLength(0);
     });
+
+    const handoffResult = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Handoff after idle agent_end — promote queued message.',
+    });
+    expect(handoffResult.success).toBe(true);
+    expect(handoffResult.promotedTaskId).toBeTruthy();
   });
 
   test('is idempotent when already waiting', async () => {
@@ -355,20 +369,20 @@ describe('Native agent_end completion status gate', () => {
     {
       label: 'acknowledged-only (injected, no token activity)',
       startWork: false,
-      expectCompleted: false,
+      expectCompletedOnAgentEnd: false,
       expectReminder: false,
       expectWaiting: true,
     },
     {
       label: 'in_progress (token activity via readTask)',
       startWork: true,
-      expectCompleted: true,
+      expectCompletedOnAgentEnd: false,
       expectReminder: true,
       expectWaiting: false,
     },
   ])(
-    '$label — agent_end completes only when work started',
-    async ({ startWork, expectCompleted, expectReminder, expectWaiting }) => {
+    '$label — agent_end defers completion to handoff-to-user',
+    async ({ startWork, expectCompletedOnAgentEnd, expectReminder, expectWaiting }) => {
       const { sessionId } = await createTestSession(`test-native-agent-end-gate-${startWork}`);
       const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
       await joinParticipant(sessionId, chatroomId, 'builder');
@@ -398,7 +412,9 @@ describe('Native agent_end completion status gate', () => {
       });
 
       const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-      expect(task?.status).toBe(expectCompleted ? 'completed' : 'acknowledged');
+      expect(task?.status).toBe(
+        expectCompletedOnAgentEnd ? 'completed' : startWork ? 'in_progress' : 'acknowledged'
+      );
 
       const participant = await t.run(async (ctx) => {
         return ctx.db

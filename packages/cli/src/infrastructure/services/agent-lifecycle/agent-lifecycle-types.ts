@@ -19,6 +19,7 @@ import type { SpawnPrompt } from '../remote-agents/spawn-prompt.js';
 export interface AgentLifecycleSlot extends AgentSlotSnapshot {
   readonly harness?: AgentHarness;
   readonly harnessSessionId?: string;
+  readonly resumableHarnessSessionId?: string;
   readonly model?: string;
   readonly workingDir?: string;
   readonly startedAt?: number;

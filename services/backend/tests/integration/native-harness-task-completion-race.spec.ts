@@ -9,7 +9,6 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { maybePromoteNextQueuedTask } from '../../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
@@ -85,7 +84,7 @@ async function startTaskInProgress(
 }
 
 describe('Native harness task completion race', () => {
-  test('handoff-to-user must not complete a freshly promoted pending task after agent_end recovery', async () => {
+  test('handoff-to-user completes in_progress work and promotes queue without force-completing promoted pending', async () => {
     const { sessionId } = await createTestSession('test-native-harness-completion-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -133,54 +132,32 @@ describe('Native harness task completion race', () => {
     });
 
     const originalTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(originalTask?.status).toBe('completed');
+    expect(originalTask?.status).toBe('in_progress');
 
     await t.run(async (ctx) => {
-      const pendingBeforeRace = await ctx.db
+      const pendingBeforeHandoff = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
           q.eq('chatroomId', chatroomId).eq('status', 'pending')
         )
         .collect();
-      expect(pendingBeforeRace).toHaveLength(0);
+      expect(pendingBeforeHandoff).toHaveLength(0);
     });
-
-    let promotedTaskId: Id<'chatroom_tasks'> | undefined;
-    await t.run(async (ctx) => {
-      const result = await maybePromoteNextQueuedTask(ctx, chatroomId, {
-        entryPointRole: 'builder',
-      });
-      expect(result.promoted).toBeTruthy();
-      promotedTaskId = result.promoted ?? undefined;
-    });
-
-    const pendingBeforeHandoff = await t.run(async (ctx) => {
-      const pending = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', chatroomId).eq('status', 'pending')
-        )
-        .collect();
-      expect(pending).toHaveLength(1);
-      expect(pending[0]?.content).toBe('Queued follow-up before erroneous promotion');
-      return pending[0]!;
-    });
-    expect(pendingBeforeHandoff._id).toBe(promotedTaskId);
 
     const handoffResult = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'builder',
       targetRole: 'user',
-      content: 'Handoff after erroneous queue promotion.',
+      content: 'Handoff after agent_end — complete active work and promote queue.',
     });
     expect(handoffResult.success).toBe(true);
-
-    // Post-fix expectation: pending task survives handoff Step 1 for agent delivery.
-    expect(handoffResult.completedTaskIds).not.toContain(promotedTaskId);
+    expect(handoffResult.completedTaskIds).toContain(taskId);
+    expect(handoffResult.promotedTaskId).toBeTruthy();
+    expect(handoffResult.completedTaskIds).not.toContain(handoffResult.promotedTaskId);
 
     const promotedAfterHandoff = await t.run(async (ctx) =>
-      ctx.db.get('chatroom_tasks', promotedTaskId!)
+      ctx.db.get('chatroom_tasks', handoffResult.promotedTaskId!)
     );
     expect(promotedAfterHandoff?.status).toBe('pending');
     expect(promotedAfterHandoff?.content).toBe('Queued follow-up before erroneous promotion');
@@ -234,7 +211,7 @@ describe('Native harness task completion race', () => {
     });
 
     const completedAfterAgentEnd = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(completedAfterAgentEnd?.status).toBe('completed');
+    expect(completedAfterAgentEnd?.status).toBe('in_progress');
 
     const handoffResult = await t.mutation(api.messages.handoff, {
       sessionId,
@@ -244,8 +221,7 @@ describe('Native harness task completion race', () => {
       content: 'Handoff immediately after agent_end recovery.',
     });
     expect(handoffResult.success).toBe(true);
-    // Task was already completed by handleNativeAgentEnd — handoff must not re-complete it.
-    expect(handoffResult.completedTaskIds).not.toContain(taskId);
+    expect(handoffResult.completedTaskIds).toContain(taskId);
     expect(handoffResult.promotedTaskId).toBeTruthy();
 
     const originalTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
@@ -276,7 +252,7 @@ describe('Native harness task completion race', () => {
     expect(participantAfterHandoff?.lastInFlightTaskId).toBeUndefined();
   });
 
-  test('handleNativeAgentEnd with explicit taskId completes only that task', async () => {
+  test('handleNativeAgentEnd with explicit taskId signals reminder without completing', async () => {
     const { sessionId } = await createTestSession('test-native-explicit-task-id');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -301,7 +277,7 @@ describe('Native harness task completion race', () => {
     expect(agentEndResult.needsHandoffReminder).toBe(true);
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.status).toBe('completed');
+    expect(task?.status).toBe('in_progress');
   });
 
   test('acknowledged-only error agent_end leaves queue for handoff step 6 promotion', async () => {

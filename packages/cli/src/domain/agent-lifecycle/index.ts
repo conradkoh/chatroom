@@ -1,5 +1,6 @@
 export type { ResumePath } from './entities/resume-path.js';
 export type { HarnessSessionSnapshot } from './entities/session-snapshot.js';
+export { resolveResumableHarnessSessionId } from './resolve-resumable-harness-session-id.js';
 export type { StopReason } from './entities/stop-reason.js';
 export { resolveStopReason } from './entities/stop-reason.js';
 export {

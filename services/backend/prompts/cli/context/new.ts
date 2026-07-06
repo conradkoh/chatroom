@@ -9,6 +9,8 @@ export interface ContextNewParams {
   role?: string;
   /** CLI environment prefix for non-production environments (empty string for production) */
   cliEnvPrefix: string;
+  /** When known (e.g. task delivery), pre-fill the user message ID that triggered this work. */
+  triggerMessageId?: string;
 }
 
 /**
@@ -17,7 +19,7 @@ export interface ContextNewParams {
  * Emitted immediately after a contextNewCommand snippet.
  */
 export function contextNewHint(): string {
-  return 'REQUIRED: All context content MUST conform to the template. Run `chatroom context view-template` and follow it exactly.';
+  return 'REQUIRED: All context content MUST conform to the template. Run `chatroom context view-template` and follow it exactly. `--trigger-message-id` must be a **message** ID (from Origin Message ID in the task header), NOT the Task ID.';
 }
 
 /**
@@ -25,12 +27,14 @@ export function contextNewHint(): string {
  * Includes --trigger-message-id placeholder so agents know to pass the origin message ID,
  * which anchors the context window to the correct starting message.
  */
+// fallow-ignore-next-line complexity
 export function contextNewCommand(params: ContextNewParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  const commandPrefix = `${prefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --trigger-message-id="<userMessageId>"`;
+  const triggerMessageId = params.triggerMessageId ?? '<userMessageId>';
+  const commandPrefix = `${prefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --trigger-message-id="${triggerMessageId}"`;
   return formatStdinHeredocCommand(
     commandPrefix,
     CONTEXT_STDIN_DELIMITER,

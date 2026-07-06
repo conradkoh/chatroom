@@ -3,8 +3,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
-import { completeNativeHarnessActiveWork } from '../task/complete-native-harness-active-work';
-import { maybePromoteNextQueuedTask } from '../task/maybe-promote-next-queued-task';
+import { findNativeHarnessInProgressWork } from '../task/find-native-harness-in-progress-work';
 
 export type HandleNativeAgentEndResult = {
   needsHandoffReminder: boolean;
@@ -39,7 +38,8 @@ async function patchParticipantNativeWaiting(
 
 /**
  * Idempotent server-side handler for native harness agent_end.
- * When active work remains, signals the CLI to inject a handoff reminder.
+ * When in_progress work remains, signals the CLI to inject a handoff reminder.
+ * Task completion and queue promotion happen on handoff-to-user, not here.
  * Otherwise transitions to native waiting.
  */
 // fallow-ignore-next-line complexity
@@ -52,10 +52,10 @@ export async function handleNativeAgentEnd(
   const participant = await getParticipantForChatroomRole(ctx, args.chatroomId, role);
   const alreadyWaiting = participant?.lastStatus === 'agent.waiting';
 
-  const completedTaskId = await completeNativeHarnessActiveWork(ctx, args.chatroomId, role, {
+  const inProgressTaskId = await findNativeHarnessInProgressWork(ctx, args.chatroomId, role, {
     taskId: args.taskId,
   });
-  if (completedTaskId) {
+  if (inProgressTaskId) {
     return { needsHandoffReminder: true, transitionedToWaiting: false };
   }
 
@@ -65,14 +65,6 @@ export async function handleNativeAgentEnd(
   }
   if (participant) {
     await patchParticipantNativeWaiting(ctx, participant, now);
-  }
-
-  // A second agent_end can fire after active work was completed but before handoff-to-user
-  // runs. Idle-path promotion here would create a pending task that handoff Step 1 then
-  // force-completes without the agent ever receiving it. Defer promotion to handoff Step 6.
-  const awaitingHandoffAfterTaskComplete = participant?.lastStatus === 'task.completed';
-  if (!awaitingHandoffAfterTaskComplete) {
-    await maybePromoteNextQueuedTask(ctx, args.chatroomId, { entryPointRole: role });
   }
 
   return { needsHandoffReminder: false, transitionedToWaiting };
