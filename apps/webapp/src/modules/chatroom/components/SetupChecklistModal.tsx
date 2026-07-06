@@ -1,9 +1,15 @@
 'use client';
 
-import { X, Settings2, Check } from 'lucide-react';
-import React, { useCallback, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { X, Settings2 } from 'lucide-react';
+import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 
-import { SetupChecklist } from './SetupChecklist';
+import { SetupAgentTeamStep } from './setup/SetupAgentTeamStep';
+import { SetupWorkspaceStep } from './setup/SetupWorkspaceStep';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { countJoinedRoles } from '../utils/countJoinedRoles';
 import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
 
 interface Participant {
@@ -20,62 +26,48 @@ interface SetupChecklistModalProps {
   teamEntryPoint?: string;
   participants: Participant[];
   onViewPrompt: (role: string) => void;
-  /** Current chatroom display name */
   chatroomName: string;
-  /** Callback to rename the chatroom */
   onRenameChatroom: (newName: string) => Promise<void>;
-  /** Called when the user pastes a path into an agent's working directory field. */
   onWorkingDirPasted?: (rawPath: string) => void;
 }
 
-// SETUP NAMING CONTRACT
-// During first-time setup, pasting a project path into the entry-point agent's
-// working-directory field (inside the agent cards below) auto-names the chatroom
-// from the final path segment. The "Chatroom Name" field at the top of this modal
-// reflects that name and can also be edited / pasted into directly.
+type SetupStep = 'workspace' | 'agents';
+
+// fallow-ignore-next-line complexity
 export const SetupChecklistModal = memo(function SetupChecklistModal({
   isOpen,
   onClose,
   chatroomId,
-  teamName,
+  teamName: _teamName,
   teamRoles,
   teamEntryPoint,
   participants,
-  onViewPrompt,
+  onViewPrompt: _onViewPrompt,
   chatroomName,
   onRenameChatroom,
-  onWorkingDirPasted,
+  onWorkingDirPasted: _onWorkingDirPasted,
 }: SetupChecklistModalProps) {
-  // Chatroom name editing state
-  const [editedName, setEditedName] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<SetupStep>('workspace');
+  const [setupMachineId, setSetupMachineId] = useState<string | null>(null);
+  const [setupWorkingDir, setSetupWorkingDir] = useState<string | null>(null);
 
-  // Sync edited name when modal opens or chatroom is renamed externally.
+  const registerWorkspace = useSessionMutation(api.workspaces.registerWorkspace);
+  const {
+    connectedMachines,
+    machineConfigs,
+    isLoading,
+    sendCommand,
+    agents: agentRoleViews,
+  } = useAgentPanelData(chatroomId);
+
   useEffect(() => {
     if (isOpen) {
-      setEditedName(chatroomName);
+      setStep('workspace');
+      setSetupMachineId(null);
+      setSetupWorkingDir(null);
     }
-  }, [isOpen, chatroomName]);
+  }, [isOpen]);
 
-  // Save chatroom name
-  const handleSaveName = useCallback(async () => {
-    const trimmedName = editedName.trim();
-    if (!trimmedName || trimmedName === chatroomName || isSaving) return;
-
-    setIsSaving(true);
-    try {
-      await onRenameChatroom(trimmedName);
-    } catch (error) {
-      console.error('Failed to rename chatroom:', error);
-      // Revert on error
-      setEditedName(chatroomName);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [editedName, chatroomName, isSaving, onRenameChatroom]);
-
-  // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       const originalOverflow = document.body.style.overflow;
@@ -86,37 +78,62 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     }
   }, [isOpen]);
 
-  // Handle backdrop click
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
+      if (e.target === e.currentTarget) onClose();
     },
     [onClose]
   );
 
-  // Handle escape key
+  // fallow-ignore-next-line code-duplication
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Calculate agent join status
-  const joinedCount = useMemo(() => {
-    return teamRoles.filter((role) => {
-      const p = participants.find((p) => p.role.toLowerCase() === role.toLowerCase());
-      return p?.lastSeenAt != null;
-    }).length;
-  }, [participants, teamRoles]);
+  const joinedCount = useMemo(
+    () => countJoinedRoles(teamRoles, participants),
+    [teamRoles, participants]
+  );
+
+  const handleConfirmWorkspace = useCallback(
+    async (machineId: string, workingDir: string) => {
+      const machine = connectedMachines.find((m) => m.machineId === machineId);
+      await registerWorkspace({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        machineId,
+        workingDir,
+        hostname: machine?.hostname ?? 'unknown',
+        registeredBy: 'user',
+      });
+
+      const suggestedName = normalizePastedChatroomName(workingDir);
+      if (suggestedName && suggestedName !== chatroomName) {
+        await onRenameChatroom(suggestedName);
+      }
+
+      setSetupMachineId(machineId);
+      setSetupWorkingDir(workingDir);
+      setStep('agents');
+    },
+    [connectedMachines, registerWorkspace, chatroomId, chatroomName, onRenameChatroom]
+  );
+
+  const handleBackToWorkspace = useCallback(() => {
+    setStep('workspace');
+  }, []);
+
+  const handleAllAgentsStarted = useCallback(() => {
+    onClose();
+  }, [onClose]);
 
   if (!isOpen) return null;
+
+  const stepTitle = step === 'workspace' ? 'Setup Workspace' : 'Agent Team';
 
   return (
     <div
@@ -124,18 +141,19 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
       onClick={handleBackdropClick}
     >
       <div className="chatroom-root w-full max-w-3xl max-h-[90vh] flex flex-col bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <Settings2 size={18} className="text-chatroom-status-warning" />
               <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-                Setup Your Team
+                {stepTitle}
               </h2>
             </div>
-            <span className="text-xs text-chatroom-text-muted">
-              {joinedCount} of {teamRoles.length} agents ready
-            </span>
+            {step === 'agents' && (
+              <span className="text-xs text-chatroom-text-muted">
+                {joinedCount} of {teamRoles.length} agents ready
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -146,65 +164,38 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
           </button>
         </div>
 
-        {/* Description */}
         <div className="px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary">
           <p className="text-xs text-chatroom-text-secondary">
-            Connect your AI agents to start collaborating. You can dismiss this dialog and continue
-            chatting - agents can be configured anytime from the sidebar.
+            {step === 'workspace'
+              ? 'Select a machine and workspace folder to anchor this chatroom.'
+              : 'Configure harness and model for each agent, then start them all.'}
           </p>
         </div>
 
-        {/* Chatroom name input */}
-        <div className="px-4 py-3 border-b border-chatroom-border flex items-center gap-3 bg-chatroom-bg-primary">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
-            Chatroom Name
-          </span>
-          <div className="flex-1 flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onBlur={handleSaveName}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveName();
-              }}
-              onPaste={(e) => {
-                const pasted = e.clipboardData.getData('text');
-                if (!pasted.includes('/') && !pasted.includes('\\')) return;
-                e.preventDefault();
-                setEditedName(normalizePastedChatroomName(pasted));
-              }}
-              placeholder="Enter chatroom name..."
-              className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm text-chatroom-text-primary px-2 py-1 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"
-              disabled={isSaving}
-              maxLength={100}
-            />
-            {editedName.trim() !== chatroomName && editedName.trim() !== '' && (
-              <button
-                onClick={handleSaveName}
-                disabled={isSaving}
-                className="text-chatroom-status-success hover:text-chatroom-status-success/80 disabled:opacity-50 transition-colors"
-                title="Save name"
-              >
-                <Check size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Scrollable content - SetupChecklist without its own header */}
         <div className="flex-1 overflow-y-auto">
-          <SetupChecklist
-            chatroomId={chatroomId}
-            teamName={teamName}
-            teamRoles={teamRoles}
-            teamEntryPoint={teamEntryPoint}
-            participants={participants}
-            onViewPrompt={onViewPrompt}
-            hideHeader
-            onWorkingDirPasted={onWorkingDirPasted}
-          />
+          {step === 'workspace' ? (
+            <SetupWorkspaceStep
+              connectedMachines={connectedMachines}
+              isLoadingMachines={isLoading}
+              onConfirm={handleConfirmWorkspace}
+            />
+          ) : setupMachineId && setupWorkingDir ? (
+            <SetupAgentTeamStep
+              chatroomId={chatroomId}
+              teamRoles={teamRoles}
+              teamEntryPoint={teamEntryPoint}
+              participants={participants}
+              machineId={setupMachineId}
+              workingDir={setupWorkingDir}
+              connectedMachines={connectedMachines}
+              isLoadingMachines={isLoading}
+              agentConfigs={machineConfigs}
+              sendCommand={sendCommand}
+              agentRoleViews={agentRoleViews}
+              onAllAgentsStarted={handleAllAgentsStarted}
+              onBack={handleBackToWorkspace}
+            />
+          ) : null}
         </div>
       </div>
     </div>

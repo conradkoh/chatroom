@@ -1042,6 +1042,25 @@ export default defineSchema({
     .index('by_batchId', ['batchId'])
     .index('by_batchId_machineId', ['batchId', 'machineId']),
 
+  /**
+   * Folder picker requests initiated from the webapp setup wizard.
+   * The daemon opens a native folder dialog and reports the result back.
+   */
+  chatroom_folderPickerRequests: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('completed'),
+      v.literal('cancelled'),
+      v.literal('failed')
+    ),
+    selectedPath: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index('by_userId_created', ['userId', 'createdAt']),
+
   // ============================================================================
   // EVENT STREAM TABLE
   // Append-only log of all significant events in the chatroom system.
@@ -1207,6 +1226,13 @@ export default defineSchema({
         timestamp: v.number(),
         /** Present for new requests - daemons report outcomes against this batch. */
         batchId: v.optional(v.id('chatroom_capabilities_refresh_batches')),
+      }),
+      // UI-initiated native folder picker (setup wizard)
+      v.object({
+        type: v.literal('daemon.pickFolder'),
+        machineId: v.string(),
+        requestId: v.id('chatroom_folderPickerRequests'),
+        timestamp: v.number(),
       }),
       // Daemon response to a daemon.ping event
       v.object({

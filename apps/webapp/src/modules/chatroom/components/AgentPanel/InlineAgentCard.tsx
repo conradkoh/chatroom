@@ -4,9 +4,9 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import React, { memo, useState, useMemo } from 'react';
+import React, { memo, useState, useMemo, useEffect } from 'react';
 
-import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
 import { getCompactModelId, getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
@@ -57,6 +57,11 @@ export interface InlineAgentCardProps {
    * Uses 3h/3d time ranges for consistency with AgentRestartChart (default 3d view).
    */
   restartSummary?: { count3h: number; count3d: number } | null;
+  /** Setup wizard: lock machine/workspace and hide per-agent start controls. */
+  setupMode?: boolean;
+  lockedMachineId?: string;
+  lockedWorkingDir?: string;
+  onSetupConfigChange?: (harness: AgentHarness | null, model: string | null) => void;
 }
 
 interface AgentCardModelLineProps {
@@ -181,6 +186,10 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   sendCommand,
   agentRoleView,
   restartSummary: restartSummaryProp,
+  setupMode = false,
+  lockedMachineId,
+  lockedWorkingDir,
+  onSetupConfigChange,
 }: InlineAgentCardProps) {
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
@@ -197,7 +206,14 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamWantResume: agentRoleView?.wantResume,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
+    lockedMachineId,
+    lockedWorkingDir,
   });
+
+  useEffect(() => {
+    if (!setupMode || !onSetupConfigChange) return;
+    onSetupConfigChange(controls.selectedHarness, controls.selectedModel);
+  }, [setupMode, onSetupConfigChange, controls.selectedHarness, controls.selectedModel]);
 
   const linkedMachineIds = useMemo(() => {
     const s = new Set<string>();
@@ -263,6 +279,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           prompt={prompt}
           linkedMachineIds={linkedMachineIds}
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
+          setupMode={setupMode}
         />
 
         {restartSummary && (

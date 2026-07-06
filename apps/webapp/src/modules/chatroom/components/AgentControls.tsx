@@ -218,6 +218,8 @@ export function useAgentControls({
   teamWantResume,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
+  lockedMachineId,
+  lockedWorkingDir,
 }: {
   role: string;
   chatroomId: string;
@@ -237,6 +239,9 @@ export function useAgentControls({
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
+  /** Setup wizard: lock machine and working directory. */
+  lockedMachineId?: string;
+  lockedWorkingDir?: string;
 }) {
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
@@ -307,7 +312,8 @@ export function useAgentControls({
     if (isInitialized || connectedMachines.length === 0) return;
 
     // Single source of truth for "last used": persisted teamAgentConfigs.
-    const machine = deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig);
+    const machine =
+      lockedMachineId ?? deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig);
     if (chatroomWorkspacesLoading && shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs)) {
       return;
     }
@@ -317,7 +323,8 @@ export function useAgentControls({
       roleConfigs,
       initialTeamConfigHarnessRef.current
     );
-    const wd = deriveInitialWorkingDir(machine, roleConfigs, chatroomWorkspaces);
+    const wd =
+      lockedWorkingDir ?? deriveInitialWorkingDir(machine, roleConfigs, chatroomWorkspaces);
 
     setSelectedMachineId(machine);
     setSelectedHarness(harness);
@@ -334,6 +341,8 @@ export function useAgentControls({
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     seedFromTeamConfig,
+    lockedMachineId,
+    lockedWorkingDir,
   ]);
 
   // ── Keep the resume toggle in lock-step with the running agent ────
@@ -558,14 +567,14 @@ export function useAgentControls({
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
     (machineId: string | null) => {
+      if (lockedMachineId) return;
       setSelectedMachineId(machineId);
       setSelectedHarness(null);
       setUserModelByHarness({});
-      // Re-initialize working dir for the new machine from current roleConfigs
       const wd = deriveInitialWorkingDir(machineId, roleConfigs, chatroomWorkspaces);
       setWorkingDir(wd);
     },
-    [roleConfigs, chatroomWorkspaces]
+    [roleConfigs, chatroomWorkspaces, lockedMachineId]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory,
@@ -592,9 +601,13 @@ export function useAgentControls({
   );
 
   // Wrapper for user manually changing working directory
-  const handleWorkingDirChange = useCallback((dir: string) => {
-    setWorkingDir(dir);
-  }, []);
+  const handleWorkingDirChange = useCallback(
+    (dir: string) => {
+      if (lockedWorkingDir) return;
+      setWorkingDir(dir);
+    },
+    [lockedWorkingDir]
+  );
 
   return {
     selectedMachineId,
@@ -646,6 +659,7 @@ interface RemoteTabContentProps {
   role: string;
   /** When provided, skips a duplicate workspace registry subscription in this tab. */
   linkedMachineIds?: ReadonlySet<string>;
+  setupMode?: boolean;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -656,6 +670,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   chatroomId,
   role,
   linkedMachineIds: linkedMachineIdsProp,
+  setupMode = false,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -807,70 +822,72 @@ export const RemoteTabContent = memo(function RemoteTabContent({
         <>
           {/* Row 1: Machine + Harness */}
           <div className="flex items-start gap-2">
-            <div className="flex-1 min-w-0">
-              {isAgentRunning ? (
-                <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
-                  {displayMachineId
-                    ? (() => {
-                        const m = connectedMachines.find((m) => m.machineId === displayMachineId);
-                        return m ? getMachineDisplayName(m) : displayMachineId;
-                      })()
-                    : 'Machine...'}
-                </div>
-              ) : (
-                <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      disabled={isBusy}
-                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                      title="Select Machine"
+            {!setupMode && (
+              <div className="flex-1 min-w-0">
+                {isAgentRunning ? (
+                  <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                    {displayMachineId
+                      ? (() => {
+                          const m = connectedMachines.find((m) => m.machineId === displayMachineId);
+                          return m ? getMachineDisplayName(m) : displayMachineId;
+                        })()
+                      : 'Machine...'}
+                  </div>
+                ) : (
+                  <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        disabled={isBusy}
+                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                        title="Select Machine"
+                      >
+                        <span className="truncate">
+                          {displayMachineId
+                            ? (() => {
+                                const m = connectedMachines.find(
+                                  (m) => m.machineId === displayMachineId
+                                );
+                                return m ? getMachineDisplayName(m) : displayMachineId;
+                              })()
+                            : 'Machine...'}
+                        </span>
+                        <ChevronDown
+                          size={10}
+                          className="ml-1 flex-shrink-0 text-chatroom-text-muted"
+                        />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                      style={{ width: 'var(--radix-popover-trigger-width)' }}
                     >
-                      <span className="truncate">
-                        {displayMachineId
-                          ? (() => {
-                              const m = connectedMachines.find(
-                                (m) => m.machineId === displayMachineId
-                              );
-                              return m ? getMachineDisplayName(m) : displayMachineId;
-                            })()
-                          : 'Machine...'}
-                      </span>
-                      <ChevronDown
-                        size={10}
-                        className="ml-1 flex-shrink-0 text-chatroom-text-muted"
-                      />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
-                  >
-                    <Command className="bg-chatroom-bg-tertiary rounded-none">
-                      <CommandList>
-                        <CommandGroup>
-                          {connectedMachines.map((machine) => (
-                            <CommandItem
-                              key={machine.machineId}
-                              value={getMachineDisplayName(machine)}
-                              onSelect={() => {
-                                handleMachineChange(machine.machineId);
-                                setMachinePopoverOpen(false);
-                              }}
-                              className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                            >
-                              <span className="truncate">{getMachineDisplayName(machine)}</span>
-                              {displayMachineId === machine.machineId && (
-                                <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
+                      <Command className="bg-chatroom-bg-tertiary rounded-none">
+                        <CommandList>
+                          <CommandGroup>
+                            {connectedMachines.map((machine) => (
+                              <CommandItem
+                                key={machine.machineId}
+                                value={getMachineDisplayName(machine)}
+                                onSelect={() => {
+                                  handleMachineChange(machine.machineId);
+                                  setMachinePopoverOpen(false);
+                                }}
+                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                              >
+                                <span className="truncate">{getMachineDisplayName(machine)}</span>
+                                {displayMachineId === machine.machineId && (
+                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            )}
             <div className="flex-1 min-w-0 flex items-stretch gap-1">
               <div className="min-w-0 flex-1">
                 {isAgentRunning ? (
@@ -959,35 +976,38 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
           {/* Row 2: Working Directory.
               During setup, pasting a path here auto-names the chatroom (see onWorkingDirPasted). */}
-          <div className="flex items-center gap-1">
-            <input
-              type="text"
-              value={displayWorkingDir}
-              onChange={(e) => handleWorkingDirChange(e.target.value)}
-              onPaste={
-                onWorkingDirPasted
-                  ? (e) => onWorkingDirPasted(e.clipboardData.getData('text'))
-                  : undefined
-              }
-              placeholder="/path/to/project"
-              disabled={isBusy || isAgentRunning}
-              autoFocus={autoFocusWorkingDir}
-              className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Working directory for agent (absolute path on remote machine)"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-            {displayWorkingDir.trim() && (
-              <CopyButton
-                text={displayWorkingDir.trim()}
-                label="Copy Path"
-                copiedLabel="Copied!"
-                variant="compact"
+          {!setupMode && (
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={displayWorkingDir}
+                onChange={(e) => handleWorkingDirChange(e.target.value)}
+                onPaste={
+                  onWorkingDirPasted
+                    ? (e) => onWorkingDirPasted(e.clipboardData.getData('text'))
+                    : undefined
+                }
+                placeholder="/path/to/project"
+                disabled={isBusy || isAgentRunning}
+                autoFocus={autoFocusWorkingDir}
+                className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Working directory for agent (absolute path on remote machine)"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
               />
-            )}
-          </div>
+              {displayWorkingDir.trim() && (
+                <CopyButton
+                  text={displayWorkingDir.trim()}
+                  label="Copy Path"
+                  copiedLabel="Copied!"
+                  variant="compact"
+                />
+              )}
+            </div>
+          )}
 
-          {!isAgentRunning &&
+          {!setupMode &&
+            !isAgentRunning &&
             !selectedMachineId &&
             connectedMachines.length > 0 &&
             !isLoadingMachines && (
@@ -1134,66 +1154,72 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {isAgentRunning ? (
-                <>
+            {!setupMode && (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {isAgentRunning ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStopAgent();
+                      }}
+                      disabled={!canStop}
+                      className={`w-7 h-7 flex items-center justify-center transition-all ${
+                        canStop
+                          ? 'text-chatroom-status-error hover:bg-chatroom-status-error/10'
+                          : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
+                      }`}
+                      title="Stop Agent"
+                    >
+                      {isStopping ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Square size={14} />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRestartAgent();
+                      }}
+                      disabled={!canRestart}
+                      className={`w-7 h-7 flex items-center justify-center transition-all ${
+                        canRestart
+                          ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
+                          : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
+                      }`}
+                      title="Restart Agent"
+                    >
+                      {isStarting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <RotateCw size={14} />
+                      )}
+                    </button>
+                  </>
+                ) : (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleStopAgent();
+                      handleStartAgent();
                     }}
-                    disabled={!canStop}
+                    disabled={!canStart}
                     className={`w-7 h-7 flex items-center justify-center transition-all ${
-                      canStop
-                        ? 'text-chatroom-status-error hover:bg-chatroom-status-error/10'
+                      canStart
+                        ? 'text-chatroom-status-success hover:bg-chatroom-status-success/10'
                         : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
                     }`}
-                    title="Stop Agent"
-                  >
-                    {isStopping ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Square size={14} />
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRestartAgent();
-                    }}
-                    disabled={!canRestart}
-                    className={`w-7 h-7 flex items-center justify-center transition-all ${
-                      canRestart
-                        ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
-                        : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
-                    }`}
-                    title="Restart Agent"
+                    title="Start Agent"
                   >
                     {isStarting ? (
                       <Loader2 size={14} className="animate-spin" />
                     ) : (
-                      <RotateCw size={14} />
+                      <Play size={14} />
                     )}
                   </button>
-                </>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStartAgent();
-                  }}
-                  disabled={!canStart}
-                  className={`w-7 h-7 flex items-center justify-center transition-all ${
-                    canStart
-                      ? 'text-chatroom-status-success hover:bg-chatroom-status-success/10'
-                      : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
-                  }`}
-                  title="Start Agent"
-                >
-                  {isStarting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                </button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           <RemoteAgentAdvancedSettings
