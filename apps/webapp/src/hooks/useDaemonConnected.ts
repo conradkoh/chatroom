@@ -5,11 +5,12 @@
  * mixed-content blocking of http://localhost from HTTPS production pages.
  *
  * Uses the existing `daemonConnected` and `lastSeenAt` fields from the
- * `chatroom_machines` table, which are updated by the daemon's periodic heartbeat.
+ * `chatroom_machines` table, which are updated by the daemon's liveness heartbeat.
  */
 
 'use client';
 
+import { DAEMON_HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
@@ -26,7 +27,7 @@ export interface UseDaemonConnectedResult {
  * If lastSeenAt is older than this, we consider the daemon disconnected
  * even if `daemonConnected` is true (in case of unclean shutdown).
  */
-const STALENESS_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const STALENESS_THRESHOLD_MS = DAEMON_HEARTBEAT_TTL_MS;
 
 /**
  * Query Convex for the daemon's connectivity status for a given machine.
