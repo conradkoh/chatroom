@@ -172,7 +172,7 @@ describe('useMessages (delta store)', () => {
       expect(mockConvexQuery).toHaveBeenCalledWith('listMessagesBefore', {
         chatroomId: 'room-1',
         before: 1000,
-        limit: 20,
+        limit: 5,
         sessionId: 'session-1',
       });
       expect(result.current.messages.map((m) => m._id)).toEqual(['msg-0', 'msg-1', 'msg-2']);
