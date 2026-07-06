@@ -32,6 +32,6 @@ export function useFolderPicker() {
     request,
     requestId,
     reset,
-    isPending: requestId != null && request?.status === 'pending',
+    isPending: Boolean(requestId && (!request || request.status === 'pending')),
   };
 }

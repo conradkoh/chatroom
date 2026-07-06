@@ -763,6 +763,21 @@ export const getMachineAgentConfigs = query({
   },
 });
 
+async function fetchRecentMachineTypedEvents(
+  ctx: QueryCtx,
+  machineId: string,
+  type: Doc<'chatroom_eventStream'>['type'],
+  ttlMs: number,
+  now: number
+) {
+  return ctx.db
+    .query('chatroom_eventStream')
+    .withIndex('by_machineId_type', (q) => q.eq('machineId', machineId).eq('type', type))
+    .filter((q) => q.gt(q.field('timestamp'), now - ttlMs))
+    .order('asc')
+    .collect();
+}
+
 /** Returns pending agent.requestStart, agent.requestStop, and daemon.ping events for a machine. */
 export const getCommandEvents = query({
   args: {
@@ -847,6 +862,15 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    const PICK_FOLDER_TTL_MS = 5 * 60_000; // 5 minutes
+    const pickFolderEvents = await fetchRecentMachineTypedEvents(
+      ctx,
+      args.machineId,
+      'daemon.pickFolder',
+      PICK_FOLDER_TTL_MS,
+      now
+    );
+
     // 6. Command runner events (command.run / command.stop)
     // Time-filtered to avoid replaying stale commands on daemon restart.
     const commandRunEvents = await ctx.db
@@ -875,6 +899,7 @@ export const getCommandEvents = query({
       ...gitRefreshEvents,
       ...capabilitiesRefreshEvents,
       ...localActionEvents,
+      ...pickFolderEvents,
       ...commandRunEvents,
       ...commandStopEvents,
     ].sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
