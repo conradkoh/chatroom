@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { X, Settings2 } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 
 import { SetupAgentTeamStep } from './setup/SetupAgentTeamStep';
@@ -11,6 +11,14 @@ import { SetupWorkspaceStep } from './setup/SetupWorkspaceStep';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { countJoinedRoles } from '../utils/countJoinedRoles';
 import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
+
+import {
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+} from '@/components/ui/fixed-modal';
 
 interface Participant {
   role: string;
@@ -32,6 +40,17 @@ interface SetupChecklistModalProps {
 }
 
 type SetupStep = 'workspace' | 'agents';
+
+const STEP_COPY: Record<SetupStep, { title: string; description: string }> = {
+  workspace: {
+    title: 'Setup Workspace',
+    description: 'Select a machine and workspace folder to anchor this chatroom.',
+  },
+  agents: {
+    title: 'Agent Team',
+    description: 'Configure harness and model for each agent, then start them all.',
+  },
+};
 
 // fallow-ignore-next-line complexity
 export const SetupChecklistModal = memo(function SetupChecklistModal({
@@ -67,33 +86,6 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
       setSetupWorkingDir(null);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [isOpen]);
-
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose();
-    },
-    [onClose]
-  );
-
-  // fallow-ignore-next-line code-duplication
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   const joinedCount = useMemo(
     () => countJoinedRoles(teamRoles, participants),
@@ -131,48 +123,28 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     onClose();
   }, [onClose]);
 
-  if (!isOpen) return null;
-
-  const stepTitle = step === 'workspace' ? 'Setup Workspace' : 'Agent Team';
+  const { title, description } = STEP_COPY[step];
+  const stepSubtitle =
+    step === 'workspace' ? 'Step 1 of 2' : `${joinedCount} of ${teamRoles.length} agents ready`;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={handleBackdropClick}
-    >
-      <div className="chatroom-root w-full max-w-3xl max-h-[90vh] flex flex-col bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Settings2 size={18} className="text-chatroom-status-warning" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-                {stepTitle}
-              </h2>
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl">
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <div className="flex items-center gap-3 min-w-0">
+            <Settings2 size={18} className="text-chatroom-status-warning flex-shrink-0" />
+            <div className="min-w-0">
+              <FixedModalTitle>{title}</FixedModalTitle>
+              <p className="text-xs text-chatroom-text-muted mt-0.5 min-h-[1rem]">{stepSubtitle}</p>
             </div>
-            {step === 'agents' && (
-              <span className="text-xs text-chatroom-text-muted">
-                {joinedCount} of {teamRoles.length} agents ready
-              </span>
-            )}
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
-            title="Dismiss setup (you can always access setup from the sidebar)"
-          >
-            <X size={18} />
-          </button>
+        </FixedModalHeader>
+
+        <div className="flex-shrink-0 px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary min-h-[3.25rem] flex items-center">
+          <p className="text-xs text-chatroom-text-secondary">{description}</p>
         </div>
 
-        <div className="px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary">
-          <p className="text-xs text-chatroom-text-secondary">
-            {step === 'workspace'
-              ? 'Select a machine and workspace folder to anchor this chatroom.'
-              : 'Configure harness and model for each agent, then start them all.'}
-          </p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
+        <FixedModalBody>
           {step === 'workspace' ? (
             <SetupWorkspaceStep
               connectedMachines={connectedMachines}
@@ -196,8 +168,8 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
               onBack={handleBackToWorkspace}
             />
           ) : null}
-        </div>
-      </div>
-    </div>
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 });

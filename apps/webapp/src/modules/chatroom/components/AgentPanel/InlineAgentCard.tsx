@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import React, { memo, useState, useMemo, useEffect } from 'react';
+import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
 import { getCompactModelId, getMachineDisplayName } from '../../types/machine';
@@ -210,10 +210,13 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     lockedWorkingDir,
   });
 
+  const onSetupConfigChangeRef = useRef(onSetupConfigChange);
+  onSetupConfigChangeRef.current = onSetupConfigChange;
+
   useEffect(() => {
-    if (!setupMode || !onSetupConfigChange) return;
-    onSetupConfigChange(controls.selectedHarness, controls.selectedModel);
-  }, [setupMode, onSetupConfigChange, controls.selectedHarness, controls.selectedModel]);
+    if (!setupMode) return;
+    onSetupConfigChangeRef.current?.(controls.selectedHarness, controls.selectedModel);
+  }, [setupMode, controls.selectedHarness, controls.selectedModel]);
 
   const linkedMachineIds = useMemo(() => {
     const s = new Set<string>();

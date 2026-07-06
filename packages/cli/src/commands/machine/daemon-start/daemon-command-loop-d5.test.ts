@@ -41,6 +41,7 @@ vi.mock('../../../api.js', () => ({
       getObservedChatroomsForMachine: 'mock-getObservedChatroomsForMachine',
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
+      reportFolderPickerResult: 'mock-reportFolderPickerResult',
     },
     workspaces: {
       upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
@@ -81,6 +82,10 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   OBSERVATION_TTL_MS: 30_000,
   WORKSPACE_LIST_RECONCILE_MS: 30_000,
   WORKSPACE_RECENCY_WINDOW_MS: 60_000,
+}));
+
+vi.mock('../../../infrastructure/local-actions/pick-folder.js', () => ({
+  pickFolderDialog: vi.fn(() => ({ success: true, path: '/tmp/picked-folder' })),
 }));
 
 vi.mock('../../../infrastructure/git/git-reader.js', () => ({
@@ -387,6 +392,53 @@ describe('dispatchCommandEventEffect', () => {
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'mock-ackPing',
       expect.objectContaining({ machineId: 'machine-dispatch' })
+    );
+  });
+
+  it('processes daemon.pickFolder and reports result to backend', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-loop.js');
+    const { pickFolderDialog } =
+      await import('../../../infrastructure/local-actions/pick-folder.js');
+    const deps = createMockDaemonDeps();
+    const requestId = 'req-pick-folder-1';
+    const event = { _id: 'evt-d5-pick-folder-1', type: 'daemon.pickFolder', requestId } as any;
+    const tracker = createDedupTracker();
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
+
+    expect(pickFolderDialog).toHaveBeenCalled();
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'mock-reportFolderPickerResult',
+      expect.objectContaining({
+        sessionId: 'test-session-id',
+        machineId: 'test-machine-id',
+        requestId,
+        status: 'completed',
+        selectedPath: '/tmp/picked-folder',
+      })
+    );
+    expect(tracker.pickFolderIds.has('evt-d5-pick-folder-1')).toBe(true);
+  });
+
+  it('deduplicates daemon.pickFolder events by event id', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-loop.js');
+    const { pickFolderDialog } =
+      await import('../../../infrastructure/local-actions/pick-folder.js');
+    const deps = createMockDaemonDeps();
+    const event = {
+      _id: 'evt-d5-pick-folder-dup',
+      type: 'daemon.pickFolder',
+      requestId: 'req-pick-folder-dup',
+    } as any;
+    const tracker = createDedupTracker();
+    tracker.pickFolderIds.set('evt-d5-pick-folder-dup', Date.now());
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
+
+    expect(pickFolderDialog).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).not.toHaveBeenCalledWith(
+      'mock-reportFolderPickerResult',
+      expect.anything()
     );
   });
 });

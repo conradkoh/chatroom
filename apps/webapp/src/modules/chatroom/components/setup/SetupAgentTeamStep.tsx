@@ -73,13 +73,30 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     (role: string, harness: AgentHarness | null, model: string | null) => {
       if (!harness || !model) return;
       setRoleConfigs((prev) => {
+        const key = role.toLowerCase();
+        const existing = prev.get(key);
+        if (existing?.harness === harness && existing?.model === model) {
+          return prev;
+        }
         const next = new Map(prev);
-        next.set(role.toLowerCase(), { harness, model });
+        next.set(key, { harness, model });
         return next;
       });
     },
     []
   );
+
+  const setupConfigCallbacks = useMemo(() => {
+    const callbacks = new Map<
+      string,
+      (harness: AgentHarness | null, model: string | null) => void
+    >();
+    for (const role of teamRoles) {
+      // fallow-ignore-next-line complexity
+      callbacks.set(role, (harness, model) => handleSetupConfigChange(role, harness, model));
+    }
+    return callbacks;
+  }, [teamRoles, handleSetupConfigChange]);
 
   const handleStartAll = useCallback(async () => {
     const missing = teamRoles.filter((role) => !roleConfigs.has(role.toLowerCase()));
@@ -180,9 +197,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
                 setupMode
                 lockedMachineId={machineId}
                 lockedWorkingDir={workingDir}
-                onSetupConfigChange={(harness, model) =>
-                  handleSetupConfigChange(role, harness, model)
-                }
+                onSetupConfigChange={setupConfigCallbacks.get(role)}
               />
             );
           })}

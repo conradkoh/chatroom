@@ -27,4 +27,12 @@ describe('pickFolderDialog', () => {
     const result = pickFolderDialog();
     expect(result).toEqual({ success: false, error: 'Cancelled', cancelled: true });
   });
+
+  it('returns error when dialog returns empty path', () => {
+    vi.stubGlobal('process', { ...process, platform: 'darwin' });
+    vi.mocked(execFileSync).mockReturnValue('\n');
+
+    const result = pickFolderDialog();
+    expect(result).toEqual({ success: false, error: 'No folder selected' });
+  });
 });
