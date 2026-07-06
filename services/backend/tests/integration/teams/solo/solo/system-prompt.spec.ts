@@ -234,7 +234,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       <summary of current focus>
       CHATROOM_CONTEXT_END
       \`\`\`
-      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly.
+      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly. \`--trigger-message-id\` must be a **message** ID (from Origin Message ID in the task header), NOT the Task ID.
 
       ## Solo Operating Model
 

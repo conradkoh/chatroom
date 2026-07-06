@@ -13,13 +13,15 @@ export function getTaskStartedPrompt(ctx: {
   chatroomId: string;
   role: string;
   cliEnvPrefix: string;
+  triggerMessageId?: string;
 }): string {
-  const { chatroomId, role, cliEnvPrefix } = ctx;
+  const { chatroomId, role, cliEnvPrefix, triggerMessageId } = ctx;
 
   const contextNewCmd = contextNewCommand({
     chatroomId,
     role,
     cliEnvPrefix,
+    triggerMessageId,
   });
 
   return `### Start working

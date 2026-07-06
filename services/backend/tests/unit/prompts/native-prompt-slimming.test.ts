@@ -26,6 +26,37 @@ describe('native task-started content', () => {
     expect(prompt).not.toContain('chatroom classify');
   });
 
+  test('entry point prompt pre-fills trigger message ID when provided', () => {
+    const prompt = getNativeTaskStartedPrompt({
+      chatroomId: 'room-id',
+      role: 'planner',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      triggerMessageId: 'msg-id-123',
+    });
+
+    expect(prompt).toContain('--trigger-message-id="msg-id-123"');
+    expect(prompt).not.toContain('<userMessageId>');
+    expect(prompt).toContain('NOT the Task ID');
+  });
+
+  test('native task delivery shows origin message ID and pre-fills context command', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'hello' },
+      message: { _id: 'msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+    });
+
+    expect(output).toContain('Task ID: task-id');
+    expect(output).toContain('Origin Message ID: msg-id');
+    expect(output).toContain('--trigger-message-id="msg-id"');
+    expect(output).not.toContain('<userMessageId>');
+  });
+
   test('handoff recipient prompt is minimal', () => {
     const prompt = getNativeTaskStartedPromptForHandoffRecipient();
     expect(prompt).toContain('Begin immediately');

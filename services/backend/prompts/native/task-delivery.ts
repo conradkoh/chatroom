@@ -25,13 +25,18 @@ function appendNativeTaskIntake(
   lines: string[],
   params: Pick<
     NativeTaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'isEntryPoint'
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'isEntryPoint' | 'message'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, isEntryPoint } = params;
+  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message } = params;
 
   const taskIntakeContent = isEntryPoint
-    ? getNativeTaskStartedPrompt({ chatroomId, role, cliEnvPrefix })
+    ? getNativeTaskStartedPrompt({
+        chatroomId,
+        role,
+        cliEnvPrefix,
+        triggerMessageId: message?._id,
+      })
     : getNativeTaskStartedPromptForHandoffRecipient();
 
   lines.push('', '<task-intake>', taskIntakeContent, '</task-intake>');
@@ -69,7 +74,9 @@ function appendNativeTaskSection(
   } = params;
 
   lines.push('<task>', `Task ID: ${task._id}`);
-  if (message) lines.push(`From: ${message.senderRole}`);
+  if (message) {
+    lines.push(`Origin Message ID: ${message._id}`, `From: ${message.senderRole}`);
+  }
   appendTaskDeliveryContextSection(lines, {
     chatroomId,
     role,
@@ -119,7 +126,14 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     followUpCountSinceOrigin,
     originMessageCreatedAt,
   });
-  appendNativeTaskIntake(lines, { chatroomId, role, cliEnvPrefix, teamId, isEntryPoint });
+  appendNativeTaskIntake(lines, {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    teamId,
+    isEntryPoint,
+    message,
+  });
   appendTaskDeliveryNextSteps(lines, {
     chatroomId,
     role,
