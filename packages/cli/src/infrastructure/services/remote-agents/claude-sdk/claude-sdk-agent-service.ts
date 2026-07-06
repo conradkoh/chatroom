@@ -17,6 +17,7 @@ import { Effect } from 'effect';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../claude/claude-models.js';
+import { normalizeClaudeSdkModelFor200k } from '../claude/normalize-claude-sdk-model.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
   AgentStopOptions,
@@ -521,7 +522,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
             prompt: nextPrompt,
             options: {
               cwd: workingDir,
-              model,
+              model: normalizeClaudeSdkModelFor200k(model),
               maxTurns: DEFAULT_MAX_TURNS,
               pathToClaudeCodeExecutable: executablePath,
               includePartialMessages: true,
@@ -616,7 +617,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       keeper,
       context,
       workingDir: options.workingDir,
-      model: options.model,
+      model: normalizeClaudeSdkModelFor200k(options.model),
       initialPrompt: fullPrompt,
       deferInitialTurn,
       storedSystemPrompt: options.systemPrompt,
@@ -640,7 +641,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
         keeper,
         context: options.context,
         workingDir: stored.workingDir,
-        model: options.model ?? stored.model,
+        model: normalizeClaudeSdkModelFor200k(options.model ?? stored.model),
         initialPrompt: options.prompt,
         deferInitialTurn: false,
         storedSystemPrompt: options.systemPrompt,

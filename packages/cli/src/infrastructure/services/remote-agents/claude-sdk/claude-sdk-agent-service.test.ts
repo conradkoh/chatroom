@@ -114,6 +114,29 @@ describe('ClaudeSdkAgentService', () => {
   });
 
   describe('spawn', () => {
+    it('strips [1m] suffix from model before query', async () => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: 'sess-1' },
+        { type: 'result', subtype: 'success', session_id: 'sess-1', is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        model: 'claude-opus-4-6[1m]',
+      });
+
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalled());
+      expect(mockQueryFn.mock.calls[0][0].options.model).toBe('claude-opus-4-6');
+    });
+
     it('registers keeper PID and fires onOutput/onAgentEnd after mocked stream completes', async () => {
       stubQuery([
         { type: 'system', subtype: 'init', session_id: 'sess-1' },
