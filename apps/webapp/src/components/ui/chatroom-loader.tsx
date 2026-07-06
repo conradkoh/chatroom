@@ -15,7 +15,7 @@ const SQUARE_CLASSES = {
 } as const;
 
 /**
- * Non-rotating loader — four squares in a 2×2 grid fading by side pairs:
+ * Non-rotating loader — four squares in a 2×2 grid cross-fading by side pairs:
  * top (0,1) → right (1,3) → bottom (2,3) → left (0,2).
  */
 export function ChatroomLoader({

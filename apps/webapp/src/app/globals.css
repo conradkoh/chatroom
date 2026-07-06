@@ -432,7 +432,7 @@ input,
   }
 }
 
-/* Chatroom loader — four squares fade by side pairs: top → right → bottom → left */
+/* Chatroom loader — side pairs cross-fade: top → right → bottom → left */
 .chatroom-loader-square {
   background-color: var(--chatroom-text-primary);
   opacity: 0.2;
@@ -442,29 +442,30 @@ input,
 }
 
 /* Grid layout: [0 TL] [1 TR] / [2 BL] [3 BR] */
+/* Transition windows: top→right 18–28%, right→bottom 43–53%, bottom→left 68–78%, left→top 93–100%/0–8% */
 .chatroom-loader-square:nth-child(1) {
-  animation-name: chatroom-loader-fade-tl; /* active: top (0–25%) + left (75–100%) */
+  animation-name: chatroom-loader-fade-tl;
 }
 .chatroom-loader-square:nth-child(2) {
-  animation-name: chatroom-loader-fade-tr; /* active: top (0–25%) + right (25–50%) */
+  animation-name: chatroom-loader-fade-tr;
 }
 .chatroom-loader-square:nth-child(3) {
-  animation-name: chatroom-loader-fade-bl; /* active: bottom (50–75%) + left (75–100%) */
+  animation-name: chatroom-loader-fade-bl;
 }
 .chatroom-loader-square:nth-child(4) {
-  animation-name: chatroom-loader-fade-br; /* active: right (25–50%) + bottom (50–75%) */
+  animation-name: chatroom-loader-fade-br;
 }
 
 @keyframes chatroom-loader-fade-tl {
   0%,
-  20% {
+  15% {
     opacity: 1;
   }
-  25%,
-  70% {
+  28%,
+  65% {
     opacity: 0.2;
   }
-  75%,
+  78%,
   100% {
     opacity: 1;
   }
@@ -472,48 +473,44 @@ input,
 
 @keyframes chatroom-loader-fade-tr {
   0%,
-  20% {
+  8% {
     opacity: 1;
   }
-  25%,
-  45% {
-    opacity: 1;
-  }
-  50%,
-  100% {
+  53%,
+  90% {
     opacity: 0.2;
+  }
+  93%,
+  100% {
+    opacity: 1;
   }
 }
 
 @keyframes chatroom-loader-fade-bl {
   0%,
-  45% {
+  40% {
     opacity: 0.2;
   }
-  50%,
-  70% {
+  53%,
+  75% {
     opacity: 1;
   }
-  75%,
+  78%,
   100% {
-    opacity: 1;
+    opacity: 0.2;
   }
 }
 
 @keyframes chatroom-loader-fade-br {
   0%,
-  20% {
+  15% {
     opacity: 0.2;
   }
-  25%,
-  45% {
+  28%,
+  65% {
     opacity: 1;
   }
-  50%,
-  70% {
-    opacity: 1;
-  }
-  75%,
+  78%,
   100% {
     opacity: 0.2;
   }
