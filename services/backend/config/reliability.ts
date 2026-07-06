@@ -32,12 +32,12 @@ export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */
-export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
+export const DAEMON_HEARTBEAT_INTERVAL_MS = 5 * 60_000; // 5 min
 
 /** How long before a daemon is considered offline if no heartbeat received (ms).
  *  Must exceed DAEMON_LIVENESS_WRITE_INTERVAL_MS + DAEMON_HEARTBEAT_INTERVAL_MS
- *  so throttled lastSeenAt writes never expire between heartbeats. Set to 180s (6× heartbeat). */
-export const DAEMON_HEARTBEAT_TTL_MS = 180_000; // 180s
+ *  so throttled lastSeenAt writes never expire between heartbeats. Set to 6× heartbeat. */
+export const DAEMON_HEARTBEAT_TTL_MS = 6 * DAEMON_HEARTBEAT_INTERVAL_MS; // 30 min
 
 // ─── Agent Request Deadline ──────────────────────────────────────────────────
 
@@ -53,10 +53,10 @@ export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
  *  Set to 60s. */
 export const OBSERVATION_TTL_MS = 60_000;
 
-/** How often the daemon performs a full (non-slim) git state push per workspace
- *  when observedSyncEnabled is on. Slim pushes run every safety poll; this
- *  ensures non-slim fields (diffStat, commitsAhead, remotes, allPullRequests,
- *  recentCommits) refresh at least this often. Set to 5 minutes. */
+/** How often the daemon performs a full (non-slim) git state push per workspace.
+ *  Slim pushes run every safety poll; this ensures non-slim fields (diffStat,
+ *  commitsAhead, remotes, allPullRequests, recentCommits) refresh at least this often.
+ *  Set to 5 minutes. */
 export const OBSERVED_FULL_PUSH_INTERVAL_MS = 5 * 60_000;
 
 /** Safety poll interval for observed chatrooms (ms).
@@ -85,12 +85,12 @@ export const PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS = 30_000;
 // ─── Daemon Liveness Write Throttle ──────────────────────────────────────────
 
 /** Minimum interval between `chatroom_machineLiveness.lastSeenAt` patches (ms).
- *  Daemon heartbeats every 30s but only writes liveness when this interval elapses,
+ *  Daemon heartbeats every 5min but only writes liveness when this interval elapses,
  *  reducing getDaemonStatus subscription invalidations. Must be < DAEMON_HEARTBEAT_TTL_MS.
  *
- *  Set to 90s (TTL is 180s): cuts liveness-driven subscription invalidations ~1.5x vs 60s.
+ *  Set to 90s: with 5min heartbeats every heartbeat writes liveness (interval < heartbeat).
  *  The only cost is "last seen" display freshness, which still refreshes well within
- *  the 180s liveness TTL. */
+ *  the 30min liveness TTL. */
 export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 90_000;
 
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────

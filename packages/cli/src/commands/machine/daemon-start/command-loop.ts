@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref, Runtime, type Context } from 'effect';
+import { Effect, Ref } from 'effect';
 
 import {
   startDirListingSubscriptionEffect,
@@ -29,8 +29,6 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
-import { pushCommandsEffect } from './command-sync-heartbeat.js';
-import { syncCommitDetailsEffect } from './commit-detail-sync.js';
 import {
   DaemonMutableStateService,
   DaemonSessionService,
@@ -314,30 +312,6 @@ export const dispatchCommandEventEffect = (
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 
-type CommandLoopRuntimeContext =
-  | DaemonSessionService
-  | DaemonAgentProcessManagerService
-  | DaemonMutableStateService;
-
-function forkDaemonSyncBatch(
-  runtime: Runtime.Runtime<CommandLoopRuntimeContext>,
-  effectContext: Context.Context<CommandLoopRuntimeContext>,
-  failureLabel: string
-): void {
-  Runtime.runFork(runtime)(
-    Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
-      concurrency: 'unbounded',
-    }).pipe(
-      Effect.provide(effectContext),
-      Effect.catchAll((err) =>
-        Effect.sync(() =>
-          console.warn(`[${formatTimestamp()}] ⚠️  ${failureLabel}: ${getErrorMessage(err)}`)
-        )
-      )
-    )
-  );
-}
-
 /** Effect twin for startCommandLoop — uses granular services. */
 export const startCommandLoopEffect: Effect.Effect<
   never,
@@ -348,11 +322,6 @@ export const startCommandLoopEffect: Effect.Effect<
   const effectContext = yield* Effect.context<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
   >();
-  const runtime = yield* Effect.runtime<
-    DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
-  >();
-
-  const observedSyncEnabled = featureFlags.observedSyncEnabled ?? false;
 
   // ── Daemon Heartbeat ──────────────────────────────────────────────────
   let heartbeatCount = 0;
@@ -365,9 +334,6 @@ export const startCommandLoopEffect: Effect.Effect<
       .then(() => {
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
-        if (!observedSyncEnabled) {
-          forkDaemonSyncBatch(runtime, effectContext, 'Heartbeat sync failed');
-        }
       })
       .catch((err: unknown) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${getErrorMessage(err)}`);
@@ -393,12 +359,10 @@ export const startCommandLoopEffect: Effect.Effect<
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
-  // Trigger an immediate push on startup
-  if (observedSyncEnabled) {
-    console.log(`[${formatTimestamp()}] 👁️ Observed-sync enabled, skipping immediate push`);
-  } else {
-    forkDaemonSyncBatch(runtime, effectContext, 'Startup sync failed');
-  }
+  // Observed-sync handles git/command sync; heartbeat is liveness-only.
+  console.log(
+    `[${formatTimestamp()}] 👁️ Observed-sync active — git/command sync is observation-driven`
+  );
 
   // ── Shutdown timeouts ──────────────────────────────────────────────────
   const PROCESS_KILL_TIMEOUT_MS = 6_000;
@@ -524,10 +488,7 @@ export const startCommandLoopEffect: Effect.Effect<
   dirListingSubscriptionHandle = yield* startDirListingSubscriptionEffect(wsClient);
   dirListingWatchSubscriptionHandle = yield* startDirListingWatchSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
-
-  if (observedSyncEnabled) {
-    observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
-  }
+  observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
 
   const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
 

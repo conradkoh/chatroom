@@ -73,7 +73,7 @@ vi.mock('@workspace/backend/config/featureFlags.js', () => ({
 }));
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  DAEMON_HEARTBEAT_INTERVAL_MS: 30_000,
+  DAEMON_HEARTBEAT_INTERVAL_MS: 300_000,
   AGENT_REQUEST_DEADLINE_MS: 60_000,
   OBSERVED_FULL_PUSH_INTERVAL_MS: 60_000,
   OBSERVED_SAFETY_POLL_MS: 5_000,
@@ -417,13 +417,9 @@ describe('startCommandLoopEffect', () => {
 
   describe('Phase 5: Heartbeat fiber isolation', () => {
     it('Runtime.runFork fires effects as daemon fibers that do not block caller', async () => {
-      // This test verifies the Phase 5 pattern used in command-loop.ts:
-      // Runtime.runFork is used to fire sync effects as daemon fibers,
-      // so the heartbeat callback returns immediately without waiting
-      // for sync to complete.
-      //
-      // Implementation: command-loop.ts lines 344-357
-      // Pattern: Runtime.runFork(runtime)(Effect.all([...], { concurrency: 'unbounded' }))
+      // Pattern-level test: Runtime.runFork is used elsewhere in the daemon for
+      // non-blocking effect dispatch (e.g. shutdown paths). Verifies the fiber
+      // completes in the background without blocking the caller.
 
       let fiberCompleted = false;
       let callerContinued = false;
@@ -441,17 +437,13 @@ describe('startCommandLoopEffect', () => {
       const testEffect = Effect.gen(function* () {
         const runtime = yield* Effect.runtime<never>();
 
-        // Fire the effect as a daemon fiber (non-blocking)
         Runtime.runFork(runtime)(slowEffect);
 
-        // Caller continues immediately — does NOT await the fiber
         callerContinued = true;
 
-        // Fiber should NOT have completed yet
         expect(callerContinued).toBe(true);
         expect(fiberCompleted).toBe(false);
 
-        // Wait for fiber to complete (simulating background execution)
         yield* Effect.promise<void>(() => new Promise((resolve) => setTimeout(resolve, 350)));
         expect(fiberCompleted).toBe(true);
 
@@ -461,40 +453,32 @@ describe('startCommandLoopEffect', () => {
       await Effect.runPromise(testEffect);
     });
 
-    it('heartbeat callback dispatches sync via Runtime.runFork, not Effect.runPromise', async () => {
-      // Structural verification: command-loop.ts heartbeat callback (lines 344-357)
-      // uses Runtime.runFork for sync effects, ensuring the heartbeat mutation
-      // resolves immediately without waiting for sync to complete.
-      //
-      // The pattern:
-      //   Runtime.runFork(runtime)(
-      //     Effect.all([pushGitStateEffect, pushCommandsEffect, syncCommitDetailsEffect()], {
-      //       concurrency: 'unbounded',
-      //     }).pipe(Effect.provide(effectContext), Effect.catchAll(logError))
-      //   )
-      //
-      // vs. the blocking alternative (forbidden in heartbeat):
-      //   await Effect.runPromise(pushGitStateEffect)
-      //   await Effect.runPromise(pushCommandsEffect)
-      //   await Effect.runPromise(syncCommitDetailsEffect())
-      //
-      // Shutdown and WS dispatch intentionally use Effect.runPromise
-      // (await is required for graceful shutdown and command ordering).
+    it('heartbeat callback only calls daemonHeartbeat mutation (no sync fork)', async () => {
+      vi.useFakeTimers();
+      try {
+        const { startCommandLoopEffect } = await import('./command-loop.js');
+        const deps = createMockDaemonDeps();
+        const daemonHeartbeat = vi.fn().mockResolvedValue({ success: true });
+        deps.backend.mutation = daemonHeartbeat;
 
-      const { startCommandLoopEffect: cmdLoop } = await import('./command-loop.js');
-      // startCommandLoopEffect uses Runtime.runFork for heartbeat sync (non-blocking)
-      // and Effect.runPromise for shutdown (blocking). Verified by code inspection.
-      void cmdLoop;
-    });
+        const loopPromise = Effect.runPromise(
+          startCommandLoopEffect.pipe(Effect.provide(makeDispatchLayers(withDeps(deps))))
+        );
 
-    it('startup immediate-push uses Runtime.runFork (non-blocking)', async () => {
-      // Verify that the startup immediate-push block (command-loop.ts:385-389)
-      // uses Runtime.runFork, ensuring startup sync doesn't block the
-      // command loop from starting.
-      //
-      // Pattern: Runtime.runFork(runtime)(Effect.all([...], { concurrency: 'unbounded' }))
-      const { startCommandLoopEffect: cmdLoop } = await import('./command-loop.js');
-      void cmdLoop;
+        await vi.advanceTimersByTimeAsync(300_000);
+
+        expect(daemonHeartbeat).toHaveBeenCalledWith(
+          'mock-daemonHeartbeat',
+          expect.objectContaining({
+            sessionId: 'test-session-id',
+            machineId: 'test-machine-id',
+          })
+        );
+
+        loopPromise.catch(() => {});
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
