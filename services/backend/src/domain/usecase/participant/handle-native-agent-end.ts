@@ -3,7 +3,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { NATIVE_WAITING_ACTION } from '../../entities/participant';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
-import { findNativeHarnessInProgressWork } from '../task/complete-native-harness-active-work';
+import { findNativeHarnessInProgressWork } from '../task/find-native-harness-in-progress-work';
 
 export type HandleNativeAgentEndResult = {
   needsHandoffReminder: boolean;
