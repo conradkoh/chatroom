@@ -269,12 +269,18 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     if (parts.length <= 1) return;
     setExpandedPaths((prev) => {
       const next = new Set(prev);
+      let changed = false;
       for (let i = 1; i < parts.length; i++) {
         const dirPath = parts.slice(0, i).join('/');
-        next.add(dirPath);
-        loadChildren(dirPath);
+        if (!next.has(dirPath)) {
+          next.add(dirPath);
+          loadChildren(dirPath);
+          changed = true;
+        }
       }
-      writeExpandedPaths(expandedPathsStorageKey, next);
+      if (changed) {
+        writeExpandedPaths(expandedPathsStorageKey, next);
+      }
       return next;
     });
   }, [revealPath, expandedPathsStorageKey, loadChildren]);

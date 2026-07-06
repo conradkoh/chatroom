@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
@@ -38,6 +38,10 @@ vi.mock('@/modules/chatroom/workspace/files', () => ({
 vi.mock('@/modules/chatroom/workspace/files/useDirListingWatch', () => ({
   useDirListingWatch: vi.fn(),
 }));
+
+beforeEach(() => {
+  loadChildren.mockClear();
+});
 
 describe('WorkspaceFileExplorer', () => {
   const defaultProps = {
@@ -97,5 +101,18 @@ describe('WorkspaceFileExplorer', () => {
   it('renders file nodes from dir explorer hook', () => {
     render(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} />);
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
+  });
+
+  it('does not call loadChildren again when revealPath changes within the same parent directory', () => {
+    const { rerender } = render(
+      <WorkspaceFileExplorer {...defaultProps} selectedPath={null} revealPath="src/a.ts" />
+    );
+
+    expect(loadChildren).toHaveBeenCalledTimes(1);
+    expect(loadChildren).toHaveBeenCalledWith('src');
+
+    rerender(<WorkspaceFileExplorer {...defaultProps} selectedPath={null} revealPath="src/b.ts" />);
+
+    expect(loadChildren).toHaveBeenCalledTimes(1);
   });
 });
