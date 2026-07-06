@@ -1114,8 +1114,8 @@ export function ChatroomDashboard({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         refresh: true,
       });
-      // Event-stream git refresh: works when observed-sync is off (default). Without this,
-      // only lastRefreshedAt updates — the daemon ignores that unless observedSyncEnabled.
+      // Observed-sync handles refresh via lastRefreshedAt on recordObservation.
+      // requestGitRefreshMutation is an event-stream fallback for immediate git push.
       if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
         await requestGitRefreshMutation({
           machineId: activeWorkspace.machineId,

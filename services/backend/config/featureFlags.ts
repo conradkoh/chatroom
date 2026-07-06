@@ -6,7 +6,6 @@
  */
 
 export const featureFlags = {
-  observedSyncEnabled: false,
   disableLogin: false,
   /** Direct-harness sessions feature. Always on; kill-switch via requireDirectHarnessWorkers helper. */
   directHarnessWorkers: true,

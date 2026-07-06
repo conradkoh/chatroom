@@ -11,7 +11,7 @@ import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entit
 import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
-import { Context, Runtime } from 'effect';
+import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
@@ -83,6 +83,7 @@ describe('native queued delivery after agent_end', () => {
     const agentMgr = {
       getSlot: vi.fn().mockReturnValue({ harnessSessionId: HARNESS_SESSION_ID }),
       resumeTurnForSlot,
+      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
     const coordinator = new NativeTaskDeliveryCoordinator(new NativeDeliveryLedger());

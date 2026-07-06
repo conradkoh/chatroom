@@ -33,6 +33,7 @@ describe('onRequestStopAgentEffect', () => {
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     });
     const event = createEvent({ deadline: Date.now() - 1000 });
 
@@ -52,6 +53,7 @@ describe('onRequestStopAgentEffect', () => {
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
+      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     });
     const event = createEvent();
 

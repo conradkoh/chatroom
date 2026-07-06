@@ -232,6 +232,12 @@ export const join = mutation({
         // Do NOT re-emit task.acknowledged — claim already wrote it.
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
       }
+
+      if (args.taskId && participantId) {
+        await ctx.db.patch('chatroom_participants', participantId, {
+          lastInFlightTaskId: args.taskId,
+        });
+      }
     }
 
     await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
@@ -328,12 +334,14 @@ export const handleNativeAgentEnd = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    taskId: v.optional(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return await handleNativeAgentEndUsecase(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
+      taskId: args.taskId,
     });
   },
 });

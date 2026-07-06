@@ -1640,6 +1640,54 @@ describe('AgentProcessManager', () => {
       ).toHaveLength(1);
     });
 
+    test('onAgentEnd on model load failure emits startFailed and skips handleNativeAgentEnd', async () => {
+      const resumeTurn = vi.fn();
+      let agentEndCb: (() => void) | undefined;
+      const resumableService = {
+        ...createMockService(),
+        id: 'opencode-sdk',
+        resumeTurn,
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'sess-opencode-1',
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onLogLine: vi.fn(),
+          onAgentEnd: vi.fn((cb: () => void) => {
+            agentEndCb = cb;
+          }),
+        }),
+      };
+      deps.agentServices = new Map([['opencode-sdk', resumableService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'opencode-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[ts] role:builder error] Failed to load model "qwen/qwen3.6-35b-a3b". Model loading was stopped due to insufficient system resources.',
+      ];
+
+      await triggerAgentEnd(manager, agentEndCb!);
+
+      expect(resumeTurn).not.toHaveBeenCalled();
+      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
+      expect(slot.terminalProviderFailureHandled).toBe(true);
+      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
+
+      const startFailedCalls = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          args.role === ROLE &&
+          args.chatroomId === CHATROOM_ID &&
+          typeof args.error === 'string' &&
+          args.error.includes('Failed to load model')
+      );
+      expect(startFailedCalls).toHaveLength(1);
+    });
+
     test('exited_clean retains daemon memory and reconnects cursor-sdk via resumeFromDaemonMemory', async () => {
       const resumeFromDaemonMemory = vi.fn().mockResolvedValue({
         pid: 100,
