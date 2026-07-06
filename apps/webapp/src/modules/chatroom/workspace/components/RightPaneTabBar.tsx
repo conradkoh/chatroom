@@ -28,7 +28,7 @@ export const RightPaneTabBar = memo(function RightPaneTabBar({
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex items-center border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-x-auto shrink-0">
+    <div className="flex items-center h-8 overflow-x-auto overflow-y-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0">
       {tabs.map((tab) => (
         <RightTabItem
           key={tab.key}
@@ -74,8 +74,8 @@ const RightTabItem = memo(function RightTabItem({
         'border-r border-chatroom-border text-[13px] min-w-0 max-w-[220px]',
         'transition-colors duration-75',
         isActive
-          ? 'bg-chatroom-bg-primary text-chatroom-text-primary border-b-2 border-b-chatroom-accent -mb-[2px]'
-          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover'
+          ? 'bg-chatroom-bg-primary text-chatroom-text-primary box-border border-b-2 border-b-chatroom-accent'
+          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover box-border border-b-2 border-b-transparent'
       )}
       onClick={handleClick}
       title={tab.filePath}
