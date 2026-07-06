@@ -73,7 +73,8 @@ vi.mock('@workspace/backend/config/featureFlags.js', () => ({
 }));
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  DAEMON_HEARTBEAT_INTERVAL_MS: 300_000,
+  // Keep short in tests — production DAEMON_HEARTBEAT_INTERVAL_MS is 5 min.
+  DAEMON_HEARTBEAT_INTERVAL_MS: 30_000,
   AGENT_REQUEST_DEADLINE_MS: 60_000,
   OBSERVED_FULL_PUSH_INTERVAL_MS: 60_000,
   OBSERVED_SAFETY_POLL_MS: 5_000,
@@ -465,7 +466,7 @@ describe('startCommandLoopEffect', () => {
           startCommandLoopEffect.pipe(Effect.provide(makeDispatchLayers(withDeps(deps))))
         );
 
-        await vi.advanceTimersByTimeAsync(300_000);
+        await vi.advanceTimersByTimeAsync(30_000);
 
         expect(daemonHeartbeat).toHaveBeenCalledWith(
           'mock-daemonHeartbeat',
