@@ -19,6 +19,14 @@ describe('initHarnessRegistry', () => {
     expect(service?.displayName).toBe('OpenCode (SDK)');
   });
 
+  it('registers the claude-sdk harness with correct display name', () => {
+    initHarnessRegistry();
+    const service = getHarness('claude-sdk');
+    expect(service).toBeDefined();
+    expect(service?.id).toBe('claude-sdk');
+    expect(service?.displayName).toBe('Claude (SDK)');
+  });
+
   it('registers all expected harnesses', () => {
     initHarnessRegistry();
     const ids = getAllHarnesses()
