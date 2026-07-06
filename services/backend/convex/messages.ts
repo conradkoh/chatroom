@@ -28,7 +28,6 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
-import { shouldSkipHandoffPendingTask } from '../src/domain/usecase/task/complete-native-harness-active-work';
 import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
@@ -598,13 +597,16 @@ async function _handoffHandler(
       .collect();
     const topPending = pendingForSender.sort((a, b) => a.queuePosition - b.queuePosition)[0];
     if (topPending) {
-      const skip = await shouldSkipHandoffPendingTask(
-        ctx,
-        args.chatroomId,
-        args.senderRole,
-        topPending._id
-      );
-      if (!skip) {
+      const agentConfigResult = await getAgentConfig(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.senderRole,
+      });
+      const isNative =
+        agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
+
+      // Native harness: pending must reach in_progress (token activity) before system completion.
+      // Non-native: preserve legacy handoff Step 1 pending force-complete (#798).
+      if (!isNative) {
         tasksToComplete.push(topPending);
       }
     }

@@ -2,8 +2,6 @@ import { findActiveAssignedTaskForRole } from './find-acknowledged-task-for-role
 import { transitionTask } from './transition-task';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { isNativeHarness } from '../../entities/harness/types';
-import { getAgentConfig } from '../agent/get-agent-config';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
 // fallow-ignore-next-line complexity
@@ -57,30 +55,4 @@ export async function completeNativeHarnessActiveWork(
     skipAutoPromotion: true,
   });
   return activeTask._id;
-}
-
-/**
- * Skip force-completing a pending task on handoff-to-user when it was promoted after
- * agent_end recovery for a different (already completed) in-flight task.
- */
-// fallow-ignore-next-line complexity
-export async function shouldSkipHandoffPendingTask(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  senderRole: string,
-  pendingTaskId: Id<'chatroom_tasks'>
-): Promise<boolean> {
-  const participant = await getParticipantForChatroomRole(ctx, chatroomId, senderRole);
-  const agentConfigResult = await getAgentConfig(ctx, { chatroomId, role: senderRole });
-  if (!agentConfigResult.found || !isNativeHarness(agentConfigResult.config.agentHarness)) {
-    return false;
-  }
-
-  const inFlightTaskId = participant?.lastInFlightTaskId;
-  if (!inFlightTaskId || pendingTaskId === inFlightTaskId) {
-    return false;
-  }
-
-  const inFlightTask = await ctx.db.get('chatroom_tasks', inFlightTaskId);
-  return inFlightTask?.status === 'completed';
 }
