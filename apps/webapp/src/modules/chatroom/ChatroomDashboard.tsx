@@ -46,7 +46,9 @@ import { useCommandDialog } from './context/CommandDialogContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
+import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
 import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
+import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
@@ -86,6 +88,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
@@ -345,6 +348,20 @@ export function ChatroomDashboard({
   } = chatroomLifecycle;
 
   const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
+
+  const [explorerSplitSizes, setExplorerSplitSizes] = useExplorerSplitPanelSizes(
+    chatroomId as Id<'chatroom_rooms'>
+  );
+  const handleExplorerSplitLayoutChanged = useCallback(
+    (layout: { [id: string]: number }) => {
+      const next: [number, number] = [
+        layout['explorer-split-left'] ?? explorerSplitSizes[0],
+        layout['explorer-split-right'] ?? explorerSplitSizes[1],
+      ];
+      if (isValidTwoPaneLayout(next)) setExplorerSplitSizes(next);
+    },
+    [explorerSplitSizes, setExplorerSplitSizes]
+  );
 
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
@@ -1449,9 +1466,16 @@ export function ChatroomDashboard({
 
                 {/* When in explorer view with split view enabled, show both explorer and messages */}
                 {activeView === 'explorer' && explorerSplitViewEnabled ? (
-                  <div className="flex-1 flex min-h-0 overflow-hidden">
-                    {/* Left: Explorer content */}
-                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border">
+                  <ResizablePanelGroup
+                    className="flex-1 min-h-0"
+                    onLayoutChanged={handleExplorerSplitLayoutChanged}
+                  >
+                    <ResizablePanel
+                      id="explorer-split-left"
+                      defaultSize={explorerSplitSizes[0]}
+                      minSize={30}
+                      className="flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border"
+                    >
                       <ExplorerContent
                         fileTabs={fileTabs}
                         activeWorkspace={activeWorkspace}
@@ -1459,29 +1483,34 @@ export function ChatroomDashboard({
                         onOpenTableView={handleOpenTableView}
                         onSendSelectionToComposer={handleExplorerSelectionToComposer}
                       />
-                    </div>
-
-                    {/* Right: Mode-switchable panel (Messages | Direct Harness) */}
-                    {/* Note: the mode dropdown is desktop-only since the split-view toggle is hidden on mobile */}
-                    <RightSplitPanel
-                      chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                      messagesPanelProps={{
-                        coordinator: timelineScrollCoordinator,
-                        onRegisterOpenEventStream: handleRegisterOpenEventStream,
-                        onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
-                        machines: machineNameMap,
-                        onBeforeResize: beginResize,
-                        onAfterResize: endResize,
-                        onRegisterSendFormFocus: handleRegisterSendFormFocus,
-                        autocompleteFiles,
-                        refreshAutocompleteFiles,
-                      }}
-                      selectedHarnessSessionId={selectedHarnessSessionId}
-                      setSelectedHarnessSessionId={setSelectedHarnessSessionId}
-                      mode={splitMode}
-                      setMode={setSplitMode}
-                    />
-                  </div>
+                    </ResizablePanel>
+                    <ResizableHandle />
+                    <ResizablePanel
+                      id="explorer-split-right"
+                      defaultSize={explorerSplitSizes[1]}
+                      minSize={25}
+                      className="flex flex-col min-h-0 h-full overflow-hidden"
+                    >
+                      <RightSplitPanel
+                        chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                        messagesPanelProps={{
+                          coordinator: timelineScrollCoordinator,
+                          onRegisterOpenEventStream: handleRegisterOpenEventStream,
+                          onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
+                          machines: machineNameMap,
+                          onBeforeResize: beginResize,
+                          onAfterResize: endResize,
+                          onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                          autocompleteFiles,
+                          refreshAutocompleteFiles,
+                        }}
+                        selectedHarnessSessionId={selectedHarnessSessionId}
+                        setSelectedHarnessSessionId={setSelectedHarnessSessionId}
+                        mode={splitMode}
+                        setMode={setSplitMode}
+                      />
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
                 ) : activeView === 'messages' ? (
                   /* Message Feed — shown in messages view */
                   <ChatroomMessagesPanel

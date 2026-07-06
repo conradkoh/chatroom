@@ -31,7 +31,7 @@ export function ChatroomMessagesPanel({
   footer,
 }: ChatroomMessagesPanelProps) {
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
       {viewMode === 'all' ? (
         <ChatroomTimelineFeed
           chatroomId={chatroomId}
@@ -44,7 +44,7 @@ export function ChatroomMessagesPanel({
         <FilteredUserMessagesView chatroomId={chatroomId} machines={machines} />
       )}
 
-      {footer}
+      {footer ? <div className="shrink-0">{footer}</div> : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RightSplitPanel } from './RightSplitPanel';
 
@@ -17,7 +17,7 @@ vi.mock('./DirectHarnessPanel', () => ({
 // Minimal select mock that triggers onValueChange on item click
 const mockOnValueChange = vi.fn();
 
-vi.mock('../direct-harness/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({
     children,
     onValueChange,

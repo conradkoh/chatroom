@@ -432,25 +432,87 @@ input,
   }
 }
 
-/* Chatroom loader — four squares with staggered grey → black/white fade */
+/* Chatroom loader — side pairs cross-fade: top → right → bottom → left */
 .chatroom-loader-square {
   background-color: var(--chatroom-text-primary);
-  animation: chatroom-loader-square-fade 1.8s ease-in-out infinite;
+  opacity: 0.2;
+  animation-duration: 2.4s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
-@keyframes chatroom-loader-square-fade {
+/* Grid layout: [0 TL] [1 TR] / [2 BL] [3 BR] */
+/* Transition windows: top→right 18–28%, right→bottom 43–53%, bottom→left 68–78%, left→top 93–100%/0–8% */
+.chatroom-loader-square:nth-child(1) {
+  animation-name: chatroom-loader-fade-tl;
+}
+.chatroom-loader-square:nth-child(2) {
+  animation-name: chatroom-loader-fade-tr;
+}
+.chatroom-loader-square:nth-child(3) {
+  animation-name: chatroom-loader-fade-bl;
+}
+.chatroom-loader-square:nth-child(4) {
+  animation-name: chatroom-loader-fade-br;
+}
+
+@keyframes chatroom-loader-fade-tl {
   0%,
+  15% {
+    opacity: 1;
+  }
+  28%,
+  65% {
+    opacity: 0.2;
+  }
+  78%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes chatroom-loader-fade-tr {
+  0%,
+  8% {
+    opacity: 1;
+  }
+  53%,
+  90% {
+    opacity: 0.2;
+  }
+  93%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes chatroom-loader-fade-bl {
+  0%,
+  40% {
+    opacity: 0.2;
+  }
+  53%,
+  75% {
+    opacity: 1;
+  }
+  78%,
   100% {
     opacity: 0.2;
   }
-  25% {
-    opacity: 0.45;
+}
+
+@keyframes chatroom-loader-fade-br {
+  0%,
+  15% {
+    opacity: 0.2;
   }
-  50% {
-    opacity: 0.7;
-  }
-  75% {
+  28%,
+  65% {
     opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0.2;
   }
 }
 
