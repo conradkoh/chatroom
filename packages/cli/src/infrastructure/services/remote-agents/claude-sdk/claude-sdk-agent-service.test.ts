@@ -139,6 +139,9 @@ describe('ClaudeSdkAgentService', () => {
       });
 
       expect(result.pid).toBe(4321);
+      expect(result.harnessSessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
       expect(deps.spawn).toHaveBeenCalled();
 
       result.onOutput(onOutput);
@@ -154,6 +157,9 @@ describe('ClaudeSdkAgentService', () => {
             cwd: '/tmp/work',
             pathToClaudeCodeExecutable: '/tmp/claude',
             maxTurns: 200,
+            permissionMode: 'bypassPermissions',
+            allowDangerouslySkipPermissions: true,
+            canUseTool: expect.any(Function),
           }),
         })
       );
@@ -177,6 +183,10 @@ describe('ClaudeSdkAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
         deferInitialTurn: true,
       });
+
+      expect(result.harnessSessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
 
       await vi.waitFor(() => expect(mockQueryFn).not.toHaveBeenCalled());
 

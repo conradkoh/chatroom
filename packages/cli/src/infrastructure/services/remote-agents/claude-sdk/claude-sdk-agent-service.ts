@@ -9,6 +9,7 @@
  */
 
 import type { ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Effect } from 'effect';
@@ -274,6 +275,16 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     const emitLogLine = (line: string) => {
       for (const cb of logLineCallbacks) cb(line);
     };
+    /**
+     * Claude's SDK only reveals a real session ID as a side effect of the first
+     * turn's stream — but native harnesses always defer that first turn, so a real
+     * ID is never available up front. Synthesize a stable per-spawn ID instead:
+     * daemon task delivery only needs a truthy, stable `harnessSessionId` to gate
+     * on (see NativeTaskDeliveryCoordinator); claude-sdk doesn't implement
+     * `resumeFromDaemonMemory`, so this ID is never used to actually reconnect a
+     * Claude session.
+     */
+    const harnessSessionId = randomUUID();
 
     const finishExit = (code: number | null, signal: string | null) => {
       sdkSession.activeQuery = undefined;
@@ -302,7 +313,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
 
     return {
       pid,
-      harnessSessionId: undefined,
+      harnessSessionId,
       onExit: (cb) => {
         exitCallbacks.push(cb);
       },
@@ -464,6 +475,9 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
               systemPrompt: isFirstQuery ? sdkSession.storedSystemPrompt : undefined,
               resume: !isFirstQuery ? sdkSession.sessionId : undefined,
               settingSources: [],
+              permissionMode: 'bypassPermissions',
+              allowDangerouslySkipPermissions: true,
+              canUseTool: async (_toolName, input) => ({ behavior: 'allow', updatedInput: input }),
             },
           });
           sdkSession.activeQuery = queryInstance;
