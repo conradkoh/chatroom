@@ -1489,7 +1489,7 @@ export function ChatroomDashboard({
                       id="explorer-split-right"
                       defaultSize={explorerSplitSizes[1]}
                       minSize={25}
-                      className="flex flex-col min-h-0 overflow-hidden"
+                      className="flex flex-col min-h-0 h-full overflow-hidden"
                     >
                       <RightSplitPanel
                         chatroomId={chatroomId as Id<'chatroom_rooms'>}

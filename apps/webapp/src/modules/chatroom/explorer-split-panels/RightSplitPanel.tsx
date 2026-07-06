@@ -104,7 +104,7 @@ export function RightSplitPanel({
   const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
 
   return (
-    <div className="flex flex-col min-h-0 overflow-hidden flex-1">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <RightSplitPanelHeader
         mode={mode}
         setMode={setMode}
