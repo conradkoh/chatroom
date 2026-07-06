@@ -111,12 +111,15 @@ export function useWorkspaceDirExplorer({
   );
 
   const loadChildren = useCallback((dirPath: string) => {
-    setRequestedDirs((prev) => (prev.includes(dirPath) ? prev : [...prev, dirPath]));
-    setLoadingDirs((prev) => {
-      if (prev.has(dirPath)) return prev;
-      const next = new Set(prev);
-      next.add(dirPath);
-      return next;
+    setRequestedDirs((prev) => {
+      if (prev.includes(dirPath)) return prev;
+      setLoadingDirs((loadingPrev) => {
+        if (loadingPrev.has(dirPath)) return loadingPrev;
+        const loadingNext = new Set(loadingPrev);
+        loadingNext.add(dirPath);
+        return loadingNext;
+      });
+      return [...prev, dirPath];
     });
   }, []);
 
