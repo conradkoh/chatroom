@@ -294,6 +294,36 @@ describe('ClaudeSdkAgentService', () => {
       });
     });
 
+    it('fires onHarnessSessionIdUpdated when provider session_id is first captured', async () => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const onSessionIdUpdated = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+      result.onHarnessSessionIdUpdated?.(onSessionIdUpdated);
+
+      await service.resumeTurn(result.pid, 'first task');
+      await vi.waitFor(() => expect(onSessionIdUpdated).toHaveBeenCalledTimes(1));
+      expect(onSessionIdUpdated).toHaveBeenCalledWith({
+        correlationId: result.harnessSessionId,
+        resumableId: PROVIDER_SESSION_ID,
+        source: 'provider_allocated',
+      });
+    });
+
     it('canUseTool auto-allows headless tool execution', async () => {
       stubQuery([
         { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
@@ -321,6 +351,91 @@ describe('ClaudeSdkAgentService', () => {
         behavior: 'allow',
         updatedInput: input,
       });
+    });
+  });
+
+  describe('resumeFromDaemonMemory', () => {
+    const SAMPLE_DAEMON_SESSION = {
+      harnessSessionId: PROVIDER_SESSION_ID,
+      agentName: 'claude-sdk',
+      model: 'claude-sonnet-4-20250514',
+      workingDir: '/tmp/resume-wd',
+    };
+
+    it('reconnects with resume option on stored provider session id', async () => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const onSessionIdUpdated = vi.fn();
+      const result = await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        },
+        SAMPLE_DAEMON_SESSION
+      );
+
+      result.onHarnessSessionIdUpdated?.(onSessionIdUpdated);
+      expect(onSessionIdUpdated).toHaveBeenCalledWith({
+        correlationId: result.harnessSessionId,
+        resumableId: PROVIDER_SESSION_ID,
+        source: 'provider_allocated',
+      });
+      expect(result.harnessSessionId).toMatch(UUID_PATTERN);
+      expect(result.harnessSessionId).not.toBe(PROVIDER_SESSION_ID);
+
+      await vi.waitFor(() => expect(mockQueryFn).toHaveBeenCalledTimes(1));
+      expect(mockQueryFn.mock.calls[0][0]).toMatchObject({
+        prompt: 'resume hello',
+        options: expect.objectContaining({
+          resume: PROVIDER_SESSION_ID,
+          systemPrompt: undefined,
+        }),
+      });
+      expect(deps.spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({ cwd: '/tmp/resume-wd' })
+      );
+    });
+
+    it('falls back to spawn when resume setup fails', async () => {
+      const deps = createMockDeps({
+        spawn: vi.fn().mockImplementation(() => {
+          throw new Error('spawn keeper failed');
+        }),
+      });
+      const service = new ClaudeSdkAgentService(deps);
+      const spawnSpy = vi.spyOn(service, 'spawn').mockResolvedValue({
+        pid: 9999,
+        harnessSessionId: 'fresh-uuid',
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+      });
+
+      const result = await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        },
+        SAMPLE_DAEMON_SESSION
+      );
+
+      expect(spawnSpy).toHaveBeenCalledOnce();
+      expect(result.pid).toBe(9999);
+      spawnSpy.mockRestore();
     });
   });
 
