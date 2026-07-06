@@ -55,25 +55,27 @@ export function MessagesPanel({
   refreshAutocompleteFiles,
 }: MessagesPanelProps) {
   return (
-    <ChatroomMessagesPanel
-      chatroomId={chatroomId}
-      coordinator={coordinator}
-      onRegisterOpenEventStream={onRegisterOpenEventStream}
-      onRegisterMessageStoreActions={onRegisterMessageStoreActions}
-      machines={machines}
-      viewMode={viewMode}
-      footer={
-        <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-          <MessageInput
-            chatroomId={chatroomId}
-            onBeforeResize={onBeforeResize}
-            onAfterResize={onAfterResize}
-            onRegisterFocus={onRegisterSendFormFocus}
-            files={autocompleteFiles}
-            onAtTriggerActivate={refreshAutocompleteFiles}
-          />
-        </div>
-      }
-    />
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <ChatroomMessagesPanel
+        chatroomId={chatroomId}
+        coordinator={coordinator}
+        onRegisterOpenEventStream={onRegisterOpenEventStream}
+        onRegisterMessageStoreActions={onRegisterMessageStoreActions}
+        machines={machines}
+        viewMode={viewMode}
+        footer={
+          <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+            <MessageInput
+              chatroomId={chatroomId}
+              onBeforeResize={onBeforeResize}
+              onAfterResize={onAfterResize}
+              onRegisterFocus={onRegisterSendFormFocus}
+              files={autocompleteFiles}
+              onAtTriggerActivate={refreshAutocompleteFiles}
+            />
+          </div>
+        }
+      />
+    </div>
   );
 }
