@@ -14,6 +14,9 @@ const SQUARE_CLASSES = {
   xl: 'h-4 w-4',
 } as const;
 
+/** Grid indices 0–3 map to TL, TR, BL, BR; animate TL → TR → BR → BL for a clockwise sweep. */
+const ANIMATION_DELAYS_MS = [0, 160, 480, 320];
+
 /** Non-rotating loader — four squares in a 2×2 grid, fading through grey / black / white shades. */
 export function ChatroomLoader({
   className,
@@ -36,7 +39,7 @@ export function ChatroomLoader({
         <span
           key={index}
           className={cn('chatroom-loader-square shrink-0', SQUARE_CLASSES[size])}
-          style={{ animationDelay: `${index * 160}ms` }}
+          style={{ animationDelay: `${ANIMATION_DELAYS_MS[index]}ms` }}
         />
       ))}
     </span>
