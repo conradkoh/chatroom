@@ -13,6 +13,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { validateWorkingDir } from '../../../../convex/workspacePathSecurity';
 import type { WorkspaceRegistration } from '../../entities/workspace';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -29,6 +30,8 @@ export async function registerWorkspace(
 ): Promise<RegisterWorkspaceResult> {
   const { chatroomId, machineId, workingDir, hostname, registeredBy } = input;
 
+  validateWorkingDir(workingDir);
+
   // Look up existing workspace by the unique triple
   const existing = await ctx.db
     .query('chatroom_workspaces')
@@ -43,7 +46,7 @@ export async function registerWorkspace(
   if (existing) {
     if (existing.removedAt !== undefined) {
       // Reactivate soft-deleted workspace
-      await ctx.db.patch("chatroom_workspaces", existing._id, {
+      await ctx.db.patch('chatroom_workspaces', existing._id, {
         removedAt: undefined,
         hostname,
         registeredBy,

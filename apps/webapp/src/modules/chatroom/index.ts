@@ -19,7 +19,6 @@ export { MessageDetailModal } from './components/MessageDetailModal';
 export { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 export { PromptModal } from './components/PromptModal';
 export { MessageInput } from './components/MessageInput';
-export { SetupChecklist } from './components/SetupChecklist';
 export { WorkingIndicator } from './components/WorkingIndicator';
 
 // Context
