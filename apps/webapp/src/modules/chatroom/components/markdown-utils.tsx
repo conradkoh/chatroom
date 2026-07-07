@@ -6,6 +6,7 @@ import React, { useState, useCallback, lazy, Suspense } from 'react';
 import { useWorkspaceFileLink } from '../context/WorkspaceFileLinkContext';
 import {
   isWorkspaceFileLink,
+  looksLikeWorkspacePath,
   normalizeWorkspaceFilePath,
 } from '../workspace/utils/workspaceFileLink';
 
@@ -118,6 +119,61 @@ export const contextSummaryProseClassNames =
 // ============================================================================
 
 /**
+ * Opens workspace file paths in the explorer when a provider is present.
+ */
+function WorkspaceFileLinkButton({ href, children }: { href: string; children: React.ReactNode }) {
+  const { onOpenFile } = useWorkspaceFileLink();
+  if (!onOpenFile) {
+    return <span>{children}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:decoration-chatroom-status-info transition-colors cursor-pointer bg-transparent border-0 p-0 font-inherit text-inherit"
+      onClick={() => onOpenFile(normalizeWorkspaceFilePath(href))}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Shared link component: workspace file paths open in explorer; external links open in a new tab.
+ */
+function MarkdownLink({ children, href }: { children?: React.ReactNode; href?: string }) {
+  if (href && isWorkspaceFileLink(href)) {
+    return <WorkspaceFileLinkButton href={href}>{children}</WorkspaceFileLinkButton>;
+  }
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
+
+function InlineCodeOrWorkspaceLink({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  if (className?.startsWith('language-')) {
+    return <code className={className}>{children}</code>;
+  }
+  const text = typeof children === 'string' ? children : null;
+  if (text && looksLikeWorkspacePath(text)) {
+    return <WorkspaceFileLinkButton href={text}>{text}</WorkspaceFileLinkButton>;
+  }
+  return (
+    <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em]">
+      {children}
+    </code>
+  );
+}
+
+/**
  * Simplified markdown components for compact display.
  * Renders h1-h6 as bold inline text, strips most formatting.
  * Use with react-markdown's `components` prop.
@@ -148,10 +204,8 @@ export const compactMarkdownComponents = {
   ul: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   ol: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   li: ({ children }: { children?: React.ReactNode }) => <span>• {children} </span>,
-  // Code: simple styling
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="bg-chatroom-bg-tertiary px-0.5 text-[10px]">{children}</code>
-  ),
+  // Code: inline workspace paths linkify; otherwise simple styling
+  code: InlineCodeOrWorkspaceLink,
   // Pre: render inline
   pre: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   // Keep emphasis
@@ -246,31 +300,6 @@ export function CodeBlock({
 }
 
 /**
- * Shared link component: workspace file paths open in explorer; external links open in a new tab.
- */
-function MarkdownLink({ children, href }: { children?: React.ReactNode; href?: string }) {
-  const { onOpenFile } = useWorkspaceFileLink();
-
-  if (href && isWorkspaceFileLink(href) && onOpenFile) {
-    return (
-      <button
-        type="button"
-        className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:decoration-chatroom-status-info transition-colors cursor-pointer bg-transparent border-0 p-0 font-inherit text-inherit"
-        onClick={() => onOpenFile(normalizeWorkspaceFilePath(href))}
-      >
-        {children}
-      </button>
-    );
-  }
-
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  );
-}
-
-/**
  * Base markdown components with just the link override.
  * Use this for Markdown instances that don't need compact or full styling
  * but still need links to open in a new window.
@@ -316,24 +345,6 @@ export const fullMarkdownComponents = {
       </pre>
     );
   },
-  // Inline code (not in pre) - keep simple styling
-  code: ({
-    children,
-    className,
-  }: {
-    children?: React.ReactNode;
-    className?: string;
-    inline?: boolean;
-  }) => {
-    // If has language class, it's a code block (handled by pre)
-    // This handles inline code only
-    if (className?.startsWith('language-')) {
-      return <code className={className}>{children}</code>;
-    }
-    return (
-      <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em]">
-        {children}
-      </code>
-    );
-  },
+  // Inline code (not in pre) - workspace paths linkify; otherwise simple styling
+  code: InlineCodeOrWorkspaceLink,
 };

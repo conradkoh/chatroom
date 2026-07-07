@@ -3,10 +3,9 @@
 import { Sparkles } from 'lucide-react';
 import { memo, useState } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import type { Message } from '../../types/message';
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { compactMarkdownComponents } from '../markdown-utils';
 
 import {
@@ -16,8 +15,6 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface TimelineContextMessageProps {
   message: Message;
@@ -47,7 +44,7 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
           <span className="flex-shrink-0">New Context</span>
           <span className="text-chatroom-status-info/50 flex-shrink-0">—</span>
           <span className="normal-case font-medium tracking-normal flex-1 min-w-0 truncate text-chatroom-text-secondary [&_*]:inline text-left">
-            <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+            <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
               {message.content}
             </Markdown>
           </span>
@@ -65,7 +62,7 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
           </FixedModalHeader>
           <FixedModalBody>
             <div className="p-4 prose prose-sm dark:prose-invert max-w-none">
-              <Markdown remarkPlugins={REMARK_PLUGINS}>{message.content}</Markdown>
+              <Markdown remarkPlugins={chatroomRemarkPlugins}>{message.content}</Markdown>
             </div>
           </FixedModalBody>
         </FixedModalContent>

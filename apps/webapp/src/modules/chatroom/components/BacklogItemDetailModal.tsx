@@ -13,10 +13,9 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 
@@ -225,7 +224,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   // Preview Tab — Read-only rendered markdown
                   <div className={`h-full overflow-y-auto p-4 ${backlogProseClassNames}`}>
                     <Markdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      remarkPlugins={chatroomRemarkPlugins}
                       components={baseMarkdownComponents}
                     >
                       {editedContent || '*No content yet*'}
@@ -237,10 +236,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           ) : (
             // View mode — Read-only rendered markdown
             <div className={`p-4 ${backlogProseClassNames}`}>
-              <Markdown
-                remarkPlugins={[remarkGfm, remarkBreaks]}
-                components={baseMarkdownComponents}
-              >
+              <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
                 {item.content}
               </Markdown>
             </div>
