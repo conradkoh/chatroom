@@ -27,6 +27,7 @@ import {
   getEffectiveMaxTextareaHeightPx,
   getViewportHeightPx,
   MAX_TEXTAREA_HEIGHT_PX,
+  measureTextareaContentHeightPx,
 } from './messageInputAutosize';
 import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
@@ -283,10 +284,19 @@ export function MessageInput({
     const textarea = textareaRef.current;
     if (!textarea) return;
     onBeforeResize?.();
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, effectiveMaxTextareaHeightPx)}px`;
+    const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
+    textarea.style.height = `${nextHeight}px`;
     onAfterResize?.();
   }, [onBeforeResize, onAfterResize, effectiveMaxTextareaHeightPx]);
+
+  // Re-measure when the composer width changes (e.g. explorer split panel resize).
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const observer = new ResizeObserver(() => autoResize());
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [autoResize]);
 
   // Re-measure textarea height whenever message changes (covers draft restore,
   // editor modal close, and autocomplete file select uniformly)
@@ -569,8 +579,8 @@ export function MessageInput({
             placeholder="Type a message..."
             disabled={sending}
             rows={1}
-            className="block w-full bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none overflow-y-auto"
-            style={{ height: 'auto', maxHeight: `${effectiveMaxTextareaHeightPx}px` }}
+            className="block w-full self-start bg-transparent border-none outline-none text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted px-2 py-1.5 resize-none overflow-y-auto"
+            style={{ maxHeight: `${effectiveMaxTextareaHeightPx}px` }}
           />
         </div>
 

@@ -17,17 +17,18 @@ import { DirectHarnessPanel } from './DirectHarnessPanel';
 import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
 import { MessageViewToggle } from '../components/timeline/MessageViewToggle';
 import {
+  useExplorerSplitPanelMode,
+  type ExplorerSplitPanelMode,
+} from '../hooks/persistence/useExplorerSplitPanelMode';
+import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
+
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../direct-harness/components/ui/select';
-import {
-  useExplorerSplitPanelMode,
-  type ExplorerSplitPanelMode,
-} from '../hooks/persistence/useExplorerSplitPanelMode';
-import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
+} from '@/components/ui/select';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -73,10 +74,16 @@ function RightSplitPanelHeader({
         <div aria-hidden="true" />
       )}
       <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
-        <SelectTrigger className="h-6 text-[10px] w-36 px-2">
+        <SelectTrigger
+          size="sm"
+          className="!h-6 py-0 px-2 text-[10px] w-36 shrink-0 bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none [&_svg]:size-3"
+        >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent align="end">
+        <SelectContent
+          align="end"
+          className="bg-chatroom-bg-surface border border-chatroom-border rounded-none"
+        >
           {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
             <SelectItem key={m} value={m} className="text-xs">
               {MODE_LABELS[m]}
@@ -104,7 +111,7 @@ export function RightSplitPanel({
   const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
 
   return (
-    <div className="flex flex-col min-h-0 overflow-hidden flex-1">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <RightSplitPanelHeader
         mode={mode}
         setMode={setMode}

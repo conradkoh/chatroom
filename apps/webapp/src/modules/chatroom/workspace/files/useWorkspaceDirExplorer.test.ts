@@ -76,6 +76,30 @@ describe('useWorkspaceDirExplorer', () => {
     expect(result.current.childMap).toBe(childMapAfterFirstUpdate);
   });
 
+  it('does not re-add loadingDirs when loadChildren is called for an already-requested directory', () => {
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+      })
+    );
+
+    act(() => {
+      result.current.loadChildren('src');
+    });
+    act(() => {
+      result.current.handleDirUpdate('src', [], false);
+    });
+    expect(result.current.loadingDirs.has('src')).toBe(false);
+
+    const loadingDirsBefore = result.current.loadingDirs;
+    act(() => {
+      result.current.loadChildren('src');
+    });
+    expect(result.current.loadingDirs).toBe(loadingDirsBefore);
+    expect(result.current.loadingDirs.has('src')).toBe(false);
+  });
+
   it('skips loadChildren loadingDirs update when directory is already loading', () => {
     const { result } = renderHook(() =>
       useWorkspaceDirExplorer({
