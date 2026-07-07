@@ -45,19 +45,33 @@ export function OutputPanel({
 }: OutputPanelProps) {
   const scrollRef = useRef<HTMLPreElement>(null);
   const [showLogHead, setShowLogHead] = useState(false);
+  const [stickToBottom, setStickToBottom] = useState(true);
   const fullOutput = chunks.map((c) => c.content).join('');
   const output = showLogHead ? formatLogHead(fullOutput) : fullOutput;
   const lineCount = fullOutput.split('\n').length;
+  const showJumpToStart = !showLogHead && (lineCount > LOG_HEAD_LINE_COUNT || canLoadMore);
 
   useEffect(() => {
-    if (showLogHead) return;
+    if (showLogHead || !stickToBottom) return;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [output, showLogHead]);
+  }, [output, showLogHead, stickToBottom]);
+
+  const handleShowLive = useCallback(() => {
+    setShowLogHead(false);
+    setStickToBottom(true);
+  }, []);
 
   const handleShowLogHead = useCallback(async () => {
     setShowLogHead(true);
+    if (canLoadMore && onLoadMore) await onLoadMore();
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [canLoadMore, onLoadMore]);
+
+  const handleJumpToStart = useCallback(async () => {
+    setShowLogHead(false);
+    setStickToBottom(false);
     if (canLoadMore && onLoadMore) await onLoadMore();
     scrollRef.current?.scrollTo({ top: 0 });
   }, [canLoadMore, onLoadMore]);
@@ -92,7 +106,7 @@ export function OutputPanel({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
-            onClick={() => setShowLogHead(false)}
+            onClick={handleShowLive}
             className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${viewButtonClass(!showLogHead)}`}
           >
             Live
@@ -142,6 +156,16 @@ export function OutputPanel({
             ? `Showing first ${Math.min(lineCount, LOG_HEAD_LINE_COUNT)} of ${lineCount} lines`
             : `${lineCount} lines`}
         </span>
+        {showJumpToStart && (
+          <button
+            type="button"
+            onClick={() => void handleJumpToStart()}
+            disabled={fullOutputPending}
+            className="text-chatroom-status-info hover:text-chatroom-accent font-medium uppercase tracking-wide disabled:opacity-50"
+          >
+            {fullOutputPending ? 'Loading history…' : 'Jump to Start'}
+          </button>
+        )}
         {showLogHead && canLoadMore && onLoadMore && (
           <button
             type="button"
