@@ -122,7 +122,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
             model: config.model,
             agentHarness: config.harness,
             workingDir,
-            allowNewMachine: true,
           },
         });
       })

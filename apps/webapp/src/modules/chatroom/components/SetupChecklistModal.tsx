@@ -31,13 +31,16 @@ interface SetupChecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  teamName: string;
+  /** @deprecated No longer used — kept for caller compatibility */
+  teamName?: string;
   teamRoles: string[];
   teamEntryPoint?: string;
   participants: Participant[];
-  onViewPrompt: (role: string) => void;
+  /** @deprecated No longer used — kept for caller compatibility */
+  onViewPrompt?: (role: string) => void;
   chatroomName: string;
   onRenameChatroom: (newName: string) => Promise<void>;
+  /** @deprecated No longer used — kept for caller compatibility */
   onWorkingDirPasted?: (rawPath: string) => void;
 }
 
@@ -59,14 +62,11 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   isOpen,
   onClose,
   chatroomId,
-  teamName: _teamName,
   teamRoles,
   teamEntryPoint,
   participants,
-  onViewPrompt: _onViewPrompt,
   chatroomName,
   onRenameChatroom,
-  onWorkingDirPasted: _onWorkingDirPasted,
 }: SetupChecklistModalProps) {
   const [step, setStep] = useState<SetupStep>('workspace');
   const [setupMachineId, setSetupMachineId] = useState<string | null>(null);

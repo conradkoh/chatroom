@@ -632,6 +632,16 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/components/setup/SetupWorkspaceStep.tsx": {
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "apps/webapp/src/hooks/useFolderPicker.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/components/timeline/ChatroomTimelineFeed.tsx": {
       "crap_critical": {
         "count": 4

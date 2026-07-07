@@ -3,17 +3,21 @@
 import { FolderOpen, Loader2, Monitor } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { SetupPrerequisiteRow } from './SetupPrerequisiteRow';
 import type { MachineInfo } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 
 import { useFolderPicker } from '@/hooks/useFolderPicker';
-import { getDaemonStartCommand } from '@/lib/environment';
+import { getAuthLoginCommand, getDaemonStartCommand } from '@/lib/environment';
 
 interface SetupWorkspaceStepProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   onConfirm: (machineId: string, workingDir: string) => Promise<void>;
 }
+
+const HARNESS_INSTALL_COMMAND =
+  '# Install a supported harness:\nnpm install -g opencode-ai   # opencode\nnpm install -g @plandex/pi   # pi';
 
 // fallow-ignore-next-line complexity
 export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
@@ -25,9 +29,20 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   const [selectedPath, setSelectedPath] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { pickFolder, request, requestId, reset, isPending } = useFolderPicker();
+  const { pickFolder, request, requestId, reset, isPending, isTimedOut } = useFolderPicker();
 
   const daemonStartCommand = getDaemonStartCommand();
+  const authLoginCommand = getAuthLoginCommand(
+    typeof window !== 'undefined' ? window.location.origin : ''
+  );
+
+  const detectedHarnesses = useMemo(() => {
+    const all = connectedMachines.flatMap((m) => m.availableHarnesses);
+    return [...new Set(all)];
+  }, [connectedMachines]);
+
+  const harnessDone = detectedHarnesses.length > 0;
+  const daemonDone = connectedMachines.length > 0;
 
   useEffect(() => {
     if (connectedMachines.length === 1 && !selectedMachineId) {
@@ -54,6 +69,12 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
       reset();
     }
   }, [request, reset]);
+
+  useEffect(() => {
+    if (isTimedOut) {
+      setError('Folder picker timed out. Ensure the daemon is running on the selected machine.');
+    }
+  }, [isTimedOut]);
 
   const selectedMachine = useMemo(
     () => connectedMachines.find((m) => m.machineId === selectedMachineId) ?? null,
@@ -103,18 +124,42 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
   if (connectedMachines.length === 0) {
     return (
       <div className="max-w-2xl mx-auto p-6 space-y-4">
-        <p className="text-sm text-chatroom-text-secondary">
-          Connect a machine before setting up a workspace. Run:
-        </p>
-        <pre className="font-mono text-xs text-chatroom-text-secondary p-3 bg-chatroom-bg-surface border border-chatroom-border whitespace-pre-wrap">
-          {daemonStartCommand}
-        </pre>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Prerequisites
+        </h3>
+        <div className="flex flex-col gap-2">
+          <SetupPrerequisiteRow done={false} label="Auth login" command={authLoginCommand} />
+          <SetupPrerequisiteRow
+            done={false}
+            label="Daemon connected"
+            command={daemonStartCommand}
+          />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+          Prerequisites
+        </h3>
+        <div className="flex flex-col gap-2">
+          <SetupPrerequisiteRow
+            done={daemonDone}
+            label="Daemon connected"
+            doneDetail="Machine online"
+          />
+          <SetupPrerequisiteRow
+            done={harnessDone}
+            label="Harness installed"
+            command={harnessDone ? undefined : HARNESS_INSTALL_COMMAND}
+            doneDetail={harnessDone ? detectedHarnesses.join(', ') : undefined}
+          />
+        </div>
+      </div>
+
       <div>
         <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
           Machine
@@ -182,6 +227,18 @@ export const SetupWorkspaceStep = memo(function SetupWorkspaceStep({
               Waiting for folder selection on{' '}
               {selectedMachine ? getMachineDisplayName(selectedMachine) : 'machine'}...
             </p>
+          )}
+          {isTimedOut && (
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                setError(null);
+              }}
+              className="text-xs text-chatroom-accent hover:text-chatroom-text-primary text-left"
+            >
+              Folder picker timed out — click to try again
+            </button>
           )}
         </div>
       </div>
