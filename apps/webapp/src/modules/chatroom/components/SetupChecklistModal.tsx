@@ -31,17 +31,11 @@ interface SetupChecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  /** @deprecated No longer used — kept for caller compatibility */
-  teamName?: string;
   teamRoles: string[];
   teamEntryPoint?: string;
   participants: Participant[];
-  /** @deprecated No longer used — kept for caller compatibility */
-  onViewPrompt?: (role: string) => void;
   chatroomName: string;
   onRenameChatroom: (newName: string) => Promise<void>;
-  /** @deprecated No longer used — kept for caller compatibility */
-  onWorkingDirPasted?: (rawPath: string) => void;
 }
 
 type SetupStep = 'workspace' | 'agents';

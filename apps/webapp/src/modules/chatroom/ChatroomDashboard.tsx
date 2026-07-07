@@ -61,7 +61,6 @@ import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
-import { normalizePastedChatroomName } from './utils/normalizeChatroomName';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
@@ -1210,14 +1209,6 @@ export function ChatroomDashboard({
     [chatroom?.teamEntryPoint, teamRoles]
   );
 
-  // Memoize callbacks to prevent unnecessary child re-renders
-  const handleViewPrompt = useCallback((role: string) => {
-    setModalState({
-      isOpen: true,
-      role,
-    });
-  }, []);
-
   const handleCloseModal = useCallback(() => {
     setModalState({
       isOpen: false,
@@ -1273,18 +1264,6 @@ export function ChatroomDashboard({
 
   // Derive display name
   const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
-
-  // During setup, pasting a project path into the entry-point agent's working dir
-  // auto-names the chatroom from the final path segment.
-  const handleWorkingDirPastedForChatroomName = useCallback(
-    async (rawPath: string) => {
-      if (!isSetupMode || chatroom?.name) return;
-      const suggested = normalizePastedChatroomName(rawPath);
-      if (!suggested || suggested === displayName) return;
-      await handleRenameChatroom(suggested);
-    },
-    [isSetupMode, chatroom?.name, displayName, handleRenameChatroom]
-  );
 
   // Update browser tab title with chatroom name
   useEffect(() => {
@@ -1668,14 +1647,11 @@ export function ChatroomDashboard({
             isOpen={isSetupMode && setupModalOpen}
             onClose={handleCloseSetup}
             chatroomId={chatroomId}
-            teamName={teamName}
             teamRoles={teamRoles}
             teamEntryPoint={teamEntryPoint}
             participants={participants || []}
-            onViewPrompt={handleViewPrompt}
             chatroomName={displayName}
             onRenameChatroom={handleRenameChatroom}
-            onWorkingDirPasted={handleWorkingDirPastedForChatroomName}
           />
 
           {/* Saved Command Modal */}
