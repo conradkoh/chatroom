@@ -30,7 +30,7 @@ export async function startAgentsForRoles(
         payload: {
           chatroomId,
           role,
-          model: config.model,
+          model: config.model ?? '',
           agentHarness: config.agentType,
           workingDir: config.workingDir,
         },
