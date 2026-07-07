@@ -86,18 +86,6 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     []
   );
 
-  const setupConfigCallbacks = useMemo(() => {
-    const callbacks = new Map<
-      string,
-      (harness: AgentHarness | null, model: string | null) => void
-    >();
-    for (const role of teamRoles) {
-      // fallow-ignore-next-line complexity
-      callbacks.set(role, (harness, model) => handleSetupConfigChange(role, harness, model));
-    }
-    return callbacks;
-  }, [teamRoles, handleSetupConfigChange]);
-
   const handleStartAll = useCallback(async () => {
     const missing = teamRoles.filter((role) => !roleConfigs.has(role.toLowerCase()));
     if (missing.length > 0) {
@@ -196,7 +184,9 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
                 setupMode
                 lockedMachineId={machineId}
                 lockedWorkingDir={workingDir}
-                onSetupConfigChange={setupConfigCallbacks.get(role)}
+                onSetupConfigChange={(harness, model) =>
+                  handleSetupConfigChange(role, harness, model)
+                }
               />
             );
           })}

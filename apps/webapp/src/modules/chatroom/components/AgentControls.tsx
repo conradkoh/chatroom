@@ -20,7 +20,6 @@ import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
 import { useMachineModels } from '../../../hooks/useMachineModels';
-import { useSetupNaming } from '../context/SetupNamingContext';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import type {
   AgentHarness,
@@ -703,9 +702,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleCancelRehomeStart,
   } = controls;
 
-  const { onWorkingDirPasted, entryPointRole } = useSetupNaming();
-  const autoFocusWorkingDir = entryPointRole !== undefined && role === entryPointRole;
-
   // When an agent is running, display values come exclusively from runningAgentConfig.
   // Internal form state is preserved so it's ready again when the agent stops.
   const runningConfig = isAgentRunning ? runningAgentConfig : undefined;
@@ -974,22 +970,15 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             </div>
           </div>
 
-          {/* Row 2: Working Directory.
-              During setup, pasting a path here auto-names the chatroom (see onWorkingDirPasted). */}
+          {/* Row 2: Working Directory */}
           {!setupMode && (
             <div className="flex items-center gap-1">
               <input
                 type="text"
                 value={displayWorkingDir}
                 onChange={(e) => handleWorkingDirChange(e.target.value)}
-                onPaste={
-                  onWorkingDirPasted
-                    ? (e) => onWorkingDirPasted(e.clipboardData.getData('text'))
-                    : undefined
-                }
                 placeholder="/path/to/project"
                 disabled={isBusy || isAgentRunning}
-                autoFocus={autoFocusWorkingDir}
                 className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Working directory for agent (absolute path on remote machine)"
                 onClick={(e) => e.stopPropagation()}
