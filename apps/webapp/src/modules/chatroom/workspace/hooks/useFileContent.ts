@@ -1,9 +1,10 @@
 'use client';
 
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useEffect, useState } from 'react';
 import { api } from '@workspace/backend/convex/_generated/api';
-import { decompressGzip } from '../utils/decompressGzip';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
 interface FileContentResult {
   content: string;
@@ -33,27 +34,42 @@ export function useFileContent(
   );
 
   const [decompressed, setDecompressed] = useState<FileContentResult | null | undefined>(undefined);
+  const rawResultRef = useRef(rawResult);
+  rawResultRef.current = rawResult;
+
+  // Depend on compressed payload content, not the Convex row object identity.
+  const compressedPayload = useMemo((): string | null | undefined => {
+    if (rawResult === undefined) return undefined;
+    if (rawResult === null) return null;
+    return extractBase64Content(rawResult.data);
+  }, [
+    rawResult === undefined
+      ? undefined
+      : rawResult === null
+        ? null
+        : extractBase64Content(rawResult.data),
+  ]);
 
   useEffect(() => {
-    if (rawResult === undefined) {
+    if (compressedPayload === undefined) {
       setDecompressed(undefined);
       return;
     }
-    if (rawResult === null) {
+    if (compressedPayload === null) {
       setDecompressed(null);
       return;
     }
 
-    // V2: data is always base64-encoded gzip — decompress
     let cancelled = false;
-    decompressGzip(rawResult.data.content)
+    decompressGzip(compressedPayload)
       .then((content) => {
-        if (!cancelled) {
+        const current = rawResultRef.current;
+        if (!cancelled && current) {
           setDecompressed({
             content,
-            encoding: rawResult.encoding,
-            truncated: rawResult.truncated,
-            fetchedAt: rawResult.fetchedAt,
+            encoding: current.encoding,
+            truncated: current.truncated,
+            fetchedAt: current.fetchedAt,
           });
         }
       })
@@ -66,7 +82,7 @@ export function useFileContent(
     return () => {
       cancelled = true;
     };
-  }, [rawResult]);
+  }, [compressedPayload]);
 
   return decompressed;
 }

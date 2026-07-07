@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { getEffectiveMaxTextareaHeightPx, MAX_TEXTAREA_HEIGHT_PX } from './messageInputAutosize';
+import {
+  getEffectiveMaxTextareaHeightPx,
+  MAX_TEXTAREA_HEIGHT_PX,
+  measureTextareaContentHeightPx,
+} from './messageInputAutosize';
 
 describe('getEffectiveMaxTextareaHeightPx', () => {
   it('uses full line cap on tall viewports', () => {
@@ -20,5 +24,19 @@ describe('getEffectiveMaxTextareaHeightPx', () => {
   it('shrinks when mobile keyboard reduces visual viewport', () => {
     // Keyboard open: visual viewport ~300px
     expect(getEffectiveMaxTextareaHeightPx(300)).toBe(150);
+  });
+});
+
+describe('measureTextareaContentHeightPx', () => {
+  it('returns scroll height capped by max', () => {
+    const textarea = document.createElement('textarea');
+    textarea.value = 'line one\nline two';
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      get: () => 80,
+    });
+
+    expect(measureTextareaContentHeightPx(textarea, 60)).toBe(60);
+    expect(textarea.style.height).toBe('0px');
   });
 });
