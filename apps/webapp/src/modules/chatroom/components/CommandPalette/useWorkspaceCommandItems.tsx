@@ -11,7 +11,7 @@ import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
 
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import type { LocalActionType } from '@/hooks/useSendLocalAction';
-import { toRepoHttpsUrl } from '@/lib/git-url';
+import { toRepoHttpsUrl, toGitHubPullRequestsUrl } from '@/lib/git-url';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ export function useWorkspaceCommandItems(
           icon: <SiGithub size={14} />,
           category: 'Actions',
           keywords: ['PR', 'PRs', hostname, workingDirBasename],
-          action: () => openExternalUrl(`${repoUrl}/pulls?q=is%3Apr+is%3Aopen+author%3A%40me`),
+          action: () => openExternalUrl(toGitHubPullRequestsUrl(repoUrl)),
         });
 
         items.push({

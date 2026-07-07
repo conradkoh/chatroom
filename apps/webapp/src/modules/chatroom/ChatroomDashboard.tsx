@@ -93,7 +93,7 @@ import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
-import { toRepoHttpsUrl } from '@/lib/git-url';
+import { toRepoHttpsUrl, toGitHubPullRequestsUrl } from '@/lib/git-url';
 import { openExternalUrl } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
@@ -854,7 +854,7 @@ export function ChatroomDashboard({
   }, [prUrl]);
 
   const handleViewGitHubPullRequests = useCallback(() => {
-    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls?q=is%3Apr+author%3A%40me`);
+    if (gitHubRepoUrl) openExternalUrl(toGitHubPullRequestsUrl(gitHubRepoUrl));
   }, [gitHubRepoUrl]);
 
   const handleViewGitHubRepository = useCallback(() => {

@@ -45,3 +45,13 @@ export function toRepoHttpsUrl(remoteUrl: string): string | null {
 
   return null;
 }
+
+/**
+ * Build the GitHub pull requests page URL for a repository.
+ *
+ * Uses a path-only URL (no search query) so PWAs open the link in the
+ * system browser the same way as the repository root URL.
+ */
+export function toGitHubPullRequestsUrl(repoHttpsUrl: string): string {
+  return `${repoHttpsUrl}/pulls`;
+}
