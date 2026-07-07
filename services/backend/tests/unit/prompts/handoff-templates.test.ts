@@ -125,7 +125,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
       <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. State the context goal and confirm it was achieved. -->
-      - \`path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Backlog Tasks Implemented
@@ -212,7 +213,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Proof of Completion
       - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
-      - \`path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 
       ## Code Change Verification
@@ -272,8 +274,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Files to implement (exhaustive, file-level)
       List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-      ### \`path/to/file.ts\`
+      ### \`apps/webapp/src/path/to/file.ts\`
       **Change:** <precisely what to add, modify, or remove in this file>
 
       \`\`\`typescript
@@ -281,7 +284,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       // Enough that the builder can implement this file without inventing structure
       \`\`\`
 
-      ### \`path/to/other-file.ts\`
+      ### \`apps/webapp/src/path/to/other-file.ts\`
       **Change:** <...>
 
       \`\`\`typescript
@@ -374,8 +377,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Files to implement (exhaustive, file-level)
       List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-      ### \`path/to/file.ts\`
+      ### \`apps/webapp/src/path/to/file.ts\`
       **Change:** <precisely what to add, modify, or remove in this file>
 
       \`\`\`typescript
@@ -383,7 +387,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       // Enough that the builder can implement this file without inventing structure
       \`\`\`
 
-      ### \`path/to/other-file.ts\`
+      ### \`apps/webapp/src/path/to/other-file.ts\`
       **Change:** <...>
 
       \`\`\`typescript
@@ -484,7 +488,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
       <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. State the context goal and confirm it was achieved. -->
-      - \`path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 
       ## Backlog Tasks Implemented

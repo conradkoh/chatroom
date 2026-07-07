@@ -8,6 +8,7 @@
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
 
 /**
  * Returns the markdown delegation-brief template the planner uses when
@@ -44,8 +45,9 @@ export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): s
 
 ## Files to implement (exhaustive, file-level)
 List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+${getFileReferenceGuidanceComment()}
 
-### \`path/to/file.ts\`
+### \`apps/webapp/src/path/to/file.ts\`
 **Change:** <precisely what to add, modify, or remove in this file>
 
 \`\`\`typescript
@@ -53,7 +55,7 @@ List **every** file in this slice. For each file, state the exact change and pas
 // Enough that the builder can implement this file without inventing structure
 \`\`\`
 
-### \`path/to/other-file.ts\`
+### \`apps/webapp/src/path/to/other-file.ts\`
 **Change:** <...>
 
 \`\`\`typescript

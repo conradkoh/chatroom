@@ -26,6 +26,7 @@ import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/comma
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
+import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
@@ -66,7 +67,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
 ### Proof of Completion
 ${getContextReadDisclosureBlock(roleGuidanceContext)}
-- \`path/to/file.ts\` — <what changed and why>
+${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you (or the builder) modified>
 
 ## Backlog Tasks Implemented
