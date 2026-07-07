@@ -141,6 +141,7 @@ export interface UseFileTabsReturn {
   openPreview: (filePath: string) => void;
   pinTab: (filePath: string) => void;
   closeTab: (filePath: string) => void;
+  closeOtherTabs: (filePath: string) => void;
   setActiveTab: (filePath: string) => void;
   toggleExpanded: (filePath: string) => void;
   renamePath: (oldPath: string, newPath: string) => void;
@@ -261,6 +262,16 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setExpandedTabPath((prev) => (prev === filePath ? null : prev));
   }, []);
 
+  const closeOtherTabs = useCallback((keepFilePath: string) => {
+    setTabs((prev) => {
+      const kept = prev.filter((t) => t.filePath === keepFilePath);
+      if (kept.length === 0) return prev;
+      setActiveTabPath(keepFilePath);
+      return kept;
+    });
+    setExpandedTabPath((prev) => (prev === keepFilePath ? prev : null));
+  }, []);
+
   const setActive = useCallback((filePath: string) => {
     setActiveTabPath(filePath);
   }, []);
@@ -351,6 +362,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     openPreview,
     pinTab,
     closeTab,
+    closeOtherTabs,
     setActiveTab: setActive,
     toggleExpanded,
     renamePath,

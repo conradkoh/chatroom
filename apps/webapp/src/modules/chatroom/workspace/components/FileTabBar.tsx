@@ -1,9 +1,15 @@
 'use client';
 
 import { X } from 'lucide-react';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
 
 import { cn } from '@/lib/utils';
@@ -15,6 +21,7 @@ interface FileTabBarProps {
   activeTabPath: string | null;
   onActivate: (filePath: string) => void;
   onClose: (filePath: string) => void;
+  onCloseOthers: (filePath: string) => void;
   onPin: (filePath: string) => void;
   onToggleExpanded?: (filePath: string) => void;
 }
@@ -26,25 +33,69 @@ export const FileTabBar = memo(function FileTabBar({
   activeTabPath,
   onActivate,
   onClose,
+  onCloseOthers,
   onPin,
   onToggleExpanded,
 }: FileTabBarProps) {
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const [contextMenuTarget, setContextMenuTarget] = useState<string | null>(null);
+  const [contextMenuPoint, setContextMenuPoint] = useState({ x: 0, y: 0 });
+
+  const openContextMenu = useCallback((filePath: string, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenuTarget(filePath);
+    setContextMenuPoint({ x: event.clientX, y: event.clientY });
+    setContextMenuOpen(true);
+  }, []);
+
+  const handleCloseOthers = useCallback(() => {
+    if (contextMenuTarget) {
+      onCloseOthers(contextMenuTarget);
+    }
+    setContextMenuOpen(false);
+  }, [contextMenuTarget, onCloseOthers]);
+
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex items-center h-8 overflow-x-auto overflow-y-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0">
-      {tabs.map((tab) => (
-        <TabItem
-          key={tab.filePath}
-          tab={tab}
-          isActive={tab.filePath === activeTabPath}
-          onActivate={onActivate}
-          onClose={onClose}
-          onPin={onPin}
-          onToggleExpanded={onToggleExpanded}
-        />
-      ))}
-    </div>
+    <>
+      <div className="flex items-center h-8 overflow-x-auto overflow-y-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0">
+        {tabs.map((tab) => (
+          <TabItem
+            key={tab.filePath}
+            tab={tab}
+            isActive={tab.filePath === activeTabPath}
+            onActivate={onActivate}
+            onClose={onClose}
+            onPin={onPin}
+            onToggleExpanded={onToggleExpanded}
+            onContextMenu={openContextMenu}
+          />
+        ))}
+      </div>
+
+      <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen} modal={false}>
+        <DropdownMenuTrigger asChild>
+          <span
+            aria-hidden
+            style={{
+              position: 'fixed',
+              left: contextMenuPoint.x,
+              top: contextMenuPoint.y,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onSelect={handleCloseOthers} disabled={tabs.length <= 1}>
+            Close Others
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 });
 
@@ -57,6 +108,7 @@ const TabItem = memo(function TabItem({
   onClose,
   onPin,
   onToggleExpanded,
+  onContextMenu,
 }: {
   tab: FileTab;
   isActive: boolean;
@@ -64,6 +116,7 @@ const TabItem = memo(function TabItem({
   onClose: (filePath: string) => void;
   onPin: (filePath: string) => void;
   onToggleExpanded?: (filePath: string) => void;
+  onContextMenu: (filePath: string, event: React.MouseEvent) => void;
 }) {
   const handleClick = useCallback(() => {
     onActivate(tab.filePath);
@@ -71,10 +124,8 @@ const TabItem = memo(function TabItem({
 
   const handleDoubleClick = useCallback(() => {
     if (tab.isPinned) {
-      // Already pinned — toggle expansion
       onToggleExpanded?.(tab.filePath);
     } else {
-      // Not pinned yet — pin it
       onPin(tab.filePath);
     }
   }, [onPin, onToggleExpanded, tab.filePath, tab.isPinned]);
@@ -85,6 +136,13 @@ const TabItem = memo(function TabItem({
       onClose(tab.filePath);
     },
     [onClose, tab.filePath]
+  );
+
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      onContextMenu(tab.filePath, event);
+    },
+    [onContextMenu, tab.filePath]
   );
 
   return (
@@ -99,6 +157,7 @@ const TabItem = memo(function TabItem({
       )}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
       title={tab.filePath}
     >
       <FileTypeIcon path={tab.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />

@@ -92,3 +92,69 @@ describe('useFileTabs persistence', () => {
     expect(storedB.activeTabPath).toBe('b.ts');
   });
 });
+
+describe('useFileTabs closeOtherTabs', () => {
+  it('keeps only the specified tab and sets it active', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.pinTab('b.ts');
+      result.current.pinTab('c.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('b.ts');
+    });
+
+    expect(result.current.tabs).toEqual([{ filePath: 'b.ts', name: 'b.ts', isPinned: true }]);
+    expect(result.current.activeTabPath).toBe('b.ts');
+  });
+
+  it('clears expandedTabPath when expanded tab is closed', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.pinTab('b.ts');
+      result.current.toggleExpanded('a.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('b.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBeNull();
+  });
+
+  it('preserves expandedTabPath when kept tab is expanded', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.pinTab('b.ts');
+      result.current.toggleExpanded('b.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('b.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBe('b.ts');
+  });
+
+  it('no-ops when keep path is not open', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('missing.ts');
+    });
+
+    expect(result.current.tabs).toEqual([{ filePath: 'a.ts', name: 'a.ts', isPinned: true }]);
+    expect(result.current.activeTabPath).toBe('a.ts');
+  });
+});

@@ -197,6 +197,7 @@ const ExplorerContent = memo(function ExplorerContent({
           activeTabPath={fileTabs.activeTabPath}
           onActivate={fileTabs.setActiveTab}
           onClose={fileTabs.closeTab}
+          onCloseOthers={fileTabs.closeOtherTabs}
           onPin={fileTabs.pinTab}
           onToggleExpanded={fileTabs.toggleExpanded}
         />
