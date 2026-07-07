@@ -266,6 +266,11 @@ input,
   --chatroom-text-secondary: #525252; /* neutral-600 */
   --chatroom-text-muted: #737373; /* neutral-500 */
 
+  /* Loader — mid-tone squares with stronger dim opacity for light backgrounds */
+  --chatroom-loader-square: #737373; /* neutral-500 */
+  --chatroom-loader-opacity-dim: 0.45;
+  --chatroom-loader-opacity-bright: 1;
+
   /* Status Colors - darker for light backgrounds */
   --chatroom-status-success: #15803d; /* green-700 */
   --chatroom-status-warning: #b45309; /* amber-700 */
@@ -315,6 +320,11 @@ input,
   --chatroom-text-primary: #fafafa; /* zinc-100 */
   --chatroom-text-secondary: #a1a1aa; /* zinc-400 */
   --chatroom-text-muted: #71717a; /* zinc-500 */
+
+  /* Loader — soft zinc squares; lower dim opacity reads well on dark steel */
+  --chatroom-loader-square: #e4e4e7; /* zinc-200 */
+  --chatroom-loader-opacity-dim: 0.22;
+  --chatroom-loader-opacity-bright: 1;
 
   /* Status Colors */
   --chatroom-status-success: #34d399; /* emerald-400 */
@@ -434,8 +444,8 @@ input,
 
 /* Chatroom loader — side pairs cross-fade: top → right → bottom → left */
 .chatroom-loader-square {
-  background-color: var(--chatroom-text-primary);
-  opacity: 0.2;
+  background-color: var(--chatroom-loader-square);
+  opacity: var(--chatroom-loader-opacity-dim);
   animation-duration: 2.4s;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
@@ -459,66 +469,66 @@ input,
 @keyframes chatroom-loader-fade-tl {
   0%,
   15% {
-    opacity: 1;
+    opacity: var(--chatroom-loader-opacity-bright);
   }
   28%,
   65% {
-    opacity: 0.2;
+    opacity: var(--chatroom-loader-opacity-dim);
   }
   78%,
   100% {
-    opacity: 1;
+    opacity: var(--chatroom-loader-opacity-bright);
   }
 }
 
 @keyframes chatroom-loader-fade-tr {
   0%,
   8% {
-    opacity: 1;
+    opacity: var(--chatroom-loader-opacity-bright);
   }
   53%,
   90% {
-    opacity: 0.2;
+    opacity: var(--chatroom-loader-opacity-dim);
   }
   93%,
   100% {
-    opacity: 1;
+    opacity: var(--chatroom-loader-opacity-bright);
   }
 }
 
 @keyframes chatroom-loader-fade-bl {
   0%,
   40% {
-    opacity: 0.2;
+    opacity: var(--chatroom-loader-opacity-dim);
   }
   53%,
   75% {
-    opacity: 1;
+    opacity: var(--chatroom-loader-opacity-bright);
   }
   78%,
   100% {
-    opacity: 0.2;
+    opacity: var(--chatroom-loader-opacity-dim);
   }
 }
 
 @keyframes chatroom-loader-fade-br {
   0%,
   15% {
-    opacity: 0.2;
+    opacity: var(--chatroom-loader-opacity-dim);
   }
   28%,
   65% {
-    opacity: 1;
+    opacity: var(--chatroom-loader-opacity-bright);
   }
   78%,
   100% {
-    opacity: 0.2;
+    opacity: var(--chatroom-loader-opacity-dim);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chatroom-loader-square {
     animation: none;
-    opacity: 0.5;
+    opacity: calc((var(--chatroom-loader-opacity-dim) + var(--chatroom-loader-opacity-bright)) / 2);
   }
 }
