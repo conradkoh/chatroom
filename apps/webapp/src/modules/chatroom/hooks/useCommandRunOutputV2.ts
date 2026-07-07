@@ -7,14 +7,13 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import { decodeOutputBrowser } from '@workspace/backend/src/output-encoding-browser';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { CommandRun } from '../features/run-command/types/run';
 import type { useCommandRunner } from './useCommandRunner';
+import type { CommandRun } from '../features/run-command/types/run';
 
 /** Maximum number of output lines to keep in buffer to prevent memory issues */
 const MAX_OUTPUT_LINES = 1000;
@@ -94,9 +93,7 @@ export function useCommandRunOutputV2(
   const raw = useSessionQuery(
     api.commands.getRunOutputV2,
     subscribeRunId ? { runId: subscribeRunId as any, loadFull } : 'skip'
-  ) as
-    | { run: any; tail: any; chunks: any[]; fullOutputPending: boolean }
-    | undefined;
+  ) as { run: any; tail: any; chunks: any[]; fullOutputPending: boolean } | undefined;
 
   const result = raw ?? { run: null, tail: null, chunks: [], fullOutputPending: false };
 
@@ -108,7 +105,8 @@ export function useCommandRunOutputV2(
     if (t) return `tail:${t.updatedAt}`;
     const rc = result.chunks as RawChunk[];
     if (rc.length === 0) return 'empty';
-    const last = rc[rc.length - 1]!;
+    const last = rc.at(-1);
+    if (!last) return 'empty';
     const lastContent = typeof last.content === 'string' ? last.content : last.content.content;
     return `chunks:${rc.length}:${lastContent}`;
   }, [result.tail, result.chunks]);
@@ -159,8 +157,7 @@ export function useCommandRunOutputV2(
     }
   }, [commandName]);
 
-  const isActive =
-    result.run?.status === 'running' || result.run?.status === 'pending';
+  const isActive = result.run?.status === 'running' || result.run?.status === 'pending';
 
   const canLoadMore =
     isActive &&
@@ -187,9 +184,9 @@ export function useCommandRunOutputV2(
       setCommandName(name);
       setScript(scriptStr);
       setLoadFull(false);
-      commandRunner.runCommand(name, scriptStr);
+      void commandRunner.runOrAttach(name, scriptStr);
     },
-    [commandRunner.runCommand]
+    [commandRunner]
   );
 
   const stop = useCallback(() => {

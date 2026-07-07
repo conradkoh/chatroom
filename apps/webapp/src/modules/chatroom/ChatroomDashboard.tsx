@@ -1070,7 +1070,7 @@ export function ChatroomDashboard({
   // Handler to run a command from the command palette
   const handleRunCommand = useCallback(
     (commandName: string, script: string) => {
-      commandRunner.runCommand(commandName, script);
+      void commandRunner.runOrAttach(commandName, script);
       setTerminalOpen(true);
     },
     [commandRunner]

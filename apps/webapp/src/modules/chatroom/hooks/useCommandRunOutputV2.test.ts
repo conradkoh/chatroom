@@ -3,7 +3,11 @@
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { useCommandRunner } from './useCommandRunner';
+import { useCommandRunOutputV2 } from './useCommandRunOutputV2';
 
 const mockControlOutput = vi.fn();
 
@@ -28,21 +32,21 @@ vi.mock('@workspace/backend/src/output-encoding-browser', () => ({
   }),
 }));
 
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import type { useCommandRunner } from './useCommandRunner';
-import { useCommandRunOutputV2 } from './useCommandRunOutputV2';
-
 const mockUseSessionQuery = useSessionQuery as ReturnType<typeof vi.fn>;
 
 type CommandRunner = ReturnType<typeof useCommandRunner>;
 
 function createMockCommandRunner(overrides: Partial<CommandRunner> = {}): CommandRunner {
+  const runCommand = vi.fn().mockResolvedValue('run-id-1');
   return {
     commands: [],
     runs: [],
     activeRunId: null,
     setActiveRunId: vi.fn(),
-    runCommand: vi.fn().mockResolvedValue('run-id-1'),
+    runCommand,
+    runOrAttach: vi
+      .fn()
+      .mockImplementation((name: string, script: string) => runCommand(name, script)),
     stopCommand: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
