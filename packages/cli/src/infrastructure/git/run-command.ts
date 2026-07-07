@@ -15,8 +15,14 @@ function runCommandSpawn(
   command: string,
   args: string[],
   cwd: string,
-  options?: { timeout?: number; maxBuffer?: number; env?: NodeJS.ProcessEnv }
+  options?: {
+    timeout?: number;
+    maxBuffer?: number;
+    env?: NodeJS.ProcessEnv;
+    successExitCodes?: number[];
+  }
 ): Promise<CommandResult> {
+  const successExitCodes = options?.successExitCodes ?? [0];
   // fallow-ignore-next-line complexity
   return new Promise((resolve) => {
     const child = spawn(command, args, {
@@ -47,7 +53,7 @@ function runCommandSpawn(
 
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);
-      if (code === 0) resolve({ stdout, stderr });
+      if (successExitCodes.includes(code ?? -1)) resolve({ stdout, stderr });
       else {
         resolve({
           error: Object.assign(new Error(stderr || stdout || `exit ${code}`), {
@@ -67,7 +73,7 @@ function runCommandSpawn(
 export function runGit(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; maxBuffer?: number }
+  options?: { timeout?: number; maxBuffer?: number; successExitCodes?: number[] }
 ): Promise<CommandResult> {
   return runCommandSpawn('git', args, cwd, options);
 }

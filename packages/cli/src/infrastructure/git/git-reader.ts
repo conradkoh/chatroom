@@ -54,6 +54,108 @@ function isEmptyRepo(stderr: string): boolean {
   );
 }
 
+const NULL_DEVICE = process.platform === 'win32' ? 'NUL' : '/dev/null';
+
+/** Lists untracked file paths (respecting .gitignore). */
+async function listUntrackedFiles(workingDir: string): Promise<string[]> {
+  const result = await runGit(['ls-files', '--others', '--exclude-standard'], workingDir);
+  if ('error' in result) return [];
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** Unified diff for a single untracked file (compare against /dev/null). */
+async function getUntrackedFileDiff(workingDir: string, filePath: string): Promise<string> {
+  const result = await runGit(['diff', '--no-index', '--', NULL_DEVICE, filePath], workingDir, {
+    successExitCodes: [0, 1],
+  });
+  if ('error' in result) return '';
+  return result.stdout;
+}
+
+/** Counts addition lines in unified diff output. */
+function countDiffInsertions(diff: string): number {
+  let count = 0;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) count++;
+  }
+  return count;
+}
+
+/** Merges tracked diff stat with untracked file contributions. */
+function mergeDiffStatWithUntracked(base: DiffStat, untrackedDiffs: string[]): DiffStat {
+  const untrackedInsertions = untrackedDiffs.reduce(
+    (sum, diff) => sum + countDiffInsertions(diff),
+    0
+  );
+  return {
+    filesChanged: base.filesChanged + untrackedDiffs.length,
+    insertions: base.insertions + untrackedInsertions,
+    deletions: base.deletions,
+  };
+}
+
+async function appendUntrackedDiffs(workingDir: string, trackedDiff: string): Promise<string> {
+  const untrackedPaths = await listUntrackedFiles(workingDir);
+  if (untrackedPaths.length === 0) return trackedDiff;
+
+  const parts: string[] = [];
+  if (trackedDiff.trim()) parts.push(trackedDiff.trimEnd());
+
+  for (const filePath of untrackedPaths) {
+    const fileDiff = await getUntrackedFileDiff(workingDir, filePath);
+    if (fileDiff.trim()) parts.push(fileDiff.trimEnd());
+  }
+
+  if (parts.length === 0) return trackedDiff;
+  return `${parts.join('\n')}\n`;
+}
+
+async function getUntrackedDiffs(workingDir: string): Promise<string[]> {
+  const untrackedPaths = await listUntrackedFiles(workingDir);
+  const diffs: string[] = [];
+  for (const filePath of untrackedPaths) {
+    const fileDiff = await getUntrackedFileDiff(workingDir, filePath);
+    if (fileDiff.trim()) diffs.push(fileDiff);
+  }
+  return diffs;
+}
+
+function truncateDiffContent(raw: string): GitFullDiffResult {
+  const byteLength = Buffer.byteLength(raw, 'utf8');
+  if (byteLength > FULL_DIFF_MAX_BYTES) {
+    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
+    return { status: 'truncated', content: truncated, truncated: true };
+  }
+  return { status: 'available', content: raw, truncated: false };
+}
+
+type TrackedHeadDiffResolution =
+  | { status: 'ok'; stdout: string }
+  | { status: 'empty_repo' }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string };
+
+async function runTrackedHeadDiff(
+  workingDir: string,
+  args: string[],
+  options?: { maxBuffer?: number }
+): Promise<TrackedHeadDiffResolution> {
+  const result = await runGit(args, workingDir, options);
+  if ('error' in result) {
+    const errMsg = result.error.message;
+    if (isEmptyRepo(errMsg)) return { status: 'empty_repo' };
+    const classified = classifyError(errMsg);
+    if (classified.status === 'not_found') return { status: 'not_found' };
+    if (classified.status === 'error') return { status: 'error', message: classified.message };
+    return { status: 'not_found' };
+  }
+  if (isEmptyRepo(result.stderr)) return { status: 'empty_repo' };
+  return { status: 'ok', stdout: result.stdout };
+}
+
 /**
  * Classify a git error into a structured result type.
  * Covers: git not installed, not a repo, permission denied, empty repo,
@@ -151,41 +253,24 @@ export function parseDiffStatLine(statLine: string): DiffStat {
  * Returns zero-value stats for a clean tree (no changes).
  */
 export async function getDiffStat(workingDir: string): Promise<GitDiffStatResult> {
-  const result = await runGit(['diff', 'HEAD', '--stat'], workingDir);
+  const tracked = await runTrackedHeadDiff(workingDir, ['diff', 'HEAD', '--stat']);
+  if (tracked.status === 'not_found') return { status: 'not_found' };
+  if (tracked.status === 'error') return { status: 'error', message: tracked.message };
 
-  if ('error' in result) {
-    const errMsg = result.error.message;
-    if (isEmptyRepo(result.error.message)) {
-      return { status: 'no_commits' };
-    }
-    const classified = classifyError(errMsg);
-    if (classified.status === 'not_found') return { status: 'not_found' };
-    // Also check stderr embedded in error message for empty repo clues
-    return classified;
+  let baseStat: DiffStat = { filesChanged: 0, insertions: 0, deletions: 0 };
+  const hadEmptyRepo = tracked.status === 'empty_repo';
+  if (tracked.status === 'ok' && tracked.stdout.trim()) {
+    const lines = tracked.stdout.trim().split('\n');
+    baseStat = parseDiffStatLine(lines[lines.length - 1] ?? '');
   }
 
-  // git diff exits 0 for both clean and dirty trees
-  const output = result.stdout;
-  const stderr = result.stderr;
-
-  if (isEmptyRepo(stderr)) {
-    return { status: 'no_commits' };
+  const untrackedDiffs = await getUntrackedDiffs(workingDir);
+  if (untrackedDiffs.length === 0) {
+    if (hadEmptyRepo) return { status: 'no_commits' };
+    return { status: 'available', diffStat: baseStat };
   }
 
-  if (!output.trim()) {
-    // Clean tree — zero changes
-    return {
-      status: 'available',
-      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
-    };
-  }
-
-  // The summary line is the last non-empty line
-  const lines = output.trim().split('\n');
-  const summaryLine = lines[lines.length - 1] ?? '';
-  const diffStat = parseDiffStatLine(summaryLine);
-
-  return { status: 'available', diffStat };
+  return { status: 'available', diffStat: mergeDiffStatWithUntracked(baseStat, untrackedDiffs) };
 }
 
 /**
@@ -196,35 +281,22 @@ export async function getDiffStat(workingDir: string): Promise<GitDiffStatResult
  * transparently (no special treatment needed; output is valid UTF-8 text).
  */
 export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult> {
-  const result = await runGit(['diff', 'HEAD'], workingDir, {
+  const tracked = await runTrackedHeadDiff(workingDir, ['diff', 'HEAD'], {
     maxBuffer: FULL_DIFF_MAX_BYTES + 64 * 1024,
   });
+  if (tracked.status === 'not_found') return { status: 'not_found' };
+  if (tracked.status === 'error') return { status: 'error', message: tracked.message };
 
-  if ('error' in result) {
-    const errMsg = result.error.message;
-    if (isEmptyRepo(errMsg)) {
-      return { status: 'no_commits' };
-    }
-    const classified = classifyError(errMsg);
-    if (classified.status === 'not_found') return { status: 'not_found' };
-    return classified;
+  const trackedDiff = tracked.status === 'ok' ? tracked.stdout : '';
+  const hadEmptyRepo = tracked.status === 'empty_repo';
+  const content = await appendUntrackedDiffs(workingDir, trackedDiff);
+  if (!content.trim()) {
+    return hadEmptyRepo
+      ? { status: 'no_commits' }
+      : { status: 'available', content: '', truncated: false };
   }
 
-  const stderr = result.stderr;
-  if (isEmptyRepo(stderr)) {
-    return { status: 'no_commits' };
-  }
-
-  const raw = result.stdout;
-  const byteLength = Buffer.byteLength(raw, 'utf8');
-
-  if (byteLength > FULL_DIFF_MAX_BYTES) {
-    // Truncate at a safe character boundary
-    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
-    return { status: 'truncated', content: truncated, truncated: true };
-  }
-
-  return { status: 'available', content: raw, truncated: false };
+  return truncateDiffContent(content);
 }
 
 /**
@@ -245,14 +317,7 @@ export async function getPRDiffByNumber(cwd: string, prNumber: number): Promise<
     return { status: 'available', content: '', truncated: false };
   }
 
-  const byteLength = Buffer.byteLength(raw, 'utf8');
-
-  if (byteLength > FULL_DIFF_MAX_BYTES) {
-    const truncated = Buffer.from(raw, 'utf8').subarray(0, FULL_DIFF_MAX_BYTES).toString('utf8');
-    return { status: 'truncated', content: truncated, truncated: true };
-  }
-
-  return { status: 'available', content: raw, truncated: false };
+  return truncateDiffContent(raw);
 }
 
 /**

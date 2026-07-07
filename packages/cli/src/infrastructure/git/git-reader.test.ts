@@ -39,7 +39,11 @@ function dequeue(): QueuedResponse {
 
 const mockRunGit =
   vi.fn<
-    (args: string[], cwd: string) => Promise<{ stdout: string; stderr: string } | { error: Error }>
+    (
+      args: string[],
+      cwd: string,
+      options?: { successExitCodes?: number[] }
+    ) => Promise<{ stdout: string; stderr: string } | { error: Error }>
   >();
 
 const mockRunGh =
@@ -48,7 +52,8 @@ const mockRunGh =
   >();
 
 vi.mock('./run-command.js', () => ({
-  runGit: (args: string[], cwd: string) => mockRunGit(args, cwd),
+  runGit: (args: string[], cwd: string, options?: { successExitCodes?: number[] }) =>
+    mockRunGit(args, cwd, options),
   runGh: (args: string[], cwd: string) => mockRunGh(args, cwd),
 }));
 
@@ -199,6 +204,7 @@ describe('isDirty', () => {
 describe('getDiffStat', () => {
   test('returns available with zero stats for clean tree', async () => {
     mockSuccess('');
+    mockSuccess(''); // ls-files --others
     const result = await getDiffStat('/repo');
     expect(result).toEqual({
       status: 'available',
@@ -213,6 +219,7 @@ describe('getDiffStat', () => {
       ' 2 files changed, 7 insertions(+), 8 deletions(-)',
     ].join('\n');
     mockSuccess(statOutput);
+    mockSuccess(''); // ls-files --others
     const result = await getDiffStat('/repo');
     expect(result).toEqual({
       status: 'available',
@@ -220,8 +227,50 @@ describe('getDiffStat', () => {
     });
   });
 
+  test('includes untracked files in diff stat', async () => {
+    mockSuccess(''); // git diff HEAD --stat (clean tracked)
+    mockSuccess('src/new.ts\n'); // ls-files --others
+    mockSuccess(
+      [
+        'diff --git a/src/new.ts b/src/new.ts',
+        'new file mode 100644',
+        '--- /dev/null',
+        '+++ b/src/new.ts',
+        '@@ -0,0 +1,2 @@',
+        '+export const x = 1;',
+        '+export const y = 2;',
+      ].join('\n')
+    ); // git diff --no-index for new.ts
+    const result = await getDiffStat('/repo');
+    expect(result).toEqual({
+      status: 'available',
+      diffStat: { filesChanged: 1, insertions: 2, deletions: 0 },
+    });
+  });
+
+  test('returns available with untracked stats for empty repo', async () => {
+    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    mockSuccess('README.md\n');
+    mockSuccess(
+      [
+        'diff --git a/README.md b/README.md',
+        'new file mode 100644',
+        '--- /dev/null',
+        '+++ b/README.md',
+        '@@ -0,0 +1 @@',
+        '+hello',
+      ].join('\n')
+    );
+    const result = await getDiffStat('/empty-repo');
+    expect(result).toEqual({
+      status: 'available',
+      diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
+    });
+  });
+
   test('returns no_commits for empty repository', async () => {
     mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    mockSuccess(''); // ls-files --others
     const result = await getDiffStat('/empty-repo');
     expect(result).toEqual({ status: 'no_commits' });
   });
@@ -247,6 +296,7 @@ describe('getDiffStat', () => {
 describe('getFullDiff', () => {
   test('returns available with empty content for clean tree', async () => {
     mockSuccess('');
+    mockSuccess(''); // ls-files --others
     const result = await getFullDiff('/repo');
     expect(result).toEqual({ status: 'available', content: '', truncated: false });
   });
@@ -254,14 +304,59 @@ describe('getFullDiff', () => {
   test('returns available with diff content', async () => {
     const diff = 'diff --git a/foo.ts b/foo.ts\n+added line\n';
     mockSuccess(diff);
+    mockSuccess(''); // ls-files --others
     const result = await getFullDiff('/repo');
     expect(result).toEqual({ status: 'available', content: diff, truncated: false });
+  });
+
+  test('appends untracked file diffs to tracked diff', async () => {
+    const tracked = 'diff --git a/foo.ts b/foo.ts\n+tracked\n';
+    const untracked = [
+      'diff --git a/src/new.ts b/src/new.ts',
+      'new file mode 100644',
+      '--- /dev/null',
+      '+++ b/src/new.ts',
+      '@@ -0,0 +1 @@',
+      '+new file line',
+    ].join('\n');
+    mockSuccess(tracked);
+    mockSuccess('src/new.ts\n');
+    mockSuccess(untracked);
+    const result = await getFullDiff('/repo');
+    expect(result.status).toBe('available');
+    if (result.status === 'available') {
+      expect(result.content).toContain('foo.ts');
+      expect(result.content).toContain('src/new.ts');
+      expect(result.content).toContain('+new file line');
+    }
+  });
+
+  test('returns untracked-only diff for empty repo with new files', async () => {
+    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    mockSuccess('README.md\n');
+    mockSuccess(
+      [
+        'diff --git a/README.md b/README.md',
+        'new file mode 100644',
+        '--- /dev/null',
+        '+++ b/README.md',
+        '@@ -0,0 +1 @@',
+        '+hello',
+      ].join('\n')
+    );
+    const result = await getFullDiff('/empty-repo');
+    expect(result.status).toBe('available');
+    if (result.status === 'available') {
+      expect(result.content).toContain('README.md');
+      expect(result.content).toContain('+hello');
+    }
   });
 
   test('returns truncated when diff exceeds max bytes', async () => {
     // Create a string exceeding FULL_DIFF_MAX_BYTES
     const largeDiff = 'x'.repeat(FULL_DIFF_MAX_BYTES + 1000);
     mockSuccess(largeDiff);
+    mockSuccess(''); // ls-files --others
     const result = await getFullDiff('/repo');
     expect(result.status).toBe('truncated');
     if (result.status === 'truncated') {
@@ -272,6 +367,7 @@ describe('getFullDiff', () => {
 
   test('returns no_commits for empty repository', async () => {
     mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    mockSuccess(''); // ls-files --others
     const result = await getFullDiff('/empty-repo');
     expect(result).toEqual({ status: 'no_commits' });
   });
@@ -347,13 +443,21 @@ describe('getRecentCommits', () => {
   test('defaults to 20 commits', async () => {
     mockSuccess('');
     await getRecentCommits('/repo');
-    expect(mockRunGit).toHaveBeenCalledWith(expect.arrayContaining(['log', '-20']), '/repo');
+    expect(mockRunGit).toHaveBeenCalledWith(
+      expect.arrayContaining(['log', '-20']),
+      '/repo',
+      undefined
+    );
   });
 
   test('passes custom count to git log', async () => {
     mockSuccess('');
     await getRecentCommits('/repo', 5);
-    expect(mockRunGit).toHaveBeenCalledWith(expect.arrayContaining(['log', '-5']), '/repo');
+    expect(mockRunGit).toHaveBeenCalledWith(
+      expect.arrayContaining(['log', '-5']),
+      '/repo',
+      undefined
+    );
   });
 });
 
