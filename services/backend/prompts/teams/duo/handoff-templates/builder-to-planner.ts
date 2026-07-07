@@ -14,7 +14,7 @@
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
-import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
+import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
@@ -44,7 +44,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
 ## Proof of Completion
-${getContextReadDisclosureBlock(roleGuidanceContext)}
+${getDelegationBriefDisclosureBlock()}
 - \`path/to/file.ts\` — <what changed and why>
 <evidence the goal was met — list every file you modified>
 

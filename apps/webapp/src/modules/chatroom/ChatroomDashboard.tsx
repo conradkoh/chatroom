@@ -47,6 +47,7 @@ import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
+import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
 import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
@@ -69,6 +70,7 @@ import {
   startAgentsForRoles,
 } from './utils/agentBulkStart';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
@@ -415,6 +417,9 @@ export function ChatroomDashboard({
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
+    chatroomId as Id<'chatroom_rooms'>
+  );
+  const [explorerSidebarWidth, setExplorerSidebarWidth] = useExplorerSidebarWidth(
     chatroomId as Id<'chatroom_rooms'>
   );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
@@ -1372,7 +1377,10 @@ export function ChatroomDashboard({
                   activeWorkspace &&
                   !fileTabs.expandedTabPath &&
                   explorerSidebarVisible && (
-                    <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
+                    <div
+                      className="relative shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
+                      style={{ width: explorerSidebarWidth }}
+                    >
                       <FileExplorerPanel
                         ref={fileExplorerPanelRef}
                         chatroomId={chatroomId}
@@ -1385,6 +1393,10 @@ export function ChatroomDashboard({
                         activeTabPath={fileTabs.activeTabPath}
                         explorerSyncEnabled={explorerSyncEnabled}
                         onToggleSync={setExplorerSyncEnabled}
+                      />
+                      <ExplorerSidebarResizeHandle
+                        widthPx={explorerSidebarWidth}
+                        onWidthChange={setExplorerSidebarWidth}
                       />
                     </div>
                   )}

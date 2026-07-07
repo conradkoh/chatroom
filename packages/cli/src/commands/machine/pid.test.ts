@@ -15,7 +15,7 @@ const CHATROOM_DIR = join(homedir(), '.chatroom');
 
 describe('pid lock', () => {
   let pidPath: string;
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: { mockRestore: () => void };
 
   beforeEach(() => {
     vi.mocked(getConvexUrl).mockReturnValue('https://chatroom-cloud.duskfare.com');
@@ -26,7 +26,9 @@ describe('pid lock', () => {
     if (existsSync(pidPath)) {
       unlinkSync(pidPath);
     }
-    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as {
+      mockRestore: () => void;
+    };
   });
 
   afterEach(() => {

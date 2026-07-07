@@ -1,9 +1,9 @@
 'use client';
 
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-import type { Theme } from './theme-utils';
+import { normalizeTheme, readStoredTheme, type Theme } from './theme-utils';
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -15,6 +15,7 @@ type ThemeProviderProps = {
 };
 
 type ThemeContextData = {
+  isThemeReady: boolean;
   setTheme: (theme: Theme) => void;
   theme: Theme | null;
 };
@@ -98,14 +99,21 @@ export const themeScript = `
 export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) {
   const attribute = targetSelector ? 'data-theme' : 'class';
   const [theme, _setTheme] = useState<Theme | null>(null);
+  const [isThemeReady, setIsThemeReady] = useState(false);
   const setTheme = useCallback((theme: Theme) => {
-    _setTheme(theme);
-    window.__theme.setTheme(theme);
+    const normalizedTheme = normalizeTheme(theme);
+    _setTheme(normalizedTheme);
+    window.__theme.setTheme(normalizedTheme);
+  }, []);
+
+  useEffect(() => {
+    _setTheme(readStoredTheme());
+    setIsThemeReady(true);
   }, []);
 
   // We need to use this component pattern for hydration safety
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ isThemeReady, theme, setTheme }}>
       <NextThemesProvider
         attribute={attribute}
         defaultTheme="system"
