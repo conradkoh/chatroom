@@ -14,11 +14,24 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { api } from '@workspace/backend/convex/_generated/api';
+import { EmptyOutputState } from './EmptyOutputState';
+import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
+import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
+import { ProcessList } from '../../../features/run-command/components/ProcessList';
+import { WorkspaceDetailPanel } from '../../../features/run-command/components/WorkspaceDetailPanel';
+import { useProcessesPanelState } from '../../../features/run-command/hooks/useProcessesPanelState';
+import type {
+  CommandRun,
+  RunnableCommand,
+  OutputChunk,
+} from '../../../features/run-command/types/run';
+import { getCompactDisplayName } from '../../../features/run-command/utils/grouping';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,22 +43,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-
-import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
-
-import { ProcessList } from '../../../features/run-command/components/ProcessList';
-import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
-import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
-import { WorkspaceDetailPanel } from '../../../features/run-command/components/WorkspaceDetailPanel';
-import { EmptyOutputState } from './EmptyOutputState';
-import { useProcessesPanelState } from '../../../features/run-command/hooks/useProcessesPanelState';
-import { getCompactDisplayName } from '../../../features/run-command/utils/grouping';
-import type {
-  CommandRun,
-  RunnableCommand,
-  OutputChunk,
-} from '../../../features/run-command/types/run';
+import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 
 // ─── Layout Persistence ───────────────────────────────────────────────────────
 
@@ -59,7 +58,13 @@ interface ProcessesPanelProps {
   workingDir?: string | null;
   commands: RunnableCommand[];
   runs: CommandRun[];
-  activeRunOutput: { chunks: OutputChunk[]; run: CommandRun | null };
+  activeRunOutput: {
+    chunks: OutputChunk[];
+    run: CommandRun | null;
+    canLoadMore?: boolean;
+    loadMore?: () => void | Promise<void>;
+    fullOutputPending?: boolean;
+  };
   onRunCommand: (commandName: string, script: string) => void;
   onStopCommand: (runId: string) => void;
   onSelectRun: (runId: string) => void;
@@ -307,6 +312,13 @@ export function ProcessesPanel({
       key={activeRunOutput.run._id}
       run={activeRunOutput.run}
       chunks={activeRunOutput.chunks}
+      canLoadMore={
+        activeRunOutput.canLoadMore ||
+        activeRunOutput.run.status === 'running' ||
+        activeRunOutput.run.status === 'pending'
+      }
+      onLoadMore={activeRunOutput.loadMore}
+      fullOutputPending={activeRunOutput.fullOutputPending}
       onStop={() => {
         if (activeRunOutput.run) onStopCommand(activeRunOutput.run._id);
       }}
