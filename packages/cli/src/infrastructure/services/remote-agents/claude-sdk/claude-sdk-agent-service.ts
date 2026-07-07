@@ -41,6 +41,7 @@ type LoadedClaudeSdk = Awaited<ReturnType<typeof importBundledClaudeSdk>>;
 
 const CLAUDE_SDK_COMMAND = 'claude-sdk';
 const DEFAULT_MAX_TURNS = 200;
+const DEFAULT_EFFORT = 'medium' as const;
 const TURN_TIMEOUT_MS = 3_600_000;
 
 let _sdkCache: LoadedClaudeSdk | undefined;
@@ -533,6 +534,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
               settingSources: [],
               permissionMode: 'bypassPermissions',
               allowDangerouslySkipPermissions: true,
+              effort: DEFAULT_EFFORT,
               canUseTool: async (_toolName, input) => ({ behavior: 'allow', updatedInput: input }),
             },
           });
