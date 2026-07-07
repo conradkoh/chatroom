@@ -281,6 +281,8 @@ input,
   /* Radix portals render at document.body — map shadcn popover tokens to opaque chatroom surfaces */
   --popover: var(--chatroom-bg-popover);
   --popover-foreground: var(--chatroom-text-primary);
+
+  color-scheme: light;
 }
 
 .chatroom-root {
@@ -330,21 +332,14 @@ input,
 
   --popover: var(--chatroom-bg-popover);
   --popover-foreground: var(--chatroom-text-primary);
+
+  color-scheme: dark;
 }
 
-/* Shiki dual-theme syntax highlighting — light tokens inline, dark via CSS vars */
+/* Shiki syntax highlighting — transparent backgrounds; token colors use light-dark() */
 .shiki,
 .shiki span {
   background-color: transparent !important;
-}
-
-.dark .shiki,
-.dark .shiki span {
-  color: var(--shiki-dark) !important;
-  background-color: transparent !important;
-  font-style: var(--shiki-dark-font-style) !important;
-  font-weight: var(--shiki-dark-font-weight) !important;
-  text-decoration: var(--shiki-dark-text-decoration) !important;
 }
 
 /* Scoped box-sizing reset - only apply within chatroom module */

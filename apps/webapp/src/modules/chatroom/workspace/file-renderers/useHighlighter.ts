@@ -71,7 +71,8 @@ export function useHighlighter(): UseHighlighterResult {
         light: 'github-light',
         dark: 'github-dark',
       },
-      defaultColor: 'light',
+      defaultColor: 'light-dark()',
+      colorsRendering: 'none',
       transformers: [
         {
           name: 'remove-bg',
@@ -79,7 +80,7 @@ export function useHighlighter(): UseHighlighterResult {
             if (typeof node.properties.style === 'string') {
               node.properties.style = node.properties.style
                 .replace(/background-color\s*:\s*[^;]+;?/gi, '')
-                .replace(/--shiki-dark-bg\s*:\s*[^;]+;?/gi, '')
+                .replace(/--shiki-(?:light|dark)-bg\s*:\s*[^;]+;?/gi, '')
                 .trim();
               if (!node.properties.style) delete node.properties.style;
             }
