@@ -4,11 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SyntaxHighlighter } from './SyntaxHighlighter';
 
 const mockHighlight = vi.fn();
-const mockUseTheme = vi.fn();
-
-vi.mock('next-themes', () => ({
-  useTheme: () => mockUseTheme(),
-}));
 
 vi.mock('./useHighlighter', () => ({
   useHighlighter: () => ({
@@ -24,26 +19,26 @@ vi.mock('./language-detection', () => ({
 
 beforeEach(() => {
   mockHighlight.mockReset();
-  mockHighlight.mockResolvedValue('<pre class="shiki"><code>highlighted</code></pre>');
-  mockUseTheme.mockReturnValue({ resolvedTheme: 'light' });
+  mockHighlight.mockResolvedValue(
+    '<pre class="shiki shiki-themes github-light github-dark"><code>highlighted</code></pre>'
+  );
 });
 
 describe('SyntaxHighlighter', () => {
-  it('calls highlight with dark theme when resolvedTheme is dark', async () => {
-    mockUseTheme.mockReturnValue({ resolvedTheme: 'dark' });
-
+  it('renders dual-theme shiki output without binding to resolvedTheme', async () => {
     render(<SyntaxHighlighter code="const x = 1;" path="file.ts" />);
 
     await waitFor(() => {
-      expect(mockHighlight).toHaveBeenCalledWith('const x = 1;', 'file.ts', 'dark');
+      expect(mockHighlight).toHaveBeenCalledWith('const x = 1;', 'file.ts');
     });
   });
 
-  it('calls highlight with light theme when resolvedTheme is light', async () => {
-    render(<SyntaxHighlighter code="const x = 1;" path="file.ts" />);
+  it('applies transparent shiki background wrapper class', async () => {
+    const { container } = render(<SyntaxHighlighter code="const x = 1;" path="file.ts" />);
 
     await waitFor(() => {
-      expect(mockHighlight).toHaveBeenCalledWith('const x = 1;', 'file.ts', 'light');
+      const wrapper = container.firstElementChild;
+      expect(wrapper?.className).toContain('[&_.shiki]:bg-transparent');
     });
   });
 });

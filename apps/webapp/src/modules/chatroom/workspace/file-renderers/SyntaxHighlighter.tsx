@@ -1,6 +1,5 @@
 'use client';
 
-import { useTheme } from 'next-themes';
 import { memo, useEffect, useState, useRef } from 'react';
 
 import { detectLanguage, MAX_FILE_SIZE } from './language-detection';
@@ -21,21 +20,13 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
   className = '',
 }: SyntaxHighlighterProps) {
   const { status, highlight } = useHighlighter();
-  const { resolvedTheme } = useTheme();
   const [html, setHtml] = useState<string | null>(null);
   const latestRequest = useRef(0);
-
-  const shikiTheme = resolvedTheme === 'dark' ? 'dark' : 'light';
 
   const shouldHighlight =
     code.length <= MAX_FILE_SIZE && detectLanguage(path) !== null && status !== 'error';
 
-  const wrapperClassName = [
-    className,
-    '[&_.shiki]:bg-transparent [&_.shiki]:text-chatroom-text-primary',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const wrapperClassName = [className, '[&_.shiki]:bg-transparent'].filter(Boolean).join(' ');
 
   useEffect(() => {
     if (!shouldHighlight) {
@@ -48,7 +39,7 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
     const requestId = ++latestRequest.current;
     let cancelled = false;
 
-    highlight(code, path, shikiTheme).then((result) => {
+    highlight(code, path).then((result) => {
       if (cancelled || requestId !== latestRequest.current) return;
       setHtml(result);
     });
@@ -56,7 +47,7 @@ export const SyntaxHighlighter = memo(function SyntaxHighlighter({
     return () => {
       cancelled = true;
     };
-  }, [code, path, status, shouldHighlight, highlight, shikiTheme]);
+  }, [code, path, status, shouldHighlight, highlight]);
 
   if (!shouldHighlight || html === null) {
     if (lineNumbers) {
