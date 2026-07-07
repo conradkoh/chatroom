@@ -536,7 +536,9 @@ const MobileStatusContent = memo(function MobileStatusContent({
           </div>
 
           {/* Commit status */}
-          {headCommitStatus && <CommitStatusIndicator status={headCommitStatus} />}
+          {headCommitStatus && (
+            <CommitStatusIndicator status={headCommitStatus} interactive={false} />
+          )}
         </>
       )}
 
