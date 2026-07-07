@@ -157,6 +157,7 @@ describe('ClaudeSdkAgentService', () => {
             cwd: '/tmp/work',
             pathToClaudeCodeExecutable: '/tmp/claude',
             maxTurns: 200,
+            effort: 'medium',
             permissionMode: 'bypassPermissions',
             allowDangerouslySkipPermissions: true,
             canUseTool: expect.any(Function),

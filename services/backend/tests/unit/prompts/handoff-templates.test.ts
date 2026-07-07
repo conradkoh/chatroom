@@ -210,8 +210,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
       ## Proof of Completion
-      - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. State the context goal and confirm it was achieved. -->
+      - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
+      <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       - \`path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 
@@ -581,7 +581,7 @@ describe('handoff-templates > invariants', () => {
     });
   }
 
-  test('builder → planner includes context-read HTML comment with resolved command', () => {
+  test('builder → planner includes delegation-brief HTML comment for proof of completion', () => {
     const template = resolveDeliveredHandoffTemplate({
       teamId: 'duo',
       fromRole: 'builder',
@@ -589,7 +589,10 @@ describe('handoff-templates > invariants', () => {
       role: 'builder',
     });
     expect(template).toContain(
-      '<!-- Read context before handoff if not already done this task: `CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"`. State the context goal and confirm it was achieved. -->'
+      '<!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->'
+    );
+    expect(template).toContain(
+      'I confirm that the goal and acceptance criteria from the planner\u2019s delegation brief have been met'
     );
   });
 
