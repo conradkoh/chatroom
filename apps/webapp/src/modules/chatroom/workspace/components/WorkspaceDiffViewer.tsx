@@ -3,20 +3,15 @@
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { memo, useState, useEffect, useCallback } from 'react';
 
+import {
+  diffLineHighlightClassName,
+  stripDiffPrefix,
+  useDiffLineHighlights,
+} from '../file-renderers/useDiffLineHighlights';
 import type { FullDiffState } from '../types/git';
 import { parseDiff, basename, type DiffLine, type FileDiffSection } from '../utils/diff-parser';
 import { getFileIcon } from '../utils/file-icons';
 
-import { useSendLocalAction } from '@/hooks/useSendLocalAction';
-
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +22,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,102 +58,134 @@ const canDiscard = (machineId?: string, workingDir?: string): boolean => {
   return !!machineId && !!workingDir;
 };
 
+// ─── Diff line content ────────────────────────────────────────────────────────
+
+const diffLineContentClassName =
+  'font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px';
+
+function DiffLineContent({ line, highlightedHtml }: { line: DiffLine; highlightedHtml?: string }) {
+  if (highlightedHtml) {
+    return (
+      <div
+        className={`${diffLineContentClassName} ${diffLineHighlightClassName}`}
+        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+      />
+    );
+  }
+
+  if (line.intraSegments) {
+    return (
+      <div className={diffLineContentClassName}>
+        <span>{line.content[0]}</span>
+        {line.intraSegments.map((seg, i) => (
+          <span
+            key={i}
+            className={
+              seg.type === 'changed'
+                ? line.type === 'addition'
+                  ? 'bg-green-200 dark:bg-green-800/40'
+                  : 'bg-red-200 dark:bg-red-800/40'
+                : ''
+            }
+          >
+            {seg.text}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  return <div className={diffLineContentClassName}>{stripDiffPrefix(line.content)}</div>;
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
-  if (line.type === 'hunk') {
-    return (
-      <div className="flex text-chatroom-text-secondary font-mono text-[10px] bg-chatroom-bg-tertiary border-b border-chatroom-border">
-        {/* Gutter spanning both columns */}
-        <div className="w-[70px] shrink-0 px-1 text-right border-r border-chatroom-border" />
-        {/* Hunk content */}
-        <div className="px-3 py-0.5 whitespace-pre-wrap break-words min-w-0">{line.content}</div>
-      </div>
-    );
-  }
+const lineNumClassName =
+  'w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none';
 
-  if (line.type === 'addition') {
-    return (
-      <div className="flex bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300">
-        {/* Old line number — empty */}
-        <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none" />
-        {/* New line number */}
-        <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none">
-          {line.newLineNum}
-        </div>
-        {/* Content */}
-        <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">
-          {line.intraSegments ? (
-            <>
-              <span>{line.content[0]}</span>
-              {line.intraSegments.map((seg, i) => (
-                <span
-                  key={i}
-                  className={seg.type === 'changed' ? 'bg-green-200 dark:bg-green-800/40' : ''}
-                >
-                  {seg.text}
-                </span>
-              ))}
-            </>
-          ) : (
-            line.content
-          )}
-        </div>
-      </div>
-    );
-  }
+function DiffLineNumber({ value }: { value?: number }) {
+  return <div className={lineNumClassName}>{value ?? ''}</div>;
+}
 
-  if (line.type === 'deletion') {
-    return (
-      <div className="flex bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300">
-        {/* Old line number */}
-        <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none">
-          {line.oldLineNum}
-        </div>
-        {/* New line number — empty */}
-        <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none" />
-        {/* Content */}
-        <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">
-          {line.intraSegments ? (
-            <>
-              <span>{line.content[0]}</span>
-              {line.intraSegments.map((seg, i) => (
-                <span
-                  key={i}
-                  className={seg.type === 'changed' ? 'bg-red-200 dark:bg-red-800/40' : ''}
-                >
-                  {seg.text}
-                </span>
-              ))}
-            </>
-          ) : (
-            line.content
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // context
+const DiffHunkRow = memo(function DiffHunkRow({ line }: { line: DiffLine }) {
   return (
-    <div className="flex text-chatroom-text-secondary">
-      {/* Old line number */}
-      <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none">
-        {line.oldLineNum}
-      </div>
-      {/* New line number */}
-      <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none">
-        {line.newLineNum}
-      </div>
-      {/* Content */}
-      <div className="font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px">
-        {line.content}
-      </div>
+    <div className="flex text-chatroom-text-secondary font-mono text-[10px] bg-chatroom-bg-tertiary border-b border-chatroom-border">
+      <div className="w-[70px] shrink-0 px-1 text-right border-r border-chatroom-border" />
+      <div className="px-3 py-0.5 whitespace-pre-wrap break-words min-w-0">{line.content}</div>
     </div>
   );
 });
 
+const DiffAdditionRow = memo(function DiffAdditionRow({
+  line,
+  highlightedHtml,
+}: {
+  line: DiffLine;
+  highlightedHtml?: string;
+}) {
+  return (
+    <div className="flex bg-green-50 dark:bg-green-950/20">
+      <DiffLineNumber />
+      <DiffLineNumber value={line.newLineNum} />
+      <DiffLineContent line={line} highlightedHtml={highlightedHtml} />
+    </div>
+  );
+});
+
+const DiffDeletionRow = memo(function DiffDeletionRow({
+  line,
+  highlightedHtml,
+}: {
+  line: DiffLine;
+  highlightedHtml?: string;
+}) {
+  return (
+    <div className="flex bg-red-50 dark:bg-red-950/20">
+      <DiffLineNumber value={line.oldLineNum} />
+      <DiffLineNumber />
+      <DiffLineContent line={line} highlightedHtml={highlightedHtml} />
+    </div>
+  );
+});
+
+const DiffContextRow = memo(function DiffContextRow({
+  line,
+  highlightedHtml,
+}: {
+  line: DiffLine;
+  highlightedHtml?: string;
+}) {
+  return (
+    <div className="flex text-chatroom-text-secondary">
+      <DiffLineNumber value={line.oldLineNum} />
+      <DiffLineNumber value={line.newLineNum} />
+      <DiffLineContent line={line} highlightedHtml={highlightedHtml} />
+    </div>
+  );
+});
+
+const DiffLineRow = memo(function DiffLineRow({
+  line,
+  highlightedHtml,
+}: {
+  line: DiffLine;
+  highlightedHtml?: string;
+}) {
+  switch (line.type) {
+    case 'hunk':
+      return <DiffHunkRow line={line} />;
+    case 'addition':
+      return <DiffAdditionRow line={line} highlightedHtml={highlightedHtml} />;
+    case 'deletion':
+      return <DiffDeletionRow line={line} highlightedHtml={highlightedHtml} />;
+    default:
+      return <DiffContextRow line={line} highlightedHtml={highlightedHtml} />;
+  }
+});
+
 const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDiffSection }) {
+  const lineHighlights = useDiffLineHighlights(section.filePath, section.lines);
+
   return (
     <div className="border border-chatroom-border rounded-none overflow-hidden">
       {/* File header */}
@@ -171,7 +207,7 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
       {/* Diff lines */}
       <div className="overflow-hidden">
         {section.lines.map((line, idx) => (
-          <DiffLineRow key={idx} line={line} />
+          <DiffLineRow key={idx} line={line} highlightedHtml={lineHighlights.get(idx)} />
         ))}
         {section.lines.length === 0 && (
           <div className="text-[11px] text-chatroom-text-muted px-3 py-1">No changes</div>
@@ -367,7 +403,10 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
     );
   }
 
-  const selectedSection = sections[selectedFileIdx] ?? sections[0]!;
+  const selectedSection = sections[selectedFileIdx] ?? sections[0];
+  if (!selectedSection) {
+    return null;
+  }
   const showDiscard = canDiscard(machineId, workingDir);
 
   return (
