@@ -25,10 +25,11 @@ export function ExplorerSidebarResizeHandle({
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      const handle = event.currentTarget;
       event.preventDefault();
       startXRef.current = event.clientX;
       startWidthRef.current = widthPx;
-      event.currentTarget.setPointerCapture(event.pointerId);
+      handle.setPointerCapture(event.pointerId);
 
       const onPointerMove = (moveEvent: globalThis.PointerEvent) => {
         const delta = moveEvent.clientX - startXRef.current;
@@ -36,7 +37,7 @@ export function ExplorerSidebarResizeHandle({
       };
 
       const onPointerUp = (upEvent: globalThis.PointerEvent) => {
-        event.currentTarget.releasePointerCapture(upEvent.pointerId);
+        handle.releasePointerCapture(upEvent.pointerId);
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
       };
