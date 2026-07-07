@@ -180,6 +180,7 @@ interface ChatroomSidebarProps {
 }
 
 const RECENCY_SECTIONS = [
+  { key: 'lastDay' as const, label: 'Last Day' },
   { key: 'lastWeek' as const, label: 'Last Week' },
   { key: 'lastMonth' as const, label: 'Last Month' },
   { key: 'older' as const, label: 'Older' },
@@ -214,7 +215,7 @@ function SidebarSectionHeader({
  *
  * Sections:
  * - Active: Chatrooms with chatStatus 'working' or 'active' (agents present and engaged)
- * - Last Week / Last Month / Older: Non-active chatrooms grouped by last activity
+ * - Last Day / Last Week / Last Month / Older: Non-active chatrooms grouped by last activity
  * - Completed: Collapsible section for completed chatrooms
  *
  * Favorites are indicated by a star icon on the chatroom item rather than a separate section.
