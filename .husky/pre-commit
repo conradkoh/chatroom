@@ -1,3 +1,6 @@
+# Block modifications to upstream template files in derived forks unless acknowledged
+bun scripts/check-upstream-modifications.ts
+
 # Run lint-staged to only process staged files
 pnpm lint-staged
 
