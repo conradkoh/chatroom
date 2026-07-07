@@ -1,5 +1,6 @@
-import { createHighlighter, type Highlighter } from 'shiki';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createHighlighter, type Highlighter } from 'shiki';
+
 import { detectLanguage, MAX_FILE_SIZE } from './language-detection';
 
 type HighlighterStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -18,7 +19,7 @@ function getHighlighter(): Promise<Highlighter> {
 
 interface UseHighlighterResult {
   status: HighlighterStatus;
-  highlight: (code: string, path: string, theme: 'light' | 'dark') => Promise<string>;
+  highlight: (code: string, path: string) => Promise<string>;
 }
 
 export function useHighlighter(): UseHighlighterResult {
@@ -40,7 +41,7 @@ export function useHighlighter(): UseHighlighterResult {
       });
   }, []);
 
-  const highlight = useCallback(async (code: string, path: string, theme: 'light' | 'dark'): Promise<string> => {
+  const highlight = useCallback(async (code: string, path: string): Promise<string> => {
     if (code.length > MAX_FILE_SIZE) {
       return escapeHtml(code);
     }
@@ -66,7 +67,12 @@ export function useHighlighter(): UseHighlighterResult {
 
     return hl.codeToHtml(code, {
       lang: detected.lang,
-      theme: theme === 'dark' ? 'github-dark' : 'github-light',
+      themes: {
+        light: 'github-light',
+        dark: 'github-dark',
+      },
+      defaultColor: 'light-dark()',
+      colorsRendering: 'none',
       transformers: [
         {
           name: 'remove-bg',
@@ -74,6 +80,7 @@ export function useHighlighter(): UseHighlighterResult {
             if (typeof node.properties.style === 'string') {
               node.properties.style = node.properties.style
                 .replace(/background-color\s*:\s*[^;]+;?/gi, '')
+                .replace(/--shiki-(?:light|dark)-bg\s*:\s*[^;]+;?/gi, '')
                 .trim();
               if (!node.properties.style) delete node.properties.style;
             }
