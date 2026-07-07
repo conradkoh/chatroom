@@ -3,6 +3,12 @@
 import { Check, Copy } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
 
+import { useWorkspaceFileLink } from '../context/WorkspaceFileLinkContext';
+import {
+  isWorkspaceFileLink,
+  normalizeWorkspaceFilePath,
+} from '../workspace/utils/workspaceFileLink';
+
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>
   import('./MermaidBlock').then((m) => ({ default: m.MermaidBlock }))
@@ -153,17 +159,8 @@ export const compactMarkdownComponents = {
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className="font-bold">{children}</strong>
   ),
-  // Links: underlined with proper color, always open in new window
-  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
-    <a
-      href={href}
-      className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:decoration-chatroom-status-info transition-colors"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      {children}
-    </a>
-  ),
+  // Links: workspace paths open in explorer; external links open in new tab
+  a: MarkdownLink,
 };
 
 /**
@@ -249,14 +246,29 @@ export function CodeBlock({
 }
 
 /**
- * Shared link component that always opens in a new window/tab.
- * Used across all markdown component sets for consistent behavior.
+ * Shared link component: workspace file paths open in explorer; external links open in a new tab.
  */
-const MarkdownLink = ({ children, href }: { children?: React.ReactNode; href?: string }) => (
-  <a href={href} target="_blank" rel="noopener noreferrer">
-    {children}
-  </a>
-);
+function MarkdownLink({ children, href }: { children?: React.ReactNode; href?: string }) {
+  const { onOpenFile } = useWorkspaceFileLink();
+
+  if (href && isWorkspaceFileLink(href) && onOpenFile) {
+    return (
+      <button
+        type="button"
+        className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:decoration-chatroom-status-info transition-colors cursor-pointer bg-transparent border-0 p-0 font-inherit text-inherit"
+        onClick={() => onOpenFile(normalizeWorkspaceFilePath(href))}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
 
 /**
  * Base markdown components with just the link override.

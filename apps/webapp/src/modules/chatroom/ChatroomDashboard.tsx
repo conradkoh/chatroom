@@ -43,6 +43,7 @@ import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPan
 import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
 import { useCommandDialog } from './context/CommandDialogContext';
+import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
@@ -1359,188 +1360,189 @@ export function ChatroomDashboard({
         teamRoles={teamRoles}
         teamEntryPoint={teamEntryPoint}
       >
-        <>
-          <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-            <div className="flex flex-1 overflow-hidden relative min-h-0">
-              {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
-              <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
+        <WorkspaceFileLinkProvider onOpenFile={handleOpenInExplorer}>
+          <>
+            <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
+              <div className="flex flex-1 overflow-hidden relative min-h-0">
+                {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
+                <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
-              {/* File Explorer Left Sidebar — shown in explorer view */}
-              {activeView === 'explorer' &&
-                activeWorkspace &&
-                !fileTabs.expandedTabPath &&
-                explorerSidebarVisible && (
-                  <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
-                    <FileExplorerPanel
-                      ref={fileExplorerPanelRef}
-                      chatroomId={chatroomId}
-                      machineId={activeWorkspace.machineId}
-                      workingDir={activeWorkspace.workingDir}
-                      fileTabs={fileTabs}
-                      onFileSelect={handleFileSelect}
-                      onFileDoubleClick={handleFileDoubleClick}
-                      revealPath={revealPath}
-                      activeTabPath={fileTabs.activeTabPath}
-                      explorerSyncEnabled={explorerSyncEnabled}
-                      onToggleSync={setExplorerSyncEnabled}
-                    />
-                  </div>
-                )}
+                {/* File Explorer Left Sidebar — shown in explorer view */}
+                {activeView === 'explorer' &&
+                  activeWorkspace &&
+                  !fileTabs.expandedTabPath &&
+                  explorerSidebarVisible && (
+                    <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
+                      <FileExplorerPanel
+                        ref={fileExplorerPanelRef}
+                        chatroomId={chatroomId}
+                        machineId={activeWorkspace.machineId}
+                        workingDir={activeWorkspace.workingDir}
+                        fileTabs={fileTabs}
+                        onFileSelect={handleFileSelect}
+                        onFileDoubleClick={handleFileDoubleClick}
+                        revealPath={revealPath}
+                        activeTabPath={fileTabs.activeTabPath}
+                        explorerSyncEnabled={explorerSyncEnabled}
+                        onToggleSync={setExplorerSyncEnabled}
+                      />
+                    </div>
+                  )}
 
-              {/* Main Content Area */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {/* Content Toolbar — always renders, actions change based on active view */}
-                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {activeView === 'messages' && (
-                      <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
-                    )}
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  {/* Content Toolbar — always renders, actions change based on active view */}
+                  <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {activeView === 'messages' && (
+                        <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(activeView === 'explorer' || activeView === 'source-control') && (
+                        <button
+                          className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
+                          onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
+                          title={
+                            explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
+                          }
+                        >
+                          {explorerSplitViewEnabled ? (
+                            <MessageSquareOff size={14} />
+                          ) : (
+                            <MessageSquare size={14} />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {(activeView === 'explorer' || activeView === 'source-control') && (
-                      <button
-                        className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
-                        onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
-                        title={
-                          explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
-                        }
+
+                  {/* When in explorer or source-control with split view enabled, show workspace + messages */}
+                  {(activeView === 'explorer' || activeView === 'source-control') &&
+                  explorerSplitViewEnabled ? (
+                    <ResizablePanelGroup
+                      className="flex-1 min-h-0"
+                      onLayoutChanged={handleExplorerSplitLayoutChanged}
+                    >
+                      <ResizablePanel
+                        id="explorer-split-left"
+                        defaultSize={explorerSplitSizes[0]}
+                        minSize={30}
+                        className="flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border"
                       >
-                        {explorerSplitViewEnabled ? (
-                          <MessageSquareOff size={14} />
+                        {activeView === 'explorer' ? (
+                          <ExplorerContent
+                            fileTabs={fileTabs}
+                            activeWorkspace={activeWorkspace}
+                            onOpenPreview={handleOpenPreview}
+                            onOpenTableView={handleOpenTableView}
+                            onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                          />
                         ) : (
-                          <MessageSquare size={14} />
+                          sourceControlPanel
                         )}
-                      </button>
-                    )}
-                  </div>
+                      </ResizablePanel>
+                      <ResizableHandle />
+                      <ResizablePanel
+                        id="explorer-split-right"
+                        defaultSize={explorerSplitSizes[1]}
+                        minSize={25}
+                        className="flex flex-col min-h-0 h-full overflow-hidden"
+                      >
+                        <RightSplitPanel
+                          chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                          messagesPanelProps={{
+                            coordinator: timelineScrollCoordinator,
+                            onRegisterOpenEventStream: handleRegisterOpenEventStream,
+                            onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
+                            machines: machineNameMap,
+                            onBeforeResize: beginResize,
+                            onAfterResize: endResize,
+                            onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                            autocompleteFiles,
+                            refreshAutocompleteFiles,
+                          }}
+                          selectedHarnessSessionId={selectedHarnessSessionId}
+                          setSelectedHarnessSessionId={setSelectedHarnessSessionId}
+                          mode={splitMode}
+                          setMode={setSplitMode}
+                        />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  ) : activeView === 'messages' ? (
+                    /* Message Feed — shown in messages view */
+                    <ChatroomMessagesPanel
+                      chatroomId={chatroomId}
+                      coordinator={timelineScrollCoordinator}
+                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                      onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
+                      machines={machineNameMap}
+                      viewMode={messageViewMode}
+                      footer={
+                        <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                          <MessageInput
+                            chatroomId={chatroomId}
+                            onBeforeResize={beginResize}
+                            onAfterResize={endResize}
+                            onRegisterFocus={handleRegisterSendFormFocus}
+                            files={autocompleteFiles}
+                            onAtTriggerActivate={refreshAutocompleteFiles}
+                          />
+                        </div>
+                      }
+                    />
+                  ) : activeView === 'direct-harness' ? (
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
+                    </div>
+                  ) : activeView === 'source-control' ? (
+                    sourceControlPanel
+                  ) : activeView === 'pull-requests' ? (
+                    /* Pull Requests — replaces the entire workspace area */
+                    <PullRequestsPanel
+                      machineId={activeWorkspace?.machineId ?? ''}
+                      workingDir={activeWorkspace?.workingDir ?? ''}
+                    />
+                  ) : activeView === 'processes' ? (
+                    /* Processes — command launcher / process manager */
+                    <ProcessesPanel
+                      machineId={activeWorkspace?.machineId}
+                      workingDir={activeWorkspace?.workingDir}
+                      commands={commandRunner.commands}
+                      runs={commandRunner.runs}
+                      activeRunOutput={activeRunOutput}
+                      onRunCommand={handleRunFromProcessesPanel}
+                      onStopCommand={(runId) => commandRunner.stopCommand(runId)}
+                      onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
+                      onClearRun={() => commandRunner.setActiveRunId(null)}
+                      initialSelectedCommand={processesInitialCommand}
+                      onConsumedInitialCommand={() => setProcessesInitialCommand(null)}
+                    />
+                  ) : (
+                    /* Explorer view — file tabs + content or empty state (no split) */
+                    <ExplorerContent
+                      fileTabs={fileTabs}
+                      activeWorkspace={activeWorkspace}
+                      onOpenPreview={handleOpenPreview}
+                      onOpenTableView={handleOpenTableView}
+                      onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                    />
+                  )}
                 </div>
 
-                {/* When in explorer or source-control with split view enabled, show workspace + messages */}
-                {(activeView === 'explorer' || activeView === 'source-control') &&
-                explorerSplitViewEnabled ? (
-                  <ResizablePanelGroup
-                    className="flex-1 min-h-0"
-                    onLayoutChanged={handleExplorerSplitLayoutChanged}
-                  >
-                    <ResizablePanel
-                      id="explorer-split-left"
-                      defaultSize={explorerSplitSizes[0]}
-                      minSize={30}
-                      className="flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border"
-                    >
-                      {activeView === 'explorer' ? (
-                        <ExplorerContent
-                          fileTabs={fileTabs}
-                          activeWorkspace={activeWorkspace}
-                          onOpenPreview={handleOpenPreview}
-                          onOpenTableView={handleOpenTableView}
-                          onSendSelectionToComposer={handleExplorerSelectionToComposer}
-                        />
-                      ) : (
-                        sourceControlPanel
-                      )}
-                    </ResizablePanel>
-                    <ResizableHandle />
-                    <ResizablePanel
-                      id="explorer-split-right"
-                      defaultSize={explorerSplitSizes[1]}
-                      minSize={25}
-                      className="flex flex-col min-h-0 h-full overflow-hidden"
-                    >
-                      <RightSplitPanel
-                        chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                        messagesPanelProps={{
-                          coordinator: timelineScrollCoordinator,
-                          onRegisterOpenEventStream: handleRegisterOpenEventStream,
-                          onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
-                          machines: machineNameMap,
-                          onBeforeResize: beginResize,
-                          onAfterResize: endResize,
-                          onRegisterSendFormFocus: handleRegisterSendFormFocus,
-                          autocompleteFiles,
-                          refreshAutocompleteFiles,
-                        }}
-                        selectedHarnessSessionId={selectedHarnessSessionId}
-                        setSelectedHarnessSessionId={setSelectedHarnessSessionId}
-                        mode={splitMode}
-                        setMode={setSplitMode}
-                      />
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
-                ) : activeView === 'messages' ? (
-                  /* Message Feed — shown in messages view */
-                  <ChatroomMessagesPanel
-                    chatroomId={chatroomId}
-                    coordinator={timelineScrollCoordinator}
-                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                    onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
-                    machines={machineNameMap}
-                    viewMode={messageViewMode}
-                    footer={
-                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                        <MessageInput
-                          chatroomId={chatroomId}
-                          onBeforeResize={beginResize}
-                          onAfterResize={endResize}
-                          onRegisterFocus={handleRegisterSendFormFocus}
-                          files={autocompleteFiles}
-                          onAtTriggerActivate={refreshAutocompleteFiles}
-                        />
-                      </div>
-                    }
-                  />
-                ) : activeView === 'direct-harness' ? (
-                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
-                  </div>
-                ) : activeView === 'source-control' ? (
-                  sourceControlPanel
-                ) : activeView === 'pull-requests' ? (
-                  /* Pull Requests — replaces the entire workspace area */
-                  <PullRequestsPanel
-                    machineId={activeWorkspace?.machineId ?? ''}
-                    workingDir={activeWorkspace?.workingDir ?? ''}
-                  />
-                ) : activeView === 'processes' ? (
-                  /* Processes — command launcher / process manager */
-                  <ProcessesPanel
-                    machineId={activeWorkspace?.machineId}
-                    workingDir={activeWorkspace?.workingDir}
-                    commands={commandRunner.commands}
-                    runs={commandRunner.runs}
-                    activeRunOutput={activeRunOutput}
-                    onRunCommand={handleRunFromProcessesPanel}
-                    onStopCommand={(runId) => commandRunner.stopCommand(runId)}
-                    onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
-                    onClearRun={() => commandRunner.setActiveRunId(null)}
-                    initialSelectedCommand={processesInitialCommand}
-                    onConsumedInitialCommand={() => setProcessesInitialCommand(null)}
-                  />
-                ) : (
-                  /* Explorer view — file tabs + content or empty state (no split) */
-                  <ExplorerContent
-                    fileTabs={fileTabs}
-                    activeWorkspace={activeWorkspace}
-                    onOpenPreview={handleOpenPreview}
-                    onOpenTableView={handleOpenTableView}
-                    onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                {/* Sidebar Overlay for mobile - below app header */}
+                {sidebarVisible && isSmallScreen && (
+                  <div
+                    className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                    onClick={toggleSidebar}
                   />
                 )}
-              </div>
 
-              {/* Sidebar Overlay for mobile - below app header */}
-              {sidebarVisible && isSmallScreen && (
+                {/* Sidebar - positioned below app header on mobile */}
+                {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+                {/* On mobile: uses fixed positioning with translate for overlay effect */}
                 <div
-                  className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
-                  onClick={toggleSidebar}
-                />
-              )}
-
-              {/* Sidebar - positioned below app header on mobile */}
-              {/* On desktop: transitions width to 0 when hidden so chat fills space */}
-              {/* On mobile: uses fixed positioning with translate for overlay effect */}
-              <div
-                className={`
+                  className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
@@ -1549,152 +1551,153 @@ export function ChatroomDashboard({
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
-              >
-                <AgentPanel
-                  chatroomId={chatroomId}
-                  teamRoles={teamRoles}
-                  lifecycle={lifecycle}
-                  teamName={chatroom.teamName}
-                  teamId={chatroom.teamId}
-                  defaultTeamId={defaultTeamId}
-                  teams={teams}
-                  onTeamChange={handleTeamChange}
-                  agentConfigs={agentPanelData.machineConfigs}
-                  onConfigure={handleOpenSettings}
-                  onOpenAgents={handleOpenAgents}
-                />
-                <WorkQueue
-                  chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                  lifecycle={lifecycle}
-                  onRegisterActions={handleRegisterWorkQueueActions}
-                  onTaskDeleted={handleTaskDeleted}
-                />
+                >
+                  <AgentPanel
+                    chatroomId={chatroomId}
+                    teamRoles={teamRoles}
+                    lifecycle={lifecycle}
+                    teamName={chatroom.teamName}
+                    teamId={chatroom.teamId}
+                    defaultTeamId={defaultTeamId}
+                    teams={teams}
+                    onTeamChange={handleTeamChange}
+                    agentConfigs={agentPanelData.machineConfigs}
+                    onConfigure={handleOpenSettings}
+                    onOpenAgents={handleOpenAgents}
+                  />
+                  <WorkQueue
+                    chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                    lifecycle={lifecycle}
+                    onRegisterActions={handleRegisterWorkQueueActions}
+                    onTaskDeleted={handleTaskDeleted}
+                  />
+                </div>
               </div>
+              <WorkspaceBottomBar
+                workspaces={chatroomWorkspaces}
+                chatroomId={chatroomId}
+                refreshObservedChatroom={refreshObservedChatroom}
+                onSwitchToSourceControl={handleSwitchToSourceControl}
+              />
             </div>
-            <WorkspaceBottomBar
-              workspaces={chatroomWorkspaces}
-              chatroomId={chatroomId}
-              refreshObservedChatroom={refreshObservedChatroom}
-              onSwitchToSourceControl={handleSwitchToSourceControl}
+
+            <PromptModal
+              isOpen={modalState.isOpen}
+              onClose={handleCloseModal}
+              role={modalState.role}
             />
-          </div>
 
-          <PromptModal
-            isOpen={modalState.isOpen}
-            onClose={handleCloseModal}
-            role={modalState.role}
-          />
+            <AgentSettingsModal
+              isOpen={settingsModalOpen}
+              onClose={handleCloseSettings}
+              chatroomId={chatroomId}
+              currentTeamId={chatroom?.teamId}
+              currentTeamRoles={teamRoles}
+              initialTab={settingsInitialTab}
+            />
 
-          <AgentSettingsModal
-            isOpen={settingsModalOpen}
-            onClose={handleCloseSettings}
-            chatroomId={chatroomId}
-            currentTeamId={chatroom?.teamId}
-            currentTeamRoles={teamRoles}
-            initialTab={settingsInitialTab}
-          />
+            <FileSelectorModal
+              open={fileSelector.open}
+              onOpenChange={fileSelector.setOpen}
+              files={fileSelector.files}
+              recentFiles={fileSelector.recentFiles}
+              onSelectFile={handleCmdPFileSelect}
+              isLoading={fileSelector.isLoading}
+              hasWorkspace={fileSelector.hasWorkspace}
+            />
 
-          <FileSelectorModal
-            open={fileSelector.open}
-            onOpenChange={fileSelector.setOpen}
-            files={fileSelector.files}
-            recentFiles={fileSelector.recentFiles}
-            onSelectFile={handleCmdPFileSelect}
-            isLoading={fileSelector.isLoading}
-            hasWorkspace={fileSelector.hasWorkspace}
-          />
+            <FilePreviewDialog
+              filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+              machineId={activeWorkspace?.machineId ?? null}
+              workingDir={activeWorkspace?.workingDir ?? null}
+              onClose={handleFilePreviewClose}
+              files={fileSelector.files}
+              onSelectFile={fileSelector.selectFile}
+              onOpenInExplorer={handleOpenInExplorer}
+            />
 
-          <FilePreviewDialog
-            filePath={!fileSelector.open ? fileSelector.selectedFile : null}
-            machineId={activeWorkspace?.machineId ?? null}
-            workingDir={activeWorkspace?.workingDir ?? null}
-            onClose={handleFilePreviewClose}
-            files={fileSelector.files}
-            onSelectFile={fileSelector.selectFile}
-            onOpenInExplorer={handleOpenInExplorer}
-          />
+            {/* Setup modal - only shown during setup mode */}
+            <SetupChecklistModal
+              isOpen={isSetupMode && setupModalOpen}
+              onClose={handleCloseSetup}
+              chatroomId={chatroomId}
+              teamRoles={teamRoles}
+              teamEntryPoint={teamEntryPoint}
+              participants={participants || []}
+              chatroomName={displayName}
+              onRenameChatroom={handleRenameChatroom}
+            />
 
-          {/* Setup modal - only shown during setup mode */}
-          <SetupChecklistModal
-            isOpen={isSetupMode && setupModalOpen}
-            onClose={handleCloseSetup}
-            chatroomId={chatroomId}
-            teamRoles={teamRoles}
-            teamEntryPoint={teamEntryPoint}
-            participants={participants || []}
-            chatroomName={displayName}
-            onRenameChatroom={handleRenameChatroom}
-          />
+            {/* Saved Command Modal */}
+            <SavedCommandModal
+              isOpen={savedCommandModalOpen}
+              chatroomId={chatroomId}
+              onClose={handleCloseSavedCommandModal}
+              initial={savedCommandEditTarget}
+              existingNames={savedCommands.map((c) => c.name)}
+            />
 
-          {/* Saved Command Modal */}
-          <SavedCommandModal
-            isOpen={savedCommandModalOpen}
-            chatroomId={chatroomId}
-            onClose={handleCloseSavedCommandModal}
-            initial={savedCommandEditTarget}
-            existingNames={savedCommands.map((c) => c.name)}
-          />
+            {/* Command Palette (Cmd+Shift+P) */}
+            <CommandPalette commands={commands} inlineCommand={inlineCommand} />
+            <WorkspaceCommandsAggregator
+              workspaces={chatroomWorkspaces}
+              callbacks={workspaceCommandCallbacks}
+              onCommandsChange={setWorkspaceCommands}
+            />
 
-          {/* Command Palette (Cmd+Shift+P) */}
-          <CommandPalette commands={commands} inlineCommand={inlineCommand} />
-          <WorkspaceCommandsAggregator
-            workspaces={chatroomWorkspaces}
-            callbacks={workspaceCommandCallbacks}
-            onCommandsChange={setWorkspaceCommands}
-          />
-
-          {/* Terminal Output Panel */}
-          <TerminalOutputPanel
-            open={terminalOpen}
-            onOpenChange={setTerminalOpen}
-            commandName={activeRunOutput.run?.commandName ?? null}
-            status={activeRunOutput.run?.status ?? null}
-            terminationReason={activeRunOutput.run?.terminationReason}
-            output={activeRunOutput.chunks.map((c: any) => c.content).join('')}
-            onStop={() => {
-              if (commandRunner.activeRunId) {
-                commandRunner.stopCommand(commandRunner.activeRunId);
-              }
-            }}
-            onRestart={() => {
-              const run = activeRunOutput.run;
-              if (run) {
-                const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
-                if (cmd) {
-                  handleRunCommand(cmd.name, cmd.script);
+            {/* Terminal Output Panel */}
+            <TerminalOutputPanel
+              open={terminalOpen}
+              onOpenChange={setTerminalOpen}
+              commandName={activeRunOutput.run?.commandName ?? null}
+              status={activeRunOutput.run?.status ?? null}
+              terminationReason={activeRunOutput.run?.terminationReason}
+              output={activeRunOutput.chunks.map((c: any) => c.content).join('')}
+              onStop={() => {
+                if (commandRunner.activeRunId) {
+                  commandRunner.stopCommand(commandRunner.activeRunId);
                 }
-              }
-            }}
-          />
+              }}
+              onRestart={() => {
+                const run = activeRunOutput.run;
+                if (run) {
+                  const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
+                  if (cmd) {
+                    handleRunCommand(cmd.name, cmd.script);
+                  }
+                }
+              }}
+            />
 
-          {/* Stop All Agents Confirmation Dialog */}
-          <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
-            <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-chatroom-text-primary">
-                  Stop all remote agents?
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-chatroom-text-secondary">
-                  This will terminate all running agents in this chatroom.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="border-t border-chatroom-border pt-4">
-                <AlertDialogCancel
-                  onClick={() => setStopAllConfirmOpen(false)}
-                  className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
-                >
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={executeStopAllRemoteAgents}
-                  className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
-                >
-                  Stop All Agents
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
+            {/* Stop All Agents Confirmation Dialog */}
+            <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
+              <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-chatroom-text-primary">
+                    Stop all remote agents?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-chatroom-text-secondary">
+                    This will terminate all running agents in this chatroom.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+                  <AlertDialogCancel
+                    onClick={() => setStopAllConfirmOpen(false)}
+                    className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={executeStopAllRemoteAgents}
+                    className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
+                  >
+                    Stop All Agents
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        </WorkspaceFileLinkProvider>
       </PromptsProvider>
     </AttachmentsProvider>
   );

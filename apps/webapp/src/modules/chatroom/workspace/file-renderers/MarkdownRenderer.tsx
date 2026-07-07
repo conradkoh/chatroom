@@ -1,9 +1,11 @@
 'use client';
 
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
 import { memo } from 'react';
+import Markdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
+
+import { fullMarkdownComponents } from '../../components/markdown-utils';
 
 // Stable plugin array — avoids creating a new reference each render
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
@@ -22,7 +24,9 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 }: MarkdownRendererProps) {
   return (
     <div className={className ?? DEFAULT_PROSE_CLASSES}>
-      <Markdown remarkPlugins={REMARK_PLUGINS}>{content}</Markdown>
+      <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+        {content}
+      </Markdown>
     </div>
   );
 });
