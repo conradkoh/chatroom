@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { toGitHubPullRequestsUrl, toRepoHttpsUrl } from './git-url';
+import { toRepoHttpsUrl } from './git-url';
 
 describe('toRepoHttpsUrl', () => {
   // SSH format: git@host:owner/repo
@@ -123,13 +123,5 @@ describe('toRepoHttpsUrl', () => {
         'https://github.mycompany.com/owner/repo'
       );
     });
-  });
-});
-
-describe('toGitHubPullRequestsUrl', () => {
-  it('appends /pulls without a search query for PWA-safe external navigation', () => {
-    expect(toGitHubPullRequestsUrl('https://github.com/owner/repo')).toBe(
-      'https://github.com/owner/repo/pulls'
-    );
   });
 });
