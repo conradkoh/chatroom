@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Pencil,
   Trash2,
+  Copy,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
@@ -66,6 +67,22 @@ async function confirmDeleteInBackground(
 type ExplorerContextTarget =
   | { kind: 'root' }
   | { kind: 'node'; path: string; type: 'file' | 'directory' };
+
+function joinWorkingDirPath(workingDir: string, relativePath: string): string {
+  const base = workingDir.replace(/[/\\]+$/, '');
+  if (!relativePath) return base;
+  const separator = base.includes('\\') ? '\\' : '/';
+  return `${base}${separator}${relativePath.replace(/^[/\\]+/, '')}`;
+}
+
+async function copyTextToClipboard(text: string, successMessage: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(successMessage);
+  } catch {
+    toast.error('Failed to copy to clipboard');
+  }
+}
 
 interface FileExplorerPanelProps {
   chatroomId?: string;
@@ -222,6 +239,18 @@ export const FileExplorerPanel = memo(
         setContextMenuPoint({ x: event.clientX, y: event.clientY });
         setContextMenuOpen(true);
       }, []);
+
+      const copyRelativePath = useCallback(async (path: string) => {
+        await copyTextToClipboard(path, 'Copied relative path');
+      }, []);
+
+      const copyFullPath = useCallback(
+        async (path: string) => {
+          if (!workingDir) return;
+          await copyTextToClipboard(joinWorkingDirPath(workingDir, path), 'Copied full path');
+        },
+        [workingDir]
+      );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
       // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
@@ -464,6 +493,18 @@ export const FileExplorerPanel = memo(
                   <DropdownMenuItem onSelect={() => openNewFolderDialog('')}>
                     <FolderPlus size={12} className="mr-2" />
                     New Folder
+                  </DropdownMenuItem>
+                </>
+              )}
+              {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
+                <>
+                  <DropdownMenuItem onSelect={() => void copyRelativePath(contextMenuTarget.path)}>
+                    <Copy size={12} className="mr-2" />
+                    Copy Relative Path
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void copyFullPath(contextMenuTarget.path)}>
+                    <Copy size={12} className="mr-2" />
+                    Copy Full Path
                   </DropdownMenuItem>
                 </>
               )}

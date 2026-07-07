@@ -109,4 +109,40 @@ describe('FileExplorerPanel context menu', () => {
       screen.getByTestId('file-explorer').closest('[data-slot="context-menu-trigger"]')
     ).toBeNull();
   });
+
+  it('copies relative and full paths from the node context menu', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    const node = { path: 'src/index.ts', type: 'file' as const, name: 'index.ts' };
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 10,
+      clientY: 20,
+    });
+    const openNodeMenu = () => {
+      (
+        lastExplorerProps.onNodeContextMenu as (
+          node: { path: string; type: 'file' | 'directory'; name: string },
+          event: MouseEvent
+        ) => void
+      )(node, event);
+    };
+
+    act(openNodeMenu);
+
+    fireEvent.click(await screen.findByText('Copy Relative Path'));
+    expect(writeText).toHaveBeenCalledWith('src/index.ts');
+
+    act(openNodeMenu);
+
+    fireEvent.click(await screen.findByText('Copy Full Path'));
+    expect(writeText).toHaveBeenCalledWith('/workspace/project/src/index.ts');
+  });
 });
