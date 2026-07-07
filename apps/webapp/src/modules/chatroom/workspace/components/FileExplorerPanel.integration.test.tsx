@@ -132,6 +132,7 @@ const fileTabs = {
   openPreview: vi.fn(),
   pinTab: vi.fn(),
   closeTab: vi.fn(),
+  closeOtherTabs: vi.fn(),
   setActiveTab: vi.fn(),
   toggleExpanded: vi.fn(),
   renamePath: vi.fn(),
