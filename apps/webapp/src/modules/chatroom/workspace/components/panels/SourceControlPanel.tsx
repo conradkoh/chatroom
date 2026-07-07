@@ -11,7 +11,7 @@
  */
 
 import { Loader2 } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   useWorkspaceGit,
@@ -360,6 +360,8 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
   // Active selection: working-tree or a commit SHA
   const [activeSource, setActiveSource] = useState<ActiveSource | null>(null);
+  const activeSourceRef = useRef<ActiveSource | null>(null);
+  activeSourceRef.current = activeSource;
 
   // Selected file
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -370,13 +372,6 @@ export const SourceControlPanel = memo(function SourceControlPanel({
       requestRecentCommits();
     }
   }, [machineId, workingDir, requestRecentCommits]);
-
-  // Request working-tree diff when working-tree is selected
-  useEffect(() => {
-    if (activeSource?.type === 'working-tree' && fullDiffState.status === 'idle') {
-      requestFullDiff();
-    }
-  }, [activeSource, fullDiffState.status, requestFullDiff]);
 
   // Request commit detail when a commit is selected
   useEffect(() => {
@@ -425,7 +420,18 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
   const handleSelectWorkingTree = useCallback(() => {
     setActiveSource({ type: 'working-tree' });
-  }, []);
+    requestFullDiff();
+  }, [requestFullDiff]);
+
+  const handleSelectFile = useCallback(
+    (filePath: string) => {
+      setSelectedFile(filePath);
+      if (activeSourceRef.current?.type === 'working-tree') {
+        requestFullDiff();
+      }
+    },
+    [requestFullDiff]
+  );
 
   const handleSelectCommit = useCallback((sha: string) => {
     setActiveSource({ type: 'commit', sha });
@@ -531,7 +537,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
                       files={files}
                       selectedFile={selectedFile}
                       isLoading={isMiddleLoading}
-                      onSelectFile={setSelectedFile}
+                      onSelectFile={handleSelectFile}
                     />
                   </div>
                 )}

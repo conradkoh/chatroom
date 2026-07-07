@@ -6,8 +6,13 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+import { SourceControlPanel, groupFilesByDirectory } from './SourceControlPanel';
+import type { FileDiffSection } from '../../utils/diff-parser';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -41,7 +46,7 @@ vi.mock('../WorkspaceGitLog', () => ({
     onRequest,
     status,
   }: {
-    commits: Array<{ sha: string; shortSha: string; message: string }>;
+    commits: { sha: string; shortSha: string; message: string }[];
     onSelectCommit: (sha: string) => void;
     onRequest: () => void;
     status?: string;
@@ -71,8 +76,16 @@ vi.mock('../WorkspaceDiffViewer', () => ({
 
 // Mock resizable panels so tests don't depend on react-resizable-panels internals
 vi.mock('@/components/ui/resizable', () => ({
-  ResizablePanelGroup: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={className} data-testid="resizable-group">{children}</div>
+  ResizablePanelGroup: ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <div className={className} data-testid="resizable-group">
+      {children}
+    </div>
   ),
   ResizablePanel: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="resizable-panel">{children}</div>
@@ -82,8 +95,20 @@ vi.mock('@/components/ui/resizable', () => ({
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
-const COMMIT_A = { sha: 'aaaa1111', shortSha: 'aaaa111', message: 'feat: add feature', author: 'alice', date: '2024-01-01' };
-const COMMIT_B = { sha: 'bbbb2222', shortSha: 'bbbb222', message: 'fix: bug fix', author: 'bob', date: '2024-01-02' };
+const COMMIT_A = {
+  sha: 'aaaa1111',
+  shortSha: 'aaaa111',
+  message: 'feat: add feature',
+  author: 'alice',
+  date: '2024-01-01',
+};
+const COMMIT_B = {
+  sha: 'bbbb2222',
+  shortSha: 'bbbb222',
+  message: 'fix: bug fix',
+  author: 'bob',
+  date: '2024-01-02',
+};
 const COMMIT_WITH_BODY = {
   sha: 'cccc3333',
   shortSha: 'cccc333',
@@ -109,10 +134,6 @@ index abc..def 100644
 @@ -1 +1,2 @@
  export {};
 +// added`;
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-import { SourceControlPanel } from './SourceControlPanel';
 
 describe('SourceControlPanel', () => {
   beforeEach(() => {
@@ -355,8 +376,39 @@ describe('SourceControlPanel', () => {
     // Select working tree
     fireEvent.click(screen.getByText('Working Changes'));
 
+    expect(mockRequestFullDiff).toHaveBeenCalled();
     // Commit header should NOT be rendered — no commit shortSha visible in header
     expect(screen.queryByText('aaaa111')).toBeNull();
+  });
+
+  it('requests a fresh working-tree diff when a file is selected', () => {
+    mockGitState = {
+      status: 'available',
+      isDirty: true,
+      diffStat: { filesChanged: 2, insertions: 2, deletions: 0 },
+      branch: 'main',
+      openPullRequests: [],
+      allPullRequests: [],
+      remotes: [REMOTE_ORIGIN],
+      commitsAhead: 0,
+      updatedAt: Date.now(),
+    };
+    mockRecentCommitsState = { status: 'available', commits: [COMMIT_A], hasMoreCommits: false };
+    mockFullDiffState = {
+      status: 'available',
+      content: FULL_DIFF_CONTENT,
+      truncated: false,
+      diffStat: { filesChanged: 2, insertions: 2, deletions: 0 },
+    };
+
+    render(<SourceControlPanel machineId="m1" workingDir="/repo" chatroomId="c1" />);
+
+    fireEvent.click(screen.getByText('Working Changes'));
+    mockRequestFullDiff.mockClear();
+
+    fireEvent.click(screen.getByText('foo.ts').closest('button')!);
+
+    expect(mockRequestFullDiff).toHaveBeenCalled();
   });
 
   // ── Commit detail header: renders title + body + metadata ────────────
@@ -440,14 +492,13 @@ describe('SourceControlPanel', () => {
     const links = screen.getAllByRole('link');
     const issueLink = links.find((a) => a.getAttribute('href')?.includes('/issues/482'));
     expect(issueLink).toBeTruthy();
-    expect(issueLink!.getAttribute('href')).toBe('https://github.com/conradkoh/chatroom/issues/482');
+    expect(issueLink!.getAttribute('href')).toBe(
+      'https://github.com/conradkoh/chatroom/issues/482'
+    );
   });
 });
 
 // ─── groupFilesByDirectory unit tests ────────────────────────────────────────
-
-import { groupFilesByDirectory } from './SourceControlPanel';
-import type { FileDiffSection } from '../../utils/diff-parser';
 
 const makeFile = (filePath: string): FileDiffSection => ({
   filePath,
@@ -483,12 +534,7 @@ describe('groupFilesByDirectory', () => {
   });
 
   it('sorts groups alphabetically and files within group alphabetically by basename', () => {
-    const files = [
-      makeFile('z/z.ts'),
-      makeFile('a/b.ts'),
-      makeFile('a/a.ts'),
-      makeFile('m/m.ts'),
-    ];
+    const files = [makeFile('z/z.ts'), makeFile('a/b.ts'), makeFile('a/a.ts'), makeFile('m/m.ts')];
     const groups = groupFilesByDirectory(files);
     expect(groups.map((g) => g.dir)).toEqual(['a', 'm', 'z']);
     expect(groups[0].files.map((f) => f.filePath)).toEqual(['a/a.ts', 'a/b.ts']);

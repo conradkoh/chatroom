@@ -57,10 +57,13 @@ export function useFullDiff(
   const result = useSessionQuery(api.workspaces.getFullDiffV2, { machineId, workingDir });
   const requestMutation = useSessionMutation(api.workspaces.requestFullDiff);
   const requestedRef = useRef(false);
+  /** Timestamp of the latest fetch request — hides stale cached rows until refreshed. */
+  const fetchStartedAtRef = useRef(0);
   const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
 
   const request = useCallback(() => {
     requestedRef.current = true;
+    fetchStartedAtRef.current = Date.now();
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
 
@@ -79,12 +82,19 @@ export function useFullDiff(
       return () => {
         cancelled = true;
       };
-    } 
-      setDecompressedContent(null);
-    
+    }
+
+    setDecompressedContent(null);
   }, [result]);
 
   const state: FullDiffState = useMemo(() => {
+    const awaitingFresh =
+      fetchStartedAtRef.current > 0 && (!result || result.updatedAt < fetchStartedAtRef.current);
+
+    if (awaitingFresh) {
+      return { status: 'loading' };
+    }
+
     if (!result) {
       return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
     }
@@ -133,8 +143,7 @@ export function usePRDiff(
 
   const state: PRDiffState = useMemo(() => {
     const awaitingFresh =
-      fetchStartedAtRef.current > 0 &&
-      (!result || result.updatedAt < fetchStartedAtRef.current);
+      fetchStartedAtRef.current > 0 && (!result || result.updatedAt < fetchStartedAtRef.current);
 
     if (awaitingFresh) {
       return { status: 'loading' };
@@ -203,9 +212,8 @@ export function useCommitDetail(
       return () => {
         cancelled = true;
       };
-    } 
-      setDecompressedContent(null);
-    
+    }
+    setDecompressedContent(null);
   }, [result]);
 
   const state: CommitDetailState = useMemo(() => {
