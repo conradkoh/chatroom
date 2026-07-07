@@ -296,6 +296,99 @@ test('getCommandEvents — expired agent.requestStart/Stop events are NOT return
   expect(result.events).toHaveLength(0);
 });
 
+// Test 9a: daemon.pickFolder events are returned for the machine
+test('getCommandEvents — returns daemon.pickFolder event for the machine', async () => {
+  const { sessionId, userId } = await createTestSession('gce-9a');
+  const machineId = 'machine-gce-9a';
+  await registerMachine(sessionId, machineId);
+
+  const requestId = await t.run(async (ctx) => {
+    const id = await ctx.db.insert('chatroom_folderPickerRequests', {
+      userId,
+      machineId,
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.pickFolder',
+      machineId,
+      requestId: id,
+      timestamp: Date.now(),
+    });
+    return id;
+  });
+
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  const pickFolderEvents = result.events.filter((e) => e.type === 'daemon.pickFolder');
+  expect(pickFolderEvents).toHaveLength(1);
+  if (pickFolderEvents[0].type === 'daemon.pickFolder') {
+    expect(pickFolderEvents[0].requestId).toBe(requestId);
+  }
+});
+
+// Test 9b: daemon.pickFolder events for other machines are NOT returned
+test('getCommandEvents — filters out daemon.pickFolder events for other machines', async () => {
+  const { sessionId, userId } = await createTestSession('gce-9b');
+  const machineId = 'machine-gce-9b';
+  const otherMachineId = 'machine-gce-9b-other';
+  await registerMachine(sessionId, machineId);
+
+  await t.run(async (ctx) => {
+    const requestId = await ctx.db.insert('chatroom_folderPickerRequests', {
+      userId,
+      machineId: otherMachineId,
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.pickFolder',
+      machineId: otherMachineId,
+      requestId,
+      timestamp: Date.now(),
+    });
+  });
+
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  expect(result.events.filter((e) => e.type === 'daemon.pickFolder')).toHaveLength(0);
+});
+
+// Test 9c: expired daemon.pickFolder events are NOT returned
+test('getCommandEvents — expired daemon.pickFolder events are NOT returned', async () => {
+  const { sessionId, userId } = await createTestSession('gce-9c');
+  const machineId = 'machine-gce-9c';
+  await registerMachine(sessionId, machineId);
+
+  await t.run(async (ctx) => {
+    const requestId = await ctx.db.insert('chatroom_folderPickerRequests', {
+      userId,
+      machineId,
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.pickFolder',
+      machineId,
+      requestId,
+      timestamp: Date.now() - 6 * 60_000, // older than 5-minute TTL
+    });
+  });
+
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  expect(result.events.filter((e) => e.type === 'daemon.pickFolder')).toHaveLength(0);
+});
+
 // Test 9: daemon.ping events are returned without cursor filtering
 test('getCommandEvents — all daemon.ping events are returned (no cursor filter)', async () => {
   const { sessionId } = await createTestSession('gce-9');

@@ -21,12 +21,14 @@ export interface AgentControlsSectionProps {
   linkedMachineIds?: ReadonlySet<string>;
   /** Which tab to show initially. Defaults to 'remote'. */
   initialTab?: 'remote' | 'custom';
+  setupMode?: boolean;
 }
 
 /**
  * Reusable tab bar (Remote / Custom) + tab content section.
  * Extracted from InlineAgentCard so it can be reused in other panels.
  */
+// fallow-ignore-next-line complexity
 export const AgentControlsSection = memo(function AgentControlsSection({
   controls,
   connectedMachines,
@@ -37,38 +39,40 @@ export const AgentControlsSection = memo(function AgentControlsSection({
   prompt,
   linkedMachineIds,
   initialTab = 'remote',
+  setupMode = false,
 }: AgentControlsSectionProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(initialTab);
 
   return (
     <>
-      {/* Tab bar — closer to content below */}
-      <div className="flex gap-3 mb-1">
-        <button
-          onClick={() => setActiveTab('remote')}
-          className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
-            activeTab === 'remote'
-              ? 'border-chatroom-accent text-chatroom-text-primary'
-              : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-          }`}
-        >
-          Remote
-        </button>
-        <button
-          onClick={() => setActiveTab('custom')}
-          className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
-            activeTab === 'custom'
-              ? 'border-chatroom-accent text-chatroom-text-primary'
-              : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-          }`}
-        >
-          Custom
-        </button>
-      </div>
+      {!setupMode && (
+        <div className="flex gap-3 mb-1">
+          <button
+            onClick={() => setActiveTab('remote')}
+            className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
+              activeTab === 'remote'
+                ? 'border-chatroom-accent text-chatroom-text-primary'
+                : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
+            }`}
+          >
+            Remote
+          </button>
+          <button
+            onClick={() => setActiveTab('custom')}
+            className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
+              activeTab === 'custom'
+                ? 'border-chatroom-accent text-chatroom-text-primary'
+                : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
+            }`}
+          >
+            Custom
+          </button>
+        </div>
+      )}
 
       {/* Tab content — sits directly after tab bar */}
       <div className="pt-2">
-        {activeTab === 'remote' ? (
+        {setupMode || activeTab === 'remote' ? (
           <RemoteTabContent
             controls={controls}
             connectedMachines={connectedMachines}
@@ -77,6 +81,7 @@ export const AgentControlsSection = memo(function AgentControlsSection({
             chatroomId={chatroomId}
             role={role}
             linkedMachineIds={linkedMachineIds}
+            setupMode={setupMode}
           />
         ) : (
           <CustomTabContent role={role} prompt={prompt} />

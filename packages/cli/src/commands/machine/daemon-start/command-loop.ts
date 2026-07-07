@@ -27,6 +27,7 @@ import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shut
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
+import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { releaseLock } from '../pid.js';
 import {
@@ -81,6 +82,7 @@ interface DedupTracker {
   gitRefreshIds: Map<string, number>;
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
+  pickFolderIds: Map<string, number>;
   commandRunIds: Map<string, number>;
   commandStopIds: Map<string, number>;
 }
@@ -101,6 +103,7 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.gitRefreshIds, evictBefore);
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
+  evictStaleEntries(tracker.pickFolderIds, evictBefore);
   evictStaleEntries(tracker.commandRunIds, evictBefore);
   evictStaleEntries(tracker.commandStopIds, evictBefore);
 
@@ -210,6 +213,46 @@ function handleLocalActionCommandEffect(
   });
 }
 
+function handlePickFolderCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  // fallow-ignore-next-line code-duplication
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.pickFolderIds.has(eventId)) return;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.pickFolder' }>;
+    console.log(`[${formatTimestamp()}] 📂 Folder picker requested`);
+    const result = yield* Effect.sync(() => pickFolderDialog());
+    const session = yield* DaemonSessionService;
+    const status = result.success ? 'completed' : result.cancelled ? 'cancelled' : 'failed';
+    yield* Effect.tryPromise({
+      try: () =>
+        session.backend.mutation(api.machines.reportFolderPickerResult, {
+          sessionId: session.sessionId,
+          requestId: typedEvent.requestId,
+          machineId: session.machineId,
+          status,
+          selectedPath: result.success ? result.path : undefined,
+          errorMessage: result.success ? undefined : result.error,
+        }),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Folder picker report failed: ${getErrorMessage(error)}`
+          );
+        })
+      )
+    );
+    if (!result.success && !result.cancelled) {
+      console.warn(`[${formatTimestamp()}] ⚠️  Folder picker failed: ${result.error}`);
+    }
+    tracker.pickFolderIds.set(eventId, Date.now());
+  });
+}
+
 function handleCommandRunEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -294,6 +337,7 @@ const commandEventHandlers: Partial<
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
+  'daemon.pickFolder': handlePickFolderCommandEffect,
   'command.run': handleCommandRunEffect,
   'command.stop': handleCommandStopEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
@@ -525,6 +569,7 @@ export const startCommandLoopEffect: Effect.Effect<
     gitRefreshIds: new Map<string, number>(),
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
+    pickFolderIds: new Map<string, number>(),
     commandRunIds: new Map<string, number>(),
     commandStopIds: new Map<string, number>(),
   };

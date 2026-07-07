@@ -18,6 +18,8 @@ export interface Workspace {
   workingDir: string;
   /** Roles of agents that belong to this workspace */
   agentRoles: string[];
+  /** When the workspace was registered in the chatroom registry */
+  registeredAt?: number;
   /** ID from workspace registry, used for manual removal */
   _registryId?: string;
 }
