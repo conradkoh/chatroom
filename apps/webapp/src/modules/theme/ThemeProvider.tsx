@@ -47,11 +47,13 @@ export const themeScript = `
       switch (nextTheme) {
         case 'dark': {
           document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = 'dark';
           document.documentElement.style.backgroundColor = 'rgb(9, 9, 11)';
           break;
         }
         case 'light': {
           document.documentElement.classList.remove('dark');
+          document.documentElement.style.colorScheme = 'light';
           document.documentElement.style.backgroundColor = 'rgb(255, 255, 255)';
           break;
         }
