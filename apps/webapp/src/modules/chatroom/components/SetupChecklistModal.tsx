@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Settings2 } from 'lucide-react';
+import { Settings2, Loader2 } from 'lucide-react';
 import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 
 import { SetupAgentTeamStep } from './setup/SetupAgentTeamStep';
@@ -11,6 +11,8 @@ import { SetupWorkspaceStep } from './setup/SetupWorkspaceStep';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { countJoinedRoles } from '../utils/countJoinedRoles';
 import { normalizePastedChatroomName } from '../utils/normalizeChatroomName';
+import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import {
   FixedModal,
@@ -78,14 +80,32 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     sendCommand,
     agents: agentRoleViews,
   } = useAgentPanelData(chatroomId);
+  const { workspaces: chatroomWorkspaces, isLoading: isLoadingWorkspaces } =
+    useChatroomWorkspaces(chatroomId);
 
   useEffect(() => {
-    if (isOpen) {
-      setStep('workspace');
-      setSetupMachineId(null);
-      setSetupWorkingDir(null);
+    if (!isOpen) return;
+    // Wait for workspace registry before choosing initial step (prevents step-1 flash).
+    if (isLoadingWorkspaces) return;
+
+    const existing = pickSetupWorkspace(
+      chatroomWorkspaces.map((ws) => ({
+        machineId: ws.machineId ?? '',
+        workingDir: ws.workingDir,
+        registeredAt: ws.registeredAt,
+      }))
+    );
+    if (existing) {
+      setSetupMachineId(existing.machineId);
+      setSetupWorkingDir(existing.workingDir);
+      setStep('agents');
+      return;
     }
-  }, [isOpen]);
+
+    setStep('workspace');
+    setSetupMachineId(null);
+    setSetupWorkingDir(null);
+  }, [isOpen, isLoadingWorkspaces, chatroomWorkspaces]);
 
   const joinedCount = useMemo(
     () => countJoinedRoles(teamRoles, participants),
@@ -145,7 +165,12 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
         </div>
 
         <FixedModalBody>
-          {step === 'workspace' ? (
+          {isLoadingWorkspaces ? (
+            <div className="flex items-center justify-center py-12 text-chatroom-text-muted">
+              <Loader2 size={18} className="animate-spin mr-2" />
+              <span className="text-sm">Loading workspace...</span>
+            </div>
+          ) : step === 'workspace' ? (
             <SetupWorkspaceStep
               connectedMachines={connectedMachines}
               isLoadingMachines={isLoading}
