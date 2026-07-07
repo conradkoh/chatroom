@@ -6,8 +6,8 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { FileText, Loader2, ExternalLink } from 'lucide-react';
 import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents } from './markdown-utils';
 
 import {
@@ -51,7 +51,7 @@ type ArtifactContentRenderer = React.FC<{ artifact: ArtifactFull }>;
 function MarkdownArtifactViewer({ artifact }: { artifact: ArtifactFull }) {
   return (
     <div className="prose dark:prose-invert prose-sm max-w-none text-chatroom-text-primary">
-      <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+      <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
         {artifact.content}
       </Markdown>
     </div>

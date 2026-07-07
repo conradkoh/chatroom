@@ -6,11 +6,10 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 
 import {
@@ -225,7 +224,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
                 ) : (
                   <div className={`h-full overflow-y-auto p-4 ${messageFeedProseClassNames}`}>
                     <Markdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      remarkPlugins={chatroomRemarkPlugins}
                       components={baseMarkdownComponents}
                     >
                       {editedContent || '*No content yet*'}
@@ -236,10 +235,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
             </div>
           ) : (
             <div className={`p-4 ${messageFeedProseClassNames}`}>
-              <Markdown
-                remarkPlugins={[remarkGfm, remarkBreaks]}
-                components={baseMarkdownComponents}
-              >
+              <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
                 {message.content}
               </Markdown>
               <QueuedMessageAttachmentsSection message={message} />

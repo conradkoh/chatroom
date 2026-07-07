@@ -4,10 +4,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Search, Pencil, Trash2 } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import { getScoringBadge } from './backlog';
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
 import {
@@ -304,7 +303,7 @@ function TaskListItem({
 
       {/* Content - with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>

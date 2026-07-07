@@ -468,7 +468,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       ## Proof of Completion
       - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
-      - \`path/to/file.ts\` — <what changed and why>
+      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+      - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you modified>
 
       ## Code Change Verification

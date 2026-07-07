@@ -1,9 +1,8 @@
 import { ChevronRight } from 'lucide-react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import { type BacklogItem, getScoringBadge } from '../../backlog';
+import { chatroomRemarkPlugins } from '../../chatroomRemarkPlugins';
 import { compactMarkdownComponents } from '../../markdown-utils';
 import { formatRelativeTime } from '../utils';
 
@@ -60,7 +59,7 @@ export function PendingReviewBacklogItem({ item, onClick }: PendingReviewBacklog
 
       {/* Content - 2 lines max */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
           {item.content}
         </Markdown>
       </div>

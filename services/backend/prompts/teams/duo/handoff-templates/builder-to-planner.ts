@@ -15,6 +15,7 @@ import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/comma
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
+import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
@@ -45,7 +46,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
 ## Proof of Completion
 ${getDelegationBriefDisclosureBlock()}
-- \`path/to/file.ts\` — <what changed and why>
+${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you modified>
 
 ## Code Change Verification

@@ -3,10 +3,9 @@
 import { ChevronRight } from 'lucide-react';
 import React from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from '../backlog';
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { compactMarkdownComponents } from '../markdown-utils';
 
 import {
@@ -88,7 +87,7 @@ export function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueM
 
                 <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
                   <Markdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    remarkPlugins={chatroomRemarkPlugins}
                     components={compactMarkdownComponents}
                   >
                     {item.content}

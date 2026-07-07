@@ -1,8 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, compactProseClassNames } from '../markdown-utils';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
@@ -50,7 +49,7 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
 
       {/* Content - Rendered as Markdown */}
       <div className={`line-clamp-3 mb-2 ${compactProseClassNames}`}>
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+        <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>

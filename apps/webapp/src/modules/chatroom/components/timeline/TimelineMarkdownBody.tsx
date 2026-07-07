@@ -2,12 +2,9 @@
 
 import { memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { fullMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
-
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface TimelineMarkdownBodyProps {
   content: string;
@@ -21,7 +18,7 @@ export const TimelineMarkdownBody = memo(function TimelineMarkdownBody({
 }: TimelineMarkdownBodyProps) {
   return (
     <div className={className}>
-      <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+      <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
         {content}
       </Markdown>
     </div>

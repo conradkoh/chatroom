@@ -1,7 +1,6 @@
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from '../../chatroomRemarkPlugins';
 import { compactMarkdownComponents } from '../../markdown-utils';
 import type { Task } from '../types';
 import { formatRelativeTime } from '../utils';
@@ -34,7 +33,7 @@ export function PendingReviewModalItem({ task, onClick }: PendingReviewModalItem
 
       {/* Content - with markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
