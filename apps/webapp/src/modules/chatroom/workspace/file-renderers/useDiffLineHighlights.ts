@@ -11,7 +11,6 @@ export function stripDiffPrefix(content: string): string {
 
 function canHighlightDiffLine(line: DiffLine, filePath: string): boolean {
   if (line.type === 'hunk') return false;
-  if (line.intraSegments) return false;
   if (!detectLanguage(filePath)) return false;
   return stripDiffPrefix(line.content).length > 0;
 }

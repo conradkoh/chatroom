@@ -52,13 +52,15 @@ describe('useDiffLineHighlights', () => {
     const { result } = renderHook(() => useDiffLineHighlights('file.ts', lines));
 
     await waitFor(() => {
-      expect(result.current.size).toBe(2);
+      expect(result.current.size).toBe(3);
     });
 
     expect(mockHighlight).toHaveBeenCalledWith('const x = 1;', 'file.ts');
     expect(mockHighlight).toHaveBeenCalledWith('const y = 2;', 'file.ts');
+    expect(mockHighlight).toHaveBeenCalledWith('const z = 3;', 'file.ts');
     expect(result.current.get(1)).toContain('highlighted');
     expect(result.current.get(2)).toContain('highlighted');
+    expect(result.current.get(3)).toContain('highlighted');
   });
 
   it('skips hunk headers, intra-line diffs, and unknown file types', async () => {

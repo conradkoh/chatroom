@@ -64,6 +64,15 @@ const diffLineContentClassName =
   'font-mono text-[11px] whitespace-pre-wrap break-words min-w-0 px-3 py-px';
 
 function DiffLineContent({ line, highlightedHtml }: { line: DiffLine; highlightedHtml?: string }) {
+  if (highlightedHtml) {
+    return (
+      <div
+        className={`${diffLineContentClassName} ${diffLineHighlightClassName}`}
+        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+      />
+    );
+  }
+
   if (line.intraSegments) {
     return (
       <div className={diffLineContentClassName}>
@@ -83,15 +92,6 @@ function DiffLineContent({ line, highlightedHtml }: { line: DiffLine; highlighte
           </span>
         ))}
       </div>
-    );
-  }
-
-  if (highlightedHtml) {
-    return (
-      <div
-        className={`${diffLineContentClassName} ${diffLineHighlightClassName}`}
-        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-      />
     );
   }
 
@@ -124,7 +124,7 @@ const DiffAdditionRow = memo(function DiffAdditionRow({
   highlightedHtml?: string;
 }) {
   return (
-    <div className="flex bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300">
+    <div className="flex bg-green-50 dark:bg-green-950/20">
       <DiffLineNumber />
       <DiffLineNumber value={line.newLineNum} />
       <DiffLineContent line={line} highlightedHtml={highlightedHtml} />
@@ -140,7 +140,7 @@ const DiffDeletionRow = memo(function DiffDeletionRow({
   highlightedHtml?: string;
 }) {
   return (
-    <div className="flex bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300">
+    <div className="flex bg-red-50 dark:bg-red-950/20">
       <DiffLineNumber value={line.oldLineNum} />
       <DiffLineNumber />
       <DiffLineContent line={line} highlightedHtml={highlightedHtml} />
