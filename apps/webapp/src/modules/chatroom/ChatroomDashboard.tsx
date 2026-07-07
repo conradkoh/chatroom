@@ -61,6 +61,12 @@ import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
+import {
+  ensureAgentRolesConfigured,
+  getFailedAgentRoles,
+  runAgentStartBatch,
+  startAgentsForRoles,
+} from './utils/agentBulkStart';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
@@ -421,7 +427,7 @@ export function ChatroomDashboard({
 
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
-      if (!explorerSplitViewEnabled && activeView === 'explorer') {
+      if (!explorerSplitViewEnabled) {
         setExplorerSplitViewEnabled(true);
       }
 
@@ -434,7 +440,7 @@ export function ChatroomDashboard({
       });
       toast.message(PREFILL_TOAST_MESSAGE);
     },
-    [explorerSplitViewEnabled, activeView, setExplorerSplitViewEnabled, setSplitMode]
+    [explorerSplitViewEnabled, setExplorerSplitViewEnabled, setSplitMode]
   );
 
   const handleActivityViewChange = useCallback(
@@ -874,44 +880,35 @@ export function ChatroomDashboard({
 
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
-  const handleStartAllRemoteAgents = useCallback(async () => {
+  const getConfiguredAgentRoles = useCallback((): string[] | null => {
     const agentRoles = teamRoles.filter((r) => r !== 'user');
-    // Check if all roles have a saved config
-    const missingRoles = agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
-    if (missingRoles.length > 0) {
-      // Open settings modal at agents tab to configure
-      handleCmdOpenSettings('agents');
-      return;
+    if (
+      !ensureAgentRolesConfigured(agentRoles, roleConfigMap, () => handleCmdOpenSettings('agents'))
+    ) {
+      return null;
     }
+    return agentRoles;
+  }, [teamRoles, roleConfigMap, handleCmdOpenSettings]);
+
+  const handleStartAllRemoteAgents = useCallback(async () => {
+    const agentRoles = getConfiguredAgentRoles();
+    if (!agentRoles) return;
     // Start all agents in parallel using their persisted configs
     setIsStartingAllAgents(true);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const results = await Promise.allSettled(
-      agentRoles.map((role) => {
-        const config = roleConfigMap.get(role.toLowerCase());
-        if (!config) return null;
-        return agentPanelData.sendCommand({
-          machineId: config.machineId,
-          type: 'start-agent' as const,
-          payload: {
-            chatroomId: chatroomIdTyped,
-            role,
-            model: config.model,
-            agentHarness: config.agentType,
-            workingDir: config.workingDir,
-          },
-        });
-      })
+    const results = await startAgentsForRoles(
+      agentRoles,
+      roleConfigMap,
+      chatroomIdTyped,
+      agentPanelData.sendCommand
     );
     setIsStartingAllAgents(false);
 
-    const failed = results
-      .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
-      .filter(Boolean) as string[];
+    const failed = getFailedAgentRoles(results, agentRoles);
     if (failed.length > 0) {
       toast.error(`Failed to start: ${failed.join(', ')}`);
     }
-  }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
+  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
 
   // Stop all remote agents confirmation dialog state
   const [stopAllConfirmOpen, setStopAllConfirmOpen] = useState(false);
@@ -974,15 +971,17 @@ export function ChatroomDashboard({
   // Restart all remote agents handler — starts if stopped, restarts if running
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
   const handleRestartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    const agentRoles = getConfiguredAgentRoles();
+    if (!agentRoles) return;
 
-    // Check if all roles have a saved config
-    const missingRoles = agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
-    if (missingRoles.length > 0) {
-      // Open settings modal at agents tab to configure
-      handleCmdOpenSettings('agents');
-      return;
-    }
+    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+    const reportStartResults = (failed: string[], successMessage: string) => {
+      if (failed.length > 0) {
+        toast.error(`Failed to start: ${failed.join(', ')}`);
+      } else {
+        toast.success(successMessage);
+      }
+    };
 
     // Get current agent states
     const runningAgents = agentPanelData.agents.filter((a) => a.state === 'running');
@@ -990,7 +989,6 @@ export function ChatroomDashboard({
     // Stop all running agents first
     if (runningAgents.length > 0) {
       setIsRestartingAllAgents(true);
-      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
 
       // Stop all running agents
       await Promise.allSettled(
@@ -1009,69 +1007,43 @@ export function ChatroomDashboard({
       // Wait a bit for agents to stop before starting
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Start all agents (including ones that were stopped)
-      const results = await Promise.allSettled(
-        agentRoles.map((role) => {
-          const config = roleConfigMap.get(role.toLowerCase());
-          if (!config) return null;
-          return agentPanelData.sendCommand({
-            machineId: config.machineId,
-            type: 'start-agent' as const,
-            payload: {
-              chatroomId: chatroomIdTyped,
-              role,
-              model: config.model,
-              agentHarness: config.agentType,
-              workingDir: config.workingDir,
-            },
-          });
-        })
+      await runAgentStartBatch(
+        agentRoles,
+        roleConfigMap,
+        chatroomIdTyped,
+        agentPanelData.sendCommand,
+        (failed) => reportStartResults(failed, `Restarted ${agentRoles.length} agent(s)`)
       );
-
       setIsRestartingAllAgents(false);
-
-      const failed = results
-        .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
-        .filter(Boolean) as string[];
-      if (failed.length > 0) {
-        toast.error(`Failed to start: ${failed.join(', ')}`);
-      } else {
-        toast.success(`Restarted ${agentRoles.length} agent(s)`);
-      }
     } else {
-      // No agents running, just start them all
       setIsRestartingAllAgents(true);
-      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-      const results = await Promise.allSettled(
-        agentRoles.map((role) => {
-          const config = roleConfigMap.get(role.toLowerCase());
-          if (!config) return null;
-          return agentPanelData.sendCommand({
-            machineId: config.machineId,
-            type: 'start-agent' as const,
-            payload: {
-              chatroomId: chatroomIdTyped,
-              role,
-              model: config.model,
-              agentHarness: config.agentType,
-              workingDir: config.workingDir,
-            },
-          });
-        })
+      await runAgentStartBatch(
+        agentRoles,
+        roleConfigMap,
+        chatroomIdTyped,
+        agentPanelData.sendCommand,
+        (failed) => reportStartResults(failed, `Started ${agentRoles.length} agent(s)`)
       );
-
       setIsRestartingAllAgents(false);
-
-      const failed = results
-        .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
-        .filter(Boolean) as string[];
-      if (failed.length > 0) {
-        toast.error(`Failed to start: ${failed.join(', ')}`);
-      } else {
-        toast.success(`Started ${agentRoles.length} agent(s)`);
-      }
     }
-  }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
+  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+
+  const sourceControlPanel = useMemo(
+    () => (
+      <SourceControlPanel
+        machineId={activeWorkspace?.machineId ?? ''}
+        workingDir={activeWorkspace?.workingDir ?? ''}
+        chatroomId={chatroomId}
+        onSendSelectionToComposer={handleExplorerSelectionToComposer}
+      />
+    ),
+    [
+      activeWorkspace?.machineId,
+      activeWorkspace?.workingDir,
+      chatroomId,
+      handleExplorerSelectionToComposer,
+    ]
+  );
 
   // Build command palette commands
   const { openDialog } = useCommandDialog();
@@ -1425,7 +1397,7 @@ export function ChatroomDashboard({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {activeView === 'explorer' && (
+                    {(activeView === 'explorer' || activeView === 'source-control') && (
                       <button
                         className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
                         onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
@@ -1443,8 +1415,9 @@ export function ChatroomDashboard({
                   </div>
                 </div>
 
-                {/* When in explorer view with split view enabled, show both explorer and messages */}
-                {activeView === 'explorer' && explorerSplitViewEnabled ? (
+                {/* When in explorer or source-control with split view enabled, show workspace + messages */}
+                {(activeView === 'explorer' || activeView === 'source-control') &&
+                explorerSplitViewEnabled ? (
                   <ResizablePanelGroup
                     className="flex-1 min-h-0"
                     onLayoutChanged={handleExplorerSplitLayoutChanged}
@@ -1455,13 +1428,17 @@ export function ChatroomDashboard({
                       minSize={30}
                       className="flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border"
                     >
-                      <ExplorerContent
-                        fileTabs={fileTabs}
-                        activeWorkspace={activeWorkspace}
-                        onOpenPreview={handleOpenPreview}
-                        onOpenTableView={handleOpenTableView}
-                        onSendSelectionToComposer={handleExplorerSelectionToComposer}
-                      />
+                      {activeView === 'explorer' ? (
+                        <ExplorerContent
+                          fileTabs={fileTabs}
+                          activeWorkspace={activeWorkspace}
+                          onOpenPreview={handleOpenPreview}
+                          onOpenTableView={handleOpenTableView}
+                          onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                        />
+                      ) : (
+                        sourceControlPanel
+                      )}
                     </ResizablePanel>
                     <ResizableHandle />
                     <ResizablePanel
@@ -1517,12 +1494,7 @@ export function ChatroomDashboard({
                     <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
                   </div>
                 ) : activeView === 'source-control' ? (
-                  /* Source Control — replaces the entire workspace area */
-                  <SourceControlPanel
-                    machineId={activeWorkspace?.machineId ?? ''}
-                    workingDir={activeWorkspace?.workingDir ?? ''}
-                    chatroomId={chatroomId}
-                  />
+                  sourceControlPanel
                 ) : activeView === 'pull-requests' ? (
                   /* Pull Requests — replaces the entire workspace area */
                   <PullRequestsPanel

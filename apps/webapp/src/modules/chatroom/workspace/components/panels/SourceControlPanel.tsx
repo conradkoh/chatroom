@@ -13,10 +13,6 @@
 import { Loader2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { parseDiff, basename, dirname } from '../../utils/diff-parser';
-import { getFileIcon } from '../../utils/file-icons';
-import type { FileDiffSection } from '../../utils/diff-parser';
-import type { GitCommit } from '../../types/git';
 import {
   useWorkspaceGit,
   useFullDiff,
@@ -24,18 +20,21 @@ import {
   useRecentCommits,
   useLoadMoreCommits,
 } from '../../hooks/useWorkspaceGit';
-import { WorkspaceGitLog } from '../WorkspaceGitLog';
+import type { GitCommit } from '../../types/git';
+import { buildFileDiffContent } from '../../utils/buildFileDiffContent';
+import { parseDiff, basename, dirname } from '../../utils/diff-parser';
+import type { FileDiffSection } from '../../utils/diff-parser';
+import { getFileIcon } from '../../utils/file-icons';
+import { buildGitSelectionSource } from '../../utils/gitSelectionSource';
+import { CommitDetailHeader } from '../CommitDetailHeader';
+import { DiffSelectionSurface } from '../DiffSelectionSurface';
 import { WorkspaceDiffViewer } from '../WorkspaceDiffViewer';
+import { WorkspaceGitLog } from '../WorkspaceGitLog';
+
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { parseRepoSlug } from '@/lib/git-remote';
 import { cn } from '@/lib/utils';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
-import { linkifyGitHubRefs } from '@/lib/github-refs';
-import { parseRepoSlug } from '@/lib/git-remote';
-import { formatRelativeTime } from '../shared';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from '@/components/ui/resizable';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +42,8 @@ interface SourceControlPanelProps {
   machineId: string;
   workingDir: string;
   chatroomId: string;
+  /** Called when user presses Cmd+I with a text selection in commit or diff content */
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
 }
 
 type ActiveSource = { type: 'working-tree' } | { type: 'commit'; sha: string };
@@ -89,9 +90,7 @@ const DiffSummary = memo(function DiffSummary({
 }: DiffSummaryProps) {
   if (!isDirty) {
     return (
-      <div className="px-3 py-2 text-[11px] text-muted-foreground">
-        No uncommitted changes
-      </div>
+      <div className="px-3 py-2 text-[11px] text-muted-foreground">No uncommitted changes</div>
     );
   }
 
@@ -108,7 +107,9 @@ const DiffSummary = memo(function DiffSummary({
     >
       <span className="text-xs font-medium text-chatroom-text-primary">Working Changes</span>
       <span className="inline-flex items-center gap-1.5 text-[11px]">
-        <span className="text-muted-foreground">{filesChanged} file{filesChanged !== 1 ? 's' : ''} ·</span>
+        <span className="text-muted-foreground">
+          {filesChanged} file{filesChanged !== 1 ? 's' : ''} ·
+        </span>
         <span className="text-green-600 dark:text-green-400">+{insertions}</span>
         <span className="text-red-600 dark:text-red-400">-{deletions}</span>
       </span>
@@ -121,14 +122,7 @@ const DiffSummary = memo(function DiffSummary({
 /** Memoized file-type icon — resolves the correct icon+color for a file path. */
 const FileTypeIcon = memo(function FileTypeIcon({ filePath }: { filePath: string }) {
   const { Icon, color } = getFileIcon(filePath);
-  return (
-    <Icon
-      size={12}
-      aria-hidden
-      className="shrink-0"
-      style={color ? { color } : undefined}
-    />
-  );
+  return <Icon size={12} aria-hidden className="shrink-0" style={color ? { color } : undefined} />;
 });
 
 interface FileListProps {
@@ -156,9 +150,7 @@ const FileList = memo(function FileList({
   }
 
   if (files.length === 0) {
-    return (
-      <div className="px-4 py-3 text-xs text-muted-foreground">No files in this diff.</div>
-    );
+    return <div className="px-4 py-3 text-xs text-muted-foreground">No files in this diff.</div>;
   }
 
   return (
@@ -227,6 +219,8 @@ interface FileDiffProps {
   selectedFile: string | null;
   fullContent: string;
   isLoading: boolean;
+  selectionSource?: string;
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
 }
 
 const FileDiff = memo(function FileDiff({
@@ -234,6 +228,8 @@ const FileDiff = memo(function FileDiff({
   selectedFile,
   fullContent,
   isLoading,
+  selectionSource,
+  onSendSelectionToComposer,
 }: FileDiffProps) {
   const fileSection = useMemo(
     () => files.find((f) => f.filePath === selectedFile) ?? null,
@@ -272,75 +268,21 @@ const FileDiff = memo(function FileDiff({
 
   // Use WorkspaceDiffViewer by synthesizing a minimal FullDiffState for this file
   return (
-    <div className="flex-1 overflow-hidden">
+    <DiffSelectionSurface
+      selectionSource={selectionSource ?? ''}
+      onSendSelectionToComposer={onSendSelectionToComposer}
+      className="flex-1 overflow-hidden"
+    >
       <WorkspaceDiffViewer
-        state={{ status: 'available', content: fileDiffContent, truncated: false, diffStat: { filesChanged: 1, insertions: 0, deletions: 0 } }}
+        state={{
+          status: 'available',
+          content: fileDiffContent,
+          truncated: false,
+          diffStat: { filesChanged: 1, insertions: 0, deletions: 0 },
+        }}
         showFileList={false}
       />
-    </div>
-  );
-});
-
-/**
- * Extracts just the diff content for a single file section from the full diff.
- * Finds the file's header line and takes lines until the next file header.
- */
-function buildFileDiffContent(section: FileDiffSection, fullContent: string): string {
-  // Find the diff --git header for this file and extract through to the next
-  const lines = fullContent.split('\n');
-  const filePath = section.filePath;
-  let startIdx = -1;
-  let endIdx = lines.length;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
-    if (line.startsWith('diff --git') && (line.includes(`b/${filePath}`) || line.includes(`a/${filePath}`))) {
-      if (startIdx === -1) {
-        startIdx = i;
-      } else {
-        // Found the next file's section; stop here
-        endIdx = i;
-        break;
-      }
-    } else if (startIdx !== -1 && line.startsWith('diff --git')) {
-      endIdx = i;
-      break;
-    }
-  }
-
-  if (startIdx === -1) return '';
-  return lines.slice(startIdx, endIdx).join('\n');
-}
-
-// ─── CommitDetailHeader ──────────────────────────────────────────────────────
-
-interface CommitDetailHeaderProps {
-  commit: GitCommit;
-  repoSlug: string | null;
-}
-
-const CommitDetailHeader = memo(function CommitDetailHeader({
-  commit,
-  repoSlug,
-}: CommitDetailHeaderProps) {
-  return (
-    <div className="shrink-0 px-4 py-3 border-b border-border bg-muted/20 overflow-y-auto max-h-48">
-      <div className="text-sm font-bold text-foreground mb-1">
-        {linkifyGitHubRefs(commit.message, { repoSlug })}
-      </div>
-      {commit.body ? (
-        <div className="text-xs text-muted-foreground whitespace-pre-wrap mb-2">
-          {linkifyGitHubRefs(commit.body, { repoSlug })}
-        </div>
-      ) : null}
-      <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-        <span className="font-mono">{commit.shortSha}</span>
-        <span>·</span>
-        <span>{commit.author}</span>
-        <span>·</span>
-        <span>{formatRelativeTime(commit.date)}</span>
-      </div>
-    </div>
+    </DiffSelectionSurface>
   );
 });
 
@@ -351,7 +293,9 @@ const SC_OUTER_DEFAULT: readonly number[] = [28, 72] as const;
 const SC_INNER_KEY = 'webapp:sourceControlPanelInnerSizes';
 const SC_INNER_DEFAULT: readonly number[] = [31, 69] as const;
 const isValidLayout2 = (v: unknown): v is number[] =>
-  Array.isArray(v) && v.length === 2 && (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
+  Array.isArray(v) &&
+  v.length === 2 &&
+  (v as unknown[]).every((n) => typeof n === 'number' && n >= 0 && n <= 100);
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -359,14 +303,23 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   machineId,
   workingDir,
   chatroomId: _chatroomId,
+  onSendSelectionToComposer,
 }: SourceControlPanelProps) {
   // Layout persistence — nested resizable groups
-  const [outerSizes, setOuterSizes] = usePersistedState<number[]>(SC_OUTER_KEY, [...SC_OUTER_DEFAULT], {
-    validate: isValidLayout2,
-  });
-  const [innerSizes, setInnerSizes] = usePersistedState<number[]>(SC_INNER_KEY, [...SC_INNER_DEFAULT], {
-    validate: isValidLayout2,
-  });
+  const [outerSizes, setOuterSizes] = usePersistedState<number[]>(
+    SC_OUTER_KEY,
+    [...SC_OUTER_DEFAULT],
+    {
+      validate: isValidLayout2,
+    }
+  );
+  const [innerSizes, setInnerSizes] = usePersistedState<number[]>(
+    SC_INNER_KEY,
+    [...SC_INNER_DEFAULT],
+    {
+      validate: isValidLayout2,
+    }
+  );
   // onLayoutChanged fires only after pointer release — no debounce needed
   const handleOuterLayout = useCallback(
     (layout: { [id: string]: number }) => {
@@ -445,12 +398,11 @@ export const SourceControlPanel = memo(function SourceControlPanel({
         return parseDiff(fullDiffState.content);
       }
       return [];
-    } else {
-      if (commitDetailState.status === 'available') {
-        return parseDiff(commitDetailState.content);
-      }
-      return [];
     }
+    if (commitDetailState.status === 'available') {
+      return parseDiff(commitDetailState.content);
+    }
+    return [];
   }, [activeSource, fullDiffState, commitDetailState]);
 
   const isMiddleLoading = useMemo(() => {
@@ -480,7 +432,10 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   }, []);
 
   const isDirty = gitState.status === 'available' && gitState.isDirty;
-  const diffStat = gitState.status === 'available' ? gitState.diffStat : { filesChanged: 0, insertions: 0, deletions: 0 };
+  const diffStat =
+    gitState.status === 'available'
+      ? gitState.diffStat
+      : { filesChanged: 0, insertions: 0, deletions: 0 };
   const selectedSha = activeSource?.type === 'commit' ? activeSource.sha : null;
 
   const commits: GitCommit[] =
@@ -554,13 +509,14 @@ export const SourceControlPanel = memo(function SourceControlPanel({
         <div className="flex flex-col h-full overflow-hidden">
           {/* Commit detail header — visible only for commits, not working tree */}
           {selectedCommit ? (
-            <CommitDetailHeader commit={selectedCommit} repoSlug={repoSlug} />
+            <CommitDetailHeader
+              commit={selectedCommit}
+              repoSlug={repoSlug}
+              onSendSelectionToComposer={onSendSelectionToComposer}
+            />
           ) : null}
           {/* Nested resizable panels: file list + diff viewer */}
-          <ResizablePanelGroup
-            onLayoutChanged={handleInnerLayout}
-            className="flex-1"
-          >
+          <ResizablePanelGroup onLayoutChanged={handleInnerLayout} className="flex-1">
             {/* ── Middle: File List ─────────────────────────────────────── */}
             <ResizablePanel id="sc-middle" defaultSize={innerSizes[0]} minSize={20}>
               <div className="flex flex-col h-full overflow-hidden">
@@ -597,6 +553,12 @@ export const SourceControlPanel = memo(function SourceControlPanel({
                     selectedFile={selectedFile}
                     fullContent={fullDiffContent}
                     isLoading={isRightLoading}
+                    selectionSource={buildGitSelectionSource(
+                      activeSource,
+                      'file',
+                      selectedFile ?? undefined
+                    )}
+                    onSendSelectionToComposer={onSendSelectionToComposer}
                   />
                 )}
               </div>
@@ -628,7 +590,10 @@ export function groupFilesByDirectory(files: FileDiffSection[]): FileGroup[] {
     if (!map.has(dir)) {
       map.set(dir, []);
     }
-    map.get(dir)!.push(file);
+    const group = map.get(dir);
+    if (group) {
+      group.push(file);
+    }
   }
 
   // Sort files within each group alphabetically by basename
