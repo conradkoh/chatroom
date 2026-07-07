@@ -109,7 +109,7 @@ export function useWorkspaceCommandItems(
           icon: <SiGithub size={14} />,
           category: 'Actions',
           keywords: ['PR', 'PRs', hostname, workingDirBasename],
-          action: () => openExternalUrl(`${repoUrl}/pulls?q=is%3Apr+is%3Aopen+author%3A%40me`),
+          action: () => openExternalUrl(`${repoUrl}/pulls/@me`),
         });
 
         items.push({
