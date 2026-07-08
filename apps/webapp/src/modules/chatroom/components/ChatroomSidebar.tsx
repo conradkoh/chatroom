@@ -10,6 +10,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
 import { groupChatroomsByRecency } from '../utils/groupChatroomsByRecency';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -20,21 +21,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-
-// Status indicator colors - using squares per theme guidelines
-const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
-  const base = 'w-1.5 h-1.5 flex-shrink-0';
-  switch (chatStatus) {
-    case 'working':
-      return `${base} bg-chatroom-status-info`;
-    case 'active':
-      return `${base} bg-chatroom-status-success`;
-    case 'idle':
-    case 'completed':
-    default:
-      return `${base} bg-chatroom-text-muted opacity-40`;
-  }
-};
 
 interface ChatroomSidebarItemProps {
   chatroom: ChatroomWithStatus;
@@ -113,7 +99,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
             onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
           >
             {/* Status indicator - square per theme guidelines */}
-            <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
+            <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
 
             {/* Name + inline unread */}
             <span className="flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">

@@ -18,28 +18,13 @@ import {
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { cn } from '@/lib/utils';
-import {
-  useChatroomListing,
-  type ChatroomWithStatus,
-} from '@/modules/chatroom/context/ChatroomListingContext';
+import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
+import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
-// Status indicator colors - using squares per theme guidelines (mirrors ChatroomSidebar)
-const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
-  const base = 'w-1.5 h-1.5 flex-shrink-0';
-  switch (chatStatus) {
-    case 'working':
-      return `${base} bg-chatroom-status-info`;
-    case 'active':
-      return `${base} bg-chatroom-status-success`;
-    case 'idle':
-    case 'completed':
-    default:
-      return `${base} bg-chatroom-text-muted opacity-40`;
-  }
-};
+// Status indicator uses shared chatStatusDisplay (mirrors ChatroomSidebar + listing page)
 
 /**
  * Global Cmd+K chatroom switcher.
@@ -144,7 +129,7 @@ export function ChatroomSwitcher() {
                       className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
                     >
                       {/* Status indicator dot */}
-                      <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
+                      <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
 
                       {/* Chatroom name */}
                       <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
