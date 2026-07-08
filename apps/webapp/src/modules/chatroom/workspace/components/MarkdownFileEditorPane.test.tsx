@@ -5,11 +5,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarkdownFileEditorPane } from './MarkdownFileEditorPane';
 
+type MarkdownEditorMockState = {
+  content: string;
+  setContent: typeof mockSetContent;
+  isDirty: boolean;
+  contentRef: { current: string };
+  save: typeof mockSave;
+  saving: boolean;
+  error: string | null;
+  isLoading: boolean;
+};
+
 const mockSave = vi.fn();
 const mockSetContent = vi.fn();
 const contentRef = { current: '# Hello' };
 
-const mockUseMarkdownFileEditor = vi.fn(() => ({
+const defaultMarkdownEditorState: MarkdownEditorMockState = {
   content: '# Hello',
   setContent: mockSetContent,
   isDirty: true,
@@ -18,7 +29,9 @@ const mockUseMarkdownFileEditor = vi.fn(() => ({
   saving: false,
   error: null,
   isLoading: false,
-}));
+};
+
+const mockUseMarkdownFileEditor = vi.fn((): MarkdownEditorMockState => defaultMarkdownEditorState);
 
 vi.mock('../hooks/useMarkdownFileEditor', () => ({
   useMarkdownFileEditor: () => mockUseMarkdownFileEditor(),
@@ -34,16 +47,7 @@ vi.mock('sonner', () => ({
 describe('MarkdownFileEditorPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseMarkdownFileEditor.mockReturnValue({
-      content: '# Hello',
-      setContent: mockSetContent,
-      isDirty: true,
-      contentRef,
-      save: mockSave,
-      saving: false,
-      error: null,
-      isLoading: false,
-    });
+    mockUseMarkdownFileEditor.mockReturnValue(defaultMarkdownEditorState);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
       configurable: true,
@@ -100,6 +104,30 @@ describe('MarkdownFileEditorPane', () => {
     );
 
     expect(screen.getByPlaceholderText('This file is empty.')).toBeInTheDocument();
+  });
+
+  it('shows workspace registration error instead of placeholder content in the editor', () => {
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: '',
+      setContent: mockSetContent,
+      isDirty: false,
+      contentRef: { current: '' },
+      save: mockSave,
+      saving: false,
+      error: 'Workspace is not registered on this machine.',
+      isLoading: false,
+    });
+
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/Users/alice/chatroom/"
+        filePath="README.md"
+      />
+    );
+
+    expect(screen.getByText('Workspace is not registered on this machine.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /edit README\.md/i })).toHaveValue('');
   });
 
   it('copies markdown when Copy button is clicked', async () => {

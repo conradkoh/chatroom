@@ -10,6 +10,7 @@ import {
   Pencil,
   Trash2,
   Copy,
+  ExternalLink,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
@@ -38,6 +39,7 @@ import {
 } from '../../components/ui/dropdown-menu';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
+import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { copyFullPathToClipboard, copyRelativePathToClipboard } from '../utils/clipboard';
 
@@ -201,6 +203,7 @@ export const FileExplorerPanel = memo(
         workingDir: workingDir ?? '',
       });
       const explorerFileOps = useExplorerNewFileOps(fileTabs);
+      const { openFileOnRemote } = useOpenFileOnRemote(machineId ?? '', workingDir ?? '');
 
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
@@ -485,6 +488,14 @@ export const FileExplorerPanel = memo(
                     <Copy size={12} className="mr-2" />
                     Copy Full Path
                   </DropdownMenuItem>
+                  {contextMenuTarget.type === 'file' && (
+                    <DropdownMenuItem
+                      onSelect={() => void openFileOnRemote(contextMenuTarget.path)}
+                    >
+                      <ExternalLink size={12} className="mr-2" />
+                      Open File on Remote
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
               {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (

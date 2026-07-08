@@ -84,6 +84,7 @@ import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
+import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import {
   editorPaneFlexClass,
@@ -196,6 +197,17 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
 }: ExplorerContentProps) {
+  const machineId = activeWorkspace?.machineId ?? '';
+  const workingDir = activeWorkspace?.workingDir ?? '';
+  const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
+
+  const handleOpenSelectionOnRemote = useCallback(
+    (filePath: string, selectedText: string) => {
+      void openFileOnRemote(filePath, selectedText);
+    },
+    [openFileOnRemote]
+  );
+
   const hasSplit = fileTabs.rightTabs.length > 0;
   const showTabBar = fileTabs.tabs.length > 0;
   const editorExpanded = isEditorExpanded(
@@ -227,6 +239,7 @@ const ExplorerContent = memo(function ExplorerContent({
       onCloseOthers={fileTabs.closeOtherTabs}
       onPin={fileTabs.pinTab}
       onToggleExpanded={fileTabs.toggleExpanded}
+      onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
     />
   ) : null;
 
@@ -259,6 +272,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 filePath={fileTabs.activeTabPath}
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             ) : (
               <FileContentViewer
@@ -269,6 +283,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
                 onOpenTableView={onOpenTableView}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             )}
           </div>

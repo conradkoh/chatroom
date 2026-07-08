@@ -34,7 +34,6 @@ import { formatAuthError, formatChatroomIdError } from '../../utils/error-format
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
 export type { HandoffDeps } from './deps.js';
-export { syncGitAfterUserHandoff } from './sync-git-after-user-handoff.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

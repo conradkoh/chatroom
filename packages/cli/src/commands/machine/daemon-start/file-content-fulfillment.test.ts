@@ -55,6 +55,30 @@ describe('fulfillFileContentRequestsEffect', () => {
     }
   });
 
+  it('fulfills content when request workingDir differs only by trailing slash', async () => {
+    const workingDir = await mkdtemp(join(tmpdir(), 'chatroom-file-content-'));
+    try {
+      await writeFile(join(workingDir, 'README.md'), '# Title');
+      const deps = createMockDaemonDeps();
+      vi.mocked(deps.backend.query).mockResolvedValue([
+        { _id: 'req-1', workingDir: `${workingDir}/`, filePath: 'README.md' },
+      ]);
+
+      await runFulfillment(deps, workingDir);
+
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        'mock-fulfillFileContentV2',
+        expect.objectContaining({
+          workingDir: `${workingDir}/`,
+          filePath: 'README.md',
+          encoding: 'utf8',
+        })
+      );
+    } finally {
+      await rm(workingDir, { recursive: true, force: true });
+    }
+  });
+
   it('fulfills empty content when the file exists', async () => {
     const workingDir = await mkdtemp(join(tmpdir(), 'chatroom-file-content-'));
     try {

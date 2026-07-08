@@ -5,6 +5,7 @@ import { memo, useCallback, useRef, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 
 import { pendingOptimisticNewFilePaths } from '../hooks/pendingOptimisticNewFilePaths';
+import { useRemoteSelectionContextMenu } from '../hooks/useExplorerSelectionKeyboard';
 import { useMarkdownFileEditor } from '../hooks/useMarkdownFileEditor';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -19,6 +20,7 @@ interface MarkdownFileEditorPaneProps {
   filePath: string;
   onOpenPreview?: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
+  onOpenSelectionOnRemote?: (filePath: string, selectedText: string) => void;
 }
 
 // fallow-ignore-next-line complexity
@@ -27,9 +29,14 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
   workingDir,
   filePath,
   onOpenPreview,
+  onOpenSelectionOnRemote,
 }: MarkdownFileEditorPaneProps) {
   const initialEmpty = pendingOptimisticNewFilePaths.has(filePath);
   const editorContainerRef = useRef<HTMLDivElement>(null);
+  const { onContextMenu, selectionMenu } = useRemoteSelectionContextMenu(
+    filePath,
+    onOpenSelectionOnRemote
+  );
   const { content, setContent, isDirty, contentRef, save, saving, error, isLoading } =
     useMarkdownFileEditor({ machineId, workingDir, filePath, initialEmpty });
 
@@ -73,6 +80,7 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
       className="flex-1 flex flex-col min-h-0 overflow-hidden"
       onKeyDown={handleKeyDown}
     >
+      {selectionMenu}
       <div className="flex items-center gap-2 px-4 py-1.5 border-b border-chatroom-border shrink-0">
         <span className="text-xs text-chatroom-text-secondary truncate">
           {getFileName(filePath)}
@@ -121,6 +129,7 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
       <textarea
         value={content}
         onChange={(event) => setContent(event.target.value)}
+        onContextMenu={onContextMenu}
         placeholder={EMPTY_FILE_PLACEHOLDER}
         spellCheck={false}
         className={cn(
