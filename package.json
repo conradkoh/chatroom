@@ -12,6 +12,7 @@
     "cleanup-tmp": "node scripts/cleanup-tmp.ts",
     "migrate": "bun scripts/migrate.ts",
     "check:upstream-modifications": "bun scripts/check-upstream-modifications.ts",
+    "fix:convex-stale-exports": "bun scripts/fix-convex-stale-exports.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
