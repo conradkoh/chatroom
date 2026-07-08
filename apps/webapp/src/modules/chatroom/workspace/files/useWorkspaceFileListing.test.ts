@@ -5,12 +5,18 @@ import { useWorkspaceFileListing } from './useWorkspaceFileListing';
 
 const mocks = vi.hoisted(() => ({
   searchRefresh: vi.fn(),
+  dirRefresh: vi.fn(),
   useFileEntries: vi.fn(),
   useFileSearch: vi.fn(),
+  useDirListing: vi.fn(),
 }));
 
 vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
   useFileSearch: mocks.useFileSearch,
+}));
+
+vi.mock('@/modules/chatroom/workspace/files/useDirListing', () => ({
+  useDirListing: mocks.useDirListing,
 }));
 
 vi.mock('@/modules/chatroom/workspace/files/useFileEntries', () => ({
@@ -19,15 +25,35 @@ vi.mock('@/modules/chatroom/workspace/files/useFileEntries', () => ({
 
 const args = { machineId: 'machine-1', workingDir: '/repo' };
 const fileEntry = { path: 'src/index.ts', type: 'file' as const };
+const directoryEntry = { path: 'src/auth', type: 'directory' as const };
 
 beforeEach(() => {
   mocks.searchRefresh.mockReset();
+  mocks.dirRefresh.mockReset();
   mocks.useFileSearch.mockReturnValue({
     entries: [fileEntry],
     isLoading: false,
     refresh: mocks.searchRefresh,
   });
-  mocks.useFileEntries.mockReturnValue([fileEntry]);
+  mocks.useDirListing.mockReturnValue({
+    entries: [directoryEntry],
+    isLoading: false,
+    refresh: mocks.dirRefresh,
+  });
+  mocks.useFileEntries.mockImplementation(
+    (
+      result: { entries?: { path: string; type: 'file' | 'directory' }[] } | null,
+      options?: { includeDirectories?: boolean }
+    ) => {
+      if (!result?.entries?.length) return [];
+      if (options?.includeDirectories) {
+        return result.entries.filter(
+          (entry) => entry.type === 'file' || entry.type === 'directory'
+        );
+      }
+      return result.entries.filter((entry) => entry.type === 'file');
+    }
+  );
 });
 
 afterEach(() => {
@@ -40,6 +66,7 @@ describe('useWorkspaceFileListing', () => {
     const { result } = renderHook(() => useWorkspaceFileListing({ ...args, enabled: false }));
 
     expect(mocks.useFileSearch).toHaveBeenCalledWith('skip');
+    expect(mocks.useDirListing).toHaveBeenCalledWith('skip');
     expect(result.current).toMatchObject({
       entries: [],
       isLoading: false,
@@ -50,6 +77,7 @@ describe('useWorkspaceFileListing', () => {
     });
 
     expect(mocks.searchRefresh).not.toHaveBeenCalled();
+    expect(mocks.dirRefresh).not.toHaveBeenCalled();
   });
 
   it('delegates to useFileSearch with empty query when enabled', () => {
@@ -60,17 +88,34 @@ describe('useWorkspaceFileListing', () => {
       query: '',
       enabled: true,
     });
+    expect(mocks.useDirListing).toHaveBeenCalledWith('skip');
   });
 
-  it('calls searchResult.refresh after dedup window', async () => {
+  it('merges root directory listings when includeDirectories is true', () => {
+    const { result } = renderHook(() =>
+      useWorkspaceFileListing({ ...args, includeDirectories: true })
+    );
+
+    expect(mocks.useDirListing).toHaveBeenCalledWith({
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      dirPath: '',
+    });
+    expect(result.current.entries).toEqual([fileEntry, directoryEntry]);
+  });
+
+  it('calls search and dir refresh after dedup window when includeDirectories is true', async () => {
     vi.useFakeTimers();
-    const { result } = renderHook(() => useWorkspaceFileListing(args));
+    const { result } = renderHook(() =>
+      useWorkspaceFileListing({ ...args, includeDirectories: true })
+    );
 
     act(() => {
       result.current.refresh();
       result.current.refresh();
     });
     expect(mocks.searchRefresh).toHaveBeenCalledTimes(1);
+    expect(mocks.dirRefresh).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
@@ -78,5 +123,6 @@ describe('useWorkspaceFileListing', () => {
     });
 
     expect(mocks.searchRefresh).toHaveBeenCalledTimes(2);
+    expect(mocks.dirRefresh).toHaveBeenCalledTimes(2);
   });
 });

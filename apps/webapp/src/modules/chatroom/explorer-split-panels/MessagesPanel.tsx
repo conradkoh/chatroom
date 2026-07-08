@@ -35,6 +35,7 @@ export interface MessagesPanelProps {
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
+  hasAutocompleteWorkspace?: boolean;
 
   workspaceId?: Id<'chatroom_workspaces'> | null;
 }
@@ -53,6 +54,7 @@ export function MessagesPanel({
   onRegisterSendFormFocus,
   autocompleteFiles,
   refreshAutocompleteFiles,
+  hasAutocompleteWorkspace,
 }: MessagesPanelProps) {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -71,6 +73,7 @@ export function MessagesPanel({
               onAfterResize={onAfterResize}
               onRegisterFocus={onRegisterSendFormFocus}
               files={autocompleteFiles}
+              hasAutocompleteWorkspace={hasAutocompleteWorkspace}
               onAtTriggerActivate={refreshAutocompleteFiles}
             />
           </div>

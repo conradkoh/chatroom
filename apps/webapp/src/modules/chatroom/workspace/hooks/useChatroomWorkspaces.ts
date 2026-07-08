@@ -7,6 +7,8 @@ import { useMemo, useCallback } from 'react';
 
 import type { Workspace } from '../../types/workspace';
 
+import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UseChatroomWorkspacesOptions {
@@ -36,16 +38,17 @@ export function useChatroomWorkspaces(chatroomId: string, options?: UseChatroomW
     return registryResult
       .filter((ws) => ws.workingDir && ws.machineId)
       .map((ws) => {
+        const workingDir = normalizeWorkspaceWorkingDir(ws.workingDir);
         // If agentViews provided, derive agentRoles from agents with matching workingDir
         const agentRoles = options?.agentViews
-          ? options.agentViews.filter((a) => a.workingDir === ws.workingDir).map((a) => a.role)
+          ? options.agentViews.filter((a) => a.workingDir === workingDir).map((a) => a.role)
           : [];
         return {
-          id: `${ws.machineId}::${ws.workingDir}`,
+          id: `${ws.machineId}::${workingDir}`,
           machineId: ws.machineId,
           hostname: ws.hostname,
           machineAlias: ws.machineAlias,
-          workingDir: ws.workingDir,
+          workingDir,
           agentRoles,
           registeredAt: ws.registeredAt,
           _registryId: ws._id,

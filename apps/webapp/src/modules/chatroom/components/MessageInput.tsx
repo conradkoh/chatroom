@@ -41,6 +41,8 @@ export interface MessageInputProps {
   onRegisterFocus?: (focusFn: () => void) => void;
   /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
+  /** Whether at least one workspace is registered for @ autocomplete. */
+  hasAutocompleteWorkspace?: boolean;
   /** Refreshes autocomplete files when the @ trigger opens. */
   onAtTriggerActivate?: () => void;
 }
@@ -139,6 +141,7 @@ export function MessageInput({
   onAfterResize,
   onRegisterFocus,
   files = [],
+  hasAutocompleteWorkspace = false,
   onAtTriggerActivate,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
@@ -154,8 +157,12 @@ export function MessageInput({
 
   // ── Trigger autocomplete (for @ file references) ───────────────────────────
   const fileRefTrigger = useMemo(
-    () => createFileReferenceTrigger(files, onAtTriggerActivate),
-    [files, onAtTriggerActivate]
+    () =>
+      createFileReferenceTrigger(files, {
+        onActivate: onAtTriggerActivate,
+        hasWorkspace: hasAutocompleteWorkspace,
+      }),
+    [files, hasAutocompleteWorkspace, onAtTriggerActivate]
   );
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 
@@ -212,6 +219,18 @@ export function MessageInput({
   }, []);
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
+
+  // Re-evaluate an active @ trigger after files finish loading.
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || files.length === 0) return;
+
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.slice(0, cursorPos);
+    if (!textBeforeCursor.includes('@')) return;
+
+    autocomplete.handleInputChange(textarea.value, cursorPos);
+  }, [autocomplete, files]);
 
   // Register focus callback for external callers
   useEffect(() => {
