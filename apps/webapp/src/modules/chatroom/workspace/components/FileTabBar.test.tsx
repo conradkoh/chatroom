@@ -94,4 +94,12 @@ describe('FileTabBar', () => {
     const copyFullPathItem = await screen.findByRole('menuitem', { name: /copy full path/i });
     expect(copyFullPathItem).toHaveAttribute('aria-disabled', 'true');
   });
+
+  it('renders a wrap-capable tab bar container', () => {
+    render(<FileTabBar {...defaultProps} />);
+
+    const bar = screen.getByTestId('file-tab-bar');
+    expect(bar.className).toMatch(/flex-wrap/);
+    expect(bar.className).toMatch(/max-h-16/);
+  });
 });

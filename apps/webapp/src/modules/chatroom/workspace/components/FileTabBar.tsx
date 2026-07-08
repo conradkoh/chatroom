@@ -75,7 +75,10 @@ export const FileTabBar = memo(function FileTabBar({
 
   return (
     <>
-      <div className="flex items-center h-8 overflow-x-auto overflow-y-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0">
+      <div
+        data-testid="file-tab-bar"
+        className="flex flex-wrap items-center min-h-8 max-h-16 overflow-y-auto overflow-x-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0"
+      >
         {tabs.map((tab) => (
           <TabItem
             key={tab.filePath}
@@ -176,7 +179,7 @@ const TabItem = memo(function TabItem({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none',
+        'group flex shrink-0 items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none',
         'border-r border-chatroom-border text-[13px] min-w-0 max-w-[180px]',
         'transition-colors duration-75',
         isActive

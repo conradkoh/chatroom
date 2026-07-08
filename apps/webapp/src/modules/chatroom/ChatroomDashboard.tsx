@@ -188,21 +188,26 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
 }: ExplorerContentProps) {
+  const hasSplit = fileTabs.rightTabs.length > 0;
+  const showTabBar = fileTabs.tabs.length > 0;
+
+  const fileTabBar = showTabBar ? (
+    <FileTabBar
+      tabs={fileTabs.tabs}
+      activeTabPath={fileTabs.activeTabPath}
+      workingDir={activeWorkspace?.workingDir ?? null}
+      onActivate={fileTabs.setActiveTab}
+      onClose={fileTabs.closeTab}
+      onCloseOthers={fileTabs.closeOtherTabs}
+      onPin={fileTabs.pinTab}
+      onToggleExpanded={fileTabs.toggleExpanded}
+    />
+  ) : null;
+
   return (
     <>
-      {/* File Tab Bar — shown when tabs are open */}
-      {fileTabs.tabs.length > 0 && (
-        <FileTabBar
-          tabs={fileTabs.tabs}
-          activeTabPath={fileTabs.activeTabPath}
-          workingDir={activeWorkspace?.workingDir ?? null}
-          onActivate={fileTabs.setActiveTab}
-          onClose={fileTabs.closeTab}
-          onCloseOthers={fileTabs.closeOtherTabs}
-          onPin={fileTabs.pinTab}
-          onToggleExpanded={fileTabs.toggleExpanded}
-        />
-      )}
+      {/* Full-width tab bar when no preview/table split */}
+      {showTabBar && !hasSplit && fileTabBar}
 
       {/* File Content Area — left pane + optional right pane */}
       {fileTabs.activeTabPath && activeWorkspace?.machineId && activeWorkspace?.workingDir ? (
@@ -211,9 +216,10 @@ const ExplorerContent = memo(function ExplorerContent({
           <div
             className={cn(
               'flex flex-col min-h-0 overflow-hidden',
-              fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+              hasSplit ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
             )}
           >
+            {showTabBar && hasSplit && fileTabBar}
             {isMarkdownFile(fileTabs.activeTabPath) ? (
               <MarkdownFileEditorPane
                 key={fileTabs.activeTabPath}
@@ -237,7 +243,7 @@ const ExplorerContent = memo(function ExplorerContent({
           </div>
 
           {/* Right Pane — preview/table */}
-          {fileTabs.rightTabs.length > 0 && (
+          {hasSplit && (
             <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
               <RightPaneTabBar
                 tabs={fileTabs.rightTabs}
