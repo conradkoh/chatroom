@@ -83,6 +83,7 @@ import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
+import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 
 import {
@@ -188,6 +189,17 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
 }: ExplorerContentProps) {
+  const machineId = activeWorkspace?.machineId ?? '';
+  const workingDir = activeWorkspace?.workingDir ?? '';
+  const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
+
+  const handleOpenSelectionOnRemote = useCallback(
+    (filePath: string, selectedText: string) => {
+      void openFileOnRemote(filePath, selectedText);
+    },
+    [openFileOnRemote]
+  );
+
   return (
     <>
       {/* File Tab Bar — shown when tabs are open */}
@@ -200,6 +212,7 @@ const ExplorerContent = memo(function ExplorerContent({
           onCloseOthers={fileTabs.closeOtherTabs}
           onPin={fileTabs.pinTab}
           onToggleExpanded={fileTabs.toggleExpanded}
+          onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
         />
       )}
 
@@ -221,6 +234,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 filePath={fileTabs.activeTabPath}
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             ) : (
               <FileContentViewer
@@ -231,6 +245,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
                 onOpenTableView={onOpenTableView}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             )}
           </div>

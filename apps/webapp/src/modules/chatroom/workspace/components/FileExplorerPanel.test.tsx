@@ -49,6 +49,12 @@ vi.mock('../hooks/useWorkspaceFileDelete', () => ({
   }),
 }));
 
+vi.mock('../hooks/useOpenFileOnRemote', () => ({
+  useOpenFileOnRemote: () => ({
+    openFileOnRemote: vi.fn(),
+  }),
+}));
+
 const fileTabs = {
   tabs: [],
   activeTabPath: null,

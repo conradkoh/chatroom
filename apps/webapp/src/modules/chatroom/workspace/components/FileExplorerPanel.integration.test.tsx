@@ -104,6 +104,12 @@ vi.mock('../hooks/useWorkspaceFileDelete', () => ({
   }),
 }));
 
+vi.mock('../hooks/useOpenFileOnRemote', () => ({
+  useOpenFileOnRemote: () => ({
+    openFileOnRemote: vi.fn(),
+  }),
+}));
+
 vi.mock('../hooks/useWorkspaceFileRename', () => ({
   useWorkspaceFileRename: () => ({
     requestRename: mockRequestRename,

@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
@@ -24,6 +24,7 @@ interface FileTabBarProps {
   onCloseOthers: (filePath: string) => void;
   onPin: (filePath: string) => void;
   onToggleExpanded?: (filePath: string) => void;
+  onOpenFileOnRemote?: (filePath: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ export const FileTabBar = memo(function FileTabBar({
   onCloseOthers,
   onPin,
   onToggleExpanded,
+  onOpenFileOnRemote,
 }: FileTabBarProps) {
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [contextMenuTarget, setContextMenuTarget] = useState<string | null>(null);
@@ -90,6 +92,12 @@ export const FileTabBar = memo(function FileTabBar({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
+          {onOpenFileOnRemote && contextMenuTarget && (
+            <DropdownMenuItem onSelect={() => void onOpenFileOnRemote(contextMenuTarget)}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Open File on Remote
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={handleCloseOthers} disabled={tabs.length <= 1}>
             Close Others
           </DropdownMenuItem>
