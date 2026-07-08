@@ -17,6 +17,7 @@ import { ConvexError } from 'convex/values';
 import { Effect } from 'effect';
 
 import type { HandoffDeps } from './deps.js';
+import { syncGitAfterUserHandoff } from './sync-git-after-user-handoff.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
@@ -33,6 +34,7 @@ import { formatAuthError, formatChatroomIdError } from '../../utils/error-format
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
 export type { HandoffDeps } from './deps.js';
+export { syncGitAfterUserHandoff } from './sync-git-after-user-handoff.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -241,4 +243,9 @@ export async function handoff(
       Effect.provide(layer)
     )
   );
+
+  const sessionId = await d.session.getSessionId();
+  if (sessionId) {
+    await syncGitAfterUserHandoff(d, sessionId, chatroomId, options.nextRole);
+  }
 }
