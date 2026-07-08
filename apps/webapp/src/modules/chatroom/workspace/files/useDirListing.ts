@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 
+import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
+
 const EMPTY_DIR_ENTRIES: DirListingEntry[] = [];
 
 export interface UseDirListingArgs {
@@ -27,7 +29,7 @@ export function useDirListing(args: UseDirListingArgs | 'skip'): {
   const requestMutation = useSessionMutation(api.workspaceFiles.requestDirListing);
   const isActive = args !== 'skip' && (args.enabled ?? true);
   const machineId = args !== 'skip' ? args.machineId : '';
-  const workingDir = args !== 'skip' ? args.workingDir : '';
+  const workingDir = args !== 'skip' ? normalizeWorkspaceWorkingDir(args.workingDir) : '';
   const dirPath = args !== 'skip' ? args.dirPath : '';
 
   const queryArgs = isActive ? { machineId, workingDir, dirPath } : ('skip' as const);

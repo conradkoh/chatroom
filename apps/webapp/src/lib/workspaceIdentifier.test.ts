@@ -4,7 +4,14 @@ import {
   encodeWorkspaceId,
   decodeWorkspaceId,
   getWorkspaceDisplayName,
+  normalizeWorkspaceWorkingDir,
 } from './workspaceIdentifier';
+
+describe('normalizeWorkspaceWorkingDir', () => {
+  it('trims whitespace and trailing slashes', () => {
+    expect(normalizeWorkspaceWorkingDir(' /Users/alice/chatroom/ ')).toBe('/Users/alice/chatroom');
+  });
+});
 
 describe('encodeWorkspaceId / decodeWorkspaceId', () => {
   it('round-trips a typical machineId + workingDir', () => {
