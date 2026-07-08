@@ -39,7 +39,7 @@ import {
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
-import { copyTextToClipboard, joinWorkingDirPath } from '../utils/clipboard';
+import { copyFullPathToClipboard, copyRelativePathToClipboard } from '../utils/clipboard';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -224,18 +224,6 @@ export const FileExplorerPanel = memo(
         setContextMenuPoint({ x: event.clientX, y: event.clientY });
         setContextMenuOpen(true);
       }, []);
-
-      const copyRelativePath = useCallback(async (path: string) => {
-        await copyTextToClipboard(path, 'Copied relative path');
-      }, []);
-
-      const copyFullPath = useCallback(
-        async (path: string) => {
-          if (!workingDir) return;
-          await copyTextToClipboard(joinWorkingDirPath(workingDir, path), 'Copied full path');
-        },
-        [workingDir]
-      );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
       // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
@@ -483,11 +471,17 @@ export const FileExplorerPanel = memo(
               )}
               {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
                 <>
-                  <DropdownMenuItem onSelect={() => void copyRelativePath(contextMenuTarget.path)}>
+                  <DropdownMenuItem
+                    onSelect={() => void copyRelativePathToClipboard(contextMenuTarget.path)}
+                  >
                     <Copy size={12} className="mr-2" />
                     Copy Relative Path
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void copyFullPath(contextMenuTarget.path)}>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      void copyFullPathToClipboard(workingDir, contextMenuTarget.path)
+                    }
+                  >
                     <Copy size={12} className="mr-2" />
                     Copy Full Path
                   </DropdownMenuItem>

@@ -19,7 +19,7 @@ export function MessageViewToggle({ mode, onChange, className }: MessageViewTogg
   return (
     <div
       className={cn(
-        'inline-flex h-6 items-center gap-0.5 rounded-sm border border-chatroom-border bg-chatroom-bg-tertiary p-0.5',
+        'inline-flex h-6 shrink-0 items-center gap-0.5 rounded-sm border border-chatroom-border bg-chatroom-bg-tertiary p-0.5',
         className
       )}
       role="tablist"
@@ -37,7 +37,7 @@ export function MessageViewToggle({ mode, onChange, className }: MessageViewTogg
             title={value === 'all' ? 'All messages' : 'User messages'}
             onClick={() => onChange(value)}
             className={cn(
-              'h-5 min-w-[2.75rem] px-2 text-[10px] font-bold uppercase tracking-wide rounded-[2px] transition-colors',
+              'flex h-5 min-w-[2.75rem] items-center justify-center px-2 text-[10px] font-bold uppercase tracking-wide leading-none rounded-[2px] transition-colors',
               selected
                 ? 'bg-chatroom-bg-primary text-chatroom-text-primary shadow-sm ring-1 ring-chatroom-border-strong/60'
                 : 'text-chatroom-text-muted hover:text-chatroom-text-secondary hover:bg-chatroom-bg-hover/60'

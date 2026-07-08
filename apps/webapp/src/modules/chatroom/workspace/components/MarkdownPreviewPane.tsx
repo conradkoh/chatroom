@@ -13,6 +13,7 @@ interface MarkdownPreviewPaneProps {
   machineId: string;
   workingDir: string;
   filePath: string;
+  onDoubleClick?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ export const MarkdownPreviewPane = memo(function MarkdownPreviewPane({
   machineId,
   workingDir,
   filePath,
+  onDoubleClick,
 }: MarkdownPreviewPaneProps) {
   const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
 
@@ -34,7 +36,7 @@ export const MarkdownPreviewPane = memo(function MarkdownPreviewPane({
   }
 
   return (
-    <div className="flex-1 overflow-auto p-4">
+    <div className="flex-1 overflow-auto p-4" onDoubleClick={onDoubleClick}>
       <MarkdownRenderer content={content.content} />
     </div>
   );

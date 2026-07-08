@@ -3,6 +3,10 @@ import type React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RightSplitPanel } from './RightSplitPanel';
+import {
+  WORKSPACE_HEADER_ROW_BASE_CLASS,
+  WORKSPACE_HEADER_ROW_HEIGHT_CLASS,
+} from '../workspace/components/WorkspaceTabBar';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -104,5 +108,24 @@ describe('RightSplitPanel', () => {
     expect(localStorage.getItem('chatroom:cr1:explorerSplitPanelMode')).toBe(
       JSON.stringify('direct-harness')
     );
+  });
+
+  it('header row uses the same tab bar shell as file tabs', () => {
+    render(
+      <RightSplitPanel
+        chatroomId={CHATROOM_ID}
+        messagesPanelProps={DEFAULT_MESSAGES_PROPS}
+        {...DEFAULT_HARNESS_PROPS}
+      />
+    );
+
+    const header = screen.getByTestId('right-split-panel-header');
+    expect(header).toBeTruthy();
+    for (const token of WORKSPACE_HEADER_ROW_BASE_CLASS.split(/\s+/)) {
+      expect(header.className).toContain(token);
+    }
+    for (const token of WORKSPACE_HEADER_ROW_HEIGHT_CLASS.split(/\s+/)) {
+      expect(header.className).toContain(token);
+    }
   });
 });
