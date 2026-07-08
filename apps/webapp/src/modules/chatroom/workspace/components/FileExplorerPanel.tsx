@@ -39,6 +39,7 @@ import {
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
+import { copyTextToClipboard, joinWorkingDirPath } from '../utils/clipboard';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -67,22 +68,6 @@ async function confirmDeleteInBackground(
 type ExplorerContextTarget =
   | { kind: 'root' }
   | { kind: 'node'; path: string; type: 'file' | 'directory' };
-
-function joinWorkingDirPath(workingDir: string, relativePath: string): string {
-  const base = workingDir.replace(/[/\\]+$/, '');
-  if (!relativePath) return base;
-  const separator = base.includes('\\') ? '\\' : '/';
-  return `${base}${separator}${relativePath.replace(/^[/\\]+/, '')}`;
-}
-
-async function copyTextToClipboard(text: string, successMessage: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(successMessage);
-  } catch {
-    toast.error('Failed to copy to clipboard');
-  }
-}
 
 interface FileExplorerPanelProps {
   chatroomId?: string;

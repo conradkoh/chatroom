@@ -195,6 +195,7 @@ const ExplorerContent = memo(function ExplorerContent({
         <FileTabBar
           tabs={fileTabs.tabs}
           activeTabPath={fileTabs.activeTabPath}
+          workingDir={activeWorkspace?.workingDir ?? null}
           onActivate={fileTabs.setActiveTab}
           onClose={fileTabs.closeTab}
           onCloseOthers={fileTabs.closeOtherTabs}

@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { Copy, X } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
+import { copyTextToClipboard, joinWorkingDirPath } from '../utils/clipboard';
 
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
 interface FileTabBarProps {
   tabs: FileTab[];
   activeTabPath: string | null;
+  workingDir: string | null;
   onActivate: (filePath: string) => void;
   onClose: (filePath: string) => void;
   onCloseOthers: (filePath: string) => void;
@@ -31,6 +33,7 @@ interface FileTabBarProps {
 export const FileTabBar = memo(function FileTabBar({
   tabs,
   activeTabPath,
+  workingDir,
   onActivate,
   onClose,
   onCloseOthers,
@@ -55,6 +58,18 @@ export const FileTabBar = memo(function FileTabBar({
     }
     setContextMenuOpen(false);
   }, [contextMenuTarget, onCloseOthers]);
+
+  const copyRelativePath = useCallback(async (path: string) => {
+    await copyTextToClipboard(path, 'Copied relative path');
+  }, []);
+
+  const copyFullPath = useCallback(
+    async (path: string) => {
+      if (!workingDir) return;
+      await copyTextToClipboard(joinWorkingDirPath(workingDir, path), 'Copied full path');
+    },
+    [workingDir]
+  );
 
   if (tabs.length === 0) return null;
 
@@ -90,6 +105,19 @@ export const FileTabBar = memo(function FileTabBar({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
+          <DropdownMenuItem
+            onSelect={() => contextMenuTarget && void copyRelativePath(contextMenuTarget)}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy Relative Path
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => contextMenuTarget && void copyFullPath(contextMenuTarget)}
+            disabled={!workingDir}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy Full Path
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleCloseOthers} disabled={tabs.length <= 1}>
             Close Others
           </DropdownMenuItem>
