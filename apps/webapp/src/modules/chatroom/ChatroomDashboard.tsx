@@ -84,6 +84,11 @@ import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
+import {
+  editorPaneFlexClass,
+  isEditorExpanded,
+  previewPaneFlexClass,
+} from './workspace/utils/editorExpandLayout';
 
 import {
   AlertDialog,
@@ -190,6 +195,13 @@ const ExplorerContent = memo(function ExplorerContent({
 }: ExplorerContentProps) {
   const hasSplit = fileTabs.rightTabs.length > 0;
   const showTabBar = fileTabs.tabs.length > 0;
+  const isExpanded = isEditorExpanded(hasSplit, fileTabs.expandedTabPath, fileTabs.activeTabPath);
+
+  const handleToggleEditorExpanded = useCallback(() => {
+    if (fileTabs.activeTabPath) {
+      fileTabs.toggleExpanded(fileTabs.activeTabPath);
+    }
+  }, [fileTabs.activeTabPath, fileTabs.toggleExpanded]);
 
   const fileTabBar = showTabBar ? (
     <FileTabBar
@@ -216,7 +228,9 @@ const ExplorerContent = memo(function ExplorerContent({
           <div
             className={cn(
               'flex flex-col min-h-0 overflow-hidden',
-              hasSplit ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+              hasSplit
+                ? cn(editorPaneFlexClass(isExpanded, hasSplit), 'border-r border-chatroom-border')
+                : 'flex-1'
             )}
           >
             {showTabBar && hasSplit && fileTabBar}
@@ -244,12 +258,22 @@ const ExplorerContent = memo(function ExplorerContent({
 
           {/* Right Pane — preview/table */}
           {hasSplit && (
-            <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+            <div
+              className={cn(
+                'flex flex-col min-h-0 overflow-hidden',
+                previewPaneFlexClass(isExpanded)
+              )}
+            >
               <RightPaneTabBar
                 tabs={fileTabs.rightTabs}
                 activeTabKey={fileTabs.activeRightTabKey}
                 onActivate={fileTabs.setActiveRightTab}
                 onClose={fileTabs.closeRight}
+                onTabDoubleClick={(tab) => {
+                  if (tab.viewType === 'preview' && fileTabs.activeTabPath) {
+                    fileTabs.toggleExpanded(fileTabs.activeTabPath);
+                  }
+                }}
               />
               {(() => {
                 const activeRight = fileTabs.rightTabs.find(
@@ -266,6 +290,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       machineId={mw}
                       workingDir={wd}
                       filePath={activeRight.filePath}
+                      onDoubleClick={handleToggleEditorExpanded}
                     />
                   );
                 }
@@ -1381,33 +1406,30 @@ export function ChatroomDashboard({
                 <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
                 {/* File Explorer Left Sidebar — shown in explorer view */}
-                {activeView === 'explorer' &&
-                  activeWorkspace &&
-                  !fileTabs.expandedTabPath &&
-                  explorerSidebarVisible && (
-                    <div
-                      className="relative shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
-                      style={{ width: explorerSidebarWidth }}
-                    >
-                      <FileExplorerPanel
-                        ref={fileExplorerPanelRef}
-                        chatroomId={chatroomId}
-                        machineId={activeWorkspace.machineId}
-                        workingDir={activeWorkspace.workingDir}
-                        fileTabs={fileTabs}
-                        onFileSelect={handleFileSelect}
-                        onFileDoubleClick={handleFileDoubleClick}
-                        revealPath={revealPath}
-                        activeTabPath={fileTabs.activeTabPath}
-                        explorerSyncEnabled={explorerSyncEnabled}
-                        onToggleSync={setExplorerSyncEnabled}
-                      />
-                      <ExplorerSidebarResizeHandle
-                        widthPx={explorerSidebarWidth}
-                        onWidthChange={setExplorerSidebarWidth}
-                      />
-                    </div>
-                  )}
+                {activeView === 'explorer' && activeWorkspace && explorerSidebarVisible && (
+                  <div
+                    className="relative shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
+                    style={{ width: explorerSidebarWidth }}
+                  >
+                    <FileExplorerPanel
+                      ref={fileExplorerPanelRef}
+                      chatroomId={chatroomId}
+                      machineId={activeWorkspace.machineId}
+                      workingDir={activeWorkspace.workingDir}
+                      fileTabs={fileTabs}
+                      onFileSelect={handleFileSelect}
+                      onFileDoubleClick={handleFileDoubleClick}
+                      revealPath={revealPath}
+                      activeTabPath={fileTabs.activeTabPath}
+                      explorerSyncEnabled={explorerSyncEnabled}
+                      onToggleSync={setExplorerSyncEnabled}
+                    />
+                    <ExplorerSidebarResizeHandle
+                      widthPx={explorerSidebarWidth}
+                      onWidthChange={setExplorerSidebarWidth}
+                    />
+                  </div>
+                )}
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">

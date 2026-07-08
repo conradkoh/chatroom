@@ -12,6 +12,7 @@ interface RightPaneTabBarProps {
   activeTabKey: string | null;
   onActivate: (key: string) => void;
   onClose: (key: string) => void;
+  onTabDoubleClick?: (tab: RightPaneTab) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ export const RightPaneTabBar = memo(function RightPaneTabBar({
   activeTabKey,
   onActivate,
   onClose,
+  onTabDoubleClick,
 }: RightPaneTabBarProps) {
   if (tabs.length === 0) return null;
 
@@ -33,6 +35,7 @@ export const RightPaneTabBar = memo(function RightPaneTabBar({
           isActive={tab.key === activeTabKey}
           onActivate={onActivate}
           onClose={onClose}
+          onTabDoubleClick={onTabDoubleClick}
         />
       ))}
     </WorkspaceTabBarShell>
@@ -46,11 +49,13 @@ const RightTabItem = memo(function RightTabItem({
   isActive,
   onActivate,
   onClose,
+  onTabDoubleClick,
 }: {
   tab: RightPaneTab;
   isActive: boolean;
   onActivate: (key: string) => void;
   onClose: (key: string) => void;
+  onTabDoubleClick?: (tab: RightPaneTab) => void;
 }) {
   const handleClose = useCallback(
     (event: React.MouseEvent) => {
@@ -67,6 +72,7 @@ const RightTabItem = memo(function RightTabItem({
       iconPath={tab.filePath}
       title={tab.filePath}
       onClick={() => onActivate(tab.key)}
+      onDoubleClick={onTabDoubleClick ? () => onTabDoubleClick(tab) : undefined}
       onClose={handleClose}
     />
   );

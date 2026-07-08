@@ -105,6 +105,50 @@ describe('FileTabBar', () => {
     expect(bar.className).toMatch(/max-h-16/);
   });
 
+  it('calls onToggleExpanded when double-clicking a pinned tab', () => {
+    const onToggleExpanded = vi.fn();
+
+    render(<FileTabBar {...defaultProps} onToggleExpanded={onToggleExpanded} />);
+
+    fireEvent.doubleClick(screen.getByTitle('src/a.ts'));
+
+    expect(onToggleExpanded).toHaveBeenCalledWith('src/a.ts');
+  });
+
+  it('calls onPin when double-clicking an unpinned tab', () => {
+    const onPin = vi.fn();
+
+    render(<FileTabBar {...defaultProps} onPin={onPin} />);
+
+    fireEvent.doubleClick(screen.getByTitle('src/c.ts'));
+
+    expect(onPin).toHaveBeenCalledWith('src/c.ts');
+  });
+
+  it('calls onTabDoubleClick for preview tabs in RightPaneTabBar', () => {
+    const onTabDoubleClick = vi.fn();
+    const previewTab = {
+      key: 'preview:src/a.md',
+      name: 'Preview',
+      filePath: 'src/a.md',
+      viewType: 'preview' as const,
+    };
+
+    render(
+      <RightPaneTabBar
+        tabs={[previewTab]}
+        activeTabKey="preview:src/a.md"
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onTabDoubleClick={onTabDoubleClick}
+      />
+    );
+
+    fireEvent.doubleClick(screen.getByTitle('src/a.md'));
+
+    expect(onTabDoubleClick).toHaveBeenCalledWith(previewTab);
+  });
+
   it('RightPaneTabBar uses the same shared tab bar shell', () => {
     const { unmount: unmountFileBar } = render(<FileTabBar {...defaultProps} />);
     const fileBarClass = screen.getByTestId('file-tab-bar').className;
