@@ -220,18 +220,6 @@ export function MessageInput({
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
 
-  // Re-evaluate an active @ trigger after files finish loading.
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea || files.length === 0) return;
-
-    const cursorPos = textarea.selectionStart;
-    const textBeforeCursor = textarea.value.slice(0, cursorPos);
-    if (!textBeforeCursor.includes('@')) return;
-
-    autocomplete.handleInputChange(textarea.value, cursorPos);
-  }, [autocomplete, files]);
-
   // Register focus callback for external callers
   useEffect(() => {
     onRegisterFocus?.(() => {
