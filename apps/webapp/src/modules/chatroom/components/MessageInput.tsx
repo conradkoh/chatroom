@@ -41,6 +41,8 @@ export interface MessageInputProps {
   onRegisterFocus?: (focusFn: () => void) => void;
   /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
+  /** Whether at least one workspace is registered for @ autocomplete. */
+  hasAutocompleteWorkspace?: boolean;
   /** Refreshes autocomplete files when the @ trigger opens. */
   onAtTriggerActivate?: () => void;
 }
@@ -139,6 +141,7 @@ export function MessageInput({
   onAfterResize,
   onRegisterFocus,
   files = [],
+  hasAutocompleteWorkspace = false,
   onAtTriggerActivate,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
@@ -154,8 +157,12 @@ export function MessageInput({
 
   // ── Trigger autocomplete (for @ file references) ───────────────────────────
   const fileRefTrigger = useMemo(
-    () => createFileReferenceTrigger(files, onAtTriggerActivate),
-    [files, onAtTriggerActivate]
+    () =>
+      createFileReferenceTrigger(files, {
+        onActivate: onAtTriggerActivate,
+        hasWorkspace: hasAutocompleteWorkspace,
+      }),
+    [files, hasAutocompleteWorkspace, onAtTriggerActivate]
   );
   const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
 

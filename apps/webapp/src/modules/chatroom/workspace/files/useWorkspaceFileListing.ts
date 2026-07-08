@@ -1,7 +1,9 @@
 'use client';
+// fallow-ignore-file complexity
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
+import { useDirListing } from './useDirListing';
 import { useFileEntries } from './useFileEntries';
 import { useFileSearch } from './useFileSearch';
 
@@ -23,6 +25,19 @@ export interface UseWorkspaceFileListingResult {
   isLoading: boolean;
 }
 
+function mergeFileEntries(fileEntries: FileEntry[], directoryEntries: FileEntry[]): FileEntry[] {
+  if (directoryEntries.length === 0) return fileEntries;
+  if (fileEntries.length === 0) return directoryEntries;
+
+  const seen = new Set(fileEntries.map((entry) => entry.path));
+  const merged = [...fileEntries];
+  for (const entry of directoryEntries) {
+    if (seen.has(entry.path)) continue;
+    merged.push(entry);
+  }
+  return merged;
+}
+
 export function useWorkspaceFileListing({
   machineId,
   workingDir,
@@ -34,11 +49,27 @@ export function useWorkspaceFileListing({
   const searchResult = useFileSearch(
     enabled ? { machineId, workingDir, query: '', enabled: true } : 'skip'
   );
-
-  const entries = useFileEntries(
-    enabled ? { entries: searchResult.entries as FileEntry[] } : null,
-    { includeDirectories }
+  const dirListingResult = useDirListing(
+    enabled && includeDirectories ? { machineId, workingDir, dirPath: '' } : 'skip'
   );
+
+  const fileEntries = useFileEntries(
+    enabled ? { entries: searchResult.entries as FileEntry[] } : null,
+    { includeDirectories: false }
+  );
+  const directoryEntries = useFileEntries(
+    enabled && includeDirectories ? { entries: dirListingResult.entries as FileEntry[] } : null,
+    { includeDirectories: true }
+  );
+
+  const entries = useMemo(() => {
+    if (!enabled) return [];
+    if (!includeDirectories) return fileEntries;
+    return mergeFileEntries(
+      fileEntries,
+      directoryEntries.filter((entry) => entry.type === 'directory')
+    );
+  }, [directoryEntries, enabled, fileEntries, includeDirectories]);
 
   const refresh = useCallback(() => {
     if (!enabled) return;
@@ -53,11 +84,18 @@ export function useWorkspaceFileListing({
 
     lastRefreshAtRef.current = now;
     searchResult.refresh();
-  }, [enabled, searchResult]);
+    if (includeDirectories) {
+      dirListingResult.refresh();
+    }
+  }, [dirListingResult, enabled, includeDirectories, searchResult]);
 
   if (!enabled) {
     return { entries: [], refresh, isLoading: false };
   }
 
-  return { entries, refresh, isLoading: searchResult.isLoading };
+  return {
+    entries,
+    refresh,
+    isLoading: searchResult.isLoading || (includeDirectories && dirListingResult.isLoading),
+  };
 }

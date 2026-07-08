@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useWorkspaceFileListing } from './useWorkspaceFileListing';
 
-import { encodeWorkspaceId } from '@/lib/workspaceIdentifier';
+import { encodeWorkspaceId, normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import type { Workspace } from '@/modules/chatroom/types/workspace';
 
@@ -42,10 +42,11 @@ function prepareSlots(workspaces: Workspace[]): (WorkspaceSlot | null)[] {
   for (let i = 0; i < MAX_WORKSPACES; i++) {
     const ws = workspaces[i];
     if (ws && ws.machineId && ws.workingDir) {
+      const workingDir = normalizeWorkspaceWorkingDir(ws.workingDir);
       slots.push({
         machineId: ws.machineId,
-        workingDir: ws.workingDir,
-        workspaceId: encodeWorkspaceId(ws.machineId, ws.workingDir),
+        workingDir,
+        workspaceId: encodeWorkspaceId(ws.machineId, workingDir),
       });
     } else {
       slots.push(null);

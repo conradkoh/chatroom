@@ -80,11 +80,19 @@ import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane'
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
+import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
+import {
+  editorPaneFlexClass,
+  isEditorExpanded,
+  isPreviewExpanded,
+  previewPaneFlexClass,
+} from './workspace/utils/editorExpandLayout';
+import { previewTabDoubleClickAction } from './workspace/utils/explorerExpandHandlers';
 
 import {
   AlertDialog,
@@ -200,21 +208,45 @@ const ExplorerContent = memo(function ExplorerContent({
     [openFileOnRemote]
   );
 
+  const hasSplit = fileTabs.rightTabs.length > 0;
+  const showTabBar = fileTabs.tabs.length > 0;
+  const editorExpanded = isEditorExpanded(
+    hasSplit,
+    fileTabs.expandedTabPath,
+    fileTabs.expandedPane,
+    fileTabs.activeTabPath
+  );
+  const previewExpanded = isPreviewExpanded(
+    hasSplit,
+    fileTabs.expandedTabPath,
+    fileTabs.expandedPane,
+    fileTabs.activeTabPath
+  );
+
+  const handleTogglePreviewExpanded = useCallback(() => {
+    if (fileTabs.activeTabPath) {
+      fileTabs.togglePreviewExpanded(fileTabs.activeTabPath);
+    }
+  }, [fileTabs.activeTabPath, fileTabs.togglePreviewExpanded]);
+
+  const fileTabBar = showTabBar ? (
+    <FileTabBar
+      tabs={fileTabs.tabs}
+      activeTabPath={fileTabs.activeTabPath}
+      workingDir={activeWorkspace?.workingDir ?? null}
+      onActivate={fileTabs.setActiveTab}
+      onClose={fileTabs.closeTab}
+      onCloseOthers={fileTabs.closeOtherTabs}
+      onPin={fileTabs.pinTab}
+      onToggleExpanded={fileTabs.toggleExpanded}
+      onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
+    />
+  ) : null;
+
   return (
     <>
-      {/* File Tab Bar — shown when tabs are open */}
-      {fileTabs.tabs.length > 0 && (
-        <FileTabBar
-          tabs={fileTabs.tabs}
-          activeTabPath={fileTabs.activeTabPath}
-          onActivate={fileTabs.setActiveTab}
-          onClose={fileTabs.closeTab}
-          onCloseOthers={fileTabs.closeOtherTabs}
-          onPin={fileTabs.pinTab}
-          onToggleExpanded={fileTabs.toggleExpanded}
-          onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
-        />
-      )}
+      {/* Full-width tab bar when no preview/table split */}
+      {showTabBar && !hasSplit && fileTabBar}
 
       {/* File Content Area — left pane + optional right pane */}
       {fileTabs.activeTabPath && activeWorkspace?.machineId && activeWorkspace?.workingDir ? (
@@ -223,9 +255,15 @@ const ExplorerContent = memo(function ExplorerContent({
           <div
             className={cn(
               'flex flex-col min-h-0 overflow-hidden',
-              fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+              hasSplit
+                ? cn(
+                    editorPaneFlexClass(editorExpanded, previewExpanded, hasSplit),
+                    'border-r border-chatroom-border'
+                  )
+                : 'flex-1'
             )}
           >
+            {showTabBar && hasSplit && fileTabBar}
             {isMarkdownFile(fileTabs.activeTabPath) ? (
               <MarkdownFileEditorPane
                 key={fileTabs.activeTabPath}
@@ -251,13 +289,24 @@ const ExplorerContent = memo(function ExplorerContent({
           </div>
 
           {/* Right Pane — preview/table */}
-          {fileTabs.rightTabs.length > 0 && (
-            <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+          {hasSplit && (
+            <div
+              className={cn(
+                'flex flex-col min-h-0 overflow-hidden',
+                previewPaneFlexClass(editorExpanded, previewExpanded)
+              )}
+            >
               <RightPaneTabBar
                 tabs={fileTabs.rightTabs}
                 activeTabKey={fileTabs.activeRightTabKey}
                 onActivate={fileTabs.setActiveRightTab}
                 onClose={fileTabs.closeRight}
+                onTabDoubleClick={(tab) => {
+                  const action = previewTabDoubleClickAction(tab.viewType, fileTabs.activeTabPath);
+                  if (action?.action === 'togglePreviewExpanded') {
+                    fileTabs.togglePreviewExpanded(action.filePath);
+                  }
+                }}
               />
               {(() => {
                 const activeRight = fileTabs.rightTabs.find(
@@ -274,6 +323,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       machineId={mw}
                       workingDir={wd}
                       filePath={activeRight.filePath}
+                      onDoubleClick={handleTogglePreviewExpanded}
                     />
                   );
                 }
@@ -740,6 +790,9 @@ export function ChatroomDashboard({
   // Multi-workspace file tree subscription for @ autocomplete in SendForm
   const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
     useMultiWorkspaceFiles(chatroomWorkspaces);
+  const hasAutocompleteWorkspace = chatroomWorkspaces.some(
+    (workspace) => workspace.machineId && workspace.workingDir
+  );
 
   const handleFilePreviewClose = useCallback(() => {
     fileSelector.selectFile('');
@@ -1389,38 +1442,35 @@ export function ChatroomDashboard({
                 <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
                 {/* File Explorer Left Sidebar — shown in explorer view */}
-                {activeView === 'explorer' &&
-                  activeWorkspace &&
-                  !fileTabs.expandedTabPath &&
-                  explorerSidebarVisible && (
-                    <div
-                      className="relative shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
-                      style={{ width: explorerSidebarWidth }}
-                    >
-                      <FileExplorerPanel
-                        ref={fileExplorerPanelRef}
-                        chatroomId={chatroomId}
-                        machineId={activeWorkspace.machineId}
-                        workingDir={activeWorkspace.workingDir}
-                        fileTabs={fileTabs}
-                        onFileSelect={handleFileSelect}
-                        onFileDoubleClick={handleFileDoubleClick}
-                        revealPath={revealPath}
-                        activeTabPath={fileTabs.activeTabPath}
-                        explorerSyncEnabled={explorerSyncEnabled}
-                        onToggleSync={setExplorerSyncEnabled}
-                      />
-                      <ExplorerSidebarResizeHandle
-                        widthPx={explorerSidebarWidth}
-                        onWidthChange={setExplorerSidebarWidth}
-                      />
-                    </div>
-                  )}
+                {activeView === 'explorer' && activeWorkspace && explorerSidebarVisible && (
+                  <div
+                    className="relative shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
+                    style={{ width: explorerSidebarWidth }}
+                  >
+                    <FileExplorerPanel
+                      ref={fileExplorerPanelRef}
+                      chatroomId={chatroomId}
+                      machineId={activeWorkspace.machineId}
+                      workingDir={activeWorkspace.workingDir}
+                      fileTabs={fileTabs}
+                      onFileSelect={handleFileSelect}
+                      onFileDoubleClick={handleFileDoubleClick}
+                      revealPath={revealPath}
+                      activeTabPath={fileTabs.activeTabPath}
+                      explorerSyncEnabled={explorerSyncEnabled}
+                      onToggleSync={setExplorerSyncEnabled}
+                    />
+                    <ExplorerSidebarResizeHandle
+                      widthPx={explorerSidebarWidth}
+                      onWidthChange={setExplorerSidebarWidth}
+                    />
+                  </div>
+                )}
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                   {/* Content Toolbar — always renders, actions change based on active view */}
-                  <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
+                  <WorkspaceHeaderRow className="justify-between gap-2 px-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {activeView === 'messages' && (
                         <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
@@ -1443,7 +1493,7 @@ export function ChatroomDashboard({
                         </button>
                       )}
                     </div>
-                  </div>
+                  </WorkspaceHeaderRow>
 
                   {/* When in explorer or source-control with split view enabled, show workspace + messages */}
                   {(activeView === 'explorer' || activeView === 'source-control') &&
@@ -1489,6 +1539,7 @@ export function ChatroomDashboard({
                             onRegisterSendFormFocus: handleRegisterSendFormFocus,
                             autocompleteFiles,
                             refreshAutocompleteFiles,
+                            hasAutocompleteWorkspace,
                           }}
                           selectedHarnessSessionId={selectedHarnessSessionId}
                           setSelectedHarnessSessionId={setSelectedHarnessSessionId}
@@ -1514,6 +1565,7 @@ export function ChatroomDashboard({
                             onAfterResize={endResize}
                             onRegisterFocus={handleRegisterSendFormFocus}
                             files={autocompleteFiles}
+                            hasAutocompleteWorkspace={hasAutocompleteWorkspace}
                             onAtTriggerActivate={refreshAutocompleteFiles}
                           />
                         </div>

@@ -1,9 +1,9 @@
 'use client';
 
-import { ExternalLink, X } from 'lucide-react';
+import { Copy, ExternalLink } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
-import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
+import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,14 +11,15 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
-
-import { cn } from '@/lib/utils';
+import { copyFullPathToClipboard, copyRelativePathToClipboard } from '../utils/clipboard';
+import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FileTabBarProps {
   tabs: FileTab[];
   activeTabPath: string | null;
+  workingDir: string | null;
   onActivate: (filePath: string) => void;
   onClose: (filePath: string) => void;
   onCloseOthers: (filePath: string) => void;
@@ -32,6 +33,7 @@ interface FileTabBarProps {
 export const FileTabBar = memo(function FileTabBar({
   tabs,
   activeTabPath,
+  workingDir,
   onActivate,
   onClose,
   onCloseOthers,
@@ -62,9 +64,9 @@ export const FileTabBar = memo(function FileTabBar({
 
   return (
     <>
-      <div className="flex items-center h-8 overflow-x-auto overflow-y-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0">
+      <WorkspaceTabBarShell testId="file-tab-bar">
         {tabs.map((tab) => (
-          <TabItem
+          <FileTabItem
             key={tab.filePath}
             tab={tab}
             isActive={tab.filePath === activeTabPath}
@@ -75,7 +77,7 @@ export const FileTabBar = memo(function FileTabBar({
             onContextMenu={openContextMenu}
           />
         ))}
-      </div>
+      </WorkspaceTabBarShell>
 
       <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen} modal={false}>
         <DropdownMenuTrigger asChild>
@@ -98,6 +100,23 @@ export const FileTabBar = memo(function FileTabBar({
               Open File on Remote
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            onSelect={() =>
+              contextMenuTarget && void copyRelativePathToClipboard(contextMenuTarget)
+            }
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy Relative Path
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() =>
+              contextMenuTarget && void copyFullPathToClipboard(workingDir, contextMenuTarget)
+            }
+            disabled={!workingDir}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy Full Path
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleCloseOthers} disabled={tabs.length <= 1}>
             Close Others
           </DropdownMenuItem>
@@ -109,7 +128,7 @@ export const FileTabBar = memo(function FileTabBar({
 
 // ─── Single Tab ───────────────────────────────────────────────────────────────
 
-const TabItem = memo(function TabItem({
+const FileTabItem = memo(function FileTabItem({
   tab,
   isActive,
   onActivate,
@@ -126,57 +145,29 @@ const TabItem = memo(function TabItem({
   onToggleExpanded?: (filePath: string) => void;
   onContextMenu: (filePath: string, event: React.MouseEvent) => void;
 }) {
-  const handleClick = useCallback(() => {
-    onActivate(tab.filePath);
-  }, [onActivate, tab.filePath]);
-
   const handleDoubleClick = useCallback(() => {
-    if (tab.isPinned) {
-      onToggleExpanded?.(tab.filePath);
+    const action = fileTabDoubleClickExpandAction(tab.isPinned, tab.filePath);
+    if (action.action === 'toggleEditorExpanded') {
+      onToggleExpanded?.(action.filePath);
     } else {
-      onPin(tab.filePath);
+      onPin(action.filePath);
     }
   }, [onPin, onToggleExpanded, tab.filePath, tab.isPinned]);
 
-  const handleClose = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onClose(tab.filePath);
-    },
-    [onClose, tab.filePath]
-  );
-
-  const handleContextMenu = useCallback(
-    (event: React.MouseEvent) => {
-      onContextMenu(tab.filePath, event);
-    },
-    [onContextMenu, tab.filePath]
-  );
-
   return (
-    <div
-      className={cn(
-        'group flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none',
-        'border-r border-chatroom-border text-[13px] min-w-0 max-w-[180px]',
-        'transition-colors duration-75',
-        isActive
-          ? 'bg-chatroom-bg-primary text-chatroom-text-primary box-border border-b-2 border-b-chatroom-accent'
-          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover box-border border-b-2 border-b-transparent'
-      )}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      onContextMenu={handleContextMenu}
+    <WorkspaceTabBarItem
+      isActive={isActive}
+      label={tab.name}
+      iconPath={tab.name}
       title={tab.filePath}
-    >
-      <FileTypeIcon path={tab.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
-      <span className={cn('truncate', !tab.isPinned && 'italic')}>{tab.name}</span>
-      <button
-        className="ml-1 shrink-0 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-chatroom-bg-hover transition-opacity cursor-pointer"
-        onClick={handleClose}
-        title="Close"
-      >
-        <X size={14} className="text-chatroom-text-muted hover:text-chatroom-text-primary" />
-      </button>
-    </div>
+      italic={!tab.isPinned}
+      onClick={() => onActivate(tab.filePath)}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={(event) => onContextMenu(tab.filePath, event)}
+      onClose={(event) => {
+        event.stopPropagation();
+        onClose(tab.filePath);
+      }}
+    />
   );
 });

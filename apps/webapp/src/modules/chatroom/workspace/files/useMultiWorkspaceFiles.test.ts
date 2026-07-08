@@ -46,12 +46,18 @@ describe('useMultiWorkspaceFiles', () => {
   it('refreshAll calls each enabled slot refresh exactly once', async () => {
     vi.useFakeTimers();
     const workspaces = [
-      makeWorkspace('machine-1', '/repo-a'),
+      makeWorkspace('machine-1', '/repo-a/'),
       makeWorkspace('machine-2', '/repo-b'),
     ];
     const { result } = renderHook(() => useMultiWorkspaceFiles(workspaces));
 
     expect(mocks.refreshFns).toHaveLength(2);
+    expect(mocks.useWorkspaceFileListing).toHaveBeenNthCalledWith(1, {
+      machineId: 'machine-1',
+      workingDir: '/repo-a',
+      enabled: true,
+      includeDirectories: true,
+    });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);

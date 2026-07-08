@@ -1,12 +1,9 @@
 'use client';
 
-import { X } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
-import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
+import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
 import type { RightPaneTab } from '../hooks/useFileTabs';
-
-import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +12,7 @@ interface RightPaneTabBarProps {
   activeTabKey: string | null;
   onActivate: (key: string) => void;
   onClose: (key: string) => void;
+  onTabDoubleClick?: (tab: RightPaneTab) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -24,11 +22,12 @@ export const RightPaneTabBar = memo(function RightPaneTabBar({
   activeTabKey,
   onActivate,
   onClose,
+  onTabDoubleClick,
 }: RightPaneTabBarProps) {
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex items-center h-8 overflow-x-auto overflow-y-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0">
+    <WorkspaceTabBarShell testId="right-pane-tab-bar">
       {tabs.map((tab) => (
         <RightTabItem
           key={tab.key}
@@ -36,9 +35,10 @@ export const RightPaneTabBar = memo(function RightPaneTabBar({
           isActive={tab.key === activeTabKey}
           onActivate={onActivate}
           onClose={onClose}
+          onTabDoubleClick={onTabDoubleClick}
         />
       ))}
-    </div>
+    </WorkspaceTabBarShell>
   );
 });
 
@@ -49,46 +49,31 @@ const RightTabItem = memo(function RightTabItem({
   isActive,
   onActivate,
   onClose,
+  onTabDoubleClick,
 }: {
   tab: RightPaneTab;
   isActive: boolean;
   onActivate: (key: string) => void;
   onClose: (key: string) => void;
+  onTabDoubleClick?: (tab: RightPaneTab) => void;
 }) {
-  const handleClick = useCallback(() => {
-    onActivate(tab.key);
-  }, [onActivate, tab.key]);
-
   const handleClose = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
       onClose(tab.key);
     },
     [onClose, tab.key]
   );
 
   return (
-    <div
-      className={cn(
-        'group flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none',
-        'border-r border-chatroom-border text-[13px] min-w-0 max-w-[220px]',
-        'transition-colors duration-75',
-        isActive
-          ? 'bg-chatroom-bg-primary text-chatroom-text-primary box-border border-b-2 border-b-chatroom-accent'
-          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover box-border border-b-2 border-b-transparent'
-      )}
-      onClick={handleClick}
+    <WorkspaceTabBarItem
+      isActive={isActive}
+      label={tab.name}
+      iconPath={tab.filePath}
       title={tab.filePath}
-    >
-      <FileTypeIcon path={tab.filePath} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
-      <span className="truncate">{tab.name}</span>
-      <button
-        className="ml-1 shrink-0 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-chatroom-bg-hover transition-opacity cursor-pointer"
-        onClick={handleClose}
-        title="Close"
-      >
-        <X size={14} className="text-chatroom-text-muted hover:text-chatroom-text-primary" />
-      </button>
-    </div>
+      onClick={() => onActivate(tab.key)}
+      onDoubleClick={onTabDoubleClick ? () => onTabDoubleClick(tab) : undefined}
+      onClose={handleClose}
+    />
   );
 });
