@@ -3,9 +3,8 @@
 import { X, Sparkles, FileText, Code } from 'lucide-react';
 import React, { useEffect, useCallback, memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
 
 interface FeatureDetailModalProps {
@@ -104,10 +103,7 @@ export const FeatureDetailModal = memo(function FeatureDetailModal({
                 </span>
               </div>
               <div className={proseClassNames}>
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={fullMarkdownComponents}
-                >
+                <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
                   {description}
                 </Markdown>
               </div>
@@ -124,10 +120,7 @@ export const FeatureDetailModal = memo(function FeatureDetailModal({
                 </span>
               </div>
               <div className={proseClassNames}>
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={fullMarkdownComponents}
-                >
+                <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
                   {techSpecs}
                 </Markdown>
               </div>

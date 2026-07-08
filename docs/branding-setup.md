@@ -137,7 +137,7 @@ For CI/CD pipelines or automated setups, use non-interactive mode:
 
 ```bash
 # With full branding configuration
-node scripts/setup.js --non-interactive \
+bun scripts/setup.ts --non-interactive \
   --app-name "My Awesome App" \
   --app-short-name "MyApp" \
   --app-description "My app description" \
@@ -145,10 +145,10 @@ node scripts/setup.js --non-interactive \
   --package-name "my-awesome-app"
 
 # Skip branding setup entirely
-node scripts/setup.js --skip-branding
+bun scripts/setup.ts --skip-branding
 
 # Non-interactive mode without branding options (skips branding)
-node scripts/setup.js -y
+bun scripts/setup.ts -y
 ```
 
 ### Command Line Options
@@ -242,7 +242,7 @@ Would you like to update the branding now? (yes/no) [yes]: no
 ### Non-Interactive Mode Example
 
 ```bash
-$ node scripts/setup.js --non-interactive \
+$ bun scripts/setup.ts --non-interactive \
     --app-name "Task Manager Pro" \
     --app-short-name "TaskPro" \
     --app-description "Professional task management" \
@@ -305,7 +305,7 @@ jobs:
 
       - name: Setup project with branding
         run: |
-          node scripts/setup.js --non-interactive \
+          bun scripts/setup.ts --non-interactive \
             --app-name "${{ vars.APP_NAME }}" \
             --app-short-name "${{ vars.APP_SHORT_NAME }}" \
             --app-description "${{ vars.APP_DESCRIPTION }}" \

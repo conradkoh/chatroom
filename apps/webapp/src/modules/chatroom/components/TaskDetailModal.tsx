@@ -4,9 +4,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Paperclip, MoreHorizontal, Pencil, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
@@ -253,7 +252,7 @@ export function TaskDetailModal({
                       className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}
                     >
                       <Markdown
-                        remarkPlugins={[remarkGfm, remarkBreaks]}
+                        remarkPlugins={chatroomRemarkPlugins}
                         components={baseMarkdownComponents}
                       >
                         {editedContent || '*No content yet*'}
@@ -264,10 +263,7 @@ export function TaskDetailModal({
               </>
             ) : (
               <div className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}>
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={baseMarkdownComponents}
-                >
+                <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
                   {task.content}
                 </Markdown>
               </div>

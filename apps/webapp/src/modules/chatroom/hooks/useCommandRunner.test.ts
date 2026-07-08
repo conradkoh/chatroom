@@ -2,12 +2,16 @@
  * useCommandRunner unit tests
  *
  * Covers:
- * - runCommand always dispatches a fresh mutation (no "focus existing" branch)
+ * - runCommand always dispatches a fresh mutation
+ * - runOrAttach focuses an existing active run instead of restarting
  * - activeRunOutput is no longer returned (moved to useCommandRunOutputV2)
  */
 
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+// Import after mocks
+import { useCommandRunner } from './useCommandRunner';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -41,9 +45,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
   },
 }));
-
-// Import after mocks
-import { useCommandRunner } from './useCommandRunner';
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -117,19 +118,55 @@ describe('useCommandRunner', () => {
     });
   });
 
+  describe('runOrAttach', () => {
+    it('attaches to an existing active run without dispatching runCommand', async () => {
+      mockListRunsQuery.mockReturnValue([
+        {
+          _id: 'run-id-existing',
+          commandName: 'dev',
+          script: 'pnpm dev',
+          status: 'running',
+          startedAt: Date.now(),
+        },
+      ]);
+
+      const { result } = renderHook(() => useCommandRunner(props));
+
+      let returnedId: string | null = null;
+      await act(async () => {
+        returnedId = await result.current.runOrAttach('dev', 'pnpm dev');
+      });
+
+      expect(mockRunCommandMutation).not.toHaveBeenCalled();
+      expect(returnedId).toBe('run-id-existing');
+      expect(result.current.activeRunId).toBe('run-id-existing');
+    });
+
+    it('starts a new run when no active instance exists', async () => {
+      const { result } = renderHook(() => useCommandRunner(props));
+
+      await act(async () => {
+        await result.current.runOrAttach('build', 'pnpm build');
+      });
+
+      expect(mockRunCommandMutation).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('return contract', () => {
     it('does not include activeRunOutput (moved to useCommandRunOutputV2)', () => {
       const { result } = renderHook(() => useCommandRunner(props));
       expect(result.current).not.toHaveProperty('activeRunOutput');
     });
 
-    it('includes commands, runs, activeRunId, setActiveRunId, runCommand, stopCommand', () => {
+    it('includes commands, runs, activeRunId, setActiveRunId, runCommand, runOrAttach, stopCommand', () => {
       const { result } = renderHook(() => useCommandRunner(props));
       expect(result.current).toHaveProperty('commands');
       expect(result.current).toHaveProperty('runs');
       expect(result.current).toHaveProperty('activeRunId');
       expect(result.current).toHaveProperty('setActiveRunId');
       expect(result.current).toHaveProperty('runCommand');
+      expect(result.current).toHaveProperty('runOrAttach');
       expect(result.current).toHaveProperty('stopCommand');
     });
   });

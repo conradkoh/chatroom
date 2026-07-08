@@ -1,5 +1,6 @@
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import type { TriggerDefinition } from '../hooks/useTriggerAutocomplete';
+
 import { fuzzyMatch } from '@/lib/fuzzyMatch';
 
 const MAX_DISPLAY = 24; // MAX_VISIBLE_ITEMS * 3
@@ -14,8 +15,15 @@ export function serializeFileReferencePath(item: FileEntry): string {
 
 export function createFileReferenceTrigger(
   files: FileEntry[],
-  onActivate?: () => void
+  options?: {
+    onActivate?: () => void;
+    /** When true, @ is available even before the first file-search result arrives. */
+    hasWorkspace?: boolean;
+  }
 ): TriggerDefinition<FileEntry> {
+  const onActivate = options?.onActivate;
+  const hasWorkspace = options?.hasWorkspace ?? false;
+
   return {
     triggerChar: '@',
     isValidPosition: (_textBeforeCursor, triggerIndex) => {
@@ -23,7 +31,7 @@ export function createFileReferenceTrigger(
       const charBefore = _textBeforeCursor[triggerIndex - 1];
       return charBefore === ' ' || charBefore === '\n' || charBefore === '\t';
     },
-    isEnabled: () => files.length > 0,
+    isEnabled: () => hasWorkspace || files.length > 0,
     getResults: (query) => {
       if (!query) return files.slice(0, MAX_DISPLAY);
       return files

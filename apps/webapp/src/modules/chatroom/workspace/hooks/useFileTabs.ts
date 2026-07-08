@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { ExpandPane } from '../utils/editorExpandLayout';
+
 import { getFileName } from '@/lib/pathUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,10 +34,16 @@ export interface UseFileTabsOptions {
   chatroomId?: string;
 }
 
+interface ExpandState {
+  filePath: string;
+  pane: ExpandPane;
+}
+
 interface FileTabsPersistedState {
   tabs: FileTab[];
   activeTabPath: string | null;
   expandedTabPath: string | null;
+  expandedPane: ExpandPane | null;
   rightTabs: RightPaneTab[];
   activeRightTabKey: string | null;
 }
@@ -44,6 +52,7 @@ const defaultPersistedState: FileTabsPersistedState = {
   tabs: [],
   activeTabPath: null,
   expandedTabPath: null,
+  expandedPane: null,
   rightTabs: [],
   activeRightTabKey: null,
 };
@@ -79,15 +88,27 @@ function parseRightTabs(raw: unknown): RightPaneTab[] {
   });
 }
 
+function expandStateFromSaved(saved: FileTabsPersistedState): ExpandState | null {
+  if (!saved.expandedTabPath) return null;
+  return {
+    filePath: saved.expandedTabPath,
+    pane: saved.expandedPane ?? 'editor',
+  };
+}
+
 function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersistedState {
   const tabPaths = new Set(state.tabs.map((t) => t.filePath));
-  let { activeTabPath, expandedTabPath, activeRightTabKey } = state;
+  let { activeTabPath, expandedTabPath, expandedPane, activeRightTabKey } = state;
 
   if (activeTabPath !== null && !tabPaths.has(activeTabPath)) {
     activeTabPath = state.tabs.length > 0 ? state.tabs[0].filePath : null;
   }
   if (expandedTabPath !== null && !tabPaths.has(expandedTabPath)) {
     expandedTabPath = null;
+    expandedPane = null;
+  }
+  if (expandedTabPath === null) {
+    expandedPane = null;
   }
 
   const rightKeys = new Set(state.rightTabs.map((t) => t.key));
@@ -95,7 +116,7 @@ function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersiste
     activeRightTabKey = state.rightTabs.length > 0 ? state.rightTabs[0].key : null;
   }
 
-  return { ...state, activeTabPath, expandedTabPath, activeRightTabKey };
+  return { ...state, activeTabPath, expandedTabPath, expandedPane, activeRightTabKey };
 }
 
 function readSavedState(storageKey: string): FileTabsPersistedState {
@@ -109,6 +130,12 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
 
     const activeTabPath = typeof data.activeTabPath === 'string' ? data.activeTabPath : null;
     const expandedTabPath = typeof data.expandedTabPath === 'string' ? data.expandedTabPath : null;
+    const expandedPane =
+      data.expandedPane === 'editor' || data.expandedPane === 'preview'
+        ? data.expandedPane
+        : expandedTabPath !== null
+          ? 'editor'
+          : null;
     const activeRightTabKey =
       typeof data.activeRightTabKey === 'string' ? data.activeRightTabKey : null;
 
@@ -116,6 +143,7 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
       tabs: parseFileTabs(data.tabs),
       activeTabPath,
       expandedTabPath,
+      expandedPane,
       rightTabs: parseRightTabs(data.rightTabs),
       activeRightTabKey,
     });
@@ -138,11 +166,14 @@ export interface UseFileTabsReturn {
   tabs: FileTab[];
   activeTabPath: string | null;
   expandedTabPath: string | null;
+  expandedPane: ExpandPane | null;
   openPreview: (filePath: string) => void;
   pinTab: (filePath: string) => void;
   closeTab: (filePath: string) => void;
+  closeOtherTabs: (filePath: string) => void;
   setActiveTab: (filePath: string) => void;
   toggleExpanded: (filePath: string) => void;
+  togglePreviewExpanded: (filePath: string) => void;
   renamePath: (oldPath: string, newPath: string) => void;
   // Right pane
   rightTabs: RightPaneTab[];
@@ -177,8 +208,8 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   const [activeTabPath, setActiveTabPath] = useState<string | null>(
     () => readSavedState(storageKey).activeTabPath
   );
-  const [expandedTabPath, setExpandedTabPath] = useState<string | null>(
-    () => readSavedState(storageKey).expandedTabPath
+  const [expandState, setExpandState] = useState<ExpandState | null>(() =>
+    expandStateFromSaved(readSavedState(storageKey))
   );
 
   // Right pane state
@@ -199,7 +230,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     const saved = readSavedState(storageKey);
     setTabs(saved.tabs);
     setActiveTabPath(saved.activeTabPath);
-    setExpandedTabPath(saved.expandedTabPath);
+    setExpandState(expandStateFromSaved(saved));
     setRightTabs(saved.rightTabs);
     setActiveRightTabKey(saved.activeRightTabKey);
     lastStorageKeyRef.current = storageKey;
@@ -217,11 +248,12 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     writeSavedState(storageKey, {
       tabs,
       activeTabPath,
-      expandedTabPath,
+      expandedTabPath: expandState?.filePath ?? null,
+      expandedPane: expandState?.pane ?? null,
       rightTabs,
       activeRightTabKey,
     });
-  }, [storageKey, tabs, activeTabPath, expandedTabPath, rightTabs, activeRightTabKey]);
+  }, [storageKey, tabs, activeTabPath, expandState, rightTabs, activeRightTabKey]);
 
   // ─── Left pane ──────────────────────────────────────────────
 
@@ -258,7 +290,17 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
       });
       return next;
     });
-    setExpandedTabPath((prev) => (prev === filePath ? null : prev));
+    setExpandState((prev) => (prev?.filePath === filePath ? null : prev));
+  }, []);
+
+  const closeOtherTabs = useCallback((keepFilePath: string) => {
+    setTabs((prev) => {
+      const kept = prev.filter((t) => t.filePath === keepFilePath);
+      if (kept.length === 0) return prev;
+      setActiveTabPath(keepFilePath);
+      return kept;
+    });
+    setExpandState((prev) => (prev?.filePath === keepFilePath ? prev : null));
   }, []);
 
   const setActive = useCallback((filePath: string) => {
@@ -266,7 +308,15 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   }, []);
 
   const toggleExpanded = useCallback((filePath: string) => {
-    setExpandedTabPath((prev) => (prev === filePath ? null : filePath));
+    setExpandState((prev) =>
+      prev?.filePath === filePath && prev?.pane === 'editor' ? null : { filePath, pane: 'editor' }
+    );
+  }, []);
+
+  const togglePreviewExpanded = useCallback((filePath: string) => {
+    setExpandState((prev) =>
+      prev?.filePath === filePath && prev?.pane === 'preview' ? null : { filePath, pane: 'preview' }
+    );
   }, []);
 
   const renamePath = useCallback((oldPath: string, newPath: string) => {
@@ -287,7 +337,11 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     );
 
     setActiveTabPath((prev) => (prev ? remapFilePath(prev) : prev));
-    setExpandedTabPath((prev) => (prev ? remapFilePath(prev) : prev));
+    setExpandState((prev) => {
+      if (!prev) return prev;
+      const remapped = remapFilePath(prev.filePath);
+      return remapped === prev.filePath ? prev : { ...prev, filePath: remapped };
+    });
 
     setRightTabs((prev) =>
       prev.map((tab) => {
@@ -347,12 +401,15 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     // Left
     tabs,
     activeTabPath,
-    expandedTabPath,
+    expandedTabPath: expandState?.filePath ?? null,
+    expandedPane: expandState?.pane ?? null,
     openPreview,
     pinTab,
     closeTab,
+    closeOtherTabs,
     setActiveTab: setActive,
     toggleExpanded,
+    togglePreviewExpanded,
     renamePath,
     // Right
     rightTabs,

@@ -5,16 +5,19 @@
 
 'use client';
 
-import { memo } from 'react';
 import { Check, XCircle, Clock, MinusCircle } from 'lucide-react';
+import { memo } from 'react';
+
+import type { CommitStatusSummary } from '../types/git';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import type { CommitStatusSummary } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CommitStatusIndicatorProps {
   status: CommitStatusSummary;
+  /** When false, renders a static icon (no popover). Use inside other clickable containers. */
+  interactive?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,16 +63,28 @@ function getConclusionLabel(conclusion: string | null, status: string): string {
 
 export const CommitStatusIndicator = memo(function CommitStatusIndicator({
   status,
+  interactive = true,
 }: CommitStatusIndicatorProps) {
+  const icon = getStatusIcon(status.state);
+  const title = `CI: ${status.state} (${status.totalCount} check${status.totalCount !== 1 ? 's' : ''})`;
+
+  if (!interactive) {
+    return (
+      <span className="inline-flex items-center shrink-0" title={title}>
+        {icon}
+      </span>
+    );
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
           className="inline-flex items-center shrink-0 p-0 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
-          title={`CI: ${status.state} (${status.totalCount} check${status.totalCount !== 1 ? 's' : ''})`}
+          title={title}
         >
-          {getStatusIcon(status.state)}
+          {icon}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-auto min-w-[220px] max-w-[320px] p-2">

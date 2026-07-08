@@ -104,6 +104,8 @@ export function useTriggerAutocomplete<T = unknown>(
   activeTriggerRef.current = activeTrigger;
   /** Tracks the current trigger activation so onActivate fires once per show cycle. */
   const activationKeyRef = useRef<string | null>(null);
+  /** Index of the active trigger in the triggers array (for refreshing results). */
+  const activeTriggerOrderRef = useRef<number | null>(null);
 
   // Clean up the debounce timer on unmount so we don't fire a setState on
   // an unmounted component (or keep a stale timeout running).
@@ -112,6 +114,27 @@ export function useTriggerAutocomplete<T = unknown>(
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  // Refresh results when trigger definitions change while autocomplete is open
+  // (e.g. workspace files finish loading after the user typed @).
+  useEffect(() => {
+    if (!visible || activeTriggerOrderRef.current === null) return;
+
+    const trigger = triggers[activeTriggerOrderRef.current];
+    if (!trigger?.isEnabled()) return;
+
+    const newResults = trigger.getResults(query);
+    const prev = resultsRef.current;
+    if (
+      prev.length === newResults.length &&
+      prev.every((item, index) => item === newResults[index])
+    ) {
+      return;
+    }
+
+    setResults(newResults);
+    setSelectedIndex(0);
+  }, [triggers, visible, query]);
 
   // ── Input change: detect triggers ──────────────────────────────────────────
 
@@ -134,6 +157,7 @@ export function useTriggerAutocomplete<T = unknown>(
 
         // Found a valid trigger — show dropdown immediately, debounce query
         triggerIndexRef.current = lastTriggerIndex;
+        activeTriggerOrderRef.current = triggerOrder;
         const activationKey = `${triggerOrder}:${trigger.triggerChar}:${lastTriggerIndex}`;
         if (activationKeyRef.current !== activationKey) {
           activationKeyRef.current = activationKey;
@@ -169,6 +193,7 @@ export function useTriggerAutocomplete<T = unknown>(
       setActiveTrigger(null);
       activationKeyRef.current = null;
       triggerIndexRef.current = null;
+      activeTriggerOrderRef.current = null;
     },
     [triggers, options]
   );
@@ -200,6 +225,7 @@ export function useTriggerAutocomplete<T = unknown>(
       setActiveTrigger(null);
       activationKeyRef.current = null;
       triggerIndexRef.current = null;
+      activeTriggerOrderRef.current = null;
 
       return { newText, newCursorPos };
     },
@@ -214,6 +240,7 @@ export function useTriggerAutocomplete<T = unknown>(
     setActiveTrigger(null);
     activationKeyRef.current = null;
     triggerIndexRef.current = null;
+    activeTriggerOrderRef.current = null;
   }, []);
 
   // ── Keyboard navigation ────────────────────────────────────────────────────

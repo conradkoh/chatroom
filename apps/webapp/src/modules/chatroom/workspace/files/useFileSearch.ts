@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { isFileSearchQueryActive } from './explorer-tree';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 
+import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
+
 const EMPTY_FILE_SEARCH_ENTRIES: { path: string; type: 'file' }[] = [];
 
 // fallow-ignore-next-line complexity
@@ -20,7 +22,7 @@ export function useFileSearch(
   const requestMutation = useSessionMutation(api.workspaceFiles.requestFileSearch);
   const isActive = args !== 'skip' && (args.enabled ?? true);
   const machineId = args !== 'skip' ? args.machineId : '';
-  const workingDir = args !== 'skip' ? args.workingDir : '';
+  const workingDir = args !== 'skip' ? normalizeWorkspaceWorkingDir(args.workingDir) : '';
   const trimmedQuery = args !== 'skip' ? args.query.trim() : '';
   const queryActive = isFileSearchQueryActive(trimmedQuery);
   const searchEnabled = isActive && queryActive;

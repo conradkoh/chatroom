@@ -92,3 +92,145 @@ describe('useFileTabs persistence', () => {
     expect(storedB.activeTabPath).toBe('b.ts');
   });
 });
+
+describe('useFileTabs expand pane', () => {
+  it('toggleExpanded sets expandedPane to editor', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.toggleExpanded('a.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBe('a.ts');
+    expect(result.current.expandedPane).toBe('editor');
+  });
+
+  it('togglePreviewExpanded sets expandedPane to preview', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.togglePreviewExpanded('a.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBe('a.ts');
+    expect(result.current.expandedPane).toBe('preview');
+  });
+
+  it('toggling preview expand again clears expand state', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.togglePreviewExpanded('a.ts');
+    });
+
+    act(() => {
+      result.current.togglePreviewExpanded('a.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBeNull();
+    expect(result.current.expandedPane).toBeNull();
+  });
+
+  it('switching from editor-expand to preview-expand on same file updates pane', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.toggleExpanded('a.ts');
+    });
+
+    act(() => {
+      result.current.togglePreviewExpanded('a.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBe('a.ts');
+    expect(result.current.expandedPane).toBe('preview');
+  });
+
+  it('defaults expandedPane to editor for legacy localStorage without expandedPane', () => {
+    localStorage.setItem(
+      storageKey(CHATROOM_A),
+      JSON.stringify({
+        tabs: [{ filePath: 'a.ts', name: 'a.ts', isPinned: true }],
+        activeTabPath: 'a.ts',
+        expandedTabPath: 'a.ts',
+        rightTabs: [],
+        activeRightTabKey: null,
+      })
+    );
+
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    expect(result.current.expandedTabPath).toBe('a.ts');
+    expect(result.current.expandedPane).toBe('editor');
+  });
+});
+
+describe('useFileTabs closeOtherTabs', () => {
+  it('keeps only the specified tab and sets it active', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.pinTab('b.ts');
+      result.current.pinTab('c.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('b.ts');
+    });
+
+    expect(result.current.tabs).toEqual([{ filePath: 'b.ts', name: 'b.ts', isPinned: true }]);
+    expect(result.current.activeTabPath).toBe('b.ts');
+  });
+
+  it('clears expandedTabPath when expanded tab is closed', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.pinTab('b.ts');
+      result.current.toggleExpanded('a.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('b.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBeNull();
+  });
+
+  it('preserves expandedTabPath when kept tab is expanded', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+      result.current.pinTab('b.ts');
+      result.current.toggleExpanded('b.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('b.ts');
+    });
+
+    expect(result.current.expandedTabPath).toBe('b.ts');
+  });
+
+  it('no-ops when keep path is not open', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('a.ts');
+    });
+
+    act(() => {
+      result.current.closeOtherTabs('missing.ts');
+    });
+
+    expect(result.current.tabs).toEqual([{ filePath: 'a.ts', name: 'a.ts', isPinned: true }]);
+    expect(result.current.activeTabPath).toBe('a.ts');
+  });
+});

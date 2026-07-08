@@ -5,7 +5,10 @@ import { memo, useRef } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
-import { useExplorerSelectionKeyboard } from '../hooks/useExplorerSelectionKeyboard';
+import {
+  useExplorerSelectionKeyboard,
+  useRemoteSelectionContextMenu,
+} from '../hooks/useExplorerSelectionKeyboard';
 import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
 import {
   FILE_READ_ERROR_PLACEHOLDER,
@@ -30,6 +33,8 @@ interface FileContentViewerProps {
   onOpenPreview?: (filePath: string) => void;
   /** Called when user clicks "View" on a CSV file */
   onOpenTableView?: (filePath: string) => void;
+  /** Called when user chooses Open Selection on Remote from the selection context menu */
+  onOpenSelectionOnRemote?: (filePath: string, selectedText: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -41,6 +46,7 @@ export const FileContentViewer = memo(function FileContentViewer({
   onSendSelectionToComposer,
   onOpenPreview,
   onOpenTableView,
+  onOpenSelectionOnRemote,
 }: FileContentViewerProps) {
   // Binary file guard
   if (isBinaryFile(filePath)) {
@@ -61,6 +67,7 @@ export const FileContentViewer = memo(function FileContentViewer({
       onSendSelectionToComposer={onSendSelectionToComposer}
       onOpenPreview={onOpenPreview}
       onOpenTableView={onOpenTableView}
+      onOpenSelectionOnRemote={onOpenSelectionOnRemote}
     />
   );
 });
@@ -75,10 +82,15 @@ const FileContentInner = memo(function FileContentInner({
   onSendSelectionToComposer,
   onOpenPreview,
   onOpenTableView,
+  onOpenSelectionOnRemote,
 }: FileContentViewerProps) {
   const contentContainerRef = useRef<HTMLDivElement>(null);
 
   useExplorerSelectionKeyboard(contentContainerRef, filePath, onSendSelectionToComposer);
+  const { onContextMenu, selectionMenu } = useRemoteSelectionContextMenu(
+    filePath,
+    onOpenSelectionOnRemote
+  );
   const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
   const isPendingCreate = isPendingOptimisticNewFile(filePath);
 
@@ -134,6 +146,7 @@ const FileContentInner = memo(function FileContentInner({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {selectionMenu}
       {/* Toolbar */}
       {showToolbar && (
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-chatroom-border shrink-0">
@@ -174,7 +187,7 @@ const FileContentInner = memo(function FileContentInner({
       )}
 
       {/* File content — source only */}
-      <div ref={contentContainerRef} className="flex-1 overflow-auto">
+      <div ref={contentContainerRef} className="flex-1 overflow-auto" onContextMenu={onContextMenu}>
         {content.content.length === 0 ? (
           <p className="p-4 text-[13px] italic text-chatroom-text-muted">
             {EMPTY_FILE_PLACEHOLDER}

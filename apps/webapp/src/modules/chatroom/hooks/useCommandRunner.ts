@@ -11,9 +11,12 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useCallback, useMemo, useState } from 'react';
+
+import type { CommandRun } from '../features/run-command/types/run';
+import { isActiveRun } from '../features/run-command/utils/run-status';
 
 export interface UseCommandRunnerProps {
   machineId: string | null;
@@ -29,10 +32,12 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
     machineId && workingDir ? { machineId, workingDir } : 'skip'
   );
 
-  const runs = useSessionQuery(
+  const runsQuery = useSessionQuery(
     api.commands.listRunsV2,
     machineId && workingDir ? { machineId, workingDir } : 'skip'
   );
+
+  const runs = useMemo(() => (runsQuery ?? []) as CommandRun[], [runsQuery]);
 
   // Mutations
   const runCommandMutation = useSessionMutation(api.commands.runCommand);
@@ -57,6 +62,23 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
     [machineId, workingDir, runCommandMutation]
   );
 
+  const runOrAttach = useCallback(
+    async (commandName: string, script: string) => {
+      if (!machineId || !workingDir) return null;
+
+      const existingRun = runs.find(
+        (run) => run.commandName === commandName && isActiveRun(run.status)
+      );
+      if (existingRun) {
+        setActiveRunId(existingRun._id);
+        return existingRun._id;
+      }
+
+      return runCommand(commandName, script);
+    },
+    [machineId, workingDir, runs, runCommand]
+  );
+
   const stopCommand = useCallback(
     async (runId: string) => {
       if (!machineId) return;
@@ -67,10 +89,11 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
 
   return {
     commands: commands ?? [],
-    runs: runs ?? [],
+    runs,
     activeRunId,
     setActiveRunId,
     runCommand,
+    runOrAttach,
     stopCommand,
   };
 }

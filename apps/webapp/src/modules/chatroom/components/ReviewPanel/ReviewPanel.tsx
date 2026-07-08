@@ -15,11 +15,10 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
 import { useAttachments } from '../../attachments';
 import { type BacklogItem, getScoringBadge } from '../backlog';
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
 import { formatRelativeTime } from '../WorkQueue/utils';
 
@@ -183,7 +182,7 @@ const ReviewDetail = memo(function ReviewDetail({
 
       {/* Markdown content — scrollable */}
       <div className={`flex-1 overflow-y-auto p-6 min-h-0 ${backlogProseClassNames}`}>
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+        <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
           {item.content}
         </Markdown>
       </div>

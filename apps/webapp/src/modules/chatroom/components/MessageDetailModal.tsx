@@ -12,11 +12,9 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useCallback, memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
-
 import type { Message } from '../types/message';
 
 interface MessageDetailModalProps {
@@ -180,7 +178,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </div>
                   <div className={proseClassNames}>
                     <Markdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      remarkPlugins={chatroomRemarkPlugins}
                       components={fullMarkdownComponents}
                     >
                       {message.featureDescription}
@@ -199,7 +197,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </div>
                   <div className={proseClassNames}>
                     <Markdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      remarkPlugins={chatroomRemarkPlugins}
                       components={fullMarkdownComponents}
                     >
                       {message.featureTechSpecs}
@@ -217,7 +215,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 </div>
                 <div className={proseClassNames}>
                   <Markdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    remarkPlugins={chatroomRemarkPlugins}
                     components={fullMarkdownComponents}
                   >
                     {message.content}
@@ -234,7 +232,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 </div>
                 <div className={proseClassNames}>
                   <Markdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    remarkPlugins={chatroomRemarkPlugins}
                     components={fullMarkdownComponents}
                   >
                     {message.content}
@@ -252,10 +250,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 </span>
               </div>
               <div className={proseClassNames}>
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={fullMarkdownComponents}
-                >
+                <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
                   {message.content}
                 </Markdown>
               </div>

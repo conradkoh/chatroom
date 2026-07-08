@@ -30,6 +30,11 @@ export interface WorkspaceIdentifier {
 
 const SEPARATOR = '::';
 
+/** Canonical workspace root path for API keys and registry lookups. */
+export function normalizeWorkspaceWorkingDir(workingDir: string): string {
+  return workingDir.trim().replace(/[/\\]+$/, '');
+}
+
 /**
  * Encode a (machineId, workingDir) pair into a URL-safe, collision-proof string.
  *

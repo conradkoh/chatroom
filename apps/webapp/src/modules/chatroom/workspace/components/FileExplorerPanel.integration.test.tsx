@@ -104,6 +104,12 @@ vi.mock('../hooks/useWorkspaceFileDelete', () => ({
   }),
 }));
 
+vi.mock('../hooks/useOpenFileOnRemote', () => ({
+  useOpenFileOnRemote: () => ({
+    openFileOnRemote: vi.fn(),
+  }),
+}));
+
 vi.mock('../hooks/useWorkspaceFileRename', () => ({
   useWorkspaceFileRename: () => ({
     requestRename: mockRequestRename,
@@ -129,11 +135,14 @@ const fileTabs = {
   tabs: [],
   activeTabPath: null,
   expandedTabPath: null,
+  expandedPane: null,
   openPreview: vi.fn(),
   pinTab: vi.fn(),
   closeTab: vi.fn(),
+  closeOtherTabs: vi.fn(),
   setActiveTab: vi.fn(),
   toggleExpanded: vi.fn(),
+  togglePreviewExpanded: vi.fn(),
   renamePath: vi.fn(),
   rightTabs: [],
   activeRightTabKey: null,

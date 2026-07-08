@@ -43,9 +43,11 @@ import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPan
 import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
 import { useCommandDialog } from './context/CommandDialogContext';
+import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
+import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
 import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
@@ -61,7 +63,14 @@ import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand } from './types/savedCommand';
+import {
+  ensureAgentRolesConfigured,
+  getFailedAgentRoles,
+  runAgentStartBatch,
+  startAgentsForRoles,
+} from './utils/agentBulkStart';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
@@ -71,10 +80,19 @@ import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane'
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
+import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
+import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
+import {
+  editorPaneFlexClass,
+  isEditorExpanded,
+  isPreviewExpanded,
+  previewPaneFlexClass,
+} from './workspace/utils/editorExpandLayout';
+import { previewTabDoubleClickAction } from './workspace/utils/explorerExpandHandlers';
 
 import {
   AlertDialog,
@@ -179,19 +197,56 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
 }: ExplorerContentProps) {
+  const machineId = activeWorkspace?.machineId ?? '';
+  const workingDir = activeWorkspace?.workingDir ?? '';
+  const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
+
+  const handleOpenSelectionOnRemote = useCallback(
+    (filePath: string, selectedText: string) => {
+      void openFileOnRemote(filePath, selectedText);
+    },
+    [openFileOnRemote]
+  );
+
+  const hasSplit = fileTabs.rightTabs.length > 0;
+  const showTabBar = fileTabs.tabs.length > 0;
+  const editorExpanded = isEditorExpanded(
+    hasSplit,
+    fileTabs.expandedTabPath,
+    fileTabs.expandedPane,
+    fileTabs.activeTabPath
+  );
+  const previewExpanded = isPreviewExpanded(
+    hasSplit,
+    fileTabs.expandedTabPath,
+    fileTabs.expandedPane,
+    fileTabs.activeTabPath
+  );
+
+  const handleTogglePreviewExpanded = useCallback(() => {
+    if (fileTabs.activeTabPath) {
+      fileTabs.togglePreviewExpanded(fileTabs.activeTabPath);
+    }
+  }, [fileTabs.activeTabPath, fileTabs.togglePreviewExpanded]);
+
+  const fileTabBar = showTabBar ? (
+    <FileTabBar
+      tabs={fileTabs.tabs}
+      activeTabPath={fileTabs.activeTabPath}
+      workingDir={activeWorkspace?.workingDir ?? null}
+      onActivate={fileTabs.setActiveTab}
+      onClose={fileTabs.closeTab}
+      onCloseOthers={fileTabs.closeOtherTabs}
+      onPin={fileTabs.pinTab}
+      onToggleExpanded={fileTabs.toggleExpanded}
+      onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
+    />
+  ) : null;
+
   return (
     <>
-      {/* File Tab Bar — shown when tabs are open */}
-      {fileTabs.tabs.length > 0 && (
-        <FileTabBar
-          tabs={fileTabs.tabs}
-          activeTabPath={fileTabs.activeTabPath}
-          onActivate={fileTabs.setActiveTab}
-          onClose={fileTabs.closeTab}
-          onPin={fileTabs.pinTab}
-          onToggleExpanded={fileTabs.toggleExpanded}
-        />
-      )}
+      {/* Full-width tab bar when no preview/table split */}
+      {showTabBar && !hasSplit && fileTabBar}
 
       {/* File Content Area — left pane + optional right pane */}
       {fileTabs.activeTabPath && activeWorkspace?.machineId && activeWorkspace?.workingDir ? (
@@ -200,9 +255,15 @@ const ExplorerContent = memo(function ExplorerContent({
           <div
             className={cn(
               'flex flex-col min-h-0 overflow-hidden',
-              fileTabs.rightTabs.length > 0 ? 'w-1/2 border-r border-chatroom-border' : 'flex-1'
+              hasSplit
+                ? cn(
+                    editorPaneFlexClass(editorExpanded, previewExpanded, hasSplit),
+                    'border-r border-chatroom-border'
+                  )
+                : 'flex-1'
             )}
           >
+            {showTabBar && hasSplit && fileTabBar}
             {isMarkdownFile(fileTabs.activeTabPath) ? (
               <MarkdownFileEditorPane
                 key={fileTabs.activeTabPath}
@@ -211,6 +272,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 filePath={fileTabs.activeTabPath}
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             ) : (
               <FileContentViewer
@@ -221,18 +283,30 @@ const ExplorerContent = memo(function ExplorerContent({
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
                 onOpenTableView={onOpenTableView}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             )}
           </div>
 
           {/* Right Pane — preview/table */}
-          {fileTabs.rightTabs.length > 0 && (
-            <div className="w-1/2 flex flex-col min-h-0 overflow-hidden">
+          {hasSplit && (
+            <div
+              className={cn(
+                'flex flex-col min-h-0 overflow-hidden',
+                previewPaneFlexClass(editorExpanded, previewExpanded)
+              )}
+            >
               <RightPaneTabBar
                 tabs={fileTabs.rightTabs}
                 activeTabKey={fileTabs.activeRightTabKey}
                 onActivate={fileTabs.setActiveRightTab}
                 onClose={fileTabs.closeRight}
+                onTabDoubleClick={(tab) => {
+                  const action = previewTabDoubleClickAction(tab.viewType, fileTabs.activeTabPath);
+                  if (action?.action === 'togglePreviewExpanded') {
+                    fileTabs.togglePreviewExpanded(action.filePath);
+                  }
+                }}
               />
               {(() => {
                 const activeRight = fileTabs.rightTabs.find(
@@ -249,6 +323,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       machineId={mw}
                       workingDir={wd}
                       filePath={activeRight.filePath}
+                      onDoubleClick={handleTogglePreviewExpanded}
                     />
                   );
                 }
@@ -410,6 +485,9 @@ export function ChatroomDashboard({
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
     chatroomId as Id<'chatroom_rooms'>
   );
+  const [explorerSidebarWidth, setExplorerSidebarWidth] = useExplorerSidebarWidth(
+    chatroomId as Id<'chatroom_rooms'>
+  );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
 
   // Handle ActivityBar view changes with toggle sub-state support
@@ -421,7 +499,7 @@ export function ChatroomDashboard({
 
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
-      if (!explorerSplitViewEnabled && activeView === 'explorer') {
+      if (!explorerSplitViewEnabled) {
         setExplorerSplitViewEnabled(true);
       }
 
@@ -434,7 +512,7 @@ export function ChatroomDashboard({
       });
       toast.message(PREFILL_TOAST_MESSAGE);
     },
-    [explorerSplitViewEnabled, activeView, setExplorerSplitViewEnabled, setSplitMode]
+    [explorerSplitViewEnabled, setExplorerSplitViewEnabled, setSplitMode]
   );
 
   const handleActivityViewChange = useCallback(
@@ -712,6 +790,9 @@ export function ChatroomDashboard({
   // Multi-workspace file tree subscription for @ autocomplete in SendForm
   const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
     useMultiWorkspaceFiles(chatroomWorkspaces);
+  const hasAutocompleteWorkspace = chatroomWorkspaces.some(
+    (workspace) => workspace.machineId && workspace.workingDir
+  );
 
   const handleFilePreviewClose = useCallback(() => {
     fileSelector.selectFile('');
@@ -874,44 +955,35 @@ export function ChatroomDashboard({
 
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
-  const handleStartAllRemoteAgents = useCallback(async () => {
+  const getConfiguredAgentRoles = useCallback((): string[] | null => {
     const agentRoles = teamRoles.filter((r) => r !== 'user');
-    // Check if all roles have a saved config
-    const missingRoles = agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
-    if (missingRoles.length > 0) {
-      // Open settings modal at agents tab to configure
-      handleCmdOpenSettings('agents');
-      return;
+    if (
+      !ensureAgentRolesConfigured(agentRoles, roleConfigMap, () => handleCmdOpenSettings('agents'))
+    ) {
+      return null;
     }
+    return agentRoles;
+  }, [teamRoles, roleConfigMap, handleCmdOpenSettings]);
+
+  const handleStartAllRemoteAgents = useCallback(async () => {
+    const agentRoles = getConfiguredAgentRoles();
+    if (!agentRoles) return;
     // Start all agents in parallel using their persisted configs
     setIsStartingAllAgents(true);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const results = await Promise.allSettled(
-      agentRoles.map((role) => {
-        const config = roleConfigMap.get(role.toLowerCase());
-        if (!config) return null;
-        return agentPanelData.sendCommand({
-          machineId: config.machineId,
-          type: 'start-agent' as const,
-          payload: {
-            chatroomId: chatroomIdTyped,
-            role,
-            model: config.model,
-            agentHarness: config.agentType,
-            workingDir: config.workingDir,
-          },
-        });
-      })
+    const results = await startAgentsForRoles(
+      agentRoles,
+      roleConfigMap,
+      chatroomIdTyped,
+      agentPanelData.sendCommand
     );
     setIsStartingAllAgents(false);
 
-    const failed = results
-      .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
-      .filter(Boolean) as string[];
+    const failed = getFailedAgentRoles(results, agentRoles);
     if (failed.length > 0) {
       toast.error(`Failed to start: ${failed.join(', ')}`);
     }
-  }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
+  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
 
   // Stop all remote agents confirmation dialog state
   const [stopAllConfirmOpen, setStopAllConfirmOpen] = useState(false);
@@ -974,15 +1046,17 @@ export function ChatroomDashboard({
   // Restart all remote agents handler — starts if stopped, restarts if running
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
   const handleRestartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    const agentRoles = getConfiguredAgentRoles();
+    if (!agentRoles) return;
 
-    // Check if all roles have a saved config
-    const missingRoles = agentRoles.filter((role) => !roleConfigMap.has(role.toLowerCase()));
-    if (missingRoles.length > 0) {
-      // Open settings modal at agents tab to configure
-      handleCmdOpenSettings('agents');
-      return;
-    }
+    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+    const reportStartResults = (failed: string[], successMessage: string) => {
+      if (failed.length > 0) {
+        toast.error(`Failed to start: ${failed.join(', ')}`);
+      } else {
+        toast.success(successMessage);
+      }
+    };
 
     // Get current agent states
     const runningAgents = agentPanelData.agents.filter((a) => a.state === 'running');
@@ -990,7 +1064,6 @@ export function ChatroomDashboard({
     // Stop all running agents first
     if (runningAgents.length > 0) {
       setIsRestartingAllAgents(true);
-      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
 
       // Stop all running agents
       await Promise.allSettled(
@@ -1009,69 +1082,43 @@ export function ChatroomDashboard({
       // Wait a bit for agents to stop before starting
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Start all agents (including ones that were stopped)
-      const results = await Promise.allSettled(
-        agentRoles.map((role) => {
-          const config = roleConfigMap.get(role.toLowerCase());
-          if (!config) return null;
-          return agentPanelData.sendCommand({
-            machineId: config.machineId,
-            type: 'start-agent' as const,
-            payload: {
-              chatroomId: chatroomIdTyped,
-              role,
-              model: config.model,
-              agentHarness: config.agentType,
-              workingDir: config.workingDir,
-            },
-          });
-        })
+      await runAgentStartBatch(
+        agentRoles,
+        roleConfigMap,
+        chatroomIdTyped,
+        agentPanelData.sendCommand,
+        (failed) => reportStartResults(failed, `Restarted ${agentRoles.length} agent(s)`)
       );
-
       setIsRestartingAllAgents(false);
-
-      const failed = results
-        .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
-        .filter(Boolean) as string[];
-      if (failed.length > 0) {
-        toast.error(`Failed to start: ${failed.join(', ')}`);
-      } else {
-        toast.success(`Restarted ${agentRoles.length} agent(s)`);
-      }
     } else {
-      // No agents running, just start them all
       setIsRestartingAllAgents(true);
-      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-      const results = await Promise.allSettled(
-        agentRoles.map((role) => {
-          const config = roleConfigMap.get(role.toLowerCase());
-          if (!config) return null;
-          return agentPanelData.sendCommand({
-            machineId: config.machineId,
-            type: 'start-agent' as const,
-            payload: {
-              chatroomId: chatroomIdTyped,
-              role,
-              model: config.model,
-              agentHarness: config.agentType,
-              workingDir: config.workingDir,
-            },
-          });
-        })
+      await runAgentStartBatch(
+        agentRoles,
+        roleConfigMap,
+        chatroomIdTyped,
+        agentPanelData.sendCommand,
+        (failed) => reportStartResults(failed, `Started ${agentRoles.length} agent(s)`)
       );
-
       setIsRestartingAllAgents(false);
-
-      const failed = results
-        .map((r, i) => (r.status === 'rejected' ? agentRoles[i] : null))
-        .filter(Boolean) as string[];
-      if (failed.length > 0) {
-        toast.error(`Failed to start: ${failed.join(', ')}`);
-      } else {
-        toast.success(`Started ${agentRoles.length} agent(s)`);
-      }
     }
-  }, [teamRoles, agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]);
+  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+
+  const sourceControlPanel = useMemo(
+    () => (
+      <SourceControlPanel
+        machineId={activeWorkspace?.machineId ?? ''}
+        workingDir={activeWorkspace?.workingDir ?? ''}
+        chatroomId={chatroomId}
+        onSendSelectionToComposer={handleExplorerSelectionToComposer}
+      />
+    ),
+    [
+      activeWorkspace?.machineId,
+      activeWorkspace?.workingDir,
+      chatroomId,
+      handleExplorerSelectionToComposer,
+    ]
+  );
 
   // Build command palette commands
   const { openDialog } = useCommandDialog();
@@ -1091,7 +1138,7 @@ export function ChatroomDashboard({
   // Handler to run a command from the command palette
   const handleRunCommand = useCallback(
     (commandName: string, script: string) => {
-      commandRunner.runCommand(commandName, script);
+      void commandRunner.runOrAttach(commandName, script);
       setTerminalOpen(true);
     },
     [commandRunner]
@@ -1387,18 +1434,19 @@ export function ChatroomDashboard({
         teamRoles={teamRoles}
         teamEntryPoint={teamEntryPoint}
       >
-        <>
-          <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-            <div className="flex flex-1 overflow-hidden relative min-h-0">
-              {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
-              <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
+        <WorkspaceFileLinkProvider onOpenFile={handleOpenInExplorer}>
+          <>
+            <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
+              <div className="flex flex-1 overflow-hidden relative min-h-0">
+                {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
+                <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
 
-              {/* File Explorer Left Sidebar — shown in explorer view */}
-              {activeView === 'explorer' &&
-                activeWorkspace &&
-                !fileTabs.expandedTabPath &&
-                explorerSidebarVisible && (
-                  <div className="relative shrink-0 w-64 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200">
+                {/* File Explorer Left Sidebar — shown in explorer view */}
+                {activeView === 'explorer' && activeWorkspace && explorerSidebarVisible && (
+                  <div
+                    className="relative shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden transition-all duration-200"
+                    style={{ width: explorerSidebarWidth }}
+                  >
                     <FileExplorerPanel
                       ref={fileExplorerPanelRef}
                       chatroomId={chatroomId}
@@ -1412,163 +1460,169 @@ export function ChatroomDashboard({
                       explorerSyncEnabled={explorerSyncEnabled}
                       onToggleSync={setExplorerSyncEnabled}
                     />
+                    <ExplorerSidebarResizeHandle
+                      widthPx={explorerSidebarWidth}
+                      onWidthChange={setExplorerSidebarWidth}
+                    />
                   </div>
                 )}
 
-              {/* Main Content Area */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {/* Content Toolbar — always renders, actions change based on active view */}
-                <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {activeView === 'messages' && (
-                      <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {activeView === 'explorer' && (
-                      <button
-                        className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
-                        onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
-                        title={
-                          explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
-                        }
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  {/* Content Toolbar — always renders, actions change based on active view */}
+                  <WorkspaceHeaderRow className="justify-between gap-2 px-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {activeView === 'messages' && (
+                        <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(activeView === 'explorer' || activeView === 'source-control') && (
+                        <button
+                          className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
+                          onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
+                          title={
+                            explorerSplitViewEnabled ? 'Hide messages panel' : 'Show messages panel'
+                          }
+                        >
+                          {explorerSplitViewEnabled ? (
+                            <MessageSquareOff size={14} />
+                          ) : (
+                            <MessageSquare size={14} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </WorkspaceHeaderRow>
+
+                  {/* When in explorer or source-control with split view enabled, show workspace + messages */}
+                  {(activeView === 'explorer' || activeView === 'source-control') &&
+                  explorerSplitViewEnabled ? (
+                    <ResizablePanelGroup
+                      className="flex-1 min-h-0"
+                      onLayoutChanged={handleExplorerSplitLayoutChanged}
+                    >
+                      <ResizablePanel
+                        id="explorer-split-left"
+                        defaultSize={explorerSplitSizes[0]}
+                        minSize={30}
+                        className="flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border"
                       >
-                        {explorerSplitViewEnabled ? (
-                          <MessageSquareOff size={14} />
+                        {activeView === 'explorer' ? (
+                          <ExplorerContent
+                            fileTabs={fileTabs}
+                            activeWorkspace={activeWorkspace}
+                            onOpenPreview={handleOpenPreview}
+                            onOpenTableView={handleOpenTableView}
+                            onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                          />
                         ) : (
-                          <MessageSquare size={14} />
+                          sourceControlPanel
                         )}
-                      </button>
-                    )}
-                  </div>
+                      </ResizablePanel>
+                      <ResizableHandle />
+                      <ResizablePanel
+                        id="explorer-split-right"
+                        defaultSize={explorerSplitSizes[1]}
+                        minSize={25}
+                        className="flex flex-col min-h-0 h-full overflow-hidden"
+                      >
+                        <RightSplitPanel
+                          chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                          messagesPanelProps={{
+                            coordinator: timelineScrollCoordinator,
+                            onRegisterOpenEventStream: handleRegisterOpenEventStream,
+                            onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
+                            machines: machineNameMap,
+                            onBeforeResize: beginResize,
+                            onAfterResize: endResize,
+                            onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                            autocompleteFiles,
+                            refreshAutocompleteFiles,
+                            hasAutocompleteWorkspace,
+                          }}
+                          selectedHarnessSessionId={selectedHarnessSessionId}
+                          setSelectedHarnessSessionId={setSelectedHarnessSessionId}
+                          mode={splitMode}
+                          setMode={setSplitMode}
+                        />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  ) : activeView === 'messages' ? (
+                    /* Message Feed — shown in messages view */
+                    <ChatroomMessagesPanel
+                      chatroomId={chatroomId}
+                      coordinator={timelineScrollCoordinator}
+                      onRegisterOpenEventStream={handleRegisterOpenEventStream}
+                      onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
+                      machines={machineNameMap}
+                      viewMode={messageViewMode}
+                      footer={
+                        <div className="shrink-0 border-t-2 border-chatroom-border-strong">
+                          <MessageInput
+                            chatroomId={chatroomId}
+                            onBeforeResize={beginResize}
+                            onAfterResize={endResize}
+                            onRegisterFocus={handleRegisterSendFormFocus}
+                            files={autocompleteFiles}
+                            hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+                            onAtTriggerActivate={refreshAutocompleteFiles}
+                          />
+                        </div>
+                      }
+                    />
+                  ) : activeView === 'direct-harness' ? (
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
+                    </div>
+                  ) : activeView === 'source-control' ? (
+                    sourceControlPanel
+                  ) : activeView === 'pull-requests' ? (
+                    /* Pull Requests — replaces the entire workspace area */
+                    <PullRequestsPanel
+                      machineId={activeWorkspace?.machineId ?? ''}
+                      workingDir={activeWorkspace?.workingDir ?? ''}
+                    />
+                  ) : activeView === 'processes' ? (
+                    /* Processes — command launcher / process manager */
+                    <ProcessesPanel
+                      machineId={activeWorkspace?.machineId}
+                      workingDir={activeWorkspace?.workingDir}
+                      commands={commandRunner.commands}
+                      runs={commandRunner.runs}
+                      activeRunOutput={activeRunOutput}
+                      onRunCommand={handleRunFromProcessesPanel}
+                      onStopCommand={(runId) => commandRunner.stopCommand(runId)}
+                      onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
+                      onClearRun={() => commandRunner.setActiveRunId(null)}
+                      initialSelectedCommand={processesInitialCommand}
+                      onConsumedInitialCommand={() => setProcessesInitialCommand(null)}
+                    />
+                  ) : (
+                    /* Explorer view — file tabs + content or empty state (no split) */
+                    <ExplorerContent
+                      fileTabs={fileTabs}
+                      activeWorkspace={activeWorkspace}
+                      onOpenPreview={handleOpenPreview}
+                      onOpenTableView={handleOpenTableView}
+                      onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                    />
+                  )}
                 </div>
 
-                {/* When in explorer view with split view enabled, show both explorer and messages */}
-                {activeView === 'explorer' && explorerSplitViewEnabled ? (
-                  <ResizablePanelGroup
-                    className="flex-1 min-h-0"
-                    onLayoutChanged={handleExplorerSplitLayoutChanged}
-                  >
-                    <ResizablePanel
-                      id="explorer-split-left"
-                      defaultSize={explorerSplitSizes[0]}
-                      minSize={30}
-                      className="flex flex-col min-h-0 overflow-hidden border-r border-chatroom-border"
-                    >
-                      <ExplorerContent
-                        fileTabs={fileTabs}
-                        activeWorkspace={activeWorkspace}
-                        onOpenPreview={handleOpenPreview}
-                        onOpenTableView={handleOpenTableView}
-                        onSendSelectionToComposer={handleExplorerSelectionToComposer}
-                      />
-                    </ResizablePanel>
-                    <ResizableHandle />
-                    <ResizablePanel
-                      id="explorer-split-right"
-                      defaultSize={explorerSplitSizes[1]}
-                      minSize={25}
-                      className="flex flex-col min-h-0 h-full overflow-hidden"
-                    >
-                      <RightSplitPanel
-                        chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                        messagesPanelProps={{
-                          coordinator: timelineScrollCoordinator,
-                          onRegisterOpenEventStream: handleRegisterOpenEventStream,
-                          onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
-                          machines: machineNameMap,
-                          onBeforeResize: beginResize,
-                          onAfterResize: endResize,
-                          onRegisterSendFormFocus: handleRegisterSendFormFocus,
-                          autocompleteFiles,
-                          refreshAutocompleteFiles,
-                        }}
-                        selectedHarnessSessionId={selectedHarnessSessionId}
-                        setSelectedHarnessSessionId={setSelectedHarnessSessionId}
-                        mode={splitMode}
-                        setMode={setSplitMode}
-                      />
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
-                ) : activeView === 'messages' ? (
-                  /* Message Feed — shown in messages view */
-                  <ChatroomMessagesPanel
-                    chatroomId={chatroomId}
-                    coordinator={timelineScrollCoordinator}
-                    onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                    onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
-                    machines={machineNameMap}
-                    viewMode={messageViewMode}
-                    footer={
-                      <div className="shrink-0 border-t-2 border-chatroom-border-strong">
-                        <MessageInput
-                          chatroomId={chatroomId}
-                          onBeforeResize={beginResize}
-                          onAfterResize={endResize}
-                          onRegisterFocus={handleRegisterSendFormFocus}
-                          files={autocompleteFiles}
-                          onAtTriggerActivate={refreshAutocompleteFiles}
-                        />
-                      </div>
-                    }
-                  />
-                ) : activeView === 'direct-harness' ? (
-                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <DirectHarnessView chatroomId={chatroomId as Id<'chatroom_rooms'>} />
-                  </div>
-                ) : activeView === 'source-control' ? (
-                  /* Source Control — replaces the entire workspace area */
-                  <SourceControlPanel
-                    machineId={activeWorkspace?.machineId ?? ''}
-                    workingDir={activeWorkspace?.workingDir ?? ''}
-                    chatroomId={chatroomId}
-                  />
-                ) : activeView === 'pull-requests' ? (
-                  /* Pull Requests — replaces the entire workspace area */
-                  <PullRequestsPanel
-                    machineId={activeWorkspace?.machineId ?? ''}
-                    workingDir={activeWorkspace?.workingDir ?? ''}
-                  />
-                ) : activeView === 'processes' ? (
-                  /* Processes — command launcher / process manager */
-                  <ProcessesPanel
-                    machineId={activeWorkspace?.machineId}
-                    workingDir={activeWorkspace?.workingDir}
-                    commands={commandRunner.commands}
-                    runs={commandRunner.runs}
-                    activeRunOutput={activeRunOutput}
-                    onRunCommand={handleRunFromProcessesPanel}
-                    onStopCommand={(runId) => commandRunner.stopCommand(runId)}
-                    onSelectRun={(runId) => commandRunner.setActiveRunId(runId)}
-                    onClearRun={() => commandRunner.setActiveRunId(null)}
-                    initialSelectedCommand={processesInitialCommand}
-                    onConsumedInitialCommand={() => setProcessesInitialCommand(null)}
-                  />
-                ) : (
-                  /* Explorer view — file tabs + content or empty state (no split) */
-                  <ExplorerContent
-                    fileTabs={fileTabs}
-                    activeWorkspace={activeWorkspace}
-                    onOpenPreview={handleOpenPreview}
-                    onOpenTableView={handleOpenTableView}
-                    onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                {/* Sidebar Overlay for mobile - below app header */}
+                {sidebarVisible && isSmallScreen && (
+                  <div
+                    className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                    onClick={toggleSidebar}
                   />
                 )}
-              </div>
 
-              {/* Sidebar Overlay for mobile - below app header */}
-              {sidebarVisible && isSmallScreen && (
+                {/* Sidebar - positioned below app header on mobile */}
+                {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+                {/* On mobile: uses fixed positioning with translate for overlay effect */}
                 <div
-                  className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
-                  onClick={toggleSidebar}
-                />
-              )}
-
-              {/* Sidebar - positioned below app header on mobile */}
-              {/* On desktop: transitions width to 0 when hidden so chat fills space */}
-              {/* On mobile: uses fixed positioning with translate for overlay effect */}
-              <div
-                className={`
+                  className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
@@ -1577,152 +1631,153 @@ export function ChatroomDashboard({
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
-              >
-                <AgentPanel
-                  chatroomId={chatroomId}
-                  teamRoles={teamRoles}
-                  lifecycle={lifecycle}
-                  teamName={chatroom.teamName}
-                  teamId={chatroom.teamId}
-                  defaultTeamId={defaultTeamId}
-                  teams={teams}
-                  onTeamChange={handleTeamChange}
-                  agentConfigs={agentPanelData.machineConfigs}
-                  onConfigure={handleOpenSettings}
-                  onOpenAgents={handleOpenAgents}
-                />
-                <WorkQueue
-                  chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                  lifecycle={lifecycle}
-                  onRegisterActions={handleRegisterWorkQueueActions}
-                  onTaskDeleted={handleTaskDeleted}
-                />
+                >
+                  <AgentPanel
+                    chatroomId={chatroomId}
+                    teamRoles={teamRoles}
+                    lifecycle={lifecycle}
+                    teamName={chatroom.teamName}
+                    teamId={chatroom.teamId}
+                    defaultTeamId={defaultTeamId}
+                    teams={teams}
+                    onTeamChange={handleTeamChange}
+                    agentConfigs={agentPanelData.machineConfigs}
+                    onConfigure={handleOpenSettings}
+                    onOpenAgents={handleOpenAgents}
+                  />
+                  <WorkQueue
+                    chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                    lifecycle={lifecycle}
+                    onRegisterActions={handleRegisterWorkQueueActions}
+                    onTaskDeleted={handleTaskDeleted}
+                  />
+                </div>
               </div>
+              <WorkspaceBottomBar
+                workspaces={chatroomWorkspaces}
+                chatroomId={chatroomId}
+                refreshObservedChatroom={refreshObservedChatroom}
+                onSwitchToSourceControl={handleSwitchToSourceControl}
+              />
             </div>
-            <WorkspaceBottomBar
-              workspaces={chatroomWorkspaces}
-              chatroomId={chatroomId}
-              refreshObservedChatroom={refreshObservedChatroom}
-              onSwitchToSourceControl={handleSwitchToSourceControl}
+
+            <PromptModal
+              isOpen={modalState.isOpen}
+              onClose={handleCloseModal}
+              role={modalState.role}
             />
-          </div>
 
-          <PromptModal
-            isOpen={modalState.isOpen}
-            onClose={handleCloseModal}
-            role={modalState.role}
-          />
+            <AgentSettingsModal
+              isOpen={settingsModalOpen}
+              onClose={handleCloseSettings}
+              chatroomId={chatroomId}
+              currentTeamId={chatroom?.teamId}
+              currentTeamRoles={teamRoles}
+              initialTab={settingsInitialTab}
+            />
 
-          <AgentSettingsModal
-            isOpen={settingsModalOpen}
-            onClose={handleCloseSettings}
-            chatroomId={chatroomId}
-            currentTeamId={chatroom?.teamId}
-            currentTeamRoles={teamRoles}
-            initialTab={settingsInitialTab}
-          />
+            <FileSelectorModal
+              open={fileSelector.open}
+              onOpenChange={fileSelector.setOpen}
+              files={fileSelector.files}
+              recentFiles={fileSelector.recentFiles}
+              onSelectFile={handleCmdPFileSelect}
+              isLoading={fileSelector.isLoading}
+              hasWorkspace={fileSelector.hasWorkspace}
+            />
 
-          <FileSelectorModal
-            open={fileSelector.open}
-            onOpenChange={fileSelector.setOpen}
-            files={fileSelector.files}
-            recentFiles={fileSelector.recentFiles}
-            onSelectFile={handleCmdPFileSelect}
-            isLoading={fileSelector.isLoading}
-            hasWorkspace={fileSelector.hasWorkspace}
-          />
+            <FilePreviewDialog
+              filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+              machineId={activeWorkspace?.machineId ?? null}
+              workingDir={activeWorkspace?.workingDir ?? null}
+              onClose={handleFilePreviewClose}
+              files={fileSelector.files}
+              onSelectFile={fileSelector.selectFile}
+              onOpenInExplorer={handleOpenInExplorer}
+            />
 
-          <FilePreviewDialog
-            filePath={!fileSelector.open ? fileSelector.selectedFile : null}
-            machineId={activeWorkspace?.machineId ?? null}
-            workingDir={activeWorkspace?.workingDir ?? null}
-            onClose={handleFilePreviewClose}
-            files={fileSelector.files}
-            onSelectFile={fileSelector.selectFile}
-            onOpenInExplorer={handleOpenInExplorer}
-          />
+            {/* Setup modal - only shown during setup mode */}
+            <SetupChecklistModal
+              isOpen={isSetupMode && setupModalOpen}
+              onClose={handleCloseSetup}
+              chatroomId={chatroomId}
+              teamRoles={teamRoles}
+              teamEntryPoint={teamEntryPoint}
+              participants={participants || []}
+              chatroomName={displayName}
+              onRenameChatroom={handleRenameChatroom}
+            />
 
-          {/* Setup modal - only shown during setup mode */}
-          <SetupChecklistModal
-            isOpen={isSetupMode && setupModalOpen}
-            onClose={handleCloseSetup}
-            chatroomId={chatroomId}
-            teamRoles={teamRoles}
-            teamEntryPoint={teamEntryPoint}
-            participants={participants || []}
-            chatroomName={displayName}
-            onRenameChatroom={handleRenameChatroom}
-          />
+            {/* Saved Command Modal */}
+            <SavedCommandModal
+              isOpen={savedCommandModalOpen}
+              chatroomId={chatroomId}
+              onClose={handleCloseSavedCommandModal}
+              initial={savedCommandEditTarget}
+              existingNames={savedCommands.map((c) => c.name)}
+            />
 
-          {/* Saved Command Modal */}
-          <SavedCommandModal
-            isOpen={savedCommandModalOpen}
-            chatroomId={chatroomId}
-            onClose={handleCloseSavedCommandModal}
-            initial={savedCommandEditTarget}
-            existingNames={savedCommands.map((c) => c.name)}
-          />
+            {/* Command Palette (Cmd+Shift+P) */}
+            <CommandPalette commands={commands} inlineCommand={inlineCommand} />
+            <WorkspaceCommandsAggregator
+              workspaces={chatroomWorkspaces}
+              callbacks={workspaceCommandCallbacks}
+              onCommandsChange={setWorkspaceCommands}
+            />
 
-          {/* Command Palette (Cmd+Shift+P) */}
-          <CommandPalette commands={commands} inlineCommand={inlineCommand} />
-          <WorkspaceCommandsAggregator
-            workspaces={chatroomWorkspaces}
-            callbacks={workspaceCommandCallbacks}
-            onCommandsChange={setWorkspaceCommands}
-          />
-
-          {/* Terminal Output Panel */}
-          <TerminalOutputPanel
-            open={terminalOpen}
-            onOpenChange={setTerminalOpen}
-            commandName={activeRunOutput.run?.commandName ?? null}
-            status={activeRunOutput.run?.status ?? null}
-            terminationReason={activeRunOutput.run?.terminationReason}
-            output={activeRunOutput.chunks.map((c: any) => c.content).join('')}
-            onStop={() => {
-              if (commandRunner.activeRunId) {
-                commandRunner.stopCommand(commandRunner.activeRunId);
-              }
-            }}
-            onRestart={() => {
-              const run = activeRunOutput.run;
-              if (run) {
-                const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
-                if (cmd) {
-                  handleRunCommand(cmd.name, cmd.script);
+            {/* Terminal Output Panel */}
+            <TerminalOutputPanel
+              open={terminalOpen}
+              onOpenChange={setTerminalOpen}
+              commandName={activeRunOutput.run?.commandName ?? null}
+              status={activeRunOutput.run?.status ?? null}
+              terminationReason={activeRunOutput.run?.terminationReason}
+              output={activeRunOutput.chunks.map((c: any) => c.content).join('')}
+              onStop={() => {
+                if (commandRunner.activeRunId) {
+                  commandRunner.stopCommand(commandRunner.activeRunId);
                 }
-              }
-            }}
-          />
+              }}
+              onRestart={() => {
+                const run = activeRunOutput.run;
+                if (run) {
+                  const cmd = commandRunner.commands.find((c: any) => c.name === run.commandName);
+                  if (cmd) {
+                    handleRunCommand(cmd.name, cmd.script);
+                  }
+                }
+              }}
+            />
 
-          {/* Stop All Agents Confirmation Dialog */}
-          <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
-            <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-chatroom-text-primary">
-                  Stop all remote agents?
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-chatroom-text-secondary">
-                  This will terminate all running agents in this chatroom.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="border-t border-chatroom-border pt-4">
-                <AlertDialogCancel
-                  onClick={() => setStopAllConfirmOpen(false)}
-                  className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
-                >
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={executeStopAllRemoteAgents}
-                  className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
-                >
-                  Stop All Agents
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
+            {/* Stop All Agents Confirmation Dialog */}
+            <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
+              <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-chatroom-text-primary">
+                    Stop all remote agents?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-chatroom-text-secondary">
+                    This will terminate all running agents in this chatroom.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="border-t border-chatroom-border pt-4">
+                  <AlertDialogCancel
+                    onClick={() => setStopAllConfirmOpen(false)}
+                    className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={executeStopAllRemoteAgents}
+                    className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
+                  >
+                    Stop All Agents
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        </WorkspaceFileLinkProvider>
       </PromptsProvider>
     </AttachmentsProvider>
   );

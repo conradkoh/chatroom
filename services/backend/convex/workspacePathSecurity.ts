@@ -10,34 +10,43 @@ export function validateWorkingDir(workingDir: string): void {
     throw new Error('Working directory cannot be empty');
   }
 
-  if (workingDir.length > 1024) {
+  const candidate = workingDir.trim();
+
+  if (candidate.length > 1024) {
     throw new Error('Working directory path is too long (max 1024 characters)');
   }
 
   // Must be an absolute path
-  if (!workingDir.startsWith('/')) {
+  if (!candidate.startsWith('/')) {
     throw new Error('Working directory must be an absolute path (starting with /)');
   }
 
   // Reject null bytes
-  if (workingDir.includes('\0')) {
+  if (candidate.includes('\0')) {
     throw new Error('Working directory contains invalid characters (null byte)');
   }
 
   // Reject newlines / carriage returns
-  if (/[\n\r]/.test(workingDir)) {
+  if (/[\n\r]/.test(candidate)) {
     throw new Error('Working directory must not contain newlines');
   }
 
   // Reject shell metacharacters that could enable injection
   // These have no legitimate use in directory paths
   const shellMetaChars = /[;|&$`(){}<>!#~\\]/;
-  if (shellMetaChars.test(workingDir)) {
+  if (shellMetaChars.test(candidate)) {
     throw new Error(
       'Working directory contains disallowed characters. ' +
         'Only alphanumeric characters, hyphens, underscores, dots, slashes, and spaces are allowed.'
     );
   }
+}
+
+/** Canonical workspace root path for registry keys and daemon requests. */
+export function normalizeWorkingDir(workingDir: string): string {
+  const trimmed = workingDir.trim();
+  validateWorkingDir(trimmed);
+  return trimmed.replace(/[/\\]+$/, '');
 }
 
 /**
@@ -66,18 +75,29 @@ export function validateDirPath(dirPath: string): void {
   if (dirPath.includes('\0')) throw new Error('Invalid directory path');
 }
 
+// fallow-ignore-next-line complexity
 export async function requireRegisteredWorkspaceForMachine(
   ctx: QueryCtx | MutationCtx,
   machineId: string,
   workingDir: string
 ): Promise<void> {
-  validateWorkingDir(workingDir);
-  const workspace = await ctx.db
+  const normalizedWorkingDir = normalizeWorkingDir(workingDir);
+  let workspace = await ctx.db
     .query('chatroom_workspaces')
     .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
+      q.eq('machineId', machineId).eq('workingDir', normalizedWorkingDir)
     )
     .first();
+
+  if (!workspace && normalizedWorkingDir !== workingDir.trim()) {
+    workspace = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', machineId).eq('workingDir', workingDir.trim())
+      )
+      .first();
+  }
+
   if (!workspace || workspace.removedAt !== undefined) {
     throw new Error('Workspace not registered for this machine');
   }

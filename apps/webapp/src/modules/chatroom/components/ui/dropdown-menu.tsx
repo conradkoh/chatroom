@@ -61,7 +61,7 @@ function DropdownMenuItem({
     <DropdownMenuPrimitive.Item
       data-slot="chatroom-dropdown-menu-item"
       className={cn(
-        'relative flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         chatroomDropdownMenuItemHighlightClassName,
         className
       )}
@@ -97,10 +97,24 @@ function DropdownMenuCheckboxItem({
   );
 }
 
+function DropdownMenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
+  return (
+    <DropdownMenuPrimitive.Separator
+      data-slot="chatroom-dropdown-menu-separator"
+      className={cn('bg-chatroom-border -mx-0 my-0.5 h-px', className)}
+      {...props}
+    />
+  );
+}
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
 };

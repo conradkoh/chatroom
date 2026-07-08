@@ -2,13 +2,12 @@
 
 import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 
+import { chatroomRemarkPlugins } from '../components/chatroomRemarkPlugins';
 import { fullMarkdownComponents, inlineEventProseClassNames } from '../components/markdown-utils';
-import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 import { useEventStreamMachine } from '../context/EventStreamMachineContext';
 import { getMachineDisplayName } from '../types/machine';
+import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 
 // ─── Machine Detail Row ──────────────────────────────────────────────────────
 
@@ -189,10 +188,7 @@ export const MarkdownDetailBlock = memo(function MarkdownDetailBlock({
         {label}
       </span>
       <div className={`mt-1 ${inlineEventProseClassNames}`}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks]}
-          components={fullMarkdownComponents}
-        >
+        <ReactMarkdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
           {content}
         </ReactMarkdown>
       </div>

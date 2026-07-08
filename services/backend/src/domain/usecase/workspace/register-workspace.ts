@@ -13,7 +13,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { validateWorkingDir } from '../../../../convex/workspacePathSecurity';
+import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
 import type { WorkspaceRegistration } from '../../entities/workspace';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -29,8 +29,7 @@ export async function registerWorkspace(
   input: RegisterWorkspaceInput
 ): Promise<RegisterWorkspaceResult> {
   const { chatroomId, machineId, workingDir, hostname, registeredBy } = input;
-
-  validateWorkingDir(workingDir);
+  const normalizedWorkingDir = normalizeWorkingDir(workingDir);
 
   // Look up existing workspace by the unique triple
   const existing = await ctx.db
@@ -39,7 +38,7 @@ export async function registerWorkspace(
       q
         .eq('chatroomId', chatroomId as Id<'chatroom_rooms'>)
         .eq('machineId', machineId)
-        .eq('workingDir', workingDir)
+        .eq('workingDir', normalizedWorkingDir)
     )
     .first();
 
@@ -61,7 +60,7 @@ export async function registerWorkspace(
   const id = await ctx.db.insert('chatroom_workspaces', {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     machineId,
-    workingDir,
+    workingDir: normalizedWorkingDir,
     hostname,
     registeredBy,
     registeredAt: Date.now(),
