@@ -186,11 +186,20 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('groups idle chatrooms into Last Week, Last Month, and Older sections', () => {
+  it('groups idle chatrooms into Last Day, Last Week, Last Month, and Older sections', () => {
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
+    const startOfYesterday = new Date(now);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    startOfYesterday.setHours(0, 0, 0, 0);
 
     renderSidebar([
+      makeChatroom({
+        _id: 'day',
+        name: 'Day Chat',
+        chatStatus: 'idle',
+        lastActivityAt: startOfYesterday.getTime() + 60_000,
+      }),
       makeChatroom({
         _id: 'week',
         name: 'Week Chat',
@@ -211,9 +220,11 @@ describe('ChatroomSidebar', () => {
       }),
     ]);
 
+    expect(screen.getByText('Last Day')).toBeInTheDocument();
     expect(screen.getByText('Last Week')).toBeInTheDocument();
     expect(screen.getByText('Last Month')).toBeInTheDocument();
     expect(screen.getByText('Older')).toBeInTheDocument();
+    expect(screen.getByText('Day Chat')).toBeInTheDocument();
     expect(screen.getByText('Week Chat')).toBeInTheDocument();
     expect(screen.getByText('Month Chat')).toBeInTheDocument();
     expect(screen.getByText('Older Chat')).toBeInTheDocument();
