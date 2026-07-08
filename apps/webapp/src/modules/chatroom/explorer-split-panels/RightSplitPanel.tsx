@@ -21,6 +21,7 @@ import {
   type ExplorerSplitPanelMode,
 } from '../hooks/persistence/useExplorerSplitPanelMode';
 import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
+import { WorkspaceTabBarShell } from '../workspace/components/WorkspaceTabBar';
 
 import {
   Select,
@@ -67,31 +68,33 @@ function RightSplitPanelHeader({
   setMessageViewMode: (mode: MessageViewMode) => void;
 }) {
   return (
-    <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
-      {mode === 'messages' ? (
-        <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
-      ) : (
-        <div aria-hidden="true" />
-      )}
-      <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
-        <SelectTrigger
-          size="sm"
-          className="!h-6 py-0 px-2 text-[10px] w-36 shrink-0 bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none [&_svg]:size-3"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent
-          align="end"
-          className="bg-chatroom-bg-surface border border-chatroom-border rounded-none"
-        >
-          {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
-            <SelectItem key={m} value={m} className="text-xs">
-              {MODE_LABELS[m]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <WorkspaceTabBarShell testId="right-split-panel-header">
+      <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 px-2">
+        {mode === 'messages' ? (
+          <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+        ) : (
+          <div aria-hidden="true" />
+        )}
+        <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
+          <SelectTrigger
+            size="sm"
+            className="!h-6 py-0 px-2 text-[10px] w-36 shrink-0 bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none [&_svg]:size-3"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent
+            align="end"
+            className="bg-chatroom-bg-surface border border-chatroom-border rounded-none"
+          >
+            {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
+              <SelectItem key={m} value={m} className="text-xs">
+                {MODE_LABELS[m]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </WorkspaceTabBarShell>
   );
 }
 

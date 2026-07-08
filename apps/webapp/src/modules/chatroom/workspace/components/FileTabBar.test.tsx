@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { FileTabBar } from './FileTabBar';
 import { RightPaneTabBar } from './RightPaneTabBar';
+import { WORKSPACE_HEADER_ROW_HEIGHT_CLASS } from './WorkspaceTabBar';
 import type { FileTab } from '../hooks/useFileTabs';
 import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
 
@@ -102,8 +103,9 @@ describe('FileTabBar', () => {
 
     const bar = screen.getByTestId('file-tab-bar');
     expect(bar.className).toMatch(/flex-wrap/);
-    expect(bar.className).toMatch(/min-h-8/);
-    expect(bar.className).toMatch(/max-h-16/);
+    for (const token of WORKSPACE_HEADER_ROW_HEIGHT_CLASS.split(/\s+/)) {
+      expect(bar.className).toContain(token);
+    }
   });
 
   it('calls onToggleExpanded when double-clicking a pinned tab', () => {

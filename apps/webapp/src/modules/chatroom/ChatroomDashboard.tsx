@@ -80,6 +80,7 @@ import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane'
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
+import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
@@ -1451,7 +1452,7 @@ export function ChatroomDashboard({
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                   {/* Content Toolbar — always renders, actions change based on active view */}
-                  <div className="shrink-0 h-8 border-b border-chatroom-border flex items-center justify-between gap-2 px-2">
+                  <WorkspaceHeaderRow className="justify-between gap-2 px-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {activeView === 'messages' && (
                         <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
@@ -1474,7 +1475,7 @@ export function ChatroomDashboard({
                         </button>
                       )}
                     </div>
-                  </div>
+                  </WorkspaceHeaderRow>
 
                   {/* When in explorer or source-control with split view enabled, show workspace + messages */}
                   {(activeView === 'explorer' || activeView === 'source-control') &&

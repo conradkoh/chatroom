@@ -7,10 +7,35 @@ import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
 import { cn } from '@/lib/utils';
 
+// ─── Shared header row ────────────────────────────────────────────────────────
+
+/**
+ * Fixed height for every workspace header row (tab bars, panel headers, toolbars).
+ * Single source of truth — children center inside this box and cannot expand it.
+ */
+// fallow-ignore-next-line unused-export
+export const WORKSPACE_HEADER_ROW_HEIGHT_CLASS = 'h-9';
+
+/** Border/background/flex styling shared by tab bars and split-panel headers. */
+// fallow-ignore-next-line unused-export
+export const WORKSPACE_HEADER_ROW_BASE_CLASS =
+  'shrink-0 flex box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface overflow-hidden';
+
+/** Fixed-height header row for panel toolbars (content toolbar). */
+// fallow-ignore-next-line unused-export
+export const WORKSPACE_HEADER_ROW_CLASS = cn(
+  WORKSPACE_HEADER_ROW_BASE_CLASS,
+  WORKSPACE_HEADER_ROW_HEIGHT_CLASS,
+  'items-center'
+);
+
 // ─── Shared container ─────────────────────────────────────────────────────────
 
-const WORKSPACE_TAB_BAR_CLASS =
-  'flex flex-wrap items-center min-h-8 max-h-16 overflow-y-auto overflow-x-hidden box-border border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface shrink-0';
+const WORKSPACE_TAB_BAR_CLASS = cn(
+  WORKSPACE_HEADER_ROW_BASE_CLASS,
+  WORKSPACE_HEADER_ROW_HEIGHT_CLASS,
+  'items-stretch flex-wrap overflow-x-hidden overflow-y-auto'
+);
 
 interface WorkspaceTabBarShellProps {
   testId?: string;
@@ -23,6 +48,25 @@ export const WorkspaceTabBarShell = memo(function WorkspaceTabBarShell({
 }: WorkspaceTabBarShellProps) {
   return (
     <div data-testid={testId} className={WORKSPACE_TAB_BAR_CLASS}>
+      {children}
+    </div>
+  );
+});
+
+interface WorkspaceHeaderRowProps {
+  testId?: string;
+  className?: string;
+  children: ReactNode;
+}
+
+/** Non-tab header row (e.g. content toolbar) — same fixed height as tab bar shells. */
+export const WorkspaceHeaderRow = memo(function WorkspaceHeaderRow({
+  testId,
+  className,
+  children,
+}: WorkspaceHeaderRowProps) {
+  return (
+    <div data-testid={testId} className={cn(WORKSPACE_HEADER_ROW_CLASS, className)}>
       {children}
     </div>
   );
@@ -56,12 +100,12 @@ export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
   return (
     <div
       className={cn(
-        'group flex shrink-0 items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none',
+        'group flex h-full shrink-0 items-center gap-1.5 px-3 cursor-pointer select-none box-border',
         'border-r border-chatroom-border text-[13px] min-w-0 max-w-[180px]',
         'transition-colors duration-75',
         isActive
-          ? 'bg-chatroom-bg-primary text-chatroom-text-primary box-border border-b-2 border-b-chatroom-accent'
-          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover box-border border-b-2 border-b-transparent'
+          ? 'bg-chatroom-bg-primary text-chatroom-text-primary border-b-2 border-b-chatroom-accent'
+          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover border-b-2 border-b-transparent'
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
