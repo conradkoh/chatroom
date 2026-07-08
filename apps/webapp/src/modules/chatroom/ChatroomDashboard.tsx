@@ -87,8 +87,10 @@ import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import {
   editorPaneFlexClass,
   isEditorExpanded,
+  isPreviewExpanded,
   previewPaneFlexClass,
 } from './workspace/utils/editorExpandLayout';
+import { previewTabDoubleClickAction } from './workspace/utils/explorerExpandHandlers';
 
 import {
   AlertDialog,
@@ -195,13 +197,24 @@ const ExplorerContent = memo(function ExplorerContent({
 }: ExplorerContentProps) {
   const hasSplit = fileTabs.rightTabs.length > 0;
   const showTabBar = fileTabs.tabs.length > 0;
-  const isExpanded = isEditorExpanded(hasSplit, fileTabs.expandedTabPath, fileTabs.activeTabPath);
+  const editorExpanded = isEditorExpanded(
+    hasSplit,
+    fileTabs.expandedTabPath,
+    fileTabs.expandedPane,
+    fileTabs.activeTabPath
+  );
+  const previewExpanded = isPreviewExpanded(
+    hasSplit,
+    fileTabs.expandedTabPath,
+    fileTabs.expandedPane,
+    fileTabs.activeTabPath
+  );
 
-  const handleToggleEditorExpanded = useCallback(() => {
+  const handleTogglePreviewExpanded = useCallback(() => {
     if (fileTabs.activeTabPath) {
-      fileTabs.toggleExpanded(fileTabs.activeTabPath);
+      fileTabs.togglePreviewExpanded(fileTabs.activeTabPath);
     }
-  }, [fileTabs.activeTabPath, fileTabs.toggleExpanded]);
+  }, [fileTabs.activeTabPath, fileTabs.togglePreviewExpanded]);
 
   const fileTabBar = showTabBar ? (
     <FileTabBar
@@ -229,7 +242,10 @@ const ExplorerContent = memo(function ExplorerContent({
             className={cn(
               'flex flex-col min-h-0 overflow-hidden',
               hasSplit
-                ? cn(editorPaneFlexClass(isExpanded, hasSplit), 'border-r border-chatroom-border')
+                ? cn(
+                    editorPaneFlexClass(editorExpanded, previewExpanded, hasSplit),
+                    'border-r border-chatroom-border'
+                  )
                 : 'flex-1'
             )}
           >
@@ -261,7 +277,7 @@ const ExplorerContent = memo(function ExplorerContent({
             <div
               className={cn(
                 'flex flex-col min-h-0 overflow-hidden',
-                previewPaneFlexClass(isExpanded)
+                previewPaneFlexClass(editorExpanded, previewExpanded)
               )}
             >
               <RightPaneTabBar
@@ -270,8 +286,9 @@ const ExplorerContent = memo(function ExplorerContent({
                 onActivate={fileTabs.setActiveRightTab}
                 onClose={fileTabs.closeRight}
                 onTabDoubleClick={(tab) => {
-                  if (tab.viewType === 'preview' && fileTabs.activeTabPath) {
-                    fileTabs.toggleExpanded(fileTabs.activeTabPath);
+                  const action = previewTabDoubleClickAction(tab.viewType, fileTabs.activeTabPath);
+                  if (action?.action === 'togglePreviewExpanded') {
+                    fileTabs.togglePreviewExpanded(action.filePath);
                   }
                 }}
               />
@@ -290,7 +307,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       machineId={mw}
                       workingDir={wd}
                       filePath={activeRight.filePath}
-                      onDoubleClick={handleToggleEditorExpanded}
+                      onDoubleClick={handleTogglePreviewExpanded}
                     />
                   );
                 }

@@ -12,6 +12,7 @@ import {
 } from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
 import { copyFullPathToClipboard, copyRelativePathToClipboard } from '../utils/clipboard';
+import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,10 +138,11 @@ const FileTabItem = memo(function FileTabItem({
   onContextMenu: (filePath: string, event: React.MouseEvent) => void;
 }) {
   const handleDoubleClick = useCallback(() => {
-    if (tab.isPinned) {
-      onToggleExpanded?.(tab.filePath);
+    const action = fileTabDoubleClickExpandAction(tab.isPinned, tab.filePath);
+    if (action.action === 'toggleEditorExpanded') {
+      onToggleExpanded?.(action.filePath);
     } else {
-      onPin(tab.filePath);
+      onPin(action.filePath);
     }
   }, [onPin, onToggleExpanded, tab.filePath, tab.isPinned]);
 

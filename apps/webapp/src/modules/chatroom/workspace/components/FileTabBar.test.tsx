@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FileTabBar } from './FileTabBar';
 import { RightPaneTabBar } from './RightPaneTabBar';
 import type { FileTab } from '../hooks/useFileTabs';
+import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -147,6 +148,12 @@ describe('FileTabBar', () => {
     fireEvent.doubleClick(screen.getByTitle('src/a.md'));
 
     expect(onTabDoubleClick).toHaveBeenCalledWith(previewTab);
+  });
+
+  it('preview tab double-click should target preview expand not editor expand', () => {
+    const result = previewTabDoubleClickAction('preview', 'src/a.md');
+    expect(result?.action).toBe('togglePreviewExpanded');
+    expect(result?.action).not.toBe('toggleExpanded');
   });
 
   it('RightPaneTabBar uses the same shared tab bar shell', () => {
