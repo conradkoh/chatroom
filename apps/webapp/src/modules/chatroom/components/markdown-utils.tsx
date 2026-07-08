@@ -129,7 +129,7 @@ function WorkspaceFileLinkButton({ href, children }: { href: string; children: R
   return (
     <button
       type="button"
-      className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:decoration-chatroom-status-info transition-colors cursor-pointer bg-transparent border-0 p-0 font-inherit text-inherit"
+      className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:text-chatroom-accent hover:decoration-chatroom-status-info transition-colors cursor-pointer bg-transparent border-0 p-0 text-sm"
       onClick={() => onOpenFile(normalizeWorkspaceFilePath(href))}
     >
       {children}
@@ -152,6 +152,27 @@ function MarkdownLink({ children, href }: { children?: React.ReactNode; href?: s
   );
 }
 
+function PlainInlineCode({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  if (className?.startsWith('language-')) {
+    return <code className={className}>{children}</code>;
+  }
+  return (
+    <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em]">
+      {children}
+    </code>
+  );
+}
+
+function PlainMarkdownLink({ children }: { children?: React.ReactNode }) {
+  return <span>{children}</span>;
+}
+
 function InlineCodeOrWorkspaceLink({
   children,
   className,
@@ -166,11 +187,7 @@ function InlineCodeOrWorkspaceLink({
   if (text && looksLikeWorkspacePath(text)) {
     return <WorkspaceFileLinkButton href={text}>{text}</WorkspaceFileLinkButton>;
   }
-  return (
-    <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em]">
-      {children}
-    </code>
-  );
+  return <PlainInlineCode className={className}>{children}</PlainInlineCode>;
 }
 
 /**
@@ -347,4 +364,20 @@ export const fullMarkdownComponents = {
   },
   // Inline code (not in pre) - workspace paths linkify; otherwise simple styling
   code: InlineCodeOrWorkspaceLink,
+};
+
+/**
+ * Backlog review markdown: no clickable file/URL links (plain text only).
+ * Used in review panel and compact backlog queue previews — not chat history or detail modals.
+ */
+export const backlogReviewCompactMarkdownComponents = {
+  ...compactMarkdownComponents,
+  a: PlainMarkdownLink,
+  code: PlainInlineCode,
+};
+
+export const backlogReviewMarkdownComponents = {
+  ...baseMarkdownComponents,
+  a: PlainMarkdownLink,
+  code: PlainInlineCode,
 };

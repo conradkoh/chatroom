@@ -3,14 +3,14 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getScoringBadge } from '../backlog';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../markdown-utils';
+import { backlogReviewCompactMarkdownComponents } from '../markdown-utils';
 
 export interface CompactBacklogItemProps {
   item: BacklogItem;
   onClick: () => void;
 }
 
-// compactMarkdownComponents is imported from markdown-utils.tsx
+// backlogReviewCompactMarkdownComponents is imported from markdown-utils.tsx
 
 export function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
   const hasScoring = item.complexity || item.value || item.priority !== undefined;
@@ -55,7 +55,10 @@ export function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
 
       {/* Content - 2 lines max, with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
+        <Markdown
+          remarkPlugins={chatroomRemarkPlugins}
+          components={backlogReviewCompactMarkdownComponents}
+        >
           {item.content}
         </Markdown>
       </div>
