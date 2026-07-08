@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState, type RefObject } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
+import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 
 // fallow-ignore-next-line complexity
 function readSelectionInsideContainer(container: Node): string | null {
@@ -87,15 +87,15 @@ export function useRemoteSelectionContextMenu(
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem
+          <WorkspaceDropdownMenuItem
+            icon={ExternalLink}
             onSelect={() => {
               onOpenSelectionOnRemote(filePath, selectedText);
               setOpen(false);
             }}
           >
-            <ExternalLink className="mr-2 h-4 w-4" />
             Open Selection on Remote
-          </DropdownMenuItem>
+          </WorkspaceDropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     ) : null;

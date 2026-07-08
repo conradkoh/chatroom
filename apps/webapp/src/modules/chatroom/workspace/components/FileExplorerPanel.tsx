@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { NewFileDialog } from './NewFileDialog';
 import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
+import { WorkspaceDropdownMenuItem } from './WorkspaceDropdownMenuItem';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import {
   AlertDialog,
@@ -34,7 +35,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
@@ -227,6 +228,17 @@ export const FileExplorerPanel = memo(
         setContextMenuPoint({ x: event.clientX, y: event.clientY });
         setContextMenuOpen(true);
       }, []);
+
+      const showNewItems =
+        contextMenuTarget?.kind === 'root' ||
+        (contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'directory');
+      const showPathActions = contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '';
+      const newItemsParentPath =
+        contextMenuTarget?.kind === 'root'
+          ? ''
+          : contextMenuTarget?.kind === 'node'
+            ? contextMenuTarget.path
+            : '';
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
       // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
@@ -448,74 +460,66 @@ export const FileExplorerPanel = memo(
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              {contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'directory' && (
+              {showNewItems && (
                 <>
-                  <DropdownMenuItem onSelect={() => openNewFileDialog(contextMenuTarget.path)}>
-                    <FilePlus size={12} className="mr-2" />
+                  <WorkspaceDropdownMenuItem
+                    icon={FilePlus}
+                    onSelect={() => openNewFileDialog(newItemsParentPath)}
+                  >
                     New File
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => openNewFolderDialog(contextMenuTarget.path)}>
-                    <FolderPlus size={12} className="mr-2" />
+                  </WorkspaceDropdownMenuItem>
+                  <WorkspaceDropdownMenuItem
+                    icon={FolderPlus}
+                    onSelect={() => openNewFolderDialog(newItemsParentPath)}
+                  >
                     New Folder
-                  </DropdownMenuItem>
+                  </WorkspaceDropdownMenuItem>
                 </>
               )}
-              {contextMenuTarget?.kind === 'root' && (
+              {showNewItems && showPathActions && <DropdownMenuSeparator />}
+              {showPathActions && contextMenuTarget?.kind === 'node' && (
                 <>
-                  <DropdownMenuItem onSelect={() => openNewFileDialog('')}>
-                    <FilePlus size={12} className="mr-2" />
-                    New File
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => openNewFolderDialog('')}>
-                    <FolderPlus size={12} className="mr-2" />
-                    New Folder
-                  </DropdownMenuItem>
-                </>
-              )}
-              {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
-                <>
-                  <DropdownMenuItem
+                  <WorkspaceDropdownMenuItem
+                    icon={Copy}
                     onSelect={() => void copyRelativePathToClipboard(contextMenuTarget.path)}
                   >
-                    <Copy size={12} className="mr-2" />
                     Copy Relative Path
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
+                  </WorkspaceDropdownMenuItem>
+                  <WorkspaceDropdownMenuItem
+                    icon={Copy}
                     onSelect={() =>
                       void copyFullPathToClipboard(workingDir, contextMenuTarget.path)
                     }
                   >
-                    <Copy size={12} className="mr-2" />
                     Copy Full Path
-                  </DropdownMenuItem>
+                  </WorkspaceDropdownMenuItem>
                   {contextMenuTarget.type === 'file' && (
-                    <DropdownMenuItem
+                    <WorkspaceDropdownMenuItem
+                      icon={ExternalLink}
                       onSelect={() => void openFileOnRemote(contextMenuTarget.path)}
                     >
-                      <ExternalLink size={12} className="mr-2" />
                       Open File on Remote
-                    </DropdownMenuItem>
+                    </WorkspaceDropdownMenuItem>
                   )}
                 </>
               )}
-              {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
-                <DropdownMenuItem
+              {showPathActions && contextMenuTarget?.kind === 'node' && (
+                <WorkspaceDropdownMenuItem
+                  icon={Pencil}
                   onSelect={() => openRenameDialog(contextMenuTarget.path, contextMenuTarget.type)}
                 >
-                  <Pencil size={12} className="mr-2" />
                   Rename
-                </DropdownMenuItem>
+                </WorkspaceDropdownMenuItem>
               )}
-              {contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '' && (
-                <DropdownMenuItem
+              {showPathActions && contextMenuTarget?.kind === 'node' && (
+                <WorkspaceDropdownMenuItem
+                  icon={Trash2}
                   onSelect={() =>
                     setDeleteTarget({ path: contextMenuTarget.path, type: contextMenuTarget.type })
                   }
-                  className="text-chatroom-status-error data-[highlighted]:text-chatroom-status-error focus:text-chatroom-status-error"
                 >
-                  <Trash2 size={12} className="mr-2" />
                   Delete
-                </DropdownMenuItem>
+                </WorkspaceDropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
