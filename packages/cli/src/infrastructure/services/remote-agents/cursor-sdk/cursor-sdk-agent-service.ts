@@ -7,7 +7,7 @@
  * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
  * process so PID-based lifecycle management in the daemon continues to work.
  *
- * NOTE: @cursor/sdk@1.0.19+ imports `node:sqlite` at load time and dynamically
+ * NOTE: @cursor/sdk@1.0.23 imports `node:sqlite` at load time and dynamically
  * imports `@connectrpc/connect-node` for agent streams. The CLI bin wrapper
  * (`node-launch.js`) enables `--experimental-sqlite` before startup. SDK import
  * is deferred via loadSdk() so load failures hide the harness instead of
