@@ -22,7 +22,6 @@ import { useChatroomListing, type ChatroomWithStatus } from '../context/Chatroom
 import {
   getChatStatusDescription,
   getChatStatusIndicatorClasses,
-  getChatStatusLabel,
 } from '../utils/chatStatusDisplay';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -42,16 +41,11 @@ interface ChatroomSelectorProps {
 
 function ChatroomStatusIndicator({ chatStatus }: { chatStatus: ChatroomWithStatus['chatStatus'] }) {
   return (
-    <div
-      className="flex items-center gap-1.5"
+    <span
+      className={getChatStatusIndicatorClasses(chatStatus)}
       title={getChatStatusDescription(chatStatus)}
       aria-label={getChatStatusDescription(chatStatus)}
-    >
-      <span className={getChatStatusIndicatorClasses(chatStatus)} />
-      <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-        {getChatStatusLabel(chatStatus)}
-      </span>
-    </div>
+    />
   );
 }
 
