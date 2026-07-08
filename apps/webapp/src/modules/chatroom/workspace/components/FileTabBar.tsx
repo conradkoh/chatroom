@@ -1,13 +1,13 @@
 'use client';
 
-import { Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink, ListX } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
+import { WorkspaceDropdownMenuItem } from './WorkspaceDropdownMenuItem';
 import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
@@ -95,31 +95,37 @@ export const FileTabBar = memo(function FileTabBar({
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           {onOpenFileOnRemote && contextMenuTarget && (
-            <DropdownMenuItem onSelect={() => void onOpenFileOnRemote(contextMenuTarget)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
+            <WorkspaceDropdownMenuItem
+              icon={ExternalLink}
+              onSelect={() => void onOpenFileOnRemote(contextMenuTarget)}
+            >
               Open File on Remote
-            </DropdownMenuItem>
+            </WorkspaceDropdownMenuItem>
           )}
-          <DropdownMenuItem
+          <WorkspaceDropdownMenuItem
+            icon={Copy}
             onSelect={() =>
               contextMenuTarget && void copyRelativePathToClipboard(contextMenuTarget)
             }
           >
-            <Copy className="mr-2 h-4 w-4" />
             Copy Relative Path
-          </DropdownMenuItem>
-          <DropdownMenuItem
+          </WorkspaceDropdownMenuItem>
+          <WorkspaceDropdownMenuItem
+            icon={Copy}
             onSelect={() =>
               contextMenuTarget && void copyFullPathToClipboard(workingDir, contextMenuTarget)
             }
             disabled={!workingDir}
           >
-            <Copy className="mr-2 h-4 w-4" />
             Copy Full Path
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleCloseOthers} disabled={tabs.length <= 1}>
+          </WorkspaceDropdownMenuItem>
+          <WorkspaceDropdownMenuItem
+            icon={ListX}
+            onSelect={handleCloseOthers}
+            disabled={tabs.length <= 1}
+          >
             Close Others
-          </DropdownMenuItem>
+          </WorkspaceDropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>
