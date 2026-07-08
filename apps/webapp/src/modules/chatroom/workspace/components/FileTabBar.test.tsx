@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FileTabBar } from './FileTabBar';
+import { RightPaneTabBar } from './RightPaneTabBar';
 import type { FileTab } from '../hooks/useFileTabs';
 
 vi.mock('sonner', () => ({
@@ -100,6 +101,26 @@ describe('FileTabBar', () => {
 
     const bar = screen.getByTestId('file-tab-bar');
     expect(bar.className).toMatch(/flex-wrap/);
+    expect(bar.className).toMatch(/min-h-8/);
     expect(bar.className).toMatch(/max-h-16/);
+  });
+
+  it('RightPaneTabBar uses the same shared tab bar shell', () => {
+    const { unmount: unmountFileBar } = render(<FileTabBar {...defaultProps} />);
+    const fileBarClass = screen.getByTestId('file-tab-bar').className;
+    unmountFileBar();
+
+    render(
+      <RightPaneTabBar
+        tabs={[
+          { key: 'preview:src/a.md', name: 'Preview', filePath: 'src/a.md', viewType: 'preview' },
+        ]}
+        activeTabKey="preview:src/a.md"
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('right-pane-tab-bar').className).toBe(fileBarClass);
   });
 });
