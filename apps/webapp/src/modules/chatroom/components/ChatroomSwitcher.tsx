@@ -20,6 +20,7 @@ import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { cn } from '@/lib/utils';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
@@ -61,24 +62,7 @@ export function ChatroomSwitcher() {
     if (!open) setSearchValue('');
   }, [open]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().includes('MAC');
-      const triggerKey = isMac ? e.metaKey : e.ctrlKey;
-
-      if (triggerKey && e.key === 'k') {
-        e.preventDefault();
-        if (open) {
-          closeDialog();
-        } else {
-          openDialog('switcher');
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, openDialog, closeDialog]);
+  useCommandDialogShortcut({ dialog: 'switcher', key: 'k' });
 
   const handleSelect = (chatroomId: string) => {
     if (activeChatroomId !== chatroomId) {
