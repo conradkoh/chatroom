@@ -12,6 +12,7 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
 import {
+  normalizeWorkingDir,
   requireRegisteredWorkspaceForMachine,
   validateDirPath,
   validateFilePath,
@@ -154,6 +155,8 @@ export const requestFileContent = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
 
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
     // Security: validate file path
     validateFilePath(args.filePath);
 
@@ -161,10 +164,7 @@ export const requestFileContent = mutation({
     const cached = await ctx.db
       .query('chatroom_workspaceFileContent')
       .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
 
@@ -177,10 +177,7 @@ export const requestFileContent = mutation({
     const existingRequest = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
       .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
 
@@ -200,7 +197,7 @@ export const requestFileContent = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceFileContentRequests', {
         machineId: args.machineId,
-        workingDir: args.workingDir,
+        workingDir,
         filePath: args.filePath,
         status: 'pending',
         requestedAt: now,

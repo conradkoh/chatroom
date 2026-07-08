@@ -2,9 +2,11 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { useFileContent } from './useFileContent';
+
+import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
 interface WorkspaceFileArgs {
   machineId: string;
@@ -20,11 +22,15 @@ export function useRequestWorkspaceFileContent({
   workingDir,
   filePath,
 }: WorkspaceFileArgs) {
+  const normalizedWorkingDir = useMemo(
+    () => normalizeWorkspaceWorkingDir(workingDir),
+    [workingDir]
+  );
   const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
   useEffect(() => {
-    requestContent({ machineId, workingDir, filePath }).catch(() => {});
-  }, [machineId, workingDir, filePath, requestContent]);
+    requestContent({ machineId, workingDir: normalizedWorkingDir, filePath }).catch(() => {});
+  }, [machineId, normalizedWorkingDir, filePath, requestContent]);
 
-  return useFileContent({ machineId, workingDir, filePath });
+  return useFileContent({ machineId, workingDir: normalizedWorkingDir, filePath });
 }

@@ -126,3 +126,34 @@ describe('useMarkdownFileEditor optimistic create', () => {
     });
   });
 });
+
+describe('useMarkdownFileEditor workspace registration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pendingOptimisticNewFilePaths.clear();
+    mockLoadedContent = undefined;
+  });
+
+  it('surfaces a load error instead of showing workspace-not-registered placeholder text', async () => {
+    mockLoadedContent = {
+      content: '[Error: workspace not registered]',
+      encoding: 'utf8',
+      truncated: false,
+      fetchedAt: Date.now(),
+    };
+
+    const { result } = renderHook(() =>
+      useMarkdownFileEditor({
+        machineId: 'machine-1',
+        workingDir: '/Users/alice/chatroom/',
+        filePath: 'README.md',
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBe('Workspace is not registered on this machine.');
+    });
+    expect(result.current.content).toBe('');
+    expect(result.current.isLoading).toBe(false);
+  });
+});

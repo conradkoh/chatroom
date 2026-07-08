@@ -9,7 +9,10 @@ import { useWorkspaceFileSave } from './useWorkspaceFileSave';
 import {
   isPendingOptimisticNewFile,
   isTransientNewFileReadError,
+  isWorkspaceNotRegisteredError,
 } from '../utils/fileContentSentinels';
+
+import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
 interface UseMarkdownFileEditorArgs {
   machineId: string;
@@ -26,11 +29,17 @@ export function useMarkdownFileEditor({
   filePath,
   initialEmpty = false,
 }: UseMarkdownFileEditorArgs) {
-  const loadedContent = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
+  const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
+  const loadedContent = useRequestWorkspaceFileContent({
+    machineId,
+    workingDir: normalizedWorkingDir,
+    filePath,
+  });
   const requestFileContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
   const [content, setContentState] = useState('');
   const [isDirty, setIsDirty] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const contentRef = useRef(content);
   const saveInFlightRef = useRef(false);
   const loadedPathRef = useRef(filePath);
@@ -44,7 +53,7 @@ export function useMarkdownFileEditor({
     lastSavedAt,
   } = useWorkspaceFileSave({
     machineId,
-    workingDir,
+    workingDir: normalizedWorkingDir,
     filePath,
     getContent,
     operation: 'update',
@@ -73,10 +82,16 @@ export function useMarkdownFileEditor({
         contentRef.current = '';
         setContentState('');
       }
+      setLoadError(null);
       return;
     }
     if (isDirty) return;
+    if (isWorkspaceNotRegisteredError(loadedContent.content)) {
+      setLoadError('Workspace is not registered on this machine.');
+      return;
+    }
     if (isTransientNewFileReadError(loadedContent.content, filePath)) return;
+    setLoadError(null);
     contentRef.current = loadedContent.content;
     setContentState(loadedContent.content);
   }, [filePath, initialEmpty, isDirty, loadedContent]);
@@ -88,17 +103,22 @@ export function useMarkdownFileEditor({
 
     try {
       await saveToDisk();
-      await requestFileContent({ machineId, workingDir, filePath }).catch(() => {});
+      await requestFileContent({
+        machineId,
+        workingDir: normalizedWorkingDir,
+        filePath,
+      }).catch(() => {});
       if (contentRef.current === snapshotAtStart) {
         setIsDirty(false);
       }
     } finally {
       saveInFlightRef.current = false;
     }
-  }, [filePath, machineId, requestFileContent, saveToDisk, workingDir]);
+  }, [filePath, machineId, normalizedWorkingDir, requestFileContent, saveToDisk]);
 
   const isPendingCreate = isPendingOptimisticNewFile(filePath);
   const isLoading =
+    !loadError &&
     !initialEmpty &&
     !isPendingCreate &&
     (loadedContent === undefined ||
@@ -112,7 +132,7 @@ export function useMarkdownFileEditor({
     contentRef,
     save,
     saving,
-    error,
+    error: error ?? loadError,
     lastSavedAt,
     isLoading,
   };
