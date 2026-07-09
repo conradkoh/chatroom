@@ -29,7 +29,16 @@ vi.mock('@cursor/sdk', () => ({
 
 vi.mock('./cursor-sdk-package.js', () => ({
   importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
-  getBundledCursorSdkVersion: vi.fn(() => '1.0.19'),
+  getBundledCursorSdkVersion: vi.fn(() => '1.0.23'),
+  formatCursorSdkError: (err: unknown) => {
+    if (err instanceof Error) {
+      const sdkErr = err as Error & { code?: string; name?: string };
+      const code = sdkErr.code ? `[${sdkErr.code}] ` : '';
+      const name = sdkErr.name && sdkErr.name !== 'Error' ? `${sdkErr.name}: ` : '';
+      return `${name}${code}${err.message}`.trim();
+    }
+    return String(err);
+  },
   formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
 
@@ -130,6 +139,33 @@ describe('CursorSdkAgentService', () => {
         model: { id: 'composer-2.5', params: [{ id: 'fast', value: 'false' }] },
         local: { cwd: '/tmp/work', settingSources: [] },
       });
+    });
+
+    it('writes spawn-error to stderr when Agent.create fails', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+      const createError = Object.assign(new Error('sandbox not supported: bubblewrap missing'), {
+        name: 'ConfigurationError',
+      });
+      sharedAgentCreateFn.mockRejectedValue(createError);
+
+      await expect(
+        service.spawn({
+          workingDir: '/tmp/work',
+          prompt: createSpawnPrompt('do work'),
+          systemPrompt: 'you are helpful',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        })
+      ).rejects.toThrow('sandbox not supported: bubblewrap missing');
+
+      expect(stderrWriteSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[cursor-sdk:builder@c1 spawn-error] ConfigurationError: sandbox not supported: bubblewrap missing'
+        )
+      );
+      expect(child.kill).toHaveBeenCalled();
     });
 
     it('calls agent.send with combined system and user prompt', async () => {
@@ -517,7 +553,9 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
       expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
+        expect.stringContaining(
+          '[cursor-sdk:builder@c1 spawn-error] ConnectError: [16] [unauthenticated] Error'
+        )
       );
       expect(run.wait).not.toHaveBeenCalled();
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
@@ -566,7 +604,9 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
       expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
+        expect.stringContaining(
+          '[cursor-sdk:builder@c1 spawn-error] ConnectError: [16] [unauthenticated] Error'
+        )
       );
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();

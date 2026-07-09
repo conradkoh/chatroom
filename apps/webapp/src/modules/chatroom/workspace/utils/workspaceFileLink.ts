@@ -1,10 +1,50 @@
-/** File extensions we auto-linkify (lowercase, include dot). */
-const WORKSPACE_LINKABLE_EXTENSIONS =
-  /\.(ts|tsx|js|jsx|mjs|cjs|json|md|mdx|css|scss|html|yml|yaml|toml|sql|sh|py|go|rs|java|kt|swift|rb|php|vue|svelte|txt|xml|svg|wasm)$/i;
+/**
+ * File extensions we auto-linkify. Longest names first so regex alternation
+ * matches `tsx` before `ts`, `jsx` before `js`, etc.
+ */
+const WORKSPACE_LINKABLE_EXTENSION_NAMES = [
+  'tsx',
+  'jsx',
+  'mjs',
+  'cjs',
+  'scss',
+  'mdx',
+  'yaml',
+  'html',
+  'json',
+  'toml',
+  'wasm',
+  'svelte',
+  'swift',
+  'java',
+  'ts',
+  'js',
+  'md',
+  'css',
+  'yml',
+  'sql',
+  'xml',
+  'svg',
+  'txt',
+  'vue',
+  'php',
+  'rb',
+  'kt',
+  'go',
+  'rs',
+  'py',
+  'sh',
+] as const;
+
+const WORKSPACE_EXTENSION_ALTERNATION = WORKSPACE_LINKABLE_EXTENSION_NAMES.join('|');
+
+const WORKSPACE_LINKABLE_EXTENSIONS = new RegExp(`\\.(${WORKSPACE_EXTENSION_ALTERNATION})$`, 'i');
 
 /** Repo-relative path segment: letters, digits, common filename chars. */
-const WORKSPACE_PATH_BODY =
-  /(?:\.\.\/|\.\/)?(?:[A-Za-z0-9_@+.-]+\/)+[A-Za-z0-9_@+.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|md|mdx|css|scss|html|yml|yaml|toml|sql|sh|py|go|rs|java|kt|swift|rb|php|vue|svelte|txt|xml|svg|wasm)/gi;
+const WORKSPACE_PATH_BODY = new RegExp(
+  `(?:\\.\\./|\\.\\/)?(?:[A-Za-z0-9_@+.-]+\\/)+[A-Za-z0-9_@+.-]+\\.(${WORKSPACE_EXTENSION_ALTERNATION})`,
+  'gi'
+);
 
 export function looksLikeWorkspacePath(text: string): boolean {
   const trimmed = text.trim();

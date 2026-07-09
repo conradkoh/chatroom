@@ -25,6 +25,7 @@ function canResumeNativePendingFromTokenActivity(participant: ParticipantSnapsho
   return (
     participant.lastStatus === 'agent.waiting' ||
     participant.lastStatus === 'agent.started' ||
+    participant.lastStatus === 'agent.exited' ||
     isStaleInFlightParticipantStatus(participant.lastStatus)
   );
 }
@@ -79,6 +80,9 @@ async function isRecoveredPendingTask(
   participant: ParticipantSnapshot
 ): Promise<boolean> {
   if (isStaleInFlightParticipantStatus(participant.lastStatus)) {
+    return true;
+  }
+  if (participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION) {
     return true;
   }
   return isReleasedNativePendingResume(ctx, pendingTask);
