@@ -1545,6 +1545,69 @@ describe('AgentProcessManager', () => {
       ensureRunningSpy.mockRestore();
     });
 
+    test('cursor-sdk Authentication error retries instead of permanent startFailed', async () => {
+      const cursorSdkService = {
+        ...createMockService(),
+        id: 'cursor-sdk',
+        spawn: vi.fn().mockResolvedValue({
+          pid: PID,
+          harnessSessionId: 'cursor-agent-1',
+          harnessReconnect: { agentName: 'builder@c1', model: 'composer-2.5' },
+          onExit: vi.fn(),
+          onOutput: vi.fn(),
+          onAgentEnd: vi.fn(),
+        }),
+        resumeFromDaemonMemory: vi.fn().mockRejectedValue(new Error('resume failed')),
+        getHarnessReconnectContext: vi.fn().mockReturnValue({
+          agentName: 'builder@c1',
+          model: 'composer-2.5',
+        }),
+      };
+      deps.agentServices = new Map([['cursor-sdk', cursorSdkService]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
+      );
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[cursor-sdk:planner@882x8x agent_end]',
+        '[cursor-sdk:planner@882x8x status] RUNNING',
+        '[cursor-sdk:planner@882x8x status] ERROR: Authentication error If you are logged in, try logging out and back in.',
+        '[cursor-sdk:planner@882x8x run-error] run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077 failed: no error detail from SDK (run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077)',
+      ];
+
+      const ensureRunningSpy = vi.spyOn(manager, 'ensureRunning').mockResolvedValue({
+        success: false,
+        error: 'resume failed',
+      });
+      deps.clock.delay = vi.fn().mockResolvedValue(undefined);
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await vi.waitFor(() => {
+        expect(ensureRunningSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+      });
+
+      const permanentStartFailed = getMutationCallsByArgs(
+        deps,
+        (args) =>
+          typeof args.error === 'string' &&
+          args.error.includes('Permanent harness error (auth_error)')
+      );
+      expect(permanentStartFailed).toHaveLength(0);
+
+      ensureRunningSpy.mockRestore();
+    });
+
     test('signal exit (SIGTERM) triggers restart (no stale reason leak)', async () => {
       await manager.ensureRunning(createOpts());
 
