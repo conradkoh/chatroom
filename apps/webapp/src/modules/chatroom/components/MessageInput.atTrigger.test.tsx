@@ -69,4 +69,58 @@ describe('MessageInput @ trigger', () => {
       expect(screen.getByText('a.ts')).toBeInTheDocument();
     });
   });
+
+  it('navigates file results with arrow keys after @<query>', async () => {
+    const files: FileEntry[] = [
+      { path: 'src/a.ts', type: 'file' },
+      { path: 'src/b.ts', type: 'file' },
+      { path: 'src/c.ts', type: 'file' },
+    ];
+    renderAtTriggerInput(files);
+
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: '@src', selectionStart: 4 } });
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-autocomplete-item]')).toHaveLength(3);
+    });
+
+    const getHighlightedIndex = () =>
+      Array.from(document.querySelectorAll('[data-autocomplete-item]')).findIndex((el) =>
+        el.className.split(/\s+/).includes('bg-chatroom-bg-hover')
+      );
+
+    expect(getHighlightedIndex()).toBe(0);
+
+    fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+    expect(getHighlightedIndex()).toBe(1);
+
+    fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+    expect(getHighlightedIndex()).toBe(2);
+
+    fireEvent.keyDown(textarea, { key: 'ArrowUp' });
+    expect(getHighlightedIndex()).toBe(1);
+  });
+
+  it('inserts the highlighted file on Enter after arrow navigation', async () => {
+    const files: FileEntry[] = [
+      { path: 'src/a.ts', type: 'file' },
+      { path: 'src/b.ts', type: 'file' },
+    ];
+    renderAtTriggerInput(files);
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '@src', selectionStart: 4 } });
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-autocomplete-item]')).toHaveLength(2);
+    });
+
+    fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(textarea.value).toContain('src/b.ts');
+    });
+  });
 });

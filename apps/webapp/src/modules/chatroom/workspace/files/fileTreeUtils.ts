@@ -69,7 +69,6 @@ export function fileTreeEntriesToExplorerNodes(entries: FileTreeEntry[]): Explor
 }
 
 /** Client-side filter for Cmd+P / @ (case-insensitive substring on path). */
-// fallow-ignore-next-line unused-export
 export function filterFileTreeEntries(entries: FileTreeEntry[], query: string): FileTreeEntry[] {
   const trimmed = query.trim();
   if (!trimmed) return entries;

@@ -126,4 +126,36 @@ describe('startFileTreeSubscriptionEffect', () => {
     expect(mutationCalls).toContain('mock-syncFileTreeV2');
     expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
   });
+
+  it('normalizes trailing-slash workingDir before scan and upload', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+    const wsClient = makeMockWsClient();
+
+    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
+      sessionId: 'session-slash',
+      machineId: 'machine-slash',
+      backend: deps.backend,
+    });
+
+    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
+      requests: { _id: string; workingDir: string }[]
+    ) => void;
+
+    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace/' }]);
+
+    await vi.waitFor(() => {
+      expect(mockScanFileTree).toHaveBeenCalledWith('/workspace');
+    });
+
+    const syncCall = vi
+      .mocked(deps.backend.mutation)
+      .mock.calls.find((call) => call[0] === 'mock-syncFileTreeV2');
+    expect(syncCall?.[1]).toEqual(
+      expect.objectContaining({
+        workingDir: '/workspace',
+      })
+    );
+  });
 });

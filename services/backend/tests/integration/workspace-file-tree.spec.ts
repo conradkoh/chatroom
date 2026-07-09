@@ -67,4 +67,61 @@ describe('workspace file tree requests', () => {
 
     expect(result.status).toBe('requested');
   });
+
+  test('requestFileTree treats trailing-slash workingDir as canonical path', async () => {
+    const { sessionId } = await createTestSession('test-wft-slash');
+    const machineId = 'machine-wft-slash';
+    const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceFileTreeV2', {
+        machineId,
+        workingDir,
+        data: {
+          compression: 'gzip',
+          content: 'eJyrrgUAAXUA+Q==',
+        },
+        dataHash: 'fresh-tree-hash',
+        scannedAt: Date.now(),
+      });
+    });
+
+    const result = await t.mutation(api.workspaceFiles.requestFileTree, {
+      sessionId,
+      machineId,
+      workingDir: `${workingDir}/`,
+    });
+
+    expect(result.status).toBe('cached');
+  });
+
+  test('getFileTreeV2 finds tree stored under canonical workingDir when query uses trailing slash', async () => {
+    const { sessionId } = await createTestSession('test-wft-get-slash');
+    const machineId = 'machine-wft-get-slash';
+    const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceFileTreeV2', {
+        machineId,
+        workingDir,
+        data: {
+          compression: 'gzip',
+          content: 'eJyrrgUAAXUA+Q==',
+        },
+        dataHash: 'fresh-tree-hash',
+        scannedAt: Date.now(),
+      });
+    });
+
+    const tree = await t.query(api.workspaceFiles.getFileTreeV2, {
+      sessionId,
+      machineId,
+      workingDir: `${workingDir}/`,
+    });
+
+    expect(tree).not.toBeNull();
+    expect(tree?.scannedAt).toBeTypeOf('number');
+  });
 });

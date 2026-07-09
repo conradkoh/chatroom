@@ -343,12 +343,13 @@ export const requestFileTree = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     if (!args.force) {
       const existingTree = await ctx.db
         .query('chatroom_workspaceFileTreeV2')
         .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
         )
         .first();
 
@@ -361,7 +362,7 @@ export const requestFileTree = mutation({
     const existingRequest = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -380,7 +381,7 @@ export const requestFileTree = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceFileTreeRequests', {
         machineId: args.machineId,
-        workingDir: args.workingDir,
+        workingDir,
         status: 'pending',
         requestedAt: now,
         updatedAt: now,
@@ -447,11 +448,12 @@ export const fulfillFileTreeRequest = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     const request = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -564,6 +566,7 @@ export const syncFileTreeV2 = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     // Validate size
     const sizeBytes = new TextEncoder().encode(args.data.content).length;
@@ -574,7 +577,7 @@ export const syncFileTreeV2 = mutation({
     const existing = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -585,7 +588,7 @@ export const syncFileTreeV2 = mutation({
 
     const row = {
       machineId: args.machineId,
-      workingDir: args.workingDir,
+      workingDir,
       data: args.data,
       dataHash: args.dataHash,
       scannedAt: args.scannedAt,
@@ -623,10 +626,12 @@ export const getFileTreeV2 = query({
       return null;
     }
 
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
     const tree = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 

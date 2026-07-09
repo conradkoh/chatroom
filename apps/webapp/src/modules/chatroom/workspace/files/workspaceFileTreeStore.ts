@@ -39,6 +39,7 @@ export function upsertWorkspaceFileTree(
   emit(workspaceKey);
 }
 
+// fallow-ignore-next-line unused-export
 export function clearWorkspaceFileTree(workspaceKey: string): void {
   if (!buckets.has(workspaceKey)) return;
   buckets.delete(workspaceKey);

@@ -72,7 +72,10 @@ export interface UseTriggerAutocompleteOptions {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const DEBOUNCE_MS = 80;
+function clampSelectedIndex(index: number, resultCount: number): number {
+  if (resultCount <= 0) return 0;
+  return Math.min(Math.max(index, 0), resultCount - 1);
+}
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -94,11 +97,8 @@ export function useTriggerAutocomplete<T = unknown>(
 
   /** Cursor index where the trigger character was typed */
   const triggerIndexRef = useRef<number | null>(null);
-  /** Debounce timer for query updates */
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Ref for results to avoid stale closures in handleKeyDown */
   const resultsRef = useRef<T[]>(results);
-  resultsRef.current = results;
   /** Ref for activeTrigger to avoid stale closure */
   const activeTriggerRef = useRef<TriggerDefinition<T> | null>(activeTrigger);
   activeTriggerRef.current = activeTrigger;
@@ -107,13 +107,7 @@ export function useTriggerAutocomplete<T = unknown>(
   /** Index of the active trigger in the triggers array (for refreshing results). */
   const activeTriggerOrderRef = useRef<number | null>(null);
 
-  // Clean up the debounce timer on unmount so we don't fire a setState on
-  // an unmounted component (or keep a stale timeout running).
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  resultsRef.current = results;
 
   // Refresh results when trigger definitions change while autocomplete is open
   // (e.g. workspace files finish loading after the user typed @).
@@ -133,7 +127,7 @@ export function useTriggerAutocomplete<T = unknown>(
     }
 
     setResults(newResults);
-    setSelectedIndex(0);
+    setSelectedIndex((prev) => clampSelectedIndex(prev, newResults.length));
   }, [triggers, visible, query]);
 
   // ── Input change: detect triggers ──────────────────────────────────────────
@@ -175,20 +169,15 @@ export function useTriggerAutocomplete<T = unknown>(
 
         setActiveTrigger(trigger);
 
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => {
-          const newResults = trigger.getResults(q);
-          setQuery(q);
-          setResults(newResults);
-          // Reset selection on new results unless query stayed the same
-          setSelectedIndex(0);
-        }, DEBOUNCE_MS);
+        const newResults = trigger.getResults(q);
+        setQuery(q);
+        setResults(newResults);
+        setSelectedIndex(0);
 
         return;
       }
 
       // No valid trigger found — dismiss
-      if (debounceRef.current) clearTimeout(debounceRef.current);
       setVisible(false);
       setActiveTrigger(null);
       activationKeyRef.current = null;
@@ -235,7 +224,6 @@ export function useTriggerAutocomplete<T = unknown>(
   // ── Dismiss ────────────────────────────────────────────────────────────────
 
   const handleDismiss = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     setVisible(false);
     setActiveTrigger(null);
     activationKeyRef.current = null;
@@ -250,17 +238,18 @@ export function useTriggerAutocomplete<T = unknown>(
       if (!visible) return false;
 
       const currentResults = resultsRef.current;
+      if (currentResults.length === 0) return false;
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
           e.stopPropagation();
-          setSelectedIndex((prev) => Math.min(prev + 1, currentResults.length - 1));
+          setSelectedIndex((prev) => clampSelectedIndex(prev + 1, currentResults.length));
           return true;
         case 'ArrowUp':
           e.preventDefault();
           e.stopPropagation();
-          setSelectedIndex((prev) => Math.max(prev - 1, 0));
+          setSelectedIndex((prev) => clampSelectedIndex(prev - 1, currentResults.length));
           return true;
         case 'Escape':
           e.preventDefault();

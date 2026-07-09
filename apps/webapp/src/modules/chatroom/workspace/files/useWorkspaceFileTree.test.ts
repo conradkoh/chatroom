@@ -103,7 +103,7 @@ describe('useWorkspaceFileTree', () => {
     expect(result.current.entries).toEqual([{ path: 'README.md', type: 'file' }]);
   });
 
-  it('clears store on disable', () => {
+  it('keeps store populated after producer unmount so @ consumers still see files', () => {
     mocks.raw = { scannedAt: 100, data: { compression: 'gzip', content: 'abc' } };
     mocks.json = JSON.stringify({
       entries: [{ path: 'README.md', type: 'file' }],
@@ -111,14 +111,12 @@ describe('useWorkspaceFileTree', () => {
       rootDir: WORKING_DIR,
     });
 
-    const { rerender } = renderHook(({ enabled }) => useWorkspaceFileTree({ ...args, enabled }), {
-      initialProps: { enabled: true },
-    });
+    const { unmount } = renderHook(() => useWorkspaceFileTree(args));
 
     expect(getWorkspaceFileTreeEntries(KEY)).toHaveLength(1);
 
-    rerender({ enabled: false });
+    unmount();
 
-    expect(getWorkspaceFileTreeEntries(KEY)).toEqual([]);
+    expect(getWorkspaceFileTreeEntries(KEY)).toEqual([{ path: 'README.md', type: 'file' }]);
   });
 });

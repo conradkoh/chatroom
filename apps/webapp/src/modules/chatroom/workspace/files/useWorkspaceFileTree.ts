@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'r
 import type { ExplorerTreeNode } from './explorer-tree';
 import { fileTreeEntriesToExplorerNodes, fileTreeEntriesToFileEntries } from './fileTreeUtils';
 import {
-  clearWorkspaceFileTree,
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
@@ -82,13 +81,6 @@ export function useWorkspaceFileTree({
       parsed.scannedAt ?? raw?.scannedAt ?? null
     );
   }, [enabled, parsed, raw?.scannedAt, workspaceKey]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    return () => {
-      clearWorkspaceFileTree(workspaceKey);
-    };
-  }, [enabled, workspaceKey]);
 
   const storeEntries = useSyncExternalStore(
     useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),

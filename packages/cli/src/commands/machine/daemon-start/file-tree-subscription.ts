@@ -15,6 +15,7 @@ import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-s
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
+import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 function logSubscriptionWarn(label: string, err: unknown): void {
@@ -29,7 +30,8 @@ async function uploadFileTree(
   session: DaemonSessionServiceShape,
   workingDir: string
 ): Promise<void> {
-  const tree = await scanFileTree(workingDir);
+  const normalizedWorkingDir = normalizeWorkingDirForLookup(workingDir);
+  const tree = await scanFileTree(normalizedWorkingDir);
   const treeJson = JSON.stringify(tree);
   const dataHash = createHash('md5').update(treeJson).digest('hex');
   const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
@@ -37,7 +39,7 @@ async function uploadFileTree(
   await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
     sessionId: session.sessionId,
     machineId: session.machineId,
-    workingDir,
+    workingDir: normalizedWorkingDir,
     data: { compression: 'gzip', content: compressed },
     dataHash,
     scannedAt: tree.scannedAt,
@@ -46,7 +48,7 @@ async function uploadFileTree(
   await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
     sessionId: session.sessionId,
     machineId: session.machineId,
-    workingDir,
+    workingDir: normalizedWorkingDir,
   });
 }
 
