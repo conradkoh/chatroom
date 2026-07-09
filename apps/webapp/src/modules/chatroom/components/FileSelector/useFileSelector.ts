@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useWorkspaceFileListing } from '@/modules/chatroom/workspace/files';
 
 interface UseFileSelectorOptions {
@@ -61,25 +62,8 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
     }
   }, [open, hasWorkspace, refresh]);
 
-  // Register Cmd+P / Ctrl+P shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().includes('MAC');
-      const triggerKey = isMac ? e.metaKey : e.ctrlKey;
-
-      if (triggerKey && !e.shiftKey && e.key === 'p') {
-        e.preventDefault(); // Prevent browser print dialog
-        if (open) {
-          closeDialog();
-        } else {
-          openDialog('file-selector');
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, openDialog, closeDialog]);
+  // Register Cmd+P / Ctrl+P shortcut (preventDefault blocks browser print dialog)
+  useCommandDialogShortcut({ dialog: 'file-selector', key: 'p', shiftKey: 'forbidden' });
 
   const recentFilesStorageKey = getRecentFilesStorageKey(chatroomId);
 

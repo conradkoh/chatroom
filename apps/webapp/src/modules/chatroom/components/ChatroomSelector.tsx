@@ -19,6 +19,10 @@ import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
+import {
+  getChatStatusDescription,
+  getChatStatusIndicatorClasses,
+} from '../utils/chatStatusDisplay';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
@@ -35,12 +39,36 @@ interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
 }
 
-// Agent status indicator — uses isAlive from spawnedAgentPid (authoritative source)
-function getAgentIndicatorClasses(isAlive: boolean): string {
-  const base = 'w-1.5 h-1.5 flex-shrink-0';
-  return isAlive
-    ? `${base} bg-chatroom-status-success`
-    : `${base} bg-chatroom-text-muted opacity-40`;
+function ChatroomStatusIndicator({ chatStatus }: { chatStatus: ChatroomWithStatus['chatStatus'] }) {
+  return (
+    <span
+      className={getChatStatusIndicatorClasses(chatStatus)}
+      title={getChatStatusDescription(chatStatus)}
+      aria-label={getChatStatusDescription(chatStatus)}
+    />
+  );
+}
+
+function StopClickPropagation({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={className}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+      }}
+      role="button"
+      tabIndex={-1}
+    >
+      {children}
+    </div>
+  );
 }
 
 // ─── Sorting & Filtering ──────────────────────────────────────────────────────
@@ -465,8 +493,8 @@ const ChatroomCard = memo(function ChatroomCard({
     });
   }, [chatroom._creationTime]);
 
-  // Use computed chatStatus from backend (single source of truth)
-  const { chatStatus, agents } = chatroom;
+  // Use computed chatStatus from context (single source of truth via deriveChatStatus)
+  const { chatStatus } = chatroom;
 
   // Filter based on active tab using chatStatus
   const shouldShow =
@@ -476,13 +504,9 @@ const ChatroomCard = memo(function ChatroomCard({
     return null;
   }
 
-  const teamRoles = chatroom.teamRoles || [];
   const teamName = chatroom.teamName || 'Team';
   // Use custom name if set, otherwise show team name
   const displayName = chatroom.name || teamName;
-
-  // Create a map of role -> agent for quick lookup
-  const agentMap = new Map(agents.map((a) => [a.role.toLowerCase(), a]));
 
   return (
     <div className="relative">
@@ -496,9 +520,12 @@ const ChatroomCard = memo(function ChatroomCard({
       >
         {/* Card Main */}
         <div className="flex justify-between items-start mb-2 md:mb-3">
-          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-2 flex-1 min-w-0 truncate">
-            {displayName}
-          </span>
+          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+            <ChatroomStatusIndicator chatStatus={chatStatus} />
+            <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
+              {displayName}
+            </span>
+          </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Favorite Star Button */}
             <button
@@ -543,22 +570,8 @@ const ChatroomCard = memo(function ChatroomCard({
         <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
           {chatroom._id}
         </div>
-        {/* Card Agents */}
-        <div className="flex flex-wrap gap-2 mb-2 md:mb-3">
-          {teamRoles.map((role) => {
-            const agent = agentMap.get(role.toLowerCase());
-            return (
-              <div key={role} className="flex items-center gap-1.5">
-                <span className={getAgentIndicatorClasses(agent?.isAlive ?? false)} />
-                <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                  {role}
-                </span>
-              </div>
-            );
-          })}
-        </div>
         {/* Card Date */}
-        <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
+        <div className="text-[10px] text-chatroom-text-muted mt-2 md:mt-3">{formattedDate}</div>
       </div>
     </div>
   );
@@ -638,7 +651,7 @@ const ChatroomTable = memo(function ChatroomTable({
           Name
         </span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-          Agents
+          Status
         </span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-right">
           Created
@@ -647,10 +660,8 @@ const ChatroomTable = memo(function ChatroomTable({
       </div>
       {/* Table Rows */}
       {filteredChatrooms.map((chatroom) => {
-        const teamRoles = chatroom.teamRoles || [];
         const teamName = chatroom.teamName || 'Team';
         const displayName = chatroom.name || teamName;
-        const agentMap = new Map(chatroom.agents.map((a) => [a.role.toLowerCase(), a]));
 
         const formattedDate = new Date(chatroom._creationTime).toLocaleString('en-US', {
           month: 'short',
@@ -675,15 +686,7 @@ const ChatroomTable = memo(function ChatroomTable({
             }}
           >
             {/* Favorite Star */}
-            <div
-              className="flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-              }}
-              role="button"
-              tabIndex={-1}
-            >
+            <StopClickPropagation className="flex items-center justify-center">
               <button
                 onClick={(e) => handleToggleFavorite(e, chatroom._id)}
                 className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
@@ -695,7 +698,7 @@ const ChatroomTable = memo(function ChatroomTable({
               >
                 <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
               </button>
-            </div>
+            </StopClickPropagation>
             {/* Name */}
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
@@ -705,19 +708,9 @@ const ChatroomTable = memo(function ChatroomTable({
                 {chatroom._id}
               </span>
             </div>
-            {/* Agents */}
-            <div className="flex items-center gap-2 min-w-[140px]">
-              {teamRoles.map((role) => {
-                const agent = agentMap.get(role.toLowerCase());
-                return (
-                  <div key={role} className="flex items-center gap-1">
-                    <span className={getAgentIndicatorClasses(agent?.isAlive ?? false)} />
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                      {role}
-                    </span>
-                  </div>
-                );
-              })}
+            {/* Status */}
+            <div className="flex items-center min-w-[120px]">
+              <ChatroomStatusIndicator chatStatus={chatroom.chatStatus} />
             </div>
             {/* Created */}
             <div className="flex items-center justify-end">
@@ -726,15 +719,7 @@ const ChatroomTable = memo(function ChatroomTable({
               </span>
             </div>
             {/* Actions */}
-            <div
-              className="flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-              }}
-              role="button"
-              tabIndex={-1}
-            >
+            <StopClickPropagation className="flex items-center justify-center">
               {chatroom.chatStatus !== 'completed' && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -750,7 +735,7 @@ const ChatroomTable = memo(function ChatroomTable({
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-            </div>
+            </StopClickPropagation>
           </div>
         );
       })}
