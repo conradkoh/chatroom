@@ -520,9 +520,12 @@ const ChatroomCard = memo(function ChatroomCard({
       >
         {/* Card Main */}
         <div className="flex justify-between items-start mb-2 md:mb-3">
-          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-2 flex-1 min-w-0 truncate">
-            {displayName}
-          </span>
+          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+            <ChatroomStatusIndicator chatStatus={chatStatus} />
+            <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
+              {displayName}
+            </span>
+          </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Favorite Star Button */}
             <button
@@ -567,7 +570,6 @@ const ChatroomCard = memo(function ChatroomCard({
         <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
           {chatroom._id}
         </div>
-        <ChatroomStatusIndicator chatStatus={chatStatus} />
         {/* Card Date */}
         <div className="text-[10px] text-chatroom-text-muted mt-2 md:mt-3">{formattedDate}</div>
       </div>
