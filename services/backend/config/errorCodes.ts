@@ -55,7 +55,6 @@ export type BackendErrorCode =
   | 'PARTICIPANT_NOT_FOUND'
 
   // ── Context ────────────────────────────────────────────────────────────
-  | 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT'
   | 'CONTEXT_NOT_FOUND'
   | 'CONTEXT_RESTRICTED'
 
@@ -194,8 +193,6 @@ export const BACKEND_ERROR_CODES = {
   PARTICIPANT_NOT_FOUND: 'PARTICIPANT_NOT_FOUND',
 
   // ── Context ────────────────────────────────────────────────────────────
-  /** Cannot create context without a handoff since last context */
-  CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT: 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT',
   /** Context document not found */
   CONTEXT_NOT_FOUND: 'CONTEXT_NOT_FOUND',
   /** Context access restricted */
@@ -398,7 +395,6 @@ export const FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
  */
 export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   // Context
-  BACKEND_ERROR_CODES.CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT,
   BACKEND_ERROR_CODES.CONTEXT_NOT_FOUND,
   BACKEND_ERROR_CODES.CONTEXT_RESTRICTED,
 

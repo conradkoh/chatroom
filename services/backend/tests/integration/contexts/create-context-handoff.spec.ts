@@ -1,12 +1,10 @@
 /**
- * createContext handoff guard — integration tests
+ * createContext — unrestricted creation integration tests
  *
- * Verifies when CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT is raised vs allowed.
- * Solo (and duo) agents create context on each new user message via triggerMessageId
- * even when no handoff was sent since the previous context.
+ * Teams may create a new context at any time (including mid-task) without
+ * requiring a handoff or trigger message since the previous context.
  */
 
-import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
@@ -41,7 +39,7 @@ async function sendUserMessage(
   });
 }
 
-describe('createContext — handoff guard', () => {
+describe('createContext — unrestricted creation', () => {
   test('solo: allows context new for a new user message without prior handoff', async () => {
     const { sessionId } = await createTestSession('solo-context-new-user-trigger');
     const chatroomId = await createSoloChatroom(sessionId);
@@ -71,26 +69,26 @@ describe('createContext — handoff guard', () => {
     expect(contextId).toBeDefined();
   });
 
-  test('solo: blocks redundant context new without handoff or new user trigger', async () => {
-    const { sessionId } = await createTestSession('solo-context-no-trigger');
+  test('solo: allows context new at any time without handoff or trigger', async () => {
+    const { sessionId } = await createTestSession('solo-context-mid-task');
     const chatroomId = await createSoloChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'solo');
 
     await t.mutation(api.contexts.createContext, {
       sessionId,
       chatroomId,
-      content: 'Initial greeting context',
+      content: 'Initial context',
       role: 'solo',
     });
 
-    await expect(
-      t.mutation(api.contexts.createContext, {
-        sessionId,
-        chatroomId,
-        content: 'Redundant context without trigger',
-        role: 'solo',
-      })
-    ).rejects.toThrow(ConvexError);
+    const contextId = await t.mutation(api.contexts.createContext, {
+      sessionId,
+      chatroomId,
+      content: 'Mid-task context refresh to stay on track',
+      role: 'solo',
+    });
+
+    expect(contextId).toBeDefined();
   });
 
   test('duo planner: allows context new when triggerMessageId is a newer user message', async () => {
