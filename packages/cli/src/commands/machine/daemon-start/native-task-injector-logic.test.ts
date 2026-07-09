@@ -141,11 +141,66 @@ describe('shouldDeliverNativeTask', () => {
 
   test('deduplicates duplicate subscription events for same harness session', () => {
     const ledger = new NativeDeliveryLedger();
-    const task = makeTask();
+    const task = makeTask({
+      status: 'acknowledged',
+      assignedTo: 'builder',
+      participant: {
+        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+        lastSeenAt: 1_000,
+        lastStatus: 'task.acknowledged',
+      },
+    });
     ledger.markDelivered(task.taskId, HARNESS_SESSION_ID);
     expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
       false
     );
+  });
+
+  test('allows redelivery of pending task when ledger marks same harness session delivered', () => {
+    const ledger = new NativeDeliveryLedger();
+    const task = makeTask({
+      participant: {
+        lastSeenAction: NATIVE_WAITING_ACTION,
+        lastSeenAt: 500,
+        lastStatus: 'agent.waiting',
+      },
+    });
+    ledger.markDelivered(task.taskId, HARNESS_SESSION_ID);
+    expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
+      true
+    );
+  });
+
+  test('allows delivery when lastSeenAction is exited (post-stop, pre-native:waiting)', () => {
+    const ledger = new NativeDeliveryLedger();
+    expect(
+      shouldDeliverNativeTask(
+        makeTask({
+          participant: {
+            lastSeenAction: 'exited',
+            lastSeenAt: 1_000,
+            lastStatus: 'agent.exited',
+          },
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
+      )
+    ).toBe(true);
+  });
+
+  test('allows redelivery when pending task still shows native:task-injected after release', () => {
+    const ledger = new NativeDeliveryLedger();
+    expect(
+      shouldDeliverNativeTask(
+        makeTask({
+          participant: {
+            lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+            lastSeenAt: 1_000,
+            lastStatus: 'agent.exited',
+          },
+        }),
+        { ledger, harnessSessionId: HARNESS_SESSION_ID }
+      )
+    ).toBe(true);
   });
 
   test('allows delivery again when harness session generation changes', () => {

@@ -76,7 +76,7 @@ describe('CursorSdkStreamAdapter', () => {
       adapter.handleMessage(statusMessage(status));
 
       expect(count).toBe(0);
-      expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} status: ${status}]\n`);
+      expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} status] ${status}\n`);
       expect(stdoutWriteSpy).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
     }
   );
@@ -145,6 +145,53 @@ describe('CursorSdkStreamAdapter', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
     adapter.handleMessage(statusMessage('ERROR'));
 
-    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} status: ERROR]`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} status] ERROR`);
+  });
+
+  it('logs tool_call status error with result detail', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleMessage({
+      type: 'tool_call',
+      agent_id: 'agent-1',
+      run_id: 'run-1',
+      call_id: 'call-1',
+      name: 'shell',
+      status: 'error',
+      args: { command: 'curl example.com' },
+      result: { blocked: 'network' },
+    });
+
+    expect(onLogLine).toHaveBeenCalledWith(
+      `${LOG_PREFIX} tool-error] shell (call-1): {"blocked":"network"}`
+    );
+  });
+
+  it('logs status ERROR with message text', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleMessage({
+      type: 'status',
+      agent_id: 'agent-1',
+      run_id: 'run-1',
+      status: 'ERROR',
+      message: 'sandbox policy violation',
+    });
+
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} status] ERROR: sandbox policy violation`);
+  });
+
+  it('logs task messages', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleMessage({
+      type: 'task',
+      agent_id: 'agent-1',
+      run_id: 'run-1',
+      status: 'in_progress',
+      text: 'Running tests',
+    });
+
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} task] in_progress: Running tests`);
   });
 });

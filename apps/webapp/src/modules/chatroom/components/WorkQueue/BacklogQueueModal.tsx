@@ -6,7 +6,7 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from '../backlog';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../markdown-utils';
+import { backlogReviewCompactMarkdownComponents } from '../markdown-utils';
 
 import {
   FixedModal,
@@ -88,7 +88,7 @@ export function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueM
                 <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
                   <Markdown
                     remarkPlugins={chatroomRemarkPlugins}
-                    components={compactMarkdownComponents}
+                    components={backlogReviewCompactMarkdownComponents}
                   >
                     {item.content}
                   </Markdown>

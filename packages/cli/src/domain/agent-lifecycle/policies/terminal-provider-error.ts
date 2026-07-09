@@ -10,6 +10,8 @@ const FATAL_HARNESS_PHRASES = [
   'failed to load model',
   'model loading was stopped',
   'insufficient system resources',
+  'sandboxing is not supported',
+  'disable local.sandboxoptions.enabled',
 ] as const;
 
 const QUOTA_PHRASES = [
@@ -96,6 +98,7 @@ export function isTerminalProviderFailureInLogs(logLines: readonly string[]): bo
 function isClassifiableHarnessLogLine(line: string): boolean {
   if (/\b(?:text|thinking)\]/.test(line)) return false;
   if (line.includes('agent_end]')) return true;
+  if (line.includes('spawn-error]')) return true;
   if (line.includes(' error]')) return true;
   if (line.includes(' run-error]')) return true;
   return false;

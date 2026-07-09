@@ -3,7 +3,7 @@ import { resolveAgentStatus } from './agentStatusLabel';
 export type ChatStatus = 'working' | 'active' | 'idle' | 'completed';
 
 export interface AgentPresence {
-  /** Latest heartbeat action — used only to detect a clean 'exited' agent. */
+  /** Latest heartbeat action (presence metadata; online detection uses isAlive). */
   lastSeenAction: string | null;
   /** Latest event-stream event type (e.g. task.inProgress). Canonical working signal. */
   lastStatus: string | null;
@@ -35,7 +35,7 @@ export function deriveChatStatus(
     return 'completed';
   }
 
-  const onlineAgents = agents.filter((a) => a.lastSeenAction !== 'exited' && a.isAlive);
+  const onlineAgents = agents.filter((a) => a.isAlive);
   if (onlineAgents.length === 0) {
     return 'idle';
   }

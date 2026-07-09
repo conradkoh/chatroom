@@ -145,6 +145,14 @@ describe('isTerminalProviderFailureInLogs', () => {
     ).toBe(true);
   });
 
+  test('matches cursor-sdk sandbox spawn-error as non-retryable', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:solo@882qrv spawn-error] ConfigurationError: Local SDK sandboxing was requested, but sandboxing is not supported in this environment.',
+      ])
+    ).toBe(true);
+  });
+
   test('ignores agent text mentioning rate limits', () => {
     expect(
       isTerminalProviderFailureInLogs([

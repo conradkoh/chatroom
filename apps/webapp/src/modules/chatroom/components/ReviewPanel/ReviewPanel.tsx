@@ -19,7 +19,7 @@ import Markdown from 'react-markdown';
 import { useAttachments } from '../../attachments';
 import { type BacklogItem, getScoringBadge } from '../backlog';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
+import { backlogReviewMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
 import { formatRelativeTime } from '../WorkQueue/utils';
 
 import {
@@ -182,7 +182,10 @@ const ReviewDetail = memo(function ReviewDetail({
 
       {/* Markdown content — scrollable */}
       <div className={`flex-1 overflow-y-auto p-6 min-h-0 ${backlogProseClassNames}`}>
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
+        <Markdown
+          remarkPlugins={chatroomRemarkPlugins}
+          components={backlogReviewMarkdownComponents}
+        >
           {item.content}
         </Markdown>
       </div>

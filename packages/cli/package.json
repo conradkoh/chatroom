@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.64.0",
+  "version": "1.65.0",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -20,7 +20,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.195",
     "@connectrpc/connect-node": "^1.6.1",
-    "@cursor/sdk": "1.0.19",
+    "@cursor/sdk": "1.0.23",
     "@earendil-works/pi-coding-agent": "0.74.2",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",

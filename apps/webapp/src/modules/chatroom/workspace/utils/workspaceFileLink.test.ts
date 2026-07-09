@@ -43,6 +43,33 @@ describe('workspaceFileLink', () => {
         { type: 'text', value: 'no paths here' },
       ]);
     });
+
+    it('matches full tsx extension (not truncated to ts)', () => {
+      expect(
+        splitTextOnWorkspacePaths('See apps/webapp/src/mdx-components.tsx for details')
+      ).toEqual([
+        { type: 'text', value: 'See ' },
+        {
+          type: 'link',
+          url: 'apps/webapp/src/mdx-components.tsx',
+          children: [{ type: 'text', value: 'apps/webapp/src/mdx-components.tsx' }],
+        },
+        { type: 'text', value: ' for details' },
+      ]);
+    });
+
+    it('matches jsx, mjs, mdx, and scss extensions fully', () => {
+      const input = 'a/apps/x.jsx b/pkg/index.mjs c/read.me.mdx d/styles/main.scss';
+      const links = splitTextOnWorkspacePaths(input)
+        .filter((n) => n.type === 'link')
+        .map((n) => n.url);
+      expect(links).toEqual([
+        'a/apps/x.jsx',
+        'b/pkg/index.mjs',
+        'c/read.me.mdx',
+        'd/styles/main.scss',
+      ]);
+    });
   });
 
   describe('isWorkspaceFileLink', () => {

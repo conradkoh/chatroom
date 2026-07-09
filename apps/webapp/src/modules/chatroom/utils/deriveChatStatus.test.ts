@@ -64,4 +64,12 @@ describe('deriveChatStatus', () => {
       ])
     ).toBe('idle');
   });
+
+  it('counts isAlive agents as online even when lastSeenAction is exited', () => {
+    expect(
+      deriveChatStatus('active', [
+        agent({ lastSeenAction: 'exited', isAlive: true, lastStatus: 'agent.waiting' }),
+      ])
+    ).toBe('active');
+  });
 });

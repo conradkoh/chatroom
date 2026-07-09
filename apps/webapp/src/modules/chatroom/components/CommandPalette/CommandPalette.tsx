@@ -22,6 +22,7 @@ import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 
@@ -82,24 +83,11 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     if (!open) setSearchValue('');
   }, [open]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().includes('MAC');
-      const triggerKey = isMac ? e.metaKey : e.ctrlKey;
-
-      if (triggerKey && e.shiftKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        if (open) {
-          closeDialog();
-        } else {
-          openDialog('command-palette');
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, openDialog, closeDialog]);
+  useCommandDialogShortcut({
+    dialog: 'command-palette',
+    key: 'p',
+    shiftKey: 'required',
+  });
 
   // Group commands by category (for browse mode)
   const groupedCommands = useMemo(() => {
