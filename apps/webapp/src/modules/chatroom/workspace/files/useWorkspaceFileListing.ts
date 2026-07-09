@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useDirListing } from './useDirListing';
 import { useFileEntries } from './useFileEntries';
 import { useFileSearch } from './useFileSearch';
+import { useTrackedWorkspaceFiles } from './useTrackedWorkspaceFiles';
 
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 
@@ -25,15 +26,15 @@ export interface UseWorkspaceFileListingResult {
   isLoading: boolean;
 }
 
-function mergeFileEntries(fileEntries: FileEntry[], directoryEntries: FileEntry[]): FileEntry[] {
-  if (directoryEntries.length === 0) return fileEntries;
-  if (fileEntries.length === 0) return directoryEntries;
-
-  const seen = new Set(fileEntries.map((entry) => entry.path));
-  const merged = [...fileEntries];
-  for (const entry of directoryEntries) {
-    if (seen.has(entry.path)) continue;
-    merged.push(entry);
+function mergeFileEntries(...groups: FileEntry[][]): FileEntry[] {
+  const seen = new Set<string>();
+  const merged: FileEntry[] = [];
+  for (const group of groups) {
+    for (const entry of group) {
+      if (seen.has(entry.path)) continue;
+      seen.add(entry.path);
+      merged.push(entry);
+    }
   }
   return merged;
 }
@@ -61,15 +62,22 @@ export function useWorkspaceFileListing({
     enabled && includeDirectories ? { entries: dirListingResult.entries as FileEntry[] } : null,
     { includeDirectories: true }
   );
+  const trackedEntries = useTrackedWorkspaceFiles(machineId, workingDir, enabled);
 
   const entries = useMemo(() => {
     if (!enabled) return [];
-    if (!includeDirectories) return fileEntries;
+    if (!includeDirectories) {
+      return mergeFileEntries(
+        fileEntries,
+        trackedEntries.filter((entry) => entry.type === 'file')
+      );
+    }
     return mergeFileEntries(
       fileEntries,
-      directoryEntries.filter((entry) => entry.type === 'directory')
+      directoryEntries.filter((entry) => entry.type === 'directory'),
+      trackedEntries
     );
-  }, [directoryEntries, enabled, fileEntries, includeDirectories]);
+  }, [directoryEntries, enabled, fileEntries, includeDirectories, trackedEntries]);
 
   const refresh = useCallback(() => {
     if (!enabled) return;

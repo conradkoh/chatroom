@@ -32,8 +32,8 @@ const MAX_PENDING_REQUESTS = 50;
 
 const MAX_DIR_LISTING_BYTES = 200 * 1024;
 const MAX_SEARCH_BYTES = 200 * 1024;
-const DIR_LISTING_STALENESS_MS = 30 * 1000;
-const FILE_SEARCH_STALENESS_MS = 30 * 1000;
+const DIR_LISTING_STALENESS_MS = 10 * 1000; // 10 seconds — align with @ / explorer freshness budget
+const FILE_SEARCH_STALENESS_MS = 10 * 1000; // 10 seconds — align with @ / explorer freshness budget
 const MAX_SEARCH_QUERY_LENGTH = 200;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

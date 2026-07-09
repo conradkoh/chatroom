@@ -1,7 +1,20 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  __resetTrackedWorkspaceFilesStoreForTests,
+  getTrackedFileEntries,
+  toTrackedWorkspaceKey,
+} from './trackedWorkspaceFilesStore';
 import { useWorkspaceDirExplorer } from './useWorkspaceDirExplorer';
+
+const MACHINE_ID = 'machine-1';
+const WORKING_DIR = '/workspace';
+const WORKSPACE_KEY = toTrackedWorkspaceKey(MACHINE_ID, WORKING_DIR);
+
+const mocks = vi.hoisted(() => ({
+  rootEntries: [] as { name: string; path: string; type: 'file' | 'directory' }[],
+}));
 
 const EMPTY_ENTRIES: never[] = [];
 const refreshRootListing = vi.fn();
@@ -9,7 +22,7 @@ const refreshFileSearch = vi.fn();
 
 vi.mock('./useDirListing', () => ({
   useDirListing: () => ({
-    entries: EMPTY_ENTRIES,
+    entries: mocks.rootEntries,
     isLoading: true,
     refresh: refreshRootListing,
     scannedAt: null,
@@ -28,6 +41,8 @@ vi.mock('./useFileSearch', () => ({
 beforeEach(() => {
   refreshRootListing.mockClear();
   refreshFileSearch.mockClear();
+  mocks.rootEntries = [];
+  __resetTrackedWorkspaceFilesStoreForTests();
 });
 
 describe('useWorkspaceDirExplorer', () => {
@@ -155,5 +170,48 @@ describe('useWorkspaceDirExplorer', () => {
 
     expect(refreshRootListing).toHaveBeenCalledTimes(2);
     expect(refreshFileSearch).toHaveBeenCalledTimes(2);
+  });
+
+  it('publishes nested explorer listings to the tracked store', () => {
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+      })
+    );
+
+    act(() => {
+      result.current.handleDirUpdate(
+        'src/auth',
+        [
+          { name: 'login.ts', path: 'src/auth/login.ts', type: 'file' },
+          { name: 'hooks', path: 'src/auth/hooks', type: 'directory' },
+        ],
+        false
+      );
+    });
+
+    const tracked = getTrackedFileEntries(WORKSPACE_KEY);
+    expect(tracked).toEqual(
+      expect.arrayContaining([
+        { path: 'src/auth/login.ts', type: 'file' },
+        { path: 'src/auth/hooks', type: 'directory' },
+      ])
+    );
+  });
+
+  it('publishes root listings to the tracked store', () => {
+    mocks.rootEntries = [{ name: 'README.md', path: 'README.md', type: 'file' }];
+
+    renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+      })
+    );
+
+    expect(getTrackedFileEntries(WORKSPACE_KEY)).toEqual(
+      expect.arrayContaining([{ path: 'README.md', type: 'file' }])
+    );
   });
 });

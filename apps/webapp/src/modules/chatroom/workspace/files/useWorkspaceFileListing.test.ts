@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   useFileEntries: vi.fn(),
   useFileSearch: vi.fn(),
   useDirListing: vi.fn(),
+  useTrackedWorkspaceFiles: vi.fn(),
 }));
 
 vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
@@ -23,9 +24,15 @@ vi.mock('@/modules/chatroom/workspace/files/useFileEntries', () => ({
   useFileEntries: mocks.useFileEntries,
 }));
 
+vi.mock('./useTrackedWorkspaceFiles', () => ({
+  useTrackedWorkspaceFiles: mocks.useTrackedWorkspaceFiles,
+}));
+
 const args = { machineId: 'machine-1', workingDir: '/repo' };
 const fileEntry = { path: 'src/index.ts', type: 'file' as const };
 const directoryEntry = { path: 'src/auth', type: 'directory' as const };
+const trackedNestedFile = { path: 'src/auth/login.ts', type: 'file' as const };
+const trackedNestedDirectory = { path: 'src/auth/hooks', type: 'directory' as const };
 
 beforeEach(() => {
   mocks.searchRefresh.mockReset();
@@ -40,6 +47,7 @@ beforeEach(() => {
     isLoading: false,
     refresh: mocks.dirRefresh,
   });
+  mocks.useTrackedWorkspaceFiles.mockReturnValue([]);
   mocks.useFileEntries.mockImplementation(
     (
       result: { entries?: { path: string; type: 'file' | 'directory' }[] } | null,
@@ -102,6 +110,27 @@ describe('useWorkspaceFileListing', () => {
       dirPath: '',
     });
     expect(result.current.entries).toEqual([fileEntry, directoryEntry]);
+  });
+
+  it('includes tracked nested files and directories when includeDirectories is true', () => {
+    mocks.useTrackedWorkspaceFiles.mockReturnValue([trackedNestedFile, trackedNestedDirectory]);
+
+    const { result } = renderHook(() =>
+      useWorkspaceFileListing({ ...args, includeDirectories: true })
+    );
+
+    expect(result.current.entries).toEqual(
+      expect.arrayContaining([fileEntry, directoryEntry, trackedNestedFile, trackedNestedDirectory])
+    );
+  });
+
+  it('includes only tracked files when includeDirectories is false', () => {
+    mocks.useTrackedWorkspaceFiles.mockReturnValue([trackedNestedFile, trackedNestedDirectory]);
+
+    const { result } = renderHook(() => useWorkspaceFileListing(args));
+
+    expect(result.current.entries).toEqual([fileEntry, trackedNestedFile]);
+    expect(result.current.entries).not.toContainEqual(trackedNestedDirectory);
   });
 
   it('calls search and dir refresh after dedup window when includeDirectories is true', async () => {

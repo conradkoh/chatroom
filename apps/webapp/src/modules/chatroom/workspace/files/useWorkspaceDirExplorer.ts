@@ -10,6 +10,11 @@ import {
   sortExplorerNodes,
   type ExplorerTreeNode,
 } from './explorer-tree';
+import {
+  clearTrackedWorkspace,
+  toTrackedWorkspaceKey,
+  upsertTrackedDirListing,
+} from './trackedWorkspaceFilesStore';
 import { useDirListing } from './useDirListing';
 import { useFileSearch } from './useFileSearch';
 
@@ -89,6 +94,21 @@ export function useWorkspaceDirExplorer({
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(new Set());
   const [refreshToken, setRefreshToken] = useState(0);
 
+  const workspaceKey =
+    enabled && machineId && workingDir ? toTrackedWorkspaceKey(machineId, workingDir) : '';
+
+  useEffect(() => {
+    if (!workspaceKey || isSearchMode) return;
+    upsertTrackedDirListing(workspaceKey, '', rootEntries);
+  }, [workspaceKey, isSearchMode, rootEntries]);
+
+  useEffect(() => {
+    if (!workspaceKey) return;
+    return () => {
+      clearTrackedWorkspace(workspaceKey);
+    };
+  }, [workspaceKey]);
+
   const handleDirUpdate = useCallback(
     (dirPath: string, entries: DirListingEntry[], isLoading: boolean) => {
       setChildMap((prev) => {
@@ -106,8 +126,11 @@ export function useWorkspaceDirExplorer({
         else next.delete(dirPath);
         return next;
       });
+      if (workspaceKey) {
+        upsertTrackedDirListing(workspaceKey, dirPath, entries);
+      }
     },
-    []
+    [workspaceKey]
   );
 
   const loadChildren = useCallback((dirPath: string) => {
