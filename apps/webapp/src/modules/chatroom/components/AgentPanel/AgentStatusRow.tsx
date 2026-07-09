@@ -7,6 +7,7 @@ import type { StatusVariant } from '../../utils/agentStatusLabel';
 interface AgentStatusRowProps {
   role: string;
   online: boolean;
+  variant?: StatusVariant;
 }
 
 /** Formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
@@ -60,13 +61,17 @@ export function getRowHighlightClass(variant: StatusVariant | undefined): string
 }
 
 /** Renders the status indicator dot and role name. */
-export const AgentStatusRow = memo(function AgentStatusRow({ role, online }: AgentStatusRowProps) {
+export const AgentStatusRow = memo(function AgentStatusRow({
+  role,
+  online,
+  variant,
+}: AgentStatusRowProps) {
   return (
     <div
       className="flex items-center gap-2 min-w-0 overflow-hidden"
       style={{ transform: 'translateZ(0)' }}
     >
-      <div className={'w-2.5 h-2.5 flex-shrink-0 ' + getIndicatorClass(undefined, online)} />
+      <div className={'w-2.5 h-2.5 flex-shrink-0 ' + getIndicatorClass(variant, online)} />
       <span className="text-base font-bold uppercase tracking-wider text-chatroom-text-primary truncate flex-shrink-0">
         {role}
       </span>
