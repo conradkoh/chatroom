@@ -276,6 +276,98 @@ describe('Resume session token activity', () => {
     expect(task?.status).toBe('in_progress');
   });
 
+  test('native harness resumes released pending task after manual restart (exited → token activity)', async () => {
+    const { sessionId } = await createTestSession('test-native-resume-released-exited');
+    const machineId = 'machine-native-resume-released-exited';
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['cursor-sdk', 'opencode'],
+      availableModels: {
+        'cursor-sdk': [TEST_MODEL_CURSOR_SDK],
+        opencode: [TEST_MODEL_OPENCODE],
+      },
+    });
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId,
+      machineId,
+      connected: true,
+    });
+
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner', {
+      agentHarness: 'cursor-sdk',
+    });
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Planner work before manual restart',
+      type: 'message',
+    });
+
+    const claimResult = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: claimResult.taskId,
+    });
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+        )
+        .first();
+      if (config) {
+        await ctx.db.patch(config._id, { spawnedAgentPid: 9999, desiredState: 'running' });
+      }
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'planner',
+      pid: 9999,
+      stopReason: 'user.stop',
+    });
+
+    const taskBeforeResume = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_tasks', claimResult.taskId)
+    );
+    expect(taskBeforeResume?.status).toBe('pending');
+
+    await setParticipantState(chatroomId, 'planner', {
+      lastStatus: 'agent.exited',
+      lastSeenAction: 'exited',
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'planner');
+    expect(status.lastStatus).toBe('task.inProgress');
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', claimResult.taskId));
+    expect(task?.status).toBe('in_progress');
+  });
+
   test('native harness resumes released pending task when participant still shows stale task.inProgress', async () => {
     const { sessionId } = await createTestSession('test-native-resume-stale-participant');
     const machineId = 'machine-native-resume-stale-participant';
@@ -357,6 +449,98 @@ describe('Resume session token activity', () => {
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('task.inProgress');
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', claimResult.taskId));
+    expect(task?.status).toBe('in_progress');
+  });
+
+  test('native harness resumes released pending task after manual restart (agent.exited)', async () => {
+    const { sessionId } = await createTestSession('test-native-resume-after-manual-restart');
+    const machineId = 'machine-native-resume-manual-restart';
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['cursor-sdk', 'opencode'],
+      availableModels: {
+        'cursor-sdk': [TEST_MODEL_CURSOR_SDK],
+        opencode: [TEST_MODEL_OPENCODE],
+      },
+    });
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId,
+      machineId,
+      connected: true,
+    });
+
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner', {
+      agentHarness: 'cursor-sdk',
+    });
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Planner work released after manual restart',
+      type: 'message',
+    });
+
+    const claimResult = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: claimResult.taskId,
+    });
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'planner'))
+        )
+        .first();
+      if (config) {
+        await ctx.db.patch(config._id, { spawnedAgentPid: 6666, desiredState: 'running' });
+      }
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'planner',
+      pid: 6666,
+      stopReason: 'user.stop',
+    });
+
+    const taskBeforeResume = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_tasks', claimResult.taskId)
+    );
+    expect(taskBeforeResume?.status).toBe('pending');
+
+    await setParticipantState(chatroomId, 'planner', {
+      lastStatus: 'agent.exited',
+      lastSeenAction: 'exited',
+    });
+
+    await t.mutation(api.participants.updateTokenActivity, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    const status = await getParticipantStatus(chatroomId, 'planner');
     expect(status.lastStatus).toBe('task.inProgress');
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', claimResult.taskId));

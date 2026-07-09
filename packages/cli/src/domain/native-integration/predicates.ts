@@ -2,6 +2,7 @@ import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/
 import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
+  PARTICIPANT_EXITED_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
@@ -23,7 +24,14 @@ export function isNativeInjectableAliveRunning(task: AssignedTaskSnapshotView): 
 
 export function isInjectableNativeAction(action: string | null | undefined): boolean {
   if (action == null) return true;
-  return action === NATIVE_WAITING_ACTION;
+  return action === NATIVE_WAITING_ACTION || action === PARTICIPANT_EXITED_ACTION;
+}
+
+/** Pending task was previously injected then released on agent exit — needs re-injection. */
+export function isNativePendingRedeliveryAfterRelease(task: AssignedTaskSnapshotView): boolean {
+  return (
+    task.status === 'pending' && task.participant?.lastSeenAction === NATIVE_TASK_INJECTED_ACTION
+  );
 }
 
 /** Harness turn-end is idle, but chatroom task may still be acknowledged or in progress. */

@@ -7,6 +7,7 @@ import {
   isNativeAcknowledgedInjectionRetry,
   isNativeIdleAfterTaskComplete,
   isNativeInjectableAliveRunning,
+  isNativePendingRedeliveryAfterRelease,
 } from '../../../domain/native-integration/predicates.js';
 
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
@@ -19,11 +20,14 @@ export function shouldDeliverNativeTask(
 ): boolean {
   if (!isNativeInjectableAliveRunning(task)) return false;
   if (!opts.harnessSessionId) return false;
-  if (opts.ledger.isDelivered(task.taskId, opts.harnessSessionId)) return false;
+  if (opts.ledger.isDelivered(task.taskId, opts.harnessSessionId) && task.status !== 'pending') {
+    return false;
+  }
   return (
     isInjectableNativeAction(task.participant?.lastSeenAction) ||
     isNativeIdleAfterTaskComplete(task.participant ?? {}) ||
-    isNativeAcknowledgedInjectionRetry(task)
+    isNativeAcknowledgedInjectionRetry(task) ||
+    isNativePendingRedeliveryAfterRelease(task)
   );
 }
 
