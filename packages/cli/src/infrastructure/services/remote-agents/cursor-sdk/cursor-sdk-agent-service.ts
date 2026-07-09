@@ -7,7 +7,7 @@
  * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
  * process so PID-based lifecycle management in the daemon continues to work.
  *
- * NOTE: @cursor/sdk@1.0.19+ imports `node:sqlite` at load time and dynamically
+ * NOTE: @cursor/sdk@1.0.23 imports `node:sqlite` at load time and dynamically
  * imports `@connectrpc/connect-node` for agent streams. The CLI bin wrapper
  * (`node-launch.js`) enables `--experimental-sqlite` before startup. SDK import
  * is deferred via loadSdk() so load failures hide the harness instead of
@@ -36,6 +36,7 @@ import type {
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
+  formatCursorSdkError,
   formatCursorSdkLoadError,
   getBundledCursorSdkVersion,
   importBundledCursorSdk,
@@ -151,12 +152,19 @@ function resolveModelId(model?: string): string {
   return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
 
+function buildLocalAgentOptions(cwd: string) {
+  return {
+    cwd,
+    settingSources: [],
+  };
+}
+
 function writeSpawnError(
   logPrefix: string,
   err: unknown,
   emitLogLine?: (line: string) => void
 ): void {
-  const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCursorSdkLoadError(err));
+  const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCursorSdkError(err));
   process.stderr.write(`${line}\n`);
   emitLogLine?.(line);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
@@ -300,6 +308,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
     const context = options.context;
+    const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = stored.agentName;
     const modelId = resolveModelId(options.model ?? stored.model);
     const systemPrompt = options.systemPrompt
@@ -314,15 +323,15 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         Agent.resume(stored.harnessSessionId, {
           apiKey,
           model: { id: modelId },
-          local: { cwd: stored.workingDir, settingSources: [] },
+          local: buildLocalAgentOptions(stored.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
         'Agent.resume'
       );
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      writeSpawnError(logPrefix, err);
       process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
+        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${formatCursorSdkError(err)} — cold spawning\n`
       );
       keeper.kill();
       this.deleteProcess(pid);
@@ -643,6 +652,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
     const context = options.context;
+    const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = buildAgentName(context);
     const modelId = resolveModelId(options.model);
     const systemPrompt = options.systemPrompt
@@ -658,12 +668,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           apiKey,
           name: agentName,
           model: { id: modelId, params: [{ id: 'fast', value: 'false' }] },
-          local: { cwd: options.workingDir, settingSources: [] },
+          local: buildLocalAgentOptions(options.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
         'Agent.create'
       );
     } catch (err) {
+      writeSpawnError(logPrefix, err);
       keeper.kill();
       this.deleteProcess(pid);
       throw err;

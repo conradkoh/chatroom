@@ -34,10 +34,6 @@ export type ContextError =
   | { readonly _tag: 'NotAuthenticated' }
   | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
   | { readonly _tag: 'EmptyContent' }
-  | {
-      readonly _tag: 'ContextNoHandoffSinceLast';
-      readonly existingContext: { content: string; createdAt: number; createdBy: string };
-    }
   | { readonly _tag: 'ReadContextFailed'; readonly cause: Error }
   | { readonly _tag: 'NewContextFailed'; readonly cause: Error }
   | { readonly _tag: 'ListContextsFailed'; readonly cause: Error }
@@ -285,33 +281,12 @@ export const newContextEffect = (
         triggerMessageId: options.triggerMessageId as Id<'chatroom_messages'> | undefined,
       })
       .pipe(
-        Effect.catchAll((cause) => {
-          // Check for structured ConvexError with a known code
-          const errData = (
-            cause as {
-              data?: {
-                code?: string;
-                message?: string;
-                existingContext?: { content: string; createdAt: number; createdBy: string };
-              };
-            }
-          ).data;
-
-          if (
-            errData?.code === 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT' &&
-            errData.existingContext
-          ) {
-            return Effect.fail<ContextError>({
-              _tag: 'ContextNoHandoffSinceLast',
-              existingContext: errData.existingContext,
-            });
-          }
-
-          return Effect.fail<ContextError>({
+        Effect.catchAll((cause) =>
+          Effect.fail<ContextError>({
             _tag: 'NewContextFailed',
             cause: cause as Error,
-          });
-        })
+          })
+        )
       );
 
     // Print success
@@ -494,24 +469,6 @@ function handleContextError(err: ContextError): Effect.Effect<void> {
       process.exit(1);
     } else if (err._tag === 'EmptyContent') {
       console.error(`❌ Context content cannot be empty`);
-      process.exit(1);
-    } else if (err._tag === 'ContextNoHandoffSinceLast') {
-      const { content, createdAt, createdBy } = err.existingContext;
-      console.error(
-        `❌ Cannot create new context: no handoff sent since last context was created.`
-      );
-      console.error(`\n📌 Current Context (resume from here):`);
-      console.error(`   Created by: ${sanitizeForTerminal(createdBy)}`);
-      console.error(`   Created at: ${new Date(createdAt).toLocaleString()}`);
-      console.error(`   Content:`);
-      const safeContent = sanitizeForTerminal(content);
-      console.error(
-        safeContent
-          .split('\n')
-          .map((l) => `      ${l}`)
-          .join('\n')
-      );
-      console.error(`\n💡 Send a handoff first, then create a new context.`);
       process.exit(1);
     } else if (err._tag === 'ReadContextFailed') {
       console.error(`❌ Failed to read context: ${sanitizeUnknownForTerminal(err.cause.message)}`);

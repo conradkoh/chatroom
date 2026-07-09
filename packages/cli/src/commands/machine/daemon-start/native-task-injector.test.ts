@@ -333,7 +333,15 @@ describe('shouldDeliverNativeTask integration with ledger', () => {
 
   test('deliver once per taskId per harness session across duplicate events', () => {
     const ledger = new NativeDeliveryLedger();
-    const task = makeTask();
+    const task = makeTask({
+      status: 'acknowledged',
+      assignedTo: 'builder',
+      participant: {
+        lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+        lastSeenAt: 1_000,
+        lastStatus: 'task.acknowledged',
+      },
+    });
     expect(shouldDeliverNativeTask(task, { ledger, harnessSessionId: HARNESS_SESSION_ID })).toBe(
       true
     );

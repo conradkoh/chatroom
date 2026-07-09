@@ -1,4 +1,7 @@
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import {
+  NATIVE_TASK_INJECTED_ACTION,
+  NATIVE_WAITING_ACTION,
+} from '@workspace/backend/src/domain/entities/participant.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
@@ -6,6 +9,7 @@ import {
   isCliIdleNotListening,
   isInjectableNativeAction,
   isNativeInjectableAliveRunning,
+  isNativePendingRedeliveryAfterRelease,
   isStaleCliGetNextTaskWaiting,
   shouldEmitNativeWaitingOnTurnEnd,
 } from './predicates.js';
@@ -52,13 +56,34 @@ describe('isNativeInjectableAliveRunning', () => {
 });
 
 describe('isInjectableNativeAction', () => {
-  test('null and native:waiting are injectable', () => {
+  test('null, native:waiting, and exited are injectable', () => {
     expect(isInjectableNativeAction(null)).toBe(true);
     expect(isInjectableNativeAction(NATIVE_WAITING_ACTION)).toBe(true);
+    expect(isInjectableNativeAction('exited')).toBe(true);
   });
 
   test('get-next-task:started is not injectable', () => {
     expect(isInjectableNativeAction('get-next-task:started')).toBe(false);
+  });
+});
+
+describe('isNativePendingRedeliveryAfterRelease', () => {
+  test('true for pending task with native:task-injected action', () => {
+    expect(
+      isNativePendingRedeliveryAfterRelease(
+        makeTask({
+          participant: {
+            lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
+            lastSeenAt: 1_000,
+            lastStatus: 'agent.exited',
+          },
+        })
+      )
+    ).toBe(true);
+  });
+
+  test('false for pending task with native:waiting action', () => {
+    expect(isNativePendingRedeliveryAfterRelease(makeTask())).toBe(false);
   });
 });
 

@@ -118,12 +118,23 @@ export function getBundledCursorSdkVersion(moduleRef: string = import.meta.url):
   return readInstalledSdkVersion(entryPath);
 }
 
+// fallow-ignore-next-line complexity
+export function formatCursorSdkError(err: unknown): string {
+  if (err instanceof Error) {
+    const sdkErr = err as Error & { code?: string; name?: string };
+    const code = sdkErr.code ? `[${sdkErr.code}] ` : '';
+    const name = sdkErr.name && sdkErr.name !== 'Error' ? `${sdkErr.name}: ` : '';
+    return `${name}${code}${err.message}`.trim();
+  }
+  return String(err);
+}
+
 export function formatCursorSdkLoadError(err: unknown): string {
   if (err instanceof CursorSdkPackageError) {
     return err.message;
   }
 
-  const message = err instanceof Error ? err.message : String(err);
+  const message = formatCursorSdkError(err);
   const chunkMatch = message.match(/(\d+)\.index\.js/);
   if (chunkMatch) {
     return `@cursor/sdk installation is incomplete (missing ${chunkMatch[1]}.index.js). ${REINSTALL_HINT}`;

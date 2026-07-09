@@ -376,6 +376,56 @@ describe('startTaskFromTokenActivity — pending path', () => {
     expect(await getParticipantStatus(chatroomId, 'builder')).toBe('task.inProgress');
   });
 
+  test('resumes native pending task when participant is agent.exited after release', async () => {
+    const { sessionId } = await createTestSession('stta-pending-native-agent-exited');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await seedNativeHarnessConfig(chatroomId, 'builder');
+    const sourceMessageId = await seedAcknowledgedSourceMessage(chatroomId);
+
+    const taskId = await seedPendingTask(chatroomId, {
+      assignedTo: 'builder',
+      queuePosition: 0,
+      content: 'released after manual restart',
+      sourceMessageId,
+    });
+
+    await t.run(async (ctx) => {
+      await startTaskFromTokenActivity(
+        ctx,
+        { chatroomId, role: 'builder' },
+        { lastStatus: 'agent.exited', lastSeenAction: 'exited' }
+      );
+    });
+
+    expect(await getTaskStatus(taskId)).toBe('in_progress');
+    expect(await getParticipantStatus(chatroomId, 'builder')).toBe('task.inProgress');
+  });
+
+  test('resumes native pending task when lastSeenAction is native:task-injected', async () => {
+    const { sessionId } = await createTestSession('stta-pending-native-task-injected');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await seedNativeHarnessConfig(chatroomId, 'builder');
+
+    const taskId = await seedPendingTask(chatroomId, {
+      assignedTo: 'builder',
+      queuePosition: 0,
+      content: 'released with stale injected action',
+    });
+
+    await t.run(async (ctx) => {
+      await startTaskFromTokenActivity(
+        ctx,
+        { chatroomId, role: 'builder' },
+        { lastStatus: 'agent.waiting', lastSeenAction: NATIVE_TASK_INJECTED_ACTION }
+      );
+    });
+
+    expect(await getTaskStatus(taskId)).toBe('in_progress');
+    expect(await getParticipantStatus(chatroomId, 'builder')).toBe('task.inProgress');
+  });
+
   test('resumes native pending task on agent.started before native:waiting is emitted', async () => {
     const { sessionId } = await createTestSession('stta-pending-native-agent-started');
     const chatroomId = await createChatroom(sessionId);
