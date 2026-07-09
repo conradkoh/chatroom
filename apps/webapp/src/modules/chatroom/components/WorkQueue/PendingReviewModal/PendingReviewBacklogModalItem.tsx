@@ -2,7 +2,7 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getScoringBadge } from '../../backlog';
 import { chatroomRemarkPlugins } from '../../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../../markdown-utils';
+import { backlogReviewCompactMarkdownComponents } from '../../markdown-utils';
 import { formatRelativeTime } from '../utils';
 
 export interface PendingReviewBacklogModalItemProps {
@@ -61,7 +61,10 @@ export function PendingReviewBacklogModalItem({
 
       {/* Content - with markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
+        <Markdown
+          remarkPlugins={chatroomRemarkPlugins}
+          components={backlogReviewCompactMarkdownComponents}
+        >
           {item.content}
         </Markdown>
       </div>
