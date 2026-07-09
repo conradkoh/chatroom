@@ -8,7 +8,6 @@ import {
   formatCursorSdkLoadError,
   getBundledCursorSdkVersion,
   importBundledCursorSdk,
-  isCursorSdkSandboxUnsupportedError,
 } from './cursor-sdk-package.js';
 
 const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
@@ -53,17 +52,6 @@ describe('cursor-sdk-package', () => {
     expect(message).toBe(
       'ConfigurationError: [SANDBOX_UNSUPPORTED] sandbox not supported: bubblewrap missing'
     );
-  });
-
-  it('detects sandbox unsupported ConfigurationError text', () => {
-    const err = Object.assign(
-      new Error(
-        'Local SDK sandboxing was requested, but sandboxing is not supported in this environment.'
-      ),
-      { name: 'ConfigurationError' }
-    );
-    expect(isCursorSdkSandboxUnsupportedError(err)).toBe(true);
-    expect(isCursorSdkSandboxUnsupportedError(new Error('unauthenticated'))).toBe(false);
   });
 
   it('formats chunk load failures with chatroom-cli reinstall guidance', () => {

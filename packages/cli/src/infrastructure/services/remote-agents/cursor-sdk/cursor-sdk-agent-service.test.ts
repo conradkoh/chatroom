@@ -40,13 +40,6 @@ vi.mock('./cursor-sdk-package.js', () => ({
     return String(err);
   },
   formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  isCursorSdkSandboxUnsupportedError: (err: unknown) => {
-    const message =
-      err instanceof Error
-        ? `${err.name !== 'Error' ? `${err.name}: ` : ''}${err.message}`
-        : String(err);
-    return message.toLowerCase().includes('sandboxing is not supported');
-  },
 }));
 
 function createMockDeps(overrides?: Partial<CursorSdkAgentServiceDeps>): CursorSdkAgentServiceDeps {
@@ -144,7 +137,7 @@ describe('CursorSdkAgentService', () => {
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
         model: { id: 'composer-2.5', params: [{ id: 'fast', value: 'false' }] },
-        local: { cwd: '/tmp/work', settingSources: [], sandboxOptions: { enabled: true } },
+        local: { cwd: '/tmp/work', settingSources: [] },
       });
     });
 
@@ -173,25 +166,6 @@ describe('CursorSdkAgentService', () => {
         )
       );
       expect(child.kill).toHaveBeenCalled();
-    });
-
-    it('emits sandbox enabled log line at session start', async () => {
-      stubSdkAgent();
-      const child = makeFakeChild();
-      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
-      const service = new CursorSdkAgentService(deps);
-      const onLogLine = vi.fn();
-
-      const result = await service.spawn({
-        workingDir: '/tmp/work',
-        prompt: createSpawnPrompt('do work'),
-        systemPrompt: 'you are helpful',
-        context: SPAWN_CONTEXT,
-        resolvedConvexUrl: 'http://test:3210',
-      });
-      result.onLogLine!(onLogLine);
-
-      expect(onLogLine).toHaveBeenCalledWith('[cursor-sdk:builder@c1 sandbox] enabled');
     });
 
     it('calls agent.send with combined system and user prompt', async () => {
@@ -692,7 +666,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentResumeFn).toHaveBeenCalledWith('agent-resume-1', {
         apiKey: 'cursor_test_key',
         model: { id: 'composer-2.5' },
-        local: { cwd: '/tmp/resume-wd', settingSources: [], sandboxOptions: { enabled: true } },
+        local: { cwd: '/tmp/resume-wd', settingSources: [] },
       });
       expect(result.pid).toBe(4321);
       expect(result.harnessSessionId).toBe('agent-1');
