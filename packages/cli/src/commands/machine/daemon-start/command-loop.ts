@@ -42,6 +42,10 @@ import {
   type FileContentSubscriptionHandle,
 } from './file-content-subscription.js';
 import {
+  startFileTreeSubscriptionEffect,
+  type FileTreeSubscriptionHandle,
+} from './file-tree-subscription.js';
+import {
   startFileWriteSubscriptionEffect,
   type FileWriteSubscriptionHandle,
 } from './file-write-subscription.js';
@@ -391,6 +395,7 @@ export const startCommandLoopEffect: Effect.Effect<
   let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
   let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
   let dirListingSubscriptionHandle: DirListingSubscriptionHandle | null = null;
+  let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let dirListingWatchSubscriptionHandle: DirListingWatchSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
@@ -474,6 +479,7 @@ export const startCommandLoopEffect: Effect.Effect<
     fileContentSubscriptionHandle?.stop();
     fileWriteSubscriptionHandle?.stop();
     dirListingSubscriptionHandle?.stop();
+    fileTreeSubscriptionHandle?.stop();
     dirListingWatchSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     observedSyncSubscriptionHandle?.stop();
@@ -530,6 +536,7 @@ export const startCommandLoopEffect: Effect.Effect<
   fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
   fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
   dirListingSubscriptionHandle = yield* startDirListingSubscriptionEffect(wsClient);
+  fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
   dirListingWatchSubscriptionHandle = yield* startDirListingWatchSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
   observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
