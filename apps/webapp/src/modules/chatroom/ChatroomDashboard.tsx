@@ -9,6 +9,8 @@ import {
   Files,
   MessageSquare,
   MessageSquareOff,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Settings2,
@@ -173,10 +175,54 @@ interface ChatroomDashboardProps {
   onBack?: () => void;
   /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
   refreshObservedChatroom: () => void;
+  listingSidebarVisible?: boolean;
+  onToggleListingSidebar?: () => void;
 }
 
 /** Edit target for the saved command modal */
 type SavedCommandEditTarget = SavedCommand;
+
+interface ChatroomHeaderLeftProps {
+  listingSidebarVisible: boolean;
+  onToggleListingSidebar?: () => void;
+  onBack?: () => void;
+  displayName: string;
+  chatroomId: string;
+}
+
+function ChatroomHeaderLeft({
+  listingSidebarVisible,
+  onToggleListingSidebar,
+  onBack,
+  displayName,
+  chatroomId,
+}: ChatroomHeaderLeftProps) {
+  return (
+    <div className="flex items-center gap-3">
+      {onToggleListingSidebar && (
+        <button
+          type="button"
+          className="hidden lg:flex bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+          onClick={onToggleListingSidebar}
+          title={listingSidebarVisible ? 'Hide chatrooms sidebar' : 'Show chatrooms sidebar'}
+          aria-label={listingSidebarVisible ? 'Hide chatrooms sidebar' : 'Show chatrooms sidebar'}
+        >
+          {listingSidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        </button>
+      )}
+      {onBack && (
+        <button
+          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+          onClick={onBack}
+          title="Back to chatroom list"
+        >
+          <ArrowLeft size={16} />
+        </button>
+      )}
+      <ChatroomTitleEditor displayName={displayName} chatroomId={chatroomId} />
+    </div>
+  );
+}
 
 // ─── Explorer Content Component ───────────────────────────────────────────────
 // Extracts shared file explorer UI to eliminate duplication between split/non-split views
@@ -396,6 +442,8 @@ export function ChatroomDashboard({
   chatroomId,
   onBack,
   refreshObservedChatroom,
+  listingSidebarVisible = true,
+  onToggleListingSidebar,
 }: ChatroomDashboardProps) {
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
@@ -1332,19 +1380,13 @@ export function ChatroomDashboard({
         hideAppTitle: true,
         hideUserMenu: true,
         left: (
-          <div className="flex items-center gap-3">
-            {onBack && (
-              <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-                onClick={onBack}
-                title="Back to chatroom list"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            )}
-            {/* Chatroom Name - Editable */}
-            <ChatroomTitleEditor displayName={displayName} chatroomId={chatroomId} />
-          </div>
+          <ChatroomHeaderLeft
+            listingSidebarVisible={listingSidebarVisible}
+            onToggleListingSidebar={onToggleListingSidebar}
+            onBack={onBack}
+            displayName={displayName}
+            chatroomId={chatroomId}
+          />
         ),
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
@@ -1393,6 +1435,8 @@ export function ChatroomDashboard({
     chatroomId,
     isSetupMode,
     onBack,
+    listingSidebarVisible,
+    onToggleListingSidebar,
     sidebarVisible,
     aggregateStatus,
     toggleSidebar,
