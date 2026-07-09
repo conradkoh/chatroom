@@ -40,6 +40,7 @@ import {
   formatCursorSdkLoadError,
   getBundledCursorSdkVersion,
   importBundledCursorSdk,
+  isCursorSdkSandboxUnsupportedError,
 } from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
@@ -152,12 +153,32 @@ function resolveModelId(model?: string): string {
   return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
 
+let cursorSdkSandboxEnabled = process.env.CURSOR_SDK_SANDBOX !== '0';
+
 function buildLocalAgentOptions(cwd: string) {
   return {
     cwd,
     settingSources: [],
-    sandboxOptions: { enabled: true },
+    ...(cursorSdkSandboxEnabled ? { sandboxOptions: { enabled: true } } : {}),
   };
+}
+
+function maybeDisableSandbox(
+  err: unknown,
+  logPrefix: string,
+  emitLogLine?: (line: string) => void
+): void {
+  if (!cursorSdkSandboxEnabled || !isCursorSdkSandboxUnsupportedError(err)) {
+    return;
+  }
+  cursorSdkSandboxEnabled = false;
+  const line = formatAgentLogLine(
+    logPrefix,
+    'sandbox',
+    'disabled (unsupported environment — subsequent spawns run without sandbox)'
+  );
+  process.stderr.write(`${line}\n`);
+  emitLogLine?.(line);
 }
 
 function writeSpawnError(
@@ -330,6 +351,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         'Agent.resume'
       );
     } catch (err) {
+      maybeDisableSandbox(err, logPrefix);
       writeSpawnError(logPrefix, err);
       process.stderr.write(
         `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${formatCursorSdkError(err)} — cold spawning\n`
@@ -429,7 +451,11 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       for (const cb of logLineCallbacks) cb(line);
     };
 
-    emitLogLine(formatAgentLogLine(logPrefix, 'sandbox', 'enabled'));
+    if (cursorSdkSandboxEnabled) {
+      emitLogLine(formatAgentLogLine(logPrefix, 'sandbox', 'enabled'));
+    } else {
+      emitLogLine(formatAgentLogLine(logPrefix, 'sandbox', 'disabled'));
+    }
 
     const finishExit = (code: number | null, signal: string | null) => {
       this.sessions.delete(pid);
@@ -575,6 +601,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               }
             } catch (streamErr) {
               exitCode = 1;
+              maybeDisableSandbox(streamErr, logPrefix, emitLogLine);
               writeSpawnError(logPrefix, streamErr, emitLogLine);
               break;
             }
@@ -590,6 +617,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
             } catch (waitErr) {
               exitCode = 1;
+              maybeDisableSandbox(waitErr, logPrefix, emitLogLine);
               writeSpawnError(logPrefix, waitErr, emitLogLine);
               break;
             }
@@ -618,12 +646,14 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             nextPrompt = null;
           } catch (turnErr) {
             exitCode = 1;
+            maybeDisableSandbox(turnErr, logPrefix, emitLogLine);
             writeSpawnError(logPrefix, turnErr, emitLogLine);
             break;
           }
         }
       } catch (err) {
         exitCode = 1;
+        maybeDisableSandbox(err, logPrefix, emitLogLine);
         writeSpawnError(logPrefix, err, emitLogLine);
       } finally {
         if (exited) return;
@@ -640,6 +670,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         finishExit(exitCode, exitSignal);
       }
     })().catch((err) => {
+      maybeDisableSandbox(err, logPrefix, emitLogLine);
       writeSpawnError(logPrefix, err, emitLogLine);
       if (exited) return;
       exited = true;
@@ -686,6 +717,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         'Agent.create'
       );
     } catch (err) {
+      maybeDisableSandbox(err, logPrefix);
       writeSpawnError(logPrefix, err);
       keeper.kill();
       this.deleteProcess(pid);

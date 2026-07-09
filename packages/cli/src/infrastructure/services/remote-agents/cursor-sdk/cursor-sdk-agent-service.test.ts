@@ -40,6 +40,13 @@ vi.mock('./cursor-sdk-package.js', () => ({
     return String(err);
   },
   formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  isCursorSdkSandboxUnsupportedError: (err: unknown) => {
+    const message =
+      err instanceof Error
+        ? `${err.name !== 'Error' ? `${err.name}: ` : ''}${err.message}`
+        : String(err);
+    return message.toLowerCase().includes('sandboxing is not supported');
+  },
 }));
 
 function createMockDeps(overrides?: Partial<CursorSdkAgentServiceDeps>): CursorSdkAgentServiceDeps {

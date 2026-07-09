@@ -129,6 +129,15 @@ export function formatCursorSdkError(err: unknown): string {
   return String(err);
 }
 
+export function isCursorSdkSandboxUnsupportedError(err: unknown): boolean {
+  const message = formatCursorSdkError(err).toLowerCase();
+  return (
+    message.includes('sandboxing is not supported') ||
+    message.includes('sandboxoptions.enabled') ||
+    message.includes('disable local.sandboxoptions')
+  );
+}
+
 export function formatCursorSdkLoadError(err: unknown): string {
   if (err instanceof CursorSdkPackageError) {
     return err.message;
