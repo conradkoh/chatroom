@@ -1,10 +1,35 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
+
+/** True when triggerMessageId is a user message created after the pinned context. */
+async function hasNewUserTriggerSinceContext(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  triggerMessageId: Id<'chatroom_messages'> | undefined,
+  contextCreatedAt: number
+): Promise<boolean> {
+  if (!triggerMessageId) {
+    return false;
+  }
+
+  const triggerMessage = await ctx.db.get('chatroom_messages', triggerMessageId);
+  if (!triggerMessage || triggerMessage.chatroomId !== chatroomId) {
+    return false;
+  }
+
+  return (
+    triggerMessage.senderRole === 'user' &&
+    triggerMessage.type === 'message' &&
+    triggerMessage._creationTime > contextCreatedAt
+  );
+}
 
 /** Creates a new context for a chatroom and sets it as the current pinned context. */
 export const createContext = mutation({
@@ -45,16 +70,25 @@ export const createContext = mutation({
           .first();
 
         if (!handoffSinceContext) {
-          throw new ConvexError({
-            code: 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT',
-            message:
-              'Cannot create a new context without first sending a handoff since the last context was created.',
-            existingContext: {
-              content: currentContext.content,
-              createdAt: currentContext.createdAt,
-              createdBy: currentContext.createdBy,
-            },
-          });
+          const hasNewUserTrigger = await hasNewUserTriggerSinceContext(
+            ctx,
+            args.chatroomId,
+            args.triggerMessageId,
+            currentContext.createdAt
+          );
+
+          if (!hasNewUserTrigger) {
+            throw new ConvexError({
+              code: 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT',
+              message:
+                'Cannot create a new context without first sending a handoff since the last context was created.',
+              existingContext: {
+                content: currentContext.content,
+                createdAt: currentContext.createdAt,
+                createdBy: currentContext.createdBy,
+              },
+            });
+          }
         }
       }
     }
