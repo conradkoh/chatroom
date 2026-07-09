@@ -5,7 +5,7 @@ export { useWorkspaceFileListing } from './useWorkspaceFileListing';
 export { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 // fallow-ignore-next-line unused-export
 export { useDirListing } from './useDirListing';
-export { useWorkspaceDirExplorer, DirListingWatcher } from './useWorkspaceDirExplorer';
+export { useWorkspaceDirExplorer } from './useWorkspaceDirExplorer';
 // fallow-ignore-next-line unused-export
 export { useFileSearch } from './useFileSearch';
 // fallow-ignore-next-line unused-export
