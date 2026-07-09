@@ -5,10 +5,12 @@ import { WorkspaceCommandsAggregator } from './WorkspaceCommandsAggregator';
 import type { Workspace } from '../../types/workspace';
 import { dedupeWorkspacesById } from '../../workspace/hooks/useChatroomWorkspaces';
 
-const useWorkspaceCommandItems = vi.fn(() => [] as never[]);
+const mocks = vi.hoisted(() => ({
+  useWorkspaceCommandItems: vi.fn(() => [] as never[]),
+}));
 
 vi.mock('./useWorkspaceCommandItems', () => ({
-  useWorkspaceCommandItems: (...args: unknown[]) => useWorkspaceCommandItems(...args),
+  useWorkspaceCommandItems: mocks.useWorkspaceCommandItems,
 }));
 
 function mkWorkspace(machineId: string, workingDir: string): Workspace {
@@ -29,17 +31,21 @@ describe('WorkspaceCommandsAggregator', () => {
     const workspaces = dedupeWorkspacesById(duplicates);
 
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    useWorkspaceCommandItems.mockClear();
+    mocks.useWorkspaceCommandItems.mockClear();
 
     render(
       <WorkspaceCommandsAggregator
         workspaces={workspaces}
-        callbacks={{}}
+        callbacks={{
+          sendAction: vi.fn(),
+          openExternalUrl: vi.fn(),
+          onOpenGitPanel: vi.fn(),
+        }}
         onCommandsChange={vi.fn()}
       />
     );
 
-    expect(useWorkspaceCommandItems).toHaveBeenCalledTimes(1);
+    expect(mocks.useWorkspaceCommandItems).toHaveBeenCalledTimes(1);
 
     const duplicateKeyErrors = consoleError.mock.calls.filter(([msg]) =>
       String(msg).includes('Encountered two children with the same key')
