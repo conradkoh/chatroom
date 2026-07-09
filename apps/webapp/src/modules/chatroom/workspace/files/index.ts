@@ -1,5 +1,8 @@
 export { useMultiWorkspaceFiles } from './useMultiWorkspaceFiles';
+// fallow-ignore-next-line unused-export
 export { useWorkspaceFileListing } from './useWorkspaceFileListing';
+// fallow-ignore-next-line unused-export
+export { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 // fallow-ignore-next-line unused-export
 export { useDirListing } from './useDirListing';
 export { useWorkspaceDirExplorer, DirListingWatcher } from './useWorkspaceDirExplorer';
@@ -7,7 +10,6 @@ export { useWorkspaceDirExplorer, DirListingWatcher } from './useWorkspaceDirExp
 export { useFileSearch } from './useFileSearch';
 // fallow-ignore-next-line unused-export
 export { useWorkspaceFileTree } from './useWorkspaceFileTree';
-// fallow-ignore-next-line unused-export
 export { useMultiWorkspaceFileTrees } from './useMultiWorkspaceFileTrees';
 export {
   // fallow-ignore-next-line unused-export

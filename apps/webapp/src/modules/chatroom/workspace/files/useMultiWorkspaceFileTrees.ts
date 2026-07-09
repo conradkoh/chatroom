@@ -39,7 +39,6 @@ function slotToArgs(slot: WorkspaceSlot | null | undefined) {
   };
 }
 
-// fallow-ignore-next-line unused-export
 export function useMultiWorkspaceFileTrees(workspaces: Workspace[]): {
   refreshAll: (options?: { force?: boolean }) => void;
 } {

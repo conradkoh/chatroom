@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
-import { useWorkspaceFileListing } from '@/modules/chatroom/workspace/files';
+import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 
 interface UseFileSelectorOptions {
   chatroomId?: string;
@@ -45,22 +45,20 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const hasWorkspace = !!machineId && !!workingDir;
-  const {
-    entries: files,
-    refresh,
-    isLoading,
-  } = useWorkspaceFileListing({
+  const { entries, refresh, isLoading, hasTree } = useWorkspaceFileTreeEntries({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
-    enabled: open && hasWorkspace,
+    enabled: hasWorkspace,
+    includeDirectories: false,
   });
 
-  // Request a fresh file listing when the selector opens
+  const files = useMemo(() => entries.filter((entry) => entry.type === 'file'), [entries]);
+
   useEffect(() => {
     if (open && hasWorkspace) {
-      refresh();
+      refresh({ force: hasTree });
     }
-  }, [open, hasWorkspace, refresh]);
+  }, [open, hasWorkspace, hasTree, refresh]);
 
   // Register Cmd+P / Ctrl+P shortcut (preventDefault blocks browser print dialog)
   useCommandDialogShortcut({ dialog: 'file-selector', key: 'p', shiftKey: 'forbidden' });
