@@ -26,6 +26,18 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       case 'tool_call': {
         this.flushText();
+        if (message.status === 'error') {
+          const detail =
+            message.result !== undefined ? JSON.stringify(message.result) : 'no result';
+          this.writeLine(
+            formatAgentLogLine(
+              this.logPrefix,
+              'tool-error',
+              `${message.name} (${message.call_id}): ${detail}`
+            )
+          );
+          break;
+        }
         const bashCmd = extractBashCommandFromToolInput(message.name, message.args);
         if (bashCmd !== null) {
           this.writeLine(
@@ -41,11 +53,11 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         );
         break;
       }
-      case 'status':
-        this.writeLine(formatAgentLogLine(this.logPrefix, `status: ${message.status}`));
-        // Terminal statuses are logged only; agent_end is emitted from finish()
-        // after run.wait() so resumeTurn is not invoked mid-stream.
+      case 'status': {
+        const payload = message.message ? `${message.status}: ${message.message}` : message.status;
+        this.writeLine(formatAgentLogLine(this.logPrefix, 'status', payload));
         break;
+      }
       case 'thinking':
         this.writeLine(formatAgentLogLine(this.logPrefix, 'thinking', message.text));
         break;
@@ -54,8 +66,24 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
           this.writeLine(formatAgentLogLine(this.logPrefix, 'system: init'));
         }
         break;
-      default:
+      case 'task':
+        this.writeLine(
+          formatAgentLogLine(
+            this.logPrefix,
+            'task',
+            [message.status, message.text].filter(Boolean).join(': ')
+          )
+        );
         break;
+      default: {
+        const unknown = message as { type?: string };
+        if (unknown.type) {
+          this.writeLine(
+            formatAgentLogLine(this.logPrefix, 'stream', `unhandled type: ${unknown.type}`)
+          );
+        }
+        break;
+      }
     }
   }
 

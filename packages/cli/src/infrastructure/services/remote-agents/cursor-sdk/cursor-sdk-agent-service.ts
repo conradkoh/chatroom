@@ -36,6 +36,7 @@ import type {
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
+  formatCursorSdkError,
   formatCursorSdkLoadError,
   getBundledCursorSdkVersion,
   importBundledCursorSdk,
@@ -151,12 +152,20 @@ function resolveModelId(model?: string): string {
   return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
 
+function buildLocalAgentOptions(cwd: string) {
+  return {
+    cwd,
+    settingSources: [],
+    sandboxOptions: { enabled: true },
+  };
+}
+
 function writeSpawnError(
   logPrefix: string,
   err: unknown,
   emitLogLine?: (line: string) => void
 ): void {
-  const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCursorSdkLoadError(err));
+  const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCursorSdkError(err));
   process.stderr.write(`${line}\n`);
   emitLogLine?.(line);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
@@ -300,6 +309,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
     const context = options.context;
+    const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = stored.agentName;
     const modelId = resolveModelId(options.model ?? stored.model);
     const systemPrompt = options.systemPrompt
@@ -314,15 +324,15 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         Agent.resume(stored.harnessSessionId, {
           apiKey,
           model: { id: modelId },
-          local: { cwd: stored.workingDir, settingSources: [] },
+          local: buildLocalAgentOptions(stored.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
         'Agent.resume'
       );
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      writeSpawnError(logPrefix, err);
       process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${reason} — cold spawning\n`
+        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${formatCursorSdkError(err)} — cold spawning\n`
       );
       keeper.kill();
       this.deleteProcess(pid);
@@ -409,10 +419,17 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const outputCallbacks: (() => void)[] = [];
     const agentEndCallbacks: (() => void)[] = [];
     const logLineCallbacks: ((line: string) => void)[] = [];
+    const pendingLogLines: string[] = [];
     const assistantTextCallbacks: ((text: string) => void)[] = [];
     const emitLogLine = (line: string) => {
+      if (logLineCallbacks.length === 0) {
+        pendingLogLines.push(line);
+        return;
+      }
       for (const cb of logLineCallbacks) cb(line);
     };
+
+    emitLogLine(formatAgentLogLine(logPrefix, 'sandbox', 'enabled'));
 
     const finishExit = (code: number | null, signal: string | null) => {
       this.sessions.delete(pid);
@@ -456,6 +473,10 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         agentEndCallbacks.push(cb);
       },
       onLogLine: (cb) => {
+        for (const line of pendingLogLines) {
+          cb(line);
+        }
+        pendingLogLines.length = 0;
         logLineCallbacks.push(cb);
       },
       onAssistantText: (cb) => {
@@ -643,6 +664,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
     const pid = keeper.pid!;
     const context = options.context;
+    const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = buildAgentName(context);
     const modelId = resolveModelId(options.model);
     const systemPrompt = options.systemPrompt
@@ -658,12 +680,13 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
           apiKey,
           name: agentName,
           model: { id: modelId, params: [{ id: 'fast', value: 'false' }] },
-          local: { cwd: options.workingDir, settingSources: [] },
+          local: buildLocalAgentOptions(options.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
         'Agent.create'
       );
     } catch (err) {
+      writeSpawnError(logPrefix, err);
       keeper.kill();
       this.deleteProcess(pid);
       throw err;

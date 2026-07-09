@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  formatCursorSdkError,
   formatCursorSdkLoadError,
   getBundledCursorSdkVersion,
   importBundledCursorSdk,
@@ -38,6 +39,19 @@ describe('cursor-sdk-package', () => {
     const { Agent, Cursor } = sdk;
     expect(typeof Agent).toBe('function');
     expect(Cursor).toBeDefined();
+  });
+
+  it('formats SDK runtime errors with code and name', () => {
+    const message = formatCursorSdkError(
+      Object.assign(new Error('sandbox not supported: bubblewrap missing'), {
+        name: 'ConfigurationError',
+        code: 'SANDBOX_UNSUPPORTED',
+      })
+    );
+
+    expect(message).toBe(
+      'ConfigurationError: [SANDBOX_UNSUPPORTED] sandbox not supported: bubblewrap missing'
+    );
   });
 
   it('formats chunk load failures with chatroom-cli reinstall guidance', () => {

@@ -30,6 +30,15 @@ vi.mock('@cursor/sdk', () => ({
 vi.mock('./cursor-sdk-package.js', () => ({
   importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
   getBundledCursorSdkVersion: vi.fn(() => '1.0.23'),
+  formatCursorSdkError: (err: unknown) => {
+    if (err instanceof Error) {
+      const sdkErr = err as Error & { code?: string; name?: string };
+      const code = sdkErr.code ? `[${sdkErr.code}] ` : '';
+      const name = sdkErr.name && sdkErr.name !== 'Error' ? `${sdkErr.name}: ` : '';
+      return `${name}${code}${err.message}`.trim();
+    }
+    return String(err);
+  },
   formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
 
@@ -128,8 +137,54 @@ describe('CursorSdkAgentService', () => {
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
         model: { id: 'composer-2.5', params: [{ id: 'fast', value: 'false' }] },
-        local: { cwd: '/tmp/work', settingSources: [] },
+        local: { cwd: '/tmp/work', settingSources: [], sandboxOptions: { enabled: true } },
       });
+    });
+
+    it('writes spawn-error to stderr when Agent.create fails', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+      const createError = Object.assign(new Error('sandbox not supported: bubblewrap missing'), {
+        name: 'ConfigurationError',
+      });
+      sharedAgentCreateFn.mockRejectedValue(createError);
+
+      await expect(
+        service.spawn({
+          workingDir: '/tmp/work',
+          prompt: createSpawnPrompt('do work'),
+          systemPrompt: 'you are helpful',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        })
+      ).rejects.toThrow('sandbox not supported: bubblewrap missing');
+
+      expect(stderrWriteSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[cursor-sdk:builder@c1 spawn-error] ConfigurationError: sandbox not supported: bubblewrap missing'
+        )
+      );
+      expect(child.kill).toHaveBeenCalled();
+    });
+
+    it('emits sandbox enabled log line at session start', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+      const onLogLine = vi.fn();
+
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+      result.onLogLine!(onLogLine);
+
+      expect(onLogLine).toHaveBeenCalledWith('[cursor-sdk:builder@c1 sandbox] enabled');
     });
 
     it('calls agent.send with combined system and user prompt', async () => {
@@ -517,7 +572,9 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
       expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
+        expect.stringContaining(
+          '[cursor-sdk:builder@c1 spawn-error] ConnectError: [16] [unauthenticated] Error'
+        )
       );
       expect(run.wait).not.toHaveBeenCalled();
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
@@ -566,7 +623,9 @@ describe('CursorSdkAgentService', () => {
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
       expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error] [unauthenticated] Error')
+        expect.stringContaining(
+          '[cursor-sdk:builder@c1 spawn-error] ConnectError: [16] [unauthenticated] Error'
+        )
       );
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
@@ -626,7 +685,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentResumeFn).toHaveBeenCalledWith('agent-resume-1', {
         apiKey: 'cursor_test_key',
         model: { id: 'composer-2.5' },
-        local: { cwd: '/tmp/resume-wd', settingSources: [] },
+        local: { cwd: '/tmp/resume-wd', settingSources: [], sandboxOptions: { enabled: true } },
       });
       expect(result.pid).toBe(4321);
       expect(result.harnessSessionId).toBe('agent-1');
