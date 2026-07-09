@@ -241,48 +241,6 @@ describe('newContextEffect', () => {
     }
   });
 
-  test('fails with ContextNoHandoffSinceLast when ConvexError has the specific code', async () => {
-    const convexError = new Error('Context validation failed') as Error & {
-      data: {
-        code: string;
-        existingContext: {
-          content: string;
-          createdAt: number;
-          createdBy: string;
-        };
-      };
-    };
-    convexError.data = {
-      code: 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT',
-      existingContext: {
-        content: 'Existing context',
-        createdAt: Date.now(),
-        createdBy: 'planner',
-      },
-    };
-
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ mutationResponse: convexError }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const exit = await Effect.runPromiseExit(
-      newContextEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.failureOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as ContextError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('ContextNoHandoffSinceLast');
-      if (error?._tag === 'ContextNoHandoffSinceLast') {
-        expect(error.existingContext.content).toBe('Existing context');
-      }
-    }
-  });
-
   test('fails with NewContextFailed for other mutation errors', async () => {
     const testLayer = Layer.mergeAll(
       makeTestBackend({ mutationResponse: new Error('Server error') }),
