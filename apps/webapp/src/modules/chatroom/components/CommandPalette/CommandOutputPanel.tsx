@@ -1,10 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { X, Square, RotateCcw } from 'lucide-react';
-import type { CommandRun } from '@/modules/chatroom/features/run-command/types/run';
-import { StatusBadge } from '@/modules/chatroom/features/run-command/components/StatusBadge';
+import { X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { AnsiText } from '@/modules/chatroom/features/run-command/components/AnsiText';
+import { StatusBadge } from '@/modules/chatroom/features/run-command/components/StatusBadge';
+import { StopRestartButtons } from '@/modules/chatroom/features/run-command/components/StopRestartButtons';
+import type { CommandRun } from '@/modules/chatroom/features/run-command/types/run';
+import {
+  LOG_HEAD_LINE_COUNT,
+  formatLogHeadFromLines,
+} from '@/modules/chatroom/features/run-command/utils/log-head';
+import { isActiveRun } from '@/modules/chatroom/features/run-command/utils/run-status';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,25 +43,43 @@ export function CommandOutputPanel({
   fullOutputPending = false,
 }: CommandOutputPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showLogHead, setShowLogHead] = useState(false);
+  const [stickToBottom, setStickToBottom] = useState(true);
 
-  // A run is "active" (can be stopped) when pending or running
-  const isActive = status === 'running' || status === 'pending';
+  const isActive = isActiveRun(status);
+  const lineCount = output.length;
+  const displayLines = showLogHead ? formatLogHeadFromLines(output).split('\n') : output;
+  const showJumpToStart = !showLogHead && (lineCount > LOG_HEAD_LINE_COUNT || canLoadMore);
 
-  // Auto-scroll to bottom when new output arrives (if user is at bottom)
   useEffect(() => {
-    if (scrollRef.current && isAtBottom) {
+    if (showLogHead || !stickToBottom) return;
+    if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [output, isAtBottom]);
+  }, [output, showLogHead, stickToBottom]);
 
-  const handleScroll = () => {
-    if (scrollRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < 10;
-      setIsAtBottom(atBottom);
-    }
-  };
+  const handleShowLive = useCallback(() => {
+    setShowLogHead(false);
+    setStickToBottom(true);
+  }, []);
+
+  const handleShowLogHead = useCallback(async () => {
+    setShowLogHead(true);
+    if (canLoadMore && onLoadMore) await onLoadMore();
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [canLoadMore, onLoadMore]);
+
+  const handleJumpToStart = useCallback(async () => {
+    setShowLogHead(false);
+    setStickToBottom(false);
+    if (canLoadMore && onLoadMore) await onLoadMore();
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [canLoadMore, onLoadMore]);
+
+  const viewButtonClass = (selected: boolean) =>
+    selected
+      ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
+      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover';
 
   return (
     <div className="flex flex-col h-full bg-chatroom-bg-surface border-l border-chatroom-border-strong">
@@ -77,26 +102,27 @@ export function CommandOutputPanel({
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
-          {isActive ? (
-            <button
-              type="button"
-              onClick={onStop}
-              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-500 hover:bg-red-950/20 rounded-none transition-colors"
-            >
-              <Square size={14} className="fill-current" />
-              Stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onRunAgain}
-              aria-label="Run again"
-              title="Run again"
-              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary rounded-none transition-colors"
-            >
-              <RotateCcw size={14} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleShowLive}
+            className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${viewButtonClass(!showLogHead)}`}
+          >
+            Live
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleShowLogHead()}
+            disabled={fullOutputPending}
+            className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${viewButtonClass(showLogHead)}`}
+          >
+            Log head
+          </button>
+          <StopRestartButtons
+            active={isActive}
+            onStop={onStop}
+            onRestart={onRunAgain}
+            className="ml-1"
+          />
           <button
             type="button"
             onClick={onClose}
@@ -111,13 +137,12 @@ export function CommandOutputPanel({
       {/* Output */}
       <div
         ref={scrollRef}
-        onScroll={handleScroll}
         className="flex-1 overflow-auto overscroll-contain p-4 font-mono text-xs leading-relaxed bg-chatroom-bg-surface"
       >
-        {output.length === 0 ? (
+        {displayLines.length === 0 ? (
           <span className="text-chatroom-text-muted italic">Waiting for output...</span>
         ) : (
-          output.map((line, index) => (
+          displayLines.map((line, index) => (
             <div key={index} className="whitespace-pre-wrap break-all text-chatroom-text-secondary">
               <AnsiText text={line} />
             </div>
@@ -125,24 +150,33 @@ export function CommandOutputPanel({
         )}
       </div>
 
-      {/* Footer with scroll indicator */}
+      {/* Footer */}
       <div className="px-4 py-2 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center gap-2">
-        <span className="tabular-nums">{output.length} lines</span>
-        <div className="flex items-center gap-2 min-w-0">
-          {canLoadMore && onLoadMore && (
-            <button
-              type="button"
-              onClick={onLoadMore}
-              disabled={fullOutputPending}
-              className="text-chatroom-status-info hover:text-chatroom-accent font-medium uppercase tracking-wide disabled:opacity-50"
-            >
-              {fullOutputPending ? 'Loading…' : 'Load more'}
-            </button>
-          )}
-          {!isAtBottom && output.length > 0 && (
-            <span className="text-chatroom-text-muted italic truncate">Scroll to follow</span>
-          )}
-        </div>
+        <span className="tabular-nums">
+          {showLogHead
+            ? `Showing first ${Math.min(lineCount, LOG_HEAD_LINE_COUNT)} of ${lineCount} lines`
+            : `${lineCount} lines`}
+        </span>
+        {showJumpToStart && (
+          <button
+            type="button"
+            onClick={() => void handleJumpToStart()}
+            disabled={fullOutputPending}
+            className="text-chatroom-status-info hover:text-chatroom-accent font-medium uppercase tracking-wide disabled:opacity-50"
+          >
+            {fullOutputPending ? 'Loading history…' : 'Jump to Start'}
+          </button>
+        )}
+        {showLogHead && canLoadMore && onLoadMore && (
+          <button
+            type="button"
+            onClick={() => void onLoadMore()}
+            disabled={fullOutputPending}
+            className="text-chatroom-status-info hover:text-chatroom-accent font-medium uppercase tracking-wide disabled:opacity-50"
+          >
+            {fullOutputPending ? 'Loading history…' : 'Reload history'}
+          </button>
+        )}
       </div>
     </div>
   );

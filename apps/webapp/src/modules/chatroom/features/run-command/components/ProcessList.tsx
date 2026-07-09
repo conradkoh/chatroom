@@ -5,9 +5,9 @@
 
 'use client';
 
-import { Square, RefreshCw } from 'lucide-react';
-import type { CommandRun } from '../types/run';
 import { StatusIcon } from './StatusIcon';
+import { StopRestartButtons } from './StopRestartButtons';
+import type { CommandRun } from '../types/run';
 import { isActiveRun } from '../utils/run-status';
 
 interface ProcessListProps {
@@ -54,32 +54,16 @@ export function ProcessList({
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {active ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStop(run._id);
-                  }}
-                  className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
-                  title="Stop"
-                  aria-label={`Stop ${run.commandName}`}
-                >
-                  <Square size={14} />
-                </button>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRestart(run);
-                  }}
-                  className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
-                  title="Restart"
-                  aria-label={`Restart ${run.commandName}`}
-                >
-                  <RefreshCw size={14} />
-                </button>
-              )}
+            <div
+              className="flex items-center gap-1 flex-shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <StopRestartButtons
+                variant="icon"
+                active={active}
+                onStop={() => onStop(run._id)}
+                onRestart={() => onRestart(run)}
+              />
             </div>
           </div>
         );
