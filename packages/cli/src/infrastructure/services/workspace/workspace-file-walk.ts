@@ -2,15 +2,12 @@ import { promises as fsPromises, type Dirent } from 'node:fs';
 import path from 'node:path';
 // fallow-ignore-file complexity
 
-import type { Ignore } from 'ignore';
-
-import { isPathIgnoredByRules, loadWorkspaceIgnore } from './workspace-ignore.js';
 import {
-  filterIgnoredPaths,
-  isAlwaysExcludedDirName,
-  isPathVisible,
-} from './workspace-visibility-policy.js';
-import { isGitRepo } from '../../git/git-reader.js';
+  isPathIgnoredByRuleSets,
+  loadDirectoryIgnoreRuleSets,
+  type WorkspaceIgnoreRuleSet,
+} from './workspace-ignore.js';
+import { isAlwaysExcludedDirName, isPathVisible } from './workspace-visibility-policy.js';
 
 export type WalkWorkspaceFilesOptions = {
   maxFilePaths?: number;
@@ -34,23 +31,18 @@ export async function walkWorkspaceFiles(
   const filePaths: string[] = [];
   let truncated = false;
 
-  const inRepo = await isGitRepo(rootDir);
-  const parsedIgnore: Ignore | null = inRepo ? null : await loadWorkspaceIgnore(rootDir);
-
-  async function isIgnored(relativePath: string): Promise<boolean> {
-    if (inRepo) {
-      const ignored = await filterIgnoredPaths(rootDir, [relativePath]);
-      return ignored.has(relativePath);
-    }
-    return parsedIgnore !== null && isPathIgnoredByRules(parsedIgnore, relativePath);
-  }
-
-  async function visitDir(relDir: string): Promise<void> {
+  async function visitDir(
+    relDir: string,
+    inheritedRuleSets: readonly WorkspaceIgnoreRuleSet[]
+  ): Promise<void> {
     if (truncated || filePaths.length >= maxFilePaths) {
       truncated = true;
       return;
     }
 
+    const localRuleSets = await loadDirectoryIgnoreRuleSets(rootDir, relDir);
+    const ruleSets =
+      localRuleSets.length === 0 ? inheritedRuleSets : [...inheritedRuleSets, ...localRuleSets];
     const absDir = relDir ? path.join(rootDir, relDir) : rootDir;
     let dirents: Dirent[];
     try {
@@ -71,16 +63,16 @@ export async function walkWorkspaceFiles(
       if (!isPathVisible(relativePath)) continue;
 
       if (ent.isDirectory()) {
-        if (await isIgnored(relativePath)) continue;
-        await visitDir(relativePath);
+        if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
+        await visitDir(relativePath, ruleSets);
       } else if (ent.isFile()) {
-        if (await isIgnored(relativePath)) continue;
+        if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
         filePaths.push(relativePath);
         if (filePaths.length >= maxFilePaths) truncated = true;
       }
     }
   }
 
-  await visitDir('');
+  await visitDir('', []);
   return { filePaths, truncated };
 }

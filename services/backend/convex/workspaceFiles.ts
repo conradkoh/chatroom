@@ -30,6 +30,12 @@ const MAX_SHARD_JSON_BYTES = 800 * 1024;
 /** Max shards per batch mutation. */
 const MAX_SHARD_BATCH_SIZE = 8;
 
+/** Keep delta documents comfortably below Convex's document size limit. */
+const MAX_FILE_TREE_DELTA_OPERATIONS = 500;
+const MAX_FILE_TREE_DELTA_BYTES = 800 * 1024;
+const MAX_FILE_TREE_DELTAS_PER_QUERY = 100;
+const MAX_OPERATION_ID_LENGTH = 200;
+
 /** Max file content size: 512KB. */
 const MAX_CONTENT_BYTES = 512 * 1024;
 
@@ -327,11 +333,12 @@ export const fulfillFileContent = mutation({
 
 // ─── File Tree Request (frontend → daemon) ──────────────────────────────────
 
-/** Staleness window: don't re-request if tree is fresher than this. */
+/** Staleness window for ensuring the daemon-side cache is active. */
 const FILE_TREE_STALENESS_MS = 10 * 1000; // 10 seconds
 
 /**
- * Requests a fresh file tree scan for a workspace.
+ * Requests that the daemon ensure incremental synchronization for a workspace.
+ * `force` is reserved for explicit recovery and performs a reconciliation walk.
  * Returns 'cached' if the tree is fresh, 'pending' if already requested,
  * or 'requested' if a new request was created.
  */
@@ -388,6 +395,12 @@ export const requestFileTree = mutation({
       .first();
 
     if (existingRequest && existingRequest.status === 'pending') {
+      if (args.force && existingRequest.force !== true) {
+        await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
+          force: true,
+          updatedAt: Date.now(),
+        });
+      }
       return { status: 'pending' as const };
     }
 
@@ -396,6 +409,7 @@ export const requestFileTree = mutation({
     if (existingRequest) {
       await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
         status: 'pending',
+        force: args.force === true,
         requestedAt: now,
         updatedAt: now,
       });
@@ -404,6 +418,7 @@ export const requestFileTree = mutation({
         machineId: args.machineId,
         workingDir,
         status: 'pending',
+        force: args.force === true,
         requestedAt: now,
         updatedAt: now,
       });
@@ -446,6 +461,7 @@ export const getPendingFileTreeRequests = query({
     return requests.map((r) => ({
       _id: r._id,
       workingDir: r.workingDir,
+      force: r.force === true,
     }));
   },
 });
@@ -879,6 +895,338 @@ export const getFileTreeShardsV3 = query({
   },
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Incremental File Tree Sync — revisioned deltas over V2/V3 checkpoints
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const fileTreeDeltaOperationValidator = v.object({
+  operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
+  path: v.string(),
+  entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
+  size: v.optional(v.number()),
+  modifiedAt: v.optional(v.number()),
+});
+
+async function getCurrentFileTreeRevision(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<number> {
+  const latestDelta = await ctx.db
+    .query('chatroom_workspaceFileTreeDelta')
+    .withIndex('by_machine_workingDir_revision', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .order('desc')
+    .first();
+  if (latestDelta) return latestDelta.revision;
+
+  const checkpoint = await ctx.db
+    .query('chatroom_workspaceFileTreeCheckpoint')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  return checkpoint?.revision ?? 0;
+}
+
+function validateFileTreeRevision(revision: number, field: string): void {
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw new Error(`${field} must be a non-negative safe integer`);
+  }
+}
+
+/**
+ * Appends one ordered delta batch. A daemon may retry the same operationId
+ * indefinitely: its compact receipt survives checkpoint compaction.
+ */
+export const applyFileTreeDeltaBatch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    operationId: v.string(),
+    baseRevision: v.number(),
+    operations: v.array(fileTreeDeltaOperationValidator),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
+    validateFileTreeRevision(args.baseRevision, 'baseRevision');
+    if (!args.operationId || args.operationId.length > MAX_OPERATION_ID_LENGTH) {
+      throw new Error(`operationId must be between 1 and ${MAX_OPERATION_ID_LENGTH} characters`);
+    }
+    if (args.operations.length === 0 || args.operations.length > MAX_FILE_TREE_DELTA_OPERATIONS) {
+      throw new Error(
+        `Delta batch must contain between 1 and ${MAX_FILE_TREE_DELTA_OPERATIONS} operations`
+      );
+    }
+    if (
+      new TextEncoder().encode(JSON.stringify(args.operations)).length > MAX_FILE_TREE_DELTA_BYTES
+    ) {
+      throw new Error('File tree delta batch too large');
+    }
+    for (const operation of args.operations) {
+      validateFilePath(operation.path);
+      if (operation.operation === 'remove') {
+        if (
+          operation.entryType !== undefined ||
+          operation.size !== undefined ||
+          operation.modifiedAt !== undefined
+        ) {
+          throw new Error('Remove operations must contain only a path');
+        }
+      } else if (!operation.entryType) {
+        throw new Error(`${operation.operation} operations require entryType`);
+      }
+    }
+
+    const receipt = await ctx.db
+      .query('chatroom_workspaceFileTreeDeltaOperation')
+      .withIndex('by_machine_workingDir_operationId', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', workingDir)
+          .eq('operationId', args.operationId)
+      )
+      .first();
+    if (receipt) {
+      return { status: 'duplicate' as const, revision: receipt.revision };
+    }
+
+    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
+    if (args.baseRevision !== currentRevision) {
+      return { status: 'resync-required' as const, expectedRevision: currentRevision };
+    }
+
+    const revision = currentRevision + 1;
+    const now = Date.now();
+    await ctx.db.insert('chatroom_workspaceFileTreeDelta', {
+      machineId: args.machineId,
+      workingDir,
+      operationId: args.operationId,
+      baseRevision: args.baseRevision,
+      revision,
+      operations: args.operations,
+      createdAt: now,
+    });
+    await ctx.db.insert('chatroom_workspaceFileTreeDeltaOperation', {
+      machineId: args.machineId,
+      workingDir,
+      operationId: args.operationId,
+      revision,
+      createdAt: now,
+    });
+
+    return { status: 'applied' as const, revision };
+  },
+});
+
+/** Returns checkpoint metadata; the snapshot payload remains in V2/V3 tables. */
+export const getFileTreeCheckpoint = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const checkpoint = await ctx.db
+      .query('chatroom_workspaceFileTreeCheckpoint')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (!checkpoint) return null;
+    return {
+      revision: checkpoint.revision,
+      snapshotKind: checkpoint.snapshotKind,
+      snapshotId: checkpoint.snapshotId,
+      publishedAt: checkpoint.publishedAt,
+    };
+  },
+});
+
+/**
+ * Returns ordered delta batches after a client's revision. A client behind a
+ * compacted checkpoint must reload the referenced V2/V3 snapshot first.
+ */
+export const getFileTreeDeltas = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    afterRevision: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+    validateFileTreeRevision(args.afterRevision, 'afterRevision');
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const checkpoint = await ctx.db
+      .query('chatroom_workspaceFileTreeCheckpoint')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    const checkpointRevision = checkpoint?.revision ?? 0;
+    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
+
+    if (args.afterRevision < checkpointRevision) {
+      return {
+        status: 'checkpoint-required' as const,
+        checkpointRevision,
+        currentRevision,
+      };
+    }
+    if (args.afterRevision > currentRevision) {
+      return {
+        status: 'resync-required' as const,
+        expectedRevision: currentRevision,
+      };
+    }
+
+    const rows = await ctx.db
+      .query('chatroom_workspaceFileTreeDelta')
+      .withIndex('by_machine_workingDir_revision', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', workingDir)
+          .gt('revision', args.afterRevision)
+      )
+      .take(MAX_FILE_TREE_DELTAS_PER_QUERY + 1);
+    const hasMore = rows.length > MAX_FILE_TREE_DELTAS_PER_QUERY;
+    const deltas = rows.slice(0, MAX_FILE_TREE_DELTAS_PER_QUERY).map((row) => ({
+      operationId: row.operationId,
+      baseRevision: row.baseRevision,
+      revision: row.revision,
+      operations: row.operations,
+      createdAt: row.createdAt,
+    }));
+    return {
+      status: 'ok' as const,
+      checkpointRevision,
+      currentRevision,
+      deltas,
+      hasMore,
+    };
+  },
+});
+
+/**
+ * Publishes the current V2/V3 snapshot as a checkpoint, then prunes only the
+ * delta payloads it covers. Idempotency receipts are intentionally retained.
+ */
+export const publishFileTreeCheckpoint = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    revision: v.number(),
+    snapshotKind: v.union(v.literal('v2'), v.literal('v3')),
+    /** V2 dataHash or V3 syncGeneration. */
+    snapshotId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    validateFileTreeRevision(args.revision, 'revision');
+    if (!args.snapshotId) throw new Error('snapshotId is required');
+
+    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
+    // A checkpoint may compact the current revision or advance it by one when
+    // replacing a stale/missing local cache with a newly scanned authoritative snapshot.
+    if (args.revision !== currentRevision && args.revision !== currentRevision + 1) {
+      return { status: 'resync-required' as const, expectedRevision: currentRevision };
+    }
+
+    if (args.snapshotKind === 'v2') {
+      const snapshot = await ctx.db
+        .query('chatroom_workspaceFileTreeV2')
+        .withIndex('by_machine_workingDir', (q: any) =>
+          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+        )
+        .first();
+      if (!snapshot || snapshot.dataHash !== args.snapshotId) {
+        return { status: 'snapshot-missing' as const };
+      }
+    } else {
+      const manifest = await ctx.db
+        .query('chatroom_workspaceFileTreeManifestV3')
+        .withIndex('by_machine_workingDir', (q: any) =>
+          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+        )
+        .first();
+      if (!manifest || !manifest.complete || manifest.syncGeneration !== args.snapshotId) {
+        return { status: 'snapshot-missing' as const };
+      }
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileTreeCheckpoint')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (existing && args.revision < existing.revision) {
+      return { status: 'resync-required' as const, expectedRevision: currentRevision };
+    }
+    const unchanged =
+      existing?.revision === args.revision &&
+      existing.snapshotKind === args.snapshotKind &&
+      existing.snapshotId === args.snapshotId;
+    const row = {
+      machineId: args.machineId,
+      workingDir,
+      revision: args.revision,
+      snapshotKind: args.snapshotKind,
+      snapshotId: args.snapshotId,
+      publishedAt: Date.now(),
+    };
+    if (existing) {
+      await ctx.db.patch('chatroom_workspaceFileTreeCheckpoint', existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileTreeCheckpoint', row);
+    }
+
+    const coveredDeltas = await ctx.db
+      .query('chatroom_workspaceFileTreeDelta')
+      .withIndex('by_machine_workingDir_revision', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', workingDir)
+          .lte('revision', args.revision)
+      )
+      .collect();
+    for (const delta of coveredDeltas) {
+      await ctx.db.delete('chatroom_workspaceFileTreeDelta', delta._id);
+    }
+
+    return {
+      status: unchanged ? ('unchanged' as const) : ('published' as const),
+      revision: args.revision,
+      prunedDeltaCount: coveredDeltas.length,
+    };
+  },
+});
+
 // ─── Daemon: Fulfill File Content V2 ────────────────────────────────────────
 
 /**
@@ -1295,6 +1643,37 @@ export const purgeFileTreeV2 = mutation({
       for (const shard of shards)
         await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
       await ctx.db.delete('chatroom_workspaceFileTreeManifestV3', manifestV3._id);
+    }
+
+    // Delete incremental checkpoint, delta payloads, and idempotency receipts
+    const checkpoint = await ctx.db
+      .query('chatroom_workspaceFileTreeCheckpoint')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (checkpoint) {
+      await ctx.db.delete('chatroom_workspaceFileTreeCheckpoint', checkpoint._id);
+    }
+
+    const deltas = await ctx.db
+      .query('chatroom_workspaceFileTreeDelta')
+      .withIndex('by_machine_workingDir_revision', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .collect();
+    for (const delta of deltas) {
+      await ctx.db.delete('chatroom_workspaceFileTreeDelta', delta._id);
+    }
+
+    const deltaOperations = await ctx.db
+      .query('chatroom_workspaceFileTreeDeltaOperation')
+      .withIndex('by_machine_workingDir_operationId', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .collect();
+    for (const operation of deltaOperations) {
+      await ctx.db.delete('chatroom_workspaceFileTreeDeltaOperation', operation._id);
     }
 
     // Delete v1 file tree

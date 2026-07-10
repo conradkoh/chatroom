@@ -3,11 +3,6 @@
  * and which file content can be read remotely.
  */
 
-import { spawn } from 'node:child_process';
-
-import { isPathIgnoredByRules, loadWorkspaceIgnore } from './workspace-ignore.js';
-import { isGitRepo } from '../../git/git-reader.js';
-
 // fallow-ignore-next-line unused-export
 export const ALWAYS_EXCLUDE_DIR_NAMES = new Set([
   'node_modules',
@@ -60,66 +55,4 @@ export function isPathVisible(relativePath: string): boolean {
 /** File content can be read remotely (same rules as visibility for files). */
 export function isPathContentReadable(relativePath: string): boolean {
   return isPathVisible(relativePath);
-}
-
-/**
- * Filter paths that should be ignored.
- * Uses git check-ignore when inside a git repo; otherwise parses .gitignore/.cursorignore.
- */
-// fallow-ignore-next-line complexity
-export async function filterIgnoredPaths(
-  rootDir: string,
-  relativePaths: string[]
-): Promise<Set<string>> {
-  if (relativePaths.length === 0) return new Set();
-
-  const inRepo = await isGitRepo(rootDir);
-  if (inRepo) return filterGitIgnored(rootDir, relativePaths);
-
-  const ig = await loadWorkspaceIgnore(rootDir);
-  const ignored = new Set<string>();
-  for (const p of relativePaths) {
-    if (isPathIgnoredByRules(ig, p)) ignored.add(p);
-  }
-  return ignored;
-}
-
-/** Batch git check-ignore; returns Set of ignored paths from input. */
-// fallow-ignore-next-line complexity
-export async function filterGitIgnored(
-  rootDir: string,
-  relativePaths: string[]
-): Promise<Set<string>> {
-  if (relativePaths.length === 0) return new Set();
-
-  const inRepo = await isGitRepo(rootDir);
-  if (!inRepo) return new Set();
-
-  try {
-    const stdout = await new Promise<string>((resolve, reject) => {
-      const child = spawn('git', ['check-ignore', '--stdin', '-z'], {
-        cwd: rootDir,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
-      });
-      let output = '';
-      child.stdout.on('data', (chunk: Buffer) => {
-        output += chunk.toString();
-      });
-      child.on('error', reject);
-      child.on('close', () => resolve(output));
-      child.stdin.write(relativePaths.join('\n'));
-      child.stdin.end();
-    });
-
-    const ignored = new Set<string>();
-    if (!stdout) return ignored;
-
-    for (const entry of stdout.split('\0')) {
-      const trimmed = entry.trim();
-      if (trimmed) ignored.add(trimmed);
-    }
-    return ignored;
-  } catch {
-    return new Set();
-  }
 }

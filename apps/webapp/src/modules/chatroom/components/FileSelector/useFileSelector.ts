@@ -45,7 +45,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const hasWorkspace = !!machineId && !!workingDir;
-  const { entries, refresh, isLoading, hasTree } = useWorkspaceFileTreeEntries({
+  const { entries, refresh, isLoading } = useWorkspaceFileTreeEntries({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
     enabled: hasWorkspace,
@@ -56,9 +56,9 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
 
   useEffect(() => {
     if (open && hasWorkspace) {
-      refresh({ force: hasTree });
+      refresh();
     }
-  }, [open, hasWorkspace, hasTree, refresh]);
+  }, [open, hasWorkspace, refresh]);
 
   // Register Cmd+P / Ctrl+P shortcut (preventDefault blocks browser print dialog)
   useCommandDialogShortcut({ dialog: 'file-selector', key: 'p', shiftKey: 'forbidden' });

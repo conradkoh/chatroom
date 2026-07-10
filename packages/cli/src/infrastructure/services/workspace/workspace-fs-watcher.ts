@@ -1,36 +1,37 @@
-import { watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
 // fallow-ignore-file complexity
 
-import {
-  dirsToRefreshForEvent,
-  filterDirsByActiveSet,
-  shouldIgnoreWatchRelativePath,
-} from './workspace-fs-watch-paths.js';
+import { watch, type FSWatcher } from 'chokidar';
 
-const DEFAULT_DEBOUNCE_MS = 400;
+import { hasExcludedDirSegment, isPathVisible } from './workspace-visibility-policy.js';
+
+const DEFAULT_DEBOUNCE_MS = 250;
+
+export type WorkspaceFsEventKind = 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir';
+
+export interface WorkspaceFsEvent {
+  kind: WorkspaceFsEventKind;
+  path: string;
+}
 
 export interface WorkspaceFsWatcherOptions {
   workingDir: string;
-  activeDirPaths: ReadonlySet<string>;
-  onRefreshDirs: (dirPaths: string[]) => void | Promise<void>;
+  onEvents: (events: WorkspaceFsEvent[]) => void | Promise<void>;
+  shouldIgnore?: (relativePath: string) => boolean;
+  onError?: (error: unknown) => void;
   debounceMs?: number;
 }
 
 export interface WorkspaceFsWatcherHandle {
-  updateActiveDirPaths: (paths: ReadonlySet<string>) => void;
-  stop: () => void;
+  ready: Promise<void>;
+  stop: () => Promise<void>;
 }
 
-function isRecursiveWatchPlatform(): boolean {
-  return process.platform === 'darwin' || process.platform === 'win32';
-}
-
-function normalizeFilename(filename: string | Buffer | null | undefined): string | null {
-  if (filename == null) return null;
-  const value = typeof filename === 'string' ? filename : filename.toString();
-  if (!value || value === '.' || value === '..') return null;
-  return value.replace(/\\/g, '/');
+function toRelativePath(rootDir: string, absolutePath: string): string {
+  return path
+    .relative(rootDir, absolutePath)
+    .replace(/\\/g, '/')
+    .replace(/^\.?\//, '');
 }
 
 export function createWorkspaceFsWatcher(
@@ -38,126 +39,70 @@ export function createWorkspaceFsWatcher(
 ): WorkspaceFsWatcherHandle {
   const absWorkingDir = path.resolve(options.workingDir);
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-
-  let activeDirPaths = new Set(options.activeDirPaths);
   let stopped = false;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  const pendingDirs = new Set<string>();
-  let rootWatcher: FSWatcher | null = null;
-  const dirWatchers = new Map<string, FSWatcher>();
+  const pendingEvents = new Map<string, WorkspaceFsEvent>();
 
   const scheduleFlush = (): void => {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
-      if (pendingDirs.size === 0) return;
-      const dirs = [...pendingDirs];
-      pendingDirs.clear();
-      void Promise.resolve(options.onRefreshDirs(dirs));
+      if (pendingEvents.size === 0 || stopped) return;
+      const events = [...pendingEvents.values()].sort((a, b) => a.path.localeCompare(b.path));
+      pendingEvents.clear();
+      void Promise.resolve(options.onEvents(events)).catch((error: unknown) => {
+        options.onError?.(error);
+      });
     }, debounceMs);
     debounceTimer.unref?.();
   };
 
-  const enqueueDirs = (dirs: string[]): void => {
-    for (const dir of dirs) pendingDirs.add(dir);
+  const enqueue = (kind: WorkspaceFsEventKind, absolutePath: string): void => {
+    if (stopped) return;
+    const relativePath = toRelativePath(absWorkingDir, absolutePath);
+    if (!relativePath || !isPathVisible(relativePath) || hasExcludedDirSegment(relativePath))
+      return;
+    if (options.shouldIgnore?.(relativePath)) return;
+    pendingEvents.set(relativePath, { kind, path: relativePath });
     scheduleFlush();
   };
 
-  const handleRelativePath = (relativePath: string, isDirectory = false): void => {
-    if (stopped) return;
-    if (shouldIgnoreWatchRelativePath(relativePath)) return;
-    const toRefresh = filterDirsByActiveSet(
-      dirsToRefreshForEvent(relativePath, isDirectory),
-      activeDirPaths
-    );
-    if (toRefresh.length > 0) enqueueDirs(toRefresh);
-  };
+  const watcher: FSWatcher = watch(absWorkingDir, {
+    ignored: (watchPath) => {
+      const relativePath = toRelativePath(absWorkingDir, watchPath);
+      if (!relativePath) return false;
+      return (
+        !isPathVisible(relativePath) ||
+        hasExcludedDirSegment(relativePath) ||
+        options.shouldIgnore?.(relativePath) === true
+      );
+    },
+    ignoreInitial: true,
+    persistent: true,
+    awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 25 },
+  });
+  watcher
+    .on('add', (filePath) => enqueue('add', filePath))
+    .on('addDir', (filePath) => enqueue('addDir', filePath))
+    .on('change', (filePath) => enqueue('change', filePath))
+    .on('unlink', (filePath) => enqueue('unlink', filePath))
+    .on('unlinkDir', (filePath) => enqueue('unlinkDir', filePath))
+    .on('error', (error) => options.onError?.(error));
 
-  const onWatchEvent = (
-    watchedDirPath: string,
-    filename: string | Buffer | null | undefined
-  ): void => {
-    const normalizedFilename = normalizeFilename(filename);
-    if (!normalizedFilename) return;
-
-    let relativePath: string;
-    if (isRecursiveWatchPlatform()) {
-      relativePath = normalizedFilename;
-    } else if (watchedDirPath === '') {
-      relativePath = normalizedFilename;
-    } else {
-      relativePath = `${watchedDirPath}/${normalizedFilename}`;
-    }
-
-    const isDirectory = relativePath.endsWith('/');
-    handleRelativePath(relativePath.replace(/\/+$/, ''), isDirectory);
-  };
-
-  const closePerDirWatchers = (): void => {
-    for (const watcher of dirWatchers.values()) watcher.close();
-    dirWatchers.clear();
-  };
-
-  const startPerDirWatch = (dirPath: string): void => {
-    if (dirPath === '' || dirWatchers.has(dirPath)) return;
-    const absDir = path.join(absWorkingDir, dirPath);
-    const watcher = watch(absDir, (_eventType, filename) => {
-      onWatchEvent(dirPath, filename);
-    });
-    dirWatchers.set(dirPath, watcher);
-  };
-
-  const rewirePerDirWatches = (): void => {
-    const wanted = new Set<string>();
-    for (const dirPath of activeDirPaths) {
-      if (dirPath !== '') wanted.add(dirPath);
-    }
-
-    for (const [dirPath, watcher] of dirWatchers) {
-      if (!wanted.has(dirPath)) {
-        watcher.close();
-        dirWatchers.delete(dirPath);
-      }
-    }
-
-    for (const dirPath of wanted) {
-      if (!dirWatchers.has(dirPath)) startPerDirWatch(dirPath);
-    }
-  };
-
-  const startWatching = (): void => {
-    if (isRecursiveWatchPlatform()) {
-      rootWatcher = watch(absWorkingDir, { recursive: true }, (_eventType, filename) => {
-        onWatchEvent('', filename);
-      });
-      return;
-    }
-
-    rootWatcher = watch(absWorkingDir, (_eventType, filename) => {
-      onWatchEvent('', filename);
-    });
-    rewirePerDirWatches();
-  };
-
-  startWatching();
+  const ready = new Promise<void>((resolve) => {
+    watcher.once('ready', resolve);
+  });
 
   return {
-    updateActiveDirPaths: (paths: ReadonlySet<string>) => {
-      activeDirPaths = new Set(paths);
-      if (!isRecursiveWatchPlatform() && !stopped) {
-        rewirePerDirWatches();
-      }
-    },
-    stop: () => {
+    ready,
+    stop: async () => {
       stopped = true;
       if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
       }
-      rootWatcher?.close();
-      rootWatcher = null;
-      closePerDirWatchers();
-      pendingDirs.clear();
+      pendingEvents.clear();
+      await watcher.close();
     },
   };
 }
