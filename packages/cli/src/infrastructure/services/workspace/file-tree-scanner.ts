@@ -1,12 +1,10 @@
 /**
  * File tree scanner for workspace directories.
  *
- * Uses `git ls-files` in git repos; falls back to filesystem walk otherwise.
- * Produces a flat array of FileTreeEntry objects.
+ * Uses filesystem walk for all workspaces. In git repos, ignore rules come from
+ * `git check-ignore`; otherwise `.gitignore` / `.cursorignore` are parsed.
+ * This traverses submodule directories on disk (unlike `git ls-files`).
  */
-
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
 
 import type {
   FileTree,
@@ -15,9 +13,6 @@ import type {
 
 import { walkWorkspaceFiles } from './workspace-file-walk.js';
 import { hasExcludedDirSegment } from './workspace-visibility-policy.js';
-import { isGitRepo } from '../../git/git-reader.js';
-
-const execAsync = promisify(exec);
 
 const DEFAULT_MAX_ENTRIES = 10_000;
 
@@ -32,17 +27,8 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
   const maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const scannedAt = Date.now();
 
-  const inRepo = await isGitRepo(rootDir);
-  let filePaths: string[];
-
-  if (inRepo) {
-    filePaths = await getGitFiles(rootDir);
-  } else {
-    const walk = await walkWorkspaceFiles(rootDir, { maxFilePaths: maxEntries });
-    filePaths = walk.filePaths;
-  }
-
-  const filteredPaths = filePaths.filter((p) => !isExcluded(p));
+  const walk = await walkWorkspaceFiles(rootDir, { maxFilePaths: maxEntries });
+  const filteredPaths = walk.filePaths.filter((p) => !isExcluded(p));
   const entries = buildEntries(filteredPaths, maxEntries);
 
   return {
@@ -50,43 +36,6 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
     scannedAt,
     rootDir,
   };
-}
-
-async function getGitFiles(rootDir: string): Promise<string[]> {
-  const env = {
-    ...process.env,
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_PAGER: 'cat',
-    NO_COLOR: '1',
-  };
-
-  try {
-    const tracked = await execAsync('git ls-files', {
-      cwd: rootDir,
-      env,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-
-    const untracked = await execAsync('git ls-files --others --exclude-standard', {
-      cwd: rootDir,
-      env,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-
-    const trackedFiles = parseLines(tracked.stdout);
-    const untrackedFiles = parseLines(untracked.stdout);
-    const allFiles = new Set([...trackedFiles, ...untrackedFiles]);
-    return Array.from(allFiles);
-  } catch {
-    return [];
-  }
-}
-
-function parseLines(output: string): string[] {
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
 }
 
 /** Check if a path contains an always-excluded directory segment. */

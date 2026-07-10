@@ -60,4 +60,18 @@ describe('walkWorkspaceFiles', () => {
     expect(result.filePaths).toHaveLength(3);
     expect(result.truncated).toBe(true);
   });
+
+  it('walks into nested directories such as git submodule mount points', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-submodule-'));
+    await mkdir(join(tmpDir, 'vendor', 'my-lib', 'src'), { recursive: true });
+    await writeFile(join(tmpDir, 'vendor', 'my-lib', 'README.md'), '# lib');
+    await writeFile(join(tmpDir, 'vendor', 'my-lib', 'src', 'index.ts'), 'export {}');
+
+    const result = await walkWorkspaceFiles(tmpDir);
+
+    expect(result.filePaths.sort()).toEqual([
+      'vendor/my-lib/README.md',
+      'vendor/my-lib/src/index.ts',
+    ]);
+  });
 });

@@ -1,37 +1,14 @@
-import { exec } from 'node:child_process';
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildEntries, isExcluded, scanFileTree } from './file-tree-scanner.js';
 
 const mocks = vi.hoisted(() => ({
-  isGitRepo: vi.fn(),
   walkWorkspaceFiles: vi.fn(),
-}));
-
-vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
-}));
-
-vi.mock('node:util', () => ({
-  promisify: (fn: Function) => fn,
-}));
-
-vi.mock('../../git/git-reader.js', () => ({
-  isGitRepo: mocks.isGitRepo,
 }));
 
 vi.mock('./workspace-file-walk.js', () => ({
   walkWorkspaceFiles: mocks.walkWorkspaceFiles,
 }));
-
-const mockExec = vi.mocked(exec);
-
-function mockSuccess(stdout: string): void {
-  mockExec.mockImplementationOnce((_cmd, _opts) => {
-    return Promise.resolve({ stdout, stderr: '' }) as unknown as ReturnType<typeof exec>;
-  });
-}
 
 describe('isExcluded', () => {
   it('excludes node_modules paths', () => {
@@ -101,38 +78,49 @@ describe('buildEntries', () => {
 describe('scanFileTree', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isGitRepo.mockResolvedValue(true);
     mocks.walkWorkspaceFiles.mockResolvedValue({ filePaths: [], truncated: false });
   });
 
-  it('returns file tree with entries from git ls-files', async () => {
-    mockSuccess('src/index.ts\nREADME.md\n');
-    mockSuccess('draft.txt\n');
+  it('returns file tree entries from filesystem walk', async () => {
+    mocks.walkWorkspaceFiles.mockResolvedValue({
+      filePaths: ['src/index.ts', 'README.md', 'draft.txt'],
+      truncated: false,
+    });
 
     const tree = await scanFileTree('/test/repo');
 
     expect(tree.rootDir).toBe('/test/repo');
     expect(tree.scannedAt).toBeGreaterThan(0);
+    expect(mocks.walkWorkspaceFiles).toHaveBeenCalledWith('/test/repo', { maxFilePaths: 10_000 });
 
     const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
     expect(filePaths).toContain('src/index.ts');
     expect(filePaths).toContain('README.md');
     expect(filePaths).toContain('draft.txt');
-    expect(mocks.walkWorkspaceFiles).not.toHaveBeenCalled();
   });
 
-  it('deduplicates tracked and untracked files', async () => {
-    mockSuccess('src/index.ts\n');
-    mockSuccess('src/index.ts\n');
+  it('includes nested files inside submodule-like directories', async () => {
+    mocks.walkWorkspaceFiles.mockResolvedValue({
+      filePaths: ['vendor/lib/index.ts', 'vendor/lib/src/util.ts'],
+      truncated: false,
+    });
 
     const tree = await scanFileTree('/test/repo');
-    const files = tree.entries.filter((e) => e.type === 'file');
-    expect(files).toHaveLength(1);
+    const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
+
+    expect(filePaths).toContain('vendor/lib/index.ts');
+    expect(filePaths).toContain('vendor/lib/src/util.ts');
+    expect(tree.entries.some((e) => e.type === 'directory' && e.path === 'vendor/lib')).toBe(true);
+    expect(tree.entries.some((e) => e.type === 'directory' && e.path === 'vendor/lib/src')).toBe(
+      true
+    );
   });
 
   it('filters out excluded paths', async () => {
-    mockSuccess('src/app.ts\nnode_modules/pkg/index.js\ndist/bundle.js\n');
-    mockSuccess('');
+    mocks.walkWorkspaceFiles.mockResolvedValue({
+      filePaths: ['src/app.ts', 'node_modules/pkg/index.js', 'dist/bundle.js'],
+      truncated: false,
+    });
 
     const tree = await scanFileTree('/test/repo');
     const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
@@ -143,27 +131,13 @@ describe('scanFileTree', () => {
   });
 
   it('caps at maxEntries', async () => {
-    const manyFiles = Array.from({ length: 200 }, (_, i) => `file${i}.ts`).join('\n');
-    mockSuccess(manyFiles);
-    mockSuccess('');
+    const manyFiles = Array.from({ length: 200 }, (_, i) => `file${i}.ts`);
+    mocks.walkWorkspaceFiles.mockResolvedValue({
+      filePaths: manyFiles,
+      truncated: true,
+    });
 
     const tree = await scanFileTree('/test/repo', { maxEntries: 50 });
     expect(tree.entries.length).toBeLessThanOrEqual(50);
-  });
-
-  it('falls back to filesystem walk when not a git repo', async () => {
-    mocks.isGitRepo.mockResolvedValue(false);
-    mocks.walkWorkspaceFiles.mockResolvedValue({
-      filePaths: ['src/index.ts'],
-      truncated: false,
-    });
-
-    const tree = await scanFileTree('/not/a/repo');
-
-    expect(mocks.walkWorkspaceFiles).toHaveBeenCalledWith('/not/a/repo', { maxFilePaths: 10_000 });
-    expect(tree.entries.filter((e) => e.type === 'file').map((e) => e.path)).toContain(
-      'src/index.ts'
-    );
-    expect(mockExec).not.toHaveBeenCalled();
   });
 });
