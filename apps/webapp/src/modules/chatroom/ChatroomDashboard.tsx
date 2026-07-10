@@ -94,6 +94,7 @@ import {
   previewPaneFlexClass,
 } from './workspace/utils/editorExpandLayout';
 import { previewTabDoubleClickAction } from './workspace/utils/explorerExpandHandlers';
+import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceFileLink';
 
 import {
   AlertDialog,
@@ -880,6 +881,19 @@ export function ChatroomDashboard({
     [fileSelector, activeView, handleOpenInExplorer]
   );
 
+  const handleWorkspaceFileLinkClick = useCallback(
+    (filePath: string) => {
+      if (!filePath) return;
+      const target = resolveWorkspaceFileLinkOpenTarget(activeView, explorerSplitViewEnabled);
+      if (target === 'explorer') {
+        handleOpenInExplorer(filePath);
+      } else {
+        fileSelector.selectFile(filePath);
+      }
+    },
+    [activeView, explorerSplitViewEnabled, handleOpenInExplorer, fileSelector]
+  );
+
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
     machineId: activeWorkspace?.machineId ?? null,
@@ -1491,7 +1505,7 @@ export function ChatroomDashboard({
         teamRoles={teamRoles}
         teamEntryPoint={teamEntryPoint}
       >
-        <WorkspaceFileLinkProvider onOpenFile={handleOpenInExplorer}>
+        <WorkspaceFileLinkProvider onOpenFile={handleWorkspaceFileLinkClick}>
           <>
             <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
               <div className="flex flex-1 overflow-hidden relative min-h-0">
