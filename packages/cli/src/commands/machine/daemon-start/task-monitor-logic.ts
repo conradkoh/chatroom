@@ -6,6 +6,7 @@ import {
   isStaleCliGetNextTaskWaiting,
 } from '../../../domain/native-integration/predicates.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import { STOPPING_TIMEOUT_MS } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;
@@ -24,13 +25,25 @@ export interface NativeAgentLocalHealth {
   isPidAlive: (pid: number) => boolean;
 }
 
+// fallow-ignore-next-line complexity
 function isSlotUnavailableForPid(
   slot: AgentSlot | undefined,
   pid: number,
-  isPidAlive: (pid: number) => boolean
+  isPidAlive: (pid: number) => boolean,
+  now = Date.now()
 ): boolean {
-  if (!slot || slot.state === 'idle' || slot.state === 'stopping') {
+  if (!slot) {
     return true;
+  }
+  if (slot.state === 'idle') {
+    return true;
+  }
+  if (slot.state === 'stopping') {
+    // Hung stop (or unknown age) — treat as down so revive can proceed
+    if (!slot.stoppingSince || now - slot.stoppingSince >= STOPPING_TIMEOUT_MS) {
+      return true;
+    }
+    return false;
   }
   if (slot.pid !== pid) {
     return true;
@@ -52,7 +65,8 @@ function isNativeRevivableTaskStatus(task: AssignedTaskSnapshotView): boolean {
 // fallow-ignore-next-line complexity
 function isNativeAgentSlotDown(
   task: AssignedTaskSnapshotView,
-  health: NativeAgentLocalHealth
+  health: NativeAgentLocalHealth,
+  now = Date.now()
 ): boolean {
   const slot = health.getSlot(task.chatroomId, task.agentConfig.role);
   if (slot?.state === 'spawning') return false;
@@ -62,18 +76,19 @@ function isNativeAgentSlotDown(
     return slot?.state !== 'running';
   }
 
-  return isSlotUnavailableForPid(slot, pid, health.isPidAlive);
+  return isSlotUnavailableForPid(slot, pid, health.isPidAlive, now);
 }
 
 /** Native agent should be running for an active task but the local slot is down. */
 function isNativeActiveTaskAgentDown(
   task: AssignedTaskSnapshotView,
-  health: NativeAgentLocalHealth
+  health: NativeAgentLocalHealth,
+  now: number
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (task.agentConfig.desiredState !== 'running') return false;
   if (!isNativeRevivableTaskStatus(task)) return false;
-  return isNativeAgentSlotDown(task, health);
+  return isNativeAgentSlotDown(task, health, now);
 }
 
 export function listNativeTasksNeedingRevive(
@@ -83,7 +98,7 @@ export function listNativeTasksNeedingRevive(
   cooldown: NudgeCooldown
 ): AssignedTaskSnapshotView[] {
   return tasks.filter((task) => {
-    if (!isNativeActiveTaskAgentDown(task, health)) return false;
+    if (!isNativeActiveTaskAgentDown(task, health, now)) return false;
     const { chatroomId, agentConfig } = task;
     if (!agentConfig.workingDir) return false;
     if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) return false;

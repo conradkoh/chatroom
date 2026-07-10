@@ -1310,6 +1310,16 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Agent stop hung beyond timeout — force-cleared by daemon watchdog
+      v.object({
+        type: v.literal('agent.stopTimeout'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        pid: v.optional(v.number()),
+        durationMs: v.number(),
+        timestamp: v.number(),
+      }),
       // Provider-native harness session ID allocated or rotated (deferred-start SDK harnesses)
       v.object({
         type: v.literal('agent.harnessSessionIdUpdated'),

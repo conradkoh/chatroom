@@ -182,6 +182,7 @@ export const AGENT_STOP_REASONS = [
   'platform.resume_storm',
   'daemon.respawn',
   'daemon.shutdown',
+  'daemon.stop_timeout',
   'test',
 ] as const;
 

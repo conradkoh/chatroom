@@ -95,6 +95,7 @@ export interface DaemonAgentProcessManagerServiceShape {
   /** Synchronous slot lookup — returns undefined when the slot has no entry. */
   getSlot: (chatroomId: string, role: string) => AgentSlot | undefined;
   listActive: () => { chatroomId: string; role: string; slot: AgentSlot }[];
+  clearStuckStoppingSlot: (chatroomId: string, role: string) => Effect.Effect<boolean>;
   /** Waits until any in-progress agent turn ends and the manager becomes idle. */
   whenTurnEndsIdle: () => Effect.Effect<void>;
   resumeTurnForSlot: (args: {
@@ -119,6 +120,8 @@ export const DaemonAgentProcessManagerServiceLive = (
     recover: () => Effect.promise(() => mgr.recover()),
     getSlot: (chatroomId, role) => mgr.getSlot(chatroomId, role),
     listActive: () => mgr.listActive(),
+    clearStuckStoppingSlot: (chatroomId, role) =>
+      Effect.promise(() => mgr.clearStuckStoppingSlot(chatroomId, role)),
     whenTurnEndsIdle: () => Effect.promise(() => mgr.whenTurnEndsIdle()),
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     setLastInFlightTask: (chatroomId, role, taskId) =>

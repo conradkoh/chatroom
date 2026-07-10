@@ -135,6 +135,8 @@ export interface AgentSlot {
   terminalProviderFailureHandled?: boolean;
   /** Task last delivered to this native harness slot — sent on agent_end. */
   lastInFlightTaskId?: string;
+  /** When the slot entered stopping — used to detect hung stop. */
+  stoppingSince?: number;
 }
 
 export interface AgentProcessManagerDeps {
@@ -209,6 +211,9 @@ interface RetryQueueItem {
 /** Interval (ms) between retry attempts for failed agent exit events. */
 const AGENT_EXIT_RETRY_INTERVAL_MS = 10_000;
 
+/** Max time to wait for agent stop before force-clearing a stuck stopping slot. */
+export const STOPPING_TIMEOUT_MS = 30_000;
+
 // ─── Manager ──────────────────────────────────────────────────────────────────
 
 type ResolvedAgentProcessManagerDeps = AgentProcessManagerDeps & {
@@ -279,6 +284,19 @@ export class AgentProcessManager {
 
   // ── Public API ──────────────────────────────────────────────────────────
 
+  private clearSlotRuntimeState(slot: AgentSlot): void {
+    slot.state = 'idle';
+    slot.pid = undefined;
+    slot.harness = undefined;
+    slot.harnessSessionId = undefined;
+    slot.resumableHarnessSessionId = undefined;
+    slot.model = undefined;
+    slot.workingDir = undefined;
+    slot.startedAt = undefined;
+    slot.pendingOperation = undefined;
+    slot.stoppingSince = undefined;
+  }
+
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
@@ -289,15 +307,21 @@ export class AgentProcessManager {
       slot.pid &&
       !isProcessAlive(this.deps.processes.kill, slot.pid)
     ) {
-      slot.state = 'idle';
-      slot.pid = undefined;
-      slot.harness = undefined;
-      slot.harnessSessionId = undefined;
-      slot.resumableHarnessSessionId = undefined;
-      slot.model = undefined;
-      slot.workingDir = undefined;
-      slot.startedAt = undefined;
-      slot.pendingOperation = undefined;
+      this.clearSlotRuntimeState(slot);
+    }
+
+    if (
+      slot.state === 'stopping' &&
+      (slot.stoppingSince === undefined ||
+        this.deps.clock.now() - slot.stoppingSince >= STOPPING_TIMEOUT_MS)
+    ) {
+      await this.forceClearStuckStoppingSlot(
+        key,
+        slot,
+        opts.chatroomId,
+        opts.role,
+        'daemon.stop_timeout'
+      );
     }
 
     if (slot.pendingOperation) {
@@ -386,6 +410,7 @@ export class AgentProcessManager {
     // CRITICAL: claim stopping synchronously, then start doStop and store the promise
     // so concurrent callers can await the same operation instead of spawning their own.
     slot.state = 'stopping';
+    slot.stoppingSince = this.deps.clock.now();
     const operation = this.doStop(key, slot, pid, opts);
     slot.pendingOperation = operation;
     return null;
@@ -943,6 +968,44 @@ export class AgentProcessManager {
     return result;
   }
 
+  listAllSlots(): { chatroomId: string; role: string; slot: AgentSlot }[] {
+    const result: { chatroomId: string; role: string; slot: AgentSlot }[] = [];
+    for (const [key, slot] of this.slots) {
+      const [chatroomId, role] = key.split(':');
+      result.push({ chatroomId, role, slot });
+    }
+    return result;
+  }
+
+  /** Force-clear slots stuck in stopping beyond STOPPING_TIMEOUT_MS. Returns true if cleared. */
+  async clearStuckStoppingSlot(chatroomId: string, role: string): Promise<boolean> {
+    const key = agentKey(chatroomId, role);
+    const slot = this.slots.get(key);
+    if (!slot || slot.state !== 'stopping') {
+      return false;
+    }
+    const elapsed = slot.stoppingSince
+      ? this.deps.clock.now() - slot.stoppingSince
+      : STOPPING_TIMEOUT_MS;
+    if (elapsed < STOPPING_TIMEOUT_MS) {
+      return false;
+    }
+    await this.forceClearStuckStoppingSlot(key, slot, chatroomId, role, 'daemon.stop_timeout');
+    console.warn(`[AgentProcessManager] ⚠️ Cleared stuck stopping slot for ${role}@${chatroomId}`);
+    return true;
+  }
+
+  /** Force-clear every in-memory slot stuck in stopping. Returns count cleared. */
+  async clearAllStuckStoppingSlots(): Promise<number> {
+    let cleared = 0;
+    for (const { chatroomId, role } of this.listAllSlots()) {
+      if (await this.clearStuckStoppingSlot(chatroomId, role)) {
+        cleared++;
+      }
+    }
+    return cleared;
+  }
+
   async recover(): Promise<void> {
     let entries: {
       chatroomId: string;
@@ -992,6 +1055,11 @@ export class AgentProcessManager {
     }
 
     console.log(`[AgentProcessManager] Recovery: ${killed} killed, ${cleaned} cleaned up`);
+
+    const clearedCount = await this.clearAllStuckStoppingSlots();
+    if (clearedCount > 0) {
+      console.log(`[AgentProcessManager] Recovery: cleared ${clearedCount} stuck stopping slot(s)`);
+    }
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
@@ -1052,6 +1120,7 @@ export class AgentProcessManager {
     ) {
       const pid = slot.pid;
       slot.state = 'stopping';
+      slot.stoppingSince = this.deps.clock.now();
       await this.doStop(key, slot, pid, { chatroomId, role, reason: 'daemon.respawn' });
     }
   }
@@ -1934,6 +2003,57 @@ export class AgentProcessManager {
     slot.pid = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
+    slot.stoppingSince = undefined;
+  }
+
+  private async forceClearStuckStoppingSlot(
+    key: string,
+    slot: AgentSlot,
+    chatroomId: string,
+    role: string,
+    reason: 'daemon.stop_timeout'
+  ): Promise<void> {
+    const pid = slot.pid;
+    const harness = slot.harness;
+    const durationMs = slot.stoppingSince
+      ? this.deps.clock.now() - slot.stoppingSince
+      : STOPPING_TIMEOUT_MS;
+
+    this.clearSlotRuntimeState(slot);
+
+    void this.deps.backend
+      .mutation(api.machines.emitAgentStopTimeout, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        pid,
+        durationMs,
+      })
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to emit agent.stopTimeout event: ${err.message}`);
+      });
+
+    if (pid) {
+      try {
+        this.deps.processes.kill(-pid, 'SIGKILL');
+      } catch {
+        // already dead
+      }
+      const exitArgs = {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        pid,
+        stopReason: reason,
+        exitCode: undefined as number | undefined,
+        signal: 'SIGKILL' as const,
+        agentHarness: harness,
+      };
+      this.recordAgentExitedOrQueueRetry(role, exitArgs, 'Failed to record stop-timeout exit');
+    }
+    await this.clearAgentPidQuietly(chatroomId, role);
   }
 
   private recordStopExit(slot: AgentSlot, pid: number, opts: StopOpts): void {
