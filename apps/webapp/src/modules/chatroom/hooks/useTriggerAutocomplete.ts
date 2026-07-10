@@ -33,6 +33,21 @@ export interface TriggerDefinition<T = unknown> {
    */
   serialize: (item: T) => string;
 
+  /**
+   * Serialize a selected item when drill-down should continue (e.g. directory navigation).
+   * Inserted after the trigger character while keeping autocomplete open.
+   */
+  serializeDrillDown?: (item: T) => string;
+
+  /**
+   * Extract the active query from text before the cursor.
+   * Return null to dismiss autocomplete for this trigger.
+   */
+  extractQuery?: (textBeforeCursor: string, triggerIndex: number) => string | null;
+
+  /** Whether selecting this item should keep autocomplete open for continued navigation. */
+  shouldKeepOpen?: (item: T) => boolean;
+
   /** Called once when this trigger starts a new visible autocomplete activation. */
   onActivate?: () => void;
 
@@ -54,7 +69,10 @@ export interface UseTriggerAutocompleteReturn<T = unknown> {
   /** Call this from the textarea's onChange handler */
   handleInputChange: (text: string, cursorPos: number) => void;
   /** Call when a result is selected. Returns new text and cursor position for the caller to apply. */
-  handleSelect: (item: T, currentMessage: string) => { newText: string; newCursorPos: number };
+  handleSelect: (
+    item: T,
+    currentMessage: string
+  ) => { newText: string; newCursorPos: number; keepOpen?: boolean };
   /** Dismiss the autocomplete */
   handleDismiss: () => void;
   /** Returns true if the key was handled by autocomplete (so SendForm can skip it) */
@@ -132,6 +150,7 @@ export function useTriggerAutocomplete<T = unknown>(
 
   // ── Input change: detect triggers ──────────────────────────────────────────
 
+  // fallow-ignore-next-line complexity
   const handleInputChange = useCallback(
     (text: string, cursorPos: number) => {
       const textBeforeCursor = text.slice(0, cursorPos);
@@ -145,9 +164,13 @@ export function useTriggerAutocomplete<T = unknown>(
 
         if (!trigger.isValidPosition(textBeforeCursor, lastTriggerIndex)) continue;
 
-        const q = textBeforeCursor.slice(lastTriggerIndex + trigger.triggerChar.length);
-        // Don't show autocomplete if query contains whitespace (user moved on)
-        if (/\s/.test(q)) continue;
+        const q =
+          trigger.extractQuery?.(textBeforeCursor, lastTriggerIndex) ??
+          (() => {
+            const raw = textBeforeCursor.slice(lastTriggerIndex + trigger.triggerChar.length);
+            return /\s/.test(raw) ? null : raw;
+          })();
+        if (q === null) continue;
 
         // Found a valid trigger — show dropdown immediately, debounce query
         triggerIndexRef.current = lastTriggerIndex;
@@ -190,33 +213,48 @@ export function useTriggerAutocomplete<T = unknown>(
   // ── Selection ──────────────────────────────────────────────────────────────
 
   const handleSelect = useCallback(
-    (item: T, currentMessage: string): { newText: string; newCursorPos: number } => {
+    (
+      item: T,
+      currentMessage: string
+    ): { newText: string; newCursorPos: number; keepOpen?: boolean } => {
       const trigger = activeTriggerRef.current;
       if (!trigger || triggerIndexRef.current === null) {
         return { newText: currentMessage, newCursorPos: currentMessage.length };
       }
 
-      const serialized = trigger.serialize(item);
+      const keepOpen = trigger.shouldKeepOpen?.(item) ?? false;
+      const serialized = keepOpen
+        ? (trigger.serializeDrillDown ?? trigger.serialize)(item)
+        : trigger.serialize(item);
       const triggerStart = triggerIndexRef.current;
-      // Find current cursor position: text from trigger start + trigger char + query
-      // We need to find where the query ends. Since we stored triggerIndex,
-      // the text to replace is from triggerIndex to current cursor.
-      // But we don't have the cursor here — we use the query length as a proxy.
       const queryEndPos = triggerStart + trigger.triggerChar.length + query.length;
 
       const before = currentMessage.slice(0, triggerStart);
       const after = currentMessage.slice(queryEndPos);
-      const newText = before + serialized + ' ' + after;
+
+      if (keepOpen) {
+        const newText = `${before}${trigger.triggerChar}${serialized}${after}`;
+        const newCursorPos = before.length + trigger.triggerChar.length + serialized.length;
+
+        setQuery(serialized);
+        setResults(trigger.getResults(serialized));
+        setSelectedIndex(0);
+        setVisible(true);
+        setActiveTrigger(trigger);
+
+        return { newText, newCursorPos, keepOpen: true };
+      }
+
+      const newText = `${before}${serialized} ${after}`;
       const newCursorPos = before.length + serialized.length + 1;
 
-      // Dismiss
       setVisible(false);
       setActiveTrigger(null);
       activationKeyRef.current = null;
       triggerIndexRef.current = null;
       activeTriggerOrderRef.current = null;
 
-      return { newText, newCursorPos };
+      return { newText, newCursorPos, keepOpen: false };
     },
     [query]
   );

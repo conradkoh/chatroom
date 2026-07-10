@@ -217,3 +217,61 @@ describe('useTriggerAutocomplete keyboard navigation', () => {
     expect(result.current.state.selectedIndex).toBe(0);
   });
 });
+
+describe('useTriggerAutocomplete folder drill-down', () => {
+  const nestedFiles: FileEntry[] = [
+    { path: 'very-long-folder-name', type: 'directory' },
+    { path: 'very-long-folder-name/a.ts', type: 'file' },
+    { path: 'very-long-folder-name/b.ts', type: 'file' },
+  ];
+
+  it('keeps @ active and scopes results when Enter selects a directory', () => {
+    const trigger = createFileReferenceTrigger(nestedFiles, { hasWorkspace: true });
+    const { result } = renderHook(() => useTriggerAutocomplete([trigger]));
+
+    act(() => {
+      result.current.handleInputChange('@very', 5);
+    });
+
+    const folderIndex = result.current.state.results.findIndex(
+      (entry) => entry.path === 'very-long-folder-name'
+    );
+    expect(folderIndex).toBeGreaterThanOrEqual(0);
+
+    act(() => {
+      result.current.setSelectedIndex(folderIndex);
+    });
+
+    let selection: { newText: string; newCursorPos: number; keepOpen?: boolean } | undefined;
+    act(() => {
+      selection = result.current.handleSelect(result.current.state.results[folderIndex]!, '@very');
+    });
+
+    expect(selection?.keepOpen).toBe(true);
+    expect(selection?.newText).toBe('@very-long-folder-name/');
+    expect(result.current.state.visible).toBe(true);
+    expect(result.current.state.results).toEqual([
+      { path: 'very-long-folder-name/a.ts', type: 'file' },
+      { path: 'very-long-folder-name/b.ts', type: 'file' },
+    ]);
+  });
+
+  it('finalizes file selection without @ and quotes paths with spaces', () => {
+    const filesWithSpaces: FileEntry[] = [{ path: 'my folder/file name.txt', type: 'file' }];
+    const trigger = createFileReferenceTrigger(filesWithSpaces, { hasWorkspace: true });
+    const { result } = renderHook(() => useTriggerAutocomplete([trigger]));
+
+    act(() => {
+      result.current.handleInputChange('@file', 5);
+    });
+
+    let selection: { newText: string; newCursorPos: number; keepOpen?: boolean } | undefined;
+    act(() => {
+      selection = result.current.handleSelect(result.current.state.results[0]!, '@file');
+    });
+
+    expect(selection?.keepOpen).toBe(false);
+    expect(selection?.newText).toBe('@"my folder/file name.txt" ');
+    expect(result.current.state.visible).toBe(false);
+  });
+});

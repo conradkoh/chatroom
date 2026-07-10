@@ -398,6 +398,22 @@ export function MessageInput({
     [autocomplete, autoResize]
   );
 
+  const applyAutocompleteSelection = useCallback(
+    (item: FileEntry) => {
+      const { newText, newCursorPos, keepOpen } = autocomplete.handleSelect(item, message);
+      setMessage(newText);
+      autoResize();
+      setTimeout(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+        if (keepOpen) {
+          autocomplete.handleInputChange(newText, newCursorPos);
+        }
+      }, 0);
+    },
+    [autocomplete, message, autoResize]
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Let the trigger autocomplete hook handle navigation keys first
@@ -413,13 +429,7 @@ export function MessageInput({
           e.preventDefault();
           const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex];
           if (!selectedItem) return;
-          const { newText, newCursorPos } = autocomplete.handleSelect(selectedItem, message);
-          setMessage(newText);
-          autoResize();
-          setTimeout(() => {
-            textareaRef.current?.focus();
-            textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
-          }, 0);
+          applyAutocompleteSelection(selectedItem);
           return;
         }
       }
@@ -436,7 +446,7 @@ export function MessageInput({
         handleSubmit();
       }
     },
-    [handleSubmit, isTouchDevice, autocomplete, message, autoResize]
+    [handleSubmit, isTouchDevice, autocomplete, applyAutocompleteSelection]
   );
 
   // ── Autocomplete file select ───────────────────────────────────────────────
@@ -444,16 +454,9 @@ export function MessageInput({
     (filePath: string) => {
       const fileEntry = autocomplete.state.results.find((f) => f.path === filePath);
       if (!fileEntry) return;
-
-      const { newText, newCursorPos } = autocomplete.handleSelect(fileEntry, message);
-      setMessage(newText);
-      autoResize();
-      setTimeout(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
-      }, 0);
+      applyAutocompleteSelection(fileEntry);
     },
-    [autocomplete, message, autoResize]
+    [autocomplete, applyAutocompleteSelection]
   );
 
   // ── Editor modal callbacks ─────────────────────────────────────────────────
