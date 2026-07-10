@@ -1,10 +1,14 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { isPathIgnoredByRules, loadWorkspaceIgnore } from './workspace-ignore.js';
+import {
+  isPathIgnoredByRules,
+  isWorkspacePathIgnored,
+  loadWorkspaceIgnore,
+} from './workspace-ignore.js';
 
 describe('workspace-ignore', () => {
   let tmpDir: string;
@@ -32,5 +36,17 @@ describe('workspace-ignore', () => {
 
     expect(isPathIgnoredByRules(ig, '.cursor/rules.md')).toBe(true);
     expect(isPathIgnoredByRules(ig, 'src/app.ts')).toBe(false);
+  });
+
+  it('applies nested .gitignore rules relative to their directory', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'workspace-ignore-nested-'));
+    await mkdir(join(tmpDir, 'packages', 'app'), { recursive: true });
+    await writeFile(join(tmpDir, '.gitignore'), '*.log\n');
+    await writeFile(join(tmpDir, 'packages', '.gitignore'), 'generated/\n!important.log\n');
+
+    expect(await isWorkspacePathIgnored(tmpDir, 'root.log')).toBe(true);
+    expect(await isWorkspacePathIgnored(tmpDir, 'packages/app/debug.log')).toBe(true);
+    expect(await isWorkspacePathIgnored(tmpDir, 'packages/important.log')).toBe(false);
+    expect(await isWorkspacePathIgnored(tmpDir, 'packages/generated/output.ts')).toBe(true);
   });
 });

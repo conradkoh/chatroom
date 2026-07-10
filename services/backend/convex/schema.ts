@@ -2049,13 +2049,15 @@ export default defineSchema({
     .index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
   /**
-   * On-demand file tree scan requests.
-   * Frontend requests a fresh tree scan; daemon fulfills by scanning and calling syncFileTree.
+   * Requests to ensure daemon-side incremental file-tree synchronization.
+   * A forced request asks the daemon to reconcile its persisted cache.
    */
   chatroom_workspaceFileTreeRequests: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     status: v.string(), // 'pending' | 'done'
+    /** Explicit recovery request; daemon reconciles its cache before fulfilling. */
+    force: v.optional(v.boolean()),
     requestedAt: v.number(),
     updatedAt: v.number(),
   })
@@ -2321,6 +2323,57 @@ export default defineSchema({
     complete: v.boolean(),
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Revision associated with the latest durable V2/V3 file-tree snapshot.
+   * The payload remains in the compatibility tables above so old readers keep
+   * working while incremental readers use this row as their starting point.
+   */
+  chatroom_workspaceFileTreeCheckpoint: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    revision: v.number(),
+    snapshotKind: v.union(v.literal('v2'), v.literal('v3')),
+    /** V2 dataHash or V3 syncGeneration, used to verify the snapshot before publishing. */
+    snapshotId: v.string(),
+    publishedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Append-only, ordered file-tree changes after a checkpoint. operationId is
+   * daemon-generated and unique within a workspace, making retries idempotent.
+   */
+  chatroom_workspaceFileTreeDelta: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    operationId: v.string(),
+    baseRevision: v.number(),
+    revision: v.number(),
+    operations: v.array(
+      v.object({
+        operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
+        path: v.string(),
+        entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
+        size: v.optional(v.number()),
+        modifiedAt: v.optional(v.number()),
+      })
+    ),
+    createdAt: v.number(),
+  })
+    .index('by_machine_workingDir_revision', ['machineId', 'workingDir', 'revision'])
+    .index('by_machine_workingDir_operationId', ['machineId', 'workingDir', 'operationId']),
+
+  /**
+   * Compact idempotency receipts survive delta compaction, so retrying an old
+   * operationId can never recreate a change after its payload has been pruned.
+   */
+  chatroom_workspaceFileTreeDeltaOperation: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    operationId: v.string(),
+    revision: v.number(),
+    createdAt: v.number(),
+  }).index('by_machine_workingDir_operationId', ['machineId', 'workingDir', 'operationId']),
 
   /**
    * @deprecated Superseded by unified file tree (V2/V3). Table retained for existing data; do not use in new code.

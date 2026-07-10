@@ -91,6 +91,16 @@ describe('useWorkspaceFileTreeEntries', () => {
     ]);
   });
 
+  it('treats an empty revisioned checkpoint as loaded', () => {
+    upsertWorkspaceFileTree(KEY, [], 100, 0);
+
+    const { result } = renderHook(() => useWorkspaceFileTreeEntries(args));
+
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.hasTree).toBe(true);
+    expect(result.current.isLoading).toBe(false);
+  });
+
   it('refresh with force passes force to requestFileTree', async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useWorkspaceFileTreeEntries(args));

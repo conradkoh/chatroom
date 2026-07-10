@@ -2,9 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { walkWorkspaceFiles } from './workspace-file-walk.js';
+
+const spawnMock = vi.hoisted(() => vi.fn());
+
+vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 
 describe('walkWorkspaceFiles', () => {
   let tmpDir: string;
@@ -36,6 +40,21 @@ describe('walkWorkspaceFiles', () => {
 
     expect(result.filePaths.sort()).toEqual(['.gitignore', 'visible.txt']);
     expect(result.filePaths).not.toContain('ignored/secret.txt');
+  });
+
+  it('respects nested .gitignore rules without requiring a git repository', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-nested-ignore-'));
+    await mkdir(join(tmpDir, 'packages', 'app', 'generated'), { recursive: true });
+    await writeFile(join(tmpDir, 'packages', '.gitignore'), 'generated/\n*.tmp\n');
+    await writeFile(join(tmpDir, 'packages', 'app', 'generated', 'output.ts'), 'ignored');
+    await writeFile(join(tmpDir, 'packages', 'app', 'scratch.tmp'), 'ignored');
+    await writeFile(join(tmpDir, 'packages', 'app', 'index.ts'), 'visible');
+
+    const result = await walkWorkspaceFiles(tmpDir);
+
+    expect(result.filePaths).toContain('packages/app/index.ts');
+    expect(result.filePaths).not.toContain('packages/app/generated/output.ts');
+    expect(result.filePaths).not.toContain('packages/app/scratch.tmp');
   });
 
   it('does not walk ALWAYS_EXCLUDE directories', async () => {
@@ -73,5 +92,21 @@ describe('walkWorkspaceFiles', () => {
       'vendor/my-lib/README.md',
       'vendor/my-lib/src/index.ts',
     ]);
+  });
+
+  it('does not launch git while walking a large git-shaped workspace', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-no-git-'));
+    await mkdir(join(tmpDir, '.git'));
+    await mkdir(join(tmpDir, 'src'));
+    await Promise.all(
+      Array.from({ length: 500 }, (_, index) =>
+        writeFile(join(tmpDir, 'src', `file-${index}.ts`), `export const n = ${index};`)
+      )
+    );
+
+    const result = await walkWorkspaceFiles(tmpDir);
+
+    expect(result.filePaths).toHaveLength(500);
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 });

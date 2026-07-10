@@ -1,10 +1,11 @@
 /**
- * File Tree Subscription — reactive subscription for on-demand file tree requests.
+ * File Tree Subscription — cached, incremental workspace file-tree synchronization.
  *
- * Subscribes to `api.workspaceFiles.getPendingFileTreeRequests` via Convex WebSocket,
- * scanning the workspace and uploading via `syncFileTreeV2` when requests appear.
+ * A request ensures a persisted cache and Chokidar watcher exist. Cold caches publish
+ * one V2/V3 checkpoint; normal filesystem changes are sent as revisioned deltas.
  */
 
+import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
 import type { ConvexClient } from 'convex/browser';
@@ -13,23 +14,15 @@ import { Effect } from 'effect';
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { isGitRepo } from '../../../infrastructure/git/git-reader.js';
 import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
 import { shouldUseV3Upload } from '../../../infrastructure/services/workspace/file-tree-partition.js';
-import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
 import { uploadFileTreeV3 } from '../../../infrastructure/services/workspace/file-tree-v3-upload.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
 import {
-  diffPathIndexes,
-  formatPathDiffSummary,
-} from '../../../infrastructure/services/workspace/workspace-sync-diff.js';
-import { enqueueFileTreeSync } from '../../../infrastructure/services/workspace/workspace-sync-queue.js';
-import {
-  buildPathIndex,
-  createManifestFromTree,
-  loadWorkspaceSyncManifest,
-  saveWorkspaceSyncManifest,
-} from '../../../infrastructure/services/workspace/workspace-sync-state.js';
+  startWorkspaceFileTreeCoordinator,
+  type WorkspaceFileTreeCoordinator,
+} from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
+import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 function logSubscriptionWarn(label: string, err: unknown): void {
@@ -43,13 +36,13 @@ export interface FileTreeSubscriptionHandle {
 async function syncScannedFileTree(
   session: DaemonSessionServiceShape,
   normalizedWorkingDir: string,
-  tree: Awaited<ReturnType<typeof scanFileTree>>,
+  tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
   dataHash: string,
   syncGeneration: string
-): Promise<void> {
+): Promise<{ snapshotKind: 'v2' | 'v3'; snapshotId: string }> {
   if (shouldUseV3Upload(tree)) {
     await uploadFileTreeV3(session, normalizedWorkingDir, tree, syncGeneration);
-    return;
+    return { snapshotKind: 'v3', snapshotId: syncGeneration };
   }
   const treeJson = JSON.stringify(tree);
   const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
@@ -61,57 +54,68 @@ async function syncScannedFileTree(
     dataHash,
     scannedAt: tree.scannedAt,
   });
+  return { snapshotKind: 'v2', snapshotId: dataHash };
 }
 
-// fallow-ignore-next-line complexity
-async function uploadFileTree(
+function toDeltaOperations(delta: WorkspacePendingDelta) {
+  return [
+    ...delta.added.map((entry) => ({
+      operation: 'add' as const,
+      path: entry.path,
+      entryType: entry.type,
+    })),
+    ...delta.removed.map((entryPath) => ({
+      operation: 'remove' as const,
+      path: entryPath,
+    })),
+    ...delta.typeChanged.map((entry) => ({
+      operation: 'type-change' as const,
+      path: entry.path,
+      entryType: entry.type,
+    })),
+  ];
+}
+
+async function publishCheckpoint(
   session: DaemonSessionServiceShape,
-  workingDir: string
-): Promise<void> {
-  const normalizedWorkingDir = normalizeWorkingDirForLookup(workingDir);
-
-  const previousManifest = await loadWorkspaceSyncManifest(session.machineId, normalizedWorkingDir);
-
-  const tree = await scanFileTree(normalizedWorkingDir);
+  normalizedWorkingDir: string,
+  tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
+  revision: number
+): Promise<{ revision: number }> {
   const dataHash = computeFileTreeDataHash(tree);
-
-  if (previousManifest?.dataHash === dataHash) {
-    await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-      workingDir: normalizedWorkingDir,
-    });
-    console.log(
-      `[${formatTimestamp()}] 🌳 File tree unchanged, skipped upload: ${normalizedWorkingDir}`
-    );
-    return;
-  }
-
-  const pathDiff = diffPathIndexes(previousManifest?.paths, buildPathIndex(tree.entries));
-  if (previousManifest) {
-    console.log(
-      `[${formatTimestamp()}] 🌳 File tree diff: ${formatPathDiffSummary(pathDiff)} (${normalizedWorkingDir})`
-    );
-  }
-
-  const scanner = (await isGitRepo(normalizedWorkingDir)) ? 'git' : 'filesystem';
-  const manifest = createManifestFromTree({
-    machineId: session.machineId,
-    workingDir: normalizedWorkingDir,
-    scanner,
-    dataHash,
+  const syncGeneration = randomUUID();
+  const snapshot = await syncScannedFileTree(
+    session,
+    normalizedWorkingDir,
     tree,
-  });
-
-  await syncScannedFileTree(session, normalizedWorkingDir, tree, dataHash, manifest.syncGeneration);
-
-  await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+    dataHash,
+    syncGeneration
+  );
+  let checkpointRevision = revision;
+  let result = await session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
     sessionId: session.sessionId,
     machineId: session.machineId,
     workingDir: normalizedWorkingDir,
+    revision: checkpointRevision,
+    ...snapshot,
   });
-
-  await saveWorkspaceSyncManifest(manifest);
+  if (result.status === 'resync-required') {
+    checkpointRevision = result.expectedRevision + 1;
+    result = await session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+      workingDir: normalizedWorkingDir,
+      revision: checkpointRevision,
+      ...snapshot,
+    });
+  }
+  if (result.status === 'snapshot-missing') {
+    throw new Error(`File tree checkpoint rejected: ${result.status}`);
+  }
+  console.log(
+    `[${formatTimestamp()}] 🌳 File tree checkpoint: ${normalizedWorkingDir} (${tree.entries.length} entries, revision ${checkpointRevision})`
+  );
+  return { revision: checkpointRevision };
 }
 
 export const startFileTreeSubscriptionEffect = (
@@ -119,33 +123,100 @@ export const startFileTreeSubscriptionEffect = (
 ): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
+    const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
+
+    const ensureCoordinator = (
+      workingDir: string,
+      forceReconcile: boolean
+    ): Promise<WorkspaceFileTreeCoordinator> => {
+      const normalized = normalizeWorkingDirForLookup(workingDir);
+      let coordinatorPromise = coordinators.get(normalized);
+      if (!coordinatorPromise) {
+        coordinatorPromise = startWorkspaceFileTreeCoordinator({
+          machineId: session.machineId,
+          workingDir: normalized,
+          onDelta: async (delta, baseRevision) => {
+            const operations = toDeltaOperations(delta);
+            const result = await session.backend.mutation(
+              api.workspaceFiles.applyFileTreeDeltaBatch,
+              {
+                sessionId: session.sessionId,
+                machineId: session.machineId,
+                workingDir: normalized,
+                operationId: delta.operationId,
+                baseRevision,
+                operations,
+              }
+            );
+            if (result.status === 'resync-required') {
+              return { status: 'conflict' as const, revision: result.expectedRevision };
+            }
+            console.log(
+              `[${formatTimestamp()}] 🌳 File tree delta: ${normalized} (${operations.length} operations, ${Buffer.byteLength(JSON.stringify(operations))} bytes, revision ${result.revision})`
+            );
+            return result;
+          },
+          onCheckpoint: (tree, revision) => publishCheckpoint(session, normalized, tree, revision),
+          onError: (error) =>
+            logSubscriptionWarn(`File tree coordinator failed for ${normalized}`, error),
+          onReconciled: (correctedPathCount) => {
+            console.log(
+              `[${formatTimestamp()}] 🌳 File tree reconciled: ${normalized} (${correctedPathCount} corrected paths)`
+            );
+          },
+        }).catch((error) => {
+          coordinators.delete(normalized);
+          throw error;
+        });
+        coordinators.set(normalized, coordinatorPromise);
+      }
+
+      return coordinatorPromise.then(async (coordinator) => {
+        const checkpoint = await session.backend.query(api.workspaceFiles.getFileTreeCheckpoint, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir: normalized,
+        });
+        if (checkpoint === null) await coordinator.checkpoint();
+        if (forceReconcile) await coordinator.reconcile();
+        return coordinator;
+      });
+    };
 
     const unsubscribe = wsClient.onUpdate(
       api.workspaceFiles.getPendingFileTreeRequests,
       { sessionId: session.sessionId, machineId: session.machineId },
+      // fallow-ignore-next-line complexity
       (requests) => {
         if (!requests?.length) return;
 
-        const uniqueDirs = [
-          ...new Set(requests.map((r) => normalizeWorkingDirForLookup(r.workingDir))),
-        ];
+        const requestsByDir = new Map<string, boolean>();
+        for (const request of requests) {
+          const normalized = normalizeWorkingDirForLookup(request.workingDir);
+          requestsByDir.set(
+            normalized,
+            requestsByDir.get(normalized) === true || request.force === true
+          );
+        }
 
-        for (const workingDir of uniqueDirs) {
-          const normalized = normalizeWorkingDirForLookup(workingDir);
-          void enqueueFileTreeSync(session.machineId, normalized, () => {
-            const start = Date.now();
-            return uploadFileTree(session, normalized)
-              .then(() => {
-                console.log(
-                  `[${formatTimestamp()}] 🌳 File tree fulfilled: ${normalized} (${Date.now() - start}ms)`
-                );
+        for (const [normalized, force] of requestsByDir) {
+          const start = Date.now();
+          void ensureCoordinator(normalized, force)
+            .then(() =>
+              session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+                sessionId: session.sessionId,
+                machineId: session.machineId,
+                workingDir: normalized,
               })
-              .catch((err: unknown) => {
-                logSubscriptionWarn(`File tree failed for ${normalized}`, err);
-              });
-          }).catch((err: unknown) => {
-            logSubscriptionWarn('File tree queue drain failed', err);
-          });
+            )
+            .then(() => {
+              console.log(
+                `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
+              );
+            })
+            .catch((err: unknown) => {
+              logSubscriptionWarn(`File tree failed for ${normalized}`, err);
+            });
         }
       },
       (err: unknown) => {
@@ -158,6 +229,12 @@ export const startFileTreeSubscriptionEffect = (
     return {
       stop: () => {
         unsubscribe();
+        void Promise.all(
+          [...coordinators.values()].map((coordinator) =>
+            coordinator.then((handle) => handle.stop()).catch(() => undefined)
+          )
+        );
+        coordinators.clear();
         console.log(`[${formatTimestamp()}] 🌳 File tree subscription stopped`);
       },
     };

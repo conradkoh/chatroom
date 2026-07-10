@@ -1,7 +1,3 @@
-/**
- * File tree subscription Effect twin tests.
- */
-
 import type { Layer } from 'effect';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,99 +7,65 @@ import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-s
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from './types.js';
+import type { WorkspaceFileTreeCoordinatorOptions } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
-      getPendingFileTreeRequests: 'mock-getPendingFileTreeRequests',
-      syncFileTreeV2: 'mock-syncFileTreeV2',
-      syncFileTreeShardV3Batch: 'mock-syncFileTreeShardV3Batch',
-      syncFileTreeManifestV3: 'mock-syncFileTreeManifestV3',
-      fulfillFileTreeRequest: 'mock-fulfillFileTreeRequest',
+      getPendingFileTreeRequests: 'pending',
+      getFileTreeCheckpoint: 'checkpoint',
+      applyFileTreeDeltaBatch: 'delta',
+      publishFileTreeCheckpoint: 'publish',
+      syncFileTreeV2: 'sync-v2',
+      syncFileTreeShardV3Batch: 'sync-v3-shards',
+      syncFileTreeManifestV3: 'sync-v3-manifest',
+      fulfillFileTreeRequest: 'fulfill',
     },
   },
 }));
 
-const mockScanFileTree = vi.fn();
-const mockIsGitRepo = vi.fn();
-const mockLoadWorkspaceSyncManifest = vi.fn();
-const mockSaveWorkspaceSyncManifest = vi.fn();
-const mockEnqueueFileTreeSync = vi.fn();
-
-const mockTree = {
-  entries: [{ path: 'src/index.ts', type: 'file' as const }],
-  scannedAt: 1_700_000_000_000,
-  rootDir: '/workspace',
+const coordinatorHandle = {
+  workingDir: '/workspace',
+  getManifest: vi.fn(),
+  getTree: vi.fn(),
+  checkpoint: vi.fn(async () => undefined),
+  reconcile: vi.fn(async () => undefined),
+  stop: vi.fn(async () => undefined),
 };
+const startCoordinator = vi.fn(
+  async (_options: WorkspaceFileTreeCoordinatorOptions) => coordinatorHandle
+);
 
-vi.mock('../../../infrastructure/services/workspace/file-tree-scanner.js', () => ({
-  scanFileTree: (...args: unknown[]) => mockScanFileTree(...args),
+vi.mock('../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js', () => ({
+  startWorkspaceFileTreeCoordinator: (options: WorkspaceFileTreeCoordinatorOptions) =>
+    startCoordinator(options),
 }));
 
-vi.mock('../../../infrastructure/git/git-reader.js', () => ({
-  isGitRepo: (...args: unknown[]) => mockIsGitRepo(...args),
-}));
-
-vi.mock('../../../infrastructure/services/workspace/workspace-sync-state.js', () => ({
-  buildPathIndex: vi.fn((entries: { path: string; type: 'file' | 'directory' }[]) =>
-    Object.fromEntries(entries.map((e) => [e.path, e.type]))
-  ),
-  createManifestFromTree: vi.fn(
-    (args: {
-      machineId: string;
-      workingDir: string;
-      scanner: string;
-      dataHash: string;
-      tree: { entries: unknown[] };
-    }) => ({
-      version: '1',
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      syncGeneration: 'gen-test-1',
-      completedAt: Date.now(),
-      scanner: args.scanner,
-      dataHash: args.dataHash,
-      totalEntryCount: args.tree.entries.length,
-      paths: {},
-    })
-  ),
-  loadWorkspaceSyncManifest: (...args: unknown[]) => mockLoadWorkspaceSyncManifest(...args),
-  saveWorkspaceSyncManifest: (...args: unknown[]) => mockSaveWorkspaceSyncManifest(...args),
-}));
-
-vi.mock('../../../infrastructure/services/workspace/workspace-sync-queue.js', () => ({
-  enqueueFileTreeSync: (...args: unknown[]) => mockEnqueueFileTreeSync(...args),
-}));
-
-function makeMockWsClient(): {
-  onUpdate: ReturnType<typeof vi.fn>;
-} {
-  return {
-    onUpdate: vi.fn().mockReturnValue(vi.fn()),
-  };
+function makeMockWsClient() {
+  return { onUpdate: vi.fn().mockReturnValue(vi.fn()) };
 }
 
 function makeSessionLayer(
   overrides?: Partial<DaemonSessionInit>
 ): Layer.Layer<DaemonSessionService> {
-  const init = createMockDaemonSessionInit(overrides);
-  return daemonSessionToLayers(init);
+  return daemonSessionToLayers(createMockDaemonSessionInit(overrides));
 }
 
 async function runWithSession<A>(
   effect: Effect.Effect<A, never, DaemonSessionService>,
   overrides?: Partial<DaemonSessionInit>
 ) {
-  const layer = makeSessionLayer(overrides);
   return Effect.runPromise(
     Effect.gen(function* () {
       const runtime = yield* Effect.runtime<DaemonSessionService>();
       const session = yield* DaemonSessionService;
-      const sessionWithRuntime = { ...session, runtime };
       return yield* effect.pipe(
-        Effect.provideService(DaemonSessionService, sessionWithRuntime as DaemonSessionServiceShape)
+        Effect.provideService(DaemonSessionService, {
+          ...session,
+          runtime,
+        } as DaemonSessionServiceShape)
       );
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(makeSessionLayer(overrides)))
   );
 }
 
@@ -111,345 +73,116 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
-  mockScanFileTree.mockResolvedValue(mockTree);
-  mockIsGitRepo.mockResolvedValue(true);
-  mockLoadWorkspaceSyncManifest.mockResolvedValue(null);
-  mockSaveWorkspaceSyncManifest.mockResolvedValue(undefined);
-  mockEnqueueFileTreeSync.mockImplementation(
-    async (_machineId: string, _workingDir: string, task: () => Promise<void>) => {
-      await task();
-    }
-  );
 });
 
 describe('startFileTreeSubscriptionEffect', () => {
-  it('returns a handle with a stop() method', async () => {
+  it('starts one coordinator per normalized workspace and fulfills cached requests', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockResolvedValue({
+      revision: 0,
+      snapshotKind: 'v2',
+      snapshotId: 'hash',
+    });
     const wsClient = makeMockWsClient();
-
-    const handle = await runWithSession(startFileTreeSubscriptionEffect(wsClient as any));
-
-    expect(handle).toHaveProperty('stop');
-    expect(typeof handle.stop).toBe('function');
-  });
-
-  it('calls onUpdate with sessionId and machineId from session', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const wsClient = makeMockWsClient();
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-tree',
-      machineId: 'machine-tree',
+    await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
+      machineId: 'machine-1',
+      sessionId: 'session-1',
+      backend: deps.backend,
     });
 
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-tree', machineId: 'machine-tree' }),
-      expect.any(Function),
-      expect.any(Function)
+    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
+      requests: { _id: string; workingDir: string; force?: boolean }[]
+    ) => void;
+    callback([
+      { _id: 'one', workingDir: '/workspace/' },
+      { _id: 'two', workingDir: '/workspace' },
+    ]);
+
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() =>
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        'fulfill',
+        expect.objectContaining({ workingDir: '/workspace' })
+      )
     );
   });
 
-  it('fulfills pending requests via syncFileTreeV2 and fulfillFileTreeRequest', async () => {
+  it('runs reconciliation only for explicit recovery requests', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+    vi.mocked(deps.backend.query).mockResolvedValue({ revision: 0 });
     const wsClient = makeMockWsClient();
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-fulfill',
-      machineId: 'machine-fulfill',
+    await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
       backend: deps.backend,
     });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
+    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
+      requests: { _id: string; workingDir: string; force?: boolean }[]
     ) => void;
 
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
+    callback([{ _id: 'force', workingDir: '/workspace', force: true }]);
 
-    await vi.waitFor(() => {
-      expect(mockScanFileTree).toHaveBeenCalledWith('/workspace');
-      expect(deps.backend.mutation).toHaveBeenCalled();
-    });
-
-    const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
-    expect(mutationCalls).toContain('mock-syncFileTreeV2');
-    expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
+    await vi.waitFor(() => expect(coordinatorHandle.reconcile).toHaveBeenCalledTimes(1));
   });
 
-  it('normalizes trailing-slash workingDir before scan and upload', async () => {
+  it('maps cached path changes to revisioned backend operations', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+    vi.mocked(deps.backend.query).mockResolvedValue({ revision: 0 });
+    vi.mocked(deps.backend.mutation).mockResolvedValue({ status: 'applied', revision: 4 });
     const wsClient = makeMockWsClient();
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-slash',
-      machineId: 'machine-slash',
+    await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
       backend: deps.backend,
     });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
+    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
       requests: { _id: string; workingDir: string }[]
     ) => void;
+    callback([{ _id: 'one', workingDir: '/workspace' }]);
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
+    const options = startCoordinator.mock.calls[0]![0];
 
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace/' }]);
+    const result = await options.onDelta(
+      {
+        operationId: 'operation-1',
+        added: [{ path: 'new.ts', type: 'file' }],
+        removed: ['old.ts'],
+        typeChanged: [{ path: 'src', type: 'directory' }],
+        createdAt: 1,
+      },
+      3
+    );
 
-    await vi.waitFor(() => {
-      expect(mockScanFileTree).toHaveBeenCalledWith('/workspace');
-    });
-
-    const syncCall = vi
-      .mocked(deps.backend.mutation)
-      .mock.calls.find((call) => call[0] === 'mock-syncFileTreeV2');
-    expect(syncCall?.[1]).toEqual(
+    expect(result).toEqual({ status: 'applied', revision: 4 });
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'delta',
       expect.objectContaining({
-        workingDir: '/workspace',
+        operationId: 'operation-1',
+        baseRevision: 3,
+        operations: [
+          { operation: 'add', path: 'new.ts', entryType: 'file' },
+          { operation: 'remove', path: 'old.ts' },
+          { operation: 'type-change', path: 'src', entryType: 'directory' },
+        ],
       })
     );
   });
 
-  it('saves manifest after successful upload and fulfill', async () => {
+  it('stops all workspace coordinators with the subscription', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+    vi.mocked(deps.backend.query).mockResolvedValue({ revision: 0 });
     const wsClient = makeMockWsClient();
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-manifest',
-      machineId: 'machine-manifest',
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
       backend: deps.backend,
     });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
+    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
       requests: { _id: string; workingDir: string }[]
     ) => void;
+    callback([{ _id: 'one', workingDir: '/workspace' }]);
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
 
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
+    handle.stop();
 
-    await vi.waitFor(() => {
-      expect(mockSaveWorkspaceSyncManifest).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('does not save manifest when sync mutation fails', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockImplementation(async (name) => {
-      if (name === 'mock-syncFileTreeV2') {
-        throw new Error('sync failed');
-      }
-    });
-    const wsClient = makeMockWsClient();
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-fail',
-      machineId: 'machine-fail',
-      backend: deps.backend,
-    });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
-
-    await vi.waitFor(() => {
-      expect(mockScanFileTree).toHaveBeenCalled();
-    });
-
-    expect(mockSaveWorkspaceSyncManifest).not.toHaveBeenCalled();
-  });
-
-  it('dedupes duplicate workingDirs in one callback batch', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-    const wsClient = makeMockWsClient();
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-dedupe',
-      machineId: 'machine-dedupe',
-      backend: deps.backend,
-    });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-
-    onUpdateCallback([
-      { _id: 'req-1', workingDir: '/workspace' },
-      { _id: 'req-2', workingDir: '/workspace/' },
-      { _id: 'req-3', workingDir: '/workspace' },
-    ]);
-
-    await vi.waitFor(() => {
-      expect(mockEnqueueFileTreeSync).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('skips upload when manifest hash matches but still fulfills request', async () => {
-    const { computeFileTreeDataHash } =
-      await import('../../../infrastructure/services/workspace/file-tree-data-hash.js');
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-    const wsClient = makeMockWsClient();
-
-    mockLoadWorkspaceSyncManifest.mockResolvedValue({
-      version: '1',
-      machineId: 'machine-unchanged',
-      workingDir: '/workspace',
-      syncGeneration: 'gen-1',
-      completedAt: 1,
-      scanner: 'git',
-      dataHash: computeFileTreeDataHash(mockTree),
-      totalEntryCount: 1,
-      paths: { 'src/index.ts': 'file' },
-    });
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-unchanged',
-      machineId: 'machine-unchanged',
-      backend: deps.backend,
-    });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
-
-    await vi.waitFor(() => {
-      expect(deps.backend.mutation).toHaveBeenCalled();
-    });
-
-    const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
-    expect(mutationCalls).not.toContain('mock-syncFileTreeV2');
-    expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
-    expect(mockSaveWorkspaceSyncManifest).not.toHaveBeenCalled();
-  });
-
-  it('uploads and saves manifest when manifest hash differs', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-    const wsClient = makeMockWsClient();
-
-    mockLoadWorkspaceSyncManifest.mockResolvedValue({
-      version: '1',
-      machineId: 'machine-changed',
-      workingDir: '/workspace',
-      syncGeneration: 'gen-1',
-      completedAt: 1,
-      scanner: 'git',
-      dataHash: 'old-hash',
-      totalEntryCount: 0,
-      paths: {},
-    });
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-changed',
-      machineId: 'machine-changed',
-      backend: deps.backend,
-    });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
-
-    await vi.waitFor(() => {
-      expect(mockSaveWorkspaceSyncManifest).toHaveBeenCalledTimes(1);
-    });
-
-    const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
-    expect(mutationCalls).toContain('mock-syncFileTreeV2');
-    expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
-  });
-
-  it('performs full upload when no manifest exists', async () => {
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-    const wsClient = makeMockWsClient();
-
-    mockLoadWorkspaceSyncManifest.mockResolvedValue(null);
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-first',
-      machineId: 'machine-first',
-      backend: deps.backend,
-    });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
-
-    await vi.waitFor(() => {
-      expect(mockSaveWorkspaceSyncManifest).toHaveBeenCalledTimes(1);
-    });
-
-    const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
-    expect(mutationCalls).toContain('mock-syncFileTreeV2');
-    expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
-  });
-
-  it('uploads via V3 when tree exceeds MAX_TREE_JSON_BYTES', async () => {
-    const { MAX_TREE_JSON_BYTES } =
-      await import('../../../infrastructure/services/workspace/file-tree-partition.js');
-    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
-    const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
-    const wsClient = makeMockWsClient();
-
-    const estimatedCount = Math.ceil(MAX_TREE_JSON_BYTES / 90) + 500;
-    let entries = Array.from({ length: estimatedCount }, (_, i) => ({
-      path: `src/file-${i}.ts`,
-      type: 'file' as const,
-      size: 4096,
-      modifiedAt: 1_700_000_000_000 + i,
-    }));
-    let tree = {
-      entries,
-      scannedAt: 1_700_000_000_000,
-      rootDir: '/workspace',
-    };
-    while (Buffer.byteLength(JSON.stringify(tree), 'utf8') <= MAX_TREE_JSON_BYTES) {
-      entries = Array.from({ length: entries.length + 1000 }, (_, i) => ({
-        path: `src/file-${i}.ts`,
-        type: 'file' as const,
-        size: 4096,
-        modifiedAt: 1_700_000_000_000 + i,
-      }));
-      tree = { entries, scannedAt: tree.scannedAt, rootDir: tree.rootDir };
-    }
-    mockScanFileTree.mockResolvedValue(tree);
-
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
-      sessionId: 'session-v3',
-      machineId: 'machine-v3',
-      backend: deps.backend,
-    });
-
-    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-
-    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
-
-    await vi.waitFor(() => {
-      expect(mockSaveWorkspaceSyncManifest).toHaveBeenCalledTimes(1);
-    });
-
-    const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
-    expect(mutationCalls).toContain('mock-syncFileTreeShardV3Batch');
-    expect(mutationCalls).toContain('mock-syncFileTreeManifestV3');
-    expect(mutationCalls).not.toContain('mock-syncFileTreeV2');
-    expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
+    await vi.waitFor(() => expect(coordinatorHandle.stop).toHaveBeenCalled());
   });
 });

@@ -843,7 +843,7 @@ export function ChatroomDashboard({
   const { refreshAll: refreshFileTrees } = useMultiWorkspaceFileTrees(chatroomWorkspaces);
   const { files: autocompleteFiles } = useMultiWorkspaceFiles(chatroomWorkspaces);
   const handleAtTriggerActivate = useCallback(() => {
-    refreshFileTrees({ force: true });
+    refreshFileTrees();
   }, [refreshFileTrees]);
   const hasAutocompleteWorkspace = chatroomWorkspaces.some(
     (workspace) => workspace.machineId && workspace.workingDir

@@ -1,121 +1,108 @@
+import { EventEmitter } from 'node:events';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createWorkspaceFsWatcher } from './workspace-fs-watcher.js';
 
-const watchListeners: ((eventType: string, filename: string) => void)[] = [];
-const mockClose = vi.fn();
+const mocks = vi.hoisted(() => ({ close: vi.fn(async () => undefined) }));
+let emitter: EventEmitter;
 
-vi.mock('node:fs', () => ({
-  watch: vi.fn((_path: string, optionsOrListener: unknown, maybeListener?: unknown) => {
-    const listener =
-      typeof optionsOrListener === 'function'
-        ? (optionsOrListener as (eventType: string, filename: string) => void)
-        : (maybeListener as (eventType: string, filename: string) => void);
-
-    watchListeners.push(listener);
-    return { close: mockClose };
+vi.mock('chokidar', () => ({
+  watch: vi.fn(() => {
+    emitter = new EventEmitter();
+    Object.assign(emitter, { close: mocks.close });
+    return emitter;
   }),
 }));
 
 describe('workspace-fs-watcher', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    watchListeners.length = 0;
-    mockClose.mockClear();
+    mocks.close.mockClear();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('debounces refresh callbacks and filters by active dirs', async () => {
-    const onRefreshDirs = vi.fn().mockResolvedValue(undefined);
+  it('debounces and coalesces path events', async () => {
+    const onEvents = vi.fn().mockResolvedValue(undefined);
 
     createWorkspaceFsWatcher({
       workingDir: '/workspace',
-      activeDirPaths: new Set(['', 'src']),
-      onRefreshDirs,
+      onEvents,
       debounceMs: 400,
     });
 
-    expect(watchListeners.length).toBeGreaterThan(0);
-    const listener = watchListeners[0]!;
-    listener('change', 'package.json');
+    emitter.emit('add', '/workspace/package.json');
+    emitter.emit('change', '/workspace/package.json');
 
-    expect(onRefreshDirs).not.toHaveBeenCalled();
+    expect(onEvents).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(400);
 
-    expect(onRefreshDirs).toHaveBeenCalledWith(['']);
+    expect(onEvents).toHaveBeenCalledWith([{ kind: 'change', path: 'package.json' }]);
   });
 
   it('ignores events under excluded directories', async () => {
-    const onRefreshDirs = vi.fn().mockResolvedValue(undefined);
+    const onEvents = vi.fn().mockResolvedValue(undefined);
 
     createWorkspaceFsWatcher({
       workingDir: '/workspace',
-      activeDirPaths: new Set(['', 'src']),
-      onRefreshDirs,
+      onEvents,
       debounceMs: 400,
     });
 
-    watchListeners[0]!('change', '.git/HEAD');
+    emitter.emit('change', '/workspace/.git/HEAD');
     await vi.advanceTimersByTimeAsync(400);
 
-    expect(onRefreshDirs).not.toHaveBeenCalled();
+    expect(onEvents).not.toHaveBeenCalled();
   });
 
-  it('stops watchers on stop()', () => {
-    const handle = createWorkspaceFsWatcher({
+  it('supports caller-provided ignore rules', async () => {
+    const onEvents = vi.fn().mockResolvedValue(undefined);
+    createWorkspaceFsWatcher({
       workingDir: '/workspace',
-      activeDirPaths: new Set(['']),
-      onRefreshDirs: vi.fn(),
+      onEvents,
+      shouldIgnore: (relativePath) => relativePath.startsWith('generated/'),
+      debounceMs: 400,
     });
 
-    handle.stop();
+    emitter.emit('add', '/workspace/generated/output.ts');
+    await vi.advanceTimersByTimeAsync(400);
 
-    expect(mockClose).toHaveBeenCalled();
+    expect(onEvents).not.toHaveBeenCalled();
   });
 
-  it('coalesces multiple events into one debounced flush with multiple dirs', async () => {
-    const onRefreshDirs = vi.fn().mockResolvedValue(undefined);
+  it('stops the chokidar watcher', async () => {
+    const handle = createWorkspaceFsWatcher({
+      workingDir: '/workspace',
+      onEvents: vi.fn(),
+    });
+
+    await handle.stop();
+
+    expect(mocks.close).toHaveBeenCalled();
+  });
+
+  it('reports watcher and callback errors', async () => {
+    const error = new Error('watch failed');
+    const onError = vi.fn();
 
     createWorkspaceFsWatcher({
       workingDir: '/workspace',
-      activeDirPaths: new Set(['', 'src']),
-      onRefreshDirs,
-      debounceMs: 400,
+      onEvents: async () => {
+        throw error;
+      },
+      onError,
+      debounceMs: 10,
     });
 
-    const listener = watchListeners[0]!;
-    listener('change', 'package.json');
-    listener('change', 'src/foo.ts');
+    emitter.emit('error', error);
+    emitter.emit('add', '/workspace/file.ts');
+    await vi.advanceTimersByTimeAsync(10);
+    await Promise.resolve();
 
-    await vi.advanceTimersByTimeAsync(400);
-
-    expect(onRefreshDirs).toHaveBeenCalledTimes(1);
-    expect(onRefreshDirs).toHaveBeenCalledWith(expect.arrayContaining(['', 'src']));
-  });
-
-  it('updateActiveDirPaths changes which dirs are eligible for refresh', async () => {
-    const onRefreshDirs = vi.fn().mockResolvedValue(undefined);
-
-    const handle = createWorkspaceFsWatcher({
-      workingDir: '/workspace',
-      activeDirPaths: new Set(['']),
-      onRefreshDirs,
-      debounceMs: 400,
-    });
-
-    const listener = watchListeners[0]!;
-    listener('change', 'src/foo.ts');
-    await vi.advanceTimersByTimeAsync(400);
-    expect(onRefreshDirs).not.toHaveBeenCalled();
-
-    handle.updateActiveDirPaths(new Set(['', 'src']));
-    listener('change', 'src/foo.ts');
-    await vi.advanceTimersByTimeAsync(400);
-
-    expect(onRefreshDirs).toHaveBeenCalledWith(['src']);
+    expect(onError).toHaveBeenCalledWith(error);
   });
 });
