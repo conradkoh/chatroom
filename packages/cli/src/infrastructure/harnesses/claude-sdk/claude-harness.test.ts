@@ -79,6 +79,84 @@ describe('ClaudeSdkHarness', () => {
     await harness.close();
   });
 
+  it('does not duplicate text when stream_event and assistant both carry text', async () => {
+    stubQuery([
+      { type: 'system', subtype: 'init', session_id: 'provider-1' },
+      {
+        type: 'stream_event',
+        session_id: 'provider-1',
+        event: {
+          type: 'content_block_delta',
+          delta: { type: 'text_delta', text: 'hello' },
+        },
+      },
+      {
+        type: 'assistant',
+        session_id: 'provider-1',
+        message: {
+          content: [{ type: 'text', text: 'hello' }],
+        },
+      },
+      { type: 'result', subtype: 'success', session_id: 'provider-1', is_error: false },
+    ]);
+
+    const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
+    const session = await harness.newSession({});
+    const textDeltas: string[] = [];
+
+    session.onEvent((event) => {
+      if (event.type === 'message.part.delta') {
+        const payload = event.payload as { delta?: string; partType?: string };
+        if (payload.partType === 'text' && payload.delta) {
+          textDeltas.push(payload.delta);
+        }
+      }
+    });
+
+    await session.prompt({
+      agent: 'builder',
+      parts: [{ type: 'text', text: 'hi' }],
+    });
+
+    expect(textDeltas.join('')).toBe('hello');
+    await harness.close();
+  });
+
+  it('emits assistant text when no stream_event partials arrive', async () => {
+    stubQuery([
+      { type: 'system', subtype: 'init', session_id: 'provider-2' },
+      {
+        type: 'assistant',
+        session_id: 'provider-2',
+        message: {
+          content: [{ type: 'text', text: 'fallback' }],
+        },
+      },
+      { type: 'result', subtype: 'success', session_id: 'provider-2', is_error: false },
+    ]);
+
+    const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
+    const session = await harness.newSession({});
+    const textDeltas: string[] = [];
+
+    session.onEvent((event) => {
+      if (event.type === 'message.part.delta') {
+        const payload = event.payload as { delta?: string; partType?: string };
+        if (payload.partType === 'text' && payload.delta) {
+          textDeltas.push(payload.delta);
+        }
+      }
+    });
+
+    await session.prompt({
+      agent: 'builder',
+      parts: [{ type: 'text', text: 'hi' }],
+    });
+
+    expect(textDeltas.join('')).toBe('fallback');
+    await harness.close();
+  });
+
   it('startClaudeSdkHarness fails when SDK unavailable', async () => {
     const { importBundledClaudeSdk } =
       await import('../../services/remote-agents/claude-sdk/claude-sdk-package.js');

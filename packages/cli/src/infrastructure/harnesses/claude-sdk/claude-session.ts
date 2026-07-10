@@ -49,6 +49,8 @@ export class ClaudeSdkSession implements DirectHarnessSession {
   private resumeOnFirstQuery: boolean;
   private isFirstQuery = true;
   private activeQuery?: Query;
+  private sawTextDelta = false;
+  private sawThinkingDelta = false;
 
   constructor(options: ClaudeSdkSessionOptions) {
     this.cwd = options.cwd;
@@ -78,6 +80,9 @@ export class ClaudeSdkSession implements DirectHarnessSession {
 
     const useResume =
       Boolean(this.providerSessionId) && (!this.isFirstQuery || this.resumeOnFirstQuery);
+
+    this.sawTextDelta = false;
+    this.sawThinkingDelta = false;
 
     const queryInstance = this.query({
       prompt: text,
@@ -202,8 +207,10 @@ export class ClaudeSdkSession implements DirectHarnessSession {
         if (event.type === 'content_block_delta') {
           const delta = event.delta;
           if (delta.type === 'text_delta') {
+            this.sawTextDelta = true;
             this.emitDelta(messageId, delta.text, 'text');
           } else if (delta.type === 'thinking_delta') {
+            this.sawThinkingDelta = true;
             this.emitDelta(messageId, delta.thinking, 'reasoning');
           }
         }
@@ -212,9 +219,13 @@ export class ClaudeSdkSession implements DirectHarnessSession {
       case 'assistant':
         for (const block of message.message.content) {
           if (block.type === 'text' && block.text) {
-            this.emitDelta(messageId, block.text, 'text');
+            if (!this.sawTextDelta) {
+              this.emitDelta(messageId, block.text, 'text');
+            }
           } else if (block.type === 'thinking' && block.thinking) {
-            this.emitDelta(messageId, block.thinking, 'reasoning');
+            if (!this.sawThinkingDelta) {
+              this.emitDelta(messageId, block.thinking, 'reasoning');
+            }
           }
         }
         break;
