@@ -1949,9 +1949,8 @@ export default defineSchema({
   // Stores file tree snapshots and on-demand file content per workspace.
 
   /**
-   * File tree snapshot for a workspace.
-   * Stores the entire tree as a single JSON blob to avoid per-file row overhead.
-   * Keep under Convex's 1MB document limit (~10,000 entries max).
+   * @deprecated V1 file tree (plain treeJson). Superseded by chatroom_workspaceFileTreeV2 (small repos)
+   * and V3 shard/manifest tables (large repos). Table retained for existing data; do not use in new code.
    */
   chatroom_workspaceFileTree: defineTable({
     machineId: v.string(),
@@ -2241,7 +2240,9 @@ export default defineSchema({
   // ═══════════════════════════════════════════════════════════════════════════════
   // V2 Workspace Tables - Compressed-Only
   // ═══════════════════════════════════════════════════════════════════════════════
-  // These tables replace their v1 counterparts with clean, compressed-only schemas.
+  // Active file tree: chatroom_workspaceFileTreeV2, V3 shard/manifest tables,
+  // chatroom_workspaceFileTreeRequests.
+  // Deprecated (unified file tree supersedes): dir listing + file search tables below.
   // All `data` fields are base64-encoded gzip - no optional raw/compressed split.
   // v1 tables are preserved for migration but should not be used in new code.
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -2311,7 +2312,9 @@ export default defineSchema({
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
-  /** V2 per-directory listing cache — one row per (machine, workingDir, dirPath). */
+  /**
+   * @deprecated Superseded by unified file tree (V2/V3). Table retained for existing data; do not use in new code.
+   */
   chatroom_workspaceDirListingV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
@@ -2330,7 +2333,9 @@ export default defineSchema({
     totalCount: v.number(),
   }).index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
 
-  /** Pending directory listing requests (frontend → daemon). */
+  /**
+   * @deprecated Superseded by unified file tree (V2/V3). Table retained for existing data; do not use in new code.
+   */
   chatroom_workspaceDirListingRequests: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
@@ -2342,7 +2347,9 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir_dirPath', ['machineId', 'workingDir', 'dirPath']),
 
-  /** Explorer FS watch registry — one row per (machineId, workingDir). */
+  /**
+   * @deprecated Superseded by unified file tree (V2/V3). Table retained for existing data; do not use in new code.
+   */
   chatroom_workspaceDirListingWatch: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
@@ -2355,7 +2362,9 @@ export default defineSchema({
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
     .index('by_machineId_observerCount', ['machineId', 'observerCount']),
 
-  /** Cached file search results per (machine, workingDir, query). */
+  /**
+   * @deprecated Superseded by unified file tree (V2/V3). Table retained for existing data; do not use in new code.
+   */
   chatroom_workspaceFileSearchV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
@@ -2373,6 +2382,9 @@ export default defineSchema({
     totalCount: v.number(),
   }).index('by_machine_workingDir_query', ['machineId', 'workingDir', 'query']),
 
+  /**
+   * @deprecated Superseded by unified file tree (V2/V3). Table retained for existing data; do not use in new code.
+   */
   chatroom_workspaceFileSearchRequests: defineTable({
     machineId: v.string(),
     workingDir: v.string(),

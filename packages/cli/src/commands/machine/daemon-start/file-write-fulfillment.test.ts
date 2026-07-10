@@ -14,26 +14,14 @@ import { daemonSessionToLayers } from './daemon-layers.js';
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
-import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
       getPendingFileWriteRequests: 'mock-getPendingFileWriteRequests',
       completeFileWriteRequest: 'mock-completeFileWriteRequest',
-      syncDirListingV2: 'mock-syncDirListingV2',
     },
   },
-}));
-
-vi.mock('../../../infrastructure/services/workspace/dir-listing-scanner.js', () => ({
-  listDirectory: vi.fn().mockResolvedValue({
-    dirPath: '',
-    entries: [],
-    scannedAt: Date.now(),
-    truncated: false,
-    totalCount: 0,
-  }),
 }));
 
 function makeRequest(
@@ -252,30 +240,6 @@ describe('fulfillFileWriteRequestsEffect', () => {
         fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
       )
     ).resolves.toBeUndefined();
-  });
-
-  it('leaves request pending on transient write failure (no error completion)', async () => {
-    vi.mocked(listDirectory).mockRejectedValueOnce(new Error('Network unreachable'));
-
-    const backend = await runFulfillment([
-      makeRequest(workingDir, 'transient-fail.md', 'create', 'content'),
-    ]);
-
-    vi.mocked(listDirectory).mockResolvedValue({
-      dirPath: '',
-      entries: [],
-      scannedAt: Date.now(),
-      truncated: false,
-      totalCount: 0,
-    });
-
-    const content = await readFile(join(workingDir, 'transient-fail.md'), 'utf8');
-    expect(content).toBe('content');
-
-    const errorCompletions = vi
-      .mocked(backend.mutation)
-      .mock.calls.filter(([, args]) => (args as { status?: string }).status === 'error');
-    expect(errorCompletions).toHaveLength(0);
   });
 
   it('still completes terminal validation errors immediately', async () => {

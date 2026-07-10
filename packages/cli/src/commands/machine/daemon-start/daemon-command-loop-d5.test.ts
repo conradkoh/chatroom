@@ -158,24 +158,10 @@ vi.mock('./file-content-subscription.js', async () => {
   };
 });
 
-vi.mock('./dir-listing-subscription.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startDirListingSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
-  };
-});
-
 vi.mock('./file-tree-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileTreeSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
-  };
-});
-
-vi.mock('./dir-listing-watch-subscription.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startDirListingWatchSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 

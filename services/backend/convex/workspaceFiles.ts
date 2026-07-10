@@ -1394,6 +1394,8 @@ async function getOrCreateDirListingWatchRow(
 }
 
 /**
+ * @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code.
+ *
  * Increment/decrement explorer observer refcount for a workspace.
  * On first observe, seed activeDirPaths to [''] (root).
  * On unobserve to 0, clear activeDirPaths.
@@ -1451,6 +1453,8 @@ export const setDirListingExplorerObserver = mutation({
 });
 
 /**
+ * @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code.
+ *
  * Replace active dir paths for a workspace with an active observer.
  * No-op (return current state) when observerCount is 0.
  */
@@ -1490,7 +1494,7 @@ export const setDirListingWatchPaths = mutation({
   },
 });
 
-/** Daemon subscription: workspaces on this machine with active explorer observers. */
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const listDirListingWatchTargets = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
@@ -1518,6 +1522,7 @@ export const listDirListingWatchTargets = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const requestDirListing = mutation({
   args: {
     ...SessionIdArg,
@@ -1583,6 +1588,7 @@ export const requestDirListing = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getDirListingV2 = query({
   args: {
     ...SessionIdArg,
@@ -1619,6 +1625,7 @@ export const getDirListingV2 = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getPendingDirListingRequests = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
@@ -1697,6 +1704,7 @@ async function upsertDirListingV2Row(
   return true;
 }
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const syncDirListingV2 = mutation({
   args: {
     ...SessionIdArg,
@@ -1730,6 +1738,7 @@ export const syncDirListingV2 = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const syncDirListingV2Batch = mutation({
   args: {
     ...SessionIdArg,
@@ -1767,6 +1776,8 @@ export const syncDirListingV2Batch = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const fulfillDirListingRequest = mutation({
   args: {
     ...SessionIdArg,
@@ -1800,6 +1811,7 @@ export const fulfillDirListingRequest = mutation({
 
 // ─── File Search V2 ─────────────────────────────────────────────────────────
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const requestFileSearch = mutation({
   args: {
     ...SessionIdArg,
@@ -1862,6 +1874,7 @@ export const requestFileSearch = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getFileSearchV2 = query({
   args: {
     ...SessionIdArg,
@@ -1895,6 +1908,7 @@ export const getFileSearchV2 = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getPendingFileSearchRequests = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
@@ -1921,6 +1935,7 @@ export const getPendingFileSearchRequests = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const syncFileSearchV2 = mutation({
   args: {
     ...SessionIdArg,
@@ -1975,6 +1990,8 @@ export const syncFileSearchV2 = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const fulfillFileSearchRequest = mutation({
   args: {
     ...SessionIdArg,

@@ -10,14 +10,6 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Ref } from 'effect';
 
-import {
-  startDirListingSubscriptionEffect,
-  type DirListingSubscriptionHandle,
-} from './dir-listing-subscription.js';
-import {
-  startDirListingWatchSubscriptionEffect,
-  type DirListingWatchSubscriptionHandle,
-} from './dir-listing-watch-subscription.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
@@ -394,9 +386,7 @@ export const startCommandLoopEffect: Effect.Effect<
   let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
   let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
   let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
-  let dirListingSubscriptionHandle: DirListingSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
-  let dirListingWatchSubscriptionHandle: DirListingWatchSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
@@ -478,9 +468,7 @@ export const startCommandLoopEffect: Effect.Effect<
     gitSubscriptionHandle?.stop();
     fileContentSubscriptionHandle?.stop();
     fileWriteSubscriptionHandle?.stop();
-    dirListingSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
-    dirListingWatchSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     observedSyncSubscriptionHandle?.stop();
     taskMonitorHandle?.stop();
@@ -535,9 +523,7 @@ export const startCommandLoopEffect: Effect.Effect<
   gitSubscriptionHandle = yield* startGitRequestSubscriptionEffect(wsClient);
   fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
   fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
-  dirListingSubscriptionHandle = yield* startDirListingSubscriptionEffect(wsClient);
   fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
-  dirListingWatchSubscriptionHandle = yield* startDirListingWatchSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
   observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
 
