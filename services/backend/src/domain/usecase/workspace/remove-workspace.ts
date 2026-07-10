@@ -9,8 +9,8 @@
  * the chatroom. This includes:
  * - chatroom_teamAgentConfigs (agent configs for this machine+chatroom)
  * - chatroom_workspaceGitState (git state for this workspace)
- * - chatroom_workspaceFileTree (file tree snapshots)
- * - chatroom_workspaceFileTreeV2 (compressed file tree snapshots)
+ * - chatroom_workspaceFileTree / chatroom_workspaceFileTreeV2 (file tree snapshots)
+ * - chatroom_workspaceFileTreeManifestV3 / chatroom_workspaceFileTreeShardV3 (sharded file trees)
  * - chatroom_workspaceFileTreeRequests (pending file tree requests)
  * - chatroom_workspaceFileContent (cached file content)
  *
@@ -112,6 +112,7 @@ async function purgeTeamAgentConfigsForMachine(
  * Tables cleaned up:
  * - chatroom_workspaceGitState (git state for this workspace)
  * - chatroom_workspaceFileTree / chatroom_workspaceFileTreeV2 (file tree snapshots)
+ * - chatroom_workspaceFileTreeManifestV3 / chatroom_workspaceFileTreeShardV3 (sharded file trees)
  * - chatroom_workspaceFileTreeRequests (pending file tree requests)
  * - chatroom_workspaceFileContent (cached file content)
  *
@@ -155,6 +156,28 @@ async function purgeWorkspaceScopedData(
     .collect();
   for (const tree of fileTreesV2) {
     await ctx.db.delete('chatroom_workspaceFileTreeV2', tree._id);
+  }
+
+  const manifestV3 = await ctx.db
+    .query('chatroom_workspaceFileTreeManifestV3')
+    .withIndex('by_machine_workingDir', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+  if (manifestV3) {
+    const shardsV3 = await ctx.db
+      .query('chatroom_workspaceFileTreeShardV3')
+      .withIndex('by_machine_workingDir_syncGeneration', (q) =>
+        q
+          .eq('machineId', machineId)
+          .eq('workingDir', workingDir)
+          .eq('syncGeneration', manifestV3.syncGeneration)
+      )
+      .collect();
+    for (const shard of shardsV3) {
+      await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
+    }
+    await ctx.db.delete('chatroom_workspaceFileTreeManifestV3', manifestV3._id);
   }
 
   const fileTreeRequests = await ctx.db

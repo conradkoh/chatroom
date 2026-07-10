@@ -9,6 +9,30 @@ import type { Workspace } from '../../types/workspace';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
+// ─── Dedup ────────────────────────────────────────────────────────────────────
+
+/** Merge two registry rows that share the same machineId + normalized workingDir. */
+function mergeWorkspaceEntries(existing: Workspace, incoming: Workspace): Workspace {
+  const existingAt = existing.registeredAt ?? 0;
+  const incomingAt = incoming.registeredAt ?? 0;
+  const primary = incomingAt >= existingAt ? incoming : existing;
+  return {
+    ...primary,
+    agentRoles: [...new Set([...existing.agentRoles, ...incoming.agentRoles])],
+  };
+}
+
+/** Collapse duplicate registry rows to one workspace per `${machineId}::${workingDir}` id. */
+// fallow-ignore-next-line unused-export
+export function dedupeWorkspacesById(workspaces: Workspace[]): Workspace[] {
+  const byId = new Map<string, Workspace>();
+  for (const ws of workspaces) {
+    const existing = byId.get(ws.id);
+    byId.set(ws.id, existing ? mergeWorkspaceEntries(existing, ws) : ws);
+  }
+  return Array.from(byId.values());
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UseChatroomWorkspacesOptions {
@@ -35,7 +59,7 @@ export function useChatroomWorkspaces(chatroomId: string, options?: UseChatroomW
 
   const workspaces = useMemo<Workspace[]>(() => {
     if (!registryResult) return [];
-    return registryResult
+    const mapped = registryResult
       .filter((ws) => ws.workingDir && ws.machineId)
       .map((ws) => {
         const workingDir = normalizeWorkspaceWorkingDir(ws.workingDir);
@@ -54,6 +78,7 @@ export function useChatroomWorkspaces(chatroomId: string, options?: UseChatroomW
           _registryId: ws._id,
         };
       });
+    return dedupeWorkspacesById(mapped);
   }, [registryResult, options?.agentViews]);
 
   const removeWorkspace = useCallback(

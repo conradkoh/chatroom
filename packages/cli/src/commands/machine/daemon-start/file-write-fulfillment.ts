@@ -7,7 +7,6 @@
 
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 
@@ -16,8 +15,6 @@ import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
-import { computeDirListingContentHash } from '../../../infrastructure/services/workspace/dir-listing-content-hash.js';
-import { listDirectory } from '../../../infrastructure/services/workspace/dir-listing-scanner.js';
 import {
   gunzipBase64Payload,
   resolvePathWithinWorkspace,
@@ -53,36 +50,6 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
   ]);
   if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
-}
-
-function parentDirPath(filePath: string): string {
-  const idx = filePath.lastIndexOf('/');
-  return idx === -1 ? '' : filePath.slice(0, idx);
-}
-
-/** Refresh only the parent directory listing after a create/update/delete. */
-async function syncParentDirListingAfterWrite(
-  session: DaemonSessionServiceShape,
-  workingDir: string,
-  filePath: string
-): Promise<void> {
-  const dirPath = parentDirPath(filePath);
-  const listing = await listDirectory(workingDir, dirPath);
-  const json = JSON.stringify(listing);
-  const dataHash = computeDirListingContentHash(listing);
-  const compressed = gzipSync(Buffer.from(json)).toString('base64');
-
-  await session.backend.mutation(api.workspaceFiles.syncDirListingV2, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir,
-    dirPath,
-    data: { compression: 'gzip' as const, content: compressed },
-    dataHash,
-    scannedAt: listing.scannedAt,
-    truncated: listing.truncated,
-    totalCount: listing.totalCount,
-  });
 }
 
 async function completeWriteRequest(
@@ -215,11 +182,6 @@ async function fulfillOneFileWriteRequest(
       await mkdir(dirname(targetResolved.absolutePath), { recursive: true });
       await rename(resolved.absolutePath, targetResolved.absolutePath);
 
-      await syncParentDirListingAfterWrite(session, workingDir, filePath);
-      if (parentDirPath(filePath) !== parentDirPath(request.targetFilePath)) {
-        await syncParentDirListingAfterWrite(session, workingDir, request.targetFilePath);
-      }
-
       await completeWriteRequest(session, request._id, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
@@ -240,7 +202,6 @@ async function fulfillOneFileWriteRequest(
       }
 
       await mkdir(resolved.absolutePath, { recursive: true });
-      await syncParentDirListingAfterWrite(session, workingDir, filePath);
       await completeWriteRequest(session, request._id, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
@@ -269,7 +230,6 @@ async function fulfillOneFileWriteRequest(
       }
 
       await rm(resolved.absolutePath, { recursive: true, force: false });
-      await syncParentDirListingAfterWrite(session, workingDir, filePath);
       await completeWriteRequest(session, request._id, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
@@ -304,7 +264,6 @@ async function fulfillOneFileWriteRequest(
     }
 
     await writePayloadToDisk(resolved.absolutePath, operation, payload.content);
-    await syncParentDirListingAfterWrite(session, workingDir, filePath);
     await completeWriteRequest(session, request._id, { status: 'done' });
 
     const elapsed = Date.now() - startTime;

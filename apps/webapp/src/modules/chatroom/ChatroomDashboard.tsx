@@ -82,7 +82,7 @@ import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
-import { useMultiWorkspaceFiles } from './workspace/files';
+import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -787,9 +787,12 @@ export function ChatroomDashboard({
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
-  // Multi-workspace file tree subscription for @ autocomplete in SendForm
-  const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
-    useMultiWorkspaceFiles(chatroomWorkspaces);
+  // Multi-workspace file tree: producer sync + store-backed autocomplete
+  const { refreshAll: refreshFileTrees } = useMultiWorkspaceFileTrees(chatroomWorkspaces);
+  const { files: autocompleteFiles } = useMultiWorkspaceFiles(chatroomWorkspaces);
+  const handleAtTriggerActivate = useCallback(() => {
+    refreshFileTrees({ force: true });
+  }, [refreshFileTrees]);
   const hasAutocompleteWorkspace = chatroomWorkspaces.some(
     (workspace) => workspace.machineId && workspace.workingDir
   );
@@ -1538,7 +1541,7 @@ export function ChatroomDashboard({
                             onAfterResize: endResize,
                             onRegisterSendFormFocus: handleRegisterSendFormFocus,
                             autocompleteFiles,
-                            refreshAutocompleteFiles,
+                            refreshAutocompleteFiles: handleAtTriggerActivate,
                             hasAutocompleteWorkspace,
                           }}
                           selectedHarnessSessionId={selectedHarnessSessionId}
@@ -1566,7 +1569,7 @@ export function ChatroomDashboard({
                             onRegisterFocus={handleRegisterSendFormFocus}
                             files={autocompleteFiles}
                             hasAutocompleteWorkspace={hasAutocompleteWorkspace}
-                            onAtTriggerActivate={refreshAutocompleteFiles}
+                            onAtTriggerActivate={handleAtTriggerActivate}
                           />
                         </div>
                       }

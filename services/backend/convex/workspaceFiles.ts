@@ -24,6 +24,12 @@ import { requireAccess } from '../modules/auth/accessCheck';
 /** Max treeJson size: 900KB (stay under Convex's 1MB document limit). */
 const MAX_TREE_JSON_BYTES = 900 * 1024;
 
+/** Max compressed shard payload (base64 content string). */
+const MAX_SHARD_JSON_BYTES = 800 * 1024;
+
+/** Max shards per batch mutation. */
+const MAX_SHARD_BATCH_SIZE = 8;
+
 /** Max file content size: 512KB. */
 const MAX_CONTENT_BYTES = 512 * 1024;
 
@@ -32,8 +38,8 @@ const MAX_PENDING_REQUESTS = 50;
 
 const MAX_DIR_LISTING_BYTES = 200 * 1024;
 const MAX_SEARCH_BYTES = 200 * 1024;
-const DIR_LISTING_STALENESS_MS = 30 * 1000;
-const FILE_SEARCH_STALENESS_MS = 30 * 1000;
+const DIR_LISTING_STALENESS_MS = 10 * 1000; // 10 seconds — align with @ / explorer freshness budget
+const FILE_SEARCH_STALENESS_MS = 10 * 1000; // 10 seconds — align with @ / explorer freshness budget
 const MAX_SEARCH_QUERY_LENGTH = 200;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -343,16 +349,32 @@ export const requestFileTree = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     if (!args.force) {
       const existingTree = await ctx.db
         .query('chatroom_workspaceFileTreeV2')
         .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
         )
         .first();
 
       if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
+        return { status: 'cached' as const };
+      }
+
+      const manifestV3 = await ctx.db
+        .query('chatroom_workspaceFileTreeManifestV3')
+        .withIndex('by_machine_workingDir', (q: any) =>
+          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+        )
+        .first();
+
+      if (
+        manifestV3 &&
+        manifestV3.complete &&
+        Date.now() - manifestV3.scannedAt < FILE_TREE_STALENESS_MS
+      ) {
         return { status: 'cached' as const };
       }
     }
@@ -361,7 +383,7 @@ export const requestFileTree = mutation({
     const existingRequest = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -380,7 +402,7 @@ export const requestFileTree = mutation({
     } else {
       await ctx.db.insert('chatroom_workspaceFileTreeRequests', {
         machineId: args.machineId,
-        workingDir: args.workingDir,
+        workingDir,
         status: 'pending',
         requestedAt: now,
         updatedAt: now,
@@ -447,11 +469,12 @@ export const fulfillFileTreeRequest = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     const request = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -564,6 +587,7 @@ export const syncFileTreeV2 = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     // Validate size
     const sizeBytes = new TextEncoder().encode(args.data.content).length;
@@ -574,7 +598,7 @@ export const syncFileTreeV2 = mutation({
     const existing = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -585,7 +609,7 @@ export const syncFileTreeV2 = mutation({
 
     const row = {
       machineId: args.machineId,
-      workingDir: args.workingDir,
+      workingDir,
       data: args.data,
       dataHash: args.dataHash,
       scannedAt: args.scannedAt,
@@ -623,10 +647,12 @@ export const getFileTreeV2 = query({
       return null;
     }
 
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
     const tree = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
 
@@ -638,6 +664,218 @@ export const getFileTreeV2 = query({
       data: tree.data,
       scannedAt: tree.scannedAt,
     };
+  },
+});
+
+// ─── File Tree Shard V3 (daemon → backend, large repos) ─────────────────────
+
+type FileTreeShardV3Row = {
+  machineId: string;
+  workingDir: string;
+  shardId: string;
+  syncGeneration: string;
+  data: { compression: 'gzip'; content: string };
+  dataHash: string;
+  scannedAt: number;
+  entryCount: number;
+};
+
+async function upsertFileTreeShardV3Row(
+  ctx: MutationCtx,
+  args: FileTreeShardV3Row
+): Promise<boolean> {
+  const workingDir = normalizeWorkingDir(args.workingDir);
+  const sizeBytes = new TextEncoder().encode(args.data.content).length;
+  if (sizeBytes > MAX_SHARD_JSON_BYTES) {
+    throw new Error(`File tree shard too large: ${args.shardId}`);
+  }
+
+  const existing = await ctx.db
+    .query('chatroom_workspaceFileTreeShardV3')
+    .withIndex('by_machine_workingDir_syncGeneration_shardId', (q: any) =>
+      q
+        .eq('machineId', args.machineId)
+        .eq('workingDir', workingDir)
+        .eq('syncGeneration', args.syncGeneration)
+        .eq('shardId', args.shardId)
+    )
+    .first();
+
+  if (existing && existing.dataHash === args.dataHash) return false;
+
+  const row = { ...args, workingDir };
+  if (existing) {
+    await ctx.db.patch('chatroom_workspaceFileTreeShardV3', existing._id, row);
+  } else {
+    await ctx.db.insert('chatroom_workspaceFileTreeShardV3', row);
+  }
+  return true;
+}
+
+/** Batch upsert file tree shards (v3). Returns { written, skipped }. */
+export const syncFileTreeShardV3Batch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    syncGeneration: v.string(),
+    items: v.array(
+      v.object({
+        shardId: v.string(),
+        data: v.object({ compression: v.literal('gzip'), content: v.string() }),
+        dataHash: v.string(),
+        scannedAt: v.number(),
+        entryCount: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+
+    if (args.items.length > MAX_SHARD_BATCH_SIZE) {
+      throw new Error(`Batch size exceeds max ${MAX_SHARD_BATCH_SIZE}`);
+    }
+
+    let written = 0;
+    for (const item of args.items) {
+      const didWrite = await upsertFileTreeShardV3Row(ctx, {
+        machineId: args.machineId,
+        workingDir: args.workingDir,
+        syncGeneration: args.syncGeneration,
+        ...item,
+      });
+      if (didWrite) written++;
+    }
+    return { written, skipped: args.items.length - written };
+  },
+});
+
+/** Upsert manifest for sharded file tree (v3). Deletes shards from prior syncGeneration. */
+export const syncFileTreeManifestV3 = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    syncGeneration: v.string(),
+    shardIds: v.array(v.string()),
+    totalEntryCount: v.number(),
+    complete: v.boolean(),
+    scannedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
+    const existing = await ctx.db
+      .query('chatroom_workspaceFileTreeManifestV3')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    if (existing && existing.syncGeneration !== args.syncGeneration) {
+      const oldShards = await ctx.db
+        .query('chatroom_workspaceFileTreeShardV3')
+        .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
+          q
+            .eq('machineId', args.machineId)
+            .eq('workingDir', workingDir)
+            .eq('syncGeneration', existing.syncGeneration)
+        )
+        .collect();
+      for (const shard of oldShards) {
+        await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
+      }
+    }
+
+    const row = {
+      machineId: args.machineId,
+      workingDir,
+      syncGeneration: args.syncGeneration,
+      shardIds: args.shardIds,
+      totalEntryCount: args.totalEntryCount,
+      complete: args.complete,
+      scannedAt: args.scannedAt,
+    };
+
+    if (existing) {
+      await ctx.db.patch('chatroom_workspaceFileTreeManifestV3', existing._id, row);
+    } else {
+      await ctx.db.insert('chatroom_workspaceFileTreeManifestV3', row);
+    }
+  },
+});
+
+/** Returns latest manifest for workspace, or null. */
+export const getFileTreeManifestV3 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const manifest = await ctx.db
+      .query('chatroom_workspaceFileTreeManifestV3')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (!manifest) return null;
+    return {
+      syncGeneration: manifest.syncGeneration,
+      shardIds: manifest.shardIds,
+      totalEntryCount: manifest.totalEntryCount,
+      complete: manifest.complete,
+      scannedAt: manifest.scannedAt,
+    };
+  },
+});
+
+/** Returns all shard payloads for a sync generation. */
+export const getFileTreeShardsV3 = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    syncGeneration: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const shards = await ctx.db
+      .query('chatroom_workspaceFileTreeShardV3')
+      .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
+        q
+          .eq('machineId', args.machineId)
+          .eq('workingDir', workingDir)
+          .eq('syncGeneration', args.syncGeneration)
+      )
+      .collect();
+    return shards.map((s) => ({
+      shardId: s.shardId,
+      data: s.data,
+      dataHash: s.dataHash,
+      scannedAt: s.scannedAt,
+      entryCount: s.entryCount,
+    }));
   },
 });
 
@@ -1026,21 +1264,44 @@ export const purgeFileTreeV2 = mutation({
       throw new Error('Authentication required');
     }
     await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
 
     // Delete v2 file tree
     const treeV2 = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
     if (treeV2) await ctx.db.delete('chatroom_workspaceFileTreeV2', treeV2._id);
+
+    // Delete v3 manifest + shards
+    const manifestV3 = await ctx.db
+      .query('chatroom_workspaceFileTreeManifestV3')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+    if (manifestV3) {
+      const shards = await ctx.db
+        .query('chatroom_workspaceFileTreeShardV3')
+        .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
+          q
+            .eq('machineId', args.machineId)
+            .eq('workingDir', workingDir)
+            .eq('syncGeneration', manifestV3.syncGeneration)
+        )
+        .collect();
+      for (const shard of shards)
+        await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
+      await ctx.db.delete('chatroom_workspaceFileTreeManifestV3', manifestV3._id);
+    }
 
     // Delete v1 file tree
     const treeV1 = await ctx.db
       .query('chatroom_workspaceFileTree')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
     if (treeV1) await ctx.db.delete('chatroom_workspaceFileTree', treeV1._id);
@@ -1049,7 +1310,7 @@ export const purgeFileTreeV2 = mutation({
     const requests = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
       .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .collect();
     for (const req of requests) await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
@@ -1133,6 +1394,8 @@ async function getOrCreateDirListingWatchRow(
 }
 
 /**
+ * @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code.
+ *
  * Increment/decrement explorer observer refcount for a workspace.
  * On first observe, seed activeDirPaths to [''] (root).
  * On unobserve to 0, clear activeDirPaths.
@@ -1190,6 +1453,8 @@ export const setDirListingExplorerObserver = mutation({
 });
 
 /**
+ * @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code.
+ *
  * Replace active dir paths for a workspace with an active observer.
  * No-op (return current state) when observerCount is 0.
  */
@@ -1229,7 +1494,7 @@ export const setDirListingWatchPaths = mutation({
   },
 });
 
-/** Daemon subscription: workspaces on this machine with active explorer observers. */
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const listDirListingWatchTargets = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
@@ -1257,6 +1522,7 @@ export const listDirListingWatchTargets = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const requestDirListing = mutation({
   args: {
     ...SessionIdArg,
@@ -1322,6 +1588,7 @@ export const requestDirListing = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getDirListingV2 = query({
   args: {
     ...SessionIdArg,
@@ -1358,6 +1625,7 @@ export const getDirListingV2 = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getPendingDirListingRequests = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
@@ -1436,6 +1704,7 @@ async function upsertDirListingV2Row(
   return true;
 }
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const syncDirListingV2 = mutation({
   args: {
     ...SessionIdArg,
@@ -1469,6 +1738,7 @@ export const syncDirListingV2 = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const syncDirListingV2Batch = mutation({
   args: {
     ...SessionIdArg,
@@ -1506,6 +1776,8 @@ export const syncDirListingV2Batch = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const fulfillDirListingRequest = mutation({
   args: {
     ...SessionIdArg,
@@ -1539,6 +1811,7 @@ export const fulfillDirListingRequest = mutation({
 
 // ─── File Search V2 ─────────────────────────────────────────────────────────
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const requestFileSearch = mutation({
   args: {
     ...SessionIdArg,
@@ -1601,6 +1874,7 @@ export const requestFileSearch = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getFileSearchV2 = query({
   args: {
     ...SessionIdArg,
@@ -1634,6 +1908,7 @@ export const getFileSearchV2 = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const getPendingFileSearchRequests = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
@@ -1660,6 +1935,7 @@ export const getPendingFileSearchRequests = query({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const syncFileSearchV2 = mutation({
   args: {
     ...SessionIdArg,
@@ -1714,6 +1990,8 @@ export const syncFileSearchV2 = mutation({
   },
 });
 
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
+/** @deprecated Superseded by unified file tree (V2/V3). Retained for backward compatibility; do not use in new code. */
 export const fulfillFileSearchRequest = mutation({
   args: {
     ...SessionIdArg,

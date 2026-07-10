@@ -7,11 +7,11 @@ import type { Workspace } from '@/modules/chatroom/types/workspace';
 
 const mocks = vi.hoisted(() => ({
   refreshFns: [] as ReturnType<typeof vi.fn>[],
-  useWorkspaceFileListing: vi.fn(),
+  useWorkspaceFileTreeEntries: vi.fn(),
 }));
 
-vi.mock('./useWorkspaceFileListing', () => ({
-  useWorkspaceFileListing: mocks.useWorkspaceFileListing,
+vi.mock('./useWorkspaceFileTreeEntries', () => ({
+  useWorkspaceFileTreeEntries: mocks.useWorkspaceFileTreeEntries,
 }));
 
 function makeWorkspace(machineId: string | null, workingDir: string): Workspace {
@@ -26,25 +26,24 @@ function makeWorkspace(machineId: string | null, workingDir: string): Workspace 
 
 beforeEach(() => {
   mocks.refreshFns = [];
-  mocks.useWorkspaceFileListing.mockImplementation(({ enabled }: { enabled?: boolean }) => {
+  mocks.useWorkspaceFileTreeEntries.mockImplementation(({ enabled }: { enabled?: boolean }) => {
     const refresh = vi.fn();
     if (enabled) mocks.refreshFns.push(refresh);
     return {
       entries: [],
       isLoading: false,
+      hasTree: false,
       refresh,
     };
   });
 });
 
 afterEach(() => {
-  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
 describe('useMultiWorkspaceFiles', () => {
-  it('refreshAll calls each enabled slot refresh exactly once', async () => {
-    vi.useFakeTimers();
+  it('refreshAll calls each enabled slot refresh with options', () => {
     const workspaces = [
       makeWorkspace('machine-1', '/repo-a/'),
       makeWorkspace('machine-2', '/repo-b'),
@@ -52,24 +51,18 @@ describe('useMultiWorkspaceFiles', () => {
     const { result } = renderHook(() => useMultiWorkspaceFiles(workspaces));
 
     expect(mocks.refreshFns).toHaveLength(2);
-    expect(mocks.useWorkspaceFileListing).toHaveBeenNthCalledWith(1, {
+    expect(mocks.useWorkspaceFileTreeEntries).toHaveBeenNthCalledWith(1, {
       machineId: 'machine-1',
       workingDir: '/repo-a',
       enabled: true,
       includeDirectories: true,
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-
-    mocks.refreshFns.forEach((fn) => fn.mockClear());
-
     act(() => {
-      result.current.refreshAll();
+      result.current.refreshAll({ force: true });
     });
 
-    expect(mocks.refreshFns[0]).toHaveBeenCalledTimes(1);
-    expect(mocks.refreshFns[1]).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshFns[0]).toHaveBeenCalledWith({ force: true });
+    expect(mocks.refreshFns[1]).toHaveBeenCalledWith({ force: true });
   });
 });
