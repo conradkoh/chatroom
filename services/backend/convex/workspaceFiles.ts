@@ -362,6 +362,21 @@ export const requestFileTree = mutation({
       if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
         return { status: 'cached' as const };
       }
+
+      const manifestV3 = await ctx.db
+        .query('chatroom_workspaceFileTreeManifestV3')
+        .withIndex('by_machine_workingDir', (q: any) =>
+          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+        )
+        .first();
+
+      if (
+        manifestV3 &&
+        manifestV3.complete &&
+        Date.now() - manifestV3.scannedAt < FILE_TREE_STALENESS_MS
+      ) {
+        return { status: 'cached' as const };
+      }
     }
 
     // Check for existing pending request

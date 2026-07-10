@@ -5,6 +5,23 @@ import { sortExplorerNodes, type ExplorerTreeNode } from './explorer-tree';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import { isPathPendingDelete } from '@/modules/chatroom/workspace/hooks/pendingOptimisticDeletePaths';
 
+/** Matches CLI file-tree-partition FileTreeShardPayload */
+export type FileTreeShardPayload = {
+  entries: FileTreeEntry[];
+  scannedAt: number;
+  rootDir: string;
+};
+
+export function mergeFileTreeShardPayloads(payloads: FileTreeShardPayload[]): FileTreeEntry[] {
+  const byPath = new Map<string, FileTreeEntry>();
+  for (const payload of payloads) {
+    for (const entry of payload.entries) {
+      byPath.set(entry.path, entry);
+    }
+  }
+  return Array.from(byPath.values()).sort((a, b) => a.path.localeCompare(b.path));
+}
+
 function getBaseName(path: string): string {
   const idx = path.lastIndexOf('/');
   return idx === -1 ? path : path.slice(idx + 1);

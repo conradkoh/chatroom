@@ -7,10 +7,15 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
-import { fileTreeEntriesToExplorerNodes, fileTreeEntriesToFileEntries } from './fileTreeUtils';
+import {
+  fileTreeEntriesToExplorerNodes,
+  fileTreeEntriesToFileEntries,
+  mergeFileTreeShardPayloads,
+  type FileTreeShardPayload,
+} from './fileTreeUtils';
 import {
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeScannedAt,
@@ -19,6 +24,7 @@ import {
   upsertWorkspaceFileTree,
 } from './workspaceFileTreeStore';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
+import { decompressGzip } from '../utils/decompressGzip';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
@@ -26,6 +32,22 @@ import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFi
 const REFRESH_DEDUP_WINDOW_MS = 1500;
 const EMPTY_FILE_ENTRIES: FileEntry[] = [];
 const EMPTY_ROOT_NODES: ExplorerTreeNode[] = [];
+
+type FileTreeManifestV3 = {
+  syncGeneration: string;
+  shardIds: string[];
+  totalEntryCount: number;
+  complete: boolean;
+  scannedAt: number;
+};
+
+type FileTreeShardV3Row = {
+  shardId: string;
+  data: { compression: 'gzip'; content: string };
+  dataHash: string;
+  scannedAt: number;
+  entryCount: number;
+};
 
 export interface UseWorkspaceFileTreeArgs {
   machineId: string;
@@ -42,6 +64,16 @@ export interface UseWorkspaceFileTreeResult {
   refresh: (options?: { force?: boolean }) => void;
 }
 
+function resolveFileTreeEntries(
+  storeEntries: FileTreeEntry[],
+  v3Entries: FileTreeEntry[] | null | undefined,
+  parsed: FileTree | null | undefined
+): FileTreeEntry[] {
+  if (storeEntries.length > 0) return storeEntries;
+  if (v3Entries && v3Entries.length > 0) return v3Entries;
+  return parsed?.entries ?? [];
+}
+
 // fallow-ignore-next-line complexity
 export function useWorkspaceFileTree({
   machineId,
@@ -54,33 +86,99 @@ export function useWorkspaceFileTree({
 
   const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
 
-  const raw = useSessionQuery(
-    api.workspaceFiles.getFileTreeV2,
+  const manifest = useSessionQuery(
+    api.workspaceFiles.getFileTreeManifestV3,
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
-  );
-  const json = useDecompressedQueryJson(raw, enabled);
+  ) as FileTreeManifestV3 | null | undefined;
 
-  const parsed = useMemo((): FileTree | null | undefined => {
-    if (!enabled) return undefined;
-    if (raw === undefined) return undefined;
-    if (raw === null) return null;
-    if (json === undefined) return undefined;
-    if (json === null) return null;
+  const useV3 = manifest != null && manifest.complete === true;
+  const manifestIncomplete = manifest != null && manifest.complete === false;
+
+  const shardsRaw = useSessionQuery(
+    api.workspaceFiles.getFileTreeShardsV3,
+    enabled && useV3
+      ? {
+          machineId,
+          workingDir: normalizedWorkingDir,
+          syncGeneration: manifest.syncGeneration,
+        }
+      : 'skip'
+  ) as FileTreeShardV3Row[] | null | undefined;
+
+  const rawV2 = useSessionQuery(
+    api.workspaceFiles.getFileTreeV2,
+    enabled && manifest === null ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
+  );
+  const jsonV2 = useDecompressedQueryJson(rawV2, enabled && manifest === null);
+
+  const parsedV2 = useMemo((): FileTree | null | undefined => {
+    if (!enabled || manifest !== null) return undefined;
+    if (rawV2 === undefined) return undefined;
+    if (rawV2 === null) return null;
+    if (jsonV2 === undefined) return undefined;
+    if (jsonV2 === null) return null;
     try {
-      return JSON.parse(json) as FileTree;
+      return JSON.parse(jsonV2) as FileTree;
     } catch {
       return null;
     }
-  }, [enabled, json, raw]);
+  }, [enabled, jsonV2, manifest, rawV2]);
+
+  const [v3Entries, setV3Entries] = useState<FileTreeEntry[] | null | undefined>(undefined);
+
+  const shardsPayloadKey = useMemo(() => {
+    if (shardsRaw === undefined) return 'undefined';
+    if (shardsRaw === null) return 'null';
+    return shardsRaw.map((shard) => `${shard.shardId}:${shard.dataHash}`).join('|');
+  }, [shardsRaw]);
 
   useEffect(() => {
-    if (!enabled || parsed === undefined || parsed === null) return;
+    if (!enabled || !useV3 || !manifest) {
+      setV3Entries(undefined);
+      return;
+    }
+    if (shardsRaw === undefined) {
+      setV3Entries(undefined);
+      return;
+    }
+    if (shardsRaw === null) {
+      setV3Entries(null);
+      return;
+    }
+
+    let cancelled = false;
+    setV3Entries(undefined);
+
+    void (async () => {
+      try {
+        const payloads: FileTreeShardPayload[] = [];
+        for (const shard of shardsRaw) {
+          const json = await decompressGzip(shard.data.content);
+          payloads.push(JSON.parse(json) as FileTreeShardPayload);
+        }
+        const entries = mergeFileTreeShardPayloads(payloads);
+        if (!cancelled) {
+          setV3Entries(entries);
+          upsertWorkspaceFileTree(workspaceKey, entries, manifest.scannedAt);
+        }
+      } catch {
+        if (!cancelled) setV3Entries(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, manifest, shardsPayloadKey, shardsRaw, useV3, workspaceKey]);
+
+  useEffect(() => {
+    if (!enabled || parsedV2 === undefined || parsedV2 === null) return;
     upsertWorkspaceFileTree(
       workspaceKey,
-      parsed.entries,
-      parsed.scannedAt ?? raw?.scannedAt ?? null
+      parsedV2.entries,
+      parsedV2.scannedAt ?? rawV2?.scannedAt ?? null
     );
-  }, [enabled, parsed, raw?.scannedAt, workspaceKey]);
+  }, [enabled, parsedV2, rawV2?.scannedAt, workspaceKey]);
 
   const storeEntries = useSyncExternalStore(
     useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
@@ -130,24 +228,27 @@ export function useWorkspaceFileTree({
     refresh();
   }, [enabled, refresh]);
 
+  const resolvedEntries = resolveFileTreeEntries(storeEntries, v3Entries, parsedV2);
+
   const entries = useMemo(() => {
     if (!enabled) return EMPTY_FILE_ENTRIES;
-    const source: FileTreeEntry[] =
-      storeEntries.length > 0 ? storeEntries : (parsed?.entries ?? []);
-    return fileTreeEntriesToFileEntries(source);
-  }, [enabled, parsed?.entries, storeEntries]);
+    return fileTreeEntriesToFileEntries(resolvedEntries);
+  }, [enabled, resolvedEntries]);
 
   const rootNodes = useMemo(() => {
     if (!enabled) return EMPTY_ROOT_NODES;
-    const source: FileTreeEntry[] =
-      storeEntries.length > 0 ? storeEntries : (parsed?.entries ?? []);
-    return fileTreeEntriesToExplorerNodes(source);
-  }, [enabled, parsed?.entries, storeEntries]);
+    return fileTreeEntriesToExplorerNodes(resolvedEntries);
+  }, [enabled, resolvedEntries]);
 
-  const scannedAt = storeScannedAt ?? parsed?.scannedAt ?? raw?.scannedAt ?? null;
-  const hasTree = storeEntries.length > 0 || (parsed?.entries?.length ?? 0) > 0;
+  const scannedAt =
+    storeScannedAt ?? manifest?.scannedAt ?? parsedV2?.scannedAt ?? rawV2?.scannedAt ?? null;
+  const hasTree =
+    storeEntries.length > 0 || (v3Entries?.length ?? 0) > 0 || (parsedV2?.entries?.length ?? 0) > 0;
+  const v2Loading =
+    manifest === null && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
+  const v3Loading = useV3 && (shardsRaw === undefined || v3Entries === undefined);
   const isLoading =
-    enabled && !hasTree && (raw === undefined || (raw !== null && json === undefined));
+    enabled && !hasTree && (manifest === undefined || manifestIncomplete || v3Loading || v2Loading);
 
   return useMemo(
     () => ({

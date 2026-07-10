@@ -124,4 +124,31 @@ describe('workspace file tree requests', () => {
     expect(tree).not.toBeNull();
     expect(tree?.scannedAt).toBeTypeOf('number');
   });
+
+  test('requestFileTree returns cached when V3 manifest is fresh and complete', async () => {
+    const { sessionId } = await createTestSession('test-wft-v3-cached');
+    const machineId = 'machine-wft-v3-cached';
+    const workingDir = '/tmp/workspace';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceFileTreeManifestV3', {
+        machineId,
+        workingDir,
+        syncGeneration: 'gen-v3-fresh',
+        shardIds: ['src'],
+        totalEntryCount: 1,
+        complete: true,
+        scannedAt: Date.now(),
+      });
+    });
+
+    const result = await t.mutation(api.workspaceFiles.requestFileTree, {
+      sessionId,
+      machineId,
+      workingDir,
+    });
+
+    expect(result.status).toBe('cached');
+  });
 });

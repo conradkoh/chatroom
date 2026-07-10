@@ -4,6 +4,7 @@ import {
   fileTreeEntriesToExplorerNodes,
   fileTreeEntriesToFileEntries,
   filterFileTreeEntries,
+  mergeFileTreeShardPayloads,
 } from './fileTreeUtils';
 
 import { pendingOptimisticDeletePaths } from '@/modules/chatroom/workspace/hooks/pendingOptimisticDeletePaths';
@@ -80,5 +81,53 @@ describe('filterFileTreeEntries', () => {
 
     expect(filterFileTreeEntries(entries, 'app')).toEqual([{ path: 'src/App.tsx', type: 'file' }]);
     expect(filterFileTreeEntries(entries, '')).toEqual(entries);
+  });
+});
+
+describe('mergeFileTreeShardPayloads', () => {
+  it('merges two payloads and dedupes same path with last wins', () => {
+    const merged = mergeFileTreeShardPayloads([
+      {
+        entries: [
+          { path: 'src/a.ts', type: 'file', size: 1 },
+          { path: 'src/b.ts', type: 'file' },
+        ],
+        scannedAt: 1,
+        rootDir: '/workspace',
+      },
+      {
+        entries: [
+          { path: 'src/a.ts', type: 'file', size: 2 },
+          { path: 'src/c.ts', type: 'file' },
+        ],
+        scannedAt: 2,
+        rootDir: '/workspace',
+      },
+    ]);
+
+    expect(merged).toEqual([
+      { path: 'src/a.ts', type: 'file', size: 2 },
+      { path: 'src/b.ts', type: 'file' },
+      { path: 'src/c.ts', type: 'file' },
+    ]);
+  });
+
+  it('sorts paths lexicographically', () => {
+    const merged = mergeFileTreeShardPayloads([
+      {
+        entries: [
+          { path: 'z.ts', type: 'file' },
+          { path: 'a.ts', type: 'file' },
+        ],
+        scannedAt: 1,
+        rootDir: '/workspace',
+      },
+    ]);
+
+    expect(merged.map((e) => e.path)).toEqual(['a.ts', 'z.ts']);
+  });
+
+  it('returns empty array for empty payloads', () => {
+    expect(mergeFileTreeShardPayloads([])).toEqual([]);
   });
 });

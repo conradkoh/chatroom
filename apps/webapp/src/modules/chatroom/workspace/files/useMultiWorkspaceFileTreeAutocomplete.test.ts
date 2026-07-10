@@ -17,26 +17,35 @@ import {
 import type { Workspace } from '@/modules/chatroom/types/workspace';
 
 const mocks = vi.hoisted(() => ({
-  raw: undefined as
+  manifest: null as null | undefined,
+  rawV2: undefined as
     | { scannedAt: number; data: { compression: 'gzip'; content: string } }
     | null
     | undefined,
-  json: undefined as string | null | undefined,
+  jsonV2: undefined as string | null | undefined,
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mocks.requestMutation,
-  useSessionQuery: () => mocks.raw,
+  useSessionQuery: (query: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    if (query === 'getFileTreeManifestV3') return mocks.manifest;
+    if (query === 'getFileTreeShardsV3') return undefined;
+    if (query === 'getFileTreeV2') return mocks.rawV2;
+    return undefined;
+  },
 }));
 
 vi.mock('../hooks/useDecompressedQueryJson', () => ({
-  useDecompressedQueryJson: () => mocks.json,
+  useDecompressedQueryJson: () => mocks.jsonV2,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     workspaceFiles: {
+      getFileTreeManifestV3: 'getFileTreeManifestV3',
+      getFileTreeShardsV3: 'getFileTreeShardsV3',
       getFileTreeV2: 'getFileTreeV2',
       requestFileTree: 'requestFileTree',
     },
@@ -58,8 +67,9 @@ const workspaces: Workspace[] = [
 ];
 
 function seedTreeInConvex() {
-  mocks.raw = { scannedAt: 1_700_000_000_000, data: { compression: 'gzip', content: 'abc' } };
-  mocks.json = JSON.stringify({
+  mocks.manifest = null;
+  mocks.rawV2 = { scannedAt: 1_700_000_000_000, data: { compression: 'gzip', content: 'abc' } };
+  mocks.jsonV2 = JSON.stringify({
     entries: [
       { path: 'src/nested/deep.ts', type: 'file' },
       { path: 'src', type: 'directory' },
@@ -71,8 +81,9 @@ function seedTreeInConvex() {
 
 beforeEach(() => {
   __resetWorkspaceFileTreeStoreForTests();
-  mocks.raw = undefined;
-  mocks.json = undefined;
+  mocks.manifest = null;
+  mocks.rawV2 = undefined;
+  mocks.jsonV2 = undefined;
   mocks.requestMutation.mockClear();
 });
 
