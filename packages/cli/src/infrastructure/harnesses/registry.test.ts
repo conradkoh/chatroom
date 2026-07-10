@@ -5,11 +5,17 @@ import { isNativeDirectHarnessName, NATIVE_DIRECT_HARNESS_NAMES } from './regist
 
 describe('harness registry', () => {
   it('lists all native direct harness names', () => {
-    expect(NATIVE_DIRECT_HARNESS_NAMES).toEqual(['opencode-sdk', 'cursor-sdk', 'pi-sdk']);
+    expect(NATIVE_DIRECT_HARNESS_NAMES).toEqual([
+      'opencode-sdk',
+      'cursor-sdk',
+      'pi-sdk',
+      'claude-sdk',
+    ]);
   });
 
   it('isNativeDirectHarnessName validates known names', () => {
     expect(isNativeDirectHarnessName('cursor-sdk')).toBe(true);
+    expect(isNativeDirectHarnessName('claude-sdk')).toBe(true);
     expect(isNativeDirectHarnessName('claude')).toBe(false);
   });
 });

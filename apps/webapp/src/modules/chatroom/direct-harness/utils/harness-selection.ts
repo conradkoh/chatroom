@@ -2,7 +2,7 @@ import { getHarnessDisplayName, harnessSupportsNativeIntegration } from '../../t
 import type { AgentHarness } from '../../types/machine';
 import type { HarnessOption } from '../hooks/useHarnessConfig';
 
-const NATIVE_SDK_HARNESS_NAMES = ['pi-sdk', 'cursor-sdk', 'opencode-sdk'] as const;
+const NATIVE_SDK_HARNESS_NAMES = ['pi-sdk', 'cursor-sdk', 'opencode-sdk', 'claude-sdk'] as const;
 const DEFAULT_HARNESS_PREFERENCE = NATIVE_SDK_HARNESS_NAMES;
 
 /** Keep only harnesses that support native direct integration (SDK harnesses). */
