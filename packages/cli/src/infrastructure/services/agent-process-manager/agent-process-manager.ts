@@ -137,6 +137,8 @@ export interface AgentSlot {
   lastInFlightTaskId?: string;
   /** When the slot entered stopping — used to detect hung stop. */
   stoppingSince?: number;
+  /** Monotonic token for the current stop attempt — bumped on stop claim and force-clear. */
+  stopGeneration?: number;
 }
 
 export interface AgentProcessManagerDeps {
@@ -297,6 +299,11 @@ export class AgentProcessManager {
     slot.stoppingSince = undefined;
   }
 
+  private bumpStopGeneration(slot: AgentSlot): number {
+    slot.stopGeneration = (slot.stopGeneration ?? 0) + 1;
+    return slot.stopGeneration;
+  }
+
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
@@ -410,8 +417,9 @@ export class AgentProcessManager {
     // CRITICAL: claim stopping synchronously, then start doStop and store the promise
     // so concurrent callers can await the same operation instead of spawning their own.
     slot.state = 'stopping';
+    const stopGeneration = this.bumpStopGeneration(slot);
     slot.stoppingSince = this.deps.clock.now();
-    const operation = this.doStop(key, slot, pid, opts);
+    const operation = this.doStop(key, slot, pid, opts, stopGeneration);
     slot.pendingOperation = operation;
     return null;
   }
@@ -1120,8 +1128,15 @@ export class AgentProcessManager {
     ) {
       const pid = slot.pid;
       slot.state = 'stopping';
+      const stopGeneration = this.bumpStopGeneration(slot);
       slot.stoppingSince = this.deps.clock.now();
-      await this.doStop(key, slot, pid, { chatroomId, role, reason: 'daemon.respawn' });
+      await this.doStop(
+        key,
+        slot,
+        pid,
+        { chatroomId, role, reason: 'daemon.respawn' },
+        stopGeneration
+      );
     }
   }
 
@@ -2019,6 +2034,7 @@ export class AgentProcessManager {
       ? this.deps.clock.now() - slot.stoppingSince
       : STOPPING_TIMEOUT_MS;
 
+    this.bumpStopGeneration(slot);
     this.clearSlotRuntimeState(slot);
 
     void this.deps.backend
@@ -2078,7 +2094,8 @@ export class AgentProcessManager {
     key: string,
     slot: AgentSlot,
     pid: number,
-    opts: StopOpts
+    opts: StopOpts,
+    stopGeneration: number
   ): Promise<OperationResult> {
     try {
       const harness = slot.harness;
@@ -2099,6 +2116,10 @@ export class AgentProcessManager {
       }
     } catch {
       // Process cleanup is best-effort
+    }
+
+    if (slot.stopGeneration !== stopGeneration) {
+      return { success: true };
     }
 
     this.resetSlotAfterStop(slot);

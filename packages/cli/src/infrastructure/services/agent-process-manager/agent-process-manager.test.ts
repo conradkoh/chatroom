@@ -1430,6 +1430,56 @@ describe('AgentProcessManager', () => {
       expect(cleared).toBe(false);
       expect(slot.state).toBe('stopping');
     });
+
+    test('force-clear supersedes in-flight doStop so late completion does not wipe revived slot', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      const NEW_PID = 99;
+
+      let resolveStop!: () => void;
+      const hungStop = new Promise<void>((resolve) => {
+        resolveStop = resolve;
+      });
+      const service = deps.agentServices.get('opencode')!;
+      (service.stop as ReturnType<typeof vi.fn>).mockReturnValue(hungStop);
+
+      const stopInFlight = manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      expect(slot.state).toBe('stopping');
+      slot.stoppingSince = Date.now() - 31_000;
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
+      expect(cleared).toBe(true);
+      expect(slot.state).toBe('idle');
+
+      slot.state = 'running';
+      slot.pid = NEW_PID;
+      slot.harness = 'opencode';
+
+      resolveStop();
+      await stopInFlight;
+
+      expect(slot.state).toBe('running');
+      expect(slot.pid).toBe(NEW_PID);
+
+      const userStopExits = getMutationCallsByArgs(
+        deps,
+        (args) => args.stopReason === 'user.stop' && args.pid === PID
+      );
+      expect(userStopExits).toHaveLength(0);
+
+      const timeoutExits = getMutationCallsByArgs(
+        deps,
+        (args) => args.stopReason === 'daemon.stop_timeout' && args.pid === PID
+      );
+      expect(timeoutExits).toHaveLength(1);
+    });
   });
 
   // ── handleExit ────────────────────────────────────────────────────────
