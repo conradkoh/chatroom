@@ -67,6 +67,67 @@ describe('workspace dir listing requests', () => {
     expect(result.status).toBe('cached');
   });
 
+  test('requestDirListing returns cached when scanned within 10s', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wdl-within-10s',
+      'machine-wdl-within-10s'
+    );
+    const dirPath = 'src';
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceDirListingV2', {
+        machineId,
+        workingDir: WORKING_DIR,
+        dirPath,
+        data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
+        dataHash: 'within-10s-dir-hash',
+        scannedAt: Date.now() - 5_000,
+        truncated: false,
+        totalCount: 1,
+      });
+    });
+
+    const result = await t.mutation(api.workspaceFiles.requestDirListing, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      dirPath,
+    });
+
+    expect(result.status).toBe('cached');
+  });
+
+  test('requestDirListing requests refresh when scanned older than 10s', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wdl-older-10s',
+      'machine-wdl-older-10s'
+    );
+    const dirPath = 'src';
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceDirListingV2', {
+        machineId,
+        workingDir: WORKING_DIR,
+        dirPath,
+        data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
+        dataHash: 'older-10s-dir-hash',
+        scannedAt: Date.now() - 15_000,
+        truncated: false,
+        totalCount: 1,
+      });
+    });
+
+    const result = await t.mutation(api.workspaceFiles.requestDirListing, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      dirPath,
+    });
+
+    expect(result.status).not.toBe('cached');
+    expect(result.status).toBe('requested');
+  });
+
   test('requestDirListing with force creates pending request', async () => {
     const { sessionId, machineId } = await setupMachine('test-wdl-force', 'machine-wdl-force');
     const dirPath = 'src';
@@ -135,6 +196,67 @@ describe('workspace dir listing requests', () => {
       force: true,
     });
 
+    expect(result.status).toBe('requested');
+  });
+
+  test('requestFileSearch returns cached when scanned within 10s', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfs-within-10s',
+      'machine-wfs-within-10s'
+    );
+    const query = 'app';
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceFileSearchV2', {
+        machineId,
+        workingDir: WORKING_DIR,
+        query,
+        data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
+        dataHash: 'within-10s-search-hash',
+        scannedAt: Date.now() - 5_000,
+        truncated: false,
+        totalCount: 1,
+      });
+    });
+
+    const result = await t.mutation(api.workspaceFiles.requestFileSearch, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      query,
+    });
+
+    expect(result.status).toBe('cached');
+  });
+
+  test('requestFileSearch requests refresh when scanned older than 10s', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfs-older-10s',
+      'machine-wfs-older-10s'
+    );
+    const query = 'app';
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_workspaceFileSearchV2', {
+        machineId,
+        workingDir: WORKING_DIR,
+        query,
+        data: { compression: 'gzip', content: 'eJyrrgUAAXUA+Q==' },
+        dataHash: 'older-10s-search-hash',
+        scannedAt: Date.now() - 15_000,
+        truncated: false,
+        totalCount: 1,
+      });
+    });
+
+    const result = await t.mutation(api.workspaceFiles.requestFileSearch, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      query,
+    });
+
+    expect(result.status).not.toBe('cached');
     expect(result.status).toBe('requested');
   });
 });

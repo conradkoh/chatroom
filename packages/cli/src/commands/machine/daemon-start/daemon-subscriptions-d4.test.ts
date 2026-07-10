@@ -4,7 +4,6 @@
  * Tests for the Effect twins of subscription starter functions, all migrated
  * to DaemonSessionService (E4.1–E4.4):
  *   startWorkspaceListSubscriptionEffect  (E4.1)
- *   startDirListingSubscriptionEffect       (E4.2)
  *   startFileContentSubscriptionEffect    (E4.2)
  *   startGitRequestSubscriptionEffect     (E4.3)
  *   processRequestsEffect                 (E4.3)
@@ -32,12 +31,6 @@ import type { DaemonSessionInit } from './types.js';
 vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
-      getPendingDirListingRequests: 'mock-getPendingDirListingRequests',
-      getPendingFileSearchRequests: 'mock-getPendingFileSearchRequests',
-      syncDirListingV2: 'mock-syncDirListingV2',
-      syncFileSearchV2: 'mock-syncFileSearchV2',
-      fulfillDirListingRequest: 'mock-fulfillDirListingRequest',
-      fulfillFileSearchRequest: 'mock-fulfillFileSearchRequest',
       getPendingFileContentRequests: 'mock-getPendingFileContentRequests',
       fulfillFileContentV2: 'mock-fulfillFileContentV2',
     },
@@ -164,40 +157,7 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// A. dir-listing-subscription Effect twin (E4.2 — DaemonSessionService)
-// ---------------------------------------------------------------------------
-
-describe('startDirListingSubscriptionEffect', () => {
-  it('returns a handle with a stop() method', async () => {
-    const { startDirListingSubscriptionEffect } = await import('./dir-listing-subscription.js');
-    const wsClient = makeMockWsClient();
-
-    const handle = await runWithSession(startDirListingSubscriptionEffect(wsClient));
-
-    expect(handle).toHaveProperty('stop');
-    expect(typeof handle.stop).toBe('function');
-  });
-
-  it('calls onUpdate for dir listing and file search with sessionId and machineId', async () => {
-    const { startDirListingSubscriptionEffect } = await import('./dir-listing-subscription.js');
-    const wsClient = makeMockWsClient();
-    const deps = createMockDaemonDeps();
-
-    await runWithSession(
-      startDirListingSubscriptionEffect(wsClient),
-      withDeps(deps, { sessionId: 'session-tree', machineId: 'machine-tree' })
-    );
-
-    expect(wsClient.onUpdate).toHaveBeenCalledTimes(2);
-    const firstCall = vi.mocked(wsClient.onUpdate).mock.calls[0];
-    expect(firstCall?.[1]).toEqual(
-      expect.objectContaining({ sessionId: 'session-tree', machineId: 'machine-tree' })
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// B. file-content-subscription Effect twin (E4.2 — DaemonSessionService)
+// A. file-content-subscription Effect twin (E4.2 — DaemonSessionService)
 // ---------------------------------------------------------------------------
 
 describe('startFileContentSubscriptionEffect', () => {

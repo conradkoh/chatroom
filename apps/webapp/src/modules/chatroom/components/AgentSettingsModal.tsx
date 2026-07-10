@@ -30,6 +30,10 @@ import { IntegrationsTab } from './IntegrationsTab';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
+import {
+  clearWorkspaceFileTree,
+  toWorkspaceFileTreeKey,
+} from '../workspace/files/workspaceFileTreeStore';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -57,6 +61,7 @@ import {
 } from '@/components/ui/select';
 import { PromptsContext } from '@/contexts/PromptsContext';
 import { getDaemonStartCommand } from '@/lib/environment';
+import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -567,6 +572,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   const purgeFileContentMutation = useSessionMutation(api.workspaceFiles.purgeFileContentV2);
   const purgeFullDiffMutation = useSessionMutation(api.workspaces.purgeFullDiffV2);
   const purgeCommitDetailMutation = useSessionMutation(api.workspaces.purgeCommitDetailV2);
+  const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
 
   // Build a set of machineId::workingDir keys for active team agents.
   // Any agent in the active team that has a machine + workspace configured
@@ -615,10 +621,22 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
       if (!purgeDialogWs) return;
       setPurgingCategory(category);
       try {
+        const { machineId, workingDir } = purgeDialogWs;
+        const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
         await mutationFn({
-          machineId: purgeDialogWs.machineId,
-          workingDir: purgeDialogWs.workingDir,
+          machineId,
+          workingDir: normalizedWorkingDir,
         });
+
+        if (category === 'fileTree') {
+          clearWorkspaceFileTree(toWorkspaceFileTreeKey(machineId, normalizedWorkingDir));
+          await requestFileTreeMutation({
+            machineId,
+            workingDir: normalizedWorkingDir,
+            force: true,
+          }).catch(() => {});
+        }
+
         setPurgedCategories((prev) => new Set(prev).add(category));
       } catch (err) {
         console.warn('Purge failed:', err instanceof Error ? err.message : err);
@@ -626,7 +644,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
         setPurgingCategory(null);
       }
     },
-    [purgeDialogWs]
+    [purgeDialogWs, requestFileTreeMutation]
   );
 
   if (isLoading) {

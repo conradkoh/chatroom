@@ -33,17 +33,47 @@ describe('createFileReferenceTrigger', () => {
     const results = trigger.getResults('');
     expect(results.some((entry) => entry.type === 'directory')).toBe(true);
   });
+  it('scopes results to children when query ends with a folder prefix', () => {
+    const nestedFiles: FileEntry[] = [
+      { path: 'very-long-folder-name', type: 'directory' },
+      { path: 'very-long-folder-name/a.ts', type: 'file' },
+      { path: 'very-long-folder-name/b.ts', type: 'file' },
+      { path: 'other-folder/c.ts', type: 'file' },
+    ];
+    const trigger = createFileReferenceTrigger(nestedFiles);
+
+    expect(trigger.getResults('very-long-folder-name/')).toEqual([
+      { path: 'very-long-folder-name/a.ts', type: 'file' },
+      { path: 'very-long-folder-name/b.ts', type: 'file' },
+    ]);
+  });
 });
 
 describe('serializeFileReferencePath', () => {
-  it('appends trailing slash for directories', () => {
-    expect(serializeFileReferencePath({ path: 'auth', type: 'directory' })).toBe('auth/');
-    expect(serializeFileReferencePath({ path: 'auth/', type: 'directory' })).toBe('auth/');
-  });
-
-  it('leaves file paths unchanged', () => {
+  it('leaves plain file paths unchanged', () => {
     expect(
       serializeFileReferencePath({ path: 'services/backend/convex/dev.ts', type: 'file' })
     ).toBe('services/backend/convex/dev.ts');
+  });
+
+  it('quotes file paths that contain spaces', () => {
+    expect(serializeFileReferencePath({ path: 'my folder/file name.txt', type: 'file' })).toBe(
+      '@"my folder/file name.txt"'
+    );
+  });
+});
+
+describe('serializeFileReferenceDrillDown', () => {
+  it('appends trailing slash for directories', () => {
+    const trigger = createFileReferenceTrigger([]);
+    expect(trigger.serializeDrillDown?.({ path: 'auth', type: 'directory' })).toBe('auth/');
+    expect(trigger.serializeDrillDown?.({ path: 'auth/', type: 'directory' })).toBe('auth/');
+  });
+
+  it('quotes directory segments that contain spaces', () => {
+    const trigger = createFileReferenceTrigger([]);
+    expect(trigger.serializeDrillDown?.({ path: 'my folder', type: 'directory' })).toBe(
+      '"my folder"/'
+    );
   });
 });

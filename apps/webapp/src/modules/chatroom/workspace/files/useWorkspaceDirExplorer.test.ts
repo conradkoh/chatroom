@@ -2,158 +2,178 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWorkspaceDirExplorer } from './useWorkspaceDirExplorer';
+import {
+  __resetWorkspaceFileTreeStoreForTests,
+  toWorkspaceFileTreeKey,
+  upsertWorkspaceFileTree,
+} from './workspaceFileTreeStore';
 
-const EMPTY_ENTRIES: never[] = [];
-const refreshRootListing = vi.fn();
-const refreshFileSearch = vi.fn();
+const MACHINE_ID = 'machine-1';
+const WORKING_DIR = '/workspace';
+const WORKSPACE_KEY = toWorkspaceFileTreeKey(MACHINE_ID, WORKING_DIR);
 
-vi.mock('./useDirListing', () => ({
-  useDirListing: () => ({
-    entries: EMPTY_ENTRIES,
-    isLoading: true,
-    refresh: refreshRootListing,
-    scannedAt: null,
-    truncated: false,
-  }),
+const mocks = vi.hoisted(() => ({
+  treeRefresh: vi.fn(),
+  isLoading: false,
+  hasTree: false,
 }));
 
-vi.mock('./useFileSearch', () => ({
-  useFileSearch: () => ({
-    entries: EMPTY_ENTRIES,
-    isLoading: false,
-    refresh: refreshFileSearch,
+vi.mock('./useWorkspaceFileTreeEntries', () => ({
+  useWorkspaceFileTreeEntries: () => ({
+    entries: [],
+    isLoading: mocks.isLoading,
+    hasTree: mocks.hasTree,
+    refresh: mocks.treeRefresh,
   }),
 }));
 
 beforeEach(() => {
-  refreshRootListing.mockClear();
-  refreshFileSearch.mockClear();
+  mocks.treeRefresh.mockClear();
+  mocks.isLoading = false;
+  mocks.hasTree = false;
+  __resetWorkspaceFileTreeStoreForTests();
 });
 
 describe('useWorkspaceDirExplorer', () => {
-  it('does not churn childMap when watcher reports the same stable empty entries while loading', () => {
+  it('builds full tree nodes from store entries', () => {
+    upsertWorkspaceFileTree(
+      WORKSPACE_KEY,
+      [
+        { path: 'src', type: 'directory' },
+        { path: 'src/index.ts', type: 'file' },
+        { path: 'README.md', type: 'file' },
+      ],
+      100
+    );
+
     const { result } = renderHook(() =>
       useWorkspaceDirExplorer({
-        machineId: 'machine-1',
-        workingDir: '/workspace',
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+      })
+    );
+
+    expect(result.current.rootNodes).toHaveLength(2);
+    expect(result.current.displayNodes).toHaveLength(2);
+    const src = result.current.rootNodes.find((n) => n.path === 'src');
+    expect(src?.children).toEqual([
+      expect.objectContaining({ path: 'src/index.ts', type: 'file' }),
+    ]);
+  });
+
+  it('uses client-side search filter in search mode', () => {
+    upsertWorkspaceFileTree(
+      WORKSPACE_KEY,
+      [
+        { path: 'src/App.tsx', type: 'file' },
+        { path: 'docs/readme.md', type: 'file' },
+      ],
+      100
+    );
+
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        searchQuery: 'app',
+      })
+    );
+
+    expect(result.current.isSearchMode).toBe(true);
+    expect(result.current.displayNodes).toEqual([
+      expect.objectContaining({
+        path: 'src',
+        type: 'directory',
+        children: [expect.objectContaining({ path: 'src/App.tsx', type: 'file' })],
+      }),
+    ]);
+  });
+
+  it('applies short filter to built tree nodes', () => {
+    upsertWorkspaceFileTree(
+      WORKSPACE_KEY,
+      [
+        { path: 'src', type: 'directory' },
+        { path: 'src/index.ts', type: 'file' },
+        { path: 'package.json', type: 'file' },
+      ],
+      100
+    );
+
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        filterQuery: 'index',
+      })
+    );
+
+    expect(result.current.displayNodes).toEqual([
+      expect.objectContaining({
+        path: 'src',
+        children: [expect.objectContaining({ path: 'src/index.ts' })],
+      }),
+    ]);
+  });
+
+  it('refresh calls tree refresh with force', () => {
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
       })
     );
 
     act(() => {
-      result.current.handleDirUpdate('src', EMPTY_ENTRIES, true);
+      result.current.refresh();
     });
 
-    const childMapAfterFirstUpdate = result.current.childMap;
-
-    act(() => {
-      result.current.handleDirUpdate('src', EMPTY_ENTRIES, true);
-      result.current.handleDirUpdate('src', EMPTY_ENTRIES, true);
-    });
-
-    expect(result.current.childMap).toBe(childMapAfterFirstUpdate);
-    expect(result.current.loadingDirs.has('src')).toBe(true);
+    expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
   });
 
-  it('does not churn childMap when watcher reports new empty arrays with identical contents while loading', () => {
-    const { result } = renderHook(() =>
-      useWorkspaceDirExplorer({
-        machineId: 'machine-1',
-        workingDir: '/workspace',
-      })
-    );
-
-    act(() => {
-      result.current.handleDirUpdate('src', [], true);
-    });
-
-    const childMapAfterFirstUpdate = result.current.childMap;
-
-    act(() => {
-      result.current.handleDirUpdate('src', [], true);
-      result.current.handleDirUpdate('src', [], true);
-    });
-
-    expect(result.current.childMap).toBe(childMapAfterFirstUpdate);
-  });
-
-  it('does not re-add loadingDirs when loadChildren is called for an already-requested directory', () => {
-    const { result } = renderHook(() =>
-      useWorkspaceDirExplorer({
-        machineId: 'machine-1',
-        workingDir: '/workspace',
-      })
-    );
-
-    act(() => {
-      result.current.loadChildren('src');
-    });
-    act(() => {
-      result.current.handleDirUpdate('src', [], false);
-    });
-    expect(result.current.loadingDirs.has('src')).toBe(false);
-
-    const loadingDirsBefore = result.current.loadingDirs;
-    act(() => {
-      result.current.loadChildren('src');
-    });
-    expect(result.current.loadingDirs).toBe(loadingDirsBefore);
-    expect(result.current.loadingDirs.has('src')).toBe(false);
-  });
-
-  it('skips loadChildren loadingDirs update when directory is already loading', () => {
-    const { result } = renderHook(() =>
-      useWorkspaceDirExplorer({
-        machineId: 'machine-1',
-        workingDir: '/workspace',
-      })
-    );
-
-    act(() => {
-      result.current.loadChildren('src');
-    });
-
-    const loadingDirsAfterFirst = result.current.loadingDirs;
-
-    act(() => {
-      result.current.loadChildren('src');
-    });
-
-    expect(result.current.loadingDirs).toBe(loadingDirsAfterFirst);
-  });
-
-  it('calls refresh only once when refreshSignal stays positive across rerenders', () => {
+  it('calls refresh when refreshSignal increments', () => {
     const { rerender } = renderHook(
       ({ refreshSignal }) =>
         useWorkspaceDirExplorer({
-          machineId: 'machine-1',
-          workingDir: '/workspace',
+          machineId: MACHINE_ID,
+          workingDir: WORKING_DIR,
           refreshSignal,
         }),
       { initialProps: { refreshSignal: 1 } }
     );
 
-    rerender({ refreshSignal: 1 });
-    rerender({ refreshSignal: 1 });
-    rerender({ refreshSignal: 1 });
-
-    expect(refreshRootListing).toHaveBeenCalledTimes(1);
-    expect(refreshFileSearch).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls refresh again only when refreshSignal increments', () => {
-    const { rerender } = renderHook(
-      ({ refreshSignal }) =>
-        useWorkspaceDirExplorer({
-          machineId: 'machine-1',
-          workingDir: '/workspace',
-          refreshSignal,
-        }),
-      { initialProps: { refreshSignal: 1 } }
-    );
+    mocks.treeRefresh.mockClear();
 
     rerender({ refreshSignal: 2 });
 
-    expect(refreshRootListing).toHaveBeenCalledTimes(2);
-    expect(refreshFileSearch).toHaveBeenCalledTimes(2);
+    expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('pulls tree on mount with force when store already has entries', () => {
+    mocks.hasTree = true;
+
+    renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        enabled: true,
+      })
+    );
+
+    expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('pulls tree on mount without force when store is empty', () => {
+    mocks.hasTree = false;
+
+    renderHook(() =>
+      useWorkspaceDirExplorer({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        enabled: true,
+      })
+    );
+
+    expect(mocks.treeRefresh).toHaveBeenCalledWith();
   });
 });

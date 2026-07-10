@@ -2,56 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileExplorerPanel } from './FileExplorerPanel';
+import {
+  __resetWorkspaceFileTreeStoreForTests,
+  toWorkspaceFileTreeKey,
+  upsertWorkspaceFileTree,
+} from '../files/workspaceFileTreeStore';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 
-const mocks = vi.hoisted(() => {
-  const STABLE_EMPTY: never[] = [];
-  const rootEntries = [
-    { name: 'src', path: 'src', type: 'directory' as const },
-    { name: 'package.json', path: 'package.json', type: 'file' as const },
-  ];
-
-  const rootRefresh = vi.fn();
-  const childRefresh = vi.fn();
-  const searchRefresh = vi.fn();
-  const skipRefresh = vi.fn();
-
-  const rootListing = {
-    get entries() {
-      return rootEntries;
-    },
-    isLoading: false,
-    refresh: rootRefresh,
-    scannedAt: 1,
-    truncated: false,
-  };
-
-  const skipListing = {
-    entries: STABLE_EMPTY,
-    isLoading: false,
-    refresh: skipRefresh,
-    scannedAt: null,
-    truncated: false,
-  };
-
-  const searchListing = {
-    entries: STABLE_EMPTY,
-    isLoading: false,
-    refresh: searchRefresh,
-  };
-
-  return {
-    STABLE_EMPTY,
-    rootEntries,
-    rootRefresh,
-    childRefresh,
-    searchRefresh,
-    rootListing,
-    skipListing,
-    searchListing,
-    childStates: new Map<string, { entries: typeof rootEntries; isLoading: boolean }>(),
-  };
-});
+const treeRefresh = vi.hoisted(() => vi.fn());
 
 const mockCreateFile = vi.hoisted(() => vi.fn());
 const mockRequestDelete = vi.hoisted(() => vi.fn());
@@ -61,33 +19,13 @@ const mockConfirmRename = vi.hoisted(() => vi.fn());
 const mockRequestMkdir = vi.hoisted(() => vi.fn());
 const mockConfirmMkdir = vi.hoisted(() => vi.fn());
 
-vi.mock('@/modules/chatroom/workspace/files/useDirListing', () => ({
-  useDirListing: (args: { dirPath: string } | 'skip') => {
-    if (args === 'skip') return mocks.skipListing;
-
-    if (args.dirPath === '') return mocks.rootListing;
-
-    const childState = mocks.childStates.get(args.dirPath) ?? {
-      entries: mocks.STABLE_EMPTY,
-      isLoading: true,
-    };
-
-    return {
-      entries: childState.entries,
-      isLoading: childState.isLoading,
-      refresh: mocks.childRefresh,
-      scannedAt: null,
-      truncated: false,
-    };
-  },
-}));
-
-vi.mock('@/modules/chatroom/workspace/files/useFileSearch', () => ({
-  useFileSearch: () => mocks.searchListing,
-}));
-
-vi.mock('@/modules/chatroom/workspace/files/useDirListingWatch', () => ({
-  useDirListingWatch: vi.fn(),
+vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
+  useWorkspaceFileTreeEntries: () => ({
+    entries: [],
+    isLoading: false,
+    hasTree: true,
+    refresh: treeRefresh,
+  }),
 }));
 
 vi.mock('../hooks/useWorkspaceFileCreate', () => ({
@@ -131,6 +69,8 @@ vi.mock('sonner', () => ({
   },
 }));
 
+const WORKSPACE_KEY = toWorkspaceFileTreeKey('machine-1', '/workspace');
+
 const fileTabs = {
   tabs: [],
   activeTabPath: null,
@@ -163,13 +103,16 @@ const defaultProps = {
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
-
-  mocks.rootEntries.length = 0;
-  mocks.rootEntries.push(
-    { name: 'src', path: 'src', type: 'directory' as const },
-    { name: 'package.json', path: 'package.json', type: 'file' as const }
+  Element.prototype.scrollIntoView = vi.fn();
+  __resetWorkspaceFileTreeStoreForTests();
+  upsertWorkspaceFileTree(
+    WORKSPACE_KEY,
+    [
+      { path: 'src', type: 'directory' },
+      { path: 'package.json', type: 'file' },
+    ],
+    1
   );
-  mocks.childStates.clear();
 
   mockCreateFile.mockResolvedValue(undefined);
   mockRequestDelete.mockResolvedValue({ requestId: 'req-delete-1' });
@@ -187,7 +130,7 @@ describe('FileExplorerPanel create/delete integration', () => {
     render(<FileExplorerPanel {...defaultProps} onFileCreated={onFileCreated} />);
 
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
-    expect(mocks.rootRefresh).not.toHaveBeenCalled();
+    treeRefresh.mockClear();
 
     fireEvent.click(screen.getByLabelText('New file'));
 
@@ -199,7 +142,7 @@ describe('FileExplorerPanel create/delete integration', () => {
     expect(mockCreateFile).toHaveBeenCalledWith('notes.md', '');
 
     await waitFor(() => {
-      expect(mocks.rootRefresh).toHaveBeenCalledTimes(1);
+      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
     });
 
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
@@ -223,7 +166,7 @@ describe('FileExplorerPanel create/delete integration', () => {
     await waitFor(() => {
       expect(mockRequestDelete).toHaveBeenCalledWith('package.json');
       expect(onFileDeleted).toHaveBeenCalledWith('package.json');
-      expect(mocks.rootRefresh).toHaveBeenCalled();
+      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
     });
 
     await waitFor(() => {
@@ -267,6 +210,11 @@ describe('FileExplorerPanel create/delete integration', () => {
   it('does not enter a refresh loop after create completes', async () => {
     render(<FileExplorerPanel {...defaultProps} />);
 
+    await waitFor(() => {
+      expect(screen.getByTitle('package.json')).toBeInTheDocument();
+    });
+    treeRefresh.mockClear();
+
     fireEvent.click(screen.getByLabelText('New file'));
     const input = await screen.findByPlaceholderText('docs/notes.md');
     fireEvent.change(input, { target: { value: 'docs/new-note.md' } });
@@ -274,12 +222,12 @@ describe('FileExplorerPanel create/delete integration', () => {
 
     await waitFor(() => {
       expect(mockCreateFile).toHaveBeenCalledWith('docs/new-note.md', '');
-      expect(mocks.rootRefresh).toHaveBeenCalled();
+      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
     });
 
-    const callsAfterSettle = mocks.rootRefresh.mock.calls.length;
+    const callsAfterSettle = treeRefresh.mock.calls.length;
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(mocks.rootRefresh.mock.calls.length).toBe(callsAfterSettle);
+    expect(treeRefresh.mock.calls.length).toBe(callsAfterSettle);
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
   });
 
@@ -303,7 +251,7 @@ describe('FileExplorerPanel create/delete integration', () => {
 
     await waitFor(() => {
       expect(mockConfirmMkdir).toHaveBeenCalledWith('req-mkdir-1');
-      expect(mocks.rootRefresh).toHaveBeenCalled();
+      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
     });
   });
 

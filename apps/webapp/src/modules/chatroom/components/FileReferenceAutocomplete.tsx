@@ -73,7 +73,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
     if (!listRef.current) return;
     const items = listRef.current.querySelectorAll('[data-autocomplete-item]');
     const selected = items[selectedIndex];
-    if (selected) {
+    if (selected && typeof selected.scrollIntoView === 'function') {
       selected.scrollIntoView({ block: 'nearest' });
     }
   }, [selectedIndex]);
