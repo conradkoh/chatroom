@@ -1,7 +1,7 @@
 /**
  * File tree scanner for workspace directories.
  *
- * Uses `git ls-files` for fast scanning that respects .gitignore.
+ * Uses `git ls-files` in git repos; falls back to filesystem walk otherwise.
  * Produces a flat array of FileTreeEntry objects.
  */
 
@@ -13,25 +13,13 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files.js';
 
+import { walkWorkspaceFiles } from './workspace-file-walk.js';
+import { hasExcludedDirSegment } from './workspace-visibility-policy.js';
+import { isGitRepo } from '../../git/git-reader.js';
+
 const execAsync = promisify(exec);
 
 const DEFAULT_MAX_ENTRIES = 10_000;
-
-/** Directories to always exclude (even outside git repos). */
-const ALWAYS_EXCLUDE = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  'coverage',
-  '__pycache__',
-  '.turbo',
-  '.cache',
-  '.tmp',
-  'tmp',
-  '.DS_Store',
-]);
 
 export type ScanOptions = {
   maxEntries?: number;
@@ -39,15 +27,21 @@ export type ScanOptions = {
 
 /**
  * Scans the file tree of a workspace directory.
- *
- * Uses `git ls-files` for tracked files and
- * `git ls-files --others --exclude-standard` for untracked files.
  */
 export async function scanFileTree(rootDir: string, options?: ScanOptions): Promise<FileTree> {
   const maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const scannedAt = Date.now();
 
-  const filePaths = await getGitFiles(rootDir);
+  const inRepo = await isGitRepo(rootDir);
+  let filePaths: string[];
+
+  if (inRepo) {
+    filePaths = await getGitFiles(rootDir);
+  } else {
+    const walk = await walkWorkspaceFiles(rootDir, { maxFilePaths: maxEntries });
+    filePaths = walk.filePaths;
+  }
+
   const filteredPaths = filePaths.filter((p) => !isExcluded(p));
   const entries = buildEntries(filteredPaths, maxEntries);
 
@@ -98,8 +92,7 @@ function parseLines(output: string): string[] {
 /** Check if a path contains an always-excluded directory segment. */
 // fallow-ignore-next-line unused-export
 export function isExcluded(filePath: string): boolean {
-  const segments = filePath.split('/');
-  return segments.some((segment) => ALWAYS_EXCLUDE.has(segment));
+  return hasExcludedDirSegment(filePath);
 }
 
 /**

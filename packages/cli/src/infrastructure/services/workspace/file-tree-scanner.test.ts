@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildEntries, isExcluded, scanFileTree } from './file-tree-scanner.js';
 
+const mocks = vi.hoisted(() => ({
+  isGitRepo: vi.fn(),
+  walkWorkspaceFiles: vi.fn(),
+}));
+
 vi.mock('node:child_process', () => ({
   exec: vi.fn(),
 }));
@@ -12,17 +17,19 @@ vi.mock('node:util', () => ({
   promisify: (fn: Function) => fn,
 }));
 
+vi.mock('../../git/git-reader.js', () => ({
+  isGitRepo: mocks.isGitRepo,
+}));
+
+vi.mock('./workspace-file-walk.js', () => ({
+  walkWorkspaceFiles: mocks.walkWorkspaceFiles,
+}));
+
 const mockExec = vi.mocked(exec);
 
 function mockSuccess(stdout: string): void {
   mockExec.mockImplementationOnce((_cmd, _opts) => {
     return Promise.resolve({ stdout, stderr: '' }) as unknown as ReturnType<typeof exec>;
-  });
-}
-
-function mockFailure(message: string): void {
-  mockExec.mockImplementationOnce(() => {
-    return Promise.reject(new Error(message)) as unknown as ReturnType<typeof exec>;
   });
 }
 
@@ -94,6 +101,8 @@ describe('buildEntries', () => {
 describe('scanFileTree', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isGitRepo.mockResolvedValue(true);
+    mocks.walkWorkspaceFiles.mockResolvedValue({ filePaths: [], truncated: false });
   });
 
   it('returns file tree with entries from git ls-files', async () => {
@@ -109,6 +118,7 @@ describe('scanFileTree', () => {
     expect(filePaths).toContain('src/index.ts');
     expect(filePaths).toContain('README.md');
     expect(filePaths).toContain('draft.txt');
+    expect(mocks.walkWorkspaceFiles).not.toHaveBeenCalled();
   });
 
   it('deduplicates tracked and untracked files', async () => {
@@ -141,10 +151,19 @@ describe('scanFileTree', () => {
     expect(tree.entries.length).toBeLessThanOrEqual(50);
   });
 
-  it('returns empty tree when git fails', async () => {
-    mockFailure('not a git repo');
+  it('falls back to filesystem walk when not a git repo', async () => {
+    mocks.isGitRepo.mockResolvedValue(false);
+    mocks.walkWorkspaceFiles.mockResolvedValue({
+      filePaths: ['src/index.ts'],
+      truncated: false,
+    });
 
     const tree = await scanFileTree('/not/a/repo');
-    expect(tree.entries).toHaveLength(0);
+
+    expect(mocks.walkWorkspaceFiles).toHaveBeenCalledWith('/not/a/repo', { maxFilePaths: 10_000 });
+    expect(tree.entries.filter((e) => e.type === 'file').map((e) => e.path)).toContain(
+      'src/index.ts'
+    );
+    expect(mockExec).not.toHaveBeenCalled();
   });
 });
