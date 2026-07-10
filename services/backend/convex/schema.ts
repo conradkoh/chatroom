@@ -2247,7 +2247,8 @@ export default defineSchema({
   // ═══════════════════════════════════════════════════════════════════════════════
 
   /**
-   * V2 workspace file tree - compressed only.
+   * V2 workspace file tree — compressed single-blob fast path for small repos (≤10k entries).
+   * Legacy fast-path: retained for small workspaces; large repos use V3 sharded tables.
    * `data` is always a base64-encoded gzip of the FileTree JSON.
    * `dataHash` is used for server-side dedup (skip write if unchanged).
    */
@@ -2266,6 +2267,47 @@ export default defineSchema({
     /** Hash of the uncompressed data for server-side dedup. */
     dataHash: v.string(),
     /** When the tree was last scanned. */
+    scannedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * V3 sharded file tree — one row per shard per sync generation.
+   * Used for large repos exceeding single-blob V2 limits.
+   */
+  chatroom_workspaceFileTreeShardV3: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    /** Partition key, e.g. "__root__", "src", "packages/cli". */
+    shardId: v.string(),
+    /** UUID tying shards from one daemon scan together. */
+    syncGeneration: v.string(),
+    data: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+    }),
+    dataHash: v.string(),
+    scannedAt: v.number(),
+    entryCount: v.number(),
+  })
+    .index('by_machine_workingDir_syncGeneration', ['machineId', 'workingDir', 'syncGeneration'])
+    .index('by_machine_workingDir_syncGeneration_shardId', [
+      'machineId',
+      'workingDir',
+      'syncGeneration',
+      'shardId',
+    ]),
+
+  /**
+   * V3 file tree manifest — one row per workspace (latest sync).
+   * Daemon sets complete=true after all shards land.
+   */
+  chatroom_workspaceFileTreeManifestV3: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    syncGeneration: v.string(),
+    shardIds: v.array(v.string()),
+    totalEntryCount: v.number(),
+    complete: v.boolean(),
     scannedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
