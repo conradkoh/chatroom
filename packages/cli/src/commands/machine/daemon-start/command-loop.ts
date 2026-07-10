@@ -41,7 +41,7 @@ import {
   startFileWriteSubscriptionEffect,
   type FileWriteSubscriptionHandle,
 } from './file-write-subscription.js';
-import { pushGitStateEffect, pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
+import { pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
@@ -174,7 +174,7 @@ function handleGitRefreshCommandEffect(
     const lastPushedGitState = yield* Ref.get(mutable.lastPushedGitState);
     lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
-    yield* pushGitStateEffect;
+    yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
     tracker.gitRefreshIds.set(eventId, Date.now());
   });
 }
