@@ -92,12 +92,8 @@ export function useWorkspaceDirExplorer({
     }
     if (mountPullRef.current) return;
     mountPullRef.current = true;
-    if (hasTree) {
-      treeRefresh({ force: true });
-    } else {
-      treeRefresh();
-    }
-  }, [enabled, hasTree, treeRefresh]);
+    treeRefresh();
+  }, [enabled, treeRefresh]);
 
   return useMemo(
     () => ({

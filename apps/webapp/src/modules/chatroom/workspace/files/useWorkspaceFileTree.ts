@@ -17,11 +17,14 @@ import {
   type FileTreeShardPayload,
 } from './fileTreeUtils';
 import {
+  applyWorkspaceFileTreeDeltas,
   getWorkspaceFileTreeEntries,
+  getWorkspaceFileTreeRevision,
   getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
+  type WorkspaceFileTreeDeltaBatch,
 } from './workspaceFileTreeStore';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 import { decompressGzip } from '../utils/decompressGzip';
@@ -48,6 +51,24 @@ type FileTreeShardV3Row = {
   scannedAt: number;
   entryCount: number;
 };
+
+type FileTreeCheckpoint = {
+  revision: number;
+  snapshotKind: 'v2' | 'v3';
+  snapshotId: string;
+  publishedAt: number;
+};
+
+type FileTreeDeltaQueryResult =
+  | {
+      status: 'ok';
+      checkpointRevision: number;
+      currentRevision: number;
+      deltas: WorkspaceFileTreeDeltaBatch[];
+      hasMore: boolean;
+    }
+  | { status: 'checkpoint-required'; checkpointRevision: number; currentRevision: number }
+  | { status: 'resync-required'; expectedRevision: number };
 
 export interface UseWorkspaceFileTreeArgs {
   machineId: string;
@@ -86,12 +107,25 @@ export function useWorkspaceFileTree({
 
   const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
 
+  const checkpoint = useSessionQuery(
+    api.workspaceFiles.getFileTreeCheckpoint,
+    enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
+  ) as FileTreeCheckpoint | null | undefined;
+  const checkpointRevision = checkpoint === undefined ? null : (checkpoint?.revision ?? 0);
+
   const manifest = useSessionQuery(
     api.workspaceFiles.getFileTreeManifestV3,
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
   ) as FileTreeManifestV3 | null | undefined;
 
-  const useV3 = manifest != null && manifest.complete === true;
+  const useV3 =
+    manifest != null &&
+    manifest.complete === true &&
+    (checkpoint === null || checkpoint?.snapshotKind === 'v3');
+  const useV2 =
+    checkpoint !== undefined &&
+    !useV3 &&
+    (checkpoint?.snapshotKind === 'v2' || (checkpoint === null && manifest === null));
   const manifestIncomplete = manifest != null && manifest.complete === false;
 
   const shardsRaw = useSessionQuery(
@@ -107,12 +141,12 @@ export function useWorkspaceFileTree({
 
   const rawV2 = useSessionQuery(
     api.workspaceFiles.getFileTreeV2,
-    enabled && manifest === null ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
+    enabled && useV2 ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
   );
-  const jsonV2 = useDecompressedQueryJson(rawV2, enabled && manifest === null);
+  const jsonV2 = useDecompressedQueryJson(rawV2, enabled && useV2);
 
   const parsedV2 = useMemo((): FileTree | null | undefined => {
-    if (!enabled || manifest !== null) return undefined;
+    if (!enabled || !useV2) return undefined;
     if (rawV2 === undefined) return undefined;
     if (rawV2 === null) return null;
     if (jsonV2 === undefined) return undefined;
@@ -122,7 +156,7 @@ export function useWorkspaceFileTree({
     } catch {
       return null;
     }
-  }, [enabled, jsonV2, manifest, rawV2]);
+  }, [enabled, jsonV2, rawV2, useV2]);
 
   const [v3Entries, setV3Entries] = useState<FileTreeEntry[] | null | undefined>(undefined);
 
@@ -133,7 +167,7 @@ export function useWorkspaceFileTree({
   }, [shardsRaw]);
 
   useEffect(() => {
-    if (!enabled || !useV3 || !manifest) {
+    if (!enabled || !useV3 || !manifest || checkpointRevision === null) {
       setV3Entries(undefined);
       return;
     }
@@ -159,7 +193,7 @@ export function useWorkspaceFileTree({
         const entries = mergeFileTreeShardPayloads(payloads);
         if (!cancelled) {
           setV3Entries(entries);
-          upsertWorkspaceFileTree(workspaceKey, entries, manifest.scannedAt);
+          upsertWorkspaceFileTree(workspaceKey, entries, manifest.scannedAt, checkpointRevision);
         }
       } catch {
         if (!cancelled) setV3Entries(null);
@@ -169,16 +203,19 @@ export function useWorkspaceFileTree({
     return () => {
       cancelled = true;
     };
-  }, [enabled, manifest, shardsPayloadKey, shardsRaw, useV3, workspaceKey]);
+  }, [checkpointRevision, enabled, manifest, shardsPayloadKey, shardsRaw, useV3, workspaceKey]);
 
   useEffect(() => {
-    if (!enabled || parsedV2 === undefined || parsedV2 === null) return;
+    if (!enabled || checkpointRevision === null || parsedV2 === undefined || parsedV2 === null) {
+      return;
+    }
     upsertWorkspaceFileTree(
       workspaceKey,
       parsedV2.entries,
-      parsedV2.scannedAt ?? rawV2?.scannedAt ?? null
+      parsedV2.scannedAt ?? rawV2?.scannedAt ?? null,
+      checkpointRevision
     );
-  }, [enabled, parsedV2, rawV2?.scannedAt, workspaceKey]);
+  }, [checkpointRevision, enabled, parsedV2, rawV2?.scannedAt, workspaceKey]);
 
   const storeEntries = useSyncExternalStore(
     useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
@@ -191,6 +228,23 @@ export function useWorkspaceFileTree({
     () => getWorkspaceFileTreeScannedAt(workspaceKey),
     () => getWorkspaceFileTreeScannedAt(workspaceKey)
   );
+
+  const storeRevision = useSyncExternalStore(
+    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
+    () => getWorkspaceFileTreeRevision(workspaceKey),
+    () => getWorkspaceFileTreeRevision(workspaceKey)
+  );
+
+  const deltaResult = useSessionQuery(
+    api.workspaceFiles.getFileTreeDeltas,
+    enabled && storeRevision !== null
+      ? {
+          machineId,
+          workingDir: normalizedWorkingDir,
+          afterRevision: storeRevision,
+        }
+      : 'skip'
+  ) as FileTreeDeltaQueryResult | null | undefined;
 
   const requestTree = useCallback(
     (force: boolean) => {
@@ -220,8 +274,19 @@ export function useWorkspaceFileTree({
       const force = !!options?.force;
       requestTree(force);
     },
-    [enabled, requestTree, workspaceKey]
+    [enabled, requestTree]
   );
+
+  useEffect(() => {
+    if (!enabled || !deltaResult) return;
+    if (deltaResult.status === 'resync-required') {
+      requestTree(true);
+      return;
+    }
+    if (deltaResult.status !== 'ok' || deltaResult.deltas.length === 0) return;
+    const result = applyWorkspaceFileTreeDeltas(workspaceKey, deltaResult.deltas);
+    if (result.status === 'requires-refresh') requestTree(true);
+  }, [deltaResult, enabled, requestTree, workspaceKey]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -243,9 +308,11 @@ export function useWorkspaceFileTree({
   const scannedAt =
     storeScannedAt ?? manifest?.scannedAt ?? parsedV2?.scannedAt ?? rawV2?.scannedAt ?? null;
   const hasTree =
-    storeEntries.length > 0 || (v3Entries?.length ?? 0) > 0 || (parsedV2?.entries?.length ?? 0) > 0;
-  const v2Loading =
-    manifest === null && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
+    storeRevision !== null ||
+    storeEntries.length > 0 ||
+    (v3Entries?.length ?? 0) > 0 ||
+    (parsedV2?.entries?.length ?? 0) > 0;
+  const v2Loading = useV2 && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
   const v3Loading = useV3 && (shardsRaw === undefined || v3Entries === undefined);
   const isLoading =
     enabled && !hasTree && (manifest === undefined || manifestIncomplete || v3Loading || v2Loading);

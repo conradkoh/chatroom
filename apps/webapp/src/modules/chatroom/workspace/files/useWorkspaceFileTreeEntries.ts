@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
 import {
   getWorkspaceFileTreeEntries,
+  getWorkspaceFileTreeRevision,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
 } from './workspaceFileTreeStore';
@@ -49,6 +50,11 @@ export function useWorkspaceFileTreeEntries({
     () => getWorkspaceFileTreeEntries(workspaceKey),
     () => getWorkspaceFileTreeEntries(workspaceKey)
   );
+  const storeRevision = useSyncExternalStore(
+    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
+    () => getWorkspaceFileTreeRevision(workspaceKey),
+    () => getWorkspaceFileTreeRevision(workspaceKey)
+  );
 
   const entries = useMemo(() => {
     if (!enabled) return EMPTY_ENTRIES;
@@ -57,7 +63,7 @@ export function useWorkspaceFileTreeEntries({
     return converted.filter((entry) => entry.type === 'file');
   }, [enabled, includeDirectories, storeEntries]);
 
-  const hasTree = enabled && storeEntries.length > 0;
+  const hasTree = enabled && (storeEntries.length > 0 || storeRevision !== null);
   const isLoading = enabled && !hasTree;
 
   const refresh = useCallback(

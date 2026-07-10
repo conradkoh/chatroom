@@ -62,7 +62,7 @@ describe('workspace sync manifest persistence', () => {
     const manifest = createManifestFromTree({
       machineId: 'machine-1',
       workingDir: '/workspace',
-      scanner: 'git',
+      scanner: 'filesystem',
       dataHash: 'abc123',
       tree: {
         entries: [
@@ -78,7 +78,7 @@ describe('workspace sync manifest persistence', () => {
     const loaded = await loadWorkspaceSyncManifest('machine-1', '/workspace');
 
     expect(loaded).toEqual(manifest);
-    expect(loaded?.version).toBe('1');
+    expect(loaded?.version).toBe('2');
     expect(loaded?.paths).toEqual({
       src: 'directory',
       'src/index.ts': 'file',
@@ -102,7 +102,7 @@ describe('workspace sync manifest persistence', () => {
 
   it('writes atomically via tmp then rename', async () => {
     const manifest: WorkspaceSyncManifest = {
-      version: '1',
+      version: '2',
       machineId: 'machine-atomic',
       workingDir: '/workspace',
       syncGeneration: 'gen-1',
@@ -111,6 +111,11 @@ describe('workspace sync manifest persistence', () => {
       dataHash: 'hash',
       totalEntryCount: 0,
       paths: {},
+      localRevision: 0,
+      backendRevision: 0,
+      checkpointRevision: 0,
+      lastReconciledAt: 1,
+      pendingDeltas: [],
     };
 
     await saveWorkspaceSyncManifest(manifest);
@@ -126,7 +131,7 @@ describe('workspace sync manifest persistence', () => {
     const manifest = createManifestFromTree({
       machineId: 'machine-clear',
       workingDir: '/workspace',
-      scanner: 'git',
+      scanner: 'filesystem',
       dataHash: 'hash',
       tree: { entries: [], scannedAt: 1, rootDir: '/workspace' },
     });
