@@ -3,9 +3,9 @@ import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { daemonSessionToLayers } from './daemon-layers.js';
-import type {
-  DaemonMutableStateService,
+import {
   DaemonSessionService,
+  type DaemonMutableStateService,
   type DaemonSessionServiceShape,
 } from './daemon-services.js';
 import {
