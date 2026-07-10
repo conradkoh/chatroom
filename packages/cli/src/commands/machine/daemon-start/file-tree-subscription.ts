@@ -15,7 +15,9 @@ import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isGitRepo } from '../../../infrastructure/git/git-reader.js';
 import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
+import { shouldUseV3Upload } from '../../../infrastructure/services/workspace/file-tree-partition.js';
 import { scanFileTree } from '../../../infrastructure/services/workspace/file-tree-scanner.js';
+import { uploadFileTreeV3 } from '../../../infrastructure/services/workspace/file-tree-v3-upload.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
 import {
   diffPathIndexes,
@@ -36,6 +38,29 @@ function logSubscriptionWarn(label: string, err: unknown): void {
 
 export interface FileTreeSubscriptionHandle {
   stop: () => void;
+}
+
+async function syncScannedFileTree(
+  session: DaemonSessionServiceShape,
+  normalizedWorkingDir: string,
+  tree: Awaited<ReturnType<typeof scanFileTree>>,
+  dataHash: string,
+  syncGeneration: string
+): Promise<void> {
+  if (shouldUseV3Upload(tree)) {
+    await uploadFileTreeV3(session, normalizedWorkingDir, tree, syncGeneration);
+    return;
+  }
+  const treeJson = JSON.stringify(tree);
+  const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
+  await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+    workingDir: normalizedWorkingDir,
+    data: { compression: 'gzip', content: compressed },
+    dataHash,
+    scannedAt: tree.scannedAt,
+  });
 }
 
 // fallow-ignore-next-line complexity
@@ -69,17 +94,16 @@ async function uploadFileTree(
     );
   }
 
-  const treeJson = JSON.stringify(tree);
-  const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
-
-  await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
-    sessionId: session.sessionId,
+  const scanner = (await isGitRepo(normalizedWorkingDir)) ? 'git' : 'filesystem';
+  const manifest = createManifestFromTree({
     machineId: session.machineId,
     workingDir: normalizedWorkingDir,
-    data: { compression: 'gzip', content: compressed },
+    scanner,
     dataHash,
-    scannedAt: tree.scannedAt,
+    tree,
   });
+
+  await syncScannedFileTree(session, normalizedWorkingDir, tree, dataHash, manifest.syncGeneration);
 
   await session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
     sessionId: session.sessionId,
@@ -87,16 +111,7 @@ async function uploadFileTree(
     workingDir: normalizedWorkingDir,
   });
 
-  const scanner = (await isGitRepo(normalizedWorkingDir)) ? 'git' : 'filesystem';
-  await saveWorkspaceSyncManifest(
-    createManifestFromTree({
-      machineId: session.machineId,
-      workingDir: normalizedWorkingDir,
-      scanner,
-      dataHash,
-      tree,
-    })
-  );
+  await saveWorkspaceSyncManifest(manifest);
 }
 
 export const startFileTreeSubscriptionEffect = (

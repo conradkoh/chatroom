@@ -17,6 +17,8 @@ vi.mock('../../../api.js', () => ({
     workspaceFiles: {
       getPendingFileTreeRequests: 'mock-getPendingFileTreeRequests',
       syncFileTreeV2: 'mock-syncFileTreeV2',
+      syncFileTreeShardV3Batch: 'mock-syncFileTreeShardV3Batch',
+      syncFileTreeManifestV3: 'mock-syncFileTreeManifestV3',
       fulfillFileTreeRequest: 'mock-fulfillFileTreeRequest',
     },
   },
@@ -46,7 +48,25 @@ vi.mock('../../../infrastructure/services/workspace/workspace-sync-state.js', ()
   buildPathIndex: vi.fn((entries: { path: string; type: 'file' | 'directory' }[]) =>
     Object.fromEntries(entries.map((e) => [e.path, e.type]))
   ),
-  createManifestFromTree: vi.fn((args: unknown) => args),
+  createManifestFromTree: vi.fn(
+    (args: {
+      machineId: string;
+      workingDir: string;
+      scanner: string;
+      dataHash: string;
+      tree: { entries: unknown[] };
+    }) => ({
+      version: '1',
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      syncGeneration: 'gen-test-1',
+      completedAt: Date.now(),
+      scanner: args.scanner,
+      dataHash: args.dataHash,
+      totalEntryCount: args.tree.entries.length,
+      paths: {},
+    })
+  ),
   loadWorkspaceSyncManifest: (...args: unknown[]) => mockLoadWorkspaceSyncManifest(...args),
   saveWorkspaceSyncManifest: (...args: unknown[]) => mockSaveWorkspaceSyncManifest(...args),
 }));
@@ -376,6 +396,60 @@ describe('startFileTreeSubscriptionEffect', () => {
 
     const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
     expect(mutationCalls).toContain('mock-syncFileTreeV2');
+    expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
+  });
+
+  it('uploads via V3 when tree exceeds MAX_TREE_JSON_BYTES', async () => {
+    const { MAX_TREE_JSON_BYTES } =
+      await import('../../../infrastructure/services/workspace/file-tree-partition.js');
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+    const wsClient = makeMockWsClient();
+
+    const estimatedCount = Math.ceil(MAX_TREE_JSON_BYTES / 90) + 500;
+    let entries = Array.from({ length: estimatedCount }, (_, i) => ({
+      path: `src/file-${i}.ts`,
+      type: 'file' as const,
+      size: 4096,
+      modifiedAt: 1_700_000_000_000 + i,
+    }));
+    let tree = {
+      entries,
+      scannedAt: 1_700_000_000_000,
+      rootDir: '/workspace',
+    };
+    while (Buffer.byteLength(JSON.stringify(tree), 'utf8') <= MAX_TREE_JSON_BYTES) {
+      entries = Array.from({ length: entries.length + 1000 }, (_, i) => ({
+        path: `src/file-${i}.ts`,
+        type: 'file' as const,
+        size: 4096,
+        modifiedAt: 1_700_000_000_000 + i,
+      }));
+      tree = { entries, scannedAt: tree.scannedAt, rootDir: tree.rootDir };
+    }
+    mockScanFileTree.mockResolvedValue(tree);
+
+    await runWithSession(startFileTreeSubscriptionEffect(wsClient as any), {
+      sessionId: 'session-v3',
+      machineId: 'machine-v3',
+      backend: deps.backend,
+    });
+
+    const onUpdateCallback = vi.mocked(wsClient.onUpdate).mock.calls[0]?.[2] as (
+      requests: { _id: string; workingDir: string }[]
+    ) => void;
+
+    onUpdateCallback([{ _id: 'req-1', workingDir: '/workspace' }]);
+
+    await vi.waitFor(() => {
+      expect(mockSaveWorkspaceSyncManifest).toHaveBeenCalledTimes(1);
+    });
+
+    const mutationCalls = vi.mocked(deps.backend.mutation).mock.calls.map((call) => call[0]);
+    expect(mutationCalls).toContain('mock-syncFileTreeShardV3Batch');
+    expect(mutationCalls).toContain('mock-syncFileTreeManifestV3');
+    expect(mutationCalls).not.toContain('mock-syncFileTreeV2');
     expect(mutationCalls).toContain('mock-fulfillFileTreeRequest');
   });
 });
