@@ -26,9 +26,9 @@ async function resolveExistingContextForTrigger(
 ): Promise<Id<'chatroom_contexts'> | null> {
   const existingForTrigger = await ctx.db
     .query('chatroom_contexts')
-    .withIndex('by_chatroom_latest', (q) => q.eq('chatroomId', chatroom._id))
-    .order('desc')
-    .filter((q) => q.eq(q.field('triggerMessageId'), triggerMessageId))
+    .withIndex('by_chatroom_trigger', (q) =>
+      q.eq('chatroomId', chatroom._id).eq('triggerMessageId', triggerMessageId)
+    )
     .first();
 
   if (!existingForTrigger) {

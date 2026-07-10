@@ -322,7 +322,8 @@ export default defineSchema({
     messageCountAtCreation: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_latest', ['chatroomId', 'createdAt']),
+    .index('by_chatroom_latest', ['chatroomId', 'createdAt'])
+    .index('by_chatroom_trigger', ['chatroomId', 'triggerMessageId']),
 
   /**
    * Participants in chatrooms.
