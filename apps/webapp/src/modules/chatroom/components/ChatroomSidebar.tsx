@@ -11,7 +11,7 @@ import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
-import { groupChatroomsByRecency } from '../utils/groupChatroomsByRecency';
+import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -165,13 +165,6 @@ interface ChatroomSidebarProps {
   activeChatroomId?: string;
 }
 
-const RECENCY_SECTIONS = [
-  { key: 'lastDay' as const, label: 'Last Day' },
-  { key: 'lastWeek' as const, label: 'Last Week' },
-  { key: 'lastMonth' as const, label: 'Last Month' },
-  { key: 'older' as const, label: 'Older' },
-];
-
 function SidebarSectionHeader({
   label,
   withTopBorder = false,
@@ -218,30 +211,15 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
     if (!chatrooms) {
       return {
         activeChatrooms: [],
-        recentByRecency: groupChatroomsByRecency([]),
+        recentByRecency: partitionChatroomListing([]).recentByRecency,
         completed: [],
       };
     }
-
-    // Completed chatrooms
-    const completedChatrooms = chatrooms.filter((c) => c.chatStatus === 'completed');
-
-    // Active chatrooms: agents present and engaged (working or active status)
-    // Sorted by _creationTime ASC (oldest first) — stable sort so chatrooms don't jump around
-    const engagedChatrooms = chatrooms
-      .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
-      .sort((a, b) => a._creationTime - b._creationTime);
-
-    // Non-active, non-completed chatrooms grouped by recency
-    const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
-    const remainingChatrooms = chatrooms.filter(
-      (c) => !engagedIds.has(c._id) && c.chatStatus !== 'completed'
-    );
-
+    const partitioned = partitionChatroomListing(chatrooms);
     return {
-      activeChatrooms: engagedChatrooms,
-      recentByRecency: groupChatroomsByRecency(remainingChatrooms),
-      completed: completedChatrooms,
+      activeChatrooms: partitioned.active,
+      recentByRecency: partitioned.recentByRecency,
+      completed: partitioned.completed,
     };
   }, [chatrooms]);
 

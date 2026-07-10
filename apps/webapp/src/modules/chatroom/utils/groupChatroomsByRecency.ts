@@ -1,4 +1,4 @@
-type RecencyBucket = 'lastDay' | 'lastWeek' | 'lastMonth' | 'older';
+export type RecencyBucket = 'lastDay' | 'lastWeek' | 'lastMonth' | 'older';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * MS_PER_DAY;
