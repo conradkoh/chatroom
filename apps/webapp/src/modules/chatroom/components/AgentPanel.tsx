@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, Settings } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
@@ -29,8 +29,6 @@ interface AgentPanelProps {
   teams?: readonly TeamConfigEntry[];
   onTeamChange?: (team: TeamConfigEntry) => Promise<void>;
   agentConfigs?: AgentConfig[];
-  /** Called when user clicks Configure in the menu */
-  onConfigure?: () => void;
   /** Called when user clicks an agent row — opens settings to agents tab */
   onOpenAgents?: () => void;
 }
@@ -153,7 +151,6 @@ export const AgentPanel = memo(function AgentPanel({
   teams,
   onTeamChange,
   agentConfigs = [],
-  onConfigure,
   onOpenAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
@@ -213,21 +210,10 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with settings button */}
-      <div className="flex items-center justify-between gap-2 h-14 px-4 border-b-2 border-chatroom-border min-w-0">
+      <div className="flex items-center h-14 px-4 border-b-2 border-chatroom-border min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        {/* Settings button — opens settings panel directly */}
-        <button
-          type="button"
-          onClick={onConfigure}
-          className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-          title="Configure agents"
-          aria-label="Configure agents"
-        >
-          <Settings size={14} />
-        </button>
       </div>
 
       {/* Team selector — own row below the Agents header */}

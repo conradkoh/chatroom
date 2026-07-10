@@ -30,7 +30,7 @@ export function Navigation() {
   const hideUserMenu = portalContent.hideUserMenu ?? false;
 
   return (
-    <header className="z-50 w-full shrink-0 border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80">
+    <header className="relative z-50 w-full shrink-0 border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80">
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left section: Logo and portal content */}
         <div className="flex h-full items-center gap-4">
@@ -48,9 +48,11 @@ export function Navigation() {
           {portalContent.left}
         </div>
 
-        {/* Center section: Portal content */}
+        {/* Center section: Portal content (absolutely centered; visible on all breakpoints) */}
         {portalContent.center && (
-          <div className="hidden sm:flex h-full items-center">{portalContent.center}</div>
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center px-16 sm:px-24">
+            <div className="pointer-events-auto min-w-0 max-w-full">{portalContent.center}</div>
+          </div>
         )}
 
         {/* Right section: Portal content and auth */}
