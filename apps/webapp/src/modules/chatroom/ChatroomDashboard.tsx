@@ -5,10 +5,11 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
-  ArrowLeft,
   Files,
   MessageSquare,
   MessageSquareOff,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Settings2,
@@ -82,7 +83,7 @@ import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
-import { useMultiWorkspaceFiles } from './workspace/files';
+import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -173,10 +174,59 @@ interface ChatroomDashboardProps {
   onBack?: () => void;
   /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
   refreshObservedChatroom: () => void;
+  listingSidebarVisible?: boolean;
+  onToggleListingSidebar?: () => void;
 }
 
 /** Edit target for the saved command modal */
 type SavedCommandEditTarget = SavedCommand;
+
+interface ChatroomHeaderLeftProps {
+  listingSidebarVisible: boolean;
+  onToggleListingSidebar?: () => void;
+}
+
+function ChatroomHeaderLeft({
+  listingSidebarVisible,
+  onToggleListingSidebar,
+}: ChatroomHeaderLeftProps) {
+  if (!onToggleListingSidebar) return null;
+
+  return (
+    <button
+      type="button"
+      className="hidden lg:flex bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+      onClick={onToggleListingSidebar}
+      title={listingSidebarVisible ? 'Hide chatrooms sidebar' : 'Show chatrooms sidebar'}
+      aria-label={listingSidebarVisible ? 'Hide chatrooms sidebar' : 'Show chatrooms sidebar'}
+    >
+      {listingSidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+    </button>
+  );
+}
+
+interface ChatroomHeaderCenterProps {
+  onBack?: () => void;
+  onOpenSettings: () => void;
+  displayName: string;
+  chatroomId: string;
+}
+
+function ChatroomHeaderCenter({
+  onBack,
+  onOpenSettings,
+  displayName,
+  chatroomId,
+}: ChatroomHeaderCenterProps) {
+  return (
+    <ChatroomTitleEditor
+      displayName={displayName}
+      chatroomId={chatroomId}
+      onBack={onBack}
+      onOpenSettings={onOpenSettings}
+    />
+  );
+}
 
 // ─── Explorer Content Component ───────────────────────────────────────────────
 // Extracts shared file explorer UI to eliminate duplication between split/non-split views
@@ -396,6 +446,8 @@ export function ChatroomDashboard({
   chatroomId,
   onBack,
   refreshObservedChatroom,
+  listingSidebarVisible = true,
+  onToggleListingSidebar,
 }: ChatroomDashboardProps) {
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
@@ -787,9 +839,12 @@ export function ChatroomDashboard({
     workingDir: activeWorkspace?.workingDir ?? null,
   });
 
-  // Multi-workspace file tree subscription for @ autocomplete in SendForm
-  const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
-    useMultiWorkspaceFiles(chatroomWorkspaces);
+  // Multi-workspace file tree: producer sync + store-backed autocomplete
+  const { refreshAll: refreshFileTrees } = useMultiWorkspaceFileTrees(chatroomWorkspaces);
+  const { files: autocompleteFiles } = useMultiWorkspaceFiles(chatroomWorkspaces);
+  const handleAtTriggerActivate = useCallback(() => {
+    refreshFileTrees({ force: true });
+  }, [refreshFileTrees]);
   const hasAutocompleteWorkspace = chatroomWorkspaces.some(
     (workspace) => workspace.machineId && workspace.workingDir
   );
@@ -1332,19 +1387,18 @@ export function ChatroomDashboard({
         hideAppTitle: true,
         hideUserMenu: true,
         left: (
-          <div className="flex items-center gap-3">
-            {onBack && (
-              <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-                onClick={onBack}
-                title="Back to chatroom list"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            )}
-            {/* Chatroom Name - Editable */}
-            <ChatroomTitleEditor displayName={displayName} chatroomId={chatroomId} />
-          </div>
+          <ChatroomHeaderLeft
+            listingSidebarVisible={listingSidebarVisible}
+            onToggleListingSidebar={onToggleListingSidebar}
+          />
+        ),
+        center: (
+          <ChatroomHeaderCenter
+            onBack={onBack}
+            onOpenSettings={handleOpenSettings}
+            displayName={displayName}
+            chatroomId={chatroomId}
+          />
         ),
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
@@ -1393,6 +1447,8 @@ export function ChatroomDashboard({
     chatroomId,
     isSetupMode,
     onBack,
+    listingSidebarVisible,
+    onToggleListingSidebar,
     sidebarVisible,
     aggregateStatus,
     toggleSidebar,
@@ -1401,6 +1457,7 @@ export function ChatroomDashboard({
     displayName,
     setupModalOpen,
     handleOpenSetup,
+    handleOpenSettings,
     activeWorkspace,
   ]);
 
@@ -1538,7 +1595,7 @@ export function ChatroomDashboard({
                             onAfterResize: endResize,
                             onRegisterSendFormFocus: handleRegisterSendFormFocus,
                             autocompleteFiles,
-                            refreshAutocompleteFiles,
+                            refreshAutocompleteFiles: handleAtTriggerActivate,
                             hasAutocompleteWorkspace,
                           }}
                           selectedHarnessSessionId={selectedHarnessSessionId}
@@ -1566,7 +1623,7 @@ export function ChatroomDashboard({
                             onRegisterFocus={handleRegisterSendFormFocus}
                             files={autocompleteFiles}
                             hasAutocompleteWorkspace={hasAutocompleteWorkspace}
-                            onAtTriggerActivate={refreshAutocompleteFiles}
+                            onAtTriggerActivate={handleAtTriggerActivate}
                           />
                         </div>
                       }
@@ -1642,7 +1699,6 @@ export function ChatroomDashboard({
                     teams={teams}
                     onTeamChange={handleTeamChange}
                     agentConfigs={agentPanelData.machineConfigs}
-                    onConfigure={handleOpenSettings}
                     onOpenAgents={handleOpenAgents}
                   />
                   <WorkQueue

@@ -3,18 +3,15 @@
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 
-import {
-  collectExpandedDirsForFilter,
-  filterExplorerTreeNodes,
-  type ExplorerTreeNode,
-} from './explorerTreeFilter';
+import { collectExpandedDirsForFilter, type ExplorerTreeNode } from './explorerTreeFilter';
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
-import { DirListingWatcher, useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
+import { useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
 import { isExplorerSearchMode } from '@/modules/chatroom/workspace/files/explorer-tree';
-import { useDirListingWatch } from '@/modules/chatroom/workspace/files/useDirListingWatch';
+
+const EMPTY_LOADING_DIRS = new Set<string>();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,7 +107,6 @@ const TreeNodeItem = memo(function TreeNodeItem({
         onContextMenu={(event) => onNodeContextMenu?.(node, event)}
         title={node.path}
       >
-        {/* Expand / collapse chevron for directories */}
         {isDirectory ? (
           <span className="w-4 h-4 flex items-center justify-center shrink-0">
             {loadingDirs.has(node.path) ? (
@@ -122,10 +118,9 @@ const TreeNodeItem = memo(function TreeNodeItem({
             )}
           </span>
         ) : (
-          <span className="w-4 h-4 shrink-0" /> /* spacer for files */
+          <span className="w-4 h-4 shrink-0" />
         )}
 
-        {/* Icon */}
         {isDirectory ? (
           isExpanded ? (
             <FolderOpen size={16} className="text-chatroom-accent shrink-0" />
@@ -136,11 +131,9 @@ const TreeNodeItem = memo(function TreeNodeItem({
           <FileTypeIcon path={node.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
         )}
 
-        {/* Name */}
         <span className="truncate text-[13px]">{node.name}</span>
       </button>
 
-      {/* Children */}
       {isDirectory && isExpanded && node.children.length > 0 && (
         <div>
           {node.children.map((child) => (
@@ -207,26 +200,13 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   );
 
   const trimmedFilter = filterQuery.trim();
-  const {
-    rootNodes,
-    loadingDirs,
-    requestedDirs,
-    loadChildren,
-    isLoading,
-    isSearchMode,
-    refreshToken,
-    handleDirUpdate,
-  } = useWorkspaceDirExplorer({
+  const { rootNodes, displayNodes, isLoading } = useWorkspaceDirExplorer({
     machineId,
     workingDir,
     searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
+    filterQuery: isExplorerSearchMode(trimmedFilter) ? '' : filterQuery,
     refreshSignal,
   });
-
-  const displayNodes = useMemo(() => {
-    if (isSearchMode) return rootNodes;
-    return filterExplorerTreeNodes(rootNodes, filterQuery);
-  }, [rootNodes, filterQuery, isSearchMode]);
 
   const filterExpandedDirs = useMemo(() => {
     if (!filterQuery.trim()) return null;
@@ -240,20 +220,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     return expandedPaths;
   }, [expandedPaths, filterExpandedDirs]);
 
-  const activeWatchPaths = useMemo(() => {
-    const paths = new Set<string>(['']);
-    for (const dirPath of effectiveExpandedPaths) {
-      paths.add(dirPath);
-    }
-    return [...paths].sort((a, b) => a.localeCompare(b));
-  }, [effectiveExpandedPaths]);
-
-  useDirListingWatch({
-    machineId,
-    workingDir,
-    activeDirPaths: activeWatchPaths,
-  });
-
   const handleEmptyAreaContextMenu = useCallback(
     (event: MouseEvent) => {
       if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
@@ -262,7 +228,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     [onEmptyAreaContextMenu]
   );
 
-  // Auto-expand tree to reveal a specific file path
   useEffect(() => {
     if (!revealPath) return;
     const parts = revealPath.split('/').filter(Boolean);
@@ -274,7 +239,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
         const dirPath = parts.slice(0, i).join('/');
         if (!next.has(dirPath)) {
           next.add(dirPath);
-          loadChildren(dirPath);
           changed = true;
         }
       }
@@ -283,26 +247,22 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
       }
       return next;
     });
-  }, [revealPath, expandedPathsStorageKey, loadChildren]);
+  }, [revealPath, expandedPathsStorageKey]);
 
-  // Node ref map for scroll-into-view on selection change
   const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
   useEffect(() => {
     nodeRefs.current = new Map();
   }, [displayNodes]);
 
-  // Scroll the selected node into view (after render, when the node's element is mounted)
   const scrollTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const targetPath = revealPath || selectedPath;
     if (!targetPath) return;
 
-    // Clear any pending scroll tick
     if (scrollTickRef.current) {
       clearTimeout(scrollTickRef.current);
     }
 
-    // Defer one tick so the node's ref callback has fired after render
     scrollTickRef.current = setTimeout(() => {
       const el = nodeRefs.current.get(targetPath);
       if (el) {
@@ -325,25 +285,18 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           next.delete(path);
         } else {
           next.add(path);
-          loadChildren(path);
         }
         writeExpandedPaths(expandedPathsStorageKey, next);
         return next;
       });
     },
-    [expandedPathsStorageKey, loadChildren]
+    [expandedPathsStorageKey]
   );
 
-  // Restore saved state when chatroom or workingDir changes; load children for expanded dirs
   useEffect(() => {
-    const saved = readExpandedPaths(expandedPathsStorageKey);
-    setExpandedPaths(saved);
-    for (const dirPath of saved) {
-      void loadChildren(dirPath);
-    }
-  }, [expandedPathsStorageKey, loadChildren]);
+    setExpandedPaths(readExpandedPaths(expandedPathsStorageKey));
+  }, [expandedPathsStorageKey]);
 
-  // Loading state
   if (isLoading) {
     return (
       <div
@@ -356,7 +309,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     );
   }
 
-  // Empty state
   if (rootNodes.length === 0) {
     return (
       <div
@@ -381,16 +333,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
 
   return (
     <div className="py-1" onContextMenu={handleEmptyAreaContextMenu}>
-      {requestedDirs.map((dirPath) => (
-        <DirListingWatcher
-          key={dirPath}
-          machineId={machineId}
-          workingDir={workingDir}
-          dirPath={dirPath}
-          refreshToken={refreshToken}
-          onUpdate={handleDirUpdate}
-        />
-      ))}
       {displayNodes.map((node) => (
         <TreeNodeItem
           key={node.path}
@@ -403,7 +345,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
           onFileDoubleClick={onFileDoubleClick}
           onNodeContextMenu={onNodeContextMenu}
           nodeRefs={nodeRefs.current}
-          loadingDirs={loadingDirs}
+          loadingDirs={EMPTY_LOADING_DIRS}
         />
       ))}
     </div>

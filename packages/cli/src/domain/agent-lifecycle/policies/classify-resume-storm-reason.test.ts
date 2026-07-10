@@ -19,6 +19,32 @@ describe('classifyResumeStormReason', () => {
     ).toBe('auth_error');
   });
 
+  test('detects Cursor SDK Authentication error status as auth_error', () => {
+    expect(
+      classifyResumeStormReason([
+        '[cursor-sdk:planner@882x8x status] ERROR: Authentication error If you are logged in, try logging out and back in.',
+        '[cursor-sdk:planner@882x8x run-error] run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077 failed: no error detail from SDK',
+      ])
+    ).toBe('auth_error');
+  });
+
+  test('isPermanentHarnessFailure is false for Cursor SDK Authentication error (retryable)', () => {
+    expect(
+      isPermanentHarnessFailure([
+        '[cursor-sdk:planner@882x8x agent_end]',
+        '[cursor-sdk:planner@882x8x status] RUNNING',
+        '[cursor-sdk:planner@882x8x status] ERROR: Authentication error If you are logged in, try logging out and back in.',
+        '[cursor-sdk:planner@882x8x run-error] run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077 failed: no error detail from SDK (run run-0dd4d14b-8955-4999-bb4b-f6f8067a6077)',
+      ])
+    ).toBe(false);
+  });
+
+  test('auth errors classify as auth_error but are not permanent', () => {
+    expect(classifyResumeStormReason(['Invalid API key for anthropic'])).toBe('auth_error');
+    expect(isPermanentHarnessFailure(['Invalid API key for anthropic'])).toBe(false);
+    expect(isPermanentHarnessFailure(['HTTP 401 Unauthorized from provider'])).toBe(false);
+  });
+
   test('detects rate limits', () => {
     expect(classifyResumeStormReason(['Error 429: rate limit exceeded'])).toBe('rate_limit');
     expect(classifyResumeStormReason(['usage limit reached for model'])).toBe('rate_limit');
@@ -34,8 +60,8 @@ describe('classifyResumeStormReason', () => {
     ).toBe('config_error');
   });
 
-  test('isPermanentHarnessFailure treats auth, config, and rate limits as permanent', () => {
-    expect(isPermanentHarnessFailure(['Invalid API key for anthropic'])).toBe(true);
+  test('isPermanentHarnessFailure treats config and terminal rate limits as permanent, not auth', () => {
+    expect(isPermanentHarnessFailure(['Invalid API key for anthropic'])).toBe(false);
     expect(isPermanentHarnessFailure(['model_not_supported'])).toBe(true);
     expect(
       isPermanentHarnessFailure(['[ts] role:builder error] Error 429: rate limit exceeded'])

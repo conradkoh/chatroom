@@ -25,6 +25,7 @@ const CLASSIFICATION_RULES: readonly {
       /unauthorized/i,
       /unauthenticated/i,
       /authentication failed/i,
+      /authentication error/i,
       /invalid.{0,24}api.{0,12}key/i,
       /api key.{0,20}(invalid|missing|expired)/i,
     ],
@@ -46,10 +47,7 @@ const CLASSIFICATION_RULES: readonly {
   },
 ];
 
-const PERMANENT_FAILURE_REASONS: ReadonlySet<ResumeStormReason> = new Set([
-  'auth_error',
-  'config_error',
-]);
+const PERMANENT_FAILURE_REASONS: ReadonlySet<ResumeStormReason> = new Set(['config_error']);
 
 /**
  * Infer why rapid resume failed from recent harness log lines.
@@ -72,7 +70,8 @@ export function classifyResumeStormReason(logLines: readonly string[]): ResumeSt
 
 /**
  * Whether recent harness logs indicate a failure that will not resolve on retry
- * (e.g. invalid API key, unsupported model, provider rate limit).
+ * (e.g. unsupported model, terminal provider rate-limit / fatal harness phrases).
+ * Auth errors are retryable — Cursor SDK auth can be transient.
  */
 export function isPermanentHarnessFailure(logLines: readonly string[]): boolean {
   if (isTerminalProviderFailureInLogs(logLines)) {

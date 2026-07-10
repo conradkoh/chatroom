@@ -5,15 +5,15 @@
 
 'use client';
 
-import { Square, RefreshCw, Terminal } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { StatusBadge } from './StatusBadge';
+import { StopRestartButtons } from './StopRestartButtons';
 import { TerminalView } from './TerminalView';
 import type { CommandRun, OutputChunk } from '../types/run';
+import { LOG_HEAD_LINE_COUNT, formatLogHead } from '../utils/log-head';
 import { isActiveRun } from '../utils/run-status';
-
-const LOG_HEAD_LINE_COUNT = 100;
 
 interface OutputPanelProps {
   run: CommandRun | null;
@@ -24,12 +24,6 @@ interface OutputPanelProps {
   onLoadMore?: () => void | Promise<void>;
   canLoadMore?: boolean;
   fullOutputPending?: boolean;
-}
-
-function formatLogHead(fullOutput: string): string {
-  const lines = fullOutput.split('\n');
-  if (lines.length <= LOG_HEAD_LINE_COUNT) return fullOutput;
-  return `${lines.slice(0, LOG_HEAD_LINE_COUNT).join('\n')}\n… (${lines.length - LOG_HEAD_LINE_COUNT} more lines)`;
 }
 
 // fallow-ignore-next-line complexity
@@ -119,23 +113,12 @@ export function OutputPanel({
           >
             Log head
           </button>
-          {active ? (
-            <button
-              onClick={onStop}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors ml-1"
-            >
-              <Square size={12} />
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={onRestart}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 hover:bg-blue-500/10 transition-colors ml-1"
-            >
-              <RefreshCw size={12} />
-              Restart
-            </button>
-          )}
+          <StopRestartButtons
+            active={active}
+            onStop={onStop}
+            onRestart={onRestart}
+            className="ml-1"
+          />
           {onClose && (
             <button
               onClick={onClose}

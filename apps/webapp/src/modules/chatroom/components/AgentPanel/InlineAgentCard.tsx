@@ -7,7 +7,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
-import { getCompactModelId, getMachineDisplayName } from '../../types/machine';
+import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
@@ -63,50 +63,6 @@ export interface InlineAgentCardProps {
   lockedWorkingDir?: string;
   onSetupConfigChange?: (harness: AgentHarness | null, model: string | null) => void;
 }
-
-interface AgentCardModelLineProps {
-  model?: string | null;
-}
-
-const AgentCardModelLine = memo(function AgentCardModelLine({ model }: AgentCardModelLineProps) {
-  if (!model) return null;
-  return (
-    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
-      {getCompactModelId(model)}
-    </div>
-  );
-});
-
-interface AgentCardStatusFooterProps {
-  statusLabel: string;
-  resolvedVariant: StatusVariant;
-  online: boolean;
-  lastSeenAt?: number | null;
-}
-
-const AgentCardStatusFooter = memo(function AgentCardStatusFooter({
-  statusLabel,
-  resolvedVariant,
-  online,
-  lastSeenAt,
-}: AgentCardStatusFooterProps) {
-  return (
-    <div className="mt-2">
-      <span
-        className={
-          'text-[10px] font-bold uppercase tracking-wide ' +
-          getLabelColorClass(resolvedVariant, online)
-        }
-      >
-        {statusLabel}
-      </span>
-      <span className="text-[10px] font-bold text-chatroom-text-muted mx-1.5">·</span>
-      <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-        {formatLastSeen(lastSeenAt)}
-      </span>
-    </div>
-  );
-});
 
 interface AgentCardRestartSectionProps {
   restartSummary: { count3h: number; count3d: number };
@@ -266,12 +222,27 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     >
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
       <div className="flex flex-col min-w-0 flex-1">
-        {/* Agent role */}
-        <div className="mb-1">
-          <AgentStatusRow role={role} online={online} />
+        {/* Card header: role + status + last seen */}
+        <div className="mb-2 min-w-0">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <AgentStatusRow role={role} online={online} variant={resolvedVariant} />
+            <div className="flex items-center flex-shrink-0 min-w-0">
+              <span
+                className={
+                  'text-[10px] font-bold uppercase tracking-wide truncate ' +
+                  getLabelColorClass(resolvedVariant, online)
+                }
+              >
+                {statusLabel}
+              </span>
+              <span className="text-[10px] font-bold text-chatroom-text-muted mx-1.5">·</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted whitespace-nowrap">
+                {formatLastSeen(lastSeenAt)}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Tab bar + tab content */}
         <AgentControlsSection
           controls={controls}
           connectedMachines={connectedMachines}
@@ -302,15 +273,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
             }
           />
         )}
-
-        <AgentCardStatusFooter
-          statusLabel={statusLabel}
-          resolvedVariant={resolvedVariant}
-          online={online}
-          lastSeenAt={lastSeenAt}
-        />
-
-        <AgentCardModelLine model={agentRoleView?.model} />
       </div>
     </div>
   );

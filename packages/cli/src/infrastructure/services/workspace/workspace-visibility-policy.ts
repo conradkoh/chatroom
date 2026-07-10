@@ -3,10 +3,10 @@
  * and which file content can be read remotely.
  */
 
-import { exec, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 
-const execAsync = promisify(exec);
+import { isPathIgnoredByRules, loadWorkspaceIgnore } from './workspace-ignore.js';
+import { isGitRepo } from '../../git/git-reader.js';
 
 // fallow-ignore-next-line unused-export
 export const ALWAYS_EXCLUDE_DIR_NAMES = new Set([
@@ -62,17 +62,26 @@ export function isPathContentReadable(relativePath: string): boolean {
   return isPathVisible(relativePath);
 }
 
-async function isGitRepo(rootDir: string): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', {
-      cwd: rootDir,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', NO_COLOR: '1' },
-      maxBuffer: 1024 * 1024,
-    });
-    return stdout.trim() === 'true';
-  } catch {
-    return false;
+/**
+ * Filter paths that should be ignored.
+ * Uses git check-ignore when inside a git repo; otherwise parses .gitignore/.cursorignore.
+ */
+// fallow-ignore-next-line complexity
+export async function filterIgnoredPaths(
+  rootDir: string,
+  relativePaths: string[]
+): Promise<Set<string>> {
+  if (relativePaths.length === 0) return new Set();
+
+  const inRepo = await isGitRepo(rootDir);
+  if (inRepo) return filterGitIgnored(rootDir, relativePaths);
+
+  const ig = await loadWorkspaceIgnore(rootDir);
+  const ignored = new Set<string>();
+  for (const p of relativePaths) {
+    if (isPathIgnoredByRules(ig, p)) ignored.add(p);
   }
+  return ignored;
 }
 
 /** Batch git check-ignore; returns Set of ignored paths from input. */
