@@ -1,9 +1,12 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback } from 'react';
 
+import { cn } from '@/lib/utils';
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
+import { useChatroomListingSidebarVisible } from '@/modules/chatroom/hooks/persistence/useChatroomListingSidebarVisible';
 import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
 
 /**
@@ -20,6 +23,11 @@ export function ChatroomPageClient() {
   };
 
   const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
+  const [listingSidebarVisible, setListingSidebarVisible] = useChatroomListingSidebarVisible();
+
+  const toggleListingSidebar = useCallback(() => {
+    setListingSidebarVisible(!listingSidebarVisible);
+  }, [listingSidebarVisible, setListingSidebarVisible]);
 
   if (!chatroomId) {
     return (
@@ -74,8 +82,13 @@ export function ChatroomPageClient() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      <div className="chatroom-root hidden lg:flex w-80 flex-shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-        <ChatroomSidebar activeChatroomId={chatroomId} />
+      <div
+        className={cn(
+          'chatroom-root hidden lg:flex flex-shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface transition-all duration-200 overflow-hidden',
+          listingSidebarVisible ? 'w-80' : 'w-0 border-r-0'
+        )}
+      >
+        {listingSidebarVisible && <ChatroomSidebar activeChatroomId={chatroomId} />}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -84,6 +97,8 @@ export function ChatroomPageClient() {
           chatroomId={chatroomId}
           onBack={handleBack}
           refreshObservedChatroom={refreshObservedChatroom}
+          listingSidebarVisible={listingSidebarVisible}
+          onToggleListingSidebar={toggleListingSidebar}
         />
       </div>
     </div>
