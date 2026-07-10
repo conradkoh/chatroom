@@ -604,16 +604,20 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
 
   return (
     <>
-      <div className="relative my-3 group">
+      <div className="relative my-3 group max-w-full min-w-0">
         <div
           ref={containerRef}
-          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible p-2"
-          style={{ maxWidth: '100%' }}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+          className="max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain"
+          data-testid="mermaid-inline-scroll"
+        >
+          <div
+            className="inline-block min-w-max p-2 [&_svg]:block [&_svg]:max-w-none [&_svg]:overflow-visible"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="absolute top-2 right-2 p-1.5 bg-chatroom-bg-primary/80 border border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all opacity-0 group-hover:opacity-100"
+          className="absolute top-2 right-2 p-1.5 bg-chatroom-bg-primary/80 border border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all opacity-0 group-hover:opacity-100 z-10"
           title="View fullscreen"
         >
           <Maximize2 size={14} />
