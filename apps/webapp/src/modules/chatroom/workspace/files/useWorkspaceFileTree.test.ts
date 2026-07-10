@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
         totalEntryCount: number;
         complete: boolean;
         scannedAt: number;
+        revision?: number;
       }
     | null
     | undefined,
@@ -33,6 +34,36 @@ const mocks = vi.hoisted(() => ({
     | { scannedAt: number; data: { compression: 'gzip'; content: string } }
     | null
     | undefined,
+  checkpoint: null as
+    | {
+        revision: number;
+        snapshotKind: 'v2' | 'v3';
+        snapshotId: string;
+        publishedAt: number;
+      }
+    | null
+    | undefined,
+  deltaResult: undefined as
+    | {
+        status: 'ok';
+        checkpointRevision: number;
+        currentRevision: number;
+        deltas: {
+          baseRevision: number;
+          revision: number;
+          operations: (
+            | {
+                operation: 'add' | 'type-change';
+                path: string;
+                entryType: 'file' | 'directory';
+              }
+            | { operation: 'remove'; path: string }
+          )[];
+        }[];
+        hasMore: boolean;
+      }
+    | null
+    | undefined,
   jsonV2: undefined as string | null | undefined,
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),
 }));
@@ -44,6 +75,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (query === 'getFileTreeManifestV3') return mocks.manifest;
     if (query === 'getFileTreeShardsV3') return mocks.shardsRaw;
     if (query === 'getFileTreeV2') return mocks.rawV2;
+    if (query === 'getFileTreeCheckpoint') return mocks.checkpoint;
+    if (query === 'getFileTreeDeltas') return mocks.deltaResult;
     return undefined;
   },
 }));
@@ -78,6 +111,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getFileTreeManifestV3: 'getFileTreeManifestV3',
       getFileTreeShardsV3: 'getFileTreeShardsV3',
       getFileTreeV2: 'getFileTreeV2',
+      getFileTreeCheckpoint: 'getFileTreeCheckpoint',
+      getFileTreeDeltas: 'getFileTreeDeltas',
       requestFileTree: 'requestFileTree',
     },
   },
@@ -95,6 +130,8 @@ beforeEach(() => {
   mocks.shardsRaw = undefined;
   mocks.rawV2 = undefined;
   mocks.jsonV2 = undefined;
+  mocks.checkpoint = null;
+  mocks.deltaResult = undefined;
   mocks.requestMutation.mockClear();
 });
 
@@ -152,6 +189,32 @@ describe('useWorkspaceFileTree', () => {
     expect(getWorkspaceFileTreeEntries(KEY)).toEqual([{ path: 'README.md', type: 'file' }]);
     expect(result.current.hasTree).toBe(true);
     expect(result.current.entries).toEqual([{ path: 'README.md', type: 'file' }]);
+  });
+
+  it('uses the checkpoint snapshot kind instead of a stale V3 manifest', () => {
+    mocks.checkpoint = {
+      revision: 8,
+      snapshotKind: 'v2',
+      snapshotId: 'latest-v2',
+      publishedAt: 100,
+    };
+    mocks.manifest = {
+      syncGeneration: 'stale-v3',
+      shardIds: ['stale'],
+      totalEntryCount: 1,
+      complete: true,
+      scannedAt: 50,
+    };
+    mocks.rawV2 = { scannedAt: 100, data: { compression: 'gzip', content: 'latest' } };
+    mocks.jsonV2 = JSON.stringify({
+      entries: [{ path: 'latest.ts', type: 'file' }],
+      scannedAt: 100,
+      rootDir: WORKING_DIR,
+    });
+
+    const { result } = renderHook(() => useWorkspaceFileTree(args));
+
+    expect(result.current.entries).toEqual([{ path: 'latest.ts', type: 'file' }]);
   });
 
   it('keeps store populated after producer unmount so @ consumers still see files', () => {
@@ -225,6 +288,47 @@ describe('useWorkspaceFileTree', () => {
     renderHook(() => useWorkspaceFileTree(args));
 
     expect(getWorkspaceFileTreeEntries(KEY)).toEqual([{ path: 'package.json', type: 'file' }]);
+  });
+
+  it('hydrates a checkpoint revision and drains later delta batches', async () => {
+    mocks.manifest = null;
+    mocks.rawV2 = {
+      scannedAt: 50,
+      data: { compression: 'gzip', content: 'abc' },
+    };
+    mocks.checkpoint = {
+      revision: 3,
+      snapshotKind: 'v2',
+      snapshotId: 'v2:50',
+      publishedAt: 50,
+    };
+    mocks.jsonV2 = JSON.stringify({
+      entries: [{ path: 'old.ts', type: 'file' }],
+      scannedAt: 50,
+      rootDir: WORKING_DIR,
+    });
+    mocks.deltaResult = {
+      status: 'ok',
+      checkpointRevision: 3,
+      currentRevision: 4,
+      deltas: [
+        {
+          baseRevision: 3,
+          revision: 4,
+          operations: [
+            { operation: 'remove', path: 'old.ts' },
+            { operation: 'add', path: 'new.ts', entryType: 'file' },
+          ],
+        },
+      ],
+      hasMore: false,
+    };
+
+    const { result } = renderHook(() => useWorkspaceFileTree(args));
+
+    await waitFor(() => {
+      expect(result.current.entries).toEqual([{ path: 'new.ts', type: 'file' }]);
+    });
   });
 
   it('does not upsert store while manifest incomplete', async () => {

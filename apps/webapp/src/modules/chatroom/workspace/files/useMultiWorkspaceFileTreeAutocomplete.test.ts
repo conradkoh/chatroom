@@ -18,6 +18,7 @@ import type { Workspace } from '@/modules/chatroom/types/workspace';
 
 const mocks = vi.hoisted(() => ({
   manifest: null as null | undefined,
+  checkpoint: null as null | undefined,
   rawV2: undefined as
     | { scannedAt: number; data: { compression: 'gzip'; content: string } }
     | null
@@ -33,6 +34,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (query === 'getFileTreeManifestV3') return mocks.manifest;
     if (query === 'getFileTreeShardsV3') return undefined;
     if (query === 'getFileTreeV2') return mocks.rawV2;
+    if (query === 'getFileTreeCheckpoint') return mocks.checkpoint;
+    if (query === 'getFileTreeDeltas') return undefined;
     return undefined;
   },
 }));
@@ -47,6 +50,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getFileTreeManifestV3: 'getFileTreeManifestV3',
       getFileTreeShardsV3: 'getFileTreeShardsV3',
       getFileTreeV2: 'getFileTreeV2',
+      getFileTreeCheckpoint: 'getFileTreeCheckpoint',
+      getFileTreeDeltas: 'getFileTreeDeltas',
       requestFileTree: 'requestFileTree',
     },
   },

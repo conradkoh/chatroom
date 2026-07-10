@@ -149,7 +149,7 @@ describe('useWorkspaceDirExplorer', () => {
     expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
   });
 
-  it('pulls tree on mount with force when store already has entries', () => {
+  it('ensures tree sync on mount without forcing a rescan when store has entries', () => {
     mocks.hasTree = true;
 
     renderHook(() =>
@@ -160,7 +160,7 @@ describe('useWorkspaceDirExplorer', () => {
       })
     );
 
-    expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
+    expect(mocks.treeRefresh).toHaveBeenCalledWith();
   });
 
   it('pulls tree on mount without force when store is empty', () => {

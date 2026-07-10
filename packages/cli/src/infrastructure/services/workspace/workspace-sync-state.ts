@@ -10,10 +10,24 @@ import type {
 
 import { normalizeWorkingDirForLookup } from './normalize-working-dir.js';
 
-const SYNC_STATE_VERSION = '1';
+const SYNC_STATE_VERSION = '2';
 const SYNC_STATE_DIR = join(homedir(), '.chatroom', 'sync-state');
 
 export type WorkspaceScanner = 'git' | 'filesystem';
+export type WorkspacePathType = 'file' | 'directory';
+
+export interface WorkspacePathDeltaEntry {
+  path: string;
+  type: WorkspacePathType;
+}
+
+export interface WorkspacePendingDelta {
+  operationId: string;
+  added: WorkspacePathDeltaEntry[];
+  removed: string[];
+  typeChanged: WorkspacePathDeltaEntry[];
+  createdAt: number;
+}
 
 export interface WorkspaceSyncManifest {
   version: typeof SYNC_STATE_VERSION;
@@ -24,7 +38,22 @@ export interface WorkspaceSyncManifest {
   scanner: WorkspaceScanner;
   dataHash: string;
   totalEntryCount: number;
-  paths: Record<string, 'file' | 'directory'>;
+  paths: Record<string, WorkspacePathType>;
+  /** Monotonic local cache generation, including changes not yet acknowledged remotely. */
+  localRevision: number;
+  /** Latest revision acknowledged by the backend delta API. */
+  backendRevision: number;
+  /** Backend revision represented by the latest uploaded checkpoint. */
+  checkpointRevision: number;
+  lastReconciledAt: number;
+  pendingDeltas: WorkspacePendingDelta[];
+}
+
+interface LegacyWorkspaceSyncManifest extends Omit<
+  WorkspaceSyncManifest,
+  'version' | 'localRevision' | 'backendRevision' | 'checkpointRevision' | 'lastReconciledAt'
+> {
+  version: '1';
 }
 
 // fallow-ignore-next-line unused-export
@@ -50,13 +79,29 @@ async function ensureDir(filePath: string): Promise<void> {
   await fs.mkdir(join(filePath, '..'), { recursive: true, mode: 0o700 });
 }
 
+// fallow-ignore-next-line complexity
 export async function loadWorkspaceSyncManifest(
   machineId: string,
   workingDir: string
 ): Promise<WorkspaceSyncManifest | null> {
   try {
     const content = await fs.readFile(manifestPath(machineId, workingDir), 'utf-8');
-    return JSON.parse(content) as WorkspaceSyncManifest;
+    const parsed = JSON.parse(content) as WorkspaceSyncManifest | LegacyWorkspaceSyncManifest;
+    if (!parsed || typeof parsed !== 'object' || !parsed.paths) return null;
+    if (parsed.version === '1') {
+      return {
+        ...parsed,
+        version: SYNC_STATE_VERSION,
+        scanner: 'filesystem',
+        localRevision: 0,
+        backendRevision: 0,
+        checkpointRevision: 0,
+        lastReconciledAt: parsed.completedAt,
+        pendingDeltas: [],
+      };
+    }
+    if (parsed.version !== SYNC_STATE_VERSION) return null;
+    return parsed;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     return null;
@@ -89,7 +134,18 @@ export function createManifestFromTree(args: {
     dataHash: args.dataHash,
     totalEntryCount: args.tree.entries.length,
     paths: buildPathIndex(args.tree.entries),
+    localRevision: 0,
+    backendRevision: 0,
+    checkpointRevision: 0,
+    lastReconciledAt: args.tree.scannedAt,
+    pendingDeltas: [],
   };
+}
+
+export function entriesFromPathIndex(paths: Record<string, 'file' | 'directory'>): FileTreeEntry[] {
+  return Object.entries(paths)
+    .map(([path, type]) => ({ path, type }))
+    .sort((a, b) => a.path.localeCompare(b.path));
 }
 
 /** For tests only */
