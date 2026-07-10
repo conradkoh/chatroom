@@ -74,4 +74,6 @@ export interface Message {
   };
   /** Queued message flag (from chatroom_messageQueue) */
   isQueued?: boolean;
+  /** Role that set the context (new-context messages only) */
+  contextCreatedBy?: string;
 }
