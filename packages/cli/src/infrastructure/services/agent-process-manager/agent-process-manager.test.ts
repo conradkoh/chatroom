@@ -5,6 +5,7 @@ import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
+  STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
@@ -1116,6 +1117,27 @@ describe('AgentProcessManager', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to fetch init prompt');
+    });
+
+    test('ensureRunning clears stuck stopping slot beyond timeout before spawning', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - STOPPING_TIMEOUT_MS - 1_000;
+      slot.pendingOperation = new Promise(() => {}); // simulate hung doStop
+
+      const result = await manager.ensureRunning(createOpts());
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(slot.state).toBe('running');
+      expect(slot.pid).toBe(PID);
+      expect(slot.stoppingSince).toBeUndefined();
+
+      const timeoutExits = getMutationCallsByArgs(
+        deps,
+        (args) => args.stopReason === 'daemon.stop_timeout' && args.pid === PID
+      );
+      expect(timeoutExits).toHaveLength(1);
     });
   });
 
@@ -2280,6 +2302,19 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
+    });
+
+    test('recover clears stuck stopping slots', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - STOPPING_TIMEOUT_MS - 1_000;
+
+      await manager.recover();
+
+      expect(slot.state).toBe('idle');
+      expect(slot.pid).toBeUndefined();
+      expect(slot.stoppingSince).toBeUndefined();
     });
   });
 
