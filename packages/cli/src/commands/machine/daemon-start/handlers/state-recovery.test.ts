@@ -57,6 +57,7 @@ function makeApmLayer(overrides?: {
   return Layer.succeed(DaemonAgentProcessManagerService, {
     recover: overrides?.recover ?? (() => Effect.succeed(undefined as void)),
     listActive: overrides?.listActive ?? (() => []),
+    clearStuckStoppingSlot: () => Effect.succeed(false),
     ensureRunning: (_opts: any) => Effect.succeed({ type: 'started', pid: 0 } as any),
     stop: (_opts: any) => Effect.succeed({ success: true }),
     handleExit: (_opts: any) => Effect.succeed(undefined as void),

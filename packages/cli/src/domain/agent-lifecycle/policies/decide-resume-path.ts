@@ -28,6 +28,7 @@ const NO_AUTO_RESTART_STOP_REASONS = new Set<StopReason>([
   'platform.resume_storm',
   'daemon.shutdown',
   'daemon.respawn',
+  'daemon.stop_timeout',
 ]);
 
 export function shouldAutoRestartAfterProcessExit(stopReason: StopReason): boolean {

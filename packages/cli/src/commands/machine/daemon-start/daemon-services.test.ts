@@ -133,6 +133,7 @@ describe('DaemonAgentProcessManagerService', () => {
       recover: vi.fn().mockResolvedValue(undefined),
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
+      clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
     } as any;
 
     const layer = DaemonAgentProcessManagerServiceLive(mockMgr);
@@ -154,6 +155,7 @@ describe('DaemonAgentProcessManagerService', () => {
       recover: vi.fn(),
       getSlot: vi.fn().mockReturnValue(undefined),
       listActive: vi.fn().mockReturnValue([]),
+      clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
     } as any;
 
     const layer = DaemonAgentProcessManagerServiceLive(mockMgr);

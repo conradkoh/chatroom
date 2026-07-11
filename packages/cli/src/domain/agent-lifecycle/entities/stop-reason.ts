@@ -12,6 +12,7 @@ export type StopReason =
   | 'platform.resume_storm'
   | 'daemon.respawn'
   | 'daemon.shutdown'
+  | 'daemon.stop_timeout'
   | 'agent_process.exited_clean'
   | 'agent_process.signal'
   | 'agent_process.crashed'

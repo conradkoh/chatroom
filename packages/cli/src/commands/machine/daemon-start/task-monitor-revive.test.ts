@@ -129,4 +129,34 @@ describe('listNativeTasksNeedingRevive', () => {
     );
     expect(ready).toHaveLength(0);
   });
+
+  test('revives when slot stuck in stopping beyond timeout', () => {
+    const task = makeNativeTask();
+    const now = 100_000;
+    const ready = listNativeTasksNeedingRevive(
+      [task],
+      {
+        getSlot: () => ({ state: 'stopping', pid: 12345, stoppingSince: now - 31_000 }),
+        isPidAlive: () => true,
+      },
+      now,
+      new NudgeCooldown(60_000)
+    );
+    expect(ready).toHaveLength(1);
+  });
+
+  test('skips revive while slot actively stopping', () => {
+    const task = makeNativeTask();
+    const now = 100_000;
+    const ready = listNativeTasksNeedingRevive(
+      [task],
+      {
+        getSlot: () => ({ state: 'stopping', pid: 12345, stoppingSince: now - 5_000 }),
+        isPidAlive: () => true,
+      },
+      now,
+      new NudgeCooldown(60_000)
+    );
+    expect(ready).toHaveLength(0);
+  });
 });
