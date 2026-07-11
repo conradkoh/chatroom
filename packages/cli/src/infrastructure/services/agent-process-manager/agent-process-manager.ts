@@ -550,31 +550,6 @@ export class AgentProcessManager {
       return;
     }
 
-    if (isTerminalProviderFailureInLogs(slot?.recentLogLines ?? [])) {
-      if (slot) {
-        slot.terminalProviderFailureHandled = true;
-      }
-      const error = formatTerminalProviderFailureMessage(slot?.recentLogLines ?? []);
-      try {
-        await createTurnCompletedBackend(this.deps).emitAgentStartFailed({
-          chatroomId: opts.chatroomId,
-          role: opts.role,
-          error,
-        });
-      } catch {
-        // Best-effort event emission
-      }
-      try {
-        this.deps.processes.kill(-opts.pid, 'SIGTERM');
-      } catch {
-        // Process may already be dead
-      }
-      console.log(
-        `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
-      );
-      return;
-    }
-
     try {
       const result = await this.deps.backend.mutation(api.participants.handleNativeAgentEnd, {
         sessionId: this.deps.sessionId,
