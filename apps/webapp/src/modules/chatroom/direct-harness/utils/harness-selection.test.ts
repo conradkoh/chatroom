@@ -21,6 +21,7 @@ describe('resolveNativeHarnessOptions', () => {
       'pi-sdk',
       'cursor-sdk',
       'opencode-sdk',
+      'claude-sdk',
     ]);
   });
 
@@ -29,6 +30,7 @@ describe('resolveNativeHarnessOptions', () => {
       'pi-sdk',
       'cursor-sdk',
       'opencode-sdk',
+      'claude-sdk',
     ]);
     expect(resolveNativeHarnessOptions([])[0]?.displayName).toBe('Pi (SDK)');
   });
@@ -43,7 +45,12 @@ describe('resolveNativeHarnessOptions', () => {
     ];
 
     const resolved = resolveNativeHarnessOptions(reported);
-    expect(resolved.map((h) => h.name)).toEqual(['pi-sdk', 'cursor-sdk', 'opencode-sdk']);
+    expect(resolved.map((h) => h.name)).toEqual([
+      'pi-sdk',
+      'cursor-sdk',
+      'opencode-sdk',
+      'claude-sdk',
+    ]);
     expect(resolved.find((h) => h.name === 'opencode-sdk')?.agents).toHaveLength(1);
     expect(resolved.find((h) => h.name === 'pi-sdk')?.agents).toEqual([]);
   });
@@ -54,6 +61,7 @@ describe('resolveNativeHarnessOptions', () => {
       'pi-sdk',
       'cursor-sdk',
       'opencode-sdk',
+      'claude-sdk',
     ]);
   });
 });

@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 
+import { startClaudeSdkHarness, createClaudeSdkChunkExtractor } from './claude-sdk/index.js';
 import { startCursorSdkHarness, createCursorSdkChunkExtractor } from './cursor-sdk/index.js';
 import { createOpencodeSdkChunkExtractor } from './opencode-sdk/event-extractor.js';
 import { startOpencodeSdkHarness } from './opencode-sdk/opencode-harness.js';
@@ -19,6 +20,7 @@ export const NATIVE_DIRECT_HARNESS_NAMES = [
   'opencode-sdk',
   'cursor-sdk',
   'pi-sdk',
+  'claude-sdk',
 ] as const satisfies readonly NativeDirectHarnessName[];
 
 export function isNativeDirectHarnessName(name: string): name is NativeDirectHarnessName {
@@ -27,6 +29,7 @@ export function isNativeDirectHarnessName(name: string): name is NativeDirectHar
 
 export type ChunkExtractor = (event: DirectHarnessSessionEvent) => ExtractedChunk | null;
 
+// fallow-ignore-next-line complexity
 export async function startBoundHarness(config: StartBoundHarnessConfig): Promise<BoundHarness> {
   switch (config.harnessName) {
     case 'opencode-sdk':
@@ -35,6 +38,8 @@ export async function startBoundHarness(config: StartBoundHarnessConfig): Promis
       return startCursorSdkHarness(config);
     case 'pi-sdk':
       return startPiSdkHarness(config);
+    case 'claude-sdk':
+      return startClaudeSdkHarness(config);
     default: {
       const _exhaustive: never = config.harnessName;
       throw new Error(`Unsupported direct harness: ${String(_exhaustive)}`);
@@ -42,6 +47,7 @@ export async function startBoundHarness(config: StartBoundHarnessConfig): Promis
   }
 }
 
+// fallow-ignore-next-line complexity
 export function createChunkExtractor(harnessName: string): ChunkExtractor {
   switch (harnessName) {
     case 'opencode-sdk':
@@ -50,6 +56,8 @@ export function createChunkExtractor(harnessName: string): ChunkExtractor {
       return createCursorSdkChunkExtractor();
     case 'pi-sdk':
       return createPiSdkChunkExtractor();
+    case 'claude-sdk':
+      return createClaudeSdkChunkExtractor();
     default:
       return createStandardSdkChunkExtractor();
   }
@@ -89,11 +97,25 @@ async function isPiSdkInstalled(): Promise<boolean> {
   }
 }
 
+async function isClaudeSdkInstalled(): Promise<boolean> {
+  try {
+    const { importBundledClaudeSdk, resolvePathToClaudeCodeExecutable } =
+      await import('../services/remote-agents/claude-sdk/claude-sdk-package.js');
+    await importBundledClaudeSdk();
+    await resolvePathToClaudeCodeExecutable();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Returns native direct harness names that are installed on this machine. */
+// fallow-ignore-next-line complexity
 export async function listInstalledNativeDirectHarnesses(): Promise<NativeDirectHarnessName[]> {
   const installed: NativeDirectHarnessName[] = [];
   if (opencodeOnPath()) installed.push('opencode-sdk');
   if (await isCursorSdkInstalled()) installed.push('cursor-sdk');
   if (await isPiSdkInstalled()) installed.push('pi-sdk');
+  if (await isClaudeSdkInstalled()) installed.push('claude-sdk');
   return installed;
 }

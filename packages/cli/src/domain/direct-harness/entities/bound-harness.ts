@@ -123,7 +123,7 @@ export interface NewSessionConfig {
 // ─── startBoundHarness ────────────────────────────────────────────────────────
 
 /** Native SDK harness names supported by the direct-harness system. */
-export type NativeDirectHarnessName = 'opencode-sdk' | 'cursor-sdk' | 'pi-sdk';
+export type NativeDirectHarnessName = 'opencode-sdk' | 'cursor-sdk' | 'pi-sdk' | 'claude-sdk';
 
 /** Configuration for starting a bound harness. */
 export interface StartBoundHarnessConfig {

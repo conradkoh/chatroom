@@ -254,6 +254,17 @@ function runCliNudgeEffect(
   executeCliNudge(task, runtime, effectContext, agentMgr, sessionDeps, machineId);
 }
 
+async function clearStuckStoppingSlotIfNeeded(
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  chatroomId: string,
+  role: string
+): Promise<void> {
+  const cleared = await agentMgr.clearStuckStoppingSlot(chatroomId, role);
+  if (cleared) {
+    console.log(`[TaskMonitor] cleared stuck stopping slot for ${role}@${chatroomId}`);
+  }
+}
+
 async function nudgeStuckTasks(
   tasks: AssignedTaskSnapshotView[],
   now: number,
@@ -265,6 +276,7 @@ async function nudgeStuckTasks(
   machineId: string
 ): Promise<void> {
   for (const row of listTasksReadyForNudge(tasks, now, cooldown)) {
+    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
@@ -289,6 +301,7 @@ async function reviveNativeTasks(
   machineId: string
 ): Promise<void> {
   for (const row of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
+    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runNativeReviveEffect(full, runtime, effectContext, agentMgr);

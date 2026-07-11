@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
+import { buildHandoffNotificationContent } from './handoffNotificationContent';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { showNotification } from '../utils/showNotification';
 
@@ -36,6 +37,9 @@ const NOTIFICATION_THROTTLE_MS = 3000;
  *    notifications, not general chatroom activity (e.g., agent-to-agent
  *    messages, progress updates, etc.).
  *
+ * 5. **Simplified copy** — Each handoff shows `<Chatroom Name> Handoff` with
+ *    body `Tasks complete.` One notification per chatroom, throttled per tag.
+ *
  * ## Limitations:
  *
  * This approach still relies on the client-side Convex subscription being
@@ -47,9 +51,9 @@ const NOTIFICATION_THROTTLE_MS = 3000;
  * Mount this once at the app layout level (not per-chatroom).
  */
 export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | undefined) {
-  const prevHandoffMapRef = useRef<Map<string, boolean>>(new Map());
+  const prevHandoffMapRef = useRef<Map<string, boolean> | null>(null);
   const isInitialLoadRef = useRef(true);
-  const lastNotificationTimeRef = useRef(0);
+  const lastNotificationByTagRef = useRef<Map<string, number> | null>(null);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -73,7 +77,7 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     for (const chatroom of currentChatrooms) {
       nextMap.set(chatroom._id, chatroom.hasUnreadHandoff);
 
-      const wasHandedOff = prevHandoffMapRef.current.get(chatroom._id) ?? false;
+      const wasHandedOff = prevHandoffMapRef.current?.get(chatroom._id) ?? false;
       if (chatroom.hasUnreadHandoff && !wasHandedOff) {
         newlyHandedOff.push(chatroom);
       }
@@ -81,28 +85,18 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
 
     prevHandoffMapRef.current = nextMap;
 
-    // Fire notification for chatrooms with new handoff-to-user
+    // Fire one notification per chatroom with new handoff-to-user
     if (newlyHandedOff.length > 0) {
       const now = Date.now();
-      if (now - lastNotificationTimeRef.current >= NOTIFICATION_THROTTLE_MS) {
-        lastNotificationTimeRef.current = now;
 
-        if (newlyHandedOff.length === 1) {
-          const chatroom = newlyHandedOff[0]!;
-          const name = chatroom.name || 'Chatroom';
-          showNotification(
-            'Handoff Received',
-            `An agent has handed off to you in ${name}`,
-            `chatroom-handoff-${chatroom._id}`,
-            chatroom._id
-          );
-        } else {
-          showNotification(
-            'Handoffs Received',
-            `Agents have handed off to you in ${newlyHandedOff.length} chatrooms`,
-            'chatroom-handoff-batch'
-          );
-        }
+      for (const chatroom of newlyHandedOff) {
+        const tag = `chatroom-handoff-${chatroom._id}`;
+        const lastTagTime = lastNotificationByTagRef.current?.get(tag) ?? 0;
+        if (now - lastTagTime < NOTIFICATION_THROTTLE_MS) continue;
+
+        (lastNotificationByTagRef.current ??= new Map()).set(tag, now);
+        const { title, body } = buildHandoffNotificationContent(chatroom);
+        showNotification(title, body, tag, chatroom._id);
       }
     }
   };
@@ -125,7 +119,6 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatrooms]);
 
   // Watch chatrooms for handoff transitions (primary path)
@@ -144,6 +137,5 @@ export function useGlobalHandoffNotification(chatrooms: ChatroomWithStatus[] | u
     }
 
     processHandoffTransitions(chatrooms);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatrooms]);
 }

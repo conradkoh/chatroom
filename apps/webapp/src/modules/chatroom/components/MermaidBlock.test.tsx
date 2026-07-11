@@ -11,6 +11,7 @@
 
 import fs from 'fs';
 import path from 'path';
+
 import { describe, expect, test } from 'vitest';
 
 // Read the source file for static analysis
@@ -234,8 +235,15 @@ describe('MermaidBlock — SVG post-processing', () => {
   });
 
   test('inline container has overflow-visible CSS for SVG children', () => {
-    // The container div should have [&_svg]:overflow-visible
+    // The inner wrapper should have [&_svg]:overflow-visible
     expect(source).toContain('[&_svg]:overflow-visible');
+  });
+
+  test('inline scroll container uses overflow-x-auto without flex centering', () => {
+    expect(source).toContain('data-testid="mermaid-inline-scroll"');
+    expect(source).toContain('overflow-x-auto');
+    expect(source).not.toMatch(/mermaid-inline-scroll[\s\S]*flex justify-center/);
+    expect(source).toContain('inline-block min-w-max');
   });
 
   test('inline container has padding for polished appearance', () => {

@@ -2828,6 +2828,42 @@ export const emitSessionResumeFailed = mutation({
   },
 });
 
+/** Emits agent.stopTimeout when daemon force-clears a hung stopping slot. */
+export const emitAgentStopTimeout = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    pid: v.optional(v.number()),
+    durationMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.stopTimeout',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      pid: args.pid,
+      durationMs: args.durationMs,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
 /** Emits an agent.sessionReopenRetry event for each cursor-sdk crash recovery attempt. */
 export const emitSessionReopenRetry = mutation({
   args: {

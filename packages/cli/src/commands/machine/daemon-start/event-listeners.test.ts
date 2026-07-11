@@ -18,6 +18,7 @@ function createTestInit() {
     recover: vi.fn().mockResolvedValue(undefined),
     getSlot: vi.fn().mockReturnValue(undefined),
     listActive: vi.fn().mockReturnValue([]),
+    clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
   } as any;
 
   return createMockDaemonSessionInit({
@@ -59,6 +60,12 @@ function registerListeners(
         recover: () => Effect.promise(() => init.agentProcessManager.recover()),
         getSlot: (chatroomId, role) => init.agentProcessManager.getSlot(chatroomId, role),
         listActive: () => init.agentProcessManager.listActive(),
+        clearStuckStoppingSlot: (chatroomId, role) =>
+          Effect.promise(
+            () =>
+              init.agentProcessManager.clearStuckStoppingSlot?.(chatroomId, role) ??
+              Promise.resolve(false)
+          ),
         whenTurnEndsIdle: () => Effect.promise(() => init.agentProcessManager.whenTurnEndsIdle()),
         resumeTurnForSlot: (args) =>
           Effect.promise(() => init.agentProcessManager.resumeTurnForSlot(args)),

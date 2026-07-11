@@ -292,7 +292,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. Only the entry point role can set contexts:
+      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running \`context new\`, run \`context read\` — if the pinned context already uses the same \`--trigger-message-id\` as this task's Origin Message ID, do NOT create another context** (avoids duplicate timeline dividers). Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
       <summary of current focus>
@@ -462,6 +462,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <!-- Demonstrate adherence to:
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
+      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
       -->
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 

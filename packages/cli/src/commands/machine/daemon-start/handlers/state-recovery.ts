@@ -17,6 +17,7 @@ export const recoverAgentStateEffect: Effect.Effect<
   const session = yield* DaemonSessionService;
   const agentMgr = yield* DaemonAgentProcessManagerService;
   yield* agentMgr.recover();
+
   const activeSlots = agentMgr.listActive();
 
   if (activeSlots.length === 0) {

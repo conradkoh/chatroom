@@ -5,6 +5,7 @@ import {
   AgentProcessManager,
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
+  STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
@@ -1117,6 +1118,27 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to fetch init prompt');
     });
+
+    test('ensureRunning clears stuck stopping slot beyond timeout before spawning', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - STOPPING_TIMEOUT_MS - 1_000;
+      slot.pendingOperation = new Promise(() => {}); // simulate hung doStop
+
+      const result = await manager.ensureRunning(createOpts());
+
+      expect(result).toEqual({ success: true, pid: PID });
+      expect(slot.state).toBe('running');
+      expect(slot.pid).toBe(PID);
+      expect(slot.stoppingSince).toBeUndefined();
+
+      const timeoutExits = getMutationCallsByArgs(
+        deps,
+        (args) => args.stopReason === 'daemon.stop_timeout' && args.pid === PID
+      );
+      expect(timeoutExits).toHaveLength(1);
+    });
   });
 
   // ── stop ──────────────────────────────────────────────────────────────
@@ -1376,6 +1398,109 @@ describe('AgentProcessManager', () => {
       // Before the fix, handleExit would also fire, producing 2 calls
       const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
       expect(mutationCalls).toHaveLength(1);
+    });
+  });
+
+  describe('clearStuckStoppingSlot', () => {
+    test('force-clears stopping slot older than timeout and records exit', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - 31_000;
+      slot.pendingOperation = new Promise(() => {});
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
+
+      expect(cleared).toBe(true);
+      expect(slot.state).toBe('idle');
+      expect(slot.pid).toBeUndefined();
+      expect(slot.stoppingSince).toBeUndefined();
+      expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
+        'test-machine',
+        CHATROOM_ID,
+        ROLE
+      );
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          pid: PID,
+          durationMs: expect.any(Number),
+        })
+      );
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          pid: PID,
+          stopReason: 'daemon.stop_timeout',
+          signal: 'SIGKILL',
+        })
+      );
+    });
+
+    test('does not clear stopping slot within timeout window', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - 5_000;
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
+
+      expect(cleared).toBe(false);
+      expect(slot.state).toBe('stopping');
+    });
+
+    test('force-clear supersedes in-flight doStop so late completion does not wipe revived slot', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      const NEW_PID = 99;
+
+      let resolveStop!: () => void;
+      const hungStop = new Promise<void>((resolve) => {
+        resolveStop = resolve;
+      });
+      const service = deps.agentServices.get('opencode')!;
+      (service.stop as ReturnType<typeof vi.fn>).mockReturnValue(hungStop);
+
+      const stopInFlight = manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      expect(slot.state).toBe('stopping');
+      slot.stoppingSince = Date.now() - 31_000;
+
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
+      expect(cleared).toBe(true);
+      expect(slot.state).toBe('idle');
+
+      slot.state = 'running';
+      slot.pid = NEW_PID;
+      slot.harness = 'opencode';
+
+      resolveStop();
+      await stopInFlight;
+
+      expect(slot.state).toBe('running');
+      expect(slot.pid).toBe(NEW_PID);
+
+      const userStopExits = getMutationCallsByArgs(
+        deps,
+        (args) => args.stopReason === 'user.stop' && args.pid === PID
+      );
+      expect(userStopExits).toHaveLength(0);
+
+      const timeoutExits = getMutationCallsByArgs(
+        deps,
+        (args) => args.stopReason === 'daemon.stop_timeout' && args.pid === PID
+      );
+      expect(timeoutExits).toHaveLength(1);
     });
   });
 
@@ -2177,6 +2302,19 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
+    });
+
+    test('recover clears stuck stopping slots', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = Date.now() - STOPPING_TIMEOUT_MS - 1_000;
+
+      await manager.recover();
+
+      expect(slot.state).toBe('idle');
+      expect(slot.pid).toBeUndefined();
+      expect(slot.stoppingSince).toBeUndefined();
     });
   });
 

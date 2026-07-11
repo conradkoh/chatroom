@@ -212,6 +212,16 @@ export type AgentRestartLimitReachedEvent = {
   timestamp: number;
 };
 
+export type AgentStopTimeoutEvent = {
+  type: 'agent.stopTimeout';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  pid?: number;
+  durationMs: number;
+  timestamp: number;
+};
+
 export type TaskAcknowledgedEvent = {
   type: 'task.acknowledged';
   chatroomId: Id<'chatroom_rooms'>;
@@ -274,4 +284,5 @@ export type ChatroomEvent =
   | AgentSessionReopenRetryEvent
   | AgentSessionCompactedEvent
   | AgentSessionAugmentedEvent
-  | AgentRestartLimitReachedEvent;
+  | AgentRestartLimitReachedEvent
+  | AgentStopTimeoutEvent;

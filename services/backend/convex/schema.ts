@@ -322,7 +322,8 @@ export default defineSchema({
     messageCountAtCreation: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_latest', ['chatroomId', 'createdAt']),
+    .index('by_chatroom_latest', ['chatroomId', 'createdAt'])
+    .index('by_chatroom_trigger', ['chatroomId', 'triggerMessageId']),
 
   /**
    * Participants in chatrooms.
@@ -411,6 +412,8 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context') // Displayed when a new context is created
     ),
+    // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
+    contextCreatedBy: v.optional(v.string()),
     // Classification of user messages (set via task read / classify)
     // Used to determine allowed handoff paths and context window
     classification: v.optional(
@@ -1308,6 +1311,16 @@ export default defineSchema({
         maxAttempts: v.number(),
         error: v.optional(v.string()),
         harnessSessionId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Agent stop hung beyond timeout — force-cleared by daemon watchdog
+      v.object({
+        type: v.literal('agent.stopTimeout'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        pid: v.optional(v.number()),
+        durationMs: v.number(),
         timestamp: v.number(),
       }),
       // Provider-native harness session ID allocated or rotated (deferred-start SDK harnesses)

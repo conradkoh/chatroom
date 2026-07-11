@@ -80,4 +80,20 @@ describe('syncGitAfterUserHandoff', () => {
 
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
+
+  it('requests git refresh when branch differs even if diffStat matches', async () => {
+    const deps = createDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([{ machineId: 'machine-1', workingDir: process.cwd() }])
+      .mockResolvedValueOnce({
+        status: 'available',
+        branch: 'main',
+        isDirty: true,
+        diffStat: { filesChanged: 2, insertions: 10, deletions: 1 },
+      });
+
+    await syncGitAfterUserHandoff(deps, 'session-1', 'chatroom-1', 'user');
+
+    expect(deps.backend.mutation).toHaveBeenCalled();
+  });
 });
