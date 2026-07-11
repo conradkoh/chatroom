@@ -228,7 +228,7 @@ describe('startTaskFromTokenActivity — acknowledged path', () => {
       await startTaskFromTokenActivity(
         ctx,
         { chatroomId, role: 'builder' },
-        { lastStatus: 'agent.exited', lastSeenAction: 'native:waiting' }
+        { lastStatus: 'agent.exited', lastSeenAction: 'agent.turn-completed' }
       );
     });
 
