@@ -102,3 +102,22 @@ export function normalizeWorkspaceFilePath(href: string): string {
   const trimmed = withoutProtocol.replace(/^\/+/, '');
   return trimmed.startsWith('./') ? trimmed.slice(2) : trimmed;
 }
+
+export type WorkspaceFileLinkOpenTarget = 'explorer' | 'preview';
+
+/**
+ * Whether a workspace file link from chat markdown should open inline in the
+ * explorer or the Cmd+P-style preview dialog.
+ *
+ * Explorer only when the user is already in explorer view with the split
+ * messages panel visible.
+ */
+export function resolveWorkspaceFileLinkOpenTarget(
+  activeView: string,
+  explorerSplitViewEnabled: boolean
+): WorkspaceFileLinkOpenTarget {
+  if (activeView === 'explorer' && explorerSplitViewEnabled) {
+    return 'explorer';
+  }
+  return 'preview';
+}

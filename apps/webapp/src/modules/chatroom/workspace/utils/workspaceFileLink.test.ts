@@ -4,6 +4,7 @@ import {
   isWorkspaceFileLink,
   looksLikeWorkspacePath,
   normalizeWorkspaceFilePath,
+  resolveWorkspaceFileLinkOpenTarget,
   splitTextOnWorkspacePaths,
 } from './workspaceFileLink';
 
@@ -93,6 +94,26 @@ describe('workspaceFileLink', () => {
 
     it('strips file:// prefix', () => {
       expect(normalizeWorkspaceFilePath('file://src/foo.ts')).toBe('src/foo.ts');
+    });
+  });
+
+  describe('resolveWorkspaceFileLinkOpenTarget', () => {
+    it('returns explorer when explorer view and split messages panel enabled', () => {
+      expect(resolveWorkspaceFileLinkOpenTarget('explorer', true)).toBe('explorer');
+    });
+
+    it('returns preview when explorer view but split panel disabled', () => {
+      expect(resolveWorkspaceFileLinkOpenTarget('explorer', false)).toBe('preview');
+    });
+
+    it('returns preview when messages view', () => {
+      expect(resolveWorkspaceFileLinkOpenTarget('messages', false)).toBe('preview');
+      expect(resolveWorkspaceFileLinkOpenTarget('messages', true)).toBe('preview');
+    });
+
+    it('returns preview for other activity views', () => {
+      expect(resolveWorkspaceFileLinkOpenTarget('source-control', true)).toBe('preview');
+      expect(resolveWorkspaceFileLinkOpenTarget('processes', false)).toBe('preview');
     });
   });
 });
