@@ -154,6 +154,24 @@ function recordLiveSessionChunk(
   }
 }
 
+// fallow-ignore-next-line complexity
+function handleLiveSessionProviderId(
+  event: DirectHarnessSessionEvent,
+  deps: SessionSubscriberDeps,
+  rowId: string,
+  handle: SessionHandle,
+  liveSession: { sessionTitle?: string }
+): void {
+  if (event.type !== 'session.provider_id') return;
+  const sessionId = (event.payload as { sessionId?: string }).sessionId;
+  if (!sessionId || sessionId === handle.opencodeSessionId) return;
+  void deps.sessionRepository
+    .associateOpenCodeSessionId(rowId, sessionId, liveSession.sessionTitle ?? '')
+    .catch((err: unknown) =>
+      console.warn('[direct-harness] associateOpenCodeSessionId (provider id) error:', err)
+    );
+}
+
 function handleLiveSessionTitleUpdate(
   event: DirectHarnessSessionEvent,
   deps: SessionSubscriberDeps,
@@ -194,6 +212,7 @@ function handleLiveSessionEvent(
     );
   }
   handleLiveSessionTitleUpdate(event, deps, rowId, liveSession);
+  handleLiveSessionProviderId(event, deps, rowId, handle, liveSession);
 }
 
 // fallow-ignore-next-line complexity
