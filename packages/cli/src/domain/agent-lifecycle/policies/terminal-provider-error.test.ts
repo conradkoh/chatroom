@@ -210,6 +210,18 @@ describe('isTerminalProviderFailureInLogs', () => {
     ).toBe(false);
   });
 
+  test('does not false-positive when bash handoff heredoc quotes agent_end provider_rate_limit log examples', () => {
+    expect(
+      isTerminalProviderFailureInLogs([
+        '[cursor-sdk:planner@7z81x2 tool: bash] running: chatroom handoff << EOF\nThen in chatroom harness output:\n```\nrole:builder agent_end] reason: provider_rate_limit\n```\nEOF',
+        '[cursor-sdk:planner@7z81x2 text] ending in `provider_rate_limit` and skipped restarts.',
+        '[cursor-sdk:planner@7z81x2 stream] unhandled type: usage',
+        '[cursor-sdk:planner@7z81x2 status] FINISHED',
+        '[cursor-sdk:planner@7z81x2 agent_end]',
+      ])
+    ).toBe(false);
+  });
+
   test('matches cursor-sdk agent_end reason provider_rate_limit marker', () => {
     expect(
       isTerminalProviderFailureInLogs([

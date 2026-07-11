@@ -75,6 +75,9 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
           )
         );
         break;
+      case 'usage':
+        // Per-turn token usage at turn end — informational only, not agent output.
+        break;
       default: {
         const unknown = message as { type?: string };
         if (unknown.type) {

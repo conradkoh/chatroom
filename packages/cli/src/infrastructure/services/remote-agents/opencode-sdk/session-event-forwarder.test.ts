@@ -433,7 +433,7 @@ describe('SessionEventForwarder', () => {
     );
   }, 10000);
 
-  it('session.status retry after rate limit log -> agent_end fired', async () => {
+  it('session.status retry after structured rate limit error -> agent_end fired', async () => {
     async function* retryAfterRateLimitStream(): AsyncGenerator<unknown> {
       await new Promise((r) => setTimeout(r, 10));
       yield {
@@ -469,6 +469,36 @@ describe('SessionEventForwarder', () => {
     );
   }, 10000);
 
+  it('session.status retry without structured error waits for timeout before agent_end', async () => {
+    async function* retryOnlyStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'session.status',
+        properties: {
+          sessionID: 'sess-1',
+          status: { type: 'retry' },
+        },
+      };
+      await new Promise(() => {});
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(retryOnlyStream());
+    const handle = startSessionEventForwarder(fakeClient as never, {
+      ...baseOptions,
+      sessionRetryIdleTimeoutMs: 1_000,
+    });
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(onEnd).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] retry_timeout\n');
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
+  }, 10000);
+
   it('abortTerminalProviderError from stderr path -> agent_end fired once', async () => {
     async function* idleStream(): AsyncGenerator<unknown> {
       await new Promise(() => {});
@@ -484,6 +514,49 @@ describe('SessionEventForwarder', () => {
     await vi.advanceTimersByTimeAsync(10);
     vi.useRealTimers();
     expect(onEnd).toHaveBeenCalledTimes(1);
+  }, 10000);
+
+  it('session.idle after retry timeout does not double agent_end', async () => {
+    let releaseIdle: (() => void) | undefined;
+    const idleGate = new Promise<void>((resolve) => {
+      releaseIdle = resolve;
+    });
+
+    async function* idleAfterRetryTimeoutStream(): AsyncGenerator<unknown> {
+      await new Promise((r) => setTimeout(r, 10));
+      yield {
+        type: 'session.status',
+        properties: {
+          sessionID: 'sess-1',
+          status: { type: 'retry' },
+        },
+      };
+      await idleGate;
+      yield {
+        type: 'session.idle',
+        properties: { sessionID: 'sess-1' },
+      };
+      await new Promise(() => {});
+    }
+
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(idleAfterRetryTimeoutStream());
+    const handle = startSessionEventForwarder(fakeClient as never, {
+      ...baseOptions,
+      sessionRetryIdleTimeoutMs: 1_000,
+    });
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(onEnd).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    releaseIdle!();
+    await vi.advanceTimersByTimeAsync(10);
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] retry_timeout\n');
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
   }, 10000);
 
   it('session.idle after provider rate limit abort does not double agent_end', async () => {

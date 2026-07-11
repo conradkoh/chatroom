@@ -28,8 +28,12 @@ const QUOTA_PHRASES = [
 
 const PROVIDER_ERROR_NAMES = ['ai_apicallerror', 'ai_retryerror'] as const;
 
-/** Structured harness abort marker — not incidental mentions in bash/tool payloads. */
-const PROVIDER_RATE_LIMIT_AGENT_END_MARKER = /\bagent_end]\s*reason:\s*provider_rate_limit\b/;
+/**
+ * Structured harness abort marker — must be a real harness log line, not prose or
+ * heredoc examples embedded in tool/bash payloads (e.g. handoff docs quoting logs).
+ */
+const PROVIDER_RATE_LIMIT_AGENT_END_MARKER =
+  /(?:\[[^\]]+\s+agent_end\]|\]\s+role:\S+\s+agent_end\])\s*reason:\s*provider_rate_limit\b/;
 
 function isProviderRateLimitHarnessMarker(line: string): boolean {
   return PROVIDER_RATE_LIMIT_AGENT_END_MARKER.test(line);
@@ -56,7 +60,8 @@ function matchesTerminalProviderErrorText(blob: string): boolean {
   return matchesQuotaPhrase(blob) || matchesStructuredProviderErrorText(blob);
 }
 
-/** Quota, provider, or fatal harness startup errors that must not retry or complete tasks. */
+/** Quota, provider, or fatal harness startup errors — observability helper for structured errors. */
+// fallow-ignore-next-line unused-export
 export function isNonRetryableHarnessFailureText(blob: string): boolean {
   return matchesTerminalProviderErrorText(blob) || matchesFatalHarnessErrorText(blob);
 }
@@ -83,20 +88,20 @@ export function isTerminalProviderError(error: unknown): boolean {
   );
 }
 
-/** True when recent harness log lines indicate a non-retryable provider failure. */
-// fallow-ignore-next-line complexity
+/** Observability helper for classifying recent harness log lines. */
+// fallow-ignore-next-line unused-export
 export function isTerminalProviderFailureInLogs(logLines: readonly string[]): boolean {
-  for (const line of logLines) {
-    if (!isClassifiableHarnessLogLine(line)) continue;
-    if (isProviderRateLimitHarnessMarker(line)) return true;
-    if (isNonRetryableHarnessFailureText(line)) return true;
-  }
-  return false;
+  return logLines.some(
+    (line) =>
+      isClassifiableHarnessLogLine(line) &&
+      (isProviderRateLimitHarnessMarker(line) || isNonRetryableHarnessFailureText(line))
+  );
 }
 
 // fallow-ignore-next-line complexity
 function isClassifiableHarnessLogLine(line: string): boolean {
   if (/\b(?:text|thinking)\]/.test(line)) return false;
+  if (/\btool:/.test(line)) return false;
   if (line.includes('agent_end]')) return true;
   if (line.includes('spawn-error]')) return true;
   if (line.includes(' error]')) return true;
@@ -131,6 +136,7 @@ function messageFromData(data: unknown): string | undefined {
   return typeof msg === 'string' ? msg.toLowerCase() : undefined;
 }
 
+// fallow-ignore-next-line unused-export
 export function formatTerminalProviderFailureMessage(logLines: readonly string[]): string {
   const blob = logLines.join('\n').trim();
   return blob
