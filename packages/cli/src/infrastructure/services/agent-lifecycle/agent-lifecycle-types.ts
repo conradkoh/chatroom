@@ -37,6 +37,8 @@ export interface OperationResult {
   readonly success: boolean;
   readonly pid?: number;
   readonly error?: 'rate_limited' | 'backoff' | 'crash_loop' | 'spawn_failed' | string;
+  /** When error is `backoff`, milliseconds until the next restart attempt is allowed. */
+  readonly retryAfterMs?: number;
 }
 
 export interface EnsureRunningOpts {

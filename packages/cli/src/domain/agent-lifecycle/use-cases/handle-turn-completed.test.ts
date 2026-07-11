@@ -63,8 +63,8 @@ describe('handleTurnCompleted', () => {
     expect(deps.killProcess).toHaveBeenCalledWith(42);
   });
 
-  test('kills immediately on terminal provider rate limit', async () => {
-    const { deps, backend } = createDeps();
+  test('kills the process after a normal turn end even when logs mention rate limits', async () => {
+    const { deps } = createDeps();
     const slot: TurnEndSlot = {
       state: 'running',
       pid: 42,
@@ -75,18 +75,12 @@ describe('handleTurnCompleted', () => {
 
     const result = await handleTurnCompleted(deps, baseInput, slot);
 
-    expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
-    expect(slot.terminalProviderFailureHandled).toBe(true);
+    expect(result).toEqual({ outcome: 'killed' });
     expect(deps.killProcess).toHaveBeenCalledWith(42);
-    expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      error: expect.stringContaining('non-retryable'),
-    });
   });
 
-  test('kills immediately on model load failure and skips task completion path', async () => {
-    const { deps, backend } = createDeps();
+  test('kills the process after turn end when logs show model load failure', async () => {
+    const { deps } = createDeps();
     const slot: TurnEndSlot = {
       state: 'running',
       pid: 42,
@@ -97,14 +91,8 @@ describe('handleTurnCompleted', () => {
 
     const result = await handleTurnCompleted(deps, baseInput, slot);
 
-    expect(result).toEqual({ outcome: 'killed_terminal_provider_error' });
-    expect(slot.terminalProviderFailureHandled).toBe(true);
+    expect(result).toEqual({ outcome: 'killed' });
     expect(deps.killProcess).toHaveBeenCalledWith(42);
-    expect(backend.emitAgentStartFailed).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      error: expect.stringContaining('Failed to load model'),
-    });
   });
 
   test('stops agent when emitResumeStormAborted fails', async () => {

@@ -1,9 +1,6 @@
 import type { Writable } from 'node:stream';
 
-import {
-  isTerminalProviderError,
-  isTerminalProviderFailureInLogs,
-} from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
+import { isTerminalProviderError } from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
 
 export interface SessionEventForwarderOptions {
@@ -18,6 +15,8 @@ export interface SessionEventForwarderOptions {
   onAssistantText?: (text: string) => void;
   /** Fires on agent token/tool activity (drives task.in_progress via updateTokenActivity). */
   onActivity?: () => void;
+  /** Max wait while OpenCode reports session.status retry before ending the turn. */
+  sessionRetryIdleTimeoutMs?: number;
 }
 
 export interface SessionEventForwarderHandle {
@@ -61,6 +60,7 @@ function formatLogLine(
 }
 
 const RECENT_LOG_LINE_CAP = 20;
+const DEFAULT_SESSION_RETRY_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 function eventSessionId(event: OpenCodeEvent): string | undefined {
   const p = event.properties;
@@ -113,10 +113,12 @@ export function startSessionEventForwarder(
   let doneResolve: () => void;
   let sessionStarted = false;
   let terminalAbortRequested = false;
+  let agentEndEmitted = false;
   const seenToolStates = new Map<string, string>();
   let lastStatus: string | undefined;
   const agentEndCallbacks: (() => void)[] = [];
   const recentLogLines: string[] = [];
+  let retryIdleTimeout: ReturnType<typeof setTimeout> | undefined;
 
   const donePromise = new Promise<void>((resolve) => {
     doneResolve = resolve;
@@ -149,7 +151,26 @@ export function startSessionEventForwarder(
     }
   }
 
+  function clearRetryIdleTimeout(): void {
+    if (retryIdleTimeout !== undefined) {
+      clearTimeout(retryIdleTimeout);
+      retryIdleTimeout = undefined;
+    }
+  }
+
+  function scheduleRetryIdleTimeout(): void {
+    clearRetryIdleTimeout();
+    const timeoutMs = options.sessionRetryIdleTimeoutMs ?? DEFAULT_SESSION_RETRY_IDLE_TIMEOUT_MS;
+    retryIdleTimeout = setTimeout(() => {
+      if (cancelled || terminalAbortRequested) return;
+      logLine(target, 'status', 'retry_timeout');
+      emitAgentEnd();
+    }, timeoutMs);
+  }
+
   function emitAgentEnd(reason?: string): void {
+    if (agentEndEmitted) return;
+    agentEndEmitted = true;
     logLine(target, 'agent_end', reason ? `reason: ${reason}` : undefined);
     for (const cb of agentEndCallbacks) cb();
   }
@@ -209,20 +230,6 @@ export function startSessionEventForwarder(
     if (chunk) logLine(target, 'thinking', chunk);
   }
 
-  async function handleToolPartUpdate(
-    part: {
-      type?: string;
-      tool?: string;
-      state?: { status?: string; input?: unknown; time?: { start?: number; end?: number } };
-      callID?: string;
-    },
-    props: { state?: string },
-    toolStates: Map<string, string>
-  ): Promise<void> {
-    if (!part.tool) return;
-    await handleToolPart(part, props, toolStates);
-  }
-
   async function handlePartUpdated(props: {
     part?: {
       type?: string;
@@ -242,7 +249,7 @@ export function startSessionEventForwarder(
     const dispatch: Record<string, () => Promise<void>> = {
       text: () => handleTextPartUpdate(props, part),
       reasoning: () => handleReasoningPartUpdate(props, part),
-      tool: () => handleToolPartUpdate(part, props, seenToolStates),
+      tool: () => (part.tool ? handleToolPart(part, props, seenToolStates) : Promise.resolve()),
     };
     await dispatch[partType]?.();
   }
@@ -301,6 +308,7 @@ export function startSessionEventForwarder(
   }
 
   async function handleSessionIdle(): Promise<void> {
+    clearRetryIdleTimeout();
     if (terminalAbortRequested) return;
     emitAgentEnd();
   }
@@ -314,12 +322,15 @@ export function startSessionEventForwarder(
     if (currentStatus !== lastStatus) {
       lastStatus = currentStatus;
       logLine(target, 'status', currentStatus);
-      if (
-        currentStatus === 'retry' &&
-        (terminalAbortRequested || isTerminalProviderFailureInLogs(recentLogLines))
-      ) {
-        abortTerminalProviderError();
+      if (currentStatus === 'retry') {
+        if (terminalAbortRequested) {
+          abortTerminalProviderError();
+          return;
+        }
+        scheduleRetryIdleTimeout();
+        return;
       }
+      clearRetryIdleTimeout();
     }
   }
 
@@ -423,6 +434,7 @@ export function startSessionEventForwarder(
   return {
     stop: () => {
       cancelled = true;
+      clearRetryIdleTimeout();
     },
     done: donePromise,
     onAgentEnd: (cb: () => void) => {
