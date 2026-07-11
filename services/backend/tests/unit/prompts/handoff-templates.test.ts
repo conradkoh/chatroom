@@ -119,6 +119,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Demonstrate adherence to:
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
+      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
       -->
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
@@ -207,6 +208,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Demonstrate adherence to:
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
+      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
       -->
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
@@ -482,6 +484,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Demonstrate adherence to:
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
+      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
       -->
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
