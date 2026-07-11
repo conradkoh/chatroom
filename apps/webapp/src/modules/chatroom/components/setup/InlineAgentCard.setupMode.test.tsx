@@ -41,6 +41,20 @@ vi.mock('../../../../hooks/useMachineModels', () => ({
   }),
 }));
 
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 const CHATROOM_ID = 'jd7testchatroom0000000000000001';
 const MACHINE_ID = 'machine-setup-test';
 const WORKING_DIR = '/tmp/workspace';
