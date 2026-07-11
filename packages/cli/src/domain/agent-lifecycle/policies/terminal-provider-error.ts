@@ -60,7 +60,8 @@ function matchesTerminalProviderErrorText(blob: string): boolean {
   return matchesQuotaPhrase(blob) || matchesStructuredProviderErrorText(blob);
 }
 
-/** Quota, provider, or fatal harness startup errors that must not retry or complete tasks. */
+/** Quota, provider, or fatal harness startup errors — observability helper for structured errors. */
+// fallow-ignore-next-line unused-export
 export function isNonRetryableHarnessFailureText(blob: string): boolean {
   return matchesTerminalProviderErrorText(blob) || matchesFatalHarnessErrorText(blob);
 }
@@ -87,15 +88,14 @@ export function isTerminalProviderError(error: unknown): boolean {
   );
 }
 
-/** True when recent harness log lines indicate a non-retryable provider failure. */
-// fallow-ignore-next-line complexity
+/** Observability helper for classifying recent harness log lines. */
+// fallow-ignore-next-line unused-export
 export function isTerminalProviderFailureInLogs(logLines: readonly string[]): boolean {
-  for (const line of logLines) {
-    if (!isClassifiableHarnessLogLine(line)) continue;
-    if (isProviderRateLimitHarnessMarker(line)) return true;
-    if (isNonRetryableHarnessFailureText(line)) return true;
-  }
-  return false;
+  return logLines.some(
+    (line) =>
+      isClassifiableHarnessLogLine(line) &&
+      (isProviderRateLimitHarnessMarker(line) || isNonRetryableHarnessFailureText(line))
+  );
 }
 
 // fallow-ignore-next-line complexity

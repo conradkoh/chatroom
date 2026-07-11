@@ -44,7 +44,6 @@ import {
   type SessionMetadataStore,
 } from './session-metadata-store.js';
 import { StderrLineBuffer } from './stderr-line-buffer.js';
-import { isNonRetryableHarnessFailureText } from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;
@@ -211,10 +210,6 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     if (childProcess.stderr) {
       const stderrBuffer = new StderrLineBuffer((line) => {
         emitLogLine(line);
-        const activeForwarder = this.forwarders.get(pid);
-        if (activeForwarder && isNonRetryableHarnessFailureText(line)) {
-          activeForwarder.abortTerminalProviderError();
-        }
       });
       childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();
@@ -225,6 +220,25 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         stderrBuffer.flush();
       });
     }
+  }
+
+  private createSessionForwarder(
+    client: SessionEventForwarderClient,
+    sessionId: string,
+    context: SpawnContext,
+    emitLogLine: (line: string) => void,
+    emitAssistantText: ((text: string) => void) | undefined,
+    outputCallbacks: (() => void)[]
+  ): SessionEventForwarderHandle {
+    return startSessionEventForwarder(client, {
+      sessionId,
+      role: context.role,
+      onLogLine: emitLogLine,
+      onAssistantText: emitAssistantText,
+      onActivity: () => {
+        for (const cb of outputCallbacks) cb();
+      },
+    });
   }
 
   private registerRunningSession(args: {
@@ -514,15 +528,14 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         );
       }
 
-      forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
+      forwarder = this.createSessionForwarder(
+        client as SessionEventForwarderClient,
         sessionId,
-        role: context.role,
-        onLogLine: emitLogLine,
-        onAssistantText: emitAssistantText,
-        onActivity: () => {
-          for (const cb of outputCallbacks) cb();
-        },
-      });
+        context,
+        emitLogLine,
+        emitAssistantText,
+        outputCallbacks
+      );
 
       const availableAgents = await this.listAvailableAgents(client);
       const agentDef = availableAgents.find((a) => a.name === agentName);
@@ -590,15 +603,14 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
 
       sessionId = sessionCreateResult.data.id;
 
-      forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
+      forwarder = this.createSessionForwarder(
+        client as SessionEventForwarderClient,
         sessionId,
-        role: context.role,
-        onLogLine: emitLogLine,
-        onAssistantText: emitAssistantText,
-        onActivity: () => {
-          for (const cb of outputCallbacks) cb();
-        },
-      });
+        context,
+        emitLogLine,
+        emitAssistantText,
+        outputCallbacks
+      );
 
       // Discover what agents this opencode server actually exposes. We compose
       // against the runtime list rather than hard-coding names because (a) the
