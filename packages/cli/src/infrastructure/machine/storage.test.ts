@@ -4,7 +4,14 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ensureMachineRegistered, getMachineId } from './storage.js';
+import {
+  _resetMachineConfigSaveChainForTests,
+  ensureMachineRegistered,
+  getMachineId,
+  loadMachineConfig,
+  saveMachineConfig,
+} from './storage.js';
+import type { MachineConfig } from './types.js';
 import { MACHINE_CONFIG_VERSION } from './types.js';
 
 vi.mock('../convex/client.js', () => ({
@@ -78,6 +85,40 @@ describe('ensureMachineRegistered', () => {
     const info = await ensureMachineRegistered();
     expect(info.machineId).toBe(machineId);
     expect(Array.isArray(info.availableHarnesses)).toBe(true);
+  });
+});
+
+describe('saveMachineConfig concurrency', () => {
+  let testHome: string;
+
+  beforeEach(() => {
+    testHome = join(
+      tmpdir(),
+      `chatroom-storage-concurrent-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
+    mkdirSync(testHome, { recursive: true });
+    vi.stubEnv('HOME', testHome);
+  });
+
+  afterEach(async () => {
+    await _resetMachineConfigSaveChainForTests();
+    rmSync(testHome, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  it('concurrent saveMachineConfig calls do not throw ENOENT on rename', async () => {
+    const info = await ensureMachineRegistered({ allowCreate: true });
+    const updates = Array.from({ length: 10 }, (_, i) =>
+      saveMachineConfig({
+        ...info,
+        lastSyncedAt: new Date(Date.now() + i).toISOString(),
+        availableHarnesses: info.availableHarnesses,
+        harnessVersions: info.harnessVersions,
+      } as MachineConfig)
+    );
+    await expect(Promise.all(updates)).resolves.toBeDefined();
+    const final = await loadMachineConfig();
+    expect(final?.machineId).toBe(info.machineId);
   });
 });
 

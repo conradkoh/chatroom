@@ -410,7 +410,7 @@ export function ChatroomTimelineFeed({
       <div
         ref={scrollRefCallback}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 [overflow-anchor:none] scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className="flex-1 overflow-y-auto overflow-x-auto overscroll-contain min-h-0 [overflow-anchor:none] scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         data-testid="chatroom-timeline-scroll"
       >
         <div ref={topChromeRef}>

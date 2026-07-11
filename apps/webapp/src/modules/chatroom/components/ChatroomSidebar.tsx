@@ -6,12 +6,13 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Archive, ChevronDown, MessageSquare, Play, Square, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
-import { groupChatroomsByRecency } from '../utils/groupChatroomsByRecency';
+import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -35,7 +36,9 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 }: ChatroomSidebarItemProps) {
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
   const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
 
   const handleStop = useCallback(
@@ -55,11 +58,34 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     [chatroom.runningAgentConfigs, chatroom._id, sendCommand]
   );
 
-  const handleStart = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setStartModalOpen(true);
-  }, []);
+  const handleStart = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (isStarting) return;
+      setIsStarting(true);
+      try {
+        const result = await restartOfflineAgents({
+          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+        });
+        if (result.restartedRoles.length > 0) {
+          toast.success(
+            result.restartedRoles.length === 1
+              ? `Started ${result.restartedRoles[0]}`
+              : `Started ${result.restartedRoles.join(', ')}`
+          );
+        } else {
+          setStartModalOpen(true);
+        }
+      } catch (error) {
+        console.error('Failed to restart offline agents:', error);
+        setStartModalOpen(true);
+      } finally {
+        setIsStarting(false);
+      }
+    },
+    [chatroom._id, isStarting, restartOfflineAgents]
+  );
 
   const handleArchive = useCallback(
     async (e: Event) => {
@@ -131,8 +157,10 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
             {showStartButton && (
               <button
                 onClick={handleStart}
-                title="Start agent"
-                className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors"
+                title="Start with last configuration"
+                disabled={isStarting}
+                aria-busy={isStarting}
+                className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Play size={10} fill="currentColor" />
               </button>
@@ -164,13 +192,6 @@ interface ChatroomSidebarProps {
   /** Currently active chatroom ID */
   activeChatroomId?: string;
 }
-
-const RECENCY_SECTIONS = [
-  { key: 'lastDay' as const, label: 'Last Day' },
-  { key: 'lastWeek' as const, label: 'Last Week' },
-  { key: 'lastMonth' as const, label: 'Last Month' },
-  { key: 'older' as const, label: 'Older' },
-];
 
 function SidebarSectionHeader({
   label,
@@ -218,30 +239,15 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
     if (!chatrooms) {
       return {
         activeChatrooms: [],
-        recentByRecency: groupChatroomsByRecency([]),
+        recentByRecency: partitionChatroomListing([]).recentByRecency,
         completed: [],
       };
     }
-
-    // Completed chatrooms
-    const completedChatrooms = chatrooms.filter((c) => c.chatStatus === 'completed');
-
-    // Active chatrooms: agents present and engaged (working or active status)
-    // Sorted by _creationTime ASC (oldest first) — stable sort so chatrooms don't jump around
-    const engagedChatrooms = chatrooms
-      .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
-      .sort((a, b) => a._creationTime - b._creationTime);
-
-    // Non-active, non-completed chatrooms grouped by recency
-    const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
-    const remainingChatrooms = chatrooms.filter(
-      (c) => !engagedIds.has(c._id) && c.chatStatus !== 'completed'
-    );
-
+    const partitioned = partitionChatroomListing(chatrooms);
     return {
-      activeChatrooms: engagedChatrooms,
-      recentByRecency: groupChatroomsByRecency(remainingChatrooms),
-      completed: completedChatrooms,
+      activeChatrooms: partitioned.active,
+      recentByRecency: partitioned.recentByRecency,
+      completed: partitioned.completed,
     };
   }, [chatrooms]);
 

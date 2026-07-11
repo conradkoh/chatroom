@@ -9,7 +9,20 @@ import { useChatroomListing } from '../context/ChatroomListingContext';
 
 const mockUpdateStatus = vi.fn().mockResolvedValue(undefined);
 const mockSendCommand = vi.fn().mockResolvedValue(undefined);
+const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
+const mockToastSuccess = vi.fn();
 const mockPush = vi.fn();
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+  },
+}));
+
+vi.mock('./AgentPanel/UnifiedAgentListModal', () => ({
+  UnifiedAgentListModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="start-agent-modal">Start Agent Modal</div> : null,
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -26,6 +39,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'sendCommand') {
         return mockSendCommand;
       }
+      if (name === 'restartOfflineAgentsFromConfig') {
+        return mockRestartOfflineAgents;
+      }
     }
     return () => {};
   },
@@ -38,6 +54,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
     machines: {
       sendCommand: { name: 'sendCommand' },
+      restartOfflineAgentsFromConfig: { name: 'restartOfflineAgentsFromConfig' },
     },
   },
 }));
@@ -112,6 +129,9 @@ describe('ChatroomSidebar', () => {
     mockUpdateStatus.mockResolvedValue(undefined);
     mockSendCommand.mockReset();
     mockSendCommand.mockResolvedValue(undefined);
+    mockRestartOfflineAgents.mockReset();
+    mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: ['builder'] });
+    mockToastSuccess.mockReset();
     mockPush.mockReset();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
@@ -252,5 +272,53 @@ describe('ChatroomSidebar', () => {
     await waitFor(() => {
       expect(screen.queryByText('Archive Chat')).not.toBeInTheDocument();
     });
+  });
+
+  it('play button restarts offline agents from config without opening modal', async () => {
+    const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
+    renderSidebar([chatroom]);
+
+    const playButton = screen.getByTitle('Start with last configuration');
+    fireEvent.click(playButton);
+
+    await waitFor(() => {
+      expect(mockRestartOfflineAgents).toHaveBeenCalledWith({
+        chatroomId: chatroom._id,
+      });
+    });
+
+    expect(mockToastSuccess).toHaveBeenCalledWith('Started builder');
+    expect(screen.queryByTestId('start-agent-modal')).not.toBeInTheDocument();
+  });
+
+  it('play button opens agent modal when no roles are restarted', async () => {
+    mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: [] });
+    const chatroom = makeChatroom({ remoteAgentStatus: 'none' });
+    renderSidebar([chatroom]);
+
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+
+    await waitFor(() => {
+      expect(mockRestartOfflineAgents).toHaveBeenCalledWith({
+        chatroomId: chatroom._id,
+      });
+    });
+
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(screen.getByTestId('start-agent-modal')).toBeInTheDocument();
+  });
+
+  it('play button opens agent modal when restart mutation fails', async () => {
+    mockRestartOfflineAgents.mockRejectedValue(new Error('restart failed'));
+    const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
+    renderSidebar([chatroom]);
+
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('start-agent-modal')).toBeInTheDocument();
+    });
+
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });
