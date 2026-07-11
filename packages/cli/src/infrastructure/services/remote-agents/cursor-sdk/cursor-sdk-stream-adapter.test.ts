@@ -194,4 +194,17 @@ describe('CursorSdkStreamAdapter', () => {
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} task] in_progress: Running tests`);
   });
+
+  it('silently ignores usage messages at turn end', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleMessage({
+      type: 'usage',
+      agent_id: 'agent-1',
+      run_id: 'run-1',
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+
+    expect(onLogLine).not.toHaveBeenCalled();
+  });
 });
