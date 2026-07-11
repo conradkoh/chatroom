@@ -202,7 +202,13 @@ describe('CursorSdkStreamAdapter', () => {
       type: 'usage',
       agent_id: 'agent-1',
       run_id: 'run-1',
-      usage: { input_tokens: 100, output_tokens: 50 },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: 150,
+      },
     });
 
     expect(onLogLine).not.toHaveBeenCalled();
