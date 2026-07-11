@@ -8,4 +8,7 @@ export function parseModelId(model: string): { providerID: string; modelID: stri
   return { providerID, modelID };
 }
 
-export const isInfoLine = (line: string): boolean => line.trimStart().startsWith('INFO ');
+export const isInfoLine = (line: string): boolean => {
+  const trimmed = line.trimStart();
+  return trimmed.startsWith('INFO ') || trimmed.startsWith('timestamp=');
+};
