@@ -113,6 +113,7 @@ export function startSessionEventForwarder(
   let doneResolve: () => void;
   let sessionStarted = false;
   let terminalAbortRequested = false;
+  let agentEndEmitted = false;
   const seenToolStates = new Map<string, string>();
   let lastStatus: string | undefined;
   const agentEndCallbacks: (() => void)[] = [];
@@ -168,6 +169,8 @@ export function startSessionEventForwarder(
   }
 
   function emitAgentEnd(reason?: string): void {
+    if (agentEndEmitted) return;
+    agentEndEmitted = true;
     logLine(target, 'agent_end', reason ? `reason: ${reason}` : undefined);
     for (const cb of agentEndCallbacks) cb();
   }
