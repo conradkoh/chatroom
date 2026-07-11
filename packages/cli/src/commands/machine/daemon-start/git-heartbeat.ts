@@ -27,6 +27,9 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
  *  Key: makeGitStateKey(machineId, workingDir). Value: Date.now() of last full push. */
 const lastFullPushMs = new Map<string, number>();
 
+/** Last branch name included in a successful push per workspace. Used to detect branch changes that require a full push (diffStat). */
+const lastPushedBranch = new Map<string, string>();
+
 /**
  * Branch field descriptor — pre-collected before the pipeline runs.
  * `collect` throws because branch is always fetched ahead of time for error checking.
@@ -261,6 +264,8 @@ async function pushAvailableGitState(
       ...pipeline.toMutationArgs(values, false),
     });
     ctx.lastPushedGitState.set(stateKey, stateHash);
+    lastPushedBranch.set(stateKey, branch);
+    lastFullPushMs.set(stateKey, Date.now());
     console.log(
       `[${formatTimestamp()}] 🔀 Git state pushed: ${workingDir} (${branch}${values.get('isDirty') ? ', dirty' : ', clean'})`
     );
@@ -346,6 +351,7 @@ function pushObservedFullGitStateEffect(
     yield* Effect.promise(() =>
       pushSingleWorkspaceGitStateImpl(buildGitStateDeps(session, lastPushedGitState), workingDir)
     );
+    lastPushedBranch.set(stateKey, branch);
     lastFullPushMs.set(stateKey, Date.now());
     console.log(
       `[${formatTimestamp()}] 👁️ Observed full git state pushed: ${workingDir} (${branch})${reason === 'refresh' ? ' [refresh]' : ''}`
@@ -432,7 +438,12 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     const branch = branchResult.branch;
     const now = Date.now();
     const lastFull = lastFullPushMs.get(stateKey) ?? 0;
-    if (now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS) {
+    const previousBranch = lastPushedBranch.get(stateKey);
+    const branchChanged = previousBranch !== undefined && previousBranch !== branch;
+    const needsFullPush =
+      reason === 'refresh' || branchChanged || now - lastFull >= OBSERVED_FULL_PUSH_INTERVAL_MS;
+
+    if (needsFullPush) {
       yield* pushObservedFullGitStateEffect(
         session,
         lastPushedGitState,
@@ -506,3 +517,9 @@ export const pushSingleWorkspaceGitStateEffect = (
       pushSingleWorkspaceGitStateImpl(buildGitStateDeps(session, lastPushedGitState), workingDir)
     );
   });
+
+/** @internal — test only */
+export function _resetGitHeartbeatBranchTrackingForTests(): void {
+  lastPushedBranch.clear();
+  lastFullPushMs.clear();
+}

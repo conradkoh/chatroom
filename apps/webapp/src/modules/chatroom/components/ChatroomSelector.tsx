@@ -23,6 +23,11 @@ import {
   getChatStatusDescription,
   getChatStatusIndicatorClasses,
 } from '../utils/chatStatusDisplay';
+import {
+  partitionChatroomListing,
+  flattenPartitionedCurrent,
+  RECENCY_SECTIONS,
+} from '../utils/partitionChatroomListing';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
@@ -71,45 +76,7 @@ function StopClickPropagation({
   );
 }
 
-// ─── Sorting & Filtering ──────────────────────────────────────────────────────
-
-/**
- * Groups chatrooms into priority-ordered sections:
- *   1. Active — agents present and engaged (working/active)
- *   2. Recent — top N most recently active idle chatrooms
- *   3. Remainder — all other non-completed chatrooms
- *
- * This mirrors the ordering used in ChatroomSidebar.
- */
-function groupChatrooms(chatrooms: ChatroomWithStatus[]): {
-  active: ChatroomWithStatus[];
-  recent: ChatroomWithStatus[];
-  remainder: ChatroomWithStatus[];
-  completed: ChatroomWithStatus[];
-} {
-  const completed = chatrooms.filter((c) => c.chatStatus === 'completed');
-
-  // Active: agents present and engaged, sorted by creation time ASC (stable)
-  const active = chatrooms
-    .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
-    .sort((a, b) => a._creationTime - b._creationTime);
-
-  // Recent: top 5 by lastActivityAt, excluding active and completed
-  const activeIds = new Set(active.map((c) => c._id));
-  const idle = chatrooms.filter((c) => !activeIds.has(c._id) && c.chatStatus !== 'completed');
-  const sortedIdle = [...idle].sort((a, b) => {
-    const aTime = a.lastActivityAt || a._creationTime;
-    const bTime = b.lastActivityAt || b._creationTime;
-    return bTime - aTime || a._id.localeCompare(b._id);
-  });
-  const recent = sortedIdle.slice(0, 5);
-  const recentIds = new Set(recent.map((c) => c._id));
-
-  // Remainder: everything else (not active, not recent, not completed)
-  const remainder = sortedIdle.filter((c) => !recentIds.has(c._id));
-
-  return { active, recent, remainder, completed };
-}
+// ─── Filtering ────────────────────────────────────────────────────────────────
 
 /**
  * Filters chatrooms by a search query.
@@ -160,16 +127,14 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     return filterChatrooms(chatrooms, searchQuery);
   }, [chatrooms, searchQuery]);
 
-  const groups = useMemo(() => {
-    if (!filtered) return { active: [], recent: [], remainder: [], completed: [] };
-    return groupChatrooms(filtered);
+  const partitioned = useMemo(() => {
+    if (!filtered) {
+      return partitionChatroomListing([]);
+    }
+    return partitionChatroomListing(filtered);
   }, [filtered]);
 
-  // Ordered list for the "current" tab: active → recent → remainder
-  const orderedCurrent = useMemo(
-    () => [...groups.active, ...groups.recent, ...groups.remainder],
-    [groups]
-  );
+  const orderedCurrent = useMemo(() => flattenPartitionedCurrent(partitioned), [partitioned]);
 
   // Compute favorite chatrooms
   const favorites = useMemo(() => {
@@ -342,13 +307,13 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
         </div>
       </div>
 
-      {/* Chatroom List — ordered: active → recent → remainder */}
+      {/* Chatroom List — ordered: active → recency buckets */}
       {activeTab === 'current' ? (
         viewMode === 'grid' ? (
           orderedCurrent.length > 0 ? (
             <div className="space-y-6">
               {/* Active Section */}
-              {groups.active.length > 0 && (
+              {partitioned.active.length > 0 && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-3">
                     <span className="w-1.5 h-1.5 bg-chatroom-status-success flex-shrink-0" />
@@ -357,7 +322,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groups.active.map((chatroom) => (
+                    {partitioned.active.map((chatroom) => (
                       <ChatroomCard
                         key={chatroom._id}
                         chatroom={chatroom}
@@ -369,43 +334,27 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                 </div>
               )}
 
-              {/* Recent Section */}
-              {groups.recent.length > 0 && (
-                <div>
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
-                    Recent
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groups.recent.map((chatroom) => (
-                      <ChatroomCard
-                        key={chatroom._id}
-                        chatroom={chatroom}
-                        onSelect={onSelect}
-                        activeTab={activeTab}
-                      />
-                    ))}
+              {RECENCY_SECTIONS.map(({ key, label }) => {
+                const items = partitioned.recentByRecency[key];
+                if (items.length === 0) return null;
+                return (
+                  <div key={key}>
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+                      {label}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {items.map((chatroom) => (
+                        <ChatroomCard
+                          key={chatroom._id}
+                          chatroom={chatroom}
+                          onSelect={onSelect}
+                          activeTab={activeTab}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Remainder Section */}
-              {groups.remainder.length > 0 && (
-                <div>
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
-                    Older
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groups.remainder.map((chatroom) => (
-                      <ChatroomCard
-                        key={chatroom._id}
-                        chatroom={chatroom}
-                        onSelect={onSelect}
-                        activeTab={activeTab}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12 text-chatroom-text-muted">
@@ -416,9 +365,9 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           <ChatroomTable chatrooms={orderedCurrent} onSelect={onSelect} activeTab={activeTab} />
         )
       ) : viewMode === 'grid' ? (
-        groups.completed.length > 0 ? (
+        partitioned.completed.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.completed.map((chatroom) => (
+            {partitioned.completed.map((chatroom) => (
               <ChatroomCard
                 key={chatroom._id}
                 chatroom={chatroom}
@@ -433,7 +382,11 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           </div>
         )
       ) : (
-        <ChatroomTable chatrooms={groups.completed} onSelect={onSelect} activeTab={activeTab} />
+        <ChatroomTable
+          chatrooms={partitioned.completed}
+          onSelect={onSelect}
+          activeTab={activeTab}
+        />
       )}
     </div>
   );

@@ -907,6 +907,13 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     expect(el.className).toContain('[overflow-anchor:none]');
   });
 
+  it('allows horizontal overflow on the timeline scroll root', async () => {
+    renderFeed();
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    expect(el.className).toContain('overflow-x-auto');
+    expect(el.className).not.toContain('overflow-x-hidden');
+  });
+
   it('skips chrome shrink compensation when older messages land after loading', async () => {
     const notifyTopChromeDelta = vi.spyOn(
       TimelineScrollCoordinator.prototype,

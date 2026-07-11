@@ -13,7 +13,7 @@
  * }
  */
 
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -29,6 +29,15 @@ import { MACHINE_CONFIG_VERSION } from './types.js';
 import { getConvexUrl } from '../convex/client.js';
 
 const MACHINE_FILE = 'machine.json';
+
+/** Serializes machine.json writes — concurrent saveMachineConfig calls must not share one .tmp path. */
+let saveChain: Promise<void> = Promise.resolve();
+
+function enqueueMachineConfigSave(task: () => Promise<void>): Promise<void> {
+  const run = saveChain.then(task, task);
+  saveChain = run.catch(() => undefined);
+  return run;
+}
 
 /** Resolves on each call so tests (and rare HOME changes) see the current directory. */
 function chatroomConfigDir(): string {
@@ -76,24 +85,29 @@ async function loadConfigFile(): Promise<MachineConfigFile | null> {
 }
 
 /**
- * Save the config file to disk using atomic write.
+ * Write config to disk using a unique temp file + atomic rename.
  *
- * Writes to a temp file first, then renames (atomic on most filesystems).
- * This prevents corruption if the process crashes mid-write.
+ * Each write uses a distinct temp path so concurrent writers cannot clobber
+ * each other's tmp before rename (paired with enqueueMachineConfigSave).
  */
-async function saveConfigFile(configFile: MachineConfigFile): Promise<void> {
+async function writeConfigFileAtomically(configFile: MachineConfigFile): Promise<void> {
   await ensureConfigDir();
   const configPath = getMachineConfigPath();
-  const tempPath = `${configPath}.tmp`;
+  const tempPath = `${configPath}.tmp.${process.pid}.${randomBytes(4).toString('hex')}`;
   const content = JSON.stringify(configFile, null, 2);
 
   // SECURITY: 0o600 restricts file access to owner only.
   // Machine config contains identity credentials (machineId).
   await fs.writeFile(tempPath, content, { mode: 0o600 });
 
-  // Atomic rename — if the process crashes before this line, the original
-  // config file remains intact. rename is atomic on POSIX filesystems.
-  await fs.rename(tempPath, configPath);
+  try {
+    // Atomic rename — if the process crashes before this line, the original
+    // config file remains intact. rename is atomic on POSIX filesystems.
+    await fs.rename(tempPath, configPath);
+  } catch (error) {
+    await fs.unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
@@ -113,14 +127,22 @@ export async function loadMachineConfig(): Promise<MachineConfig | null> {
  * Save machine configuration for the current Convex URL endpoint.
  */
 export async function saveMachineConfig(config: MachineConfig): Promise<void> {
-  const configFile = (await loadConfigFile()) ?? {
-    version: MACHINE_CONFIG_VERSION,
-    machines: {},
-  };
+  await enqueueMachineConfigSave(async () => {
+    const configFile = (await loadConfigFile()) ?? {
+      version: MACHINE_CONFIG_VERSION,
+      machines: {},
+    };
 
-  const convexUrl = getConvexUrl();
-  configFile.machines[convexUrl] = config;
-  await saveConfigFile(configFile);
+    const convexUrl = getConvexUrl();
+    configFile.machines[convexUrl] = config;
+    await writeConfigFileAtomically(configFile);
+  });
+}
+
+/** @internal — test only */
+export async function _resetMachineConfigSaveChainForTests(): Promise<void> {
+  await saveChain.catch(() => undefined);
+  saveChain = Promise.resolve();
 }
 
 /**
