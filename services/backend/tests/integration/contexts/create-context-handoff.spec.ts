@@ -127,4 +127,40 @@ describe('createContext — unrestricted creation', () => {
 
     expect(contextId).toBeDefined();
   });
+
+  test('idempotent: same triggerMessageId returns existing context without duplicate new-context message', async () => {
+    const { sessionId } = await createTestSession('solo-context-idempotent-trigger');
+    const chatroomId = await createSoloChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'solo');
+
+    const userMessageId = await sendUserMessage(sessionId, chatroomId, 'Help me with auth');
+
+    const firstContextId = await t.mutation(api.contexts.createContext, {
+      sessionId,
+      chatroomId,
+      content: 'User needs help with authentication',
+      role: 'solo',
+      triggerMessageId: userMessageId,
+    });
+
+    const secondContextId = await t.mutation(api.contexts.createContext, {
+      sessionId,
+      chatroomId,
+      content: 'Duplicate attempt for same trigger',
+      role: 'solo',
+      triggerMessageId: userMessageId,
+    });
+
+    expect(secondContextId).toBe(firstContextId);
+
+    const messages = await t.query(api.messageList.getLatestMessages, {
+      sessionId,
+      chatroomId,
+      limit: 20,
+    });
+
+    const newContextMessages = messages.messages.filter((m) => m.type === 'new-context');
+    expect(newContextMessages).toHaveLength(1);
+    expect(newContextMessages[0]?.contextCreatedBy).toBe('solo');
+  });
 });

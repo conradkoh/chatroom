@@ -27,6 +27,9 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
   message,
 }: TimelineContextMessageProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const createdByLabel = message.contextCreatedBy
+    ? message.contextCreatedBy.charAt(0).toUpperCase() + message.contextCreatedBy.slice(1)
+    : null;
 
   return (
     <div
@@ -42,6 +45,12 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
         >
           <Sparkles size={10} className="flex-shrink-0" />
           <span className="flex-shrink-0">New Context</span>
+          {createdByLabel && (
+            <>
+              <span className="text-chatroom-status-info/50 flex-shrink-0">·</span>
+              <span className="flex-shrink-0 text-chatroom-status-info/80">{createdByLabel}</span>
+            </>
+          )}
           <span className="text-chatroom-status-info/50 flex-shrink-0">—</span>
           <span className="normal-case font-medium tracking-normal flex-1 min-w-0 truncate text-chatroom-text-secondary [&_*]:inline text-left">
             <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
@@ -57,7 +66,9 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
           <FixedModalHeader onClose={() => setIsOpen(false)}>
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-chatroom-status-info" />
-              <FixedModalTitle>Context</FixedModalTitle>
+              <FixedModalTitle>
+                Context{createdByLabel ? ` — ${createdByLabel}` : ''}
+              </FixedModalTitle>
             </div>
           </FixedModalHeader>
           <FixedModalBody>

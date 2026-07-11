@@ -322,7 +322,8 @@ export default defineSchema({
     messageCountAtCreation: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_latest', ['chatroomId', 'createdAt']),
+    .index('by_chatroom_latest', ['chatroomId', 'createdAt'])
+    .index('by_chatroom_trigger', ['chatroomId', 'triggerMessageId']),
 
   /**
    * Participants in chatrooms.
@@ -411,6 +412,8 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context') // Displayed when a new context is created
     ),
+    // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
+    contextCreatedBy: v.optional(v.string()),
     // Classification of user messages (set via task read / classify)
     // Used to determine allowed handoff paths and context window
     classification: v.optional(

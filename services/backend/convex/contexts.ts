@@ -1,10 +1,81 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
+
+function assertCanCreateContext(chatroom: Doc<'chatroom_rooms'>, role: string): void {
+  const entryPoint = getTeamEntryPoint(chatroom);
+  if (entryPoint && role.toLowerCase() !== entryPoint.toLowerCase()) {
+    throw new ConvexError({
+      code: 'CONTEXT_RESTRICTED',
+      message: `Only the ${entryPoint} role can create contexts. Your role: ${role}`,
+    });
+  }
+}
+
+/** Returns an existing context id when triggerMessageId already has one; re-pins if needed. */
+async function resolveExistingContextForTrigger(
+  ctx: MutationCtx,
+  chatroom: Doc<'chatroom_rooms'>,
+  triggerMessageId: Id<'chatroom_messages'>
+): Promise<Id<'chatroom_contexts'> | null> {
+  const existingForTrigger = await ctx.db
+    .query('chatroom_contexts')
+    .withIndex('by_chatroom_trigger', (q) =>
+      q.eq('chatroomId', chatroom._id).eq('triggerMessageId', triggerMessageId)
+    )
+    .first();
+
+  if (!existingForTrigger) {
+    return null;
+  }
+
+  if (chatroom.currentContextId !== existingForTrigger._id) {
+    await ctx.db.patch('chatroom_rooms', chatroom._id, {
+      currentContextId: existingForTrigger._id,
+    });
+  }
+
+  return existingForTrigger._id;
+}
+
+async function createAndPinContext(
+  ctx: MutationCtx,
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    content: string;
+    role: string;
+    triggerMessageId?: Id<'chatroom_messages'>;
+  }
+): Promise<Id<'chatroom_contexts'>> {
+  const contextId = await ctx.db.insert('chatroom_contexts', {
+    chatroomId: args.chatroomId,
+    content: args.content,
+    createdBy: args.role,
+    createdAt: Date.now(),
+    triggerMessageId: args.triggerMessageId,
+    messageCountAtCreation: 0,
+  });
+
+  await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+    currentContextId: contextId,
+  });
+
+  await ctx.db.insert('chatroom_messages', {
+    chatroomId: args.chatroomId,
+    senderRole: 'system',
+    content: args.content,
+    type: 'new-context',
+    contextCreatedBy: args.role,
+  });
+
+  return contextId;
+}
 
 /** Creates a new context for a chatroom and sets it as the current pinned context. */
 export const createContext = mutation({
@@ -16,48 +87,15 @@ export const createContext = mutation({
     triggerMessageId: v.optional(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    assertCanCreateContext(chatroom, args.role);
 
-    // Only the team entry point (planner/coordinator) can create contexts
-    const entryPoint = getTeamEntryPoint(chatroom);
-    if (entryPoint && args.role.toLowerCase() !== entryPoint.toLowerCase()) {
-      throw new ConvexError({
-        code: 'CONTEXT_RESTRICTED',
-        message: `Only the ${entryPoint} role can create contexts. Your role: ${args.role}`,
-      });
+    if (!args.triggerMessageId) {
+      return createAndPinContext(ctx, args);
     }
 
-    // Staleness is computed from the creation timestamp only — see read paths
-    // (getContext, getCurrentContext) and the CLI renderers. The legacy
-    // `messageCountAtCreation` field on the context schema is retained as 0
-    // for backwards compatibility with old records; nothing reads it anymore.
-    const messageCountAtCreation = 0;
-
-    // Create context record
-    const contextId = await ctx.db.insert('chatroom_contexts', {
-      chatroomId: args.chatroomId,
-      content: args.content,
-      createdBy: args.role,
-      createdAt: Date.now(),
-      triggerMessageId: args.triggerMessageId,
-      messageCountAtCreation,
-    });
-
-    // Update chatroom with current context
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      currentContextId: contextId,
-    });
-
-    // Insert new-context notification so the context change is visible in the chat
-    await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: 'system',
-      content: args.content,
-      type: 'new-context',
-    });
-
-    return contextId;
+    const existingId = await resolveExistingContextForTrigger(ctx, chatroom, args.triggerMessageId);
+    return existingId ?? createAndPinContext(ctx, args);
   },
 });
 
