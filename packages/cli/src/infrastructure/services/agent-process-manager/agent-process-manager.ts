@@ -44,8 +44,8 @@ import {
 import { tryAbortResumeStorm } from '../../../domain/agent-lifecycle/policies/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../../domain/agent-lifecycle/policies/append-recent-log-line.js';
 import {
+  classifyResumeStormReason,
   formatPermanentHarnessFailureMessage,
-  isPermanentHarnessFailure,
 } from '../../../domain/agent-lifecycle/policies/classify-resume-storm-reason.js';
 import {
   formatCursorSdkRunErrorMessage,
@@ -57,10 +57,6 @@ import {
   CURSOR_SDK_SESSION_REOPEN_REASON,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
-import {
-  formatTerminalProviderFailureMessage,
-  isTerminalProviderFailureInLogs,
-} from '../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
 import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
@@ -756,15 +752,6 @@ export class AgentProcessManager {
       return;
     }
 
-    if (isPermanentHarnessFailure(logs)) {
-      this.handlePermanentFailureForRestart(
-        opts,
-        recentLogLines,
-        ctx.terminalProviderFailureHandled
-      );
-      return;
-    }
-
     const hadRunError = this.hasCursorSdkRunErrorInContext(logs);
 
     if (harness === 'cursor-sdk') {
@@ -772,7 +759,7 @@ export class AgentProcessManager {
       return;
     }
 
-    void this.ensureRunning({
+    void this.attemptCrashRecoveryRestart(opts, ctx, {
       chatroomId: opts.chatroomId,
       role: opts.role,
       agentHarness: harness,
@@ -780,18 +767,78 @@ export class AgentProcessManager {
       workingDir,
       reason: 'platform.crash_recovery',
       wantResume: hadRunError ? false : (ctx.wantResume ?? true),
-    })
-      .then((result) => {
-        if (!result.success) {
-          console.log(
-            `[AgentProcessManager] ⚠️  Agent restart did not complete for ${opts.role}: ${result.error ?? 'unknown'}`
-          );
-        }
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
-        this.emitStartFailedEvent(opts.role, opts.chatroomId, err.message);
-      });
+    });
+  }
+
+  // fallow-ignore-next-line complexity
+  private async attemptCrashRecoveryRestart(
+    exitOpts: HandleExitOpts,
+    ctx: ExitContext,
+    ensureOpts: EnsureRunningOpts
+  ): Promise<void> {
+    try {
+      const result = await this.ensureRunning(ensureOpts);
+      if (result.success) return;
+
+      if (result.error === 'backoff') {
+        await this.retryCrashRecoveryAfterBackoff(exitOpts, ctx, ensureOpts, result.retryAfterMs);
+        return;
+      }
+
+      if (result.error === 'crash_loop') {
+        this.handleCrashLoopLimitReached(exitOpts, ctx.recentLogLines);
+        return;
+      }
+
+      console.log(
+        `[AgentProcessManager] ⚠️  Agent restart did not complete for ${exitOpts.role}: ${result.error ?? 'unknown'}`
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(`   ⚠️  Failed to restart agent: ${message}`);
+      this.emitStartFailedEvent(exitOpts.role, exitOpts.chatroomId, message);
+    }
+  }
+
+  private async retryCrashRecoveryAfterBackoff(
+    exitOpts: HandleExitOpts,
+    ctx: ExitContext,
+    ensureOpts: EnsureRunningOpts,
+    retryAfterMs: number | undefined
+  ): Promise<void> {
+    if (retryAfterMs === undefined || retryAfterMs <= 0) {
+      return;
+    }
+
+    const classified = classifyResumeStormReason(ctx.recentLogLines ?? []);
+    console.log(
+      `[AgentProcessManager] ⏳ Crash recovery backoff for ${exitOpts.role} (${classified}): waiting ${retryAfterMs}ms`
+    );
+    await this.deps.clock.delay(retryAfterMs);
+
+    const retry = await this.ensureRunning(ensureOpts);
+    if (retry.success) return;
+    if (retry.error === 'crash_loop') {
+      this.handleCrashLoopLimitReached(exitOpts, ctx.recentLogLines);
+      return;
+    }
+    if (!retry.success) {
+      console.log(
+        `[AgentProcessManager] ⚠️  Agent restart did not complete for ${exitOpts.role}: ${retry.error ?? 'unknown'}`
+      );
+    }
+  }
+
+  private handleCrashLoopLimitReached(
+    opts: HandleExitOpts,
+    recentLogLines: string[] | undefined
+  ): void {
+    const error = formatPermanentHarnessFailureMessage(recentLogLines ?? []);
+    console.log(`[AgentProcessManager] ⛔ Crash recovery limit reached — ${error}`);
+    this.deps.crashLoop.clear(opts.chatroomId, opts.role);
+    const key = agentKey(opts.chatroomId, opts.role);
+    this.clearLastHarnessSession(key);
+    this.emitStartFailedEvent(opts.role, opts.chatroomId, error);
   }
 
   private clearHarnessSessionAfterResumePhaseFailure(
@@ -889,34 +936,6 @@ export class AgentProcessManager {
     } finally {
       this.sessionReopenRetryInFlight.delete(key);
     }
-  }
-
-  private handlePermanentFailureForRestart(
-    opts: HandleExitOpts,
-    recentLogLines: string[] | undefined,
-    startFailedAlreadyEmitted: boolean
-  ): void {
-    const error = isTerminalProviderFailureInLogs(recentLogLines ?? [])
-      ? formatTerminalProviderFailureMessage(recentLogLines ?? [])
-      : formatPermanentHarnessFailureMessage(recentLogLines ?? []);
-    console.log(`[AgentProcessManager] ⛔ Skipping restart — ${error}`);
-    this.deps.crashLoop.clear(opts.chatroomId, opts.role);
-    const key = agentKey(opts.chatroomId, opts.role);
-    this.clearLastHarnessSession(key);
-    if (startFailedAlreadyEmitted) {
-      return;
-    }
-    this.deps.backend
-      .mutation(api.machines.emitAgentStartFailed, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        error,
-      })
-      .catch((emitErr: Error) => {
-        console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
-      });
   }
 
   private emitStartFailedEvent(role: string, chatroomId: string, error: string): void {
@@ -1534,7 +1553,7 @@ export class AgentProcessManager {
     if (loopCheck.waitMs !== undefined && loopCheck.waitMs > 0) {
       console.log(`   ⏳ Agent restart backoff: waiting ${loopCheck.waitMs}ms before retry`);
       this.resetSlotIdle(slot);
-      return { success: false, error: 'backoff' };
+      return { success: false, error: 'backoff', retryAfterMs: loopCheck.waitMs };
     }
 
     this.deps.backend

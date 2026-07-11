@@ -136,6 +136,7 @@ function messageFromData(data: unknown): string | undefined {
   return typeof msg === 'string' ? msg.toLowerCase() : undefined;
 }
 
+// fallow-ignore-next-line unused-export
 export function formatTerminalProviderFailureMessage(logLines: readonly string[]): string {
   const blob = logLines.join('\n').trim();
   return blob

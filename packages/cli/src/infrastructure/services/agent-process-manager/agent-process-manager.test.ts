@@ -1866,7 +1866,7 @@ describe('AgentProcessManager', () => {
       });
     });
 
-    test('crash with permanent harness error does not restart', async () => {
+    test('crash with config error still attempts restart via crash recovery', async () => {
       await manager.ensureRunning(createOpts());
 
       const service = deps.agentServices.get('opencode')!;
@@ -1886,17 +1886,48 @@ describe('AgentProcessManager', () => {
         signal: null,
       });
 
-      await new Promise((r) => setTimeout(r, 20));
-      expect(service.spawn).not.toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(service.spawn).toHaveBeenCalledTimes(1);
+      });
 
-      const startFailedCall = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.find(
-        (call: unknown[]) =>
-          call[1] &&
-          typeof call[1] === 'object' &&
-          (call[1] as Record<string, unknown>).error !== undefined &&
-          String((call[1] as Record<string, unknown>).error).includes('config_error')
-      );
-      expect(startFailedCall).toBeDefined();
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) => typeof args.error === 'string' && args.error.includes('config_error')
+        )
+      ).toHaveLength(0);
+    });
+
+    test('crash with provider rate limit attempts restart instead of immediate startFailed', async () => {
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = [
+        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
+      ];
+
+      manager.handleExit({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: PID,
+        code: 1,
+        signal: null,
+      });
+
+      await vi.waitFor(() => {
+        expect(service.spawn).toHaveBeenCalledTimes(1);
+      });
+
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) => typeof args.error === 'string' && args.error.includes('non-retryable')
+        )
+      ).toHaveLength(0);
     });
 
     test('onAgentEnd with rate-limit logs still completes native turn end', async () => {
@@ -1939,37 +1970,6 @@ describe('AgentProcessManager', () => {
           (args) => typeof args.error === 'string' && args.error.includes('non-retryable')
         )
       ).toHaveLength(0);
-    });
-
-    test('crash with provider rate limit emits startFailed once on exit path', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const service = deps.agentServices.get('opencode')!;
-      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.recentLogLines = [
-        '[ts] role:builder error] AI_APICallError: Rate limit exceeded. Please try again later.',
-      ];
-
-      manager.handleExit({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: PID,
-        code: 1,
-        signal: null,
-      });
-
-      await new Promise((r) => setTimeout(r, 20));
-
-      expect(service.spawn).not.toHaveBeenCalled();
-      expect(
-        getMutationCallsByArgs(
-          deps,
-          (args) => typeof args.error === 'string' && args.error.includes('non-retryable')
-        )
-      ).toHaveLength(1);
     });
 
     test('onAgentEnd with model load failure logs still completes native turn end', async () => {

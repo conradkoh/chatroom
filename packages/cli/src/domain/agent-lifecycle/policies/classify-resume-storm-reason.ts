@@ -1,7 +1,5 @@
 import type { ResumeStormReason } from '@workspace/backend/src/domain/entities/resume-storm.js';
 
-import { isTerminalProviderFailureInLogs } from './terminal-provider-error.js';
-
 const CLASSIFICATION_RULES: readonly {
   reason: ResumeStormReason;
   patterns: readonly RegExp[];
@@ -69,14 +67,11 @@ export function classifyResumeStormReason(logLines: readonly string[]): ResumeSt
 }
 
 /**
- * Whether recent harness logs indicate a failure that will not resolve on retry
- * (e.g. unsupported model, terminal provider rate-limit / fatal harness phrases).
- * Auth errors are retryable — Cursor SDK auth can be transient.
+ * Observability helper — config errors are unlikely to self-heal on retry.
+ * Rate limits and provider errors are handled via crash-loop backoff instead.
  */
+// fallow-ignore-next-line unused-export
 export function isPermanentHarnessFailure(logLines: readonly string[]): boolean {
-  if (isTerminalProviderFailureInLogs(logLines)) {
-    return true;
-  }
   return PERMANENT_FAILURE_REASONS.has(classifyResumeStormReason(logLines));
 }
 
@@ -84,6 +79,6 @@ export function formatPermanentHarnessFailureMessage(logLines: readonly string[]
   const reason = classifyResumeStormReason(logLines);
   const blob = logLines.join('\n').trim();
   return blob
-    ? `Permanent harness error (${reason}): ${blob.slice(-500)}`
-    : `Permanent harness error (${reason})`;
+    ? `Crash recovery limit (${reason}): ${blob.slice(-500)}`
+    : `Crash recovery limit (${reason})`;
 }
