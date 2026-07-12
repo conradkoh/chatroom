@@ -1,32 +1,48 @@
 'use client';
 
-import type { MessageViewMode } from '../../hooks/persistence/useMessageViewMode';
+import type { MessageViewMode } from '../../hooks/persistence/messageViewMode';
+import {
+  formatMessageViewRoleLabel,
+  getMessageFilterRoles,
+  messageViewModeTitle,
+  roleToMessageViewMode,
+} from '../../hooks/persistence/messageViewMode';
 
 import { cn } from '@/lib/utils';
 
 interface MessageViewToggleProps {
   mode: MessageViewMode;
   onChange: (mode: MessageViewMode) => void;
+  teamRoles: string[];
   className?: string;
 }
 
-const OPTIONS: { value: MessageViewMode; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'user-only', label: 'User' },
-];
+export function MessageViewToggle({
+  mode,
+  onChange,
+  teamRoles,
+  className,
+}: MessageViewToggleProps) {
+  const filterRoles = getMessageFilterRoles(teamRoles);
+  const options: { value: MessageViewMode; label: string }[] = [
+    { value: 'all', label: 'All' },
+    ...filterRoles.map((role) => ({
+      value: roleToMessageViewMode(role),
+      label: formatMessageViewRoleLabel(role),
+    })),
+  ];
 
-export function MessageViewToggle({ mode, onChange, className }: MessageViewToggleProps) {
   return (
     <div
       className={cn(
-        'inline-flex h-6 shrink-0 items-center gap-0.5 rounded-sm border border-chatroom-border bg-chatroom-bg-tertiary p-0.5',
+        'inline-flex h-6 max-w-full shrink-0 items-center gap-0.5 overflow-x-auto rounded-sm border border-chatroom-border bg-chatroom-bg-tertiary p-0.5',
         className
       )}
       role="tablist"
       aria-label="Message view"
       data-testid="message-view-toggle"
     >
-      {OPTIONS.map(({ value, label }) => {
+      {options.map(({ value, label }) => {
         const selected = mode === value;
         return (
           <button
@@ -34,10 +50,10 @@ export function MessageViewToggle({ mode, onChange, className }: MessageViewTogg
             type="button"
             role="tab"
             aria-selected={selected}
-            title={value === 'all' ? 'All messages' : 'User messages'}
+            title={messageViewModeTitle(value)}
             onClick={() => onChange(value)}
             className={cn(
-              'flex h-5 min-w-[2.75rem] items-center justify-center px-2 text-[10px] font-bold uppercase tracking-wide leading-none rounded-[2px] transition-colors',
+              'flex h-5 min-w-[2.75rem] shrink-0 items-center justify-center px-2 text-[10px] font-bold uppercase tracking-wide leading-none rounded-[2px] transition-colors',
               selected
                 ? 'bg-chatroom-bg-primary text-chatroom-text-primary shadow-sm ring-1 ring-chatroom-border-strong/60'
                 : 'text-chatroom-text-muted hover:text-chatroom-text-secondary hover:bg-chatroom-bg-hover/60'

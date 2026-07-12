@@ -6,6 +6,7 @@ import type React from 'react';
 import { describe, it, expect } from 'vitest';
 
 import { TimelineEventRow } from './TimelineEventRow';
+import { TIMELINE_MESSAGE_HEADER_STICKY } from './timelineRowStyles';
 import { AttachmentsProvider } from '../../attachments';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
@@ -32,6 +33,9 @@ describe('TimelineEventRow', () => {
     const event = mapMessageToTimelineEvent(makeMessage());
     renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.getByTestId('timeline-user-message')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-message-header')).toHaveClass(
+      ...TIMELINE_MESSAGE_HEADER_STICKY.split(' ')
+    );
     expect(screen.getByText('Hello timeline')).toBeInTheDocument();
     expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
   });
@@ -62,5 +66,16 @@ describe('TimelineEventRow', () => {
     expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
     expect(screen.getByText('(Dev)')).toBeInTheDocument();
     expect(screen.getByText('Handoff note')).toBeInTheDocument();
+  });
+
+  it('renders sticky message header on team handoff rows', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({ type: 'handoff', senderRole: 'planner', targetRole: 'user', content: 'Done' })
+    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+    const header = screen.getByTestId('timeline-message-header');
+    expect(header).toHaveClass(...TIMELINE_MESSAGE_HEADER_STICKY.split(' '));
+    expect(screen.getByText('planner')).toBeInTheDocument();
+    expect(screen.getByText('user')).toBeInTheDocument();
   });
 });

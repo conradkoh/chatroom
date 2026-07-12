@@ -6,21 +6,31 @@ import { useState } from 'react';
 
 import { ConversationSlicePanel } from './ConversationSlicePanel';
 import type { MachineNameEntry } from './timelineRowStyles';
+import { TimelineTeamMessage } from './TimelineTeamMessage';
 import { TimelineUserMessage } from './TimelineUserMessage';
-import { useFilteredUserMessages } from '../../hooks/useFilteredUserMessages';
+import { formatMessageViewRoleLabel } from '../../hooks/persistence/messageViewMode';
+import { useFilteredMessagesByRole } from '../../hooks/useFilteredMessagesByRole';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
 
 interface FilteredUserMessagesViewProps {
   chatroomId: string;
+  senderRole: string;
   machines?: Map<string, MachineNameEntry>;
 }
 
 // fallow-ignore-next-line complexity
-export function FilteredUserMessagesView({ chatroomId, machines }: FilteredUserMessagesViewProps) {
-  const { messages, isLoading, isLoadingMore, canLoadMore, loadMore } = useFilteredUserMessages(
+export function FilteredUserMessagesView({
+  chatroomId,
+  senderRole,
+  machines,
+}: FilteredUserMessagesViewProps) {
+  const isUserRole = senderRole.toLowerCase() === 'user';
+  const roleLabel = formatMessageViewRoleLabel(senderRole);
+  const { messages, isLoading, isLoadingMore, canLoadMore, loadMore } = useFilteredMessagesByRole(
     chatroomId,
+    senderRole,
     true
   );
 
@@ -35,23 +45,48 @@ export function FilteredUserMessagesView({ chatroomId, machines }: FilteredUserM
       ) : messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
           <MessageSquare size={32} className="mb-4" />
-          <div>No user messages yet</div>
+          <div>No {roleLabel.toLowerCase()} messages yet</div>
         </div>
       ) : (
-        messages.map((message) => (
-          <button
-            key={message._id}
-            type="button"
-            onClick={() => setSelectedAnchorId(message._id as Id<'chatroom_messages'>)}
-            className={cn(
-              'w-full text-left cursor-pointer transition-colors hover:bg-chatroom-bg-hover/40',
-              selectedAnchorId === message._id && 'ring-2 ring-inset ring-chatroom-accent/50'
-            )}
-            data-testid={`filtered-user-message-${message._id}`}
-          >
+        messages.map((message) => {
+          const row = isUserRole ? (
             <TimelineUserMessage message={message} chatroomId={chatroomId} />
-          </button>
-        ))
+          ) : (
+            <TimelineTeamMessage message={message} chatroomId={chatroomId} machines={machines} />
+          );
+
+          if (!isUserRole) {
+            return (
+              <div key={message._id} data-testid={`filtered-user-message-${message._id}`}>
+                {row}
+              </div>
+            );
+          }
+
+          const selectMessage = () => setSelectedAnchorId(message._id as Id<'chatroom_messages'>);
+
+          return (
+            <div
+              key={message._id}
+              role="button"
+              tabIndex={0}
+              onClick={selectMessage}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectMessage();
+                }
+              }}
+              className={cn(
+                'w-full text-left cursor-pointer transition-colors hover:bg-chatroom-bg-hover/40',
+                selectedAnchorId === message._id && 'ring-2 ring-inset ring-chatroom-accent/50'
+              )}
+              data-testid={`filtered-user-message-${message._id}`}
+            >
+              {row}
+            </div>
+          );
+        })
       )}
       {isLoadingMore && (
         <div className="py-2 flex justify-center">
@@ -80,8 +115,8 @@ export function FilteredUserMessagesView({ chatroomId, machines }: FilteredUserM
         {listContent}
       </div>
 
-      {/* Slice panel — desktop inline */}
-      {selectedAnchorId && (
+      {/* Slice panel — desktop inline (user messages only) */}
+      {isUserRole && selectedAnchorId && (
         <div className="hidden md:flex flex-1 min-h-0 min-w-0">
           <ConversationSlicePanel
             chatroomId={chatroomId}
@@ -92,8 +127,8 @@ export function FilteredUserMessagesView({ chatroomId, machines }: FilteredUserM
         </div>
       )}
 
-      {/* Slice panel — mobile overlay */}
-      {selectedAnchorId && (
+      {/* Slice panel — mobile overlay (user messages only) */}
+      {isUserRole && selectedAnchorId && (
         <div className="md:hidden fixed inset-0 top-14 z-40 flex flex-col bg-chatroom-bg-primary">
           <ConversationSlicePanel
             chatroomId={chatroomId}

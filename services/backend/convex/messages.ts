@@ -2072,6 +2072,43 @@ export const listUserMessagesPaginated = query({
   },
 });
 
+/** Paginated messages for a sender role (newest first). For filtered message view tabs. */
+export const listMessagesBySenderRolePaginated = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const isUser = args.senderRole.toLowerCase() === 'user';
+    const result = isUser
+      ? await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+          )
+          .order('desc')
+          .paginate(args.paginationOpts)
+      : await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .filter((q) =>
+            q.and(
+              q.eq(q.field('senderRole'), args.senderRole),
+              q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff'))
+            )
+          )
+          .order('desc')
+          .paginate(args.paginationOpts);
+
+    const page = await enrichMessages(ctx, result.page);
+    return { ...result, page };
+  },
+});
+
 /** Paginated conversation slice from anchor until before next user message. Ascending order. */
 export const listConversationSlicePaginated = query({
   args: {

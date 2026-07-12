@@ -44,7 +44,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 CHATROOM TASK');
+    expect(output).toContain('<task task-id=');
     expect(output).toContain('<next-steps>');
     // User message should include inline task content and work-first next steps
     expect(output).toContain('Work on the task above');
@@ -81,7 +81,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 CHATROOM TASK');
+    expect(output).toContain('<task task-id=');
     expect(output).toContain('<next-steps>');
     expect(output).toContain('you MUST run the handoff command');
     expect(output).not.toContain('Classify →');

@@ -24,6 +24,24 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 - **Attached messages** appear in primary delivery and `task read` as `<attachment type="message" message-id="...">` inside the shared `<attachments>` block (source message only).
 - **Tasks** appear in primary delivery and `task read` as `<attachment type="task">` inside the shared `<attachments>` block (source message only).
 
+### Primary delivery `<task>` envelope
+
+```xml
+<task task-id="..." origin-message-id="..." sender="user">
+  <context>
+    <hint>(read if needed) → `chatroom context read ...`</hint>
+    <staleness-warning>⚠️ Context is 1d old.</staleness-warning>
+  </context>
+  <attachments>...</attachments>
+  <message sender="user" message-id="...">
+    <message-content>User message text</message-content>
+  </message>
+  <intake-note>Begin working from the task content above...</intake-note>
+</task>
+```
+
+Order: optional `<context>` → optional `<attachments>` → `<message>` → optional `<intake-note>` (CLI only).
+
 ---
 
 ## 2. File layout (webapp)
@@ -247,7 +265,29 @@ Created by `renderInlineReference()` in `attachments/snippet/explorerSelectionAt
 
 ---
 
-## 8. Reference implementations
+## 8. Primary delivery `<task>` envelope
+
+Task delivery in both CLI (`get-next-task`) and native harness paths wraps the task payload in a `<task>` XML envelope with structured attributes:
+
+```xml
+<task task-id="task-abc123" origin-message-id="msg-xyz" sender="user">
+  <context>...</context>                        <!-- optional, see §9 -->
+  <attachments>...</attachments>                 <!-- optional, see §7 -->
+  <message sender="user" message-id="msg-xyz">
+    <message-content>Task description here</message-content>
+  </message>
+  <intake-note>Begin working from the task...</intake-note>  <!-- CLI only -->
+</task>
+```
+
+- `<task>` carries `task-id`, and when an origin message exists: `origin-message-id` and `sender`.
+- `<message>` carries `sender` and `message-id` attributes, with content in `<message-content>`.
+- `<attachments>` (if present) always renders before `<message>`.
+- Omitting the `<context>` section when no context applies is valid.
+
+Shared renderer: `services/backend/prompts/task-delivery/render-task-envelope.ts`.
+
+## 9. Reference implementations
 
 | Kind        | Webapp folder          | Notes                                                                           |
 | ----------- | ---------------------- | ------------------------------------------------------------------------------- |

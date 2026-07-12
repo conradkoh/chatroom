@@ -37,6 +37,7 @@ type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId' | 'viewMode'>
 
 export interface RightSplitPanelProps {
   chatroomId: Id<'chatroom_rooms'>;
+  teamRoles: string[];
   messagesPanelProps: MessagesPanelOwnProps;
   /** Selected harness session ID, persisted by the parent lifecycle hook. */
   selectedHarnessSessionId: string | null;
@@ -60,17 +61,23 @@ function RightSplitPanelHeader({
   setMode,
   messageViewMode,
   setMessageViewMode,
+  teamRoles,
 }: {
   mode: ExplorerSplitPanelMode;
   setMode: (mode: ExplorerSplitPanelMode) => void;
   messageViewMode: MessageViewMode;
   setMessageViewMode: (mode: MessageViewMode) => void;
+  teamRoles: string[];
 }) {
   return (
     <WorkspaceTabBarShell testId="right-split-panel-header">
       <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 px-2">
         {mode === 'messages' ? (
-          <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+          <MessageViewToggle
+            mode={messageViewMode}
+            onChange={setMessageViewMode}
+            teamRoles={teamRoles}
+          />
         ) : (
           <div aria-hidden="true" />
         )}
@@ -98,6 +105,7 @@ function RightSplitPanelHeader({
 
 export function RightSplitPanel({
   chatroomId,
+  teamRoles,
   messagesPanelProps,
   selectedHarnessSessionId,
   setSelectedHarnessSessionId,
@@ -116,6 +124,7 @@ export function RightSplitPanel({
         setMode={setMode}
         messageViewMode={messageViewMode}
         setMessageViewMode={setMessageViewMode}
+        teamRoles={teamRoles}
       />
 
       {/* Body: panel content */}

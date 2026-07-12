@@ -113,7 +113,7 @@ describe('Native task delivery — omitted CLI harness framing', () => {
 });
 
 describe('Native task delivery — attached context', () => {
-  test('includes attached messages in unified attachments block after task body', () => {
+  test('includes attached messages in unified attachments block before task body', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,
       role: 'planner',
@@ -132,7 +132,7 @@ describe('Native task delivery — attached context', () => {
     expect(output).toContain('<attachments>');
     expect(output).toContain('type="message" message-id="att-1"');
     expect(output).toContain('Extra context from backlog');
-    expect(output.indexOf('<attachments>')).toBeGreaterThan(output.indexOf('Main task'));
+    expect(output.indexOf('<attachments>')).toBeLessThan(output.indexOf('Main task'));
     expect(output.indexOf('<next-steps>')).toBeGreaterThan(output.indexOf('</attachments>'));
     expect(output).not.toContain('<attached>');
   });

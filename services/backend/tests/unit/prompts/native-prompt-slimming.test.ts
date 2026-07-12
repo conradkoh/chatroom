@@ -51,8 +51,8 @@ describe('native task-started content', () => {
       isEntryPoint: true,
     });
 
-    expect(output).toContain('Task ID: task-id');
-    expect(output).toContain('Origin Message ID: msg-id');
+    expect(output).toContain('task-id="task-id"');
+    expect(output).toContain('origin-message-id="msg-id"');
     expect(output).toContain('--trigger-message-id="msg-id"');
     expect(output).not.toContain('<userMessageId>');
   });
@@ -98,7 +98,7 @@ describe('native task delivery', () => {
       currentContext: { elapsedHours: 10 },
     });
 
-    expect(output).toContain('## Context');
+    expect(output).toContain('<context>');
     expect(output).toContain('⚠️ Context is 10h old — consider refreshing if stale.');
   });
 
@@ -133,7 +133,7 @@ describe('native task delivery', () => {
       availableHandoffTargets: ['builder', 'user'],
     });
 
-    expect(output).toContain('<task>');
+    expect(output).toContain('<task task-id=');
     expect(output).toContain('hello');
     expect(output).toContain('<next-steps>');
     expect(output).toContain('you MUST run the handoff command');
