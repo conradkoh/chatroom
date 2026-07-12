@@ -95,6 +95,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   private readonly agentEndCallbacksByPid = new Map<number, (() => void)[]>();
   /** Per-pid assistant text callbacks — preserved across in-turn session fallback. */
   private readonly assistantTextCallbacksByPid = new Map<number, ((text: string) => void)[]>();
+  /** Per-pid output callbacks — preserved for startFreshSessionOnServe fallback. */
+  private readonly outputCallbacksByPid = new Map<number, (() => void)[]>();
   readonly id = 'opencode-sdk';
   readonly displayName = 'OpenCode (SDK)';
   protected readonly listModelsHarnessId = 'opencode-sdk';
@@ -294,6 +296,9 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     if (args.assistantTextCallbacks) {
       this.assistantTextCallbacksByPid.set(pid, args.assistantTextCallbacks);
     }
+    if (args.outputCallbacks) {
+      this.outputCallbacksByPid.set(pid, args.outputCallbacks);
+    }
 
     const outputCallbacks = args.outputCallbacks ?? [];
     this.wireChildOutput(childProcess, pid, entry, emitLogLine, outputCallbacks);
@@ -315,6 +320,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
           this.sessionStore.remove(sessionId);
           this.agentEndCallbacksByPid.delete(pid);
           this.assistantTextCallbacksByPid.delete(pid);
+          this.outputCallbacksByPid.delete(pid);
           this.deleteProcess(pid);
           cb({ code, signal, context });
         });
@@ -460,12 +466,19 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     }
     const newSessionId = sessionCreateResult.data.id;
 
+    const { emitLogLine } = this.createLogLineEmitter();
+    const pidOutputCallbacks = this.outputCallbacksByPid.get(args.pid) ?? [];
+
     const forwarder = startSessionEventForwarder(client as SessionEventForwarderClient, {
       sessionId: newSessionId,
       role: args.context.role,
+      onLogLine: emitLogLine,
       onAssistantText: (text) => {
         const callbacks = this.assistantTextCallbacksByPid.get(args.pid) ?? [];
         for (const cb of callbacks) cb(text);
+      },
+      onActivity: () => {
+        for (const cb of pidOutputCallbacks) cb();
       },
     });
 
