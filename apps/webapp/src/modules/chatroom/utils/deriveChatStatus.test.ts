@@ -37,8 +37,14 @@ describe('deriveChatStatus', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.inProgress' })])).toBe('working');
   });
 
-  it('returns working when an agent just completed a task (task.completed)', () => {
-    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('working');
+  it('returns active when an agent just completed a task (task.completed)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('active');
+  });
+
+  it('returns active when an agent is awaiting handoff (agent.awaitingHandoff)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.awaitingHandoff' })])).toBe(
+      'active'
+    );
   });
 
   it('matches the agent sidebar: non-working event types stay active', () => {
