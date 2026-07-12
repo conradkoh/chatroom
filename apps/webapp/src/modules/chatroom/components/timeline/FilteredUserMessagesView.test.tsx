@@ -40,8 +40,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
 }));
 
-vi.mock('../../hooks/useFilteredUserMessages', () => ({
-  useFilteredUserMessages: () => ({
+vi.mock('../../hooks/useFilteredMessagesByRole', () => ({
+  useFilteredMessagesByRole: () => ({
     messages: mockFilteredMessages,
     isLoading: mockIsLoading,
     isLoadingMore: false,
@@ -73,13 +73,13 @@ describe('FilteredUserMessagesView', () => {
 
   it('renders loading state when hook reports loading', () => {
     mockIsLoading = true;
-    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} />);
+    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} senderRole="user" />);
     expect(screen.getByTestId('filtered-user-messages-view')).toBeInTheDocument();
     expect(screen.queryByText('No user messages yet')).not.toBeInTheDocument();
   });
 
   it('renders empty state when no messages', () => {
-    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} />);
+    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} senderRole="user" />);
     expect(screen.getByText('No user messages yet')).toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe('FilteredUserMessagesView', () => {
       makeMessage({ _id: 'msg-a', content: 'First user message' }),
       makeMessage({ _id: 'msg-b', content: 'Second user message' }),
     ];
-    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} />);
+    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} senderRole="user" />);
     expect(screen.getByText('First user message')).toBeInTheDocument();
     expect(screen.getByText('Second user message')).toBeInTheDocument();
     expect(screen.getByTestId('filtered-user-message-msg-a')).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe('FilteredUserMessagesView', () => {
     mockFilteredMessages = [makeMessage({ _id: 'anchor-msg', content: 'Anchor message' })];
     mockConversationSliceEvents = [makeTimelineEvent('anchor-msg')];
 
-    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} />);
+    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} senderRole="user" />);
 
     expect(screen.queryByTestId('conversation-slice-panel')).not.toBeInTheDocument();
 

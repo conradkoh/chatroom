@@ -64,6 +64,32 @@ describe('listUserMessagesPaginated', () => {
   });
 });
 
+describe('listMessagesBySenderRolePaginated', () => {
+  test('returns planner handoffs and messages, newest first', async () => {
+    const { sessionId } = await createTestSession('pag-role-1');
+    const chatroomId = await createChatroom(sessionId);
+    await insertTimelineMessage(chatroomId, 'planner', 'planner msg', { type: 'message' });
+    await insertTimelineMessage(chatroomId, 'planner', 'planner handoff', { type: 'handoff' });
+    await insertTimelineMessage(chatroomId, 'builder', 'builder msg');
+    await insertTimelineMessage(chatroomId, 'planner', 'older planner', { type: 'message' });
+
+    const result = await t.query(api.messages.listMessagesBySenderRolePaginated, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toHaveLength(3);
+    expect(result.page.every((m) => m.senderRole === 'planner')).toBe(true);
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toEqual(
+      expect.arrayContaining(['planner msg', 'planner handoff', 'older planner'])
+    );
+    expect(result.page.map((m) => m.type)).toEqual(expect.arrayContaining(['message', 'handoff']));
+  });
+});
+
 describe('listConversationSlicePaginated', () => {
   test('slice from anchor until before next user message', async () => {
     const { sessionId } = await createTestSession('pag-slice-1');
