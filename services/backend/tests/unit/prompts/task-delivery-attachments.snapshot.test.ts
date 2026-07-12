@@ -14,7 +14,7 @@ const ROLE = 'builder';
 const CLI_ENV_PREFIX = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ';
 
 function extractTaskEnvelope(output: string): string {
-  const start = output.indexOf('<task>');
+  const start = output.indexOf('<task');
   const end = output.indexOf('</task>');
   if (start === -1 || end === -1) {
     throw new Error('Expected <task> envelope in output');
@@ -60,15 +60,7 @@ describe('task delivery attachment snapshots — CLI', () => {
     });
 
     expect(extractTaskEnvelope(output)).toMatchInlineSnapshot(`
-      "<task>
-      ============================================================
-      📋 CHATROOM TASK
-      ============================================================
-      Task ID: task-snapshot-001
-      Origin Message ID: msg-snapshot-001
-      From: user
-
-      ## Chatroom task
+      "<task task-id="task-snapshot-001" origin-message-id="msg-snapshot-001" sender="user">
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-001">
@@ -76,9 +68,14 @@ describe('task delivery attachment snapshots — CLI', () => {
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001</hint>
         </attachment>
       </attachments>
+      <message sender="user" message-id="msg-snapshot-001">
+      <message-content>
       Can you work on this item
-
+      </message-content>
+      </message>
+      <intake-note>
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      </intake-note>
       </task>"
     `);
   });
@@ -99,15 +96,7 @@ describe('task delivery attachment snapshots — CLI', () => {
     });
 
     expect(extractTaskEnvelope(output)).toMatchInlineSnapshot(`
-      "<task>
-      ============================================================
-      📋 CHATROOM TASK
-      ============================================================
-      Task ID: task-snapshot-001
-      Origin Message ID: msg-snapshot-001
-      From: user
-
-      ## Chatroom task
+      "<task task-id="task-snapshot-001" origin-message-id="msg-snapshot-001" sender="user">
 
       <attachments>
         <attachment type="task" task-id="attached-task-snapshot-001">
@@ -115,9 +104,14 @@ describe('task delivery attachment snapshots — CLI', () => {
           <hint>Referenced task attached by user.</hint>
         </attachment>
       </attachments>
+      <message sender="user" message-id="msg-snapshot-001">
+      <message-content>
       Can you work on this item
-
+      </message-content>
+      </message>
+      <intake-note>
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      </intake-note>
       </task>"
     `);
   });
@@ -145,15 +139,7 @@ describe('task delivery attachment snapshots — CLI', () => {
     });
 
     expect(extractTaskEnvelope(output)).toMatchInlineSnapshot(`
-      "<task>
-      ============================================================
-      📋 CHATROOM TASK
-      ============================================================
-      Task ID: task-snapshot-001
-      Origin Message ID: msg-snapshot-001
-      From: user
-
-      ## Chatroom task
+      "<task task-id="task-snapshot-001" origin-message-id="msg-snapshot-001" sender="user">
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-002">
@@ -168,9 +154,14 @@ describe('task delivery attachment snapshots — CLI', () => {
         </snippet>
         </attachment>
       </attachments>
+      <message sender="user" message-id="msg-snapshot-001">
+      <message-content>
       Can you work on this item
-
+      </message-content>
+      </message>
+      <intake-note>
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      </intake-note>
       </task>"
     `);
   });
@@ -194,11 +185,7 @@ describe('task delivery attachment snapshots — native', () => {
     });
 
     expect(extractTaskEnvelope(output)).toMatchInlineSnapshot(`
-      "<task>
-      Task ID: task-snapshot-001
-      Origin Message ID: msg-snapshot-001
-      From: user
-
+      "<task task-id="task-snapshot-001" origin-message-id="msg-snapshot-001" sender="user">
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-003">
@@ -206,7 +193,11 @@ describe('task delivery attachment snapshots — native', () => {
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003</hint>
         </attachment>
       </attachments>
+      <message sender="user" message-id="msg-snapshot-001">
+      <message-content>
       Can you work on this item
+      </message-content>
+      </message>
       </task>"
     `);
   });

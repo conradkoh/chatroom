@@ -22,12 +22,16 @@ describe('appendTaskDeliveryContextSection', () => {
     });
 
     const text = lines.join('\n');
-    expect(text).toContain('## Context');
-    expect(text).toContain('⚠️ Context is 2d old.');
+    expect(text).toContain('<context>');
+    expect(text).toContain('</context>');
+    expect(text).toContain('<hint>(read if needed)');
+    expect(text).toContain('<staleness-warning>⚠️ Context is 2d old.</staleness-warning>');
+    expect(text).toContain('<context-update-hint>');
     expect(text).toContain('context new --chatroom-id="room-id"');
     expect(text).toContain('--trigger-message-id');
     expect(text).toContain('CHATROOM_CONTEXT_END');
     expect(text).not.toContain('--content="<summary>"');
+    expect(text).not.toContain('## Context');
   });
 
   test('soft-warns when explicit context is >= 4h old', () => {
@@ -38,7 +42,10 @@ describe('appendTaskDeliveryContextSection', () => {
     });
 
     const text = lines.join('\n');
-    expect(text).toContain('⚠️ Context is 6h old — consider refreshing if stale.');
+    expect(text).toContain('<context>');
+    expect(text).toContain(
+      '<staleness-warning>⚠️ Context is 6h old — consider refreshing if stale.</staleness-warning>'
+    );
     expect(text).toContain('--trigger-message-id');
     expect(text).toContain('CHATROOM_CONTEXT_END');
     expect(text).not.toContain('--content="<summary>"');
@@ -56,8 +63,11 @@ describe('appendTaskDeliveryContextSection', () => {
     });
 
     const text = lines.join('\n');
-    expect(text).toContain('⚠️ Stale: 5 follow-ups since pinned message.');
-    expect(text).toContain('⚠️ Pinned message is 1d old.');
+    expect(text).toContain('<context>');
+    expect(text).toContain(
+      '<staleness-warning>⚠️ Stale: 5 follow-ups since pinned message.</staleness-warning>'
+    );
+    expect(text).toContain('<staleness-warning>⚠️ Pinned message is 1d old.</staleness-warning>');
     expect(text).toContain('--trigger-message-id');
     expect(text).toContain('CHATROOM_CONTEXT_END');
     expect(text).not.toContain('--content="<summary>"');

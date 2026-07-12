@@ -385,18 +385,10 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       [TIMESTAMP] 📨 CHATROOM TASK received
 
-      <task>
-      ============================================================
-      📋 CHATROOM TASK
-      ============================================================
-      Task ID: 000000000000010007chatroom_tasks
-      Origin Message ID: 000000000010006chatroom_messages
-      From: user
-
-      ## Context
-      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
-
-      ## Chatroom task
+      <task task-id="000000000000010007chatroom_tasks" origin-message-id="000000000010006chatroom_messages" sender="user">
+      <context>
+        <hint>(read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`</hint>
+      </context>
 
       <attachments>
         <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
@@ -408,9 +400,14 @@ ${taskDeliveryPrompt.fullCliOutput}
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>
+      <message sender="user" message-id="000000000010006chatroom_messages">
+      <message-content>
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
-
+      </message-content>
+      </message>
+      <intake-note>
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      </intake-note>
       </task>
 
       <next-steps>

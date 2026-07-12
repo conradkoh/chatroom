@@ -184,7 +184,7 @@ describe('Native task delivery prompt (integration)', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    expect(fullCliOutput).toContain('From: user');
+    expect(fullCliOutput).toContain('sender="user"');
     expect(fullCliOutput).toContain('checkout master and run git pull');
     expect(fullCliOutput).not.toContain('Classify');
   });

@@ -38,7 +38,7 @@ describe('generateFullCliOutput — nativeIntegration', () => {
       currentContext: { content: 'Old focus', elapsedHours: 30 },
     });
 
-    expect(output).toContain('## Context');
+    expect(output).toContain('<context>');
     expect(output).toContain('⚠️ Context is 1d old.');
     expect(output).toContain('context read --chatroom-id="test-chatroom-id"');
   });
@@ -51,7 +51,7 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     });
 
     expect(output).not.toContain('get-next-task');
-    expect(output).toContain('<task>');
+    expect(output).toContain('<task task-id=');
     expect(output).toContain('Implement the feature');
     expect(output).toContain('<next-steps>');
     expect(output).toContain('you MUST run the handoff command');
