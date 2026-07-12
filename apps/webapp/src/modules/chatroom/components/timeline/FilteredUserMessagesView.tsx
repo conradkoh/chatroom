@@ -63,11 +63,20 @@ export function FilteredUserMessagesView({
             );
           }
 
+          const selectMessage = () => setSelectedAnchorId(message._id as Id<'chatroom_messages'>);
+
           return (
-            <button
+            <div
               key={message._id}
-              type="button"
-              onClick={() => setSelectedAnchorId(message._id as Id<'chatroom_messages'>)}
+              role="button"
+              tabIndex={0}
+              onClick={selectMessage}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectMessage();
+                }
+              }}
               className={cn(
                 'w-full text-left cursor-pointer transition-colors hover:bg-chatroom-bg-hover/40',
                 selectedAnchorId === message._id && 'ring-2 ring-inset ring-chatroom-accent/50'
@@ -75,7 +84,7 @@ export function FilteredUserMessagesView({
               data-testid={`filtered-user-message-${message._id}`}
             >
               {row}
-            </button>
+            </div>
           );
         })
       )}

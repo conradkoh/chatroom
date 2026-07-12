@@ -109,4 +109,20 @@ describe('FilteredUserMessagesView', () => {
     expect(screen.getAllByTestId('conversation-slice-panel').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Slice message anchor-msg').length).toBeGreaterThan(0);
   });
+
+  it('does not nest interactive buttons inside the selectable message row', () => {
+    mockFilteredMessages = [makeMessage({ _id: 'msg-a', content: 'First user message' })];
+
+    renderView(<FilteredUserMessagesView chatroomId={TEST_CHATROOM_ID} senderRole="user" />);
+
+    const row = screen.getByTestId('filtered-user-message-msg-a');
+    expect(row.tagName).toBe('DIV');
+    expect(row).toHaveAttribute('role', 'button');
+
+    const nestedButtons = row.querySelectorAll('button');
+    expect(nestedButtons.length).toBeGreaterThan(0);
+    nestedButtons.forEach((button) => {
+      expect(button.closest('button')).toBe(button);
+    });
+  });
 });
