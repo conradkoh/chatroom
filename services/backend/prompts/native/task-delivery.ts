@@ -87,10 +87,11 @@ function appendNativeTaskSection(
     followUpCountSinceOrigin,
     originMessageCreatedAt,
   });
-  lines.push('', task.content);
+  lines.push('');
   lines.push(
     ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'native' })
   );
+  lines.push(task.content);
   lines.push('</task>');
 }
 

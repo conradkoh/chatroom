@@ -134,7 +134,7 @@ describe('generateFullCliOutput — nativeIntegration', () => {
 });
 
 describe('generateFullCliOutput — snippet attachments in primary delivery', () => {
-  test('CLI mode includes backlog XML after task content when sourceAttachments has backlog items', () => {
+  test('CLI mode includes backlog XML before task content when sourceAttachments has backlog items', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: false,
@@ -150,12 +150,12 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
     });
     const taskContentIdx = output.indexOf('Implement the feature');
     const attachmentsIdx = output.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
     expect(output).toContain('type="backlog"');
     expect(output).toContain('backlog-item-id="backlog-item-001"');
   });
 
-  test('CLI mode includes snippet XML after task content when sourceAttachments has snippets', () => {
+  test('CLI mode includes snippet XML before task content when sourceAttachments has snippets', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: false,
@@ -171,7 +171,7 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
     });
     const taskContentIdx = output.indexOf('Implement the feature');
     const attachmentsIdx = output.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
     expect(output).toContain('<attachment type="snippet" reference="attachment-reference-001">');
     expect(output).toContain('file-source="./windsurfrules"');
     expect(output).toContain('# Shadcn');

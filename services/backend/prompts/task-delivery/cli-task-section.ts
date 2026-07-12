@@ -58,10 +58,11 @@ export function appendCliTaskSection(lines: string[], params: CliTaskSectionPara
     originMessageCreatedAt,
   });
 
-  lines.push('', '## Chatroom task', task.content);
+  lines.push('', '## Chatroom task');
   lines.push(
     ...renderDeliveryAttachmentsBlock(sourceAttachments ?? {}, { chatroomId, role, mode: 'cli' })
   );
+  lines.push(task.content);
   lines.push('', getTokenActivityInProgressNote());
   lines.push('</task>');
 }

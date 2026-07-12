@@ -38,7 +38,7 @@ function baseParams() {
 }
 
 describe('generateFullCliOutput — backlog items in primary delivery', () => {
-  test('renders backlog XML from sourceAttachments after task content', () => {
+  test('renders backlog XML from sourceAttachments before task content', () => {
     const output = generateFullCliOutput({
       ...baseParams(),
       sourceAttachments: {
@@ -54,13 +54,13 @@ describe('generateFullCliOutput — backlog items in primary delivery', () => {
 
     const taskContentIdx = output.indexOf('Can you work on this item');
     const attachmentsIdx = output.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
     expect(output).toContain('type="backlog"');
     expect(output).toContain('backlog-item-id="backlog-item-id-001"');
     expect(output).toContain('mark-for-review');
   });
 
-  test('renders task XML from sourceAttachments after task content', () => {
+  test('renders task XML from sourceAttachments before task content', () => {
     const output = generateFullCliOutput({
       ...baseParams(),
       sourceAttachments: {
@@ -76,7 +76,7 @@ describe('generateFullCliOutput — backlog items in primary delivery', () => {
 
     const taskContentIdx = output.indexOf('Can you work on this item');
     const attachmentsIdx = output.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
     expect(output).toContain('type="task"');
     expect(output).toContain('Prior work item for context');
     expect(output).toContain('attached-task-id-001');

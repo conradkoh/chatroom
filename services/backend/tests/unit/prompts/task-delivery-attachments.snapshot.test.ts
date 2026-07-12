@@ -69,7 +69,6 @@ describe('task delivery attachment snapshots — CLI', () => {
       From: user
 
       ## Chatroom task
-      Can you work on this item
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-001">
@@ -77,6 +76,7 @@ describe('task delivery attachment snapshots — CLI', () => {
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001</hint>
         </attachment>
       </attachments>
+      Can you work on this item
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
       </task>"
@@ -108,7 +108,6 @@ describe('task delivery attachment snapshots — CLI', () => {
       From: user
 
       ## Chatroom task
-      Can you work on this item
 
       <attachments>
         <attachment type="task" task-id="attached-task-snapshot-001">
@@ -116,6 +115,7 @@ describe('task delivery attachment snapshots — CLI', () => {
           <hint>Referenced task attached by user.</hint>
         </attachment>
       </attachments>
+      Can you work on this item
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
       </task>"
@@ -154,7 +154,6 @@ describe('task delivery attachment snapshots — CLI', () => {
       From: user
 
       ## Chatroom task
-      Can you work on this item
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-002">
@@ -169,6 +168,7 @@ describe('task delivery attachment snapshots — CLI', () => {
         </snippet>
         </attachment>
       </attachments>
+      Can you work on this item
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
       </task>"
@@ -199,7 +199,6 @@ describe('task delivery attachment snapshots — native', () => {
       Origin Message ID: msg-snapshot-001
       From: user
 
-      Can you work on this item
 
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-003">
@@ -207,6 +206,7 @@ describe('task delivery attachment snapshots — native', () => {
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003</hint>
         </attachment>
       </attachments>
+      Can you work on this item
       </task>"
     `);
   });

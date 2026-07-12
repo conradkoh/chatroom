@@ -397,7 +397,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
 
       ## Chatroom task
-      Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
       <attachments>
         <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
@@ -409,6 +408,7 @@ ${taskDeliveryPrompt.fullCliOutput}
           <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>
+      Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
       </task>
@@ -1151,7 +1151,7 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(fullOutput).toContain(`backlog-item-id="${backlogItemId}"`);
     const taskContentIdx = fullOutput.indexOf('Can you work on this backlog item?');
     const attachmentsIdx = fullOutput.indexOf('<attachments>');
-    expect(attachmentsIdx).toBeGreaterThan(taskContentIdx);
+    expect(attachmentsIdx).toBeLessThan(taskContentIdx);
   });
 
   test('readTask mutation returns attached backlog items from source message', async () => {
