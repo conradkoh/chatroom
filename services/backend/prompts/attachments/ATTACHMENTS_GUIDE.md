@@ -265,7 +265,29 @@ Created by `renderInlineReference()` in `attachments/snippet/explorerSelectionAt
 
 ---
 
-## 8. Reference implementations
+## 8. Primary delivery `<task>` envelope
+
+Task delivery in both CLI (`get-next-task`) and native harness paths wraps the task payload in a `<task>` XML envelope with structured attributes:
+
+```xml
+<task task-id="task-abc123" origin-message-id="msg-xyz" sender="user">
+  <context>...</context>                        <!-- optional, see §9 -->
+  <attachments>...</attachments>                 <!-- optional, see §7 -->
+  <message sender="user" message-id="msg-xyz">
+    <message-content>Task description here</message-content>
+  </message>
+  <intake-note>Begin working from the task...</intake-note>  <!-- CLI only -->
+</task>
+```
+
+- `<task>` carries `task-id`, and when an origin message exists: `origin-message-id` and `sender`.
+- `<message>` carries `sender` and `message-id` attributes, with content in `<message-content>`.
+- `<attachments>` (if present) always renders before `<message>`.
+- Omitting the `<context>` section when no context applies is valid.
+
+Shared renderer: `services/backend/prompts/task-delivery/render-task-envelope.ts`.
+
+## 9. Reference implementations
 
 | Kind        | Webapp folder          | Notes                                                                           |
 | ----------- | ---------------------- | ------------------------------------------------------------------------------- |
