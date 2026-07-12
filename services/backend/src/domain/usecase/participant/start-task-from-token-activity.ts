@@ -4,6 +4,7 @@ import { isNativeHarness } from '../../entities/harness/types';
 import {
   GET_NEXT_TASK_STOPPED_ACTION,
   NATIVE_TASK_INJECTED_ACTION,
+  NATIVE_WAITING_ACTION,
 } from '../../entities/participant';
 import { getAgentConfig } from '../agent/get-agent-config';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
@@ -47,6 +48,7 @@ async function maybeStartAcknowledgedTaskFromTokenActivity(
       participant.lastStatus === 'agent.waiting' ||
       participant.lastStatus === 'agent.started' ||
       participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION ||
+      participant.lastSeenAction === NATIVE_WAITING_ACTION ||
       participant.lastSeenAction === GET_NEXT_TASK_STOPPED_ACTION);
 
   if (!shouldStartTask) {

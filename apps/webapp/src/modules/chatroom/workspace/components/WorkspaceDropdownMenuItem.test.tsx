@@ -24,6 +24,11 @@ describe('WorkspaceDropdownMenuItem', () => {
       </DropdownMenu>
     );
 
+    const content = document.querySelector('[data-slot="chatroom-dropdown-menu-content"]');
+    expect(content).not.toBeNull();
+    expect(content?.className).toContain('bg-chatroom-bg-primary');
+    expect(content?.className).not.toContain('bg-chatroom-bg-surface');
+
     const item = screen.getByRole('menuitem', { name: /copy relative path/i });
     expect(item.className).toContain('gap-1.5');
     expect(item.className).toContain('text-chatroom-text-primary');

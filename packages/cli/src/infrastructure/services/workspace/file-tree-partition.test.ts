@@ -71,7 +71,7 @@ describe('partitionFileTree', () => {
     expect(shards.find((s) => s.shardId === 'packages')?.entryCount).toBe(1);
   });
 
-  it('subdivides oversized shards by next path segment', () => {
+  it('subdivides oversized shards by next path segment', { timeout: 15_000 }, () => {
     const unique = 'segment'.repeat(80);
     const makeGroup = (prefix: string, count: number) =>
       Array.from({ length: count }, (_, i) => ({

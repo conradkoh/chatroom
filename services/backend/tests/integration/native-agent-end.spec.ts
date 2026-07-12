@@ -125,7 +125,7 @@ describe('Native agent_end handler', () => {
     expect(task?.status).toBe('in_progress');
 
     const status = await getParticipantStatus(chatroomId, 'builder');
-    expect(status.lastStatus).not.toBe('agent.waiting');
+    expect(status.lastStatus).toBe('agent.awaitingHandoff');
   });
 
   test('signals handoff reminder without completing task or promoting queue until handoff', async () => {

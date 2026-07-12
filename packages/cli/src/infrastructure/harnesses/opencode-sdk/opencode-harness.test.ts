@@ -309,7 +309,7 @@ describe('OpencodeSdkHarness', () => {
 
     expect(spawn).toHaveBeenCalledWith(
       'opencode',
-      ['serve', '--print-logs'],
+      ['serve', '--print-logs', '--log-level', 'WARN'],
       expect.objectContaining({ cwd: '/test/ws' })
     );
     expect(waitForListeningUrl).toHaveBeenCalled();

@@ -75,7 +75,7 @@ vi.mock('@/components/ui/resizable', () => ({
 
 const mockOnValueChange = vi.fn();
 
-vi.mock('@/components/ui/select', () => ({
+vi.mock('../../../components/ui/select', () => ({
   Select: ({
     children,
     onValueChange,

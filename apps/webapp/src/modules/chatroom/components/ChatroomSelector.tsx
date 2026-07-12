@@ -28,14 +28,14 @@ import {
   flattenPartitionedCurrent,
   RECENCY_SECTIONS,
 } from '../utils/partitionChatroomListing';
-
-import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from './ui/dropdown-menu';
+
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 type TabType = 'current' | 'complete';
 type ViewMode = 'grid' | 'table';
