@@ -81,7 +81,7 @@ function RightSplitPanelHeader({
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent align="end">
+          <SelectContent>
             {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
               <SelectItem key={m} value={m} className="text-xs">
                 {MODE_LABELS[m]}

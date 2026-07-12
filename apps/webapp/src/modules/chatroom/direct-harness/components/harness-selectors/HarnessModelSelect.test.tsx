@@ -61,6 +61,16 @@ describe('HarnessModelSelect', () => {
     expect(screen.getByRole('button', { name: 'No models available yet' })).toBeDisabled();
   });
 
+  it('renders popover content with opaque chatroom primary background', () => {
+    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    openDropdown();
+
+    const content = document.querySelector('[data-slot="popover-content"]');
+    expect(content).not.toBeNull();
+    expect(content?.className).toContain('bg-chatroom-bg-primary');
+    expect(content?.className).not.toContain('bg-chatroom-bg-surface');
+  });
+
   it('renders all models when no isHidden prop is passed', () => {
     render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
     openDropdown();
