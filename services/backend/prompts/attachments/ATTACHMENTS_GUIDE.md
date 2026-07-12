@@ -24,6 +24,24 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 - **Attached messages** appear in primary delivery and `task read` as `<attachment type="message" message-id="...">` inside the shared `<attachments>` block (source message only).
 - **Tasks** appear in primary delivery and `task read` as `<attachment type="task">` inside the shared `<attachments>` block (source message only).
 
+### Primary delivery `<task>` envelope
+
+```xml
+<task task-id="..." origin-message-id="..." sender="user">
+  <context>
+    <hint>(read if needed) → `chatroom context read ...`</hint>
+    <staleness-warning>⚠️ Context is 1d old.</staleness-warning>
+  </context>
+  <attachments>...</attachments>
+  <message sender="user" message-id="...">
+    <message-content>User message text</message-content>
+  </message>
+  <intake-note>Begin working from the task content above...</intake-note>
+</task>
+```
+
+Order: optional `<context>` → optional `<attachments>` → `<message>` → optional `<intake-note>` (CLI only).
+
 ---
 
 ## 2. File layout (webapp)

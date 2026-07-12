@@ -6,7 +6,7 @@
  * making the CLI a thin client that just prints the result.
  *
  * The output includes:
- * - Task section (IDs, context, task content, attached backlog)
+ * - Task section (IDs, context, attachments, task content)
  * - Process section (step-by-step workflow)
  * - Next Steps section (handoff instructions)
  * - Reminder footer

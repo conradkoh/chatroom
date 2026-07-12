@@ -44,7 +44,7 @@ describe('Duo Team > Builder > Get Next Task', () => {
     });
 
     expect(output).toBeDefined();
-    expect(output).toContain('📋 CHATROOM TASK');
+    expect(output).toContain('<task task-id=');
     expect(output).toContain('<next-steps>');
     // Non-entry point should NOT have context creation step
     expect(output).not.toContain('Set a new context per user message');

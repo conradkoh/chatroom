@@ -26,7 +26,7 @@ export function assertNativeDeliveryContract(
   expect(output).not.toContain('Level A');
   expect(output).not.toContain('Level B');
   expect(output).not.toContain('<role-guidance>');
-  expect(output).toContain('<task>');
+  expect(output).toContain('<task task-id=');
   expect(output).toContain('<next-steps>');
   expect(output).toContain('you MUST run the handoff command');
   expect(output).toContain('<handoff-templates>');

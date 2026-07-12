@@ -1,5 +1,6 @@
 /**
  * Shared context header + staleness warnings for task delivery (CLI and native).
+ * Emits <context> XML wrapper.
  */
 
 import { contextNewCommand } from '../cli/context/new';
@@ -33,16 +34,21 @@ function appendContextUpdateHint(lines: string[], params: ContextUpdateParams): 
   const { chatroomId, role, cliEnvPrefix, isEntryPoint } = params;
   if (!isEntryPoint) return;
   const cmd = contextNewCommand({ chatroomId, role, cliEnvPrefix });
-  lines.push('   Update →');
-  lines.push('   ```bash');
-  lines.push(...cmd.split('\n').map((l) => `   ${l}`));
-  lines.push('   ```');
+  lines.push('  <context-update-hint>');
+  lines.push('    Update →');
+  lines.push('    ```bash');
+  lines.push(...cmd.split('\n').map((l) => `    ${l}`));
+  lines.push('    ```');
+  lines.push('  </context-update-hint>');
 }
 
 function appendContextHeader(lines: string[], contextReadLine: string): void {
-  lines.push('');
-  lines.push('## Context');
-  lines.push(contextReadLine);
+  lines.push('<context>');
+  lines.push(`  <hint>${contextReadLine}</hint>`);
+}
+
+function appendContextClose(lines: string[]): void {
+  lines.push('</context>');
 }
 
 function appendElapsedContextStaleness(
@@ -52,16 +58,16 @@ function appendElapsedContextStaleness(
 ): void {
   if (elapsedHours >= 24) {
     const ageDays = Math.floor(elapsedHours / 24);
-    lines.push('');
-    lines.push(`⚠️ Context is ${ageDays}d old.`);
+    lines.push(`  <staleness-warning>⚠️ Context is ${ageDays}d old.</staleness-warning>`);
     appendContextUpdateHint(lines, updateParams);
     return;
   }
 
   if (elapsedHours >= 4) {
     const ageHours = Math.floor(elapsedHours);
-    lines.push('');
-    lines.push(`⚠️ Context is ${ageHours}h old — consider refreshing if stale.`);
+    lines.push(
+      `  <staleness-warning>⚠️ Context is ${ageHours}h old — consider refreshing if stale.</staleness-warning>`
+    );
     appendContextUpdateHint(lines, updateParams);
   }
 }
@@ -74,8 +80,9 @@ function appendLegacyOriginStaleness(
   updateParams: ContextUpdateParams
 ): void {
   if (followUpCount >= 5) {
-    lines.push('');
-    lines.push(`⚠️ Stale: ${followUpCount} follow-ups since pinned message.`);
+    lines.push(
+      `  <staleness-warning>⚠️ Stale: ${followUpCount} follow-ups since pinned message.</staleness-warning>`
+    );
     appendContextUpdateHint(lines, updateParams);
   }
 
@@ -85,8 +92,7 @@ function appendLegacyOriginStaleness(
   if (ageHours < 24) return;
 
   const ageDays = Math.floor(ageHours / 24);
-  lines.push('');
-  lines.push(`⚠️ Pinned message is ${ageDays}d old.`);
+  lines.push(`  <staleness-warning>⚠️ Pinned message is ${ageDays}d old.</staleness-warning>`);
   appendContextUpdateHint(lines, updateParams);
 }
 
@@ -95,8 +101,7 @@ function isUserOriginMessage(originMessage: { senderRole: string } | null | unde
 }
 
 /**
- * Append ## Context header, context read link, and staleness warnings when applicable.
- * Matches CLI get-next-task task delivery behavior.
+ * Append <context> XML section with context read link and staleness warnings.
  */
 // fallow-ignore-next-line complexity
 export function appendTaskDeliveryContextSection(
@@ -121,6 +126,7 @@ export function appendTaskDeliveryContextSection(
   if (currentContext) {
     appendContextHeader(lines, contextReadLine);
     appendElapsedContextStaleness(lines, currentContext.elapsedHours, updateParams);
+    appendContextClose(lines);
     return;
   }
 
@@ -134,4 +140,5 @@ export function appendTaskDeliveryContextSection(
     nowMs,
     updateParams
   );
+  appendContextClose(lines);
 }

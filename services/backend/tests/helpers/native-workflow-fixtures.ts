@@ -175,6 +175,13 @@ export const NATIVE_DELIVERY_SECTION_ORDER = [
 ] as const;
 
 export function indexOfSectionLine(output: string, tag: string): number {
+  const isOpeningTag = tag.startsWith('<') && !tag.startsWith('</') && tag.endsWith('>');
+  if (isOpeningTag) {
+    const tagName = tag.slice(1, -1);
+    const re = new RegExp(`^<${tagName}(?:\\s[^>]*)?>`, 'm');
+    const match = re.exec(output);
+    return match?.index ?? -1;
+  }
   const re = new RegExp(`^${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm');
   const match = re.exec(output);
   return match?.index ?? -1;
