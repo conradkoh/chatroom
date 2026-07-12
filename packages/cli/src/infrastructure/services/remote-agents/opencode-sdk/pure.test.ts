@@ -64,23 +64,17 @@ describe('isInfoLine', () => {
     expect(isInfoLine('')).toBe(false);
   });
 
-  it('returns true for structured log line starting with timestamp=', () => {
-    expect(
-      isInfoLine(
-        'timestamp=2026-07-11T08:20:22.415Z level=INFO run=c792c273 message=evaluated permission=bash pattern="grep"'
-      )
-    ).toBe(true);
-  });
-
-  it('returns true for structured log line with leading whitespace', () => {
-    expect(
-      isInfoLine('  timestamp=2026-07-11T08:20:22.415Z level=INFO run=c792c273 message=tracking')
-    ).toBe(true);
-  });
-
   it('returns false for agent output with timestamp in brackets', () => {
     expect(
       isInfoLine('[2026-07-11T08:20:24.355Z] role:planner thinking] Let me see the actual types:')
+    ).toBe(false);
+  });
+
+  it('returns false for structured level=INFO line (suppressed via --log-level WARN at spawn)', () => {
+    expect(
+      isInfoLine(
+        'timestamp=2026-07-11T08:20:28.536Z level=INFO run=c792c273 message="llm runtime selected"'
+      )
     ).toBe(false);
   });
 });
