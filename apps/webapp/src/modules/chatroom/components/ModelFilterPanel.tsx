@@ -4,6 +4,15 @@ import React, { useMemo, useState, useCallback } from 'react';
 
 import { getModelDisplayLabel } from '../types/machine';
 import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../utils/modelSelection';
+
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 import { cn } from '@/lib/utils';
@@ -169,142 +178,164 @@ export function ModelFilterPanel({
 
   const hasAnyFilter = hiddenCount > 0;
 
-  return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="p-0 w-[420px]" align="end">
-        {/* Header */}
-        <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
-            Model Visibility
-          </span>
-          <div className="flex items-center gap-2">
-            {hiddenCount > 0 && (
-              <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
-                {hiddenCount} HIDDEN
-              </span>
-            )}
-            {allProviderKeys.length > 0 && (
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={allHidden ? clearAllFilters : handleHideAll}
-                className={cn(
-                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                  allHidden
-                    ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
-                    : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
-                )}
-              >
-                {allHidden ? 'Show All' : 'Hide All'}
-              </button>
-            )}
-          </div>
+  const isDesktop = useIsDesktop();
+
+  const panelContent = (
+    <>
+      {/* Header */}
+      <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
+          Model Visibility
+        </span>
+        <div className="flex items-center gap-2">
+          {hiddenCount > 0 && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
+              {hiddenCount} HIDDEN
+            </span>
+          )}
+          {allProviderKeys.length > 0 && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={allHidden ? clearAllFilters : handleHideAll}
+              className={cn(
+                'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                allHidden
+                  ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
+                  : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+              )}
+            >
+              {allHidden ? 'Show All' : 'Hide All'}
+            </button>
+          )}
         </div>
+      </div>
 
-        {/* Search input */}
-        <div className="px-3 py-1.5 border-b border-chatroom-border">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search models..."
-            className="w-full bg-chatroom-bg-tertiary border border-chatroom-border px-2 py-1 text-[11px] text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent"
-            autoFocus
-          />
-        </div>
+      {/* Search input */}
+      <div className="px-3 py-1.5 border-b border-chatroom-border">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search models..."
+          className="w-full bg-chatroom-bg-tertiary border border-chatroom-border px-2 py-1 text-[11px] text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent"
+          autoFocus
+        />
+      </div>
 
-        {/* Model list grouped by provider */}
-        <div className="max-h-[576px] overflow-y-auto">
-          {Array.from(filteredModelsByProvider.entries()).map(([providerKey, models]) => {
-            const isProviderHidden = hiddenProvidersSet.has(providerKey);
-            return (
-              <div key={providerKey}>
-                {/* Provider row */}
-                <div className="px-3 py-1.5 border-b border-chatroom-border flex items-center justify-between bg-chatroom-bg-tertiary">
-                  <span
-                    className={
-                      isProviderHidden
-                        ? 'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted opacity-60'
-                        : 'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-secondary'
-                    }
-                  >
-                    {getProviderDisplayName(providerKey)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => handleProviderToggle(providerKey)}
-                    className={cn(
-                      'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                      isProviderHidden
-                        ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
-                        : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
-                    )}
-                  >
-                    {isProviderHidden ? 'Show All' : 'Hide All'}
-                  </button>
-                </div>
-
-                {/* Individual model rows — always shown, even when provider is hidden */}
-                {models.map((model) => {
-                  const hasOverride = hiddenModelsSet.has(model);
-                  // Effective visibility: provider hidden means model is hidden unless there's an override
-                  const isEffectivelyHidden = isProviderHidden ? !hasOverride : hasOverride;
-
-                  return (
-                    <div
-                      key={model}
-                      className={cn(
-                        'py-1 flex items-center gap-2 hover:bg-chatroom-bg-hover cursor-pointer group',
-                        isProviderHidden ? 'pl-5 pr-4 border-l-2 border-chatroom-border' : 'px-4'
-                      )}
-                      onClick={() => handleModelToggle(model)}
-                      role="checkbox"
-                      aria-checked={!isEffectivelyHidden}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          handleModelToggle(model);
-                        }
-                      }}
-                    >
-                      {/* Square indicator: filled = visible, empty = hidden */}
-                      <div
-                        className={
-                          isEffectivelyHidden
-                            ? 'w-3 h-3 border border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0'
-                            : 'w-3 h-3 border border-chatroom-accent bg-chatroom-accent flex-shrink-0'
-                        }
-                      />
-                      <span
-                        className={
-                          isEffectivelyHidden
-                            ? 'text-[10px] uppercase tracking-wider text-chatroom-text-muted flex-1 truncate opacity-50'
-                            : 'text-[10px] uppercase tracking-wider text-chatroom-text-primary flex-1 truncate'
-                        }
-                      >
-                        {getModelDisplayLabel(model)}
-                      </span>
-                    </div>
-                  );
-                })}
+      {/* Model list grouped by provider */}
+      <div className="max-h-[576px] overflow-y-auto">
+        {Array.from(filteredModelsByProvider.entries()).map(([providerKey, models]) => {
+          const isProviderHidden = hiddenProvidersSet.has(providerKey);
+          return (
+            <div key={providerKey}>
+              {/* Provider row */}
+              <div className="px-3 py-1.5 border-b border-chatroom-border flex items-center justify-between bg-chatroom-bg-tertiary">
+                <span
+                  className={
+                    isProviderHidden
+                      ? 'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted opacity-60'
+                      : 'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-secondary'
+                  }
+                >
+                  {getProviderDisplayName(providerKey)}
+                </span>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => handleProviderToggle(providerKey)}
+                  className={cn(
+                    'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                    isProviderHidden
+                      ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
+                      : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+                  )}
+                >
+                  {isProviderHidden ? 'Show All' : 'Hide All'}
+                </button>
               </div>
-            );
-          })}
-        </div>
 
-        {/* Reset button */}
-        <button
-          type="button"
-          disabled={disabled || !hasAnyFilter}
-          onClick={clearAllFilters}
-          className="w-full text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Reset All
-        </button>
-      </PopoverContent>
-    </Popover>
+              {/* Individual model rows — always shown, even when provider is hidden */}
+              {models.map((model) => {
+                const hasOverride = hiddenModelsSet.has(model);
+                // Effective visibility: provider hidden means model is hidden unless there's an override
+                const isEffectivelyHidden = isProviderHidden ? !hasOverride : hasOverride;
+
+                return (
+                  <div
+                    key={model}
+                    className={cn(
+                      'py-1 flex items-center gap-2 hover:bg-chatroom-bg-hover cursor-pointer group',
+                      isProviderHidden ? 'pl-5 pr-4 border-l-2 border-chatroom-border' : 'px-4'
+                    )}
+                    onClick={() => handleModelToggle(model)}
+                    role="checkbox"
+                    aria-checked={!isEffectivelyHidden}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleModelToggle(model);
+                      }
+                    }}
+                  >
+                    {/* Square indicator: filled = visible, empty = hidden */}
+                    <div
+                      className={
+                        isEffectivelyHidden
+                          ? 'w-3 h-3 border border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0'
+                          : 'w-3 h-3 border border-chatroom-accent bg-chatroom-accent flex-shrink-0'
+                      }
+                    />
+                    <span
+                      className={
+                        isEffectivelyHidden
+                          ? 'text-[10px] uppercase tracking-wider text-chatroom-text-muted flex-1 truncate opacity-50'
+                          : 'text-[10px] uppercase tracking-wider text-chatroom-text-primary flex-1 truncate'
+                      }
+                    >
+                      {getModelDisplayLabel(model)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Reset button */}
+      <button
+        type="button"
+        disabled={disabled || !hasAnyFilter}
+        onClick={clearAllFilters}
+        className="w-full text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Reset All
+      </button>
+    </>
+  );
+
+  if (isDesktop) {
+    return (
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent className="p-0 w-[420px]" align="end">
+          {panelContent}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <Drawer open={open} onOpenChange={handleOpenChange}>
+      <DrawerTrigger asChild>{trigger}</DrawerTrigger>
+      <DrawerContent className="bg-chatroom-bg-primary border-t border-chatroom-border p-0 max-h-[80vh]">
+        <DrawerHeader className="p-0">
+          <DrawerTitle className="sr-only">Model Visibility</DrawerTitle>
+        </DrawerHeader>
+        {panelContent}
+      </DrawerContent>
+    </Drawer>
   );
 }
