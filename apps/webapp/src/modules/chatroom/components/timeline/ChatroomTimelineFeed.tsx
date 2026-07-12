@@ -455,10 +455,9 @@ export function ChatroomTimelineFeed({
                 ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
-                  top: 0,
+                  top: virtualRow.start,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
                   contain: 'layout style',
                 }}
               >

@@ -14,7 +14,12 @@ import { memo } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
-import { BADGE_BASE, ICON_SIZE, TIMELINE_ROW_BORDER } from './timelineRowStyles';
+import {
+  BADGE_BASE,
+  ICON_SIZE,
+  TIMELINE_MESSAGE_HEADER_STICKY,
+  TIMELINE_ROW_BORDER,
+} from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import type { Message, MessageClassification } from '../../types/message';
 
@@ -109,7 +114,10 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
 
   return (
     <div className={`${TIMELINE_ROW_BORDER} bg-transparent`} data-testid="timeline-user-message">
-      <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
+      <div
+        className={`w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong ${TIMELINE_MESSAGE_HEADER_STICKY}`}
+        data-testid="timeline-message-header"
+      >
         <div className="flex items-center h-8 px-3 min-w-0">
           {message.isQueued ? (
             <span

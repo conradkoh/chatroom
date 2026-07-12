@@ -10,6 +10,7 @@ import {
   formatMachineLabel,
   getSenderClasses,
   ICON_SIZE,
+  TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
   type MachineNameEntry,
 } from './timelineRowStyles';
@@ -50,7 +51,10 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       className={`px-4 py-3 ${TIMELINE_ROW_BORDER} bg-transparent`}
       data-testid="timeline-team-message"
     >
-      <div className="flex flex-wrap justify-between items-center gap-y-1 gap-x-2 mb-2 pb-1.5 border-b border-chatroom-border">
+      <div
+        className={`flex flex-wrap justify-between items-center gap-y-1 gap-x-2 -mx-4 px-4 py-1.5 mb-2 ${TIMELINE_MESSAGE_HEADER_STICKY}`}
+        data-testid="timeline-message-header"
+      >
         <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
           {messageTypeBadge && (
             <span className={messageTypeBadge.className}>
