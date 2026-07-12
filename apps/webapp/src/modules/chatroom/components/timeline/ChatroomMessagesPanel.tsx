@@ -5,7 +5,11 @@ import type React from 'react';
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import { FilteredUserMessagesView } from './FilteredUserMessagesView';
 import type { MachineNameEntry } from './timelineRowStyles';
-import type { MessageViewMode } from '../../hooks/persistence/useMessageViewMode';
+import {
+  isFilteredMessageViewMode,
+  messageViewModeToSenderRole,
+  type MessageViewMode,
+} from '../../hooks/persistence/messageViewMode';
 import type { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 
 export interface ChatroomMessagesPanelProps {
@@ -30,9 +34,13 @@ export function ChatroomMessagesPanel({
   viewMode,
   footer,
 }: ChatroomMessagesPanelProps) {
+  const filterRole = isFilteredMessageViewMode(viewMode)
+    ? messageViewModeToSenderRole(viewMode)
+    : null;
+
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      {viewMode === 'all' ? (
+      {filterRole === null ? (
         <ChatroomTimelineFeed
           chatroomId={chatroomId}
           coordinator={coordinator}
@@ -41,7 +49,11 @@ export function ChatroomMessagesPanel({
           machines={machines}
         />
       ) : (
-        <FilteredUserMessagesView chatroomId={chatroomId} machines={machines} />
+        <FilteredUserMessagesView
+          chatroomId={chatroomId}
+          senderRole={filterRole}
+          machines={machines}
+        />
       )}
 
       {footer ? <div className="shrink-0">{footer}</div> : null}

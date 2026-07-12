@@ -1,5 +1,5 @@
 /**
- * MessageViewToggle — segmented control for All / My messages view.
+ * MessageViewToggle — segmented control for All / per-role message views.
  */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -8,21 +8,26 @@ import { describe, it, expect, vi } from 'vitest';
 import { MessageViewToggle } from './MessageViewToggle';
 
 describe('MessageViewToggle', () => {
-  it('renders both tabs and calls onChange on click', async () => {
+  it('renders All and team role tabs', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
-    render(<MessageViewToggle mode="all" onChange={onChange} />);
+    render(<MessageViewToggle mode="all" onChange={onChange} teamRoles={['planner', 'builder']} />);
 
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'User' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Planner' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Builder' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Planner' }));
+    expect(onChange).toHaveBeenCalledWith('role:planner');
 
     await user.click(screen.getByRole('tab', { name: 'User' }));
     expect(onChange).toHaveBeenCalledWith('user-only');
   });
 
   it('fits within header row without expanding the container', () => {
-    render(<MessageViewToggle mode="all" onChange={vi.fn()} />);
+    render(<MessageViewToggle mode="all" onChange={vi.fn()} teamRoles={['planner', 'builder']} />);
 
     const toggle = screen.getByTestId('message-view-toggle');
     expect(toggle.className).toMatch(/\bh-6\b/);

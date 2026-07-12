@@ -11,13 +11,17 @@ import type { Message } from '../types/message';
 
 const PAGE_SIZE = 20;
 
-export function useFilteredUserMessages(chatroomId: string, enabled: boolean) {
+export function useFilteredMessagesByRole(
+  chatroomId: string,
+  senderRole: string,
+  enabled: boolean
+) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const [sessionId] = useSessionId();
 
   const paginated = usePaginatedQuery(
-    api.messages.listUserMessagesPaginated,
-    enabled && sessionId ? { chatroomId: typedChatroomId, sessionId } : 'skip',
+    api.messages.listMessagesBySenderRolePaginated,
+    enabled && sessionId ? { chatroomId: typedChatroomId, senderRole, sessionId } : 'skip',
     { initialNumItems: PAGE_SIZE }
   );
 

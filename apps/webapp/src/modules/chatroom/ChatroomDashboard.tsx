@@ -1544,7 +1544,11 @@ export function ChatroomDashboard({
                   <WorkspaceHeaderRow className="justify-between gap-2 px-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {activeView === 'messages' && (
-                        <MessageViewToggle mode={messageViewMode} onChange={setMessageViewMode} />
+                        <MessageViewToggle
+                          mode={messageViewMode}
+                          onChange={setMessageViewMode}
+                          teamRoles={teamRoles}
+                        />
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1600,6 +1604,7 @@ export function ChatroomDashboard({
                       >
                         <RightSplitPanel
                           chatroomId={chatroomId as Id<'chatroom_rooms'>}
+                          teamRoles={teamRoles}
                           messagesPanelProps={{
                             coordinator: timelineScrollCoordinator,
                             onRegisterOpenEventStream: handleRegisterOpenEventStream,
