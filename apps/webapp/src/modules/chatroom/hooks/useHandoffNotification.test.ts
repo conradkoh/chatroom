@@ -22,7 +22,7 @@ function makeMessage(
 // ─── Mock: Notification (fallback path) ──────────────────────────────────────
 
 const notificationCloseMock = vi.fn();
-const notificationInstances: Array<{ body: string; tag: string; close: () => void }> = [];
+const notificationInstances: { body: string; tag: string; close: () => void }[] = [];
 
 class MockNotification {
   static permission: NotificationPermission = 'granted';
@@ -67,7 +67,7 @@ function disableServiceWorker() {
 // ─── Visibility helpers ──────────────────────────────────────────────────────
 
 let originalHidden: boolean;
-let visibilityListeners: Array<() => void>;
+let visibilityListeners: (() => void)[];
 
 function setDocumentHidden(hidden: boolean) {
   Object.defineProperty(document, 'hidden', {
@@ -153,7 +153,7 @@ describe('useHandoffNotification', () => {
     expect(swPostMessage).toHaveBeenCalledWith({
       type: 'SHOW_NOTIFICATION',
       payload: {
-        title: 'Chatroom Handoff',
+        title: 'Handoff',
         body: 'planner has handed off to you',
         tag: 'chatroom-handoff',
         chatroomId: 'test-chatroom-id',

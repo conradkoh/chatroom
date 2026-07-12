@@ -37,8 +37,9 @@ const NOTIFICATION_THROTTLE_MS = 3000;
  *    notifications, not general chatroom activity (e.g., agent-to-agent
  *    messages, progress updates, etc.).
  *
- * 5. **Simplified copy** — Each handoff shows `<Chatroom Name> Handoff` with
- *    body `Tasks complete.` One notification per chatroom, throttled per tag.
+ * 5. **Simplified copy** — Each handoff shows `<Name> Handoff` (or `Handoff`
+ *    when unnamed) with body `Tasks complete.` One notification per chatroom,
+ *    throttled per tag.
  *
  * ## Limitations:
  *

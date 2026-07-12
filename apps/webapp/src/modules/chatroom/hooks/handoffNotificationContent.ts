@@ -1,12 +1,13 @@
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 export function buildHandoffNotificationContent(
   chatroom: Pick<ChatroomWithStatus, 'name' | 'teamName'>
 ): { title: string; body: string } {
-  const name = getChatroomDisplayName(chatroom);
+  const name = chatroom.name?.trim();
+  const teamName = chatroom.teamName?.trim();
+  const title = name ? `${name} Handoff` : teamName ? `${teamName} Handoff` : 'Handoff';
   return {
-    title: `${name} Handoff`,
+    title,
     body: 'Tasks complete.',
   };
 }
