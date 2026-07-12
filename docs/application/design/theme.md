@@ -342,10 +342,14 @@ Industrial styling for portaled surfaces inside the chatroom module should use t
 | Shared class constants       | `apps/webapp/src/modules/chatroom/components/shared/industrialDialogStyles.ts` |
 | Command palette dialogs      | `apps/webapp/src/modules/chatroom/components/shared/commandDialogStyles.ts`    |
 | Dropdown / context menus     | `apps/webapp/src/modules/chatroom/components/ui/dropdown-menu.tsx`             |
+| Select dropdowns             | `apps/webapp/src/modules/chatroom/components/ui/select.tsx`                    |
+| Popover panels               | `apps/webapp/src/modules/chatroom/components/ui/popover.tsx`                   |
 | Modals (create, edit)        | `apps/webapp/src/modules/chatroom/components/ui/dialog.tsx`                    |
 | Confirmations (delete)       | `apps/webapp/src/modules/chatroom/components/ui/alert-dialog.tsx`              |
 
 Rules: `rounded-none`, `border-2` on modals, `bg-chatroom-bg-primary` / `text-chatroom-*` tokens (light and dark via CSS variables).
+
+- Portaled menus (dropdown, select, popover, context menu) MUST use opaque `bg-chatroom-bg-primary` — never `bg-chatroom-bg-surface` or glassmorphism/backdrop-blur on portaled content.
 
 ### Tailwind Classes
 

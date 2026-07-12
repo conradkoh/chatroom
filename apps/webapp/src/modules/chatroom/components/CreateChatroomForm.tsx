@@ -4,13 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useCallback, useEffect } from 'react';
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 
 interface CreateChatroomFormProps {
@@ -114,7 +108,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
             <SelectTrigger className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary h-auto p-3 text-sm focus:ring-0 focus:outline-none focus:border-chatroom-border-strong rounded-none">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none">
+            <SelectContent className="border-2">
               {teams.map((team) => (
                 <SelectItem
                   key={team.id}

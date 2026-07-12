@@ -11,14 +11,14 @@ import { MessageAttachmentChips, countMessageAttachments } from '../../attachmen
 import type { Message } from '../../types/message';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '../ui/dropdown-menu';
+
 import {
   FixedModal,
   FixedModalBody,

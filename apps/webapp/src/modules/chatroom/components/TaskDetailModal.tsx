@@ -9,14 +9,14 @@ import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from './ui/dropdown-menu';
+
 import {
   FixedModal,
   FixedModalBody,

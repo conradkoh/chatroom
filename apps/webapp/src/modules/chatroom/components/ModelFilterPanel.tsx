@@ -3,12 +3,9 @@
 import React, { useMemo, useState, useCallback } from 'react';
 
 import { getModelDisplayLabel } from '../types/machine';
-import {
-  getModelProviderKey,
-  UNPREFIXED_PROVIDER_KEY,
-} from '../utils/modelSelection';
+import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../utils/modelSelection';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 interface ModelFilterPanelProps {
@@ -109,15 +106,10 @@ export function ModelFilterPanel({
     return filtered;
   }, [modelsByProvider, searchTerm]);
 
-  const allProviderKeys = useMemo(
-    () => Array.from(modelsByProvider.keys()),
-    [modelsByProvider]
-  );
+  const allProviderKeys = useMemo(() => Array.from(modelsByProvider.keys()), [modelsByProvider]);
 
   const allHidden = useMemo(
-    () =>
-      allProviderKeys.length > 0 &&
-      allProviderKeys.every((key) => hiddenProvidersSet.has(key)),
+    () => allProviderKeys.length > 0 && allProviderKeys.every((key) => hiddenProvidersSet.has(key)),
     [allProviderKeys, hiddenProvidersSet]
   );
 
@@ -162,14 +154,7 @@ export function ModelFilterPanel({
         onFilterChange(newHiddenModels, [...hiddenProviders, provider]);
       }
     },
-    [
-      disabled,
-      hiddenModels,
-      hiddenProviders,
-      hiddenProvidersSet,
-      modelsByProvider,
-      onFilterChange,
-    ]
+    [disabled, hiddenModels, hiddenProviders, hiddenProvidersSet, modelsByProvider, onFilterChange]
   );
 
   // Count models that are effectively hidden (used for the header badge)
@@ -187,10 +172,7 @@ export function ModelFilterPanel({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        className="bg-chatroom-bg-primary border border-chatroom-border p-0 w-[420px] rounded-none"
-        align="end"
-      >
+      <PopoverContent className="p-0 w-[420px]" align="end">
         {/* Header */}
         <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
