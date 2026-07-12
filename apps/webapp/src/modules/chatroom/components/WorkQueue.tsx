@@ -32,13 +32,12 @@ import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
 import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from './ui/dropdown-menu';
 
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;

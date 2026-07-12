@@ -467,7 +467,7 @@ export class OpencodeSdkHarness implements BoundHarness {
  * client, and return a BoundHarness.
  */
 export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
-  const childProcess = spawn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
+  const childProcess = spawn(OPENCODE_COMMAND, ['serve', '--print-logs', '--log-level', 'WARN'], {
     cwd: config.workingDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,

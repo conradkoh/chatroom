@@ -14,7 +14,8 @@
  *   agent.requestStop  | stopped         | STOPPING        | Yellow
  *   task.acknowledged  | any             | TASK RECEIVED   | Green
  *   task.inProgress    | any             | WORKING         | Blue (pulse)
- *   task.completed     | any             | WORKING         | Blue (pulse)
+ *   task.completed     | any             | WAITING          | Green
+ *   agent.awaitingHandoff | any         | AWAITING HANDOFF | Yellow
  *   agent.exited       | stopped         | OFFLINE         | Grey
  *   agent.exited       | running/undef   | OFFLINE (ERROR) | Red
  *   agent.circuitOpen  | any             | OFFLINE (ERROR) | Red
@@ -109,9 +110,17 @@ export function resolveAgentStatus(
     return { label: 'TASK RECEIVED', variant: 'ready' };
   }
 
-  if (eventType === 'task.inProgress' || eventType === 'task.completed') {
-    // Both show WORKING: completed is momentary before returning to WAITING
+  if (eventType === 'agent.awaitingHandoff') {
+    return { label: 'AWAITING HANDOFF', variant: 'transitioning' };
+  }
+
+  if (eventType === 'task.inProgress') {
     return { label: 'WORKING', variant: 'working' };
+  }
+
+  if (eventType === 'task.completed') {
+    // Harness turn ended / handoff done — idle until next task injection
+    return { label: 'WAITING', variant: 'ready' };
   }
 
   // NOTE: task.activated is intentionally NOT mapped here. It fires at task

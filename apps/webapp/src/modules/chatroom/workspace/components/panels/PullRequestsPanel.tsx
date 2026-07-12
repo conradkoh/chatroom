@@ -15,6 +15,13 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { GitPullRequest as GitPullRequestIcon, Loader2, Star } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../components/ui/select';
 import { useCurrentBranchPullRequest } from '../../hooks/useCurrentBranchPullRequest';
 import { useAllPullRequests } from '../../hooks/useWorkspaceGit';
 import type { GitPullRequest } from '../../types/git';
@@ -22,13 +29,6 @@ import { prStateBadge, relativeTime } from '../../utils/pr-helpers';
 import { WorkspacePRReview } from '../WorkspacePRReview';
 
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
@@ -134,7 +134,7 @@ const PRListColumn = memo(function PRListColumn({
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-chatroom-bg-surface border border-chatroom-border rounded-none">
+          <SelectContent>
             {(Object.keys(FILTER_LABELS) as PRFilter[]).map((f) => (
               <SelectItem key={f} value={f} className="text-xs rounded-none">
                 {FILTER_LABELS[f]}

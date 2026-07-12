@@ -1,6 +1,7 @@
 /**
- * Harness-local Select — identical API to ShadCN Select but with sharp corners
- * (removes rounded-md from Trigger, Content, and Item) per docs/application/design/theme.md.
+ * Chatroom-local Select — themed for portaled floating menus in the chatroom UI.
+ * Uses opaque bg-chatroom-bg-primary for portaled SelectContent (not glassmorphism).
+ * All corners rounded-none per chatroom design spec.
  */
 'use client';
 
@@ -8,34 +9,21 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import type * as React from 'react';
 
-import { chatroomPortaledMenuSurfaceClassName } from '../../../components/shared/industrialDialogStyles';
+import { chatroomPortaledMenuSurfaceClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />;
+  return <SelectPrimitive.Root data-slot="chatroom-select" {...props} />;
+}
+
+function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {
+  return <SelectPrimitive.Group data-slot="chatroom-select-group" {...props} />;
 }
 
 function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.Value>) {
-  return <SelectPrimitive.Value data-slot="select-value" {...props} />;
+  return <SelectPrimitive.Value data-slot="chatroom-select-value" {...props} />;
 }
-
-/**
- * Shared layout/border/focus/disabled classes for trigger elements that need
- * to visually match a SelectTrigger. Import this when a plain <button> needs
- * to be style-compatible with SelectTrigger (e.g. HarnessModelSelect).
- *
- * Does NOT include SelectTrigger-specific data-attribute selectors
- * (data-[size=...], *:data-[slot=...], [&_svg]:...) — those stay inline.
- */
-export const selectTriggerClassName =
-  'flex h-8 w-full items-center justify-between gap-2 ' +
-  'rounded-none border border-input bg-transparent ' +
-  'px-3 py-2 text-xs shadow-xs whitespace-nowrap ' +
-  'transition-[color,box-shadow] outline-none ' +
-  'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring ' +
-  'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive ' +
-  'disabled:cursor-not-allowed disabled:opacity-50';
 
 function SelectTrigger({
   className,
@@ -47,10 +35,10 @@ function SelectTrigger({
 }) {
   return (
     <SelectPrimitive.Trigger
-      data-slot="select-trigger"
+      data-slot="chatroom-select-trigger"
       data-size={size}
       className={cn(
-        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-none border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "border-chatroom-border data-[placeholder]:text-chatroom-text-muted [&_svg:not([class*='text-'])]:text-chatroom-text-muted focus-visible:border-chatroom-border-strong focus-visible:ring-chatroom-border/50 flex w-fit items-center justify-between gap-2 rounded-none border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -72,7 +60,7 @@ function SelectContent({
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
-        data-slot="select-content"
+        data-slot="chatroom-select-content"
         className={cn(
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto',
           chatroomPortaledMenuSurfaceClassName,
@@ -99,6 +87,16 @@ function SelectContent({
   );
 }
 
+function SelectLabel({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Label>) {
+  return (
+    <SelectPrimitive.Label
+      data-slot="chatroom-select-label"
+      className={cn('text-chatroom-text-muted px-2 py-1.5 text-xs', className)}
+      {...props}
+    />
+  );
+}
+
 function SelectItem({
   className,
   children,
@@ -106,9 +104,9 @@ function SelectItem({
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
   return (
     <SelectPrimitive.Item
-      data-slot="select-item"
+      data-slot="chatroom-select-item"
       className={cn(
-        "focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary [&_svg:not([class*='text-'])]:text-chatroom-text-muted relative flex w-full cursor-default items-center gap-2 rounded-none py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary [&_svg:not([class*='text-'])]:text-chatroom-text-muted relative flex w-full cursor-pointer items-center gap-2 rounded-none py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}
@@ -123,14 +121,27 @@ function SelectItem({
   );
 }
 
+function SelectSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
+  return (
+    <SelectPrimitive.Separator
+      data-slot="chatroom-select-separator"
+      className={cn('bg-chatroom-border pointer-events-none -mx-1 my-1 h-px', className)}
+      {...props}
+    />
+  );
+}
+
 function SelectScrollUpButton({
   className,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
   return (
     <SelectPrimitive.ScrollUpButton
-      data-slot="select-scroll-up-button"
-      className={cn('flex cursor-default items-center justify-center py-1', className)}
+      data-slot="chatroom-select-scroll-up-button"
+      className={cn('flex cursor-pointer items-center justify-center py-1', className)}
       {...props}
     >
       <ChevronUpIcon className="size-4" />
@@ -144,8 +155,8 @@ function SelectScrollDownButton({
 }: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
   return (
     <SelectPrimitive.ScrollDownButton
-      data-slot="select-scroll-down-button"
-      className={cn('flex cursor-default items-center justify-center py-1', className)}
+      data-slot="chatroom-select-scroll-down-button"
+      className={cn('flex cursor-pointer items-center justify-center py-1', className)}
       {...props}
     >
       <ChevronDownIcon className="size-4" />
@@ -153,4 +164,15 @@ function SelectScrollDownButton({
   );
 }
 
-export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue };
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+};

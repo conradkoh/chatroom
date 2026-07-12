@@ -568,7 +568,7 @@ describe('OpenCodeSdkAgentService', () => {
       });
       expect(deps.spawn).toHaveBeenCalledWith(
         'opencode',
-        ['serve', '--print-logs'],
+        ['serve', '--print-logs', '--log-level', 'WARN'],
         expect.objectContaining({ cwd: '/tmp/test', detached: true })
       );
 
@@ -1114,7 +1114,7 @@ describe('OpenCodeSdkAgentService', () => {
       expect(sdk.get).toHaveBeenCalledWith({ path: { id: 'sess-resume-1' } });
       expect(deps.spawn).toHaveBeenCalledWith(
         'opencode',
-        ['serve', '--print-logs'],
+        ['serve', '--print-logs', '--log-level', 'WARN'],
         expect.objectContaining({ cwd: '/tmp/resume-wd' })
       );
       const promptCall = sdk.promptAsync.mock.calls[0][0];

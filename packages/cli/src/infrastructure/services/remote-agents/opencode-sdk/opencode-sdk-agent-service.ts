@@ -154,13 +154,17 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   }
 
   private spawnServeProcess(workingDir: string, resolvedConvexUrl: string): ChildProcess {
-    const childProcess = this.deps.spawn(OPENCODE_COMMAND, ['serve', '--print-logs'], {
-      cwd: workingDir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,
-      detached: true,
-      env: buildAgentSpawnEnv(resolvedConvexUrl),
-    });
+    const childProcess = this.deps.spawn(
+      OPENCODE_COMMAND,
+      ['serve', '--print-logs', '--log-level', 'WARN'],
+      {
+        cwd: workingDir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false,
+        detached: true,
+        env: buildAgentSpawnEnv(resolvedConvexUrl),
+      }
+    );
 
     if (!childProcess.pid) {
       throw new Error('Failed to spawn opencode serve process');
@@ -211,7 +215,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     }
     if (childProcess.stderr) {
       const stderrBuffer = new StderrLineBuffer((line) => {
-        emitLogLine(line);
+        if (!isInfoLine(line)) emitLogLine(line);
       });
       childProcess.stderr.on('data', (chunk: Buffer | string) => {
         entry.lastOutputAt = Date.now();

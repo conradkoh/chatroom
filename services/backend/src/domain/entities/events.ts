@@ -222,6 +222,13 @@ export type AgentStopTimeoutEvent = {
   timestamp: number;
 };
 
+export type AgentAwaitingHandoffEvent = {
+  type: 'agent.awaitingHandoff';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  timestamp: number;
+};
+
 export type TaskAcknowledgedEvent = {
   type: 'task.acknowledged';
   chatroomId: Id<'chatroom_rooms'>;
@@ -285,4 +292,5 @@ export type ChatroomEvent =
   | AgentSessionCompactedEvent
   | AgentSessionAugmentedEvent
   | AgentRestartLimitReachedEvent
-  | AgentStopTimeoutEvent;
+  | AgentStopTimeoutEvent
+  | AgentAwaitingHandoffEvent;

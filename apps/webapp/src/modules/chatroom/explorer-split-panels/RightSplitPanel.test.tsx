@@ -21,7 +21,7 @@ vi.mock('./DirectHarnessPanel', () => ({
 // Minimal select mock that triggers onValueChange on item click
 const mockOnValueChange = vi.fn();
 
-vi.mock('@/components/ui/select', () => ({
+vi.mock('../components/ui/select', () => ({
   Select: ({
     children,
     onValueChange,
