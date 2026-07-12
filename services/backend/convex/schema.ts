@@ -1528,6 +1528,13 @@ export default defineSchema({
         machineId: v.string(),
         runId: v.id('chatroom_commandRuns'),
         timestamp: v.number(),
+      }),
+      // Agent's native harness turn ended with in_progress work — awaiting handoff
+      v.object({
+        type: v.literal('agent.awaitingHandoff'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        timestamp: v.number(),
       })
     )
   )
