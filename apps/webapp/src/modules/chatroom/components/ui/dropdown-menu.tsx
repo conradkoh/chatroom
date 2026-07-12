@@ -6,8 +6,10 @@
 'use client';
 
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { CheckIcon } from 'lucide-react';
+import { CheckIcon, ChevronRightIcon } from 'lucide-react';
 import type * as React from 'react';
+
+import { chatroomPortaledMenuSurfaceClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
 
@@ -16,8 +18,7 @@ export const chatroomDropdownMenuItemHighlightClassName =
   'rounded-none text-chatroom-text-primary focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary data-[highlighted]:bg-chatroom-bg-hover data-[highlighted]:text-chatroom-text-primary';
 
 /** Shared surface styles for chatroom portaled dropdown panels. */
-export const chatroomDropdownMenuContentClassName =
-  'z-[100] pointer-events-auto bg-chatroom-bg-primary text-chatroom-text-primary border border-chatroom-border p-0 rounded-none shadow-md';
+export const chatroomDropdownMenuContentClassName = `z-[100] pointer-events-auto p-0 ${chatroomPortaledMenuSurfaceClassName}`;
 
 function DropdownMenu({
   modal = false,
@@ -110,6 +111,48 @@ function DropdownMenuSeparator({
   );
 }
 
+function DropdownMenuSub({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  return <DropdownMenuPrimitive.Sub data-slot="chatroom-dropdown-menu-sub" {...props} />;
+}
+
+function DropdownMenuSubTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger>) {
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      data-slot="chatroom-dropdown-menu-sub-trigger"
+      className={cn(
+        'flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        chatroomDropdownMenuItemHighlightClassName,
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronRightIcon className="ml-auto size-4" />
+    </DropdownMenuPrimitive.SubTrigger>
+  );
+}
+
+function DropdownMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  return (
+    <DropdownMenuPrimitive.SubContent
+      data-slot="chatroom-dropdown-menu-sub-content"
+      className={cn(
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto',
+        chatroomDropdownMenuContentClassName,
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -117,4 +160,7 @@ export {
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 };

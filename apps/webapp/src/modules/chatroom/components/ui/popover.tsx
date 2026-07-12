@@ -1,22 +1,23 @@
 /**
- * Harness-local Popover — identical API to ShadCN Popover but with sharp corners
- * (removes rounded-md from PopoverContent) per docs/application/design/theme.md.
+ * Chatroom-local Popover — themed for portaled floating menus in the chatroom UI.
+ * Uses opaque bg-chatroom-bg-primary for portaled PopoverContent (not glassmorphism).
+ * All corners rounded-none per chatroom design spec.
  */
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import type * as React from 'react';
 
-import { chatroomPortaledMenuSurfaceClassName } from '../../../components/shared/industrialDialogStyles';
+import { chatroomPortaledMenuSurfaceClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
 
 function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />;
+  return <PopoverPrimitive.Root data-slot="chatroom-popover" {...props} />;
 }
 
 function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
+  return <PopoverPrimitive.Trigger data-slot="chatroom-popover-trigger" {...props} />;
 }
 
 function PopoverContent({
@@ -28,7 +29,7 @@ function PopoverContent({
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
-        data-slot="popover-content"
+        data-slot="chatroom-popover-content"
         align={align}
         sideOffset={sideOffset}
         className={cn(

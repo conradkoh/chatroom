@@ -30,6 +30,7 @@ import { IntegrationsTab } from './IntegrationsTab';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import {
   clearWorkspaceFileTree,
   toWorkspaceFileTreeKey,
@@ -52,13 +53,6 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { PromptsContext } from '@/contexts/PromptsContext';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
@@ -980,7 +974,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-chatroom-bg-surface border border-chatroom-border rounded-none">
+            <SelectContent>
               {TAB_CONFIG.map((tab) => (
                 <SelectItem key={tab.id} value={tab.id} className="text-xs rounded-none">
                   {tab.label}

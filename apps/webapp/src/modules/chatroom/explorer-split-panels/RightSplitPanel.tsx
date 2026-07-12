@@ -17,19 +17,18 @@ import { DirectHarnessPanel } from './DirectHarnessPanel';
 import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
 import { MessageViewToggle } from '../components/timeline/MessageViewToggle';
 import {
-  useExplorerSplitPanelMode,
-  type ExplorerSplitPanelMode,
-} from '../hooks/persistence/useExplorerSplitPanelMode';
-import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
-import { WorkspaceTabBarShell } from '../workspace/components/WorkspaceTabBar';
-
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../components/ui/select';
+import {
+  useExplorerSplitPanelMode,
+  type ExplorerSplitPanelMode,
+} from '../hooks/persistence/useExplorerSplitPanelMode';
+import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
+import { WorkspaceTabBarShell } from '../workspace/components/WorkspaceTabBar';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -82,10 +81,7 @@ function RightSplitPanelHeader({
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent
-            align="end"
-            className="bg-chatroom-bg-surface border border-chatroom-border rounded-none"
-          >
+          <SelectContent align="end">
             {(Object.keys(MODE_LABELS) as ExplorerSplitPanelMode[]).map((m) => (
               <SelectItem key={m} value={m} className="text-xs">
                 {MODE_LABELS[m]}

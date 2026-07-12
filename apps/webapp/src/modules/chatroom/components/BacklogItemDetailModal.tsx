@@ -18,14 +18,14 @@ import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './back
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from './ui/dropdown-menu';
+
 import {
   FixedModal,
   FixedModalContent,
