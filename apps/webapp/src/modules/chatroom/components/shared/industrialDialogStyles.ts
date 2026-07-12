@@ -42,3 +42,7 @@ export const chatroomIndustrialInputClassName =
   'bg-chatroom-bg-secondary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted rounded-none outline-none focus-visible:ring-0 focus-visible:border-chatroom-border-strong';
 
 export const chatroomIndustrialInputErrorClassName = 'border-chatroom-status-error';
+
+/** Opaque surface for Radix-portaled menus (dropdown, select, popover). Never use bg-chatroom-bg-surface here. */
+export const chatroomPortaledMenuSurfaceClassName =
+  'bg-chatroom-bg-primary text-chatroom-text-primary border border-chatroom-border rounded-none shadow-md';

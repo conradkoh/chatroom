@@ -31,11 +31,6 @@ import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { GitDiffStatClickable, InlineDiffStat } from './shared';
-import type { Workspace } from '../../types/workspace';
-import { getWorkspaceDisplayHostname } from '../../types/workspace';
-import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
-import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +40,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+} from '../../components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import type { Workspace } from '../../types/workspace';
+import { getWorkspaceDisplayHostname } from '../../types/workspace';
+import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
+import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
+
 import {
   FixedModal,
   FixedModalContent,
@@ -53,7 +54,6 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';

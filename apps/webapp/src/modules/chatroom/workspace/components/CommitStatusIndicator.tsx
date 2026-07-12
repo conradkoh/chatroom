@@ -8,9 +8,8 @@
 import { Check, XCircle, Clock, MinusCircle } from 'lucide-react';
 import { memo } from 'react';
 
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import type { CommitStatusSummary } from '../types/git';
-
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -36,6 +36,7 @@ import {
 import type { Workspace } from '../types/workspace';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import {
@@ -56,7 +57,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -854,10 +854,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       </button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                      className="p-0"
                       style={{ width: 'var(--radix-popover-trigger-width)' }}
                     >
-                      <Command className="bg-chatroom-bg-tertiary rounded-none">
+                      <Command className="bg-chatroom-bg-primary rounded-none">
                         <CommandList>
                           <CommandGroup>
                             {connectedMachines.map((machine) => (
@@ -920,10 +920,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       </button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                      className="p-0"
                       style={{ width: 'var(--radix-popover-trigger-width)' }}
                     >
-                      <Command className="bg-chatroom-bg-tertiary rounded-none">
+                      <Command className="bg-chatroom-bg-primary rounded-none">
                         <CommandList>
                           <CommandGroup>
                             {availableHarnessesForMachine.map((harness) => {
@@ -1080,8 +1080,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                           </div>
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[420px] rounded-none">
-                        <Command className="bg-chatroom-bg-tertiary rounded-none">
+                      <PopoverContent className="p-0 w-[420px]">
+                        <Command className="bg-chatroom-bg-primary rounded-none">
                           <CommandInput
                             placeholder="Search..."
                             className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"

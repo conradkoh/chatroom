@@ -33,7 +33,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 }));
 
 // Mock dropdown menu — simplified so tests don't need Radix portals.
-vi.mock('@/components/ui/dropdown-menu', () => ({
+vi.mock('../ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => (
     <div>{children}</div>
