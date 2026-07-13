@@ -104,15 +104,15 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 
 ## Implementation slices
 
-| Slice | Owner   | Deliverable                                           | Status  |
-| ----- | ------- | ----------------------------------------------------- | ------- |
-| 0     | Planner | This plan doc                                         | done    |
-| 1     | Builder | Foundation primitives + tests in `components/picker/` | done    |
-| 2     | Builder | Pilot: migrate `HarnessModelSelect`                   | done    |
-| 3     | Builder | Harness selectors batch                               | done    |
-| 4     | Builder | Explorer / direct-harness selects                     | done    |
-| 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | done    |
-| 6     | Planner | Review, PR to `release/v1.65.7`                       | pending |
+| Slice | Owner   | Deliverable                                           | Status |
+| ----- | ------- | ----------------------------------------------------- | ------ |
+| 0     | Planner | This plan doc                                         | done   |
+| 1     | Builder | Foundation primitives + tests in `components/picker/` | done   |
+| 2     | Builder | Pilot: migrate `HarnessModelSelect`                   | done   |
+| 3     | Builder | Harness selectors batch                               | done   |
+| 4     | Builder | Explorer / direct-harness selects                     | done   |
+| 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | done   |
+| 6     | Planner | Review, PR to `release/v1.65.7`                       | done   |
 
 ## Testing strategy
 
@@ -129,6 +129,7 @@ _(Update as we go.)_
 - **2026-07-13**: `HarnessHarnessSelect` and `HarnessAgentSelect` migrated from Radix `Select` to responsive picker. Flat lists use `PickerSearch` + `filterPickerItems` + `PickerOptionRow` pattern. cmdk is reserved for grouped model lists. `PickerOptionRow` added as shared option button, eliminating duplicated option-button markup across future slices.
 - **2026-07-13**: Slice 4: `HarnessWorkspaceSwitcher` migrated (keeps empty-state div short-circuit), `DirectHarnessPanel` session picker migrated (preserves responsive `@container`/`@md:` trigger styling, New session sentinel as `PickerOptionRow`), `DirectHarnessView` register dialog machine picker migrated (compact button without search for small lists).
 - **2026-07-13**: Slice 5: Fixed hooks violations (moved useState/usePickerSearchState before conditional returns in HarnessWorkspaceSwitcher and DirectHarnessPanel). Migrated CreateChatroomForm team picker (with search, Enter-to-submit preserved via open state), AgentSettingsModal mobile tab picker (no search, 6 tabs), PullRequestsPanel filter (no search, 3 options). Refactored ModelFilterPanel to use ResponsivePickerShell — removed duplicated Popover/Drawer/useIsDesktop branching.
+- **2026-07-13**: Slice 6: Planner review caught remaining `useMemo` after early return in HarnessWorkspaceSwitcher (fixed). PR #911 opened to `release/v1.65.7`.
 
 ## Branch / PR
 
