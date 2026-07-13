@@ -153,8 +153,8 @@ describe('useHandoffNotification', () => {
     expect(swPostMessage).toHaveBeenCalledWith({
       type: 'SHOW_NOTIFICATION',
       payload: {
-        title: 'Handoff',
-        body: 'planner has handed off to you',
+        title: 'Chatroom',
+        body: 'Tasks complete',
         tag: 'chatroom-handoff',
         chatroomId: 'test-chatroom-id',
       },
@@ -177,7 +177,7 @@ describe('useHandoffNotification', () => {
 
     expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(1);
-    expect(notificationInstances[0]!.body).toBe('planner has handed off to you');
+    expect(notificationInstances[0]!.body).toBe('Tasks complete');
   });
 
   it('does not notify for non-handoff messages', () => {
