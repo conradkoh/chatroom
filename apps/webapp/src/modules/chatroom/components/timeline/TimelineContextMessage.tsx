@@ -6,7 +6,7 @@ import Markdown from 'react-markdown';
 
 import type { Message } from '../../types/message';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../markdown-utils';
+import { backlogReviewCompactMarkdownComponents } from '../markdown-utils';
 
 import {
   FixedModal,
@@ -53,7 +53,10 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
           )}
           <span className="text-chatroom-status-info/50 flex-shrink-0">—</span>
           <span className="normal-case font-medium tracking-normal flex-1 min-w-0 truncate text-chatroom-text-secondary [&_*]:inline text-left">
-            <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
+            <Markdown
+              remarkPlugins={chatroomRemarkPlugins}
+              components={backlogReviewCompactMarkdownComponents}
+            >
               {message.content}
             </Markdown>
           </span>
