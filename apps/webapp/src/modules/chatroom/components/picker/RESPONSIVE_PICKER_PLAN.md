@@ -79,13 +79,13 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 
 ### Medium priority (Radix Select, dynamic lists)
 
-| Component                  | Path                                              | Status  | Notes                                                               |
-| -------------------------- | ------------------------------------------------- | ------- | ------------------------------------------------------------------- |
-| HarnessHarnessSelect       | `direct-harness/.../HarnessHarnessSelect.tsx`     | done    | Flat list: `PickerSearch` + `filterPickerItems` + `PickerOptionRow` |
-| HarnessAgentSelect         | `direct-harness/.../HarnessAgentSelect.tsx`       | done    | Flat list: `PickerSearch` + `filterPickerItems` + `PickerOptionRow` |
-| HarnessWorkspaceSwitcher   | `direct-harness/.../HarnessWorkspaceSwitcher.tsx` | pending |                                                                     |
-| DirectHarnessPanel session | `explorer-split-panels/DirectHarnessPanel.tsx`    | pending |                                                                     |
-| DirectHarnessView machine  | `direct-harness/.../DirectHarnessView.tsx`        | pending |                                                                     |
+| Component                  | Path                                              | Status | Notes                                                               |
+| -------------------------- | ------------------------------------------------- | ------ | ------------------------------------------------------------------- |
+| HarnessHarnessSelect       | `direct-harness/.../HarnessHarnessSelect.tsx`     | done   | Flat list: `PickerSearch` + `filterPickerItems` + `PickerOptionRow` |
+| HarnessAgentSelect         | `direct-harness/.../HarnessAgentSelect.tsx`       | done   | Flat list: `PickerSearch` + `filterPickerItems` + `PickerOptionRow` |
+| HarnessWorkspaceSwitcher   | `direct-harness/.../HarnessWorkspaceSwitcher.tsx` | done   | Flat list with search; keeps empty-state div                        |
+| DirectHarnessPanel session | `explorer-split-panels/DirectHarnessPanel.tsx`    | done   | Preserves responsive trigger (`@container`/`@md:`) + New session    |
+| DirectHarnessView machine  | `direct-harness/.../DirectHarnessView.tsx`        | done   | Register dialog machine picker; no search (small list)              |
 
 ### Lower priority (small / contextual enums)
 
@@ -110,7 +110,7 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 | 1     | Builder | Foundation primitives + tests in `components/picker/` | done    |
 | 2     | Builder | Pilot: migrate `HarnessModelSelect`                   | done    |
 | 3     | Builder | Harness selectors batch                               | done    |
-| 4     | Builder | Explorer / direct-harness selects                     | pending |
+| 4     | Builder | Explorer / direct-harness selects                     | done    |
 | 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | pending |
 | 6     | Planner | Review, PR to `release/v1.65.7`                       | pending |
 
@@ -127,6 +127,7 @@ _(Update as we go.)_
 - **2026-07-13**: Two search styles exist today — plain input (`ModelFilterPanel`) and cmdk (`HarnessModelSelectList`). Foundation standardizes the **input chrome** via `PickerSearch`; cmdk remains valid **inside** `PickerScrollBody` for grouped model lists.
 - **2026-07-13**: `HarnessModelSelect` migrated. Uses cmdk inside `PickerScrollBody` (no `PickerSearch` on top). Shell popover uses chatroom-local `data-slot="chatroom-popover-content"` slot (not harness-local `data-slot="popover-content"`).
 - **2026-07-13**: `HarnessHarnessSelect` and `HarnessAgentSelect` migrated from Radix `Select` to responsive picker. Flat lists use `PickerSearch` + `filterPickerItems` + `PickerOptionRow` pattern. cmdk is reserved for grouped model lists. `PickerOptionRow` added as shared option button, eliminating duplicated option-button markup across future slices.
+- **2026-07-13**: Slice 4: `HarnessWorkspaceSwitcher` migrated (keeps empty-state div short-circuit), `DirectHarnessPanel` session picker migrated (preserves responsive `@container`/`@md:` trigger styling, New session sentinel as `PickerOptionRow`), `DirectHarnessView` register dialog machine picker migrated (compact button without search for small lists).
 
 ## Branch / PR
 

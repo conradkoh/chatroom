@@ -12,7 +12,7 @@ import { SessionDetail } from './SessionDetail';
 import { SessionList } from './SessionList';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from '../../components/picker';
 import { useOptimisticSessionClose } from '../hooks/useOptimisticSessionClose';
 import { useRefreshCapabilities } from '../hooks/useRefreshCapabilities';
 import { effectiveSessionStatus } from '../utils/sessionStatus';
@@ -80,6 +80,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
   >(undefined);
 
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [machinePickerOpen, setMachinePickerOpen] = useState(false);
   const [registerMachineId, setRegisterMachineId] = useState('');
   const [registerWorkingDir, setRegisterWorkingDir] = useState('');
   const [registerError, setRegisterError] = useState<string | null>(null);
@@ -294,18 +295,42 @@ export const DirectHarnessView = memo(function DirectHarnessView({
               <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Machine
               </label>
-              <Select value={registerMachineId} onValueChange={setRegisterMachineId}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select machine…" />
-                </SelectTrigger>
-                <SelectContent>
+              <ResponsivePickerShell
+                open={machinePickerOpen}
+                onOpenChange={setMachinePickerOpen}
+                title="Select machine"
+                align="start"
+                contentClassName="w-72"
+                trigger={
+                  <button
+                    type="button"
+                    className="flex h-8 w-full items-center justify-between gap-2 rounded-none border border-input bg-transparent px-3 py-2 text-xs shadow-xs whitespace-nowrap transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="truncate text-left flex-1 text-muted-foreground">
+                      {registerMachineId
+                        ? (machines.find((m) => m.machineId === registerMachineId)?.alias ??
+                          machines.find((m) => m.machineId === registerMachineId)?.hostname ??
+                          'Select machine…')
+                        : 'Select machine…'}
+                    </span>
+                  </button>
+                }
+              >
+                <PickerScrollBody maxHeightClassName="max-h-60">
                   {machines.map((m) => (
-                    <SelectItem key={m.machineId} value={m.machineId} className="text-xs">
+                    <PickerOptionRow
+                      key={m.machineId}
+                      selected={registerMachineId === m.machineId}
+                      onSelect={() => {
+                        setRegisterMachineId(m.machineId);
+                        setMachinePickerOpen(false);
+                      }}
+                    >
                       {m.alias ?? m.hostname}
-                    </SelectItem>
+                    </PickerOptionRow>
                   ))}
-                </SelectContent>
-              </Select>
+                </PickerScrollBody>
+              </ResponsivePickerShell>
             </div>
 
             <div className="space-y-1.5">
