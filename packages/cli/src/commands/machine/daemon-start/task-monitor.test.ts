@@ -163,8 +163,8 @@ describe('NudgeCooldown', () => {
   });
 });
 
-describe('native harness nudge exclusion', () => {
-  test('native harness is not nudged when injection appears stuck', () => {
+describe('native harness nudge', () => {
+  test('native harness is nudged when ready but pending task is idle', () => {
     const createdAt = 1_000;
     const now = createdAt + 15_001;
     const nativeTask = makeTask({
@@ -179,8 +179,11 @@ describe('native harness nudge exclusion', () => {
         lastStatus: 'agent.waiting',
       },
     });
+    const slot = { state: 'running' as const, pid: 12345, harnessSessionId: 'sess_1' };
     expect(isNativeHarness(nativeTask.agentConfig.agentHarness)).toBe(true);
-    expectPendingNudge(nativeTask, now, false);
+    const cooldown = new NudgeCooldown(60_000);
+    const ready = listTasksReadyForNudge([nativeTask], now, cooldown, () => slot);
+    expect(ready).toHaveLength(1);
   });
 
   test('CLI harness still uses get-next-task stale waiting logic (regression)', () => {

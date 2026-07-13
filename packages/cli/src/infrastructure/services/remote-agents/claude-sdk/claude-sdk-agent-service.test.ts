@@ -295,6 +295,39 @@ describe('ClaudeSdkAgentService', () => {
       });
     });
 
+    it('native multi-turn invariant: two resumeTurns each emit onAgentEnd', async () => {
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new ClaudeSdkAgentService(deps);
+
+      const onEnd = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+      result.onAgentEnd(onEnd);
+
+      await service.resumeTurn(result.pid, 'first task');
+      await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(1));
+
+      stubQuery([
+        { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },
+        { type: 'result', subtype: 'success', session_id: PROVIDER_SESSION_ID, is_error: false },
+      ]);
+      await service.resumeTurn(result.pid, 'second task');
+      await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(2));
+    });
+
     it('fires onHarnessSessionIdUpdated when provider session_id is first captured', async () => {
       stubQuery([
         { type: 'system', subtype: 'init', session_id: PROVIDER_SESSION_ID },

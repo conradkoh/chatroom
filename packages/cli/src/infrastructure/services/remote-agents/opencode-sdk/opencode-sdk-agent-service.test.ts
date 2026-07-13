@@ -11,6 +11,7 @@ import {
 import { InMemorySessionMetadataStore } from './session-metadata-store.js';
 import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
+import { startSessionEventForwarder as realStartForwarder } from './session-event-forwarder.js';
 
 // ---------------------------------------------------------------------------
 // Spawn lifecycle helpers
@@ -442,6 +443,26 @@ describe('OpenCodeSdkAgentService', () => {
         model: TEST_MODEL_OPENCODE,
       });
       expect(service.getHarnessReconnectContext(9999)).toBeUndefined();
+    });
+
+    it('startSessionEventForwarder handle includes armTurnEnd', async () => {
+      const handle = realStartForwarder(
+        {
+          event: {
+            subscribe: async () => ({
+              stream: (async function* () {
+                await new Promise(() => {});
+              })(),
+            }),
+          },
+        },
+        {
+          sessionId: 'test',
+          role: 'builder',
+        }
+      );
+      expect(typeof handle.armTurnEnd).toBe('function');
+      handle.stop();
     });
 
     it('resumeTurn succeeds when stop() was not called (metadata preserved)', async () => {

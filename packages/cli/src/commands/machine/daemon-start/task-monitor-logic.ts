@@ -1,5 +1,6 @@
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
+import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
 import {
   isCliIdleNotListening,
@@ -10,6 +11,7 @@ import { STOPPING_TIMEOUT_MS } from '../../../infrastructure/services/agent-proc
 
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;
+const NATIVE_NUDGE_ESCALATION_THRESHOLD = 2;
 
 function isPendingAliveRunningTask(task: AssignedTaskSnapshotView): boolean {
   const { agentConfig, status } = task;
@@ -125,9 +127,30 @@ function shouldNudgePendingTask(
   pendingIdleThresholdMs = PENDING_IDLE_NUDGE_MS
 ): boolean {
   if (isNativeHarness(task.agentConfig.agentHarness)) {
-    return false;
+    return shouldNudgeNativePendingTask(task, now, pendingIdleThresholdMs);
   }
   return shouldNudgeCliPendingTask(task, now, pendingIdleThresholdMs);
+}
+
+function shouldNudgeNativePendingTask(
+  task: AssignedTaskSnapshotView,
+  now: number,
+  pendingIdleThresholdMs: number,
+  slot?: AgentSlot
+): boolean {
+  if (!isPendingAliveRunningTask(task)) return false;
+  if (!isAgentReadyForNativeDelivery(task, slot)) return false;
+  const lastSeenAt = task.participant?.lastSeenAt ?? 0;
+  const idleSince = lastSeenAt > 0 ? now - lastSeenAt : now - task.createdAt;
+  return idleSince > pendingIdleThresholdMs;
+}
+
+export function shouldEscalateNativeNudgeToRestart(
+  chatroomId: string,
+  role: string,
+  failures: number
+): boolean {
+  return failures >= NATIVE_NUDGE_ESCALATION_THRESHOLD;
 }
 
 export class NudgeCooldown {
@@ -149,9 +172,15 @@ export class NudgeCooldown {
 function isTaskReadyForNudge(
   task: AssignedTaskSnapshotView,
   now: number,
-  cooldown: NudgeCooldown
+  cooldown: NudgeCooldown,
+  getSlot?: (chatroomId: string, role: string) => AgentSlot | undefined
 ): boolean {
-  if (!shouldNudgePendingTask(task, now)) return false;
+  if (isNativeHarness(task.agentConfig.agentHarness)) {
+    const slot = getSlot?.(task.chatroomId, task.agentConfig.role);
+    if (!shouldNudgeNativePendingTask(task, now, PENDING_IDLE_NUDGE_MS, slot)) return false;
+  } else if (!shouldNudgePendingTask(task, now)) {
+    return false;
+  }
   const { chatroomId, agentConfig } = task;
   if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) return false;
   if (!agentConfig.workingDir) return false;
@@ -161,10 +190,11 @@ function isTaskReadyForNudge(
 export function listTasksReadyForNudge(
   tasks: AssignedTaskSnapshotView[],
   now: number,
-  cooldown: NudgeCooldown
+  cooldown: NudgeCooldown,
+  getSlot?: (chatroomId: string, role: string) => AgentSlot | undefined
 ): AssignedTaskSnapshotView[] {
   return tasks.filter((task) => {
-    if (!isTaskReadyForNudge(task, now, cooldown)) return false;
+    if (!isTaskReadyForNudge(task, now, cooldown, getSlot)) return false;
     cooldown.recordNudge(task.chatroomId, task.agentConfig.role, now);
     return true;
   });

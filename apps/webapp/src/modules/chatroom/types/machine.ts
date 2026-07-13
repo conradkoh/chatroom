@@ -80,6 +80,18 @@ export type SendCommandArgs =
     }
   | {
       machineId: string;
+      type: 'restart-agent';
+      payload: {
+        chatroomId: Id<'chatroom_rooms'>;
+        role: string;
+        model?: string;
+        agentHarness: AgentHarness;
+        workingDir?: string;
+        wantResume?: boolean;
+      };
+    }
+  | {
+      machineId: string;
       type: 'ping';
     }
   | {

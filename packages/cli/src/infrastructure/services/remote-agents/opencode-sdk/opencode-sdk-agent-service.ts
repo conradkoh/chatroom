@@ -704,6 +704,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       return;
     }
 
+    this.forwarders.get(pid)?.armTurnEnd();
+
     const client = createOpencodeClient({ baseUrl: meta.baseUrl });
     const deferredSystem = meta.deferredSystemPrompt;
     const context: SpawnContext = {

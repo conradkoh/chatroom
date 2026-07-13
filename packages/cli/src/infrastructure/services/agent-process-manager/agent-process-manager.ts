@@ -31,7 +31,15 @@ import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../../commands/machine/daemon-start/native-harness-session-exit.js';
-import { notifyNativeSessionLost } from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
+import {
+  notifyNativeSessionLost,
+  notifyNativeTurnIdle,
+} from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
+import {
+  defaultNativeTurnPhase,
+  setNativeTurnPhase,
+  type NativeTurnPhase,
+} from '../../../commands/machine/daemon-start/native-turn-phase.js';
 import type { HarnessSessionSnapshot, StopReason } from '../../../domain/agent-lifecycle/index.js';
 import {
   resolveResumableHarnessSessionId,
@@ -94,6 +102,7 @@ export type {
   StopOpts,
   HandleExitOpts,
 } from '../agent-lifecycle/agent-lifecycle-types.js';
+export type { NativeTurnPhase } from '../../../commands/machine/daemon-start/native-turn-phase.js';
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 
@@ -131,6 +140,8 @@ export interface AgentSlot {
   terminalProviderFailureHandled?: boolean;
   /** Task last delivered to this native harness slot — sent on agent_end. */
   lastInFlightTaskId?: string;
+  /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
+  nativeTurnPhase?: NativeTurnPhase;
   /** When the slot entered stopping — used to detect hung stop. */
   stoppingSince?: number;
   /** Monotonic token for the current stop attempt — bumped on stop claim and force-clear. */
@@ -293,6 +304,7 @@ export class AgentProcessManager {
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.stoppingSince = undefined;
+    slot.nativeTurnPhase = undefined;
   }
 
   private bumpStopGeneration(slot: AgentSlot): number {
@@ -355,7 +367,14 @@ export class AgentProcessManager {
     if (!service?.resumeTurn) {
       throw new Error(`Harness ${slot.harness} does not support resumeTurn`);
     }
-    await service.resumeTurn(slot.pid, args.prompt);
+    setNativeTurnPhase(slot, 'injecting');
+    try {
+      await service.resumeTurn(slot.pid, args.prompt);
+      setNativeTurnPhase(slot, 'turn_in_flight');
+    } catch (err) {
+      setNativeTurnPhase(slot, defaultNativeTurnPhase());
+      throw err;
+    }
   }
 
   private async injectHarnessReminder(
@@ -368,7 +387,13 @@ export class AgentProcessManager {
     if (!slot?.pid || !slot.harness) return;
     const service = this.deps.agentServices.get(slot.harness);
     if (!service?.resumeTurn) return;
-    await service.resumeTurn(slot.pid, prompt);
+    setNativeTurnPhase(slot, 'injecting');
+    try {
+      await service.resumeTurn(slot.pid, prompt);
+      setNativeTurnPhase(slot, 'turn_in_flight');
+    } catch {
+      setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    }
   }
 
   async stop(opts: StopOpts): Promise<{ success: boolean }> {
@@ -560,6 +585,10 @@ export class AgentProcessManager {
         return;
       }
 
+      if (slot) {
+        setNativeTurnPhase(slot, defaultNativeTurnPhase());
+      }
+      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
       console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role}`);
     } catch (err) {
       console.log(`   ⚠️  Failed native agent_end for ${opts.role}: ${(err as Error).message}`);
@@ -681,6 +710,7 @@ export class AgentProcessManager {
     slot.pid = undefined;
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
+    slot.nativeTurnPhase = undefined;
   }
 
   private async emitExitEvent(
@@ -1833,6 +1863,9 @@ export class AgentProcessManager {
     }
 
     this.registerSpawnCallbacks(slot, opts, spawnResult, pid);
+    if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
+      setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    }
     await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
   }
 

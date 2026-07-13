@@ -1,18 +1,7 @@
-import {
-  NATIVE_TASK_INJECTED_ACTION,
-  NATIVE_WAITING_ACTION,
-} from '@workspace/backend/src/domain/entities/participant.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
-import {
-  isCliIdleNotListening,
-  isInjectableNativeAction,
-  isNativeInjectableAliveRunning,
-  isNativePendingRedeliveryAfterRelease,
-  isStaleCliGetNextTaskWaiting,
-  shouldEmitNativeWaitingOnTurnEnd,
-} from './predicates.js';
+import { isCliIdleNotListening, isStaleCliGetNextTaskWaiting } from './predicates.js';
 
 function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
   return {
@@ -32,74 +21,13 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
       desiredState: 'running',
     },
     participant: {
-      lastSeenAction: NATIVE_WAITING_ACTION,
+      lastSeenAction: 'native:waiting',
       lastSeenAt: 500,
       lastStatus: 'agent.waiting',
     },
     ...overrides,
   };
 }
-
-describe('isNativeInjectableAliveRunning', () => {
-  test('true for pending and acknowledged tasks owned by role', () => {
-    expect(isNativeInjectableAliveRunning(makeTask())).toBe(true);
-    expect(
-      isNativeInjectableAliveRunning(makeTask({ status: 'acknowledged', assignedTo: 'builder' }))
-    ).toBe(true);
-  });
-
-  test('false when acknowledged for a different role', () => {
-    expect(
-      isNativeInjectableAliveRunning(makeTask({ status: 'acknowledged', assignedTo: 'planner' }))
-    ).toBe(false);
-  });
-});
-
-describe('isInjectableNativeAction', () => {
-  test('null, native:waiting, and exited are injectable', () => {
-    expect(isInjectableNativeAction(null)).toBe(true);
-    expect(isInjectableNativeAction(NATIVE_WAITING_ACTION)).toBe(true);
-    expect(isInjectableNativeAction('exited')).toBe(true);
-  });
-
-  test('get-next-task:started is not injectable', () => {
-    expect(isInjectableNativeAction('get-next-task:started')).toBe(false);
-  });
-});
-
-describe('isNativePendingRedeliveryAfterRelease', () => {
-  test('true for pending task with native:task-injected action', () => {
-    expect(
-      isNativePendingRedeliveryAfterRelease(
-        makeTask({
-          participant: {
-            lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
-            lastSeenAt: 1_000,
-            lastStatus: 'agent.exited',
-          },
-        })
-      )
-    ).toBe(true);
-  });
-
-  test('false for pending task with native:waiting action', () => {
-    expect(isNativePendingRedeliveryAfterRelease(makeTask())).toBe(false);
-  });
-});
-
-describe('shouldEmitNativeWaitingOnTurnEnd', () => {
-  test('false while task is acknowledged or in progress', () => {
-    expect(shouldEmitNativeWaitingOnTurnEnd('task.acknowledged')).toBe(false);
-    expect(shouldEmitNativeWaitingOnTurnEnd('task.inProgress')).toBe(false);
-  });
-
-  test('true when idle, waiting, or task completed', () => {
-    expect(shouldEmitNativeWaitingOnTurnEnd('agent.waiting')).toBe(true);
-    expect(shouldEmitNativeWaitingOnTurnEnd('task.completed')).toBe(true);
-    expect(shouldEmitNativeWaitingOnTurnEnd(null)).toBe(true);
-    expect(shouldEmitNativeWaitingOnTurnEnd(undefined)).toBe(true);
-  });
-});
 
 describe('isStaleCliGetNextTaskWaiting', () => {
   test('true when task created after last get-next-task heartbeat', () => {
