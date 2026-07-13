@@ -46,4 +46,16 @@ describe('TimelineContextMessage', () => {
     expect(screen.getByText('New Context')).toBeInTheDocument();
     expect(screen.queryByText('Planner')).not.toBeInTheDocument();
   });
+
+  it('does not nest buttons when content includes a workspace file path', () => {
+    render(
+      <TimelineContextMessage
+        message={makeContextMessage({ content: 'See `packages/webapp/src/foo.ts` for details' })}
+      />
+    );
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName(/New Context/i);
+  });
 });
