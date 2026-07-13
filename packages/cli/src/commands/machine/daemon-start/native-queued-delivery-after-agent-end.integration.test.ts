@@ -14,10 +14,6 @@ import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machi
 import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import {
   registerNativeDeliverySession,
@@ -34,6 +30,10 @@ import {
 } from './native-task-injector-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import { api } from '../../../api.js';
+import {
+  clearAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
