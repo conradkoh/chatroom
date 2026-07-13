@@ -14,14 +14,13 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { GitPullRequest as GitPullRequestIcon, Loader2, Star } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../../components/ui/select';
+  ResponsivePickerShell,
+  PickerScrollBody,
+  PickerOptionRow,
+} from '../../../components/picker';
 import { useCurrentBranchPullRequest } from '../../hooks/useCurrentBranchPullRequest';
 import { useAllPullRequests } from '../../hooks/useWorkspaceGit';
 import type { GitPullRequest } from '../../types/git';
@@ -123,25 +122,43 @@ const PRListColumn = memo(function PRListColumn({
   onSelect,
   onFilterChange,
 }: PRListColumnProps) {
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false);
+
   return (
     <div className="flex flex-col h-full">
       {/* Filter bar */}
       <div className="px-3 py-2 border-b border-border shrink-0">
-        <Select value={filter} onValueChange={(v) => onFilterChange(v as PRFilter)}>
-          <SelectTrigger
-            size="sm"
-            className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
+        <ResponsivePickerShell
+          open={filterPickerOpen}
+          onOpenChange={setFilterPickerOpen}
+          title="Filter PRs"
+          align="start"
+          contentClassName="w-48"
+          trigger={
+            <button
+              type="button"
+              className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none flex h-8 items-center justify-between gap-2 px-3 py-2"
+            >
+              <span className="truncate text-left flex-1">{FILTER_LABELS[filter]}</span>
+              <ChevronDown size={12} className="shrink-0 opacity-50" />
+            </button>
+          }
+        >
+          <PickerScrollBody maxHeightClassName="max-h-60">
             {(Object.keys(FILTER_LABELS) as PRFilter[]).map((f) => (
-              <SelectItem key={f} value={f} className="text-xs rounded-none">
+              <PickerOptionRow
+                key={f}
+                selected={filter === f}
+                onSelect={() => {
+                  onFilterChange(f);
+                  setFilterPickerOpen(false);
+                }}
+              >
                 {FILTER_LABELS[f]}
-              </SelectItem>
+              </PickerOptionRow>
             ))}
-          </SelectContent>
-        </Select>
+          </PickerScrollBody>
+        </ResponsivePickerShell>
       </div>
 
       {/* List */}

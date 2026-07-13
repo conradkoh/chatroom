@@ -65,6 +65,12 @@ export function DirectHarnessPanel({
   );
 
   const { refresh: refreshCapabilities } = useRefreshCapabilities();
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
+  const {
+    searchTerm: sessionSearch,
+    setSearchTerm: setSessionSearch,
+    handleOpenChange: handleSessionOpenChange,
+  } = usePickerSearchState(setSessionPickerOpen);
 
   // Refresh capabilities when workspace becomes known
   useEffect(() => {
@@ -100,13 +106,6 @@ export function DirectHarnessPanel({
   }
 
   // ─── Main render ─────────────────────────────────────────────────────────────
-
-  const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
-  const {
-    searchTerm: sessionSearch,
-    setSearchTerm: setSessionSearch,
-    handleOpenChange: handleSessionOpenChange,
-  } = usePickerSearchState(setSessionPickerOpen);
 
   const sortedSessions = sessions ? [...sessions].reverse() : [];
 

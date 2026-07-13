@@ -89,18 +89,18 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 
 ### Lower priority (small / contextual enums)
 
-| Component                | Path                                        | Status  | Notes                               |
-| ------------------------ | ------------------------------------------- | ------- | ----------------------------------- |
-| CreateChatroomForm team  | `components/CreateChatroomForm.tsx`         | pending | Few teams — `searchable={false}` OK |
-| AgentSettingsModal tabs  | `components/AgentSettingsModal.tsx`         | pending | `sm:hidden` only, 6 tabs            |
-| PullRequestsPanel filter | `workspace/.../PullRequestsPanel.tsx`       | pending | ~4 filters                          |
-| RightSplitPanel mode     | `explorer-split-panels/RightSplitPanel.tsx` | skip    | 2 modes, md+ only panel             |
+| Component                | Path                                        | Status | Notes                                          |
+| ------------------------ | ------------------------------------------- | ------ | ---------------------------------------------- |
+| CreateChatroomForm team  | `components/CreateChatroomForm.tsx`         | done   | Search + option row; preserves Enter-to-submit |
+| AgentSettingsModal tabs  | `components/AgentSettingsModal.tsx`         | done   | No search (6 tabs); `sm:hidden` only           |
+| PullRequestsPanel filter | `workspace/.../PullRequestsPanel.tsx`       | done   | No search (3 options)                          |
+| RightSplitPanel mode     | `explorer-split-panels/RightSplitPanel.tsx` | skip   | 2 modes, md+ only panel                        |
 
 ### Refactor (leave it better)
 
-| Component        | Path                              | Status  | Notes                                                 |
-| ---------------- | --------------------------------- | ------- | ----------------------------------------------------- |
-| ModelFilterPanel | `components/ModelFilterPanel.tsx` | pending | Adopt `ResponsivePickerShell` after foundation proven |
+| Component        | Path                              | Status | Notes                                                             |
+| ---------------- | --------------------------------- | ------ | ----------------------------------------------------------------- |
+| ModelFilterPanel | `components/ModelFilterPanel.tsx` | done   | Uses `ResponsivePickerShell`; removed Popover/Drawer/useIsDesktop |
 
 ## Implementation slices
 
@@ -111,7 +111,7 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 | 2     | Builder | Pilot: migrate `HarnessModelSelect`                   | done    |
 | 3     | Builder | Harness selectors batch                               | done    |
 | 4     | Builder | Explorer / direct-harness selects                     | done    |
-| 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | pending |
+| 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | done    |
 | 6     | Planner | Review, PR to `release/v1.65.7`                       | pending |
 
 ## Testing strategy
@@ -128,6 +128,7 @@ _(Update as we go.)_
 - **2026-07-13**: `HarnessModelSelect` migrated. Uses cmdk inside `PickerScrollBody` (no `PickerSearch` on top). Shell popover uses chatroom-local `data-slot="chatroom-popover-content"` slot (not harness-local `data-slot="popover-content"`).
 - **2026-07-13**: `HarnessHarnessSelect` and `HarnessAgentSelect` migrated from Radix `Select` to responsive picker. Flat lists use `PickerSearch` + `filterPickerItems` + `PickerOptionRow` pattern. cmdk is reserved for grouped model lists. `PickerOptionRow` added as shared option button, eliminating duplicated option-button markup across future slices.
 - **2026-07-13**: Slice 4: `HarnessWorkspaceSwitcher` migrated (keeps empty-state div short-circuit), `DirectHarnessPanel` session picker migrated (preserves responsive `@container`/`@md:` trigger styling, New session sentinel as `PickerOptionRow`), `DirectHarnessView` register dialog machine picker migrated (compact button without search for small lists).
+- **2026-07-13**: Slice 5: Fixed hooks violations (moved useState/usePickerSearchState before conditional returns in HarnessWorkspaceSwitcher and DirectHarnessPanel). Migrated CreateChatroomForm team picker (with search, Enter-to-submit preserved via open state), AgentSettingsModal mobile tab picker (no search, 6 tabs), PullRequestsPanel filter (no search, 3 options). Refactored ModelFilterPanel to use ResponsivePickerShell — removed duplicated Popover/Drawer/useIsDesktop branching.
 
 ## Branch / PR
 

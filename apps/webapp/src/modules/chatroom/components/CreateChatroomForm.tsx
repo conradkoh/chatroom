@@ -4,7 +4,14 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useCallback, useEffect } from 'react';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  ResponsivePickerShell,
+  PickerSearch,
+  PickerScrollBody,
+  PickerOptionRow,
+  usePickerSearchState,
+  filterPickerItems,
+} from './picker';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 
 interface CreateChatroomFormProps {
@@ -47,7 +54,9 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   }, [selectedTeam, getById, createChatroom, onCreated]);
 
   const selectedTeamData = getById(selectedTeam);
-  const [isSelectOpen, setIsSelectOpen] = useState(false);
+  const [isTeamPickerOpen, setIsTeamPickerOpen] = useState(false);
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setIsTeamPickerOpen);
+  const filteredTeams = filterPickerItems(teams, searchTerm, (t) => t.name);
 
   // Close form on Escape key (Radix Select handles Escape internally when open)
   useEffect(() => {
@@ -63,14 +72,14 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   // Submit form on Enter key when select dropdown is not open
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !isSelectOpen && selectedTeam && !creating) {
+      if (e.key === 'Enter' && !isTeamPickerOpen && selectedTeam && !creating) {
         e.preventDefault();
         handleCreate();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isSelectOpen, selectedTeam, creating, handleCreate]);
+  }, [isTeamPickerOpen, selectedTeam, creating, handleCreate]);
 
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-2 border-chatroom-border-strong w-full max-w-md mx-auto">
@@ -99,27 +108,43 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Team
           </label>
-          <Select
-            value={selectedTeam}
-            onValueChange={setSelectedTeam}
-            open={isSelectOpen}
-            onOpenChange={setIsSelectOpen}
+          <ResponsivePickerShell
+            open={isTeamPickerOpen}
+            onOpenChange={handleOpenChange}
+            title="Select team"
+            align="start"
+            contentClassName="w-72"
+            trigger={
+              <button
+                type="button"
+                className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary h-auto p-3 text-sm focus:ring-0 focus:outline-none focus:border-chatroom-border-strong rounded-none w-full flex items-center justify-between"
+              >
+                <span className="truncate text-left flex-1">
+                  {selectedTeamData ? selectedTeamData.name : 'Select team…'}
+                </span>
+              </button>
+            }
           >
-            <SelectTrigger className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary h-auto p-3 text-sm focus:ring-0 focus:outline-none focus:border-chatroom-border-strong rounded-none">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="border-2">
-              {teams.map((team) => (
-                <SelectItem
-                  key={team.id}
-                  value={team.id}
-                  className="text-sm text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none"
-                >
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search teams…" />
+            <PickerScrollBody maxHeightClassName="max-h-60">
+              {filteredTeams.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-chatroom-text-muted">No teams found.</p>
+              ) : (
+                filteredTeams.map((team) => (
+                  <PickerOptionRow
+                    key={team.id}
+                    selected={selectedTeam === team.id}
+                    onSelect={() => {
+                      setSelectedTeam(team.id);
+                      handleOpenChange(false);
+                    }}
+                  >
+                    {team.name}
+                  </PickerOptionRow>
+                ))
+              )}
+            </PickerScrollBody>
+          </ResponsivePickerShell>
         </div>
 
         {/* Team Preview */}

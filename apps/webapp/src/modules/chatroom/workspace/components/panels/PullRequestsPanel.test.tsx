@@ -13,6 +13,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { PullRequestsPanel } from './PullRequestsPanel';
 
+// jsdom does not provide matchMedia (used by vaul drawer and useIsDesktop)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+const mockUseIsDesktop = vi.fn(() => true);
+
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: () => mockUseIsDesktop(),
+}));
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockRequestAllPRs = vi.fn();
@@ -73,33 +94,6 @@ vi.mock('@/components/ui/resizable', () => ({
   ResizableHandle: () => <div data-testid="resizable-handle" />,
 }));
 
-const mockOnValueChange = vi.fn();
-
-vi.mock('../../../components/ui/select', () => ({
-  Select: ({
-    children,
-    onValueChange,
-  }: {
-    children: React.ReactNode;
-    onValueChange: (v: string) => void;
-  }) => {
-    mockOnValueChange.mockImplementation(onValueChange);
-    return <div>{children}</div>;
-  },
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => (
-    <button type="button" role="combobox">
-      {children}
-    </button>
-  ),
-  SelectValue: () => null,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
-    <button type="button" data-value={value} onClick={() => mockOnValueChange(value)}>
-      {children}
-    </button>
-  ),
-}));
-
 // ─── Test data ────────────────────────────────────────────────────────────────
 
 function makePR(
@@ -130,6 +124,7 @@ describe('PullRequestsPanel', () => {
     mockCurrentBranchPR = PR_CURRENT;
     mockCurrentUserLogin = 'alice';
     mockRequestAllPRs.mockClear();
+    mockUseIsDesktop.mockReturnValue(true);
     vi.clearAllMocks();
   });
 
@@ -178,9 +173,14 @@ describe('PullRequestsPanel', () => {
   });
 
   it('switching to all filter shows all PRs including other authors', () => {
+    mockUseIsDesktop.mockReturnValue(true);
     render(<PullRequestsPanel machineId="m1" workingDir="/repo" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    const trigger = screen.getByText('My PRs');
+    fireEvent.click(trigger);
+
+    const allOption = screen.getByRole('option', { name: 'All' });
+    fireEvent.click(allOption);
 
     expect(screen.getByText('PR #8')).toBeTruthy();
     expect(screen.getAllByText('PR #9').length).toBeGreaterThan(0);

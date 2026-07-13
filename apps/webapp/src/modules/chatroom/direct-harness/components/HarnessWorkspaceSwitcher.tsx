@@ -40,6 +40,9 @@ export const HarnessWorkspaceSwitcher = memo(function HarnessWorkspaceSwitcher({
   selectedWorkspaceId,
   onSelect,
 }: HarnessWorkspaceSwitcherProps) {
+  const [open, setOpen] = useState(false);
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setOpen);
+
   if (workspaces.length === 0) {
     return (
       <div className="text-xs text-muted-foreground px-2 py-1.5">
@@ -47,9 +50,6 @@ export const HarnessWorkspaceSwitcher = memo(function HarnessWorkspaceSwitcher({
       </div>
     );
   }
-
-  const [open, setOpen] = useState(false);
-  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setOpen);
 
   const selectedWorkspace = useMemo(
     () => workspaces.find((ws) => ws._id === selectedWorkspaceId),
