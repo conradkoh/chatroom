@@ -1,6 +1,8 @@
+import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
+  ListMachineAssignedTaskSnapshotsResult,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
@@ -9,7 +11,15 @@ import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from './daemon-services.js';
-import { shouldDeliverNativeTask } from './native-task-injector-logic.js';
+import {
+  logNativeDeliveryInjecting,
+  logNativeDeliveryMutexSkip,
+  logNativeDeliveryNoTasks,
+  logNativeDeliveryPrimary,
+  logNativeDeliverySkip,
+} from './native-delivery-log.js';
+import { getNativeDeliverySession } from './native-delivery-session-registry.js';
+import { explainNativeDeliveryBlock } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import { api } from '../../../api.js';
@@ -34,6 +44,23 @@ export interface NativeSessionLostParams {
   harnessSessionId?: string;
 }
 
+async function fetchAssignedTasksForRole(
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string,
+  chatroomId: string,
+  role: string
+): Promise<AssignedTaskSnapshotView[]> {
+  const hydrate = (await sessionDeps.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+    sessionId: sessionDeps.sessionId,
+    machineId,
+  })) as ListMachineAssignedTaskSnapshotsResult;
+  const rows = parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
+  const roleLower = role.toLowerCase();
+  return rows.filter(
+    (row) => row.chatroomId === chatroomId && row.agentConfig.role.toLowerCase() === roleLower
+  );
+}
+
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {
   onSessionLost(params: NativeSessionLostParams): void {
@@ -44,6 +71,35 @@ export class NativeTaskDeliveryCoordinator {
     getRoleDeliveryState().resetDeliveryState(chatroomId, role);
   }
 
+  tryInjectNextForRole(chatroomId: string, role: string): void {
+    const session = getNativeDeliverySession();
+    if (!session) return;
+
+    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
+
+    void fetchAssignedTasksForRole(sessionDeps, machineId, chatroomId, role)
+      .then((tasks) => {
+        if (tasks.length === 0) {
+          logNativeDeliveryNoTasks(role, chatroomId);
+          return;
+        }
+        this.reconcileAssignedTasks({
+          tasks,
+          runtime,
+          effectContext,
+          agentMgr,
+          sessionDeps,
+          machineId,
+        });
+      })
+      .catch((err) => {
+        console.warn(
+          `[NativeTaskDelivery] tryInjectNextForRole failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
+        );
+      });
+  }
+
+  // fallow-ignore-next-line complexity
   reconcileAssignedTasks(params: {
     tasks: AssignedTaskSnapshotView[];
     runtime: TaskMonitorRuntime;
@@ -62,13 +118,21 @@ export class NativeTaskDeliveryCoordinator {
     });
 
     for (const row of pendingFirst) {
-      const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
-      if (!shouldDeliverNativeTask(row, { slot })) {
+      const { role } = row.agentConfig;
+      const slot = agentMgr.getSlot(row.chatroomId, role);
+      const blockReason = explainNativeDeliveryBlock(row, { slot });
+      if (blockReason) {
+        if (row.status === 'pending' || row.status === 'acknowledged') {
+          logNativeDeliverySkip(role, row.chatroomId, row.taskId, blockReason);
+        }
         continue;
       }
-      if (!deliveryState.tryAcquireDelivery(row.chatroomId, row.agentConfig.role)) {
+      if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
+        logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
       }
+
+      logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
@@ -81,10 +145,20 @@ export class NativeTaskDeliveryCoordinator {
             })
           )) as AssignedTaskView | null;
 
-          if (!full) return;
+          if (!full) {
+            console.warn(
+              `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — task_hydrate_missing (deleted or not assigned)`
+            );
+            return;
+          }
 
           const harnessSessionId = slot?.harnessSessionId;
-          if (!harnessSessionId) return;
+          if (!harnessSessionId) {
+            console.warn(
+              `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — harness_session_missing (post-gate)`
+            );
+            return;
+          }
 
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,
@@ -131,5 +205,10 @@ export function notifyNativeSessionLost(params: NativeSessionLostParams): void {
 }
 
 export function resetRoleDeliveryState(chatroomId: string, role: string): void {
-  getNativeTaskDeliveryCoordinator().resetRoleDeliveryState(chatroomId, role);
+  getRoleDeliveryState().resetDeliveryState(chatroomId, role);
+}
+
+export function notifyNativeTurnIdle(params: { chatroomId: string; role: string }): void {
+  logNativeDeliveryPrimary(params.role, params.chatroomId);
+  getNativeTaskDeliveryCoordinator().tryInjectNextForRole(params.chatroomId, params.role);
 }

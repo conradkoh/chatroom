@@ -27,6 +27,11 @@ import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import { logNativeDeliveryFallback } from './native-delivery-log.js';
+import {
+  registerNativeDeliverySession,
+  unregisterNativeDeliverySession,
+} from './native-delivery-session-registry.js';
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import {
   getNativeTaskDeliveryCoordinator,
@@ -314,6 +319,7 @@ async function nudgeStuckTasks(
       console.log(
         `[TaskMonitor] native light nudge ${role}@${chatroomId} — redeliver pending task ${row.taskId}`
       );
+      logNativeDeliveryFallback('native-light-nudge', role, chatroomId, row.taskId);
       getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
         tasks: [row],
         runtime,
@@ -385,6 +391,15 @@ async function processTasksUpdate(
     sessionDeps,
     machineId
   );
+  if (tasks.length > 0) {
+    const first = tasks[0];
+    logNativeDeliveryFallback(
+      'signal-presence',
+      first.agentConfig.role,
+      first.chatroomId,
+      first.taskId
+    );
+  }
   getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks,
     runtime,
@@ -442,6 +457,14 @@ export const startTaskMonitorEffect = (
       },
     };
 
+    registerNativeDeliverySession({
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      machineId: session.machineId,
+    });
+
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
@@ -469,6 +492,13 @@ export const startTaskMonitorEffect = (
             return isAgentReadyForNativeDelivery(row, slot);
           });
           if (deliverable.length === 0) return;
+          const first = deliverable[0];
+          logNativeDeliveryFallback(
+            'periodic-reconcile',
+            first.agentConfig.role,
+            first.chatroomId,
+            first.taskId
+          );
           getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
             tasks: deliverable,
             runtime,
@@ -563,6 +593,7 @@ export const startTaskMonitorEffect = (
     return {
       stop() {
         stopped = true;
+        unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);
         void Effect.runPromise(signalHandle.stop());
         void Effect.runPromise(presenceHandle.stop());

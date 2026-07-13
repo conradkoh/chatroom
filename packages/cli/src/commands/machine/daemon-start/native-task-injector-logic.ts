@@ -2,7 +2,7 @@ import type { parseSessionAugmentation } from '@workspace/backend/src/domain/han
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import {
-  isAgentReadyForNativeDelivery,
+  explainAgentReadyForNativeDeliveryBlock,
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
@@ -10,16 +10,31 @@ import type { AgentSlot } from '../../../infrastructure/services/agent-process-m
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
 /** True when daemon should deliver a task into a live native harness session. */
+// fallow-ignore-next-line unused-export
 export function shouldDeliverNativeTask(
   task: AssignedTaskSnapshotView,
   opts: { slot: AgentSlot | undefined }
 ): boolean {
-  if (!isDeliverableNativeTaskStatus(task.status)) return false;
+  return explainNativeDeliveryBlock(task, opts) === null;
+}
+
+/** Human-readable reason when delivery is blocked; null when shouldDeliverNativeTask is true. */
+// fallow-ignore-next-line complexity
+export function explainNativeDeliveryBlock(
+  task: AssignedTaskSnapshotView,
+  opts: { slot: AgentSlot | undefined }
+): string | null {
+  if (!isDeliverableNativeTaskStatus(task.status)) {
+    return `task_status_not_deliverable (status=${task.status})`;
+  }
   if (task.status === 'acknowledged') {
     const assignedTo = task.assignedTo?.toLowerCase();
-    if (assignedTo !== task.agentConfig.role.toLowerCase()) return false;
+    const role = task.agentConfig.role.toLowerCase();
+    if (assignedTo !== role) {
+      return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
+    }
   }
-  return isAgentReadyForNativeDelivery(task, opts.slot);
+  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot);
 }
 
 /** Shape injected prompt: task delivery body + optional augmentation preamble. */

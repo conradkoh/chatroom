@@ -39,9 +39,18 @@ CLI and native harnesses both wire `spawnResult.onOutput()` to `participants.upd
 
 **Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
 
-The task monitor watches assigned tasks and, for native harnesses, injects pending work via `resumeTurn` on assignment updates (no injection nudge retries):
+**Delivery paths (native SDK harnesses):**
 
-1. `native-task-injector-logic.ts` — pure inject decisions (`shouldInjectNativeTask`)
+| Path         | Trigger                                                                          | Log prefix                  |
+| ------------ | -------------------------------------------------------------------------------- | --------------------------- |
+| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                         | `[NativeDelivery:primary]`  |
+| **Fallback** | Signal/presence feed reconcile, 15s periodic reconcile timer, native light nudge | `[NativeDelivery:fallback]` |
+
+Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
+
+Injection wiring:
+
+1. `native-task-injector-logic.ts` — pure inject decisions (`shouldDeliverNativeTask`)
 2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
 3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and native turn-end idle (skipped on turn-end when participant status is `task.acknowledged` or `task.inProgress`)
 

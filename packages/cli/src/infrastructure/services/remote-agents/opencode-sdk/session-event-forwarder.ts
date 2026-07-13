@@ -331,6 +331,11 @@ export function startSessionEventForwarder(
         return;
       }
       clearRetryIdleTimeout();
+      // OpenCode sometimes emits session.status idle without a separate session.idle
+      // event. Without this, nativeTurnPhase never resets and pending tasks stay stuck.
+      if (currentStatus === 'idle') {
+        await handleSessionIdle();
+      }
     }
   }
 

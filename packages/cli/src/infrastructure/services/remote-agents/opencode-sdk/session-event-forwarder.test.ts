@@ -125,6 +125,17 @@ describe('SessionEventForwarder', () => {
     };
   }
 
+  async function* statusIdleOnlyStream(): AsyncGenerator<unknown> {
+    await new Promise((r) => setTimeout(r, 10));
+    yield {
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-1',
+        status: { type: 'idle' },
+      },
+    };
+  }
+
   async function* compactedStream(): AsyncGenerator<unknown> {
     await new Promise((r) => setTimeout(r, 10));
     yield {
@@ -300,6 +311,20 @@ describe('SessionEventForwarder', () => {
     await vi.advanceTimersByTimeAsync(50);
     await handle.done;
     vi.useRealTimers();
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
+  }, 10000);
+
+  it('session.status idle without session.idle -> agent_end fired once', async () => {
+    vi.useFakeTimers();
+    const fakeClient = createMockClient(statusIdleOnlyStream());
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+    await vi.advanceTimersByTimeAsync(50);
+    await handle.done;
+    vi.useRealTimers();
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] idle\n');
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder agent_end]\n');
   }, 10000);
 
