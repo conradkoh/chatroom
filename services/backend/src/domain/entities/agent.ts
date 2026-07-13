@@ -91,7 +91,13 @@ export const isAgentType = (value: unknown): value is AgentType =>
 /**
  * Types of commands that can be dispatched to a machine daemon.
  */
-export const MACHINE_COMMAND_TYPES = ['start-agent', 'stop-agent', 'ping', 'status'] as const;
+export const MACHINE_COMMAND_TYPES = [
+  'start-agent',
+  'stop-agent',
+  'restart-agent',
+  'ping',
+  'status',
+] as const;
 
 export type MachineCommandType = (typeof MACHINE_COMMAND_TYPES)[number];
 
@@ -136,7 +142,7 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  * Why an agent was started. Used in `agent.requestStart` events.
  *
  * - `user.start`: User explicitly started the agent via UI or CLI
- * - `user.restart`: @deprecated — no longer used, kept for backward compatibility with old events
+ * - `user.restart`: User restarted the agent via atomic restart-agent (releases in-flight tasks, resets delivery)
  * - `platform.crash_recovery`: Daemon restart after agent exit (all harnesses)
  * - `platform.auto_restart_on_new_context`: @deprecated — historical events only; no longer emitted
  * - `platform.restart_offline_on_user_message`: Restart offline remote agents when user sends a message (using persisted team config)
@@ -144,7 +150,6 @@ export const isMachineCommandStatus = (value: unknown): value is MachineCommandS
  */
 export const AGENT_START_REASONS = [
   'user.start',
-  /** @deprecated No longer used — kept for backward compatibility with old events */
   'user.restart',
   'platform.crash_recovery',
   'platform.auto_restart_on_new_context',
@@ -177,6 +182,7 @@ export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
  */
 export const AGENT_STOP_REASONS = [
   'user.stop',
+  'user.restart',
   'platform.dedup',
   'platform.team_switch',
   'platform.resume_storm',

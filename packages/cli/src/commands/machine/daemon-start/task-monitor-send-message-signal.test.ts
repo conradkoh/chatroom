@@ -10,7 +10,6 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js'
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { describe, expect, it } from 'vitest';
 
-import { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import { shouldDeliverNativeTask } from './native-task-injector-logic.js';
 import { NudgeCooldown, listTasksReadyForNudge } from './task-monitor-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
@@ -112,11 +111,13 @@ describe('task monitor — sendMessage incremental signal', () => {
     const row = snapshot.mergeSignal(snapshotDocToSignal(doc));
     expect(row).toBeDefined();
 
-    const ledger = new NativeDeliveryLedger();
     expect(
       shouldDeliverNativeTask(row!, {
-        ledger,
-        harnessSessionId: 'session-abc',
+        slot: {
+          state: 'running',
+          pid: 99,
+          harnessSessionId: 'session-abc',
+        },
       })
     ).toBe(true);
   });

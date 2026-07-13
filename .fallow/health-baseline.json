@@ -1381,6 +1381,42 @@
         "count": 4
       }
     },
+    "packages/cli/src/commands/machine/daemon-start/native-ready-invariant.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/native-task-delivery-coordinator.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/native-task-injector.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/restart-orchestrator.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/task-monitor-logic.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/task-monitor.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
       "crap_high": {
         "count": 1
@@ -2062,6 +2098,11 @@
       }
     },
     "services/backend/src/domain/usecase/agent/list-chatroom-agent-overview.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/restart-agent.ts": {
       "crap_moderate": {
         "count": 1
       }

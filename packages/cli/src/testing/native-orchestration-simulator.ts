@@ -11,7 +11,6 @@ import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
-import { NativeDeliveryLedger } from '../commands/machine/daemon-start/native-delivery-ledger.js';
 import { buildNativeInjectionPrompt } from '../commands/machine/daemon-start/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from '../commands/machine/daemon-start/native-task-injector.js';
 
@@ -72,7 +71,6 @@ function createBackendMock(deliveryOutput: string) {
 
 export class NativeOrchestrationSimulator {
   readonly harness = new RecordingHarness();
-  readonly ledger = new NativeDeliveryLedger();
   readonly harnessSessionId: string;
   readonly sessionId: string;
   readonly convexUrl: string;
@@ -102,18 +100,13 @@ export class NativeOrchestrationSimulator {
     const backend = createBackendMock(deliveryOutput);
 
     await Effect.runPromise(
-      runNativeInjectionEffect(
-        task,
-        this.harnessSessionId,
-        {
-          sessionId,
-          machineId: task.agentConfig.machineId,
-          convexUrl,
-          backend,
-          agentMgr: this.harness,
-        },
-        this.ledger
-      )
+      runNativeInjectionEffect(task, this.harnessSessionId, {
+        sessionId,
+        machineId: task.agentConfig.machineId,
+        convexUrl,
+        backend,
+        agentMgr: this.harness,
+      })
     );
 
     const recorded = this.harness.lastInjection();

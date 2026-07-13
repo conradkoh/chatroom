@@ -1374,6 +1374,98 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // User-initiated atomic agent restart (daemon runs orchestrated reset → spawn → deliver)
+      v.object({
+        type: v.literal('agent.restart'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        agentHarness: agentHarnessValidator,
+        model: v.string(),
+        workingDir: v.string(),
+        correlationId: v.string(),
+        wantResume: v.boolean(),
+        deadline: v.number(),
+        timestamp: v.number(),
+      }),
+      // Restart orchestrator phase marker
+      v.object({
+        type: v.literal('agent.restartPhase'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        correlationId: v.string(),
+        phase: v.union(
+          v.literal('reset'),
+          v.literal('spawn'),
+          v.literal('await_session'),
+          v.literal('ready'),
+          v.literal('deliver'),
+          v.literal('completed'),
+          v.literal('failed')
+        ),
+        detail: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Restart orchestrator finished successfully
+      v.object({
+        type: v.literal('agent.restartCompleted'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        correlationId: v.string(),
+        deliveredTaskIds: v.optional(v.array(v.string())),
+        timestamp: v.number(),
+      }),
+      // Native harness waiting for harnessSessionId after spawn
+      v.object({
+        type: v.literal('agent.harnessSessionAwaiting'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        pid: v.number(),
+        timeoutMs: v.number(),
+        timestamp: v.number(),
+      }),
+      // harnessSessionId confirmed on daemon slot
+      v.object({
+        type: v.literal('agent.harnessSessionReady'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        harnessSessionId: v.string(),
+        pid: v.number(),
+        timestamp: v.number(),
+      }),
+      // harnessSessionId not received within timeout — process killed for retry
+      v.object({
+        type: v.literal('agent.harnessSessionTimeout'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        pid: v.optional(v.number()),
+        timeoutMs: v.number(),
+        timestamp: v.number(),
+      }),
+      // Native task prompt injected after restart or reconcile
+      v.object({
+        type: v.literal('agent.taskDelivered'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        timestamp: v.number(),
+      }),
+      // Native task injection failed (claim or resumeTurn)
+      v.object({
+        type: v.literal('agent.taskDeliveryFailed'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        taskId: v.optional(v.id('chatroom_tasks')),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
       // Daemon hit crash loop limit and stopped restarting
       v.object({
         type: v.literal('agent.restartLimitReached'),

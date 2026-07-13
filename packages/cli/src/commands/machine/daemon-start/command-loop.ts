@@ -13,6 +13,7 @@ import { Effect, Ref } from 'effect';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shutdown.js';
@@ -125,6 +126,18 @@ function handleRequestStartEffect(
     const eventId = event._id.toString();
     if (tracker.commandIds.has(eventId)) return;
     yield* onRequestStartAgentEffect(event as Parameters<typeof onRequestStartAgentEffect>[0]);
+    tracker.commandIds.set(eventId, Date.now());
+  });
+}
+
+function handleRequestRestartEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.commandIds.has(eventId)) return;
+    yield* onRequestRestartAgentEffect(event as Parameters<typeof onRequestRestartAgentEffect>[0]);
     tracker.commandIds.set(eventId, Date.now());
   });
 }
@@ -329,6 +342,7 @@ const commandEventHandlers: Partial<
   >
 > = {
   'agent.requestStart': handleRequestStartEffect,
+  'agent.restart': handleRequestRestartEffect,
   'agent.requestStop': handleRequestStopEffect,
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,

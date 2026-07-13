@@ -7,11 +7,7 @@ import {
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
-import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
-import {
-  buildNativeInjectionPrompt,
-  shouldDeliverNativeTask,
-} from './native-task-injector-logic.js';
+import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
@@ -33,26 +29,38 @@ export interface NativeInjectorDeps {
   onTaskDelivered?: (args: { chatroomId: string; role: string; taskId: string }) => void;
 }
 
+async function emitTaskDeliveryFailed(
+  deps: NativeInjectorDeps,
+  args: {
+    chatroomId: string;
+    role: string;
+    taskId?: string;
+    error: string;
+  }
+): Promise<void> {
+  try {
+    await deps.backend.mutation(api.machines.emitTaskDeliveryFailed, {
+      sessionId: deps.sessionId,
+      machineId: deps.machineId,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: args.taskId,
+      error: args.error,
+    });
+  } catch {
+    // Non-critical observability
+  }
+}
+
 export function runNativeInjectionEffect(
   task: AssignedTaskView,
   harnessSessionId: string,
-  deps: NativeInjectorDeps,
-  ledger: NativeDeliveryLedger
+  deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {
-  // fallow-ignore-next-line complexity
   return Effect.gen(function* () {
-    if (!shouldDeliverNativeTask(task, { ledger, harnessSessionId })) {
-      return;
-    }
-
     const { chatroomId, taskId, taskContent, agentConfig, status } = task;
     const { role } = agentConfig;
 
-    if (!ledger.tryAcquire(taskId, harnessSessionId)) {
-      return;
-    }
-
-    // Pending tasks must be claimed before delivery; acknowledged tasks are already owned.
     if (status === 'pending') {
       const claimResult = yield* Effect.tryPromise({
         try: () =>
@@ -66,7 +74,16 @@ export function runNativeInjectionEffect(
       }).pipe(Effect.either);
 
       if (claimResult._tag === 'Left') {
-        ledger.clearDelivery(taskId, harnessSessionId);
+        yield* Effect.tryPromise({
+          try: () =>
+            emitTaskDeliveryFailed(deps, {
+              chatroomId,
+              role,
+              taskId: taskId as string,
+              error: getErrorMessage(claimResult.left),
+            }),
+          catch: () => undefined,
+        }).pipe(Effect.catchAll(() => Effect.void));
         return yield* Effect.fail(claimResult.left);
       }
     }
@@ -84,14 +101,21 @@ export function runNativeInjectionEffect(
     }).pipe(Effect.either);
 
     if (deliveryResult._tag === 'Left') {
-      ledger.clearDelivery(taskId, harnessSessionId);
+      yield* Effect.tryPromise({
+        try: () =>
+          emitTaskDeliveryFailed(deps, {
+            chatroomId,
+            role,
+            taskId: taskId as string,
+            error: getErrorMessage(deliveryResult.left),
+          }),
+        catch: () => undefined,
+      }).pipe(Effect.catchAll(() => Effect.void));
       return yield* Effect.fail(deliveryResult.left);
     }
 
     const delivery = deliveryResult.right;
-
     const augmentationMode = resolveSessionAugmentationForRole(taskContent, role);
-
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
       augmentationMode,
@@ -107,9 +131,7 @@ export function runNativeInjectionEffect(
           taskId,
         }),
       catch: (err) => err,
-    }).pipe(
-      Effect.tapError(() => Effect.sync(() => ledger.clearDelivery(taskId, harnessSessionId)))
-    );
+    });
 
     if (roleSupportsSessionAugmentation(role)) {
       yield* Effect.tryPromise({
@@ -134,14 +156,33 @@ export function runNativeInjectionEffect(
     }).pipe(Effect.either);
 
     if (resumeResult._tag === 'Left') {
-      ledger.clearDelivery(taskId, harnessSessionId);
-      console.warn(
-        `[NativeTaskInjector] resumeTurn failed for ${role}@${chatroomId}: ${getErrorMessage(resumeResult.left)}`
-      );
+      const error = getErrorMessage(resumeResult.left);
+      console.warn(`[NativeTaskInjector] resumeTurn failed for ${role}@${chatroomId}: ${error}`);
+      yield* Effect.tryPromise({
+        try: () =>
+          emitTaskDeliveryFailed(deps, {
+            chatroomId,
+            role,
+            taskId: taskId as string,
+            error,
+          }),
+        catch: () => undefined,
+      }).pipe(Effect.catchAll(() => Effect.void));
       return;
     }
 
-    ledger.markDelivered(taskId, harnessSessionId);
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.machines.emitTaskDelivered, {
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+          chatroomId,
+          role,
+          taskId,
+        }),
+      catch: (err) => err,
+    }).pipe(Effect.catchAll(() => Effect.void));
+
     deps.onTaskDelivered?.({ chatroomId, role, taskId: taskId as string });
   });
 }

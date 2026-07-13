@@ -15,7 +15,6 @@ import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
-import { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -86,7 +85,7 @@ describe('native queued delivery after agent_end', () => {
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     } as unknown as DaemonAgentProcessManagerServiceShape;
 
-    const coordinator = new NativeTaskDeliveryCoordinator(new NativeDeliveryLedger());
+    const coordinator = new NativeTaskDeliveryCoordinator();
     coordinator.reconcileAssignedTasks({
       tasks: [row!],
       runtime: Runtime.defaultRuntime as Parameters<
@@ -146,12 +145,11 @@ describe('native queued delivery after agent_end', () => {
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
 
-    const ledger = new NativeDeliveryLedger();
-    expect(
-      shouldDeliverNativeTask(row!, {
-        ledger,
-        harnessSessionId: HARNESS_SESSION_ID,
-      })
-    ).toBe(true);
+    const slot = {
+      state: 'running' as const,
+      pid: 42_424,
+      harnessSessionId: HARNESS_SESSION_ID,
+    };
+    expect(shouldDeliverNativeTask(row!, { slot })).toBe(true);
   });
 });

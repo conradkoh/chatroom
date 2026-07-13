@@ -6,6 +6,7 @@
  */
 export type StopReason =
   | 'user.stop'
+  | 'user.restart'
   | 'platform.dedup'
   | 'platform.task_monitor_nudge'
   | 'platform.team_switch'
