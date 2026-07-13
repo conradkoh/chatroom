@@ -674,6 +674,8 @@ contextCommand
 contextCommand
   .command('view-template')
   .description('Print a template for `chatroom context new` content.')
+  .option('--chatroom-id <id>', 'Ignored (accepted for copy-paste compatibility)')
+  .option('--role <role>', 'Ignored (accepted for copy-paste compatibility)')
   .action(async () => {
     const { viewTemplate } = await import('./commands/context/index.js');
     console.log(viewTemplate());

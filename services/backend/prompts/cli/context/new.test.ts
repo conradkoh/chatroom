@@ -28,8 +28,13 @@ describe('contextNewCommand', () => {
 });
 
 describe('contextNewHint', () => {
-  test('clarifies trigger message ID is not the task ID', () => {
-    expect(contextNewHint()).toContain('NOT the Task ID');
-    expect(contextNewHint()).toContain('Origin Message ID');
+  test('clarifies trigger message ID is origin-message-id, not task-id', () => {
+    const hint = contextNewHint({ cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ' });
+    expect(hint).toContain('origin-message-id');
+    expect(hint).toContain('never `task-id`');
+    expect(hint).toContain('(no flags)');
+    expect(hint).toContain(
+      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template'
+    );
   });
 });
