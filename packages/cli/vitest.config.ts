@@ -8,9 +8,6 @@ export default defineConfig({
     // Integration tests require external services (opencode binary, LLM API).
     // Run them explicitly: pnpm test -- --reporter=verbose *.integration.*
     exclude: ['src/**/*.integration.{test,spec}.{ts,js}'],
-    // Turbo already runs packages in parallel; cap in-package file workers to
-    // reduce 5s timeout / timer flakes on pre-push under high CPU load.
-    maxWorkers: 4,
     testTimeout: 15_000,
   },
 });
