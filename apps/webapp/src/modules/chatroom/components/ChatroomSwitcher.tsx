@@ -3,7 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Star } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 
 import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
 
@@ -24,6 +24,7 @@ import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContex
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
+import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
 // Status indicator uses shared chatStatusDisplay (mirrors ChatroomSidebar + listing page)
@@ -60,6 +61,10 @@ export function ChatroomSwitcher() {
   const searchParams = useSearchParams();
   const activeChatroomId = pathname === '/app/chatroom' ? searchParams.get('id') : null;
   const { chatrooms } = useChatroomListing();
+  const switcherChatrooms = useMemo(
+    () => (chatrooms ? sortChatroomsWithCurrentFirst(chatrooms, activeChatroomId) : undefined),
+    [chatrooms, activeChatroomId]
+  );
 
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
@@ -109,12 +114,12 @@ export function ChatroomSwitcher() {
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No chatrooms found.
               </CommandEmpty>
-              {chatrooms && chatrooms.length > 0 && (
+              {switcherChatrooms && switcherChatrooms.length > 0 && (
                 <CommandGroup
                   heading="Chatrooms"
                   className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
                 >
-                  {chatrooms.map((chatroom) => (
+                  {switcherChatrooms.map((chatroom) => (
                     <CommandItem
                       key={chatroom._id}
                       value={getChatroomDisplayName(chatroom)}
