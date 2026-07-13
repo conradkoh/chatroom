@@ -14,6 +14,10 @@ import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machi
 import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
+import {
+  clearAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from './assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import {
   registerNativeDeliverySession,
@@ -166,6 +170,7 @@ describe('native queued delivery after agent_end', () => {
 
   test('notifyNativeTurnIdle injects promoted pending task via event path', async () => {
     unregisterNativeDeliverySession();
+    clearAssignedTaskSnapshots();
     const now = 1_700_000_000_000;
 
     const baseRow = {
@@ -190,6 +195,8 @@ describe('native queued delivery after agent_end', () => {
       },
     };
 
+    replaceAssignedTaskSnapshots([baseRow]);
+
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
       const a = args as Record<string, unknown>;
       if (a && 'chatroomId' in a && 'taskId' in a) {
@@ -197,9 +204,6 @@ describe('native queued delivery after agent_end', () => {
       }
       if (a && 'taskId' in a) {
         return { ...baseRow, taskContent: '## Goal\nQueued follow-up after agent_end' };
-      }
-      if (a && 'machineId' in a) {
-        return { tasks: [baseRow] };
       }
       throw new Error(`Unexpected query: ${String(_fn)}`);
     });
@@ -270,6 +274,7 @@ describe('native queued delivery after agent_end', () => {
     } finally {
       logSpy.mockRestore();
       unregisterNativeDeliverySession();
+      clearAssignedTaskSnapshots();
     }
   });
 });
