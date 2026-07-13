@@ -1,7 +1,28 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { HarnessModelSelect } from './HarnessModelSelect';
+
+// jsdom does not provide matchMedia (used by vaul drawer and useIsDesktop)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+const mockUseIsDesktop = vi.fn(() => true);
+
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: () => mockUseIsDesktop(),
+}));
 
 // Radix UI Popover uses ResizeObserver — polyfill for jsdom
 global.ResizeObserver = class ResizeObserver {
@@ -35,6 +56,9 @@ function openDropdown() {
 }
 
 describe('HarnessModelSelect', () => {
+  beforeEach(() => {
+    mockUseIsDesktop.mockReturnValue(true);
+  });
   it('shows an empty-state label when no providers are available', () => {
     render(<HarnessModelSelect providers={[]} value="" onValueChange={vi.fn()} />);
 
@@ -62,13 +86,23 @@ describe('HarnessModelSelect', () => {
   });
 
   it('renders popover content with opaque chatroom primary background', () => {
+    mockUseIsDesktop.mockReturnValue(true);
     render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
     openDropdown();
 
-    const content = document.querySelector('[data-slot="popover-content"]');
+    const content = document.querySelector('[data-slot="chatroom-popover-content"]');
     expect(content).not.toBeNull();
     expect(content?.className).toContain('bg-chatroom-bg-primary');
     expect(content?.className).not.toContain('bg-chatroom-bg-surface');
+  });
+
+  it('renders drawer content on mobile viewport', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    openDropdown();
+
+    expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
+    expect(screen.getByText('GPT-4o')).toBeInTheDocument();
   });
 
   it('renders all models when no isHidden prop is passed', () => {

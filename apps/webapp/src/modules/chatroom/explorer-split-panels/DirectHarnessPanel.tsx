@@ -19,24 +19,21 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, Plus } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { NewSessionComposer } from '../direct-harness/components/SessionComposer';
 import { SessionDetail } from '../direct-harness/components/SessionDetail';
 import { displaySessionTitle } from '../direct-harness/components/SessionList';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../direct-harness/components/ui/select';
+  ResponsivePickerShell,
+  PickerSearch,
+  PickerScrollBody,
+  PickerOptionRow,
+  usePickerSearchState,
+  filterPickerItems,
+} from '../components/picker';
 import { useRefreshCapabilities } from '../direct-harness/hooks/useRefreshCapabilities';
 import { useChatroomActiveWorkspace } from '../hooks/useChatroomActiveWorkspace';
-
-// ─── Sentinel for "new session" pane ─────────────────────────────────────────
-
-const NEW_SESSION_VALUE = '__new__';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +65,12 @@ export function DirectHarnessPanel({
   );
 
   const { refresh: refreshCapabilities } = useRefreshCapabilities();
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
+  const {
+    searchTerm: sessionSearch,
+    setSearchTerm: setSessionSearch,
+    handleOpenChange: handleSessionOpenChange,
+  } = usePickerSearchState(setSessionPickerOpen);
 
   // Refresh capabilities when workspace becomes known
   useEffect(() => {
@@ -90,9 +93,6 @@ export function DirectHarnessPanel({
   // Find the summary for the selected session
   const sessionSummary = sessions?.find((s) => s._id === typedSessionId);
 
-  // Dropdown current value
-  const dropdownValue = selectedSessionId ?? NEW_SESSION_VALUE;
-
   // ─── No workspace ────────────────────────────────────────────────────────────
 
   if (!workspaceId) {
@@ -112,6 +112,10 @@ export function DirectHarnessPanel({
   const sessionTitle =
     typedSessionId && sessionSummary ? displaySessionTitle(sessionSummary) : null;
 
+  const filteredSessions = filterPickerItems(sortedSessions, sessionSearch, (s) =>
+    displaySessionTitle(s)
+  );
+
   return (
     <div className="@container flex-1 flex flex-col min-h-0">
       {/* Header: session dropdown + new-session button */}
@@ -124,40 +128,60 @@ export function DirectHarnessPanel({
             {sessionTitle}
           </span>
         ) : null}
-        <Select
-          value={dropdownValue}
-          onValueChange={(val) => {
-            if (val === NEW_SESSION_VALUE) {
-              setSelectedSessionId(null);
-            } else {
-              setSelectedSessionId(val as Id<'chatroom_harnessSessions'>);
-            }
-          }}
+        <ResponsivePickerShell
+          open={sessionPickerOpen}
+          onOpenChange={handleSessionOpenChange}
+          title={sessionTitle ? 'Change session' : 'Select session'}
+          align="start"
+          contentClassName="w-72"
+          trigger={
+            <button
+              type="button"
+              className={
+                sessionTitle
+                  ? 'h-7 w-7 shrink-0 p-0 justify-center @md:flex-1 @md:w-auto @md:px-3 @md:justify-between'
+                  : 'flex-1 h-7 text-xs'
+              }
+              aria-label={sessionTitle ? 'Change session' : 'Select session'}
+            >
+              {sessionTitle ? <ChevronDown size={14} className="@md:hidden" /> : null}
+              <span className={sessionTitle ? 'hidden @md:inline-flex min-w-0' : undefined}>
+                {sessionTitle ?? 'Select session…'}
+              </span>
+            </button>
+          }
         >
-          <SelectTrigger
-            className={
-              sessionTitle
-                ? 'h-7 w-7 shrink-0 p-0 justify-center @md:flex-1 @md:w-auto @md:px-3 @md:justify-between'
-                : 'flex-1 h-7 text-xs'
-            }
-            aria-label={sessionTitle ? 'Change session' : 'Select session'}
-          >
-            {sessionTitle ? <ChevronDown size={14} className="@md:hidden" /> : null}
-            <span className={sessionTitle ? 'hidden @md:inline-flex min-w-0' : undefined}>
-              <SelectValue placeholder="Select session…" />
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            {sortedSessions.map((s) => (
-              <SelectItem key={s._id} value={s._id} className="text-xs">
-                {displaySessionTitle(s)}
-              </SelectItem>
-            ))}
-            <SelectItem value={NEW_SESSION_VALUE} className="text-xs text-muted-foreground">
-              + New session
-            </SelectItem>
-          </SelectContent>
-        </Select>
+          <PickerSearch
+            value={sessionSearch}
+            onChange={setSessionSearch}
+            placeholder="Search sessions…"
+          />
+          <PickerScrollBody maxHeightClassName="max-h-60">
+            {filteredSessions.length > 0
+              ? filteredSessions.map((s) => (
+                  <PickerOptionRow
+                    key={s._id}
+                    selected={selectedSessionId === s._id}
+                    onSelect={() => {
+                      setSelectedSessionId(s._id);
+                      handleSessionOpenChange(false);
+                    }}
+                  >
+                    {displaySessionTitle(s)}
+                  </PickerOptionRow>
+                ))
+              : null}
+            <PickerOptionRow
+              selected={selectedSessionId === null}
+              onSelect={() => {
+                setSelectedSessionId(null);
+                handleSessionOpenChange(false);
+              }}
+            >
+              <span className="text-muted-foreground">+ New session</span>
+            </PickerOptionRow>
+          </PickerScrollBody>
+        </ResponsivePickerShell>
 
         <button
           type="button"

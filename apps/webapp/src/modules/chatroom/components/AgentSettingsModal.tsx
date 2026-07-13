@@ -30,7 +30,7 @@ import { IntegrationsTab } from './IntegrationsTab';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import {
   clearWorkspaceFileTree,
   toWorkspaceFileTreeKey,
@@ -924,6 +924,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
   initialTab,
 }: AgentSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? 'setup');
+  const [mobileTabPickerOpen, setMobileTabPickerOpen] = useState(false);
 
   // Sync activeTab when initialTab changes (e.g. opening to a different tab)
   useEffect(() => {
@@ -967,21 +968,38 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
 
         {/* Mobile tab selector — visible only on small screens */}
         <div className="sm:hidden border-b border-chatroom-border px-4 py-2 flex-shrink-0">
-          <Select value={activeTab} onValueChange={(val) => setActiveTab(val as SettingsTab)}>
-            <SelectTrigger
-              size="sm"
-              className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
+          <ResponsivePickerShell
+            open={mobileTabPickerOpen}
+            onOpenChange={setMobileTabPickerOpen}
+            title="Select tab"
+            align="start"
+            contentClassName="w-72"
+            trigger={
+              <button
+                type="button"
+                className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none flex h-8 items-center justify-between gap-2 px-3 py-2"
+              >
+                <span className="truncate text-left flex-1">
+                  {TAB_CONFIG.find((t) => t.id === activeTab)?.label ?? 'Select tab'}
+                </span>
+              </button>
+            }
+          >
+            <PickerScrollBody maxHeightClassName="max-h-60">
               {TAB_CONFIG.map((tab) => (
-                <SelectItem key={tab.id} value={tab.id} className="text-xs rounded-none">
+                <PickerOptionRow
+                  key={tab.id}
+                  selected={activeTab === tab.id}
+                  onSelect={() => {
+                    setActiveTab(tab.id);
+                    setMobileTabPickerOpen(false);
+                  }}
+                >
                   {tab.label}
-                </SelectItem>
+                </PickerOptionRow>
               ))}
-            </SelectContent>
-          </Select>
+            </PickerScrollBody>
+          </ResponsivePickerShell>
         </div>
 
         <FixedModalBody className="p-6">

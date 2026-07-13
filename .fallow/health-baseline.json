@@ -387,8 +387,11 @@
       }
     },
     "apps/webapp/src/modules/chatroom/components/CreateChatroomForm.tsx": {
+      "crap_high": {
+        "count": 1
+      },
       "crap_moderate": {
-        "count": 3
+        "count": 2
       }
     },
     "apps/webapp/src/modules/chatroom/components/EditorModal.tsx": {
@@ -724,6 +727,11 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/direct-harness/components/harness-selectors/HarnessSelectorBar.tsx": {
       "crap_high": {
         "count": 1
@@ -771,6 +779,9 @@
       }
     },
     "apps/webapp/src/modules/chatroom/explorer-split-panels/DirectHarnessPanel.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
       "crap_critical": {
         "count": 1
       },
@@ -2185,6 +2196,7 @@
     "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts:high impact",
     "services/backend/src/domain/entities/agent.ts:dead code",
     "services/backend/prompts/base/webapp/utils/env.ts:dead code",
+    "apps/webapp/src/modules/chatroom/hooks/persistence/messageViewMode.ts:high impact",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
@@ -2203,9 +2215,9 @@
     "apps/webapp/src/modules/chatroom/direct-harness/utils/sessionStatus.ts:high impact",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
+    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:untested risk",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
     "packages/cli/src/infrastructure/git/run-command.ts:high impact",
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:untested risk",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
     "packages/cli/src/domain/agent-lifecycle/policies/terminal-provider-error.ts:untested risk",
