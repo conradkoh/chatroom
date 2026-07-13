@@ -4,7 +4,7 @@ import type {
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
-import { listAssignedTaskSnapshotsForRole } from './assigned-task-snapshot-store.js';
+import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,

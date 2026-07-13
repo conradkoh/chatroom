@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
-} from './assigned-task-snapshot-store.js';
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import {
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
