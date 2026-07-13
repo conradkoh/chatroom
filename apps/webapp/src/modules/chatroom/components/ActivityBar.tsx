@@ -1,6 +1,6 @@
 'use client';
 
-import { Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
+import { Command, Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
 import { memo } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
@@ -75,13 +75,13 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * 6. Processes  — command launcher / process manager (new)
  *
  * On mobile (hidden via CSS):
- * - Shows a chatroom switch trigger at the bottom
+ * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
  */
 export const ActivityBar = memo(function ActivityBar({
   activeView,
   onViewChange,
 }: ActivityBarProps) {
-  const { openDialog } = useCommandDialog();
+  const { openDialog, closeDialog, activeDialog } = useCommandDialog();
 
   return (
     <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
@@ -125,43 +125,19 @@ export const ActivityBar = memo(function ActivityBar({
       {/* Spacer to push chatroom switch to bottom */}
       <div className="flex-1" />
 
-      {/* Chatroom switch button */}
+      {/* Command palette button */}
       <button
         className={cn(
           'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
           'text-chatroom-text-muted hover:text-chatroom-text-primary'
         )}
-        onClick={() => openDialog('switcher')}
-        title="Switch Chatroom"
+        onClick={() =>
+          activeDialog === 'command-palette' ? closeDialog() : openDialog('command-palette')
+        }
+        title="Command Palette"
       >
-        <ChatroomSwitchIcon />
+        <Command size={20} />
       </button>
     </div>
   );
 });
-
-// ─── Inline Chatroom Switch Icon ──────────────────────────────────────────────
-
-/**
- * Inline SVG icon for chatroom switch (two overlapping squares).
- * Matches the visual language of the ActivityBar (Lucide-style).
- */
-function ChatroomSwitchIcon() {
-  return (
-    <svg
-      width={20}
-      height={20}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {/* Back square */}
-      <rect x="3" y="3" width="14" height="14" rx="2" opacity="0.5" />
-      {/* Front square - offset to show "switch" concept */}
-      <rect x="7" y="7" width="14" height="14" rx="2" />
-    </svg>
-  );
-}
