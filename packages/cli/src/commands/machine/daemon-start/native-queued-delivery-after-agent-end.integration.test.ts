@@ -17,7 +17,7 @@ import { describe, expect, test, vi } from 'vitest';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
-} from './assigned-task-snapshot-store.js';
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import {
   registerNativeDeliverySession,

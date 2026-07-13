@@ -32,7 +32,7 @@ import {
   hasAssignedTaskSnapshot,
   listAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
-} from './assigned-task-snapshot-store.js';
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
