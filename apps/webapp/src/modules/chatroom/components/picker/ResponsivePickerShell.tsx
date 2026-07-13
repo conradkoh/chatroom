@@ -67,7 +67,7 @@ export function ResponsivePickerShell({
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(
-          'bg-chatroom-bg-primary border-t border-chatroom-border p-0 max-h-[80vh]',
+          'bg-chatroom-bg-primary border-t border-chatroom-border p-0 max-h-[80vh] rounded-t-none',
           drawerContentClassName
         )}
       >

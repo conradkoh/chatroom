@@ -5,9 +5,10 @@ export function buildHandoffNotificationContent(
 ): { title: string; body: string } {
   const name = chatroom.name?.trim();
   const teamName = chatroom.teamName?.trim();
-  const title = name ? `${name} Handoff` : teamName ? `${teamName} Handoff` : 'Handoff';
+  const displayName = name || teamName;
+  const title = displayName ? `Chatroom | ${displayName}` : 'Chatroom';
   return {
     title,
-    body: 'Tasks complete.',
+    body: 'Tasks complete',
   };
 }
