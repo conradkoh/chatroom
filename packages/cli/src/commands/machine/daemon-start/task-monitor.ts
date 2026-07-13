@@ -538,7 +538,7 @@ export const startTaskMonitorEffect = (
 
     const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
       wsClient,
-      session,
+      { sessionId: session.sessionId, machineId: session.machineId },
       () => stopped
     );
 
