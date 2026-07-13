@@ -39,6 +39,8 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.stopTimeout': { label: 'Agent Stop Timeout', badge: 'warning' },
   'agent.harnessSessionIdUpdated': { label: 'Harness Session ID Updated', badge: 'info' },
   'agent.awaitingHandoff': { label: 'Awaiting Handoff', badge: 'warning' },
+  'agent.taskDelivered': { label: 'Task Delivered', badge: 'success' },
+  'agent.taskDeliveryFailed': { label: 'Task Delivery Failed', badge: 'error' },
   'machine.switched': { label: 'Machine Switched', badge: 'info' },
   'connection.terminated': { label: 'Connection Terminated', badge: 'muted' },
   'workflow.started': { label: 'Workflow Started', badge: 'info' },
