@@ -10,12 +10,12 @@ In-memory caches that **mirror remote (Convex) query results** for the machine d
 
 ## Does not belong here
 
-| Kind | Home instead |
-| --- | --- |
-| Incremental dual-channel snapshots (`WorkingSnapshot`) | `infrastructure/incremental-sync/` |
-| Process coordination (mutex, generation, session registry) | `commands/machine/daemon-start/` |
-| Disk-backed machine/harness state | `infrastructure/machine/` / harness packages |
-| Temp/file I/O buffers | feature handlers (e.g. process output) |
+| Kind                                                       | Home instead                                 |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| Incremental dual-channel snapshots (`WorkingSnapshot`)     | `infrastructure/incremental-sync/`           |
+| Process coordination (mutex, generation, session registry) | `commands/machine/daemon-start/`             |
+| Disk-backed machine/harness state                          | `infrastructure/machine/` / harness packages |
+| Temp/file I/O buffers                                      | feature handlers (e.g. process output)       |
 
 ## Convention
 

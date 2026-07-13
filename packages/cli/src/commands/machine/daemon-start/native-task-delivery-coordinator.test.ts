@@ -2,10 +2,6 @@ import { Context, Runtime } from 'effect';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
-import {
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
 } from './native-delivery-session-registry.js';
@@ -15,6 +11,10 @@ import {
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
+import {
+  clearAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 
 function makeRow() {
   return {
