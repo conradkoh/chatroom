@@ -41,10 +41,10 @@ CLI and native harnesses both wire `spawnResult.onOutput()` to `participants.upd
 
 **Delivery paths (native SDK harnesses):**
 
-| Path         | Trigger                                                                          | Log prefix                  |
-| ------------ | -------------------------------------------------------------------------------- | --------------------------- |
-| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                         | `[NativeDelivery:primary]`  |
-| **Fallback** | Signal/presence feed reconcile, 15s periodic reconcile timer, native light nudge | `[NativeDelivery:fallback]` |
+| Path         | Trigger                                                                                                   | Log prefix                  |
+| ------------ | --------------------------------------------------------------------------------------------------------- | --------------------------- |
+| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                                                  | `[NativeDelivery:primary]`  |
+| **Fallback** | Signal/presence feed reconcile, subscribed snapshot store + 10s local reconcile timer, native light nudge | `[NativeDelivery:fallback]` |
 
 Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
 

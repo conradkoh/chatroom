@@ -25,6 +25,10 @@ import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machi
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import {
+  clearAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from './assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
@@ -183,6 +187,7 @@ describe('native signal-presence stuck after planner handoff', () => {
 
   test('reproduces stuck when notifyNativeTurnIdle already ran before pending task existed', async () => {
     unregisterNativeDeliverySession();
+    clearAssignedTaskSnapshots();
 
     const backendQuery = vi.fn(async () => ({ tasks: [] }));
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
@@ -206,15 +211,21 @@ describe('native signal-presence stuck after planner handoff', () => {
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
+    // Store empty when turn went idle — primary path finds nothing (no HTTP hydrate).
     notifyNativeTurnIdle({ chatroomId: CHATROOM_ID, role: 'planner' });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(backendQuery).toHaveBeenCalled();
+    expect(backendQuery).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a — no pending tasks for role'
+      )
+    );
     resumeTurnForSlot.mockClear();
 
     const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostHandoffPendingSnapshotDoc()));
     expect(row).toBeDefined();
+    replaceAssignedTaskSnapshots([row!]);
 
     simulateSignalPresenceReconcile({
       row: row!,
@@ -240,6 +251,10 @@ describe('native signal-presence stuck after planner handoff', () => {
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining('[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a')
     );
+
+    clearAssignedTaskSnapshots();
+    unregisterNativeDeliverySession();
+    logSpy.mockRestore();
   });
 
   test('native nudge does not rescue within 15s when agent just went native:waiting', () => {
