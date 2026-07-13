@@ -1,7 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
-import React, { useCallback, useEffect, memo } from 'react';
+import React, { useCallback, useEffect, memo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
@@ -9,6 +9,13 @@ import { cn } from '@/lib/utils';
 // ─── Modal Stack ─────────────────────────────────────────────────────────────
 // Tracks open FixedModals so only the topmost modal responds to Escape.
 let modalStack: (() => void)[] = [];
+
+// Reference-counted body scroll lock for nested/stacked modals.
+let scrollLockCount = 0;
+let savedBodyOverflow: string | null = null;
+
+const BASE_MODAL_Z_INDEX = 50;
+const MODAL_Z_INDEX_STEP = 10;
 
 // ─── Composition Sub-Components ─────────────────────────────────────────
 
@@ -221,15 +228,25 @@ const FixedModal = memo(function FixedModal({
   className,
   closeOnBackdrop = true,
 }: FixedModalProps) {
-  // Lock body scroll when modal is open
+  const [layerZIndex, setLayerZIndex] = useState(BASE_MODAL_Z_INDEX);
+
+  // Lock body scroll when modal is open (reference-counted for stacked modals)
   useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
+    if (!isOpen) return;
+
+    if (scrollLockCount === 0) {
+      savedBodyOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
     }
+    scrollLockCount++;
+
+    return () => {
+      scrollLockCount = Math.max(0, scrollLockCount - 1);
+      if (scrollLockCount === 0 && savedBodyOverflow !== null) {
+        document.body.style.overflow = savedBodyOverflow;
+        savedBodyOverflow = null;
+      }
+    };
   }, [isOpen]);
 
   // Handle backdrop click
@@ -248,6 +265,7 @@ const FixedModal = memo(function FixedModal({
 
     const handler = onClose;
     modalStack.push(handler);
+    setLayerZIndex(BASE_MODAL_Z_INDEX + modalStack.length * MODAL_Z_INDEX_STEP);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && modalStack[modalStack.length - 1] === handler) {
@@ -267,7 +285,8 @@ const FixedModal = memo(function FixedModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      style={{ zIndex: layerZIndex }}
+      className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
       onClick={handleBackdropClick}
     >
       <div
