@@ -90,7 +90,7 @@ export function useHandoffNotification(messages: NotifiableMessage[], chatroomId
     (senderRole: string) => {
       console.log('[Notification] Firing notification from:', senderRole);
       showNotification(
-        'Chatroom Handoff',
+        'Handoff',
         `${senderRole} has handed off to you`,
         'chatroom-handoff',
         chatroomId

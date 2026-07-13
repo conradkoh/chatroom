@@ -10,10 +10,10 @@ describe('buildHandoffNotificationContent', () => {
     });
   });
 
-  it('falls back to team name then Chatroom', () => {
+  it('falls back to team name then Handoff', () => {
     expect(buildHandoffNotificationContent({ name: undefined, teamName: 'Duo' }).title).toBe(
       'Duo Handoff'
     );
-    expect(buildHandoffNotificationContent({}).title).toBe('Chatroom Handoff');
+    expect(buildHandoffNotificationContent({}).title).toBe('Handoff');
   });
 });
