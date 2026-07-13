@@ -3,6 +3,7 @@
  */
 
 import { CONTEXT_STDIN_DELIMITER, formatStdinHeredocCommand } from '../stdin-heredoc';
+import { contextViewTemplateCommand } from './view-template';
 
 export interface ContextNewParams {
   chatroomId?: string;
@@ -18,8 +19,9 @@ export interface ContextNewParams {
  * to the template returned by the context view-template command.
  * Emitted immediately after a contextNewCommand snippet.
  */
-export function contextNewHint(): string {
-  return 'REQUIRED: All context content MUST conform to the template. Run `chatroom context view-template` and follow it exactly. `--trigger-message-id` must be a **message** ID (from Origin Message ID in the task header), NOT the Task ID.';
+export function contextNewHint(params: { cliEnvPrefix: string }): string {
+  const viewTemplateCmd = contextViewTemplateCommand({ cliEnvPrefix: params.cliEnvPrefix });
+  return `REQUIRED: All context content MUST conform to the template. Run \`${viewTemplateCmd}\` (no flags). \`--trigger-message-id\` must be the \`origin-message-id\` attribute on the \`<task>\` tag — never \`task-id\`. Use the pre-filled value in the command above when provided.`;
 }
 
 /**

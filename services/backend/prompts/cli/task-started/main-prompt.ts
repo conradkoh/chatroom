@@ -28,7 +28,7 @@ export function getTaskStartedPrompt(ctx: {
 
 ${getTokenActivityInProgressNote()}
 
-${getContextRuleBlock(contextNewCmd, contextNewHint())}`;
+${getContextRuleBlock(contextNewCmd, contextNewHint({ cliEnvPrefix }))}`;
 }
 
 /**

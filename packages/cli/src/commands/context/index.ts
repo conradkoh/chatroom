@@ -12,6 +12,7 @@
 import { Effect } from 'effect';
 
 import type { ContextDeps } from './deps.js';
+import { formatNewContextError } from './format-new-context-error.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
@@ -474,7 +475,7 @@ function handleContextError(err: ContextError): Effect.Effect<void> {
       console.error(`❌ Failed to read context: ${sanitizeUnknownForTerminal(err.cause.message)}`);
       process.exit(1);
     } else if (err._tag === 'NewContextFailed') {
-      console.error(`❌ Failed to create context: ${err.cause.message}`);
+      console.error(`❌ Failed to create context: ${formatNewContextError(err.cause)}`);
       process.exit(1);
     } else if (err._tag === 'ListContextsFailed') {
       console.error(`❌ Failed to list contexts: ${sanitizeUnknownForTerminal(err.cause.message)}`);

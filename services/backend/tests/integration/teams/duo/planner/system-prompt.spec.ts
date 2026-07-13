@@ -208,7 +208,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       <summary of current focus>
       CHATROOM_CONTEXT_END
       \`\`\`
-      REQUIRED: All context content MUST conform to the template. Run \`chatroom context view-template\` and follow it exactly. \`--trigger-message-id\` must be a **message** ID (from Origin Message ID in the task header), NOT the Task ID.
+      REQUIRED: All context content MUST conform to the template. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template\` (no flags). \`--trigger-message-id\` must be the \`origin-message-id\` attribute on the \`<task>\` tag — never \`task-id\`. Use the pre-filled value in the command above when provided.
 
       ## Planner Operating Model
 
