@@ -28,6 +28,18 @@ describe('event type registry', () => {
     expect(definition.detailsRenderer).toBeTypeOf('function');
   });
 
+  it('resolves agent.taskDelivered from the registry', () => {
+    const definition = resolveEventTypeDefinition({
+      _id: 'evt_task_delivered',
+      _creationTime: 1,
+      timestamp: 1,
+      type: 'agent.taskDelivered',
+    });
+
+    expect(definition.cellRenderer).toBeTypeOf('function');
+    expect(definition.detailsRenderer).toBeTypeOf('function');
+  });
+
   it('falls back to placeholder renderers for unknown runtime event types', () => {
     const definition = resolveEventTypeDefinition({
       _id: 'evt_2',

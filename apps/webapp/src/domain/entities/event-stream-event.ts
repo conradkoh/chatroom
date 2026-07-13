@@ -208,6 +208,23 @@ export interface AgentAwaitingHandoffEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentTaskDeliveredEvent extends EventStreamEventBase {
+  type: 'agent.taskDelivered';
+  chatroomId: string;
+  machineId: string;
+  role: string;
+  taskId: string;
+}
+
+export interface AgentTaskDeliveryFailedEvent extends EventStreamEventBase {
+  type: 'agent.taskDeliveryFailed';
+  chatroomId: string;
+  machineId: string;
+  role: string;
+  taskId?: string;
+  error: string;
+}
+
 export interface MachineSwitchedEvent extends EventStreamEventBase {
   type: 'machine.switched';
   role: string;
@@ -443,6 +460,8 @@ export type EventStreamEvent =
   | AgentStopTimeoutEvent
   | AgentHarnessSessionIdUpdatedEvent
   | AgentAwaitingHandoffEvent
+  | AgentTaskDeliveredEvent
+  | AgentTaskDeliveryFailedEvent
   | MachineSwitchedEvent
   | TaskActivatedEvent
   | TaskAcknowledgedEvent

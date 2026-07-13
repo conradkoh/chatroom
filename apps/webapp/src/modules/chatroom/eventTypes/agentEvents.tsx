@@ -24,6 +24,8 @@ import type {
   AgentStopTimeoutEvent,
   AgentHarnessSessionIdUpdatedEvent,
   AgentAwaitingHandoffEvent,
+  AgentTaskDeliveredEvent,
+  AgentTaskDeliveryFailedEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
 // ─── Agent Started ───────────────────────────────────────────────────────────
@@ -829,6 +831,79 @@ function renderAgentAwaitingHandoffDetails(event: AgentAwaitingHandoffEvent): Re
   );
 }
 
+// ─── Agent Task Delivered ─────────────────────────────────────────────────────
+
+function renderAgentTaskDeliveredCell(
+  event: AgentTaskDeliveredEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.taskDelivered"
+      badgeText="Task Delivered"
+      badgeColor="success"
+      primaryInfo={event.role}
+      secondaryInfo={event.taskId}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentTaskDeliveredDetails(event: AgentTaskDeliveredEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Task Delivered"
+      timestamp={event.timestamp}
+      type="agent.taskDelivered"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Task ID" value={event.taskId} mono />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Task Delivery Failed ─────────────────────────────────────────────────
+
+function renderAgentTaskDeliveryFailedCell(
+  event: AgentTaskDeliveryFailedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.taskDeliveryFailed"
+      badgeText="Delivery Failed"
+      badgeColor="error"
+      primaryInfo={event.role}
+      secondaryInfo={event.error}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentTaskDeliveryFailedDetails(
+  event: AgentTaskDeliveryFailedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Task Delivery Failed"
+      timestamp={event.timestamp}
+      type="agent.taskDeliveryFailed"
+    >
+      <DetailRow label="Role" value={event.role} />
+      {event.taskId && <DetailRow label="Task ID" value={event.taskId} mono />}
+      <DetailRow label="Error" value={event.error} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Machine Switched ─────────────────────────────────────────────────────────
 
 function renderMachineSwitchedCell(
@@ -888,6 +963,8 @@ export const agentEventDefinitions: Pick<
   | 'agent.stopTimeout'
   | 'agent.harnessSessionIdUpdated'
   | 'agent.awaitingHandoff'
+  | 'agent.taskDelivered'
+  | 'agent.taskDeliveryFailed'
   | 'machine.switched'
 > = {
   'agent.started': {
@@ -965,6 +1042,14 @@ export const agentEventDefinitions: Pick<
   'agent.awaitingHandoff': {
     cellRenderer: renderAgentAwaitingHandoffCell,
     detailsRenderer: renderAgentAwaitingHandoffDetails,
+  },
+  'agent.taskDelivered': {
+    cellRenderer: renderAgentTaskDeliveredCell,
+    detailsRenderer: renderAgentTaskDeliveredDetails,
+  },
+  'agent.taskDeliveryFailed': {
+    cellRenderer: renderAgentTaskDeliveryFailedCell,
+    detailsRenderer: renderAgentTaskDeliveryFailedDetails,
   },
   'machine.switched': {
     cellRenderer: renderMachineSwitchedCell,
