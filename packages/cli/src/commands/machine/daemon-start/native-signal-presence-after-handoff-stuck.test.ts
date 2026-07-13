@@ -25,10 +25,6 @@ import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machi
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from './assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
@@ -41,6 +37,10 @@ import {
 } from './native-task-delivery-coordinator.js';
 import { listTasksReadyForNudge, NudgeCooldown } from './task-monitor-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
+import {
+  clearAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
 const TASK_ID = 'nh7dh7bj63fdns9zkyasjgnga58afx3s' as Id<'chatroom_tasks'>;
