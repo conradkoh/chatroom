@@ -43,14 +43,6 @@ export const HarnessWorkspaceSwitcher = memo(function HarnessWorkspaceSwitcher({
   const [open, setOpen] = useState(false);
   const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setOpen);
 
-  if (workspaces.length === 0) {
-    return (
-      <div className="text-xs text-muted-foreground px-2 py-1.5">
-        No workspaces in this chatroom
-      </div>
-    );
-  }
-
   const selectedWorkspace = useMemo(
     () => workspaces.find((ws) => ws._id === selectedWorkspaceId),
     [workspaces, selectedWorkspaceId]
@@ -61,6 +53,14 @@ export const HarnessWorkspaceSwitcher = memo(function HarnessWorkspaceSwitcher({
     searchTerm,
     (ws) => `${workspaceLabel(ws)} ${ws.workingDir}`
   );
+
+  if (workspaces.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground px-2 py-1.5">
+        No workspaces in this chatroom
+      </div>
+    );
+  }
 
   return (
     <ResponsivePickerShell
