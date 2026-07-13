@@ -43,6 +43,10 @@ vi.mock('../../../../hooks/useMachineModels', () => ({
   }),
 }));
 
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: () => true,
+}));
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
