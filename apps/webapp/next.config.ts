@@ -8,8 +8,6 @@ const nextConfig = {
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
   // Enable typed routes for compile-time type safety (moved from experimental in Next.js 16)
   typedRoutes: true,
-  // Disable Turbopack file system cache by default; enable with TURBOPACK_FS_CACHE=1
-  turbopackFileSystemCacheForDev: process.env.TURBOPACK_FS_CACHE === '1',
   // Fix Turbopack workspace root detection in monorepo
   turbopack: {
     root: path.resolve(__dirname, '../../'),
