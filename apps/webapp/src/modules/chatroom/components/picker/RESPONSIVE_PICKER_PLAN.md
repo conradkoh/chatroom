@@ -73,9 +73,9 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 
 ### High priority (popover custom selects)
 
-| Component          | Path                                        | Status  | Notes                                                             |
-| ------------------ | ------------------------------------------- | ------- | ----------------------------------------------------------------- |
-| HarnessModelSelect | `direct-harness/.../HarnessModelSelect.tsx` | pending | Popover today; has cmdk search — pilot migration after foundation |
+| Component          | Path                                        | Status | Notes                                                            |
+| ------------------ | ------------------------------------------- | ------ | ---------------------------------------------------------------- |
+| HarnessModelSelect | `direct-harness/.../HarnessModelSelect.tsx` | done   | cmdk inside `PickerScrollBody`; uses chatroom-local popover slot |
 
 ### Medium priority (Radix Select, dynamic lists)
 
@@ -108,7 +108,7 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 | ----- | ------- | ----------------------------------------------------- | ------- |
 | 0     | Planner | This plan doc                                         | done    |
 | 1     | Builder | Foundation primitives + tests in `components/picker/` | done    |
-| 2     | Builder | Pilot: migrate `HarnessModelSelect`                   | pending |
+| 2     | Builder | Pilot: migrate `HarnessModelSelect`                   | done    |
 | 3     | Builder | Harness selectors batch                               | pending |
 | 4     | Builder | Explorer / direct-harness selects                     | pending |
 | 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | pending |
@@ -125,6 +125,7 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 _(Update as we go.)_
 
 - **2026-07-13**: Two search styles exist today — plain input (`ModelFilterPanel`) and cmdk (`HarnessModelSelectList`). Foundation standardizes the **input chrome** via `PickerSearch`; cmdk remains valid **inside** `PickerScrollBody` for grouped model lists.
+- **2026-07-13**: `HarnessModelSelect` migrated. Uses cmdk inside `PickerScrollBody` (no `PickerSearch` on top). Shell popover uses chatroom-local `data-slot="chatroom-popover-content"` slot (not harness-local `data-slot="popover-content"`).
 
 ## Branch / PR
 
