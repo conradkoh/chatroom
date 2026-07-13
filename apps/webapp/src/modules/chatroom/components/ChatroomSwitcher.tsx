@@ -16,6 +16,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { cn } from '@/lib/utils';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
@@ -46,6 +47,14 @@ export function ChatroomSwitcher() {
     (val: boolean) => (val ? openDialog('switcher') : closeDialog()),
     [openDialog, closeDialog]
   );
+
+  // Two-finger tap on mobile opens/closes the chatroom switcher
+  const toggleOpen = useCallback(
+    () => (open ? closeDialog() : openDialog('switcher')),
+    [open, openDialog, closeDialog]
+  );
+  useTwoFingerTap(toggleOpen);
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

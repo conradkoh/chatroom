@@ -5,15 +5,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { getModelDisplayLabel } from '../types/machine';
 import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../utils/modelSelection';
 
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { ResponsivePickerShell } from './picker';
 
 import { cn } from '@/lib/utils';
 
@@ -178,8 +170,6 @@ export function ModelFilterPanel({
 
   const hasAnyFilter = hiddenCount > 0;
 
-  const isDesktop = useIsDesktop();
-
   const panelContent = (
     <>
       {/* Header */}
@@ -316,26 +306,18 @@ export function ModelFilterPanel({
     </>
   );
 
-  if (isDesktop) {
-    return (
-      <Popover open={open} onOpenChange={handleOpenChange}>
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        <PopoverContent className="p-0 w-[420px]" align="end">
-          {panelContent}
-        </PopoverContent>
-      </Popover>
-    );
-  }
-
   return (
-    <Drawer open={open} onOpenChange={handleOpenChange}>
-      <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-      <DrawerContent className="bg-chatroom-bg-primary border-t border-chatroom-border p-0 max-h-[80vh]">
-        <DrawerHeader className="p-0">
-          <DrawerTitle className="sr-only">Model Visibility</DrawerTitle>
-        </DrawerHeader>
-        {panelContent}
-      </DrawerContent>
-    </Drawer>
+    <ResponsivePickerShell
+      open={open}
+      onOpenChange={handleOpenChange}
+      trigger={trigger}
+      title="Model Visibility"
+      align="end"
+      contentClassName="w-[420px]"
+      drawerContentClassName="max-h-[80vh]"
+      disabled={disabled}
+    >
+      {panelContent}
+    </ResponsivePickerShell>
   );
 }

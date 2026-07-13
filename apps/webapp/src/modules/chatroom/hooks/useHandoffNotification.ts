@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import { buildHandoffNotificationContent } from './handoffNotificationContent';
+import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { showNotification } from '../utils/showNotification';
 
 /**
@@ -50,7 +52,11 @@ function trimNotifiedIds(ids: Set<string>): void {
  *
  * Requests notification permission on mount if not already granted/denied.
  */
-export function useHandoffNotification(messages: NotifiableMessage[], chatroomId: string) {
+export function useHandoffNotification(
+  messages: NotifiableMessage[],
+  chatroomId: string,
+  chatroom?: Pick<ChatroomWithStatus, 'name' | 'teamName'>
+) {
   const notifiedIdsRef = useRef(new Set<string>());
   const isInitialLoadRef = useRef(true);
   const isDocumentHiddenRef = useRef(typeof document !== 'undefined' ? document.hidden : false);
@@ -86,18 +92,11 @@ export function useHandoffNotification(messages: NotifiableMessage[], chatroomId
     };
   }, []);
 
-  const fireNotification = useCallback(
-    (senderRole: string) => {
-      console.log('[Notification] Firing notification from:', senderRole);
-      showNotification(
-        'Chatroom Handoff',
-        `${senderRole} has handed off to you`,
-        'chatroom-handoff',
-        chatroomId
-      );
-    },
-    [chatroomId]
-  );
+  const fireNotification = useCallback(() => {
+    const { title, body } = buildHandoffNotificationContent(chatroom ?? {});
+    console.log('[Notification] Firing notification:', title);
+    showNotification(title, body, 'chatroom-handoff', chatroomId);
+  }, [chatroom, chatroomId]);
 
   // Detect new handoff messages and fire notifications
   useEffect(() => {
@@ -124,7 +123,7 @@ export function useHandoffNotification(messages: NotifiableMessage[], chatroomId
         const now = Date.now();
         if (now - lastNotificationTimeRef.current >= NOTIFICATION_THROTTLE_MS) {
           lastNotificationTimeRef.current = now;
-          fireNotification(msg.senderRole);
+          fireNotification();
         }
       } else if (isHandoffToUser && !isHidden) {
         console.log(

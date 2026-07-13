@@ -1,7 +1,28 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { DirectHarnessPanel } from './DirectHarnessPanel';
+
+// jsdom does not provide matchMedia (used by vaul drawer and useIsDesktop)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+const mockUseIsDesktop = vi.fn(() => true);
+
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: () => mockUseIsDesktop(),
+}));
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -37,20 +58,6 @@ vi.mock('../direct-harness/components/SessionList', () => ({
   displaySessionTitle: (s: { sessionTitle?: string }) => s.sessionTitle ?? 'session',
 }));
 
-vi.mock('../direct-harness/components/ui/select', () => ({
-  Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
-  ),
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
-    <div data-value={value}>{children}</div>
-  ),
-}));
-
-import type React from 'react';
-
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 const CHATROOM_ID = 'cr1' as never;
@@ -59,6 +66,7 @@ const NOOP_SETTER = () => {};
 beforeEach(() => {
   localStorage.clear();
   mockSessions.mockReturnValue([]);
+  mockUseIsDesktop.mockReturnValue(true);
 });
 
 describe('DirectHarnessPanel', () => {
@@ -127,5 +135,45 @@ describe('DirectHarnessPanel', () => {
       />
     );
     expect(screen.getByTestId('session-detail')).toBeInTheDocument();
+  });
+
+  it('opens session picker and selecting "+ New session" calls setter with null', () => {
+    mockActiveWorkspace.mockReturnValue({
+      activeWorkspace: {
+        workspaceId: 'ws1',
+        machineId: 'm1',
+        workingDir: '/proj',
+        hostname: 'box',
+      },
+      workspaces: [],
+    });
+
+    const fakeSummary = {
+      _id: 'sess-1',
+      status: 'active',
+      harnessName: 'opencode-sdk',
+      lastUsedConfig: { agent: 'build' },
+      sessionTitle: 'My session',
+      lastActiveAt: Date.now(),
+      workspaceId: 'ws1',
+    };
+    mockSessions.mockReturnValue([fakeSummary]);
+
+    const setSelectedSessionId = vi.fn();
+    render(
+      <DirectHarnessPanel
+        chatroomId={CHATROOM_ID}
+        selectedSessionId="sess-1"
+        setSelectedSessionId={setSelectedSessionId}
+      />
+    );
+
+    const trigger = screen.getByLabelText('Change session');
+    fireEvent.click(trigger);
+
+    const newSessionOption = screen.getByText('+ New session');
+    fireEvent.click(newSessionOption);
+
+    expect(setSelectedSessionId).toHaveBeenCalledWith(null);
   });
 });

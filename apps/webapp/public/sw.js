@@ -35,7 +35,7 @@ self.addEventListener('message', (event) => {
     case 'SHOW_NOTIFICATION': {
       const { title, body, tag, chatroomId } = payload || {};
       event.waitUntil(
-        self.registration.showNotification(title || 'Chatroom', {
+        self.registration.showNotification(title || 'Handoff', {
           body: body || '',
           tag: tag || 'chatroom-default',
           icon: '/appicon-192x192.png',

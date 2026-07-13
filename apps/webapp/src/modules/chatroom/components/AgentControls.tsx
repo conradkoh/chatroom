@@ -19,6 +19,14 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
+import {
+  ResponsivePickerShell,
+  PickerSearch,
+  PickerScrollBody,
+  PickerOptionRow,
+  usePickerSearchState,
+  filterPickerItems,
+} from './picker';
 import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import type {
@@ -746,6 +754,29 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [machinePopoverOpen, setMachinePopoverOpen] = useState(false);
   const [harnessPopoverOpen, setHarnessPopoverOpen] = useState(false);
+  const {
+    searchTerm: machineSearch,
+    setSearchTerm: setMachineSearch,
+    handleOpenChange: handleMachineOpenChange,
+  } = usePickerSearchState(setMachinePopoverOpen);
+  const {
+    searchTerm: harnessSearch,
+    setSearchTerm: setHarnessSearch,
+    handleOpenChange: handleHarnessOpenChange,
+  } = usePickerSearchState(setHarnessPopoverOpen);
+
+  const filteredMachines = useMemo(
+    () => filterPickerItems(connectedMachines, machineSearch, (m) => getMachineDisplayName(m)),
+    [connectedMachines, machineSearch]
+  );
+
+  const filteredHarnesses = useMemo(
+    () =>
+      filterPickerItems(availableHarnessesForMachine, harnessSearch, (harness) =>
+        formatHarnessLabel(harness, harnessVersionsForMachine[harness])
+      ),
+    [availableHarnessesForMachine, harnessSearch, harnessVersionsForMachine]
+  );
 
   // Load machine-level model filters for the selected machine + harness
   const machineModelFilter = useSessionQuery(
@@ -830,8 +861,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       : 'Machine...'}
                   </div>
                 ) : (
-                  <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
-                    <PopoverTrigger asChild>
+                  <ResponsivePickerShell
+                    open={machinePopoverOpen}
+                    onOpenChange={handleMachineOpenChange}
+                    disabled={isBusy}
+                    title="Select machine"
+                    align="start"
+                    contentClassName="w-72"
+                    trigger={
                       <button
                         disabled={isBusy}
                         className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
@@ -852,35 +889,34 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                           className="ml-1 flex-shrink-0 text-chatroom-text-muted"
                         />
                       </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="p-0"
-                      style={{ width: 'var(--radix-popover-trigger-width)' }}
-                    >
-                      <Command className="bg-chatroom-bg-primary rounded-none">
-                        <CommandList>
-                          <CommandGroup>
-                            {connectedMachines.map((machine) => (
-                              <CommandItem
-                                key={machine.machineId}
-                                value={getMachineDisplayName(machine)}
-                                onSelect={() => {
-                                  handleMachineChange(machine.machineId);
-                                  setMachinePopoverOpen(false);
-                                }}
-                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                              >
-                                <span className="truncate">{getMachineDisplayName(machine)}</span>
-                                {displayMachineId === machine.machineId && (
-                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                                )}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                    }
+                  >
+                    <PickerSearch
+                      value={machineSearch}
+                      onChange={setMachineSearch}
+                      placeholder="Search machines…"
+                    />
+                    <PickerScrollBody maxHeightClassName="max-h-60">
+                      {filteredMachines.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-chatroom-text-muted">
+                          No machines found.
+                        </p>
+                      ) : (
+                        filteredMachines.map((machine) => (
+                          <PickerOptionRow
+                            key={machine.machineId}
+                            selected={displayMachineId === machine.machineId}
+                            onSelect={() => {
+                              handleMachineChange(machine.machineId);
+                              handleMachineOpenChange(false);
+                            }}
+                          >
+                            {getMachineDisplayName(machine)}
+                          </PickerOptionRow>
+                        ))
+                      )}
+                    </PickerScrollBody>
+                  </ResponsivePickerShell>
                 )}
               </div>
             )}
@@ -896,8 +932,16 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       : 'Harness...'}
                   </div>
                 ) : (
-                  <Popover open={harnessPopoverOpen} onOpenChange={setHarnessPopoverOpen}>
-                    <PopoverTrigger asChild>
+                  <ResponsivePickerShell
+                    open={harnessPopoverOpen}
+                    onOpenChange={handleHarnessOpenChange}
+                    disabled={
+                      isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
+                    }
+                    title="Select harness"
+                    align="start"
+                    contentClassName="w-72"
+                    trigger={
                       <button
                         disabled={
                           isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
@@ -918,45 +962,40 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                           className="ml-1 flex-shrink-0 text-chatroom-text-muted"
                         />
                       </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="p-0"
-                      style={{ width: 'var(--radix-popover-trigger-width)' }}
-                    >
-                      <Command className="bg-chatroom-bg-primary rounded-none">
-                        <CommandList>
-                          <CommandGroup>
-                            {availableHarnessesForMachine.map((harness) => {
-                              const label = formatHarnessLabel(
-                                harness,
-                                harnessVersionsForMachine[harness]
-                              );
-                              return (
-                                <CommandItem
-                                  key={harness}
-                                  value={label}
-                                  onSelect={() => {
-                                    handleHarnessChange(harness);
-                                    setHarnessPopoverOpen(false);
-                                  }}
-                                  className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                                >
-                                  <span className="truncate flex items-center min-w-0">
-                                    {label}
-                                  </span>
-                                  {displayHarness === harness && (
-                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">
-                                      ✓
-                                    </span>
-                                  )}
-                                </CommandItem>
-                              );
-                            })}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                    }
+                  >
+                    <PickerSearch
+                      value={harnessSearch}
+                      onChange={setHarnessSearch}
+                      placeholder="Search harnesses…"
+                    />
+                    <PickerScrollBody maxHeightClassName="max-h-60">
+                      {filteredHarnesses.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-chatroom-text-muted">
+                          No harnesses found.
+                        </p>
+                      ) : (
+                        filteredHarnesses.map((harness) => {
+                          const label = formatHarnessLabel(
+                            harness,
+                            harnessVersionsForMachine[harness]
+                          );
+                          return (
+                            <PickerOptionRow
+                              key={harness}
+                              selected={displayHarness === harness}
+                              onSelect={() => {
+                                handleHarnessChange(harness);
+                                handleHarnessOpenChange(false);
+                              }}
+                            >
+                              {label}
+                            </PickerOptionRow>
+                          );
+                        })
+                      )}
+                    </PickerScrollBody>
+                  </ResponsivePickerShell>
                 )}
               </div>
               {displayMachineId ? (

@@ -1,8 +1,21 @@
 'use client';
 
-import { CAPABILITIES_REFRESH_HINT, PENDING_SELECT_VALUE } from './select-empty-states';
+import { ChevronDown } from 'lucide-react';
+import { useMemo, useState } from 'react';
+
+import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { selectTriggerClassName } from '../ui/select';
+import {
+  ResponsivePickerShell,
+  PickerSearch,
+  PickerScrollBody,
+  PickerOptionRow,
+  usePickerSearchState,
+  filterPickerItems,
+} from '../../../components/picker';
+
+import { cn } from '@/lib/utils';
 
 interface HarnessHarnessSelectProps {
   harnesses: HarnessOption[];
@@ -18,44 +31,72 @@ export function HarnessHarnessSelect({
   onValueChange,
   disabled,
 }: HarnessHarnessSelectProps) {
+  const [open, setOpen] = useState(false);
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setOpen);
   const hasHarnesses = harnesses.length > 0;
+  const isDisabled = !hasHarnesses || disabled;
 
-  if (!hasHarnesses) {
-    return (
-      <Select value={PENDING_SELECT_VALUE} disabled>
-        <SelectTrigger
-          size="sm"
-          className="text-xs w-full bg-transparent"
-          title={CAPABILITIES_REFRESH_HINT}
-        >
-          <SelectValue placeholder="No harnesses" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem
-            value={PENDING_SELECT_VALUE}
-            disabled
-            className="text-xs text-muted-foreground"
-          >
-            No harnesses available
-          </SelectItem>
-        </SelectContent>
-      </Select>
-    );
-  }
+  const selectedHarness = useMemo(
+    () => harnesses.find((h) => h.name === value),
+    [harnesses, value]
+  );
+  const triggerLabel = hasHarnesses
+    ? (selectedHarness?.displayName ?? 'Harness')
+    : 'No harnesses available';
+
+  const filteredHarnesses = filterPickerItems(
+    harnesses,
+    searchTerm,
+    (h) => `${h.displayName} ${h.name}`
+  );
 
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-      {/* bg-transparent overrides dark:bg-input/30 from base SelectTrigger for visual consistency with HarnessModelSelect */}
-      <SelectTrigger size="sm" className="text-xs w-full bg-transparent">
-        <SelectValue placeholder="Harness" />
-      </SelectTrigger>
-      <SelectContent>
-        {harnesses.map((h) => (
-          <SelectItem key={h.name} value={h.name} className="text-xs">
-            {h.displayName}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <ResponsivePickerShell
+      open={open}
+      onOpenChange={handleOpenChange}
+      disabled={isDisabled}
+      title="Select harness"
+      align="start"
+      contentClassName="w-72"
+      trigger={
+        <button
+          type="button"
+          disabled={isDisabled}
+          className={selectTriggerClassName}
+          title={hasHarnesses ? 'Select harness' : CAPABILITIES_REFRESH_HINT}
+          aria-label={hasHarnesses ? 'Select harness' : 'No harnesses available'}
+        >
+          <span
+            className={cn(
+              'truncate text-left flex-1',
+              !selectedHarness && hasHarnesses && 'text-muted-foreground'
+            )}
+          >
+            {triggerLabel}
+          </span>
+          <ChevronDown size={12} className="shrink-0 opacity-50" />
+        </button>
+      }
+    >
+      <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search harnesses…" />
+      <PickerScrollBody maxHeightClassName="max-h-60">
+        {filteredHarnesses.length === 0 ? (
+          <p className="px-3 py-2 text-xs text-chatroom-text-muted">No harnesses found.</p>
+        ) : (
+          filteredHarnesses.map((h) => (
+            <PickerOptionRow
+              key={h.name}
+              selected={value === h.name}
+              onSelect={() => {
+                onValueChange(h.name);
+                handleOpenChange(false);
+              }}
+            >
+              {h.displayName}
+            </PickerOptionRow>
+          ))
+        )}
+      </PickerScrollBody>
+    </ResponsivePickerShell>
   );
 }

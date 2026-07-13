@@ -22,7 +22,7 @@ function makeMessage(
 // ─── Mock: Notification (fallback path) ──────────────────────────────────────
 
 const notificationCloseMock = vi.fn();
-const notificationInstances: Array<{ body: string; tag: string; close: () => void }> = [];
+const notificationInstances: { body: string; tag: string; close: () => void }[] = [];
 
 class MockNotification {
   static permission: NotificationPermission = 'granted';
@@ -67,7 +67,7 @@ function disableServiceWorker() {
 // ─── Visibility helpers ──────────────────────────────────────────────────────
 
 let originalHidden: boolean;
-let visibilityListeners: Array<() => void>;
+let visibilityListeners: (() => void)[];
 
 function setDocumentHidden(hidden: boolean) {
   Object.defineProperty(document, 'hidden', {
@@ -153,8 +153,8 @@ describe('useHandoffNotification', () => {
     expect(swPostMessage).toHaveBeenCalledWith({
       type: 'SHOW_NOTIFICATION',
       payload: {
-        title: 'Chatroom Handoff',
-        body: 'planner has handed off to you',
+        title: 'Chatroom',
+        body: 'Tasks complete',
         tag: 'chatroom-handoff',
         chatroomId: 'test-chatroom-id',
       },
@@ -177,7 +177,7 @@ describe('useHandoffNotification', () => {
 
     expect(swPostMessage).not.toHaveBeenCalled();
     expect(notificationInstances).toHaveLength(1);
-    expect(notificationInstances[0]!.body).toBe('planner has handed off to you');
+    expect(notificationInstances[0]!.body).toBe('Tasks complete');
   });
 
   it('does not notify for non-handoff messages', () => {

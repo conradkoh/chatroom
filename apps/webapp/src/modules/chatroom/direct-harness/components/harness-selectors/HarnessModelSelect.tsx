@@ -7,7 +7,7 @@ import { getSelectedModelLabel, hasVisibleProviders } from './harness-model-sele
 import { HarnessModelSelectList } from './HarnessModelSelectList';
 import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
 import type { ProviderOption } from './types';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { ResponsivePickerShell, PickerScrollBody } from '../../../components/picker';
 import { selectTriggerClassName } from '../ui/select';
 
 import { cn } from '@/lib/utils';
@@ -38,12 +38,14 @@ export function HarnessModelSelect({
   const triggerLabel = selectedLabel ?? (hasProviders ? 'Select model…' : 'No models yet');
 
   return (
-    <Popover
-      open={hasProviders ? open : false}
-      onOpenChange={hasProviders ? setOpen : undefined}
-      modal={false}
-    >
-      <PopoverTrigger asChild>
+    <ResponsivePickerShell
+      open={open}
+      onOpenChange={setOpen}
+      disabled={!hasProviders}
+      title="Select model"
+      align="start"
+      contentClassName="w-72"
+      trigger={
         <button
           type="button"
           disabled={!hasProviders}
@@ -58,8 +60,9 @@ export function HarnessModelSelect({
           </span>
           <ChevronDown size={12} className="shrink-0 opacity-50" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="p-0 w-72" align="start">
+      }
+    >
+      <PickerScrollBody maxHeightClassName="max-h-60">
         <HarnessModelSelectList
           providers={providers}
           value={value}
@@ -67,7 +70,7 @@ export function HarnessModelSelect({
           onClose={() => setOpen(false)}
           isHidden={isHidden}
         />
-      </PopoverContent>
-    </Popover>
+      </PickerScrollBody>
+    </ResponsivePickerShell>
   );
 }

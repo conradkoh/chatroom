@@ -1,7 +1,28 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
+
+// jsdom does not provide matchMedia (used by vaul drawer and useIsDesktop)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+const mockUseIsDesktop = vi.fn(() => true);
+
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: () => mockUseIsDesktop(),
+}));
 
 // ─── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -34,11 +55,11 @@ describe('HarnessWorkspaceSwitcher', () => {
         onSelect={vi.fn()}
       />
     );
-    // The SelectValue should render the selected item's label
     expect(screen.getByText('My Machine — project')).toBeInTheDocument();
   });
 
-  it('calls onSelect with the correct id when an option is chosen', async () => {
+  it('calls onSelect with the correct id when an option is chosen', () => {
+    mockUseIsDesktop.mockReturnValue(true);
     const workspaces = [
       ws('ws1', 'Machine A', '/home/user/project-a'),
       ws('ws2', 'Machine B', '/home/user/project-b'),
@@ -52,15 +73,30 @@ describe('HarnessWorkspaceSwitcher', () => {
       />
     );
 
-    // Fire a change event directly on the underlying select element (radix renders a hidden native select)
-    const hiddenSelect = document.querySelector('select');
-    if (hiddenSelect) {
-      const { fireEvent } = await import('@testing-library/react');
-      fireEvent.change(hiddenSelect, { target: { value: 'ws2' } });
-      expect(onSelect).toHaveBeenCalledWith('ws2');
-    } else {
-      // fallback: verify the component rendered without crashing and shows first label
-      expect(screen.getByText('Machine A — project-a')).toBeInTheDocument();
-    }
+    const trigger = screen.getByTitle('Select workspace');
+    fireEvent.click(trigger);
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+
+    fireEvent.click(options[1]);
+    expect(onSelect).toHaveBeenCalledWith('ws2');
+  });
+
+  it('renders drawer content on mobile viewport', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    const workspaces = [ws('ws1', 'Machine A', '/home/user/project-a')];
+    render(
+      <HarnessWorkspaceSwitcher
+        workspaces={workspaces}
+        selectedWorkspaceId={'ws1' as never}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const trigger = screen.getByTitle('Select workspace');
+    fireEvent.click(trigger);
+
+    expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
   });
 });
