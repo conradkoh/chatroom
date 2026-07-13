@@ -19,7 +19,6 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { cn } from '@/lib/utils';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
@@ -70,13 +69,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   // Frécency-boosted ranking
   const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
-
-  // Two-finger tap on mobile opens the command palette
-  const toggleOpen = useCallback(
-    () => (open ? closeDialog() : openDialog('command-palette')),
-    [open, openDialog, closeDialog]
-  );
-  useTwoFingerTap(toggleOpen);
 
   // Reset search when closing
   useEffect(() => {
