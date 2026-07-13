@@ -231,7 +231,7 @@ export const PlaceholderEventRow = memo(function PlaceholderEventRow({
       <span
         className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeColorStyles.muted}`}
       >
-        {type.split('.')[1] ?? type}
+        {type}
       </span>
       {/* Timestamp */}
       <span className="ml-auto text-[10px] text-chatroom-text-muted tabular-nums font-mono">

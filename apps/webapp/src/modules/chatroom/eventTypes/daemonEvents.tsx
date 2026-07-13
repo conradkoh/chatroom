@@ -2,11 +2,13 @@
 
 import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
+
 import type {
   DaemonPingEvent,
   DaemonPongEvent,
   DaemonGitRefreshEvent,
   DaemonRefreshCapabilitiesEvent,
+  DaemonPickFolderEvent,
   DaemonLocalActionEvent,
 } from '@/domain/entities/event-stream-event';
 
@@ -167,6 +169,38 @@ function renderDaemonLocalActionDetails(event: DaemonLocalActionEvent): React.Re
   );
 }
 
+// ─── Daemon Pick Folder ───────────────────────────────────────────────────────
+
+function renderDaemonPickFolderCell(
+  event: DaemonPickFolderEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="daemon.pickFolder"
+      badgeText="Pick Folder"
+      badgeColor="muted"
+      primaryInfo="Daemon"
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderDaemonPickFolderDetails(event: DaemonPickFolderEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Pick Folder"
+      timestamp={event.timestamp}
+      type="daemon.pickFolder"
+    >
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Request ID" value={event.requestId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Daemon event definitions ───────────────────────────────────────────────────
 
 export const daemonEventDefinitions: Pick<
@@ -175,6 +209,7 @@ export const daemonEventDefinitions: Pick<
   | 'daemon.pong'
   | 'daemon.gitRefresh'
   | 'daemon.refreshCapabilities'
+  | 'daemon.pickFolder'
   | 'daemon.localAction'
 > = {
   'daemon.ping': {
@@ -192,6 +227,10 @@ export const daemonEventDefinitions: Pick<
   'daemon.refreshCapabilities': {
     cellRenderer: renderDaemonRefreshCapabilitiesCell,
     detailsRenderer: renderDaemonRefreshCapabilitiesDetails,
+  },
+  'daemon.pickFolder': {
+    cellRenderer: renderDaemonPickFolderCell,
+    detailsRenderer: renderDaemonPickFolderDetails,
   },
   'daemon.localAction': {
     cellRenderer: renderDaemonLocalActionCell,

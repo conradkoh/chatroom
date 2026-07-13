@@ -9,8 +9,8 @@
 
 import type { ReactNode } from 'react';
 
-import type { EventTypeName } from '@/domain/entities/event-type';
 import type { EventStreamEvent } from '@/domain/entities/event-stream-event';
+import type { EventTypeName } from '@/domain/entities/event-type';
 
 /**
  * Definition for how to render an event type.
@@ -52,7 +52,11 @@ export function getEventTypeDefinition<K extends EventTypeName>(
   type: K
 ): EventTypeDefinition<Extract<EventStreamEvent, { type: K }>> {
   if (!_registry) throw new Error('Event type registry not initialized');
-  return _registry[type];
+  const definition = _registry[type];
+  if (!definition) {
+    throw new Error(`Missing event type definition for ${type}`);
+  }
+  return definition;
 }
 
 /**
