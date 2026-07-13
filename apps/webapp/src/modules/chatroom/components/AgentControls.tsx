@@ -535,29 +535,18 @@ export function useAgentControls({
 
   const handleRestartAgent = useCallback(async () => {
     if (!runningAgentConfig) return;
-    setIsStopping(true);
+    setIsStarting(true);
     setError(null);
     try {
       await sendCommand({
         machineId: runningAgentConfig.machineId,
-        type: 'stop-agent',
-        payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
-      });
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      setIsStopping(false);
-      setIsStarting(true);
-      await sendCommand({
-        machineId: runningAgentConfig.machineId,
-        type: 'start-agent',
+        type: 'restart-agent',
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
           agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
-          // Use the authoritative persisted value (what the toggle displays while
-          // running), not raw local form state, so a restart round-trips exactly
-          // what the UI shows. Falls back to local state for pre-field configs.
           wantResume: runningAgentConfig.wantResume ?? effectiveWantResume,
         },
       });
@@ -567,7 +556,6 @@ export function useAgentControls({
       setError(err instanceof Error ? err.message : 'Failed to restart agent');
     } finally {
       setIsStarting(false);
-      setIsStopping(false);
     }
   }, [runningAgentConfig, selectedModel, effectiveWantResume, sendCommand, chatroomId, role]);
 

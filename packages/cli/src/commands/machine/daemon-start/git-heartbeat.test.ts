@@ -19,6 +19,8 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
   OBSERVED_FULL_PUSH_INTERVAL_MS: 300_000,
+  NATIVE_DELIVERY_RECONCILE_MS: 10_000,
+  HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
 
 const mockGetBranch = vi.fn();

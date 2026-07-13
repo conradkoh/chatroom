@@ -376,6 +376,35 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentSendFn.mock.calls[1][0]).toBe('resume prompt');
     });
 
+    it('native multi-turn invariant: two resumeTurns each emit onAgentEnd', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild(8890);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const onEnd = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('bootstrap'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+        deferInitialTurn: true,
+      });
+      if (!result.onAgentEnd) throw new Error('expected onAgentEnd');
+      result.onAgentEnd(onEnd);
+
+      await service.resumeTurn(result.pid, 'first task');
+      await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(1));
+
+      await service.resumeTurn(result.pid, 'second task');
+      await vi.waitFor(() => expect(onEnd).toHaveBeenCalledTimes(2));
+
+      expect(sharedAgentSendFn).toHaveBeenCalledTimes(2);
+      expect(sharedAgentSendFn.mock.calls[0][0]).toContain('first task');
+      expect(sharedAgentSendFn.mock.calls[1][0]).toBe('second task');
+    });
+
     it('queues resumeTurn when session is mid-turn', async () => {
       const runWait = vi.fn().mockImplementation(() => new Promise(() => {}));
       const run = {

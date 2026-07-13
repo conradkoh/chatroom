@@ -21,6 +21,9 @@ import type {
   AgentSessionCompactedEvent,
   AgentSessionAugmentedEvent,
   AgentResumeStormAbortedEvent,
+  AgentStopTimeoutEvent,
+  AgentHarnessSessionIdUpdatedEvent,
+  AgentAwaitingHandoffEvent,
   MachineSwitchedEvent,
 } from '@/domain/entities/event-stream-event';
 // ─── Agent Started ───────────────────────────────────────────────────────────
@@ -716,6 +719,116 @@ function renderAgentSessionAugmentedDetails(event: AgentSessionAugmentedEvent): 
   );
 }
 
+// ─── Agent Stop Timeout ───────────────────────────────────────────────────────
+
+function renderAgentStopTimeoutCell(
+  event: AgentStopTimeoutEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.stopTimeout"
+      badgeText="Stop Timeout"
+      badgeColor="warning"
+      primaryInfo={event.role}
+      secondaryInfo={`${event.durationMs}ms`}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentStopTimeoutDetails(event: AgentStopTimeoutEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Agent Stop Timeout"
+      timestamp={event.timestamp}
+      type="agent.stopTimeout"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      {event.pid != null && <DetailRow label="PID" value={String(event.pid)} mono />}
+      <DetailRow label="Duration (ms)" value={String(event.durationMs)} mono />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Harness Session ID Updated ─────────────────────────────────────────
+
+function renderAgentHarnessSessionIdUpdatedCell(
+  event: AgentHarnessSessionIdUpdatedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.harnessSessionIdUpdated"
+      badgeText="Session ID"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={event.source}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentHarnessSessionIdUpdatedDetails(
+  event: AgentHarnessSessionIdUpdatedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Harness Session ID Updated"
+      timestamp={event.timestamp}
+      type="agent.harnessSessionIdUpdated"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Correlation ID" value={event.correlationId} mono />
+      <DetailRow label="Source" value={event.source} />
+      <DetailRow label="Resumable ID" value={event.resumableId} mono />
+      {event.previousResumableId && (
+        <DetailRow label="Previous Resumable ID" value={event.previousResumableId} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Awaiting Handoff ───────────────────────────────────────────────────
+
+function renderAgentAwaitingHandoffCell(
+  event: AgentAwaitingHandoffEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.awaitingHandoff"
+      badgeText="Awaiting Handoff"
+      badgeColor="warning"
+      primaryInfo={event.role}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentAwaitingHandoffDetails(event: AgentAwaitingHandoffEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Awaiting Handoff"
+      timestamp={event.timestamp}
+      type="agent.awaitingHandoff"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Machine Switched ─────────────────────────────────────────────────────────
 
 function renderMachineSwitchedCell(
@@ -772,6 +885,9 @@ export const agentEventDefinitions: Pick<
   | 'agent.sessionCompacted'
   | 'agent.sessionAugmented'
   | 'agent.resumeStormAborted'
+  | 'agent.stopTimeout'
+  | 'agent.harnessSessionIdUpdated'
+  | 'agent.awaitingHandoff'
   | 'machine.switched'
 > = {
   'agent.started': {
@@ -837,6 +953,18 @@ export const agentEventDefinitions: Pick<
   'agent.resumeStormAborted': {
     cellRenderer: renderAgentResumeStormAbortedCell,
     detailsRenderer: renderAgentResumeStormAbortedDetails,
+  },
+  'agent.stopTimeout': {
+    cellRenderer: renderAgentStopTimeoutCell,
+    detailsRenderer: renderAgentStopTimeoutDetails,
+  },
+  'agent.harnessSessionIdUpdated': {
+    cellRenderer: renderAgentHarnessSessionIdUpdatedCell,
+    detailsRenderer: renderAgentHarnessSessionIdUpdatedDetails,
+  },
+  'agent.awaitingHandoff': {
+    cellRenderer: renderAgentAwaitingHandoffCell,
+    detailsRenderer: renderAgentAwaitingHandoffDetails,
   },
   'machine.switched': {
     cellRenderer: renderMachineSwitchedCell,

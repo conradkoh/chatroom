@@ -39,13 +39,40 @@ CLI and native harnesses both wire `spawnResult.onOutput()` to `participants.upd
 
 **Daemon task injection** (`packages/cli/src/commands/machine/daemon-start/`):
 
-The task monitor watches assigned tasks and, for native harnesses, injects pending work via `resumeTurn` on assignment updates (no injection nudge retries):
+**Delivery paths (native SDK harnesses):**
 
-1. `native-task-injector-logic.ts` — pure inject decisions (`shouldInjectNativeTask`)
+| Path         | Trigger                                                                          | Log prefix                  |
+| ------------ | -------------------------------------------------------------------------------- | --------------------------- |
+| **Primary**  | Harness `agent_end` → slot idle → `notifyNativeTurnIdle`                         | `[NativeDelivery:primary]`  |
+| **Fallback** | Signal/presence feed reconcile, 15s periodic reconcile timer, native light nudge | `[NativeDelivery:fallback]` |
+
+Eligibility is gated by local `slot.nativeTurnPhase === 'idle'` (not backend participant snapshots). Fallback paths exist for daemon restart mid-turn or missed events — monitor logs to measure how often they fire before removing.
+
+Injection wiring:
+
+1. `native-task-injector-logic.ts` — pure inject decisions (`shouldDeliverNativeTask`)
 2. `native-task-injector.ts` — Effect wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
-3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after spawn and native turn-end idle (skipped on turn-end when participant status is `task.acknowledged` or `task.inProgress`)
+3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after native spawn only; turn-end unlocks delivery via `agent_end` → nativeTurnPhase idle → coordinator, not via `lastSeenAction` predicates
 
 CLI harnesses keep the existing `get-next-task` loop and stop→cold-start nudge path. Native harnesses still cold-start via revive when the backend PID is stale locally.
+
+### Native multi-turn invariant
+
+For harnesses with `supportsNativeIntegration` + `resumeTurn`:
+
+1. `resumeTurn(pid, prompt)` starts or queues **one** turn.
+2. When that turn completes, emit `lifecycle.turn.completed` via `SpawnResult.onAgentEnd` **once**.
+3. A later `resumeTurn` must enable a later `onAgentEnd` (no sticky process-lifetime latch).
+4. `AgentProcessManager` is the sole post-end owner: `onAgentEnd` → `nativeTurnPhase = idle` → delivery coordinator. Do not unlock delivery from provider status inside the coordinator.
+
+How current native SDKs satisfy (3):
+
+- `cursor-sdk` / `pi-sdk` / `claude-sdk`: new per-turn run; `finish()` emits end.
+- `opencode-sdk`: long-lived session event forwarder; `resumeTurn` calls private `armTurnEnd()` before prompting.
+
+Do **not** add `armTurnEnd` to `RemoteAgentService`.
+
+Regression coverage: unit tests titled `native multi-turn invariant: two resumeTurns each emit onAgentEnd` in `cursor-sdk` and `claude-sdk` agent-service tests; OpenCode covered by `session-event-forwarder` multi-turn `armTurnEnd` tests.
 
 ### Context compaction vs hard restart vs new session
 

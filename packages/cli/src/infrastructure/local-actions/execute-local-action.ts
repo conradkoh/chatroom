@@ -5,7 +5,7 @@
  * Used by the daemon command loop to process Convex-relayed actions.
  */
 
-import { exec } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 
 import type { LocalActionType } from '@workspace/backend/config/localActions.js';
@@ -52,23 +52,36 @@ function resolveWhichCommand(name: string): string {
  * Check whether a CLI command is available on PATH.
  * Resolves to `true` if found, `false` otherwise.
  */
+/**
+ * Spawn options for daemon-safe fire-and-forget shell commands.
+ * Detached + ignored stdio prevents EBADF when the daemon runs without valid inherited FDs.
+ */
+const DETACHED_SHELL_SPAWN_OPTIONS = {
+  stdio: 'ignore' as const,
+  detached: true,
+  shell: true,
+};
+
 function isCliAvailable(cliName: string): Promise<boolean> {
   return new Promise((resolve) => {
-    exec(resolveWhichCommand(cliName), (err) => {
-      resolve(!err);
-    });
+    const child = spawn(resolveWhichCommand(cliName), [], DETACHED_SHELL_SPAWN_OPTIONS);
+    child.on('error', () => resolve(false));
+    child.on('close', (code) => resolve(code === 0));
+    child.unref();
   });
 }
 
 /**
  * Fire-and-forget: execute a shell command and log errors without propagating.
+ * Uses stdio: 'ignore' and detached: true to isolate from parent's file descriptors,
+ * preventing EBADF errors when running in background daemon mode.
  */
 function execFireAndForget(command: string, logTag: string): void {
-  exec(command, (err) => {
-    if (err) {
-      console.warn(`[${logTag}] exec failed: ${err.message}`);
-    }
+  const child = spawn(command, [], DETACHED_SHELL_SPAWN_OPTIONS);
+  child.on('error', (err) => {
+    console.warn(`[${logTag}] spawn failed: ${err.message}`);
   });
+  child.unref();
 }
 
 /**

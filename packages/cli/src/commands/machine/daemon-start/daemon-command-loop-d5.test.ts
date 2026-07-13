@@ -82,6 +82,8 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   OBSERVATION_TTL_MS: 30_000,
   WORKSPACE_LIST_RECONCILE_MS: 30_000,
   WORKSPACE_RECENCY_WINDOW_MS: 60_000,
+  NATIVE_DELIVERY_RECONCILE_MS: 10_000,
+  HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
 
 vi.mock('../../../infrastructure/local-actions/pick-folder.js', () => ({

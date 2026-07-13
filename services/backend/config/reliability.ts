@@ -29,6 +29,12 @@
  *  handing the task to a new agent. */
 export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 
+/** Max wait for harnessSessionId after spawn before kill+restart (native harnesses). */
+export const HARNESS_SESSION_READY_TIMEOUT_MS = 5_000;
+
+/** Reconcile pending native task delivery when agent is ready (ms). */
+export const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
+
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */

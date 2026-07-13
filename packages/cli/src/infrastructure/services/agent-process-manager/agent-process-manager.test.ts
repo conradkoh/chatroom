@@ -8,6 +8,7 @@ import {
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
+import type * as NativeTaskDeliveryCoordinatorModule from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
 import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
@@ -26,6 +27,14 @@ vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () 
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));
+
+const mockNotifyNativeTurnIdle = vi.hoisted(() => vi.fn());
+vi.mock('../../../commands/machine/daemon-start/native-task-delivery-coordinator.js', async () => {
+  const actual = await vi.importActual<typeof NativeTaskDeliveryCoordinatorModule>(
+    '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js'
+  );
+  return { ...actual, notifyNativeTurnIdle: mockNotifyNativeTurnIdle };
+});
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -239,12 +248,17 @@ describe('AgentProcessManager', () => {
           createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
         );
         (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+        mockNotifyNativeTurnIdle.mockClear();
 
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
         expect(resumeTurn).not.toHaveBeenCalled();
         expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+        });
       }
     );
 
@@ -263,6 +277,7 @@ describe('AgentProcessManager', () => {
           needsHandoffReminder: true,
           transitionedToWaiting: false,
         });
+        mockNotifyNativeTurnIdle.mockClear();
 
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
@@ -270,6 +285,7 @@ describe('AgentProcessManager', () => {
         expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
         expect(getHandleNativeAgentEndCalls(deps)[0]).not.toHaveProperty('bufferedContent');
         expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
+        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'
@@ -2319,6 +2335,151 @@ describe('AgentProcessManager', () => {
       for (const entry of active) {
         expect(['running', 'spawning']).toContain(entry.slot.state);
       }
+    });
+  });
+
+  // ── nativeTurnPhase transitions ───────────────────────────────────────
+
+  describe('nativeTurnPhase', () => {
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'spawn sets nativeTurnPhase to idle for %s',
+      async (harness) => {
+        const { service } = createNativeSdkService(harness);
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+
+        const slot = manager.getSlot(CHATROOM_ID, ROLE);
+        expect(slot?.nativeTurnPhase).toBe('idle');
+      }
+    );
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'resumeTurnForSlot transitions injecting → turn_in_flight for %s',
+      async (harness) => {
+        const { service, resumeTurn } = createNativeSdkService(harness);
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+
+        await manager.resumeTurnForSlot({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          prompt: 'Continue working',
+        });
+
+        const slot = manager.getSlot(CHATROOM_ID, ROLE);
+        expect(resumeTurn).toHaveBeenCalled();
+        expect(slot?.nativeTurnPhase).toBe('turn_in_flight');
+      }
+    );
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'resumeTurnForSlot sets idle on failure for %s',
+      async (harness) => {
+        const resumeTurn = vi.fn().mockRejectedValue(new Error('connection lost'));
+        const onAgentEndRegistrar = vi.fn();
+        const service = {
+          ...createMockService(),
+          id: harness,
+          resumeTurn,
+          spawn: vi.fn().mockResolvedValue({
+            pid: PID,
+            harnessSessionId: `sess-${harness}-1`,
+            onExit: vi.fn(),
+            onOutput: vi.fn(),
+            onAgentEnd: onAgentEndRegistrar,
+          }),
+        };
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+
+        await expect(
+          manager.resumeTurnForSlot({
+            chatroomId: CHATROOM_ID,
+            role: ROLE,
+            prompt: 'Continue working',
+          })
+        ).rejects.toThrow('connection lost');
+
+        const slot = manager.getSlot(CHATROOM_ID, ROLE);
+        expect(slot?.nativeTurnPhase).toBe('idle');
+      }
+    );
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'agent_end sets nativeTurnPhase to idle for %s (non-reminder path)',
+      async (harness) => {
+        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+        mockNotifyNativeTurnIdle.mockClear();
+
+        // Simulate turn_in_flight
+        const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+        slot.nativeTurnPhase = 'turn_in_flight';
+
+        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+        await triggerAgentEnd(manager, agentEndCb);
+
+        expect(slot.nativeTurnPhase).toBe('idle');
+        expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+        });
+      }
+    );
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'agent_end does NOT set nativeTurnPhase idle on handoff reminder path for %s',
+      async (harness) => {
+        const { service, onAgentEndRegistrar } = createNativeSdkService(harness);
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager(deps);
+
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          needsHandoffReminder: true,
+          transitionedToWaiting: false,
+        });
+        mockNotifyNativeTurnIdle.mockClear();
+
+        // Simulate turn_in_flight
+        const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+        slot.nativeTurnPhase = 'turn_in_flight';
+
+        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+        await triggerAgentEnd(manager, agentEndCb);
+
+        // After handoff reminder, phase should be turn_in_flight (reminder injected, harness working)
+        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
+        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
+      }
+    );
+
+    test('non-native harness does not set nativeTurnPhase', async () => {
+      await manager.ensureRunning(createOpts());
+
+      const slot = manager.getSlot(CHATROOM_ID, ROLE);
+      expect(slot?.nativeTurnPhase).toBeUndefined();
     });
   });
 
