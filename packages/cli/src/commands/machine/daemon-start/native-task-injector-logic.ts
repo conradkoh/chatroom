@@ -1,34 +1,40 @@
 import type { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
-  isInjectableNativeAction,
-  isNativeAcknowledgedInjectionRetry,
-  isNativeIdleAfterTaskComplete,
-  isNativeInjectableAliveRunning,
-  isNativePendingRedeliveryAfterRelease,
-} from '../../../domain/native-integration/predicates.js';
+  explainAgentReadyForNativeDeliveryBlock,
+  isDeliverableNativeTaskStatus,
+} from './native-ready-invariant.js';
+import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 
 /** True when daemon should deliver a task into a live native harness session. */
-// fallow-ignore-next-line complexity
+// fallow-ignore-next-line unused-export
 export function shouldDeliverNativeTask(
   task: AssignedTaskSnapshotView,
-  opts: { ledger: NativeDeliveryLedger; harnessSessionId: string | undefined }
+  opts: { slot: AgentSlot | undefined }
 ): boolean {
-  if (!isNativeInjectableAliveRunning(task)) return false;
-  if (!opts.harnessSessionId) return false;
-  if (opts.ledger.isDelivered(task.taskId, opts.harnessSessionId) && task.status !== 'pending') {
-    return false;
+  return explainNativeDeliveryBlock(task, opts) === null;
+}
+
+/** Human-readable reason when delivery is blocked; null when shouldDeliverNativeTask is true. */
+// fallow-ignore-next-line complexity
+export function explainNativeDeliveryBlock(
+  task: AssignedTaskSnapshotView,
+  opts: { slot: AgentSlot | undefined }
+): string | null {
+  if (!isDeliverableNativeTaskStatus(task.status)) {
+    return `task_status_not_deliverable (status=${task.status})`;
   }
-  return (
-    isInjectableNativeAction(task.participant?.lastSeenAction) ||
-    isNativeIdleAfterTaskComplete(task.participant ?? {}) ||
-    isNativeAcknowledgedInjectionRetry(task) ||
-    isNativePendingRedeliveryAfterRelease(task)
-  );
+  if (task.status === 'acknowledged') {
+    const assignedTo = task.assignedTo?.toLowerCase();
+    const role = task.agentConfig.role.toLowerCase();
+    if (assignedTo !== role) {
+      return `acknowledged_wrong_role (assignedTo=${assignedTo ?? 'none'}, role=${role})`;
+    }
+  }
+  return explainAgentReadyForNativeDeliveryBlock(task, opts.slot);
 }
 
 /** Shape injected prompt: task delivery body + optional augmentation preamble. */

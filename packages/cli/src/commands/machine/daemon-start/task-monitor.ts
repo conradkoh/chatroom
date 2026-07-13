@@ -8,6 +8,8 @@
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  */
 
+import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
 import {
   resolveSessionAugmentationForRole,
@@ -25,14 +27,24 @@ import { Effect, Runtime, type Context } from 'effect';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import { logNativeDeliveryFallback } from './native-delivery-log.js';
+import {
+  registerNativeDeliverySession,
+  unregisterNativeDeliverySession,
+} from './native-delivery-session-registry.js';
+import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import {
   getNativeTaskDeliveryCoordinator,
+  resetRoleDeliveryState,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import { isNativeHarness } from './native-task-injector-logic.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
 import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   NudgeCooldown,
+  shouldEscalateNativeNudgeToRestart,
 } from './task-monitor-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import type { AgentHarness } from './types.js';
@@ -275,8 +287,50 @@ async function nudgeStuckTasks(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
 ): Promise<void> {
-  for (const row of listTasksReadyForNudge(tasks, now, cooldown)) {
+  const getSlot = (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role);
+
+  for (const row of listTasksReadyForNudge(tasks, now, cooldown, getSlot)) {
     await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
+
+    if (isNativeHarness(row.agentConfig.agentHarness)) {
+      const { chatroomId, agentConfig } = row;
+      const { role } = agentConfig;
+      const deliveryState = getRoleDeliveryState();
+      const failures = deliveryState.recordNativeNudgeFailure(chatroomId, role);
+
+      if (shouldEscalateNativeNudgeToRestart(chatroomId, role, failures)) {
+        const full = await fetchTaskForAction(sessionDeps, machineId, row);
+        if (!full) continue;
+        console.log(
+          `[TaskMonitor] native nudge escalate restart ${role}@${chatroomId} — pending task ${row.taskId}`
+        );
+        runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
+        deliveryState.clearNativeNudgeFailures(chatroomId, role);
+        continue;
+      }
+
+      resetRoleDeliveryState(chatroomId, role);
+      await sessionDeps.backend.mutation(api.participants.join, {
+        sessionId: sessionDeps.sessionId,
+        chatroomId,
+        role,
+        action: NATIVE_WAITING_ACTION,
+      });
+      console.log(
+        `[TaskMonitor] native light nudge ${role}@${chatroomId} — redeliver pending task ${row.taskId}`
+      );
+      logNativeDeliveryFallback('native-light-nudge', role, chatroomId, row.taskId);
+      getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+        tasks: [row],
+        runtime,
+        effectContext,
+        agentMgr,
+        sessionDeps,
+        machineId,
+      });
+      continue;
+    }
+
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
@@ -337,6 +391,15 @@ async function processTasksUpdate(
     sessionDeps,
     machineId
   );
+  if (tasks.length > 0) {
+    const first = tasks[0];
+    logNativeDeliveryFallback(
+      'signal-presence',
+      first.agentConfig.role,
+      first.chatroomId,
+      first.taskId
+    );
+  }
   getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks,
     runtime,
@@ -394,6 +457,14 @@ export const startTaskMonitorEffect = (
       },
     };
 
+    registerNativeDeliverySession({
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      machineId: session.machineId,
+    });
+
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
@@ -410,6 +481,37 @@ export const startTaskMonitorEffect = (
         monitorPassInFlight = false;
       });
     };
+
+    const runReconcilePass = (): void => {
+      if (stopped || monitorPassInFlight) return;
+      void fetchHydrateRows(session)
+        .then((tasks) => {
+          const deliverable = tasks.filter((row) => {
+            if (row.status !== 'pending') return false;
+            const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
+            return isAgentReadyForNativeDelivery(row, slot);
+          });
+          if (deliverable.length === 0) return;
+          const first = deliverable[0];
+          logNativeDeliveryFallback(
+            'periodic-reconcile',
+            first.agentConfig.role,
+            first.chatroomId,
+            first.taskId
+          );
+          getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+            tasks: deliverable,
+            runtime,
+            effectContext,
+            agentMgr,
+            sessionDeps,
+            machineId: session.machineId,
+          });
+        })
+        .catch(() => {});
+    };
+
+    const reconcileTimer = setInterval(runReconcilePass, NATIVE_DELIVERY_RECONCILE_MS);
 
     yield* Effect.tryPromise(() =>
       session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
@@ -491,6 +593,8 @@ export const startTaskMonitorEffect = (
     return {
       stop() {
         stopped = true;
+        unregisterNativeDeliverySession();
+        clearInterval(reconcileTimer);
         void Effect.runPromise(signalHandle.stop());
         void Effect.runPromise(presenceHandle.stop());
         console.log(`[${formatTimestamp()}] 📋 Task-monitor stopped`);

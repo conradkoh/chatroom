@@ -98,6 +98,13 @@ export interface SpawnResult {
    * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):
    * - CLI: e.g. Pi NDJSON `wire.ndjson.agent_end` (SDK harnesses never emit this).
    * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
+   *
+   * Native multi-turn invariant: each completed user/agent turn MUST invoke
+   * registered `onAgentEnd` callbacks exactly once. After `resumeTurn`, the
+   * harness MUST be able to emit a subsequent `onAgentEnd` for the new turn
+   * (e.g. new per-turn adapter/`finish()`, or re-arming a long-lived session
+   * forwarder). Sticky once-per-process latches that block later turns are a bug.
+   * AgentProcessManager owns post-end lifecycle (nativeTurnPhase → delivery).
    */
   onAgentEnd?: (cb: () => void) => void;
   /** Raw assistant text deltas for missed-handoff delivery on native turn-end. */
@@ -153,6 +160,11 @@ export interface RemoteAgentService {
   /**
    * Send a prompt into a live in-process session (native task injection).
    * Native SDK harnesses implement this; CLI harnesses typically omit it.
+   *
+   * Contract: starts (or queues) one turn. When that turn completes, the
+   * harness MUST emit `SpawnResult.onAgentEnd` for it. Implementations may
+   * use harness-private helpers (e.g. OpenCode `armTurnEnd`) — those MUST NOT
+   * be added to this interface.
    */
   resumeTurn?(pid: number, prompt: string): Promise<void>;
 
