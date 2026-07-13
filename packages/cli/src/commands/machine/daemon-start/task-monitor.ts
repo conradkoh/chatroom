@@ -472,15 +472,12 @@ function runLocalStoreReconcilePass(params: {
 
 function subscribeAssignedTaskSnapshotStore(
   wsClient: ConvexClient,
-  session: { sessionId: string; machineId: string },
+  args: { sessionId: string; machineId: string },
   isStopped: () => boolean
 ): () => void {
   return wsClient.onUpdate(
     api.machines.listMachineAssignedTaskSnapshots,
-    {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-    },
+    args as never,
     (result) => {
       if (isStopped()) return;
       const tasks = parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? []);
