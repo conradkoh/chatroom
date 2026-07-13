@@ -2,6 +2,10 @@ import type { Writable } from 'node:stream';
 
 import { isTerminalProviderError } from '../../../../domain/agent-lifecycle/policies/terminal-provider-error.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
+import {
+  assertNeverOpenCodeSessionStatus,
+  parseOpenCodeSessionStatus,
+} from './opencode-session-status.js';
 
 export interface SessionEventForwarderOptions {
   sessionId: string;
@@ -33,6 +37,11 @@ export interface SessionEventForwarderHandle {
    * the SSE stream — typically from opencode serve stderr logs.
    */
   abortTerminalProviderError(): void;
+  /**
+   * Re-arm turn-end so the next OpenCode idle can emit agent_end again.
+   * No-op after terminal abort.
+   */
+  armTurnEnd(): void;
 }
 
 interface OpenCodeEvent {
@@ -182,6 +191,16 @@ export function startSessionEventForwarder(
     emitAgentEnd('provider_rate_limit');
   }
 
+  function armTurnEnd(): void {
+    if (terminalAbortRequested) {
+      logLine(target, 'status', 'turn_arm_blocked_terminal');
+      return;
+    }
+    clearRetryIdleTimeout();
+    agentEndEmitted = false;
+    lastStatus = undefined;
+  }
+
   function resolvePartContent(
     delta: string | undefined,
     text: string | undefined
@@ -318,11 +337,24 @@ export function startSessionEventForwarder(
   }
 
   async function handleSessionStatus(props: { status?: { type?: string } }): Promise<void> {
-    const currentStatus = props?.status?.type;
-    if (currentStatus !== lastStatus) {
-      lastStatus = currentStatus;
-      logLine(target, 'status', currentStatus);
-      if (currentStatus === 'retry') {
+    const raw = props?.status?.type;
+    const parsed = parseOpenCodeSessionStatus(raw);
+
+    if (parsed === null) {
+      const unknownKey = raw === undefined ? 'undefined' : String(raw);
+      if (unknownKey !== lastStatus) {
+        lastStatus = unknownKey;
+        logLine(target, 'status', `unknown_session_status:${unknownKey}`);
+      }
+      return;
+    }
+
+    if (parsed === lastStatus) return;
+    lastStatus = parsed;
+    logLine(target, 'status', parsed);
+
+    switch (parsed) {
+      case 'retry': {
         if (terminalAbortRequested) {
           abortTerminalProviderError();
           return;
@@ -330,11 +362,19 @@ export function startSessionEventForwarder(
         scheduleRetryIdleTimeout();
         return;
       }
-      clearRetryIdleTimeout();
-      // OpenCode sometimes emits session.status idle without a separate session.idle
-      // event. Without this, nativeTurnPhase never resets and pending tasks stay stuck.
-      if (currentStatus === 'idle') {
+      case 'idle': {
+        clearRetryIdleTimeout();
+        // OpenCode sometimes emits session.status idle without a separate session.idle
+        // event. Without this, nativeTurnPhase never resets and pending tasks stay stuck.
         await handleSessionIdle();
+        return;
+      }
+      case 'busy': {
+        clearRetryIdleTimeout();
+        return;
+      }
+      default: {
+        assertNeverOpenCodeSessionStatus(parsed, 'handleSessionStatus');
       }
     }
   }
@@ -446,5 +486,6 @@ export function startSessionEventForwarder(
       agentEndCallbacks.push(cb);
     },
     abortTerminalProviderError,
+    armTurnEnd,
   };
 }

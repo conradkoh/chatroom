@@ -1026,4 +1026,193 @@ describe('SessionEventForwarder', () => {
     );
     expect(allLines.some((l) => l.includes('Started'))).toBe(true);
   }, 10000);
+
+  // ── Multi-turn (armTurnEnd) ────────────────────────────────────────────
+
+  function createPushStream() {
+    let pending: (() => void) | null = null;
+    const events: unknown[] = [];
+    let streamEnded = false;
+
+    return {
+      push: (event: unknown) => {
+        events.push(event);
+        if (pending) {
+          pending();
+          pending = null;
+        }
+      },
+      end: () => {
+        streamEnded = true;
+        if (pending) {
+          pending();
+          pending = null;
+        }
+      },
+
+      stream: (async function* () {
+        while (true) {
+          while (events.length > 0) {
+            yield events.shift()!;
+          }
+          if (streamEnded) return;
+          await new Promise<void>((resolve) => {
+            pending = resolve;
+          });
+        }
+      })(),
+    };
+  }
+
+  it('two turns without arm: first idle emits agent_end, second idle does not (latch)', async () => {
+    vi.useFakeTimers();
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+
+    // First turn idle
+    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    // Second idle after a different intervening status — should NOT fire (latch still set)
+    ps.push({
+      type: 'session.status',
+      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    ps.end();
+    await handle.done;
+    vi.useRealTimers();
+  }, 10000);
+
+  it('two turns with arm: first idle → end; armTurnEnd → second idle → second end', async () => {
+    vi.useFakeTimers();
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+
+    // First turn: busy → idle → end
+    ps.push({
+      type: 'session.status',
+      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    // Re-arm
+    handle.armTurnEnd();
+
+    // Second turn: busy → idle → end
+    ps.push({
+      type: 'session.status',
+      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(onEnd).toHaveBeenCalledTimes(2);
+    ps.end();
+    await handle.done;
+    vi.useRealTimers();
+  }, 10000);
+
+  it('armTurnEnd after terminal abort is blocked', async () => {
+    vi.useFakeTimers();
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+
+    // Terminal error → agent_end
+    ps.push({
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-1',
+        error: { name: 'GoUsageLimitError', data: { message: 'rate limited' } },
+      },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    // armTurnEnd should be blocked — logs turn_arm_blocked_terminal
+    handle.armTurnEnd();
+    expect(target.write).toHaveBeenCalledWith(expect.stringContaining('turn_arm_blocked_terminal'));
+
+    // Subsequent idle should not emit another agent_end
+    ps.push({ type: 'session.idle', properties: { sessionID: 'sess-1' } });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+
+    ps.end();
+    await handle.done;
+    vi.useRealTimers();
+  }, 10000);
+
+  it('unknown session.status logs unknown_session_status and does not emit agent_end', async () => {
+    vi.useFakeTimers();
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+
+    ps.push({
+      type: 'session.status',
+      properties: { sessionID: 'sess-1', status: { type: 'compacting' } },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(target.write).toHaveBeenCalledWith(
+      '[fake-ts] role:builder status] unknown_session_status:compacting\n'
+    );
+    expect(onEnd).not.toHaveBeenCalled();
+
+    // Same unknown value should not double-log
+    ps.push({
+      type: 'session.status',
+      properties: { sessionID: 'sess-1', status: { type: 'compacting' } },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    const statusLines = (target.write as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: unknown[]) => c[0] as string)
+      .filter((l: string) => l.includes('status'));
+    expect(statusLines.filter((l) => l.includes('compacting'))).toHaveLength(1);
+
+    ps.end();
+    await handle.done;
+    vi.useRealTimers();
+  }, 10000);
+
+  it('session.status busy logs busy and does not emit agent_end', async () => {
+    vi.useFakeTimers();
+    const ps = createPushStream();
+    const fakeClient = createMockClient(ps.stream);
+    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onEnd = vi.fn();
+    handle.onAgentEnd(onEnd);
+
+    ps.push({
+      type: 'session.status',
+      properties: { sessionID: 'sess-1', status: { type: 'busy' } },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] busy\n');
+    expect(onEnd).not.toHaveBeenCalled();
+
+    ps.end();
+    await handle.done;
+    vi.useRealTimers();
+  }, 10000);
 });
