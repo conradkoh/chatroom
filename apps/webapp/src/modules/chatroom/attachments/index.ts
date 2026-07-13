@@ -44,8 +44,13 @@ export {
 export {
   buildExplorerSelectionPrefill,
   dispatchComposerPrefill,
+  dispatchComposerTextPrefill,
   subscribeComposerPrefill,
+  subscribeComposerTextPrefill,
   PREFILL_TOAST_MESSAGE,
+  SAVED_COMMAND_PREFILL_TOAST_MESSAGE,
   // fallow-ignore-next-line unused-type
   type ComposerPrefillDetail,
+  // fallow-ignore-next-line unused-type
+  type ComposerTextPrefillDetail,
 } from './snippet/composerPrefill';

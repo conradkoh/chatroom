@@ -22,7 +22,13 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { AttachmentsProvider, dispatchComposerPrefill, PREFILL_TOAST_MESSAGE } from './attachments';
+import {
+  AttachmentsProvider,
+  dispatchComposerPrefill,
+  dispatchComposerTextPrefill,
+  PREFILL_TOAST_MESSAGE,
+  SAVED_COMMAND_PREFILL_TOAST_MESSAGE,
+} from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { teamConfigToUpdateArgs } from './components/AgentPanel/TeamSelectorDropdown';
@@ -676,7 +682,6 @@ export function ChatroomDashboard({
   });
 
   // Send message mutation (used to execute saved commands)
-  const sendMessageMutation = useSessionMutation(api.messages.sendMessage);
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const recordObservationMutation = useSessionMutation(api.chatrooms.recordChatroomObservation);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
@@ -707,26 +712,19 @@ export function ChatroomDashboard({
   );
 
   const handleExecuteSavedCommand = useCallback(
-    async (cmd: SavedCommand) => {
+    (cmd: SavedCommand) => {
       switch (cmd.type) {
         case 'prompt':
-          try {
-            await sendMessageMutation({
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              senderRole: 'user',
-              content: cmd.prompt,
-              type: 'message',
-            });
-          } catch (error) {
-            console.error('Failed to execute saved command:', error);
-            toast.error('Failed to send command. Please try again.');
-          }
+          setActivityView('messages');
+          dispatchComposerTextPrefill(cmd.prompt);
+          toast.message(SAVED_COMMAND_PREFILL_TOAST_MESSAGE);
+          setTimeout(() => focusSendFormRef.current?.(), 0);
           break;
         default:
           exhaustive(cmd.type);
       }
     },
-    [sendMessageMutation, chatroomId]
+    [setActivityView]
   );
 
   const savedCommands: SavedCommand[] = useMemo(

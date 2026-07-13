@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildExplorerSelectionPrefill,
   dispatchComposerPrefill,
+  dispatchComposerTextPrefill,
   subscribeComposerPrefill,
+  subscribeComposerTextPrefill,
   type ComposerPrefillDetail,
 } from './composerPrefill';
 
@@ -58,5 +60,19 @@ describe('composer prefill events', () => {
     expect(event.detail).toEqual(detail);
 
     window.removeEventListener(COMPOSER_PREFILL_EVENT, listener);
+  });
+
+  it('dispatches and delivers plain text to text-prefill subscriber', () => {
+    const handler = vi.fn();
+    const unsub = subscribeComposerTextPrefill(handler);
+
+    dispatchComposerTextPrefill('Run the deploy checklist');
+
+    expect(handler).toHaveBeenCalledWith({
+      target: 'messages',
+      content: 'Run the deploy checklist',
+    });
+
+    unsub();
   });
 });

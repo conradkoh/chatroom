@@ -14,6 +14,7 @@ import {
   buildExplorerSelectionPrefill,
   renderInlineReference,
   subscribeComposerPrefill,
+  subscribeComposerTextPrefill,
   useAttachments,
   useBacklogAttachments,
   useMessageAttachments,
@@ -252,6 +253,14 @@ export function MessageInput({
       setTimeout(() => textareaRef.current?.focus(), 0);
     });
   }, [add]);
+
+  useEffect(() => {
+    return subscribeComposerTextPrefill((detail) => {
+      setMessage(detail.content);
+      setSendError(null);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    });
+  }, []);
 
   // ── Draft persistence ──────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
