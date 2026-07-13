@@ -1,11 +1,10 @@
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
-  ListMachineAssignedTaskSnapshotsResult,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
+import { listAssignedTaskSnapshotsForRole } from './assigned-task-snapshot-store.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -44,23 +43,6 @@ export interface NativeSessionLostParams {
   harnessSessionId?: string;
 }
 
-async function fetchAssignedTasksForRole(
-  sessionDeps: NativeTaskDeliverySessionDeps,
-  machineId: string,
-  chatroomId: string,
-  role: string
-): Promise<AssignedTaskSnapshotView[]> {
-  const hydrate = (await sessionDeps.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: sessionDeps.sessionId,
-    machineId,
-  })) as ListMachineAssignedTaskSnapshotsResult;
-  const rows = parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
-  const roleLower = role.toLowerCase();
-  return rows.filter(
-    (row) => row.chatroomId === chatroomId && row.agentConfig.role.toLowerCase() === roleLower
-  );
-}
-
 // fallow-ignore-next-line unused-export
 export class NativeTaskDeliveryCoordinator {
   onSessionLost(params: NativeSessionLostParams): void {
@@ -76,27 +58,19 @@ export class NativeTaskDeliveryCoordinator {
     if (!session) return;
 
     const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
-
-    void fetchAssignedTasksForRole(sessionDeps, machineId, chatroomId, role)
-      .then((tasks) => {
-        if (tasks.length === 0) {
-          logNativeDeliveryNoTasks(role, chatroomId);
-          return;
-        }
-        this.reconcileAssignedTasks({
-          tasks,
-          runtime,
-          effectContext,
-          agentMgr,
-          sessionDeps,
-          machineId,
-        });
-      })
-      .catch((err) => {
-        console.warn(
-          `[NativeTaskDelivery] tryInjectNextForRole failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
-        );
-      });
+    const tasks = listAssignedTaskSnapshotsForRole(chatroomId, role);
+    if (tasks.length === 0) {
+      logNativeDeliveryNoTasks(role, chatroomId);
+      return;
+    }
+    this.reconcileAssignedTasks({
+      tasks,
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      machineId,
+    });
   }
 
   // fallow-ignore-next-line complexity

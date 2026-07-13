@@ -1,11 +1,13 @@
 /**
  * Task Monitor — indexed snapshot projection + WS signal/presence subscribe.
  *
- * - Hydrate: one-shot listMachineAssignedTaskSnapshots (slim rows, no task.content)
+ * - Snapshot store: subscribed via wsClient.onUpdate (no HTTP poll on timer)
+ * - Periodic reconcile reads the local store
  * - Signal feed: revisionKey cursor — revive/inject
  * - Presence feed: presenceUpdatedAt cursor — nudge timing (replaces 15s reconcile poll)
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
+ * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
 import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
@@ -25,6 +27,12 @@ import type {
 import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
+import {
+  clearAssignedTaskSnapshots,
+  hasAssignedTaskSnapshot,
+  listAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from './assigned-task-snapshot-store.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
@@ -420,6 +428,72 @@ async function processTasksUpdate(
   );
 }
 
+function listDeliverablePendingFromStore(
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): AssignedTaskSnapshotView[] {
+  if (!hasAssignedTaskSnapshot()) return [];
+  return listAssignedTaskSnapshots().filter((row) => {
+    if (row.status !== 'pending') return false;
+    const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
+    return isAgentReadyForNativeDelivery(row, slot);
+  });
+}
+
+function runLocalStoreReconcilePass(params: {
+  stopped: boolean;
+  monitorPassInFlight: boolean;
+  agentMgr: DaemonAgentProcessManagerServiceShape;
+  runtime: TaskMonitorRuntime;
+  effectContext: TaskMonitorContext;
+  sessionDeps: NativeTaskDeliverySessionDeps;
+  machineId: string;
+}): void {
+  const { stopped, monitorPassInFlight, agentMgr, runtime, effectContext, sessionDeps, machineId } =
+    params;
+  if (stopped || monitorPassInFlight) return;
+  const deliverable = listDeliverablePendingFromStore(agentMgr);
+  if (deliverable.length === 0) return;
+  const first = deliverable[0];
+  logNativeDeliveryFallback(
+    'periodic-reconcile',
+    first.agentConfig.role,
+    first.chatroomId,
+    first.taskId
+  );
+  getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
+    tasks: deliverable,
+    runtime,
+    effectContext,
+    agentMgr,
+    sessionDeps,
+    machineId,
+  });
+}
+
+function subscribeAssignedTaskSnapshotStore(
+  wsClient: ConvexClient,
+  session: { sessionId: string; machineId: string },
+  isStopped: () => boolean
+): () => void {
+  return wsClient.onUpdate(
+    api.machines.listMachineAssignedTaskSnapshots,
+    {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    },
+    (result) => {
+      if (isStopped()) return;
+      const tasks = parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? []);
+      replaceAssignedTaskSnapshots(tasks);
+    },
+    (err: unknown) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Assigned-task snapshot subscription error: ${getErrorMessage(err)}`
+      );
+    }
+  );
+}
+
 // fallow-ignore-next-line complexity
 export const startTaskMonitorEffect = (
   wsClient: ConvexClient
@@ -465,6 +539,12 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
+    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
+      wsClient,
+      session,
+      () => stopped
+    );
+
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
@@ -482,36 +562,17 @@ export const startTaskMonitorEffect = (
       });
     };
 
-    const runReconcilePass = (): void => {
-      if (stopped || monitorPassInFlight) return;
-      void fetchHydrateRows(session)
-        .then((tasks) => {
-          const deliverable = tasks.filter((row) => {
-            if (row.status !== 'pending') return false;
-            const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
-            return isAgentReadyForNativeDelivery(row, slot);
-          });
-          if (deliverable.length === 0) return;
-          const first = deliverable[0];
-          logNativeDeliveryFallback(
-            'periodic-reconcile',
-            first.agentConfig.role,
-            first.chatroomId,
-            first.taskId
-          );
-          getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
-            tasks: deliverable,
-            runtime,
-            effectContext,
-            agentMgr,
-            sessionDeps,
-            machineId: session.machineId,
-          });
-        })
-        .catch(() => {});
-    };
-
-    const reconcileTimer = setInterval(runReconcilePass, NATIVE_DELIVERY_RECONCILE_MS);
+    const reconcileTimer = setInterval(() => {
+      runLocalStoreReconcilePass({
+        stopped,
+        monitorPassInFlight,
+        agentMgr,
+        runtime,
+        effectContext,
+        sessionDeps,
+        machineId: session.machineId,
+      });
+    }, NATIVE_DELIVERY_RECONCILE_MS);
 
     yield* Effect.tryPromise(() =>
       session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
@@ -593,6 +654,8 @@ export const startTaskMonitorEffect = (
     return {
       stop() {
         stopped = true;
+        unsubscribeSnapshotStore();
+        clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);
         void Effect.runPromise(signalHandle.stop());
