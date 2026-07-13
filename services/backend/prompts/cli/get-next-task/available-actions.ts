@@ -66,7 +66,7 @@ Only the entry point role can create new contexts. By default, set a new context
 \`\`\`bash
 ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
 \`\`\`
-${contextNewHint()}
+${contextNewHint({ cliEnvPrefix })}
 
 **List previous contexts:**
 \`\`\`bash

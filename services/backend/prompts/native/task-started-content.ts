@@ -23,7 +23,7 @@ export function getNativeTaskStartedPrompt(ctx: {
 
 Entry-point roles receive user messages directly. ${getNativeTokenActivityInProgressNote()}
 
-${getContextRuleBlock(contextNewCmd, contextNewHint())}`;
+${getContextRuleBlock(contextNewCmd, contextNewHint({ cliEnvPrefix: ctx.cliEnvPrefix }))}`;
 }
 
 export function getNativeTaskStartedPromptForHandoffRecipient(): string {

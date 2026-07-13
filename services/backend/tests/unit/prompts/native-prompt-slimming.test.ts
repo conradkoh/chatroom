@@ -36,7 +36,7 @@ describe('native task-started content', () => {
 
     expect(prompt).toContain('--trigger-message-id="msg-id-123"');
     expect(prompt).not.toContain('<userMessageId>');
-    expect(prompt).toContain('NOT the Task ID');
+    expect(prompt).toContain('never `task-id`');
   });
 
   test('native task delivery shows origin message ID and pre-fills context command', () => {
