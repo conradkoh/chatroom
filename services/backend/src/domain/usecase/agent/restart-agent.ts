@@ -5,8 +5,6 @@
  * emit agent.restart for the daemon orchestrator.
  */
 
-import { randomUUID } from 'node:crypto';
-
 import { buildAgentRestartEvent } from './build-agent-restart-event';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -49,7 +47,7 @@ export async function restartAgent(
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const resolvedWantResume = input.wantResume ?? true;
   const now = Date.now();
-  const correlationId = randomUUID();
+  const correlationId = crypto.randomUUID();
 
   if (chatroom?.teamId) {
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
