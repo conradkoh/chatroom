@@ -15,13 +15,16 @@
 import { agentEventDefinitions } from './agentEvents';
 import { commandEventDefinitions } from './commandEvents';
 import { configEventDefinitions } from './configEvents';
+import { connectionEventDefinitions } from './connectionEvents';
 import { daemonEventDefinitions } from './daemonEvents';
 import { initRegistry } from './registry';
 import { skillEventDefinitions } from './skillEvents';
 import { taskEventDefinitions } from './taskEvents';
+import { workflowEventDefinitions } from './workflowEvents';
 
 // Re-export registry query functions
-export { getEventTypeDefinition, getRegisteredEventTypes } from './registry';
+export { getRegisteredEventTypes } from './registry';
+export { resolveEventTypeDefinition } from './resolveEventTypeDefinition';
 
 // Re-export shared components
 export {
@@ -50,5 +53,7 @@ export function initializeEventTypes(): void {
     ...skillEventDefinitions,
     ...configEventDefinitions,
     ...commandEventDefinitions,
+    ...connectionEventDefinitions,
+    ...workflowEventDefinitions,
   });
 }

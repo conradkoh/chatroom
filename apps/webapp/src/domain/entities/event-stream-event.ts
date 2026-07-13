@@ -182,6 +182,32 @@ export interface AgentRestartLimitReachedEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentStopTimeoutEvent extends EventStreamEventBase {
+  type: 'agent.stopTimeout';
+  role: string;
+  machineId: string;
+  pid?: number;
+  durationMs: number;
+  chatroomId: string;
+}
+
+export interface AgentHarnessSessionIdUpdatedEvent extends EventStreamEventBase {
+  type: 'agent.harnessSessionIdUpdated';
+  role: string;
+  machineId: string;
+  correlationId: string;
+  previousResumableId?: string;
+  resumableId: string;
+  source: 'provider_allocated' | 'provider_rotated';
+  chatroomId: string;
+}
+
+export interface AgentAwaitingHandoffEvent extends EventStreamEventBase {
+  type: 'agent.awaitingHandoff';
+  role: string;
+  chatroomId: string;
+}
+
 export interface MachineSwitchedEvent extends EventStreamEventBase {
   type: 'machine.switched';
   role: string;
@@ -238,6 +264,94 @@ export interface SkillActivatedEvent extends EventStreamEventBase {
   prompt: string;
 }
 
+export interface ConnectionTerminatedEvent extends EventStreamEventBase {
+  type: 'connection.terminated';
+  role: string;
+  connectionId: string;
+  machineId?: string;
+  reason: string;
+  chatroomId: string;
+}
+
+export interface WorkflowStartedEvent extends EventStreamEventBase {
+  type: 'workflow.started';
+  workflowKey: string;
+  workflowId: string;
+  createdBy: string;
+  stepCount: number;
+  steps?: {
+    stepKey: string;
+    description: string;
+    assigneeRole?: string;
+    dependsOn: string[];
+    order: number;
+  }[];
+  chatroomId: string;
+}
+
+export interface WorkflowStepCompletedEvent extends EventStreamEventBase {
+  type: 'workflow.stepCompleted';
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  stepDescription?: string;
+  completedBy?: string;
+  chatroomId: string;
+}
+
+export interface WorkflowStepCancelledEvent extends EventStreamEventBase {
+  type: 'workflow.stepCancelled';
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  stepDescription?: string;
+  cancelledBy?: string;
+  reason: string;
+  chatroomId: string;
+}
+
+export interface WorkflowCompletedEvent extends EventStreamEventBase {
+  type: 'workflow.completed';
+  workflowKey: string;
+  workflowId: string;
+  finalStatus: 'completed' | 'cancelled';
+  chatroomId: string;
+}
+
+export interface WorkflowCreatedEvent extends EventStreamEventBase {
+  type: 'workflow.created';
+  workflowKey: string;
+  workflowId: string;
+  createdBy: string;
+  stepCount: number;
+  steps?: {
+    stepKey: string;
+    description: string;
+    assigneeRole?: string;
+    dependsOn: string[];
+    order: number;
+  }[];
+  chatroomId: string;
+}
+
+export interface WorkflowSpecifiedEvent extends EventStreamEventBase {
+  type: 'workflow.specified';
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  chatroomId: string;
+}
+
+export interface WorkflowStepStartedEvent extends EventStreamEventBase {
+  type: 'workflow.stepStarted';
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  stepDescription?: string;
+  assigneeRole?: string;
+  chatroomId: string;
+}
+
 // ─── Config Event Types ──────────────────────────────────────────────────────
 
 export interface ConfigRequestRemovalEvent extends EventStreamEventBase {
@@ -271,6 +385,12 @@ export interface DaemonRefreshCapabilitiesEvent extends EventStreamEventBase {
   type: 'daemon.refreshCapabilities';
   machineId: string;
   batchId?: string;
+}
+
+export interface DaemonPickFolderEvent extends EventStreamEventBase {
+  type: 'daemon.pickFolder';
+  machineId: string;
+  requestId: string;
 }
 
 export interface DaemonLocalActionEvent extends EventStreamEventBase {
@@ -320,17 +440,29 @@ export type EventStreamEvent =
   | AgentSessionAugmentedEvent
   | AgentResumeStormAbortedEvent
   | AgentRestartLimitReachedEvent
+  | AgentStopTimeoutEvent
+  | AgentHarnessSessionIdUpdatedEvent
+  | AgentAwaitingHandoffEvent
   | MachineSwitchedEvent
   | TaskActivatedEvent
   | TaskAcknowledgedEvent
   | TaskInProgressEvent
   | TaskCompletedEvent
   | SkillActivatedEvent
+  | ConnectionTerminatedEvent
+  | WorkflowStartedEvent
+  | WorkflowStepCompletedEvent
+  | WorkflowStepCancelledEvent
+  | WorkflowCompletedEvent
+  | WorkflowCreatedEvent
+  | WorkflowSpecifiedEvent
+  | WorkflowStepStartedEvent
   | ConfigRequestRemovalEvent
   | DaemonPingEvent
   | DaemonPongEvent
   | DaemonGitRefreshEvent
   | DaemonRefreshCapabilitiesEvent
+  | DaemonPickFolderEvent
   | DaemonLocalActionEvent
   | CommandRunEvent
   | CommandStopEvent;

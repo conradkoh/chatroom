@@ -3,12 +3,12 @@
 import { Activity, ArrowLeft } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { getEventTypeDefinition, initializeEventTypes } from '../eventTypes';
-import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
 import {
   EventStreamMachineProvider,
   type MachineNameEntry,
 } from '../context/EventStreamMachineContext';
+import { resolveEventTypeDefinition, initializeEventTypes } from '../eventTypes';
+import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
 
 import {
   FixedModal,
@@ -133,10 +133,10 @@ export const EventStreamModal = memo(function EventStreamModal({
     setShowMobileDetail(true);
   }, []);
 
-  // Render event row using the exhaustive registry (always defined)
+  // Render event row using the exhaustive registry, with placeholder fallback for unknown types
   const renderEventRow = (event: EventStreamEvent) => {
     const isSelected = selectedEvent?._id === event._id;
-    const definition = getEventTypeDefinition(event.type);
+    const definition = resolveEventTypeDefinition(event);
     return (
       <div key={event._id} onClick={() => handleSelectEvent(event)} className="cursor-pointer">
         {definition.cellRenderer(event as never, isSelected)}
@@ -144,7 +144,7 @@ export const EventStreamModal = memo(function EventStreamModal({
     );
   };
 
-  // Render event details using the exhaustive registry (always defined)
+  // Render event details using the exhaustive registry, with placeholder fallback
   const renderEventDetails = () => {
     if (!selectedEvent) {
       return (
@@ -154,7 +154,7 @@ export const EventStreamModal = memo(function EventStreamModal({
       );
     }
 
-    const definition = getEventTypeDefinition(selectedEvent.type);
+    const definition = resolveEventTypeDefinition(selectedEvent);
     return definition.detailsRenderer(selectedEvent as never);
   };
 
