@@ -27,12 +27,6 @@ import type {
 import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
-import {
-  clearAssignedTaskSnapshots,
-  hasAssignedTaskSnapshot,
-  listAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
@@ -75,6 +69,12 @@ import {
   assignedTaskSignalsFeedDef,
   assignedTaskSignalsSubscribeTarget,
 } from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
+import {
+  clearAssignedTaskSnapshots,
+  hasAssignedTaskSnapshot,
+  listAssignedTaskSnapshots,
+  replaceAssignedTaskSnapshots,
+} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;

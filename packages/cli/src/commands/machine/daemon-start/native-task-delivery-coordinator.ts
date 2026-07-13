@@ -4,7 +4,6 @@ import type {
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
-import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -22,6 +21,7 @@ import { explainNativeDeliveryBlock } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import { api } from '../../../api.js';
+import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
