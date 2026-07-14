@@ -4,6 +4,7 @@ import {
   diffPorcelainSnapshots,
   headChanged,
   porcelainPathsLeftSnapshot,
+  porcelainUntrackedDeletedEvents,
   readGitHead,
   readGitPorcelainStatus,
   type GitHeadState,
@@ -109,7 +110,19 @@ export function createGitWorkspaceChangeSource(
             prev: prev.prevEntries,
             next: nextEntries,
           });
-          if (left.length > 0) needsReconcile = true;
+
+          const deletedUntracked = porcelainUntrackedDeletedEvents({
+            workspaceRoot: options.hierarchy.workspaceRoot,
+            node,
+            prev: prev.prevEntries,
+            next: nextEntries,
+          });
+          allEvents.push(...deletedUntracked);
+
+          const deletedPaths = new Set(deletedUntracked.map((e) => e.path));
+          if (left.some((wsPath) => !deletedPaths.has(wsPath))) {
+            needsReconcile = true;
+          }
 
           const events = diffPorcelainSnapshots({
             workspaceRoot: options.hierarchy.workspaceRoot,

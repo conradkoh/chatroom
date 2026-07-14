@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -189,26 +189,33 @@ describe('workspace-file-tree-coordinator', () => {
     await coordinator.stop();
   }, 15_000);
 
-  it('reconciles when git clean removes an untracked file from porcelain', async () => {
+  it('removes untracked file from tree when deleted via git clean in git mode', async () => {
     rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-clean-'));
     await initGitRepo(rootDir, { 'tracked.ts': 'x' });
-    const onReconciled = vi.fn();
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 2 }));
     const coordinator = await startWorkspaceFileTreeCoordinator({
       machineId,
       workingDir: rootDir,
       changeSourcePollIntervalMs: 200,
       onCheckpoint: async () => ({ revision: 1 }),
-      onDelta: async () => ({ status: 'applied' as const, revision: 2 }),
-      onReconciled,
+      onDelta: deltas,
     });
     await writeFile(join(rootDir, 'dirty.txt'), 'temp');
     await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'dirty.txt'), 5_000);
     const git = (...args: string[]) => runGit(args, rootDir);
     await git('clean', '-f', 'dirty.txt');
-    await waitFor(() => onReconciled.mock.calls.length > 0, 5_000);
-    expect(coordinator.getTree().entries.find((e) => e.path === 'dirty.txt')).toBeUndefined();
+    await waitFor(
+      () => coordinator.getTree().entries.find((e) => e.path === 'dirty.txt') === undefined,
+      5_000
+    );
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        removed: expect.arrayContaining(['dirty.txt']),
+      }),
+      expect.any(Number)
+    );
     await coordinator.stop();
-  }, 20_000);
+  }, 15_000);
 
   it('degrades to fs watcher after persistent git poll failures', async () => {
     rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-degrade-'));
@@ -235,6 +242,33 @@ describe('workspace-file-tree-coordinator', () => {
     runGitSpy.mockRestore();
     createFsSpy.mockRestore();
 
+    await coordinator.stop();
+  }, 15_000);
+
+  it('removes untracked file from tree when deleted via rm in git mode', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-rm-'));
+    await initGitRepo(rootDir, { 'README.md': 'hello' });
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 2 }));
+    const coordinator = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: deltas,
+    });
+    await writeFile(join(rootDir, 'temp.md'), 'temp');
+    await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'temp.md'), 5_000);
+    await unlink(join(rootDir, 'temp.md'));
+    await waitFor(
+      () => coordinator.getTree().entries.find((e) => e.path === 'temp.md') === undefined,
+      5_000
+    );
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        removed: expect.arrayContaining(['temp.md']),
+      }),
+      expect.any(Number)
+    );
     await coordinator.stop();
   }, 15_000);
 

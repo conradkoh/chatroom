@@ -16,15 +16,14 @@ import {
   mergeFileTreeShardPayloads,
   type FileTreeShardPayload,
 } from './fileTreeUtils';
+import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import {
-  applyWorkspaceFileTreeDeltas,
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeRevision,
   getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
-  type WorkspaceFileTreeDeltaBatch,
 } from './workspaceFileTreeStore';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 import { decompressGzip } from '../utils/decompressGzip';
@@ -58,17 +57,6 @@ type FileTreeCheckpoint = {
   snapshotId: string;
   publishedAt: number;
 };
-
-type FileTreeDeltaQueryResult =
-  | {
-      status: 'ok';
-      checkpointRevision: number;
-      currentRevision: number;
-      deltas: WorkspaceFileTreeDeltaBatch[];
-      hasMore: boolean;
-    }
-  | { status: 'checkpoint-required'; checkpointRevision: number; currentRevision: number }
-  | { status: 'resync-required'; expectedRevision: number };
 
 export interface UseWorkspaceFileTreeArgs {
   machineId: string;
@@ -229,22 +217,18 @@ export function useWorkspaceFileTree({
     () => getWorkspaceFileTreeScannedAt(workspaceKey)
   );
 
+  useWorkspaceFileTreeDeltaSync({
+    workspaceKey,
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled,
+  });
+
   const storeRevision = useSyncExternalStore(
     useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
     () => getWorkspaceFileTreeRevision(workspaceKey),
     () => getWorkspaceFileTreeRevision(workspaceKey)
   );
-
-  const deltaResult = useSessionQuery(
-    api.workspaceFiles.getFileTreeDeltas,
-    enabled && storeRevision !== null
-      ? {
-          machineId,
-          workingDir: normalizedWorkingDir,
-          afterRevision: storeRevision,
-        }
-      : 'skip'
-  ) as FileTreeDeltaQueryResult | null | undefined;
 
   const requestTree = useCallback(
     (force: boolean) => {
@@ -276,17 +260,6 @@ export function useWorkspaceFileTree({
     },
     [enabled, requestTree]
   );
-
-  useEffect(() => {
-    if (!enabled || !deltaResult) return;
-    if (deltaResult.status === 'resync-required') {
-      requestTree(true);
-      return;
-    }
-    if (deltaResult.status !== 'ok' || deltaResult.deltas.length === 0) return;
-    const result = applyWorkspaceFileTreeDeltas(workspaceKey, deltaResult.deltas);
-    if (result.status === 'requires-refresh') requestTree(true);
-  }, [deltaResult, enabled, requestTree, workspaceKey]);
 
   useEffect(() => {
     if (!enabled) return;

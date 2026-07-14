@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import type { WorkspaceFsEvent, WorkspaceFsEventKind } from './workspace-fs-watcher.js';
 import { runGit } from '../../git/run-command.js';
@@ -252,6 +255,46 @@ export function porcelainPathsLeftSnapshot(args: {
     if (!nextWsPaths.has(wsPath)) left.push(wsPath);
   }
   return left.sort((a, b) => a.localeCompare(b));
+}
+
+export function porcelainUntrackedDeletedEvents(args: {
+  workspaceRoot: string;
+  node: GitRepoNode;
+  prev: readonly GitPorcelainEntry[];
+  next: readonly GitPorcelainEntry[];
+}): WorkspaceFsEvent[] {
+  const left = porcelainPathsLeftSnapshot({
+    workspaceRoot: args.workspaceRoot,
+    node: args.node,
+    prev: args.prev,
+    next: args.next,
+  });
+  if (left.length === 0) return [];
+
+  const prevByWsPath = new Map<string, GitPorcelainEntry>();
+  for (const entry of args.prev) {
+    const wsPath = toWorkspaceRelativePath({
+      workspaceRoot: args.workspaceRoot,
+      node: args.node,
+      pathInWorkTree: entry.path,
+    });
+    if (wsPath !== null) prevByWsPath.set(wsPath, entry);
+  }
+
+  const events: WorkspaceFsEvent[] = [];
+  for (const wsPath of left) {
+    const prevEntry = prevByWsPath.get(wsPath);
+    if (prevEntry?.xy !== '??') continue;
+    const absPath = path.join(args.node.workTree, prevEntry.path);
+    if (!existsSync(absPath)) {
+      events.push({
+        kind: prevEntry.path.endsWith('/') ? 'unlinkDir' : 'unlink',
+        path: wsPath,
+      });
+    }
+  }
+  events.sort((a, b) => a.path.localeCompare(b.path));
+  return events;
 }
 
 export async function readGitHead(workTree: string): Promise<GitHeadState> {

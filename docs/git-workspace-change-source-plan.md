@@ -161,7 +161,7 @@ flowchart LR
 ## Known limitations
 
 1. **Gitignored untracked files** — not reported by porcelain; baseline gap-fill (`diffPorcelainAgainstKnownPaths` + `getKnownPaths`) handles non-gitignored untracked files present at coordinator restart. Purely gitignored files still rely on periodic `scanFileTree` reconcile (same as fs watcher + ignore rules).
-2. **Porcelain leave without reconcile latency** — leave detection triggers reconcile asynchronously; tree may be briefly stale until reconcile completes.
+2. **Porcelain leave without reconcile latency** — untracked file deletes (`??` + file missing from disk) now emit immediate unlink via `porcelainUntrackedDeletedEvents`; other leaves (tracked `git restore`/`git clean`, committed) still trigger async reconcile.
 3. **No `git worktree` discovery** — secondary worktrees are not polled; only filesystem `.git` walk under workspace.
 4. **One-way degradation** — git→fs fallback does not re-upgrade until coordinator restarts.
 5. **Committed clean paths** — paths leaving porcelain after commit rely on HEAD-change reconcile (or periodic reconcile); no unlink emitted from diff.

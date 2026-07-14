@@ -11,7 +11,7 @@ const mockPorcelain = vi.hoisted(() => ({
 }));
 
 vi.mock('./git-workspace-porcelain.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     readGitHead: mockPorcelain.readGitHead,

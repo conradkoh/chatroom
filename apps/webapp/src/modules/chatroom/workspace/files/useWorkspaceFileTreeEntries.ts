@@ -6,6 +6,7 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
+import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import {
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeRevision,
@@ -44,6 +45,13 @@ export function useWorkspaceFileTreeEntries({
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
 
   const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+
+  useWorkspaceFileTreeDeltaSync({
+    workspaceKey,
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled,
+  });
 
   const storeEntries = useSyncExternalStore(
     useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
