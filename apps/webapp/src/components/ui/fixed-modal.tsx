@@ -1,10 +1,15 @@
 'use client';
 
 import { X } from 'lucide-react';
-import React, { useCallback, useEffect, memo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, memo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
+import {
+  isTopOverlayDismiss,
+  popOverlayDismiss,
+  pushOverlayDismiss,
+} from '@/modules/chatroom/components/shared/overlayDismissStack';
 
 // ─── Modal Stack ─────────────────────────────────────────────────────────────
 // Tracks open FixedModals so only the topmost modal responds to Escape.
@@ -259,7 +264,16 @@ const FixedModal = memo(function FixedModal({
     [onClose, closeOnBackdrop]
   );
 
-  // Handle Escape key — only the topmost modal responds
+  // Register dismiss handler before portaled menu useEffects run (child effects follow parent layout).
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const handler = onClose;
+    pushOverlayDismiss(handler);
+    return () => popOverlayDismiss(handler);
+  }, [isOpen, onClose]);
+
+  // Handle Escape key — only the topmost overlay responds
   useEffect(() => {
     if (!isOpen) return;
 
@@ -268,7 +282,7 @@ const FixedModal = memo(function FixedModal({
     setLayerZIndex(BASE_MODAL_Z_INDEX + modalStack.length * MODAL_Z_INDEX_STEP);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === handler) {
+      if (e.key === 'Escape' && isTopOverlayDismiss(handler)) {
         onClose();
       }
     };

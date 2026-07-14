@@ -12,6 +12,7 @@ export class NativeDeliveryLedger {
   }
 
   /** Reserve a delivery attempt; returns false if already delivered or in flight. */
+  // fallow-ignore-next-line unused-class-member
   tryAcquire(taskId: string, harnessSessionId: string): boolean {
     const key = this.deliveryKey(taskId, harnessSessionId);
     if (this.delivered.has(key) || this.inFlight.has(key)) {
@@ -21,12 +22,14 @@ export class NativeDeliveryLedger {
     return true;
   }
 
+  // fallow-ignore-next-line unused-class-member
   markDelivered(taskId: string, harnessSessionId: string): void {
     const key = this.deliveryKey(taskId, harnessSessionId);
     this.inFlight.delete(key);
     this.delivered.add(key);
   }
 
+  // fallow-ignore-next-line unused-class-member
   clearDelivery(taskId: string, harnessSessionId: string): void {
     const key = this.deliveryKey(taskId, harnessSessionId);
     this.inFlight.delete(key);
@@ -44,4 +47,17 @@ export class NativeDeliveryLedger {
       }
     }
   }
+}
+
+let sharedLedger: NativeDeliveryLedger | undefined;
+
+export function getNativeDeliveryLedger(): NativeDeliveryLedger {
+  sharedLedger ??= new NativeDeliveryLedger();
+  return sharedLedger;
+}
+
+/** Test-only reset. */
+// fallow-ignore-next-line unused-export
+export function resetNativeDeliveryLedgerForTests(): void {
+  sharedLedger = undefined;
 }

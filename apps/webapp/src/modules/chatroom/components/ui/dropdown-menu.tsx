@@ -7,8 +7,10 @@
 
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import { CheckIcon, ChevronRightIcon } from 'lucide-react';
+import { useCallback, useRef } from 'react';
 import type * as React from 'react';
 
+import { useOverlayDismissStack } from '../../hooks/useOverlayDismissStack';
 import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
@@ -22,9 +24,33 @@ export const chatroomDropdownMenuContentClassName = `p-0 ${chatroomPortaledMenuF
 
 function DropdownMenu({
   modal = false,
+  open,
+  defaultOpen,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="chatroom-dropdown-menu" modal={modal} {...props} />;
+  const dismissRef = useRef<() => void>(() => undefined);
+
+  dismissRef.current = () => {
+    onOpenChange?.(false);
+  };
+
+  const dismiss = useCallback(() => {
+    dismissRef.current();
+  }, []);
+
+  useOverlayDismissStack(open === true, dismiss);
+
+  return (
+    <DropdownMenuPrimitive.Root
+      data-slot="chatroom-dropdown-menu"
+      modal={modal}
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    />
+  );
 }
 
 function DropdownMenuTrigger({
