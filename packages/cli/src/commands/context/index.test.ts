@@ -306,33 +306,33 @@ describe('viewTemplate', () => {
     expect(avoidIndex).toBeGreaterThan(structureIndex);
   });
 
-  it('includes placeholder content for each section', () => {
+  it('contains no angle-bracket placeholders', () => {
+    expect(viewTemplate()).not.toMatch(/<[^>]+>/);
+  });
+
+  it('contains italic guidance markers in each section', () => {
     const template = viewTemplate();
 
-    // Goal section should have at least one angle-bracketed placeholder
     const goalSection = template.slice(
       template.indexOf('## Goal'),
       template.indexOf('## Requirements')
     );
-    expect(goalSection).toMatch(/<[^>]+>/);
+    expect(goalSection).toMatch(/_/);
 
-    // Requirements section should have at least one bullet placeholder
     const requirementsSection = template.slice(
       template.indexOf('## Requirements'),
       template.indexOf('## Structure')
     );
-    expect(requirementsSection).toMatch(/- <[^>]+>/);
+    expect(requirementsSection).toMatch(/_/);
 
-    // Structure section should have at least one bullet placeholder
     const structureSection = template.slice(
       template.indexOf('## Structure'),
       template.indexOf('## Avoid')
     );
-    expect(structureSection).toMatch(/- <[^>]+>/);
+    expect(structureSection).toMatch(/_/);
 
-    // Avoid section should have at least one bullet placeholder
     const avoidSection = template.slice(template.indexOf('## Avoid'));
-    expect(avoidSection).toMatch(/- <[^>]+>/);
+    expect(avoidSection).toMatch(/_/);
   });
 });
 

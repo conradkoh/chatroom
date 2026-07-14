@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
-import { contextViewTemplateCommand } from './view-template';
+import { getContextViewTemplate } from './context-template';
+import { contextViewTemplateCommand, viewContextTemplate } from './view-template';
 
 describe('contextViewTemplateCommand', () => {
   test('returns command without flags', () => {
@@ -13,5 +14,11 @@ describe('contextViewTemplateCommand', () => {
 
   test('omits prefix in production', () => {
     expect(contextViewTemplateCommand({ cliEnvPrefix: '' })).toBe('chatroom context view-template');
+  });
+});
+
+describe('viewContextTemplate', () => {
+  test('returns same content as getContextViewTemplate', () => {
+    expect(viewContextTemplate()).toBe(getContextViewTemplate());
   });
 });
