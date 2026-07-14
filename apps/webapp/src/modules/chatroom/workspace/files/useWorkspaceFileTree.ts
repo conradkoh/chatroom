@@ -6,7 +6,7 @@ import type {
   FileTree,
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
@@ -16,6 +16,7 @@ import {
   mergeFileTreeShardPayloads,
   type FileTreeShardPayload,
 } from './fileTreeUtils';
+import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import {
@@ -93,7 +94,11 @@ export function useWorkspaceFileTree({
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
 
-  const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const requestTree = useRequestWorkspaceFileTree({
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled,
+  });
 
   const checkpoint = useSessionQuery(
     api.workspaceFiles.getFileTreeCheckpoint,
@@ -225,18 +230,6 @@ export function useWorkspaceFileTree({
   });
 
   const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
-
-  const requestTree = useCallback(
-    (force: boolean) => {
-      if (!enabled) return;
-      requestMutation({
-        machineId,
-        workingDir: normalizedWorkingDir,
-        ...(force ? { force: true } : {}),
-      }).catch(() => {});
-    },
-    [enabled, machineId, normalizedWorkingDir, requestMutation]
-  );
 
   const refresh = useCallback(
     (options?: { force?: boolean }) => {

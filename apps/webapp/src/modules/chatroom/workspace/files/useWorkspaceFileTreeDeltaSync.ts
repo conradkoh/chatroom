@@ -1,9 +1,10 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useState } from 'react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { useEffect, useState } from 'react';
 
+import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import {
   applyWorkspaceFileTreeDeltas,
@@ -49,8 +50,8 @@ export function useWorkspaceFileTreeDeltaSync({
   enabled?: boolean;
 }): void {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
-  const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
   const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
+  const requestTree = useRequestWorkspaceFileTree({ machineId, workingDir, enabled });
 
   const [isOwner, setIsOwner] = useState(false);
 
@@ -73,18 +74,6 @@ export function useWorkspaceFileTreeDeltaSync({
       ? { machineId, workingDir: normalizedWorkingDir, afterRevision: storeRevision }
       : 'skip'
   ) as FileTreeDeltaQueryResult | null | undefined;
-
-  const requestTree = useCallback(
-    (force: boolean) => {
-      if (!enabled) return;
-      requestMutation({
-        machineId,
-        workingDir: normalizedWorkingDir,
-        ...(force ? { force: true } : {}),
-      }).catch(() => {});
-    },
-    [enabled, machineId, normalizedWorkingDir, requestMutation]
-  );
 
   useEffect(() => {
     if (!enabled || !deltaResult) return;
