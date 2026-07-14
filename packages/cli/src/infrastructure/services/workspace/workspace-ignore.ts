@@ -1,8 +1,11 @@
 // fallow-ignore-file complexity
+import { promises as fsPromises, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import ignore, { type Ignore } from 'ignore';
+
+import { isAlwaysExcludedDirName, isPathVisible } from './workspace-visibility-policy.js';
 
 const IGNORE_FILES = ['.gitignore', '.cursorignore'] as const;
 
@@ -124,4 +127,47 @@ export async function isWorkspacePathIgnored(
 ): Promise<boolean> {
   const ruleSets = await loadApplicableIgnoreRuleSets(rootDir, relativePath);
   return isPathIgnoredByRuleSets(ruleSets, relativePath);
+}
+
+/**
+ * Walk the workspace once and collect every applicable ignore rule set.
+ * Prunes ignored directories so gitignored trees are not traversed.
+ * Used to align chokidar watch scope with filesystem scan semantics.
+ */
+export async function loadAllWorkspaceIgnoreRuleSets(
+  rootDir: string
+): Promise<WorkspaceIgnoreRuleSet[]> {
+  const collected: WorkspaceIgnoreRuleSet[] = [];
+
+  async function visit(
+    relDir: string,
+    inheritedRuleSets: readonly WorkspaceIgnoreRuleSet[]
+  ): Promise<void> {
+    const localRuleSets = await loadDirectoryIgnoreRuleSets(rootDir, relDir);
+    const ruleSets =
+      localRuleSets.length === 0 ? inheritedRuleSets : [...inheritedRuleSets, ...localRuleSets];
+    collected.push(...localRuleSets);
+
+    const absDir = relDir ? path.join(rootDir, relDir) : rootDir;
+    let dirents: Dirent[];
+    try {
+      dirents = await fsPromises.readdir(absDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const ent of dirents) {
+      if (!ent.isDirectory()) continue;
+      if (isAlwaysExcludedDirName(ent.name)) continue;
+
+      const relativePath = relDir ? `${relDir}/${ent.name}` : ent.name;
+      if (!isPathVisible(relativePath)) continue;
+      if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
+
+      await visit(relativePath, ruleSets);
+    }
+  }
+
+  await visit('', []);
+  return collected;
 }

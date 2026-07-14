@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   isPathIgnoredByRules,
+  isPathIgnoredByRuleSets,
   isWorkspacePathIgnored,
+  loadAllWorkspaceIgnoreRuleSets,
   loadWorkspaceIgnore,
 } from './workspace-ignore.js';
 
@@ -48,5 +50,18 @@ describe('workspace-ignore', () => {
     expect(await isWorkspacePathIgnored(tmpDir, 'packages/app/debug.log')).toBe(true);
     expect(await isWorkspacePathIgnored(tmpDir, 'packages/important.log')).toBe(false);
     expect(await isWorkspacePathIgnored(tmpDir, 'packages/generated/output.ts')).toBe(true);
+  });
+
+  it('loadAllWorkspaceIgnoreRuleSets collects nested rules without traversing ignored dirs', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'workspace-ignore-all-'));
+    await mkdir(join(tmpDir, 'vendor', 'nested'), { recursive: true });
+    await mkdir(join(tmpDir, 'src'), { recursive: true });
+    await writeFile(join(tmpDir, '.gitignore'), 'vendor/\n');
+
+    const ruleSets = await loadAllWorkspaceIgnoreRuleSets(tmpDir);
+
+    expect(ruleSets.length).toBeGreaterThan(0);
+    expect(isPathIgnoredByRuleSets(ruleSets, 'vendor/nested/pkg.js')).toBe(true);
+    expect(isPathIgnoredByRuleSets(ruleSets, 'src/index.ts')).toBe(false);
   });
 });

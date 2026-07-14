@@ -7,6 +7,12 @@ import { hasExcludedDirSegment, isPathVisible } from './workspace-visibility-pol
 
 const DEFAULT_DEBOUNCE_MS = 250;
 
+export function isTooManyOpenFilesError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const errno = (error as NodeJS.ErrnoException).code;
+  return errno === 'EMFILE' || errno === 'ENOSPC' || error.message.includes('EMFILE');
+}
+
 export type WorkspaceFsEventKind = 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir';
 
 export interface WorkspaceFsEvent {
@@ -79,6 +85,7 @@ export function createWorkspaceFsWatcher(
     },
     ignoreInitial: true,
     persistent: true,
+    followSymlinks: false,
     awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 25 },
   });
   watcher
