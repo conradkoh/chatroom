@@ -8,6 +8,7 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import { isDeliverableTaskStatus } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
@@ -143,7 +144,7 @@ async function listDeliverableSnapshots(
       (t) =>
         t.chatroomId === event.chatroomId &&
         t.agentConfig.role.toLowerCase() === event.role.toLowerCase() &&
-        (t.status === 'pending' || t.status === 'acknowledged') &&
+        isDeliverableTaskStatus(t.status as Parameters<typeof isDeliverableTaskStatus>[0]) &&
         isAgentReadyForNativeDelivery(t, slot)
     )
     .sort((a, b) => a.createdAt - b.createdAt);

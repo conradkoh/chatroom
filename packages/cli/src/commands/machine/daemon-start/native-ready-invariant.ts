@@ -1,5 +1,9 @@
 import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import {
+  isAgentDesiredRunning,
+  isDeliverableTaskStatus,
+} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
@@ -21,7 +25,7 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  if (agentConfig.desiredState !== 'running') {
+  if (!isAgentDesiredRunning(agentConfig.desiredState)) {
     return `desired_state_not_running (desiredState=${agentConfig.desiredState})`;
   }
   if (agentConfig.spawnedAgentPid == null) {
@@ -48,5 +52,5 @@ export function explainAgentReadyForNativeDeliveryBlock(
 
 /** Pending or acknowledged tasks eligible for (re)delivery when agent is ready. */
 export function isDeliverableNativeTaskStatus(status: AssignedTaskSnapshotView['status']): boolean {
-  return status === 'pending' || status === 'acknowledged';
+  return isDeliverableTaskStatus(status as Parameters<typeof isDeliverableTaskStatus>[0]);
 }

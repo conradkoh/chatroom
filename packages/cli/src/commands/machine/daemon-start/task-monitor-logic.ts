@@ -1,4 +1,5 @@
 import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import { isAgentDesiredRunning } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
@@ -18,7 +19,7 @@ function isPendingAliveRunningTask(task: AssignedTaskSnapshotView): boolean {
   return (
     status === 'pending' &&
     agentConfig.spawnedAgentPid != null &&
-    agentConfig.desiredState === 'running'
+    isAgentDesiredRunning(agentConfig.desiredState)
   );
 }
 
@@ -88,7 +89,7 @@ function isNativeActiveTaskAgentDown(
   now: number
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
-  if (task.agentConfig.desiredState !== 'running') return false;
+  if (!isAgentDesiredRunning(task.agentConfig.desiredState)) return false;
   if (!isNativeRevivableTaskStatus(task)) return false;
   return isNativeAgentSlotDown(task, health, now);
 }
