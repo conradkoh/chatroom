@@ -36,19 +36,26 @@ export const listSavedCommands = query({
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const chatroomScoped = await ctx.db
-      .query('chatroom_savedCommands')
-      .withIndex('by_chatroom_scope', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('scope', 'chatroom')
-      )
-      .collect();
+    const chatroomScoped = (
+      await ctx.db
+        .query('chatroom_savedCommands')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect()
+    ).filter((c) => effectiveSavedCommandScope(c) === 'chatroom');
 
-    const userScoped = await ctx.db
-      .query('chatroom_savedCommands')
-      .withIndex('by_ownerId_scope', (q) => q.eq('ownerId', session.userId).eq('scope', 'user'))
-      .collect();
+    const userScoped = (
+      await ctx.db
+        .query('chatroom_savedCommands')
+        .withIndex('by_ownerId', (q) => q.eq('ownerId', session.userId))
+        .collect()
+    ).filter((c) => effectiveSavedCommandScope(c) === 'user');
 
-    return [...chatroomScoped, ...userScoped].sort((a, b) => a.name.localeCompare(b.name));
+    return [...chatroomScoped, ...userScoped]
+      .map((cmd) => ({
+        ...cmd,
+        scope: effectiveSavedCommandScope(cmd),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
