@@ -1,3 +1,4 @@
+import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test } from 'vitest';
 
@@ -35,7 +36,7 @@ describe('isStaleCliGetNextTaskWaiting', () => {
       agentConfig: { ...makeTask().agentConfig, agentHarness: 'opencode' },
       createdAt: 2_000,
       participant: {
-        lastSeenAction: 'get-next-task:started',
+        lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
         lastSeenAt: 1_000,
         lastStatus: 'agent.waiting',
       },

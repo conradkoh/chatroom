@@ -2656,18 +2656,31 @@ export default defineSchema({
    * Saved custom commands (prompt templates) for a chatroom.
    * Users create these via the command palette (Cmd+Shift+P) and can execute them
    * to send pre-defined prompts as messages.
+   *
+   * Scope semantics:
+   * - scope='chatroom' → chatroomId set, ownerId unset (visible in that chatroom only)
+   * - scope='user'     → ownerId set, chatroomId unset (visible in all user's chatrooms)
+   *
+   * Listing for a chatroom: chatroom-scoped commands for that chatroom ∪ user-scoped
+   * commands for the current user, sorted by name.
    */
   chatroom_savedCommands: defineTable(
     v.object({
       type: v.literal('prompt'),
-      chatroomId: v.id('chatroom_rooms'),
-      name: v.string(), // Command display name (shown as "Command: <name>")
-      prompt: v.string(), // The prompt text to send as a message
-      createdBy: v.string(), // Session ID or user who created it
-      createdAt: v.number(), // Unix timestamp
-      updatedAt: v.number(), // Unix timestamp
+      scope: v.optional(v.union(v.literal('user'), v.literal('chatroom'))),
+      chatroomId: v.optional(v.id('chatroom_rooms')),
+      ownerId: v.optional(v.id('users')),
+      name: v.string(),
+      prompt: v.string(),
+      createdBy: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
     })
-  ).index('by_chatroom', ['chatroomId']),
+  )
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_ownerId', ['ownerId'])
+    .index('by_chatroom_scope', ['chatroomId', 'scope'])
+    .index('by_ownerId_scope', ['ownerId', 'scope']),
 
   /**
    * Chatroom-specific skill customizations that override a skill's default system prompt.

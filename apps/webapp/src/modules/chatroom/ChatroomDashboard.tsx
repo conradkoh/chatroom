@@ -69,7 +69,7 @@ import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
-import type { SavedCommand } from './types/savedCommand';
+import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
 import {
   ensureAgentRolesConfigured,
   getFailedAgentRoles,
@@ -519,11 +519,17 @@ export function ChatroomDashboard({
   const [savedCommandEditTarget, setSavedCommandEditTarget] = useState<
     SavedCommandEditTarget | undefined
   >(undefined);
+  const [savedCommandCreateScope, setSavedCommandCreateScope] =
+    useState<SavedCommandScope>('chatroom');
 
-  const handleOpenSavedCommandModal = useCallback((target?: SavedCommandEditTarget) => {
-    setSavedCommandEditTarget(target);
-    setSavedCommandModalOpen(true);
-  }, []);
+  const handleOpenSavedCommandModal = useCallback(
+    (target?: SavedCommandEditTarget, defaultScope: SavedCommandScope = 'chatroom') => {
+      setSavedCommandEditTarget(target);
+      setSavedCommandCreateScope(defaultScope);
+      setSavedCommandModalOpen(true);
+    },
+    []
+  );
   const handleCloseSavedCommandModal = useCallback(() => {
     setSavedCommandModalOpen(false);
     setSavedCommandEditTarget(undefined);
@@ -732,10 +738,19 @@ export function ChatroomDashboard({
       (savedCommandsData ?? []).map((cmd) => ({
         _id: cmd._id,
         type: cmd.type,
+        scope: cmd.scope,
         name: cmd.name,
         prompt: cmd.prompt,
       })),
     [savedCommandsData]
+  );
+
+  const existingNamesByScope = useMemo(
+    () => ({
+      chatroom: savedCommands.filter((c) => c.scope === 'chatroom').map((c) => c.name),
+      user: savedCommands.filter((c) => c.scope === 'user').map((c) => c.name),
+    }),
+    [savedCommands]
   );
 
   // Update team mutation (for switching teams)
@@ -1308,7 +1323,8 @@ export function ChatroomDashboard({
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
     onRestartAllRemoteAgents: isRestartingAllAgents ? null : handleRestartAllRemoteAgents,
-    onCreateCommand: handleOpenSavedCommandModal,
+    onCreateCommand: (defaultScope?: SavedCommandScope) =>
+      handleOpenSavedCommandModal(undefined, defaultScope),
     savedCommands,
     onExecuteSavedCommand: handleExecuteSavedCommand,
     onEditSavedCommand: handleEditSavedCommand,
@@ -1787,7 +1803,8 @@ export function ChatroomDashboard({
               chatroomId={chatroomId}
               onClose={handleCloseSavedCommandModal}
               initial={savedCommandEditTarget}
-              existingNames={savedCommands.map((c) => c.name)}
+              existingNamesByScope={existingNamesByScope}
+              defaultScope={savedCommandEditTarget ? undefined : savedCommandCreateScope}
             />
 
             {/* Command Palette (Cmd+Shift+P) */}

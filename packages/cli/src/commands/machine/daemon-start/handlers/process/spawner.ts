@@ -110,8 +110,23 @@ async function flushFinalChunks(
   runId: any
 ): Promise<void> {
   await flushTailV2(deps, tracked, true); // final flush: always sync the tail, even if unobserved
-  if (consumePendingFullSync(tracked.runId)) {
+
+  const pendingFull = consumePendingFullSync(tracked.runId);
+  if (pendingFull) {
     await appendFullOutputChunks(deps, tracked, runId);
+    return;
+  }
+
+  // Persist output for terminal retrieval when only tail was streamed during run
+  try {
+    const fullOutput = await tracked.store.getFullOutput();
+    if (fullOutput.length > 0) {
+      await appendFullOutputChunks(deps, tracked, runId);
+    }
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to persist final output chunks for run ${tracked.runId}: ${getErrorMessage(err)}`
+    );
   }
 }
 

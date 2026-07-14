@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-export
+
 export type { ResumePath } from './entities/resume-path.js';
 export type { HarnessSessionSnapshot } from './entities/session-snapshot.js';
 export { resolveResumableHarnessSessionId } from './resolve-resumable-harness-session-id.js';
@@ -23,3 +25,10 @@ export type {
 export { transitionSlot, shouldIgnoreProcessExit } from './policies/slot-transitions.js';
 export type { RestartOutcome } from './policies/restart-decision.js';
 export { decideRestartAfterExit } from './policies/restart-decision.js';
+export {
+  isSlotIdle,
+  isSlotRunning,
+  isSlotSpawning,
+  isSlotStopping,
+  isTurnPhaseIdle,
+} from './predicates/agent-slot.js';

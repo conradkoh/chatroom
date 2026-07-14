@@ -31,7 +31,11 @@ import { toast } from 'sonner';
 import type { CommandItem, SettingsTab } from './types';
 import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
 import { getCommandUsageStore } from '../../lib/commandUsageStore';
-import type { SavedCommand } from '../../types/savedCommand';
+import type { SavedCommand, SavedCommandScope } from '../../types/savedCommand';
+import {
+  formatSavedCommandPaletteLabel,
+  savedCommandScopeKeywords,
+} from '../../types/savedCommand';
 
 export type { SettingsTab };
 
@@ -88,8 +92,8 @@ interface UseCommandPaletteCommandsProps {
    * (onOpenInVSCode, onOpenInGitHubDesktop, etc.).
    */
   workspaceCommands?: CommandItem[];
-  /** Callback to open the Create Command modal */
-  onCreateCommand?: (() => void) | null;
+  /** Callback to open the Create Command modal (optional default scope) */
+  onCreateCommand?: ((defaultScope?: SavedCommandScope) => void) | null;
   /** Saved commands to show in the command palette */
   savedCommands?: SavedCommand[];
   /** Callback to execute a saved command (send its prompt as a message) */
@@ -163,10 +167,10 @@ export function useCommandPaletteCommands({
       for (const cmd of savedCommands) {
         commands.push({
           id: `saved-cmd-${cmd._id}`,
-          label: `Command: ${cmd.name}`,
+          label: formatSavedCommandPaletteLabel(cmd.name, cmd.scope),
           icon: <MessageSquare size={14} />,
           category: 'Commands',
-          keywords: [cmd.name],
+          keywords: [cmd.name, ...savedCommandScopeKeywords(cmd.scope)],
           action: () => onExecuteSavedCommand(cmd),
           secondaryActions: [
             ...(onEditSavedCommand
@@ -248,15 +252,23 @@ export function useCommandPaletteCommands({
       });
     }
 
-    // ─── Create Command action ────────────────────────────────────
+    // ─── Create Command actions ───────────────────────────────────
     if (onCreateCommand) {
       commands.push({
-        id: 'action-create-command',
+        id: 'action-create-chatroom-command',
         label: 'Chatroom: Create Command',
         icon: <Plus size={14} />,
         category: 'Actions',
-        keywords: ['new', 'create', 'command', 'prompt', 'saved'],
-        action: onCreateCommand,
+        keywords: ['new', 'create', 'command', 'prompt', 'saved', 'chatroom', 'local'],
+        action: () => onCreateCommand('chatroom'),
+      });
+      commands.push({
+        id: 'action-create-user-command',
+        label: 'User: Create Command',
+        icon: <Plus size={14} />,
+        category: 'Actions',
+        keywords: ['new', 'create', 'command', 'prompt', 'saved', 'user', 'global', 'personal'],
+        action: () => onCreateCommand('user'),
       });
     }
 

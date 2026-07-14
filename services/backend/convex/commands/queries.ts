@@ -152,7 +152,7 @@ export async function handleGetRunOutputV2(
 
   return {
     run,
-    tail: null,
+    tail: chunks.length === 0 ? (run.tailOutput ?? null) : null,
     chunks,
     fullOutputPending: false,
   };

@@ -9,10 +9,15 @@ import { scanFileTree } from './file-tree-scanner.js';
 import { normalizeWorkingDirForLookup } from './normalize-working-dir.js';
 import {
   createWorkspaceFsWatcher,
+  isTooManyOpenFilesError,
   type WorkspaceFsEvent,
   type WorkspaceFsWatcherHandle,
 } from './workspace-fs-watcher.js';
-import { isWorkspacePathIgnored } from './workspace-ignore.js';
+import {
+  isPathIgnoredByRuleSets,
+  isWorkspacePathIgnored,
+  loadAllWorkspaceIgnoreRuleSets,
+} from './workspace-ignore.js';
 import { diffPathIndexes } from './workspace-sync-diff.js';
 import {
   buildPathIndex,
@@ -305,8 +310,12 @@ export async function startWorkspaceFileTreeCoordinator(
   };
 
   await flushPending();
-  const watcher: WorkspaceFsWatcherHandle = createWorkspaceFsWatcher({
+  const ignoreRuleSets = await loadAllWorkspaceIgnoreRuleSets(workingDir);
+  const shouldIgnorePath = (relativePath: string): boolean =>
+    isPathIgnoredByRuleSets(ignoreRuleSets, relativePath);
+  let watcher: WorkspaceFsWatcherHandle | null = createWorkspaceFsWatcher({
     workingDir,
+    shouldIgnore: shouldIgnorePath,
     onEvents: async (events) => {
       await enqueueSerial(async () => {
         const nextPaths = await applyFsEvents(workingDir, manifest.paths, events);
@@ -319,6 +328,12 @@ export async function startWorkspaceFileTreeCoordinator(
     },
     onError: (error) => {
       options.onError?.(error);
+      if (isTooManyOpenFilesError(error) && watcher) {
+        const activeWatcher = watcher;
+        watcher = null;
+        void activeWatcher.stop().finally(() => scheduleReconcile(1_000));
+        return;
+      }
       scheduleReconcile(1_000);
     },
   });
@@ -335,7 +350,8 @@ export async function startWorkspaceFileTreeCoordinator(
       stopped = true;
       if (reconcileTimer) clearTimeout(reconcileTimer);
       reconcileTimer = null;
-      await watcher.stop();
+      await watcher?.stop();
+      watcher = null;
       await serial;
       await saveWorkspaceSyncManifest(manifest);
     },

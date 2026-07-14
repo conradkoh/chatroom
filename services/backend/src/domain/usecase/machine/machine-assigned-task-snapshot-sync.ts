@@ -75,7 +75,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     lastSeenAction: doc.lastSeenAction ?? null,
     lastStatus: doc.lastStatus ?? null,
     spawnedAgentPid: doc.spawnedAgentPid,
-    desiredState: doc.desiredState,
+    desiredState: doc.desiredState as 'running' | 'stopped' | undefined,
     machineId: doc.machineId,
     agentHarness: doc.agentHarness,
     workingDir: doc.workingDir,
