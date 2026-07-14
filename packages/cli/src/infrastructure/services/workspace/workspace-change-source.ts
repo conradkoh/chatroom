@@ -12,6 +12,7 @@ export type { WorkspaceFsEvent };
 export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions & {
   pollIntervalMs?: number;
   onNeedsReconcile?: () => void | Promise<void>;
+  onPersistentFailure?: () => void | Promise<void>;
 };
 
 export type WorkspaceChangeSource = WorkspaceFsWatcherHandle;
