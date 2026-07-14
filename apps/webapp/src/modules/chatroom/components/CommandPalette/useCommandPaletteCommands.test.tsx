@@ -76,6 +76,42 @@ describe('useCommandPaletteCommands', () => {
     expect(result.current.some((command) => command.id === 'nav-new-chatroom')).toBe(false);
   });
 
+  it('adds New Backlog Item command when callback is provided', () => {
+    const onCreateBacklogItem = vi.fn();
+
+    const { result } = renderHook(() =>
+      useCommandPaletteCommands({
+        ...baseProps,
+        onCreateBacklogItem,
+      })
+    );
+
+    const command = result.current.find((command) => command.id === 'action-new-backlog-item');
+    expect(command).toMatchObject({
+      label: 'New Backlog Item',
+      category: 'Actions',
+      keywords: expect.arrayContaining(['create', 'backlog', 'new']),
+    });
+
+    command?.action();
+    expect(onCreateBacklogItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches "create" search query for New Backlog Item via keywords', () => {
+    const onCreateBacklogItem = vi.fn();
+
+    const { result } = renderHook(() =>
+      useCommandPaletteCommands({
+        ...baseProps,
+        onCreateBacklogItem,
+      })
+    );
+
+    const command = result.current.find((command) => command.id === 'action-new-backlog-item');
+    expect(command).toBeDefined();
+    expect(command?.keywords).toContain('create');
+  });
+
   describe('Stop All Remote Agents command', () => {
     it('adds Stop All Remote Agents command when handler is provided', () => {
       const onStopAllRemoteAgents = vi.fn();

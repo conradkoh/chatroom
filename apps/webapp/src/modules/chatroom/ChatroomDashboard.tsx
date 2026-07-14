@@ -922,6 +922,7 @@ export function ChatroomDashboard({
   // Refs to hold imperative open callbacks registered by child components
   const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
+  const openBacklogCreateRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
   const removeMessagesForTaskRef = useRef<((taskId: string) => void) | null>(null);
 
@@ -941,8 +942,13 @@ export function ChatroomDashboard({
   }, []);
 
   const handleRegisterWorkQueueActions = useCallback(
-    (actions: { openBacklog: () => void; openPendingReview: () => void }) => {
+    (actions: {
+      openBacklog: () => void;
+      openPendingReview: () => void;
+      openBacklogCreate: () => void;
+    }) => {
       openBacklogRef.current = actions.openBacklog;
+      openBacklogCreateRef.current = actions.openBacklogCreate;
       openPendingReviewRef.current = actions.openPendingReview;
     },
     []
@@ -970,6 +976,10 @@ export function ChatroomDashboard({
 
   const handleCmdOpenBacklog = useCallback(() => {
     openBacklogRef.current?.();
+  }, []);
+
+  const handleCmdCreateBacklogItem = useCallback(() => {
+    openBacklogCreateRef.current?.();
   }, []);
 
   const handleCmdOpenPendingReview = useCallback(() => {
@@ -1292,6 +1302,7 @@ export function ChatroomDashboard({
     onOpenSettings: handleCmdOpenSettings,
     onOpenEventStream: handleCmdOpenEventStream,
     onOpenBacklog: handleCmdOpenBacklog,
+    onCreateBacklogItem: handleCmdCreateBacklogItem,
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
     onCreateNewChatroom: handleCreateNewChatroom,
