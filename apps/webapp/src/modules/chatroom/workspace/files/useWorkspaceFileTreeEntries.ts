@@ -7,9 +7,9 @@ import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
+import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import {
   getWorkspaceFileTreeEntries,
-  getWorkspaceFileTreeRevision,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
 } from './workspaceFileTreeStore';
@@ -58,11 +58,7 @@ export function useWorkspaceFileTreeEntries({
     () => getWorkspaceFileTreeEntries(workspaceKey),
     () => getWorkspaceFileTreeEntries(workspaceKey)
   );
-  const storeRevision = useSyncExternalStore(
-    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
-    () => getWorkspaceFileTreeRevision(workspaceKey),
-    () => getWorkspaceFileTreeRevision(workspaceKey)
-  );
+  const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
 
   const entries = useMemo(() => {
     if (!enabled) return EMPTY_ENTRIES;

@@ -332,6 +332,34 @@ describe('git-workspace-change-source', () => {
     await source.stop();
   });
 
+  it('emits unlink via onEvents when untracked file leaves porcelain and is deleted', async () => {
+    const onEvents = vi.fn();
+    const onNeedsReconcile = vi.fn();
+
+    mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
+    mockPorcelain.readGitPorcelainStatus
+      .mockResolvedValueOnce([{ xy: '??', path: 'gone.txt' }])
+      .mockResolvedValueOnce([]);
+    mockPorcelain.headChanged.mockReturnValue(false);
+    mockPorcelain.porcelainPathsLeftSnapshot.mockReturnValue(['gone.txt']);
+    mockPorcelain.diffPorcelainSnapshots.mockReturnValue([]);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy,
+      pollIntervalMs: 1000,
+      onEvents,
+      onNeedsReconcile,
+    });
+    await source.ready;
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => {
+      expect(onEvents).toHaveBeenCalledWith([{ kind: 'unlink', path: 'gone.txt' }]);
+    });
+    expect(onNeedsReconcile).not.toHaveBeenCalled();
+    await source.stop();
+  });
+
   it('does not update state when readGitPorcelainStatus throws', async () => {
     const onEvents = vi.fn();
     const onError = vi.fn();

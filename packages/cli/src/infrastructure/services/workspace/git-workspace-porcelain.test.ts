@@ -445,28 +445,26 @@ describe('porcelainUntrackedDeletedEvents', () => {
     children: [],
   };
 
-  it('emits unlink when ?? file leaves porcelain and file missing from disk', () => {
+  it('emits unlink when ?? leaves porcelain and pathExists returns false', () => {
     const events = porcelainUntrackedDeletedEvents({
       workspaceRoot: '/workspace',
       node,
-      prev: [{ xy: '??', path: 'deleted.txt' }],
+      prev: [{ xy: '??', path: 'gone.txt' }],
       next: [],
+      pathExists: () => false,
     });
-    // File doesn't exist at /workspace/deleted.txt → unlink emitted
-    expect(events).toContainEqual({ kind: 'unlink', path: 'deleted.txt' });
+    expect(events).toEqual([{ kind: 'unlink', path: 'gone.txt' }]);
   });
 
-  it('does not emit unlink when ?? file leaves porcelain but file still exists', () => {
+  it('does not emit unlink when pathExists returns true', () => {
     const events = porcelainUntrackedDeletedEvents({
       workspaceRoot: '/workspace',
       node,
-      prev: [{ xy: '??', path: 'existing.txt' }],
+      prev: [{ xy: '??', path: 'kept.txt' }],
       next: [],
+      pathExists: () => true,
     });
-    // No file at /workspace/existing.txt in test, but the existsSync check
-    // returns false since the path doesn't exist → unlink IS emitted
-    // This test verifies the behavior for missing files
-    expect(events).toHaveLength(1);
+    expect(events).toEqual([]);
   });
 
   it('does not emit unlink for non-?? leaves', () => {
@@ -485,6 +483,36 @@ describe('porcelainUntrackedDeletedEvents', () => {
       node,
       prev: [{ xy: '??', path: 'f.txt' }],
       next: [{ xy: '??', path: 'f.txt' }],
+    });
+    expect(events).toEqual([]);
+  });
+});
+
+describe('porcelainUntrackedDeletedEvents integration with file on disk', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(os.tmpdir(), 'porcelain-untracked-exists-'));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('does not emit unlink when ?? file leaves porcelain but file still exists on disk', async () => {
+    await writeFile(path.join(tmpDir, 'kept.txt'), 'content');
+    const node: GitRepoNode = {
+      workTree: tmpDir,
+      gitDir: path.join(tmpDir, '.git'),
+      relativePath: '',
+      pathspec: [],
+      children: [],
+    };
+    const events = porcelainUntrackedDeletedEvents({
+      workspaceRoot: tmpDir,
+      node,
+      prev: [{ xy: '??', path: 'kept.txt' }],
+      next: [],
     });
     expect(events).toEqual([]);
   });

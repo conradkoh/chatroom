@@ -40,10 +40,83 @@ type NodePollState = {
   baselineEstablished: boolean;
 };
 
+type PollNodeResult = {
+  events: WorkspaceFsEvent[];
+  needsReconcile: boolean;
+  nextState: NodePollState;
+};
+
 function computeBackoff(failures: number, pollIntervalMs: number): number {
   if (failures <= 0) return pollIntervalMs;
   const backoff = pollIntervalMs * 2 ** Math.min(failures - 1, 5);
   return Math.min(backoff, MAX_BACKOFF_MS);
+}
+
+async function pollGitWorkspaceNode(args: {
+  options: GitWorkspaceChangeSourceOptions & { hierarchy: GitWorkspaceHierarchy };
+  node: GitRepoNode;
+  prev: NodePollState;
+}): Promise<PollNodeResult> {
+  const [nextHead, nextEntries] = await Promise.all([
+    readGitHead(args.node.workTree),
+    readGitPorcelainStatus(args.node),
+  ]);
+
+  let needsReconcile = false;
+  const events: WorkspaceFsEvent[] = [];
+
+  if (args.prev.prevHead.head !== null && headChanged(args.prev.prevHead, nextHead)) {
+    needsReconcile = true;
+  }
+
+  if (args.prev.baselineEstablished) {
+    const left = porcelainPathsLeftSnapshot({
+      workspaceRoot: args.options.hierarchy.workspaceRoot,
+      node: args.node,
+      prev: args.prev.prevEntries,
+      next: nextEntries,
+    });
+
+    const deletedUntracked = porcelainUntrackedDeletedEvents({
+      workspaceRoot: args.options.hierarchy.workspaceRoot,
+      node: args.node,
+      prev: args.prev.prevEntries,
+      next: nextEntries,
+    });
+    events.push(...deletedUntracked);
+
+    const deletedPaths = new Set(deletedUntracked.map((e) => e.path));
+    if (left.some((wsPath) => !deletedPaths.has(wsPath))) {
+      needsReconcile = true;
+    }
+
+    const diffEvents = diffPorcelainSnapshots({
+      workspaceRoot: args.options.hierarchy.workspaceRoot,
+      node: args.node,
+      prev: args.prev.prevEntries,
+      next: nextEntries,
+    });
+    events.push(...diffEvents);
+  } else if (args.options.getKnownPaths) {
+    const knownPaths = args.options.getKnownPaths();
+    const gapFillEvents = diffPorcelainAgainstKnownPaths({
+      workspaceRoot: args.options.hierarchy.workspaceRoot,
+      node: args.node,
+      knownPaths,
+      next: nextEntries,
+    });
+    events.push(...gapFillEvents);
+  }
+
+  return {
+    events,
+    needsReconcile,
+    nextState: {
+      prevEntries: nextEntries,
+      prevHead: nextHead,
+      baselineEstablished: true,
+    },
+  };
 }
 
 export function createGitWorkspaceChangeSource(
@@ -94,59 +167,14 @@ export function createGitWorkspaceChangeSource(
           prevHead: { head: null },
           baselineEstablished: false,
         };
-        const [nextHead, nextEntries] = await Promise.all([
-          readGitHead(node.workTree),
-          readGitPorcelainStatus(node),
-        ]);
-
-        if (prev.prevHead.head !== null && headChanged(prev.prevHead, nextHead)) {
-          needsReconcile = true;
-        }
-
-        if (prev.baselineEstablished) {
-          const left = porcelainPathsLeftSnapshot({
-            workspaceRoot: options.hierarchy.workspaceRoot,
-            node,
-            prev: prev.prevEntries,
-            next: nextEntries,
-          });
-
-          const deletedUntracked = porcelainUntrackedDeletedEvents({
-            workspaceRoot: options.hierarchy.workspaceRoot,
-            node,
-            prev: prev.prevEntries,
-            next: nextEntries,
-          });
-          allEvents.push(...deletedUntracked);
-
-          const deletedPaths = new Set(deletedUntracked.map((e) => e.path));
-          if (left.some((wsPath) => !deletedPaths.has(wsPath))) {
-            needsReconcile = true;
-          }
-
-          const events = diffPorcelainSnapshots({
-            workspaceRoot: options.hierarchy.workspaceRoot,
-            node,
-            prev: prev.prevEntries,
-            next: nextEntries,
-          });
-          allEvents.push(...events);
-        } else if (options.getKnownPaths) {
-          const knownPaths = options.getKnownPaths();
-          const events = diffPorcelainAgainstKnownPaths({
-            workspaceRoot: options.hierarchy.workspaceRoot,
-            node,
-            knownPaths,
-            next: nextEntries,
-          });
-          allEvents.push(...events);
-        }
-
-        state.set(node.workTree, {
-          prevEntries: nextEntries,
-          prevHead: nextHead,
-          baselineEstablished: true,
+        const result = await pollGitWorkspaceNode({
+          options,
+          node,
+          prev,
         });
+        allEvents.push(...result.events);
+        if (result.needsReconcile) needsReconcile = true;
+        state.set(node.workTree, result.nextState);
         nodeFailureCounts.set(node.workTree, 0);
         return node;
       })

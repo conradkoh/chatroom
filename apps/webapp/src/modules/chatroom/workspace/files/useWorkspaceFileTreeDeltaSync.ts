@@ -2,12 +2,11 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import {
   applyWorkspaceFileTreeDeltas,
-  getWorkspaceFileTreeRevision,
-  subscribeWorkspaceFileTree,
   type WorkspaceFileTreeDeltaBatch,
 } from './workspaceFileTreeStore';
 
@@ -24,6 +23,20 @@ type FileTreeDeltaQueryResult =
   | { status: 'checkpoint-required'; checkpointRevision: number; currentRevision: number }
   | { status: 'resync-required'; expectedRevision: number };
 
+const deltaSyncRefCounts = new Map<string, number>();
+
+function acquireDeltaSync(workspaceKey: string): boolean {
+  const next = (deltaSyncRefCounts.get(workspaceKey) ?? 0) + 1;
+  deltaSyncRefCounts.set(workspaceKey, next);
+  return next === 1;
+}
+
+function releaseDeltaSync(workspaceKey: string): void {
+  const next = (deltaSyncRefCounts.get(workspaceKey) ?? 1) - 1;
+  if (next <= 0) deltaSyncRefCounts.delete(workspaceKey);
+  else deltaSyncRefCounts.set(workspaceKey, next);
+}
+
 export function useWorkspaceFileTreeDeltaSync({
   workspaceKey,
   machineId,
@@ -37,16 +50,26 @@ export function useWorkspaceFileTreeDeltaSync({
 }): void {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
 
-  const storeRevision = useSyncExternalStore(
-    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
-    () => getWorkspaceFileTreeRevision(workspaceKey),
-    () => getWorkspaceFileTreeRevision(workspaceKey)
-  );
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setIsOwner(false);
+      return;
+    }
+    const owner = acquireDeltaSync(workspaceKey);
+    setIsOwner(owner);
+    return () => {
+      releaseDeltaSync(workspaceKey);
+      setIsOwner(false);
+    };
+  }, [workspaceKey, enabled]);
 
   const deltaResult = useSessionQuery(
     api.workspaceFiles.getFileTreeDeltas,
-    enabled && storeRevision !== null
+    enabled && isOwner && storeRevision !== null
       ? { machineId, workingDir: normalizedWorkingDir, afterRevision: storeRevision }
       : 'skip'
   ) as FileTreeDeltaQueryResult | null | undefined;

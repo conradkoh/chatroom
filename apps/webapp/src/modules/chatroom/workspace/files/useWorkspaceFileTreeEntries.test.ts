@@ -150,6 +150,29 @@ describe('useWorkspaceFileTreeEntries', () => {
     });
   });
 
+  it('applies remove delta from store when delta sync receives remove operation', async () => {
+    upsertWorkspaceFileTree(KEY, [{ path: 'test.md', type: 'file' }], 100, 1);
+    mocks.deltaResult = {
+      status: 'ok',
+      checkpointRevision: 1,
+      currentRevision: 2,
+      deltas: [
+        {
+          baseRevision: 1,
+          revision: 2,
+          operations: [{ operation: 'remove', path: 'test.md' }],
+        },
+      ],
+      hasMore: false,
+    };
+
+    const { result } = renderHook(() => useWorkspaceFileTreeEntries(args));
+
+    await vi.waitFor(() => {
+      expect(result.current.entries.find((e) => e.path === 'test.md')).toBeUndefined();
+    });
+  });
+
   it('dedupes refresh calls within 1500ms', () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useWorkspaceFileTreeEntries(args));

@@ -17,9 +17,9 @@ import {
   type FileTreeShardPayload,
 } from './fileTreeUtils';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
+import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import {
   getWorkspaceFileTreeEntries,
-  getWorkspaceFileTreeRevision,
   getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
@@ -224,11 +224,7 @@ export function useWorkspaceFileTree({
     enabled,
   });
 
-  const storeRevision = useSyncExternalStore(
-    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
-    () => getWorkspaceFileTreeRevision(workspaceKey),
-    () => getWorkspaceFileTreeRevision(workspaceKey)
-  );
+  const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
 
   const requestTree = useCallback(
     (force: boolean) => {

@@ -262,7 +262,9 @@ export function porcelainUntrackedDeletedEvents(args: {
   node: GitRepoNode;
   prev: readonly GitPorcelainEntry[];
   next: readonly GitPorcelainEntry[];
+  pathExists?: (absolutePath: string) => boolean;
 }): WorkspaceFsEvent[] {
+  const exists = args.pathExists ?? ((p: string) => existsSync(p));
   const left = porcelainPathsLeftSnapshot({
     workspaceRoot: args.workspaceRoot,
     node: args.node,
@@ -286,7 +288,7 @@ export function porcelainUntrackedDeletedEvents(args: {
     const prevEntry = prevByWsPath.get(wsPath);
     if (prevEntry?.xy !== '??') continue;
     const absPath = path.join(args.node.workTree, prevEntry.path);
-    if (!existsSync(absPath)) {
+    if (!exists(absPath)) {
       events.push({
         kind: prevEntry.path.endsWith('/') ? 'unlinkDir' : 'unlink',
         path: wsPath,

@@ -3,18 +3,16 @@ import { discoverGitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import {
   createWorkspaceFsWatcher,
-  type WorkspaceFsEvent,
   type WorkspaceFsWatcherHandle,
   type WorkspaceFsWatcherOptions,
 } from './workspace-fs-watcher.js';
-
-export type { WorkspaceFsEvent };
+import type { WorkspacePathType } from './workspace-sync-state.js';
 
 export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions & {
   pollIntervalMs?: number;
   onNeedsReconcile?: () => void | Promise<void>;
   onPersistentFailure?: () => void | Promise<void>;
-  getKnownPaths?: () => Readonly<Record<string, unknown>>;
+  getKnownPaths?: () => Readonly<Record<string, WorkspacePathType>>;
 };
 
 export type WorkspaceChangeSource = WorkspaceFsWatcherHandle;
