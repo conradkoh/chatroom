@@ -112,4 +112,41 @@ describe('workspace-file-tree-coordinator', () => {
     expect(deltas).not.toHaveBeenCalled();
     await coordinator.stop();
   });
+
+  it('stops the watcher and schedules reconcile when EMFILE occurs', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-emfile-'));
+    await writeFile(join(rootDir, 'seed.ts'), 'seed');
+
+    let capturedOnError: ((error: unknown) => void) | undefined;
+    const watcherStop = vi.fn(async () => undefined);
+    const watcherModule = await import('./workspace-fs-watcher.js');
+    const createWatcherSpy = vi
+      .spyOn(watcherModule, 'createWorkspaceFsWatcher')
+      .mockImplementation((options) => {
+        capturedOnError = options.onError;
+        return {
+          ready: Promise.resolve(),
+          stop: watcherStop,
+        };
+      });
+
+    const onError = vi.fn();
+    const coordinator = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      reconcileIntervalMs: 60_000,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: async () => ({ status: 'applied', revision: 2 }),
+      onError,
+    });
+
+    capturedOnError?.(new Error('EMFILE: too many open files, watch'));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onError).toHaveBeenCalled();
+    expect(watcherStop).toHaveBeenCalled();
+    await coordinator.stop();
+    createWatcherSpy.mockRestore();
+  });
 });
