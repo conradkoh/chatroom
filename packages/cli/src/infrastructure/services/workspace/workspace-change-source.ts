@@ -1,3 +1,4 @@
+import { createGitWorkspaceChangeSource } from './git-workspace-change-source.js';
 import { discoverGitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
 import {
   createWorkspaceFsWatcher,
@@ -8,7 +9,10 @@ import {
 
 export type { WorkspaceFsEvent };
 
-export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions;
+export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions & {
+  pollIntervalMs?: number;
+  onNeedsReconcile?: () => void | Promise<void>;
+};
 
 export type WorkspaceChangeSource = WorkspaceFsWatcherHandle;
 
@@ -24,8 +28,10 @@ export async function createWorkspaceChangeSource(
 ): Promise<WorkspaceChangeSourceResult> {
   const hierarchy = await discoverGitWorkspaceHierarchy(options.workingDir);
   if (hierarchy !== null) {
-    // Slice 3 will return a git polling source when hierarchy is available.
-    // Until then, fall back to fs so discovery can ship without breaking callers.
+    return {
+      mode: 'git',
+      source: createGitWorkspaceChangeSource({ ...options, hierarchy }),
+    };
   }
   return {
     mode: 'fs',

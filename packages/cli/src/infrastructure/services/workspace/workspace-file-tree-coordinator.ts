@@ -7,8 +7,8 @@ import type { FileTree } from '@workspace/backend/src/domain/entities/workspace-
 import { computeFileTreeDataHash } from './file-tree-data-hash.js';
 import { scanFileTree } from './file-tree-scanner.js';
 import { normalizeWorkingDirForLookup } from './normalize-working-dir.js';
+import { createWorkspaceChangeSource } from './workspace-change-source.js';
 import {
-  createWorkspaceFsWatcher,
   isTooManyOpenFilesError,
   type WorkspaceFsEvent,
   type WorkspaceFsWatcherHandle,
@@ -313,7 +313,10 @@ export async function startWorkspaceFileTreeCoordinator(
   const ignoreRuleSets = await loadAllWorkspaceIgnoreRuleSets(workingDir);
   const shouldIgnorePath = (relativePath: string): boolean =>
     isPathIgnoredByRuleSets(ignoreRuleSets, relativePath);
-  let watcher: WorkspaceFsWatcherHandle | null = createWorkspaceFsWatcher({
+  let changeSource: WorkspaceFsWatcherHandle | null = null;
+  let changeSourceMode: 'git' | 'fs' = 'fs';
+
+  const change = await createWorkspaceChangeSource({
     workingDir,
     shouldIgnore: shouldIgnorePath,
     onEvents: async (events) => {
@@ -326,18 +329,21 @@ export async function startWorkspaceFileTreeCoordinator(
         await commitPaths(nextPaths);
       });
     },
+    onNeedsReconcile: () => enqueueSerial(reconcileNow),
     onError: (error) => {
       options.onError?.(error);
-      if (isTooManyOpenFilesError(error) && watcher) {
-        const activeWatcher = watcher;
-        watcher = null;
-        void activeWatcher.stop().finally(() => scheduleReconcile(1_000));
+      if (changeSourceMode === 'fs' && isTooManyOpenFilesError(error) && changeSource) {
+        const active = changeSource;
+        changeSource = null;
+        void active.stop().finally(() => scheduleReconcile(1_000));
         return;
       }
       scheduleReconcile(1_000);
     },
   });
-  await watcher.ready;
+  changeSource = change.source;
+  changeSourceMode = change.mode;
+  await changeSource.ready;
   scheduleReconcile();
 
   return {
@@ -350,8 +356,8 @@ export async function startWorkspaceFileTreeCoordinator(
       stopped = true;
       if (reconcileTimer) clearTimeout(reconcileTimer);
       reconcileTimer = null;
-      await watcher?.stop();
-      watcher = null;
+      await changeSource?.stop();
+      changeSource = null;
       await serial;
       await saveWorkspaceSyncManifest(manifest);
     },

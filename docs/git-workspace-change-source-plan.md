@@ -1,6 +1,6 @@
 # Git Workspace Change Source — Plan & Progress
 
-> **Status:** In progress — Slice 0 done; Slice 1 Done; Slice 2 Done  
+> **Status:** Complete — All slices done. Rides `release/v1.67.0` / PR #950  
 > **Branch:** `release/v1.67.0`  
 > **Related:** [PR #947](https://github.com/conradkoh/chatroom/pull/947) (chokidar ignore + EMFILE fallback)  
 > **Owner:** Planner coordinates; Builder implements slice-by-slice
@@ -64,7 +64,7 @@ flowchart LR
 | 0   | Plan              | This document + confirmed decisions                                                           | **Done** |
 | 1   | Interfaces        | Hierarchy types, `WorkspaceChangeSource`, factory selecting git vs fs (fs wired; git stubbed) | **Done** |
 | 2   | Utilities + tests | Hierarchy discovery, porcelain parse, snapshot→events; unit tests                             | **Done** |
-| 3   | Wire-up           | Real git change source (poll); coordinator uses factory; PR to `release/v1.67.0`              | Pending  |
+| 3   | Wire-up           | Real git change source (poll); coordinator uses factory; PR to `release/v1.67.0`              | **Done** |
 
 ---
 
@@ -131,7 +131,12 @@ flowchart LR
 
 **Progress notes:**
 
-- \_
+- `git-workspace-change-source.ts` — porcelain polling change source (default ~1s poll, HEAD→reconcile, flattened hierarchy, dedup, shouldIgnore)
+- `workspace-change-source.ts` — factory wires git source when hierarchy non-null (mode: 'git'), fs fallback otherwise
+- `workspace-file-tree-coordinator.ts` — uses `createWorkspaceChangeSource`; EMFILE handling preserved for fs mode only
+- `git-workspace-change-source.test.ts` — unit tests with mocked porcelain (add, no-leave-unlink, HEAD→reconcile, stop, shouldIgnore)
+- `workspace-change-source.test.ts` — added real git repo integration test (mode:git)
+- Pushed to `release/v1.67.0` (rides PR #950)
 
 ---
 
