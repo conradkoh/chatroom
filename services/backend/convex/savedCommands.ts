@@ -3,11 +3,21 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireSavedCommandAccess } from './savedCommandsAuth';
+import {
+  assertNoDuplicateSavedCommandName,
+  assertSavedCommandNameNotEmpty,
+  assertSavedCommandPromptNotEmpty,
+  effectiveSavedCommandScope,
+} from './savedCommandValidation';
+
+const savedCommandScope = v.union(v.literal('user'), v.literal('chatroom'));
 
 /** The discriminated union type for a saved command (only 'prompt' variant for now). */
 const savedCommandUnion = v.union(
   v.object({
     type: v.literal('prompt'),
+    scope: savedCommandScope,
     name: v.string(),
     prompt: v.string(),
   })
@@ -15,6 +25,8 @@ const savedCommandUnion = v.union(
 
 /**
  * List all saved commands for a chatroom, sorted by name ascending.
+ * Returns chatroom-scoped commands for the given chatroom ∪ user-scoped commands
+ * for the current user.
  */
 export const listSavedCommands = query({
   args: {
@@ -22,12 +34,21 @@ export const listSavedCommands = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const commands = await ctx.db
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const chatroomScoped = await ctx.db
       .query('chatroom_savedCommands')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .withIndex('by_chatroom_scope', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('scope', 'chatroom')
+      )
       .collect();
-    return commands.sort((a, b) => a.name.localeCompare(b.name));
+
+    const userScoped = await ctx.db
+      .query('chatroom_savedCommands')
+      .withIndex('by_ownerId_scope', (q) => q.eq('ownerId', session.userId).eq('scope', 'user'))
+      .collect();
+
+    return [...chatroomScoped, ...userScoped].sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -44,31 +65,48 @@ export const createSavedCommand = mutation({
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const trimmedName = args.command.name.trim();
-    if (!trimmedName) {
-      throw new ConvexError({
-        code: 'COMMAND_NAME_EMPTY',
-        message: 'Command name must not be empty',
-      });
-    }
+    const trimmedName = assertSavedCommandNameNotEmpty(args.command.name);
+    const trimmedPrompt = assertSavedCommandPromptNotEmpty(args.command.prompt);
 
     const now = Date.now();
-    const commandId = await ctx.db.insert('chatroom_savedCommands', {
-      ...args.command,
+    const base = {
+      type: args.command.type,
+      scope: args.command.scope,
       name: trimmedName,
-      chatroomId: args.chatroomId,
+      prompt: trimmedPrompt,
       createdBy: session.userId,
       createdAt: now,
       updatedAt: now,
-    });
+    } as const;
 
-    return commandId;
+    if (args.command.scope === 'chatroom') {
+      await assertNoDuplicateSavedCommandName(ctx, {
+        scope: 'chatroom',
+        name: trimmedName,
+        chatroomId: args.chatroomId,
+      });
+      return await ctx.db.insert('chatroom_savedCommands', {
+        ...base,
+        chatroomId: args.chatroomId,
+      });
+    }
+
+    await assertNoDuplicateSavedCommandName(ctx, {
+      scope: 'user',
+      name: trimmedName,
+      ownerId: session.userId,
+    });
+    return await ctx.db.insert('chatroom_savedCommands', {
+      ...base,
+      ownerId: session.userId,
+    });
   },
 });
 
 /**
  * Update an existing saved command's name and/or type-specific fields.
  * Type changes are not permitted — a command's type is immutable.
+ * Scope changes are not permitted — a command's scope is immutable.
  */
 export const updateSavedCommand = mutation({
   args: {
@@ -78,7 +116,7 @@ export const updateSavedCommand = mutation({
     command: v.optional(v.union(v.object({ type: v.literal('prompt'), prompt: v.string() }))),
   },
   handler: async (ctx, args) => {
-    const command = await ctx.db.get("chatroom_savedCommands", args.commandId);
+    const command = await ctx.db.get('chatroom_savedCommands', args.commandId);
     if (!command) {
       throw new ConvexError({
         code: 'SAVED_COMMAND_NOT_FOUND',
@@ -86,10 +124,9 @@ export const updateSavedCommand = mutation({
       });
     }
 
-    // Verify the caller has access to the chatroom this command belongs to
-    await requireChatroomAccess(ctx, args.sessionId, command.chatroomId);
+    await requireSavedCommandAccess(ctx, args.sessionId, command);
 
-    // Reject type changes — not supported
+    // Reject type changes
     const storedType = 'type' in command ? command.type : 'prompt';
     if (args.command && args.command.type !== storedType) {
       throw new ConvexError({
@@ -101,28 +138,31 @@ export const updateSavedCommand = mutation({
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
     if (args.name !== undefined) {
-      const trimmedName = args.name.trim();
-      if (!trimmedName) {
-        throw new ConvexError({
-          code: 'COMMAND_NAME_EMPTY',
-          message: 'Command name must not be empty',
-        });
-      }
+      const trimmedName = assertSavedCommandNameNotEmpty(args.name);
+      await assertNoDuplicateSavedCommandName(ctx, {
+        scope: effectiveSavedCommandScope(command),
+        name: trimmedName,
+        chatroomId: command.chatroomId ?? undefined,
+        ownerId: command.ownerId ?? undefined,
+        excludeId: args.commandId,
+      });
       updates.name = trimmedName;
     }
 
     if (args.command) {
       if (args.command.type === 'prompt') {
-        updates.prompt = args.command.prompt;
+        updates.prompt = assertSavedCommandPromptNotEmpty(args.command.prompt);
       }
     }
 
-    await ctx.db.patch("chatroom_savedCommands", args.commandId, updates);
+    await ctx.db.patch('chatroom_savedCommands', args.commandId, updates);
   },
 });
 
 /**
  * Delete a saved command.
+ * Auth per scope: user-scoped commands require ownership;
+ * chatroom-scoped commands require chatroom access.
  */
 export const deleteSavedCommand = mutation({
   args: {
@@ -130,7 +170,7 @@ export const deleteSavedCommand = mutation({
     commandId: v.id('chatroom_savedCommands'),
   },
   handler: async (ctx, args) => {
-    const command = await ctx.db.get("chatroom_savedCommands", args.commandId);
+    const command = await ctx.db.get('chatroom_savedCommands', args.commandId);
     if (!command) {
       throw new ConvexError({
         code: 'SAVED_COMMAND_NOT_FOUND',
@@ -138,9 +178,8 @@ export const deleteSavedCommand = mutation({
       });
     }
 
-    // Verify the caller has access to the chatroom this command belongs to
-    await requireChatroomAccess(ctx, args.sessionId, command.chatroomId);
+    await requireSavedCommandAccess(ctx, args.sessionId, command);
 
-    await ctx.db.delete("chatroom_savedCommands", args.commandId);
+    await ctx.db.delete('chatroom_savedCommands', args.commandId);
   },
 });

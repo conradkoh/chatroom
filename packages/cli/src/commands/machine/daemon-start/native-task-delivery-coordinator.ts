@@ -9,6 +9,7 @@ import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from './daemon-services.js';
+import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   logNativeDeliveryInjecting,
   logNativeDeliveryMutexSkip,
@@ -17,7 +18,10 @@ import {
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
-import { explainNativeDeliveryBlock } from './native-task-injector-logic.js';
+import {
+  explainLedgerDeliveryBlock,
+  explainNativeDeliveryBlock,
+} from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import { api } from '../../../api.js';
@@ -47,6 +51,9 @@ export interface NativeSessionLostParams {
 export class NativeTaskDeliveryCoordinator {
   onSessionLost(params: NativeSessionLostParams): void {
     getRoleDeliveryState().resetDeliveryState(params.chatroomId, params.role);
+    if (params.harnessSessionId) {
+      getNativeDeliveryLedger().clearSession(params.harnessSessionId);
+    }
   }
 
   resetRoleDeliveryState(chatroomId: string, role: string): void {
@@ -84,6 +91,7 @@ export class NativeTaskDeliveryCoordinator {
   }): void {
     const { tasks, runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
     const deliveryState = getRoleDeliveryState();
+    const ledger = getNativeDeliveryLedger();
 
     const pendingFirst = [...tasks].sort((a, b) => {
       if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -101,12 +109,43 @@ export class NativeTaskDeliveryCoordinator {
         }
         continue;
       }
+
+      const harnessSessionId = slot?.harnessSessionId;
+      if (!harnessSessionId) {
+        logNativeDeliverySkip(
+          role,
+          row.chatroomId,
+          row.taskId,
+          'harness_session_missing (pre-gate)'
+        );
+        continue;
+      }
+
+      const ledgerBlock = explainLedgerDeliveryBlock(row.taskId, harnessSessionId, ledger);
+      if (ledgerBlock) {
+        logNativeDeliverySkip(role, row.chatroomId, row.taskId, ledgerBlock);
+        continue;
+      }
+      if (!ledger.tryAcquire(row.taskId, harnessSessionId)) {
+        logNativeDeliverySkip(
+          role,
+          row.chatroomId,
+          row.taskId,
+          'delivery_ledger_busy (duplicate inject in flight)'
+        );
+        continue;
+      }
+
       if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
+        ledger.clearDelivery(row.taskId, harnessSessionId);
         logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
       }
 
       logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
+
+      const taskId = row.taskId;
+      let deliveredToHarness = false;
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
@@ -126,14 +165,6 @@ export class NativeTaskDeliveryCoordinator {
             return;
           }
 
-          const harnessSessionId = slot?.harnessSessionId;
-          if (!harnessSessionId) {
-            console.warn(
-              `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — harness_session_missing (post-gate)`
-            );
-            return;
-          }
-
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,
             machineId: sessionDeps.machineId,
@@ -142,8 +173,10 @@ export class NativeTaskDeliveryCoordinator {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
             },
             convexUrl: sessionDeps.convexUrl,
-            onTaskDelivered: ({ chatroomId, role, taskId }) => {
-              Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, taskId));
+            onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => {
+              deliveredToHarness = true;
+              ledger.markDelivered(deliveredTaskId, harnessSessionId);
+              Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId));
               deliveryState.clearNativeNudgeFailures(chatroomId, role);
             },
           });
@@ -157,7 +190,12 @@ export class NativeTaskDeliveryCoordinator {
             )
           ),
           Effect.ensuring(
-            Effect.sync(() => deliveryState.releaseDelivery(row.chatroomId, row.agentConfig.role))
+            Effect.sync(() => {
+              deliveryState.releaseDelivery(row.chatroomId, row.agentConfig.role);
+              if (!deliveredToHarness) {
+                ledger.clearDelivery(taskId, harnessSessionId);
+              }
+            })
           )
         )
       );

@@ -9,6 +9,7 @@
  * Phase 5: Migrated to Effect-TS services with typed error handling.
  */
 
+import { getContextViewTemplate } from '@workspace/backend/prompts/cli/context/context-template.js';
 import { Effect } from 'effect';
 
 import type { ContextDeps } from './deps.js';
@@ -561,18 +562,7 @@ export async function listContexts(
  * Print the context template to stdout.
  */
 export function viewTemplate(): string {
-  return `## Goal
-<user-centric goal: what the user wants>
-<development-centric goal: what we are building/changing>
-
-## Requirements
-- <outcome or requirement>
-
-## Structure
-- <concrete folder structure, architecture style (e.g. vertical slice + clean architecture), key shape decisions>
-
-## Avoid
-- <thing to not do / out of scope>`;
+  return getContextViewTemplate();
 }
 
 /**
