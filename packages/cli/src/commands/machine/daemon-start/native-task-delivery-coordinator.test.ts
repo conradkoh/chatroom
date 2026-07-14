@@ -2,6 +2,10 @@ import { Context, Runtime } from 'effect';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
+  getNativeDeliveryLedger,
+  resetNativeDeliveryLedgerForTests,
+} from './native-delivery-ledger.js';
+import {
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
 } from './native-delivery-session-registry.js';
@@ -48,11 +52,14 @@ describe('NativeTaskDeliveryCoordinator', () => {
   afterEach(() => {
     clearAssignedTaskSnapshots();
     unregisterNativeDeliverySession();
+    resetNativeDeliveryLedgerForTests();
   });
 
   test('onSessionLost resets role delivery generation', () => {
     const coordinator = new NativeTaskDeliveryCoordinator();
     const state = getRoleDeliveryState();
+    const ledger = getNativeDeliveryLedger();
+    ledger.markDelivered('task_1', 'sess_1');
     const before = state.getGeneration('room_1', 'builder');
     coordinator.onSessionLost({
       chatroomId: 'room_1',
@@ -60,6 +67,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       harnessSessionId: 'sess_1',
     });
     expect(state.getGeneration('room_1', 'builder')).toBe(before + 1);
+    expect(ledger.isDelivered('task_1', 'sess_1')).toBe(false);
   });
 
   test('tryInjectNextForRole no-ops when session not registered', () => {
