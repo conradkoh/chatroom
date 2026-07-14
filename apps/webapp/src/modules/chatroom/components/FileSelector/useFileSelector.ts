@@ -55,9 +55,11 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   const files = useMemo(() => entries.filter((entry) => entry.type === 'file'), [entries]);
 
   useEffect(() => {
-    if (open && hasWorkspace) {
+    if (!open || !hasWorkspace) return;
+    const frame = requestAnimationFrame(() => {
       refresh();
-    }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open, hasWorkspace, refresh]);
 
   // Register Cmd+P / Ctrl+P shortcut (preventDefault blocks browser print dialog)
