@@ -55,18 +55,21 @@ export async function assertNoDuplicateSavedCommandName(
     args.scope === 'chatroom'
       ? await ctx.db
           .query('chatroom_savedCommands')
-          .withIndex('by_chatroom_scope', (q) =>
-            q.eq('chatroomId', args.chatroomId as Id<'chatroom_rooms'>).eq('scope', 'chatroom')
+          .withIndex('by_chatroom', (q) =>
+            q.eq('chatroomId', args.chatroomId as Id<'chatroom_rooms'>)
           )
           .collect()
       : await ctx.db
           .query('chatroom_savedCommands')
-          .withIndex('by_ownerId_scope', (q) =>
-            q.eq('ownerId', args.ownerId as Id<'users'>).eq('scope', 'user')
-          )
+          .withIndex('by_ownerId', (q) => q.eq('ownerId', args.ownerId as Id<'users'>))
           .collect();
 
-  const dup = candidates.find((c) => c._id !== args.excludeId && c.name.toLowerCase() === lower);
+  const dup = candidates.find(
+    (c) =>
+      c._id !== args.excludeId &&
+      effectiveSavedCommandScope(c) === args.scope &&
+      c.name.toLowerCase() === lower
+  );
   if (dup) {
     throw new ConvexError({
       code: 'COMMAND_NAME_DUPLICATE',
