@@ -57,8 +57,9 @@ import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracke
 import { handlePing } from './handlers/ping.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
-import { refreshModelsEffect, type RefreshModelsOutcome } from './models-refresh.js';
+import { refreshModelsEffect } from './models-refresh.js';
 import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
+import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
@@ -288,17 +289,6 @@ function handleCommandStopEffect(
   });
 }
 
-/** Map a RefreshModelsOutcome to the status/errorMessage for reportCapabilitiesRefreshResult. */
-function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
-  status: 'completed' | 'skipped_no_changes' | 'failed';
-  errorMessage?: string;
-} {
-  if (outcome.kind === 'pushed') return { status: 'completed' };
-  if (outcome.kind === 'skipped_no_changes') return { status: 'skipped_no_changes' };
-  if (outcome.kind === 'failed') return { status: 'failed', errorMessage: outcome.message };
-  return { status: 'failed', errorMessage: 'Daemon configuration unavailable' };
-}
-
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -309,6 +299,7 @@ function handleRefreshCapabilitiesEffect(
     console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
     const outcome = yield* refreshModelsEffect;
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchId = 'batchId' in event ? (event as any).batchId : undefined;
     if (!batchId) return;
     const session = yield* DaemonSessionService;
