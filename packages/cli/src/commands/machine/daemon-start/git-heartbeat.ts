@@ -15,6 +15,11 @@ import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
 import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
 import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
+import {
+  isGitBranchAvailable,
+  isGitBranchError,
+  isGitBranchNotFound,
+} from '../../../infrastructure/git/result-predicates.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type {
   GitBranchResult,
@@ -43,11 +48,11 @@ const branchField: GitStateFieldDef<unknown, unknown, Record<string, unknown>> =
   },
   toHashable: (raw) => {
     const r = raw as GitBranchResult;
-    return r.status === 'available' ? r.branch : 'unknown';
+    return isGitBranchAvailable(r) ? r.branch : 'unknown';
   },
   toMutationPartial: (raw) => {
     const r = raw as GitBranchResult;
-    return r.status === 'available' ? { branch: r.branch } : {};
+    return isGitBranchAvailable(r) ? { branch: r.branch } : {};
   },
   defaultValue: { status: 'not_found' } as GitBranchResult,
 };
@@ -188,12 +193,12 @@ async function pushSingleWorkspaceGitStateImpl(
 
   const branchResult = await gitReader.getBranch(workingDir);
 
-  if (branchResult.status === 'error') {
+  if (isGitBranchError(branchResult)) {
     await pushErrorGitState(ctx, workingDir, stateKey, branchResult.message);
     return;
   }
 
-  if (branchResult.status === 'not_found') {
+  if (isGitBranchNotFound(branchResult)) {
     return;
   }
 
@@ -419,7 +424,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
     }
 
     const branchResult = yield* Effect.promise(() => gitReader.getBranch(workingDir));
-    if (branchResult.status === 'error') {
+    if (isGitBranchError(branchResult)) {
       yield* pushObservedBranchErrorEffect(
         session,
         lastPushedGitState,
@@ -431,7 +436,7 @@ export const pushSingleWorkspaceGitSummaryForObservedEffect = (
       return;
     }
 
-    if (branchResult.status === 'not_found') {
+    if (isGitBranchNotFound(branchResult)) {
       return;
     }
 

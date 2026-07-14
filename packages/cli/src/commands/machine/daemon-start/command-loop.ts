@@ -10,6 +10,7 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Ref } from 'effect';
 
+import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
@@ -56,8 +57,9 @@ import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracke
 import { handlePing } from './handlers/ping.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
-import { refreshModelsEffect, type RefreshModelsOutcome } from './models-refresh.js';
+import { refreshModelsEffect } from './models-refresh.js';
 import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
+import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
@@ -287,17 +289,6 @@ function handleCommandStopEffect(
   });
 }
 
-/** Map a RefreshModelsOutcome to the status/errorMessage for reportCapabilitiesRefreshResult. */
-function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
-  status: 'completed' | 'skipped_no_changes' | 'failed';
-  errorMessage?: string;
-} {
-  if (outcome.kind === 'pushed') return { status: 'completed' };
-  if (outcome.kind === 'skipped_no_changes') return { status: 'skipped_no_changes' };
-  if (outcome.kind === 'failed') return { status: 'failed', errorMessage: outcome.message };
-  return { status: 'failed', errorMessage: 'Daemon configuration unavailable' };
-}
-
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -308,6 +299,7 @@ function handleRefreshCapabilitiesEffect(
     console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
     const outcome = yield* refreshModelsEffect;
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchId = 'batchId' in event ? (event as any).batchId : undefined;
     if (!batchId) return;
     const session = yield* DaemonSessionService;
@@ -335,12 +327,12 @@ function handleRefreshCapabilitiesEffect(
 }
 
 /** Dispatch table: event type string → per-event Effect handler factory. */
-const commandEventHandlers: Partial<
-  Record<
-    string,
-    (event: CommandEvent, tracker: DedupTracker) => Effect.Effect<void, never, CommandDispatchDeps>
-  >
-> = {
+const commandEventHandlers: {
+  [K in DaemonCommandEventType]?: (
+    event: CommandEvent,
+    tracker: DedupTracker
+  ) => Effect.Effect<void, never, CommandDispatchDeps>;
+} = {
   'agent.requestStart': handleRequestStartEffect,
   'agent.restart': handleRequestRestartEffect,
   'agent.requestStop': handleRequestStopEffect,
@@ -362,7 +354,8 @@ export const dispatchCommandEventEffect = (
   event: CommandEvent,
   tracker: DedupTracker
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
-  const factory = commandEventHandlers[event.type as string];
+  if (!isDaemonCommandEventType(event.type)) return Effect.void;
+  const factory = commandEventHandlers[event.type];
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 

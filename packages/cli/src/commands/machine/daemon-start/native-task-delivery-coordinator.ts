@@ -2,6 +2,7 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import { isDeliverableTaskStatus } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
 import type {
@@ -104,7 +105,7 @@ export class NativeTaskDeliveryCoordinator {
       const slot = agentMgr.getSlot(row.chatroomId, role);
       const blockReason = explainNativeDeliveryBlock(row, { slot });
       if (blockReason) {
-        if (row.status === 'pending' || row.status === 'acknowledged') {
+        if (isDeliverableTaskStatus(row.status as Parameters<typeof isDeliverableTaskStatus>[0])) {
           logNativeDeliverySkip(role, row.chatroomId, row.taskId, blockReason);
         }
         continue;

@@ -20,6 +20,8 @@ export const NATIVE_WAITING_ACTION = 'native:waiting';
 
 /** Participant heartbeat action when a task has been injected into a native harness session. */
 export const NATIVE_TASK_INJECTED_ACTION = 'native:task-injected';
+/** Participant heartbeat when get-next-task loop is listening. */
+export const GET_NEXT_TASK_STARTED_ACTION = 'get-next-task:started';
 export const GET_NEXT_TASK_STOPPED_ACTION = 'get-next-task:stopped';
 
 /** Injected into native harness when agent_end fires without handoff. */

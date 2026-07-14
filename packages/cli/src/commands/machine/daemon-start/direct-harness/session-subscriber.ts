@@ -28,6 +28,7 @@ import {
   startBoundHarness,
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
+import { isOpenCodeSessionEventType } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
 
 // ─── Convex shape types ──────────────────────────────────────────────────────
 
@@ -178,6 +179,7 @@ function handleLiveSessionTitleUpdate(
   rowId: string,
   liveSession: { sessionTitle?: string; setTitle?: (title: string) => void }
 ): void {
+  if (!isOpenCodeSessionEventType(event.type)) return;
   if (event.type !== 'session.updated') {
     return;
   }

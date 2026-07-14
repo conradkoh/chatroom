@@ -32,6 +32,8 @@ import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
+import type { GitPrAction } from '../../../infrastructure/git/request-types.js';
+import { isGitContentAvailable } from '../../../infrastructure/git/result-predicates.js';
 import { runGh } from '../../../infrastructure/git/run-command.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
@@ -92,7 +94,7 @@ export type PendingRequest = FunctionReturnType<typeof api.workspaces.getPending
 async function processFullDiff(deps: GitSubscriptionDeps, req: PendingRequest): Promise<void> {
   const result = await gitReader.getFullDiff(req.workingDir);
 
-  if (result.status === 'available' || result.status === 'truncated') {
+  if (isGitContentAvailable(result)) {
     // Fetch diff stat separately (more reliable than parsing from diff content)
     const diffStatResult = await gitReader.getDiffStat(req.workingDir);
     const diffStat =
@@ -147,7 +149,7 @@ async function processPRDiff(deps: GitSubscriptionDeps, req: PendingRequest): Pr
   const baseBranch = req.baseBranch ?? 'main';
   const result = await gitReader.getPRDiffByNumber(req.workingDir, req.prNumber);
 
-  if (result.status === 'available' || result.status === 'truncated') {
+  if (isGitContentAvailable(result)) {
     await deps.backend.mutation(api.workspaces.upsertPRDiff, {
       sessionId: deps.sessionId,
       machineId: deps.machineId,
@@ -184,7 +186,7 @@ async function processPRDiff(deps: GitSubscriptionDeps, req: PendingRequest): Pr
  */
 async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): Promise<void> {
   const prNumber = req.prNumber;
-  const action = req.prAction;
+  const action = req.prAction as GitPrAction;
   if (!prNumber || !action) {
     throw new Error('pr_action request missing prNumber or prAction');
   }
@@ -277,7 +279,7 @@ async function processCommitDetail(deps: GitSubscriptionDeps, req: PendingReques
 
   await upsertCommitDetailResult(deps, req, result, metadata);
 
-  if (result.status === 'available' || result.status === 'truncated') {
+  if (isGitContentAvailable(result)) {
     const compressed = gzipSync(Buffer.from(result.content));
     console.log(
       `[${formatTimestamp()}] 🔍 Commit detail pushed: ${req.sha.slice(0, 7)} in ${req.workingDir} (${(Buffer.byteLength(result.content) / 1024).toFixed(1)}KB → ${(compressed.length / 1024).toFixed(1)}KB gzip)`

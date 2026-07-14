@@ -14,12 +14,24 @@ import type {
 import type { Id } from '../../../../convex/_generated/dataModel';
 
 export type {
+  ActiveTaskStatus,
+  AgentCircuitState,
+  AgentDesiredState,
   AssignedTaskAgentConfigView,
   AssignedTaskParticipantView,
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
   AssignedTaskSignalType,
   AssignedTaskSnapshotView,
+  SessionAugmentationMode,
+} from './assigned-task-monitor-contract';
+export {
+  ACTIVE_TASK_STATUSES,
+  AGENT_CIRCUIT_STATES,
+  AGENT_DESIRED_STATES,
+  SESSION_AUGMENTATION_MODES,
+  isAgentDesiredRunning,
+  isDeliverableTaskStatus,
 } from './assigned-task-monitor-contract';
 
 /** Full view including task content — for one-shot action fetches. */
