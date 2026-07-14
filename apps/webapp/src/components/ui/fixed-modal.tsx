@@ -300,7 +300,7 @@ const FixedModal = memo(function FixedModal({
   return createPortal(
     <div
       style={{ zIndex: layerZIndex }}
-      className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className="fixed inset-0 flex items-center justify-center bg-black/50 p-0 sm:p-4"
       onClick={handleBackdropClick}
     >
       <div
