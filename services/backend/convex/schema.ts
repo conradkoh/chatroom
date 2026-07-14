@@ -2667,7 +2667,7 @@ export default defineSchema({
   chatroom_savedCommands: defineTable(
     v.object({
       type: v.literal('prompt'),
-      scope: v.optional(v.union(v.literal('user'), v.literal('chatroom'))),
+      scope: v.union(v.literal('user'), v.literal('chatroom')),
       chatroomId: v.optional(v.id('chatroom_rooms')),
       ownerId: v.optional(v.id('users')),
       name: v.string(),
