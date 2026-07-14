@@ -6,7 +6,9 @@ import type { FileTree } from '@workspace/backend/src/domain/entities/workspace-
 
 import { computeFileTreeDataHash } from './file-tree-data-hash.js';
 import { scanFileTree } from './file-tree-scanner.js';
+import { GitWorkspaceCommandError } from './git-workspace-porcelain.js';
 import { normalizeWorkingDirForLookup } from './normalize-working-dir.js';
+import { createWorkspaceChangeSource } from './workspace-change-source.js';
 import {
   createWorkspaceFsWatcher,
   isTooManyOpenFilesError,
@@ -47,6 +49,7 @@ export interface WorkspaceFileTreeCoordinatorOptions {
   workingDir: string;
   reconcileIntervalMs?: number;
   checkpointEveryRevisions?: number;
+  changeSourcePollIntervalMs?: number;
   onDelta: (delta: WorkspacePendingDelta, baseRevision: number) => Promise<DeltaPushResult>;
   onCheckpoint: (tree: FileTree, revision: number) => Promise<{ revision: number }>;
   onError?: (error: unknown) => void;
@@ -313,31 +316,76 @@ export async function startWorkspaceFileTreeCoordinator(
   const ignoreRuleSets = await loadAllWorkspaceIgnoreRuleSets(workingDir);
   const shouldIgnorePath = (relativePath: string): boolean =>
     isPathIgnoredByRuleSets(ignoreRuleSets, relativePath);
-  let watcher: WorkspaceFsWatcherHandle | null = createWorkspaceFsWatcher({
-    workingDir,
-    shouldIgnore: shouldIgnorePath,
-    onEvents: async (events) => {
-      await enqueueSerial(async () => {
-        const nextPaths = await applyFsEvents(workingDir, manifest.paths, events);
-        if (nextPaths === null) {
-          await reconcileNow();
-          return;
-        }
-        await commitPaths(nextPaths);
-      });
-    },
-    onError: (error) => {
-      options.onError?.(error);
-      if (isTooManyOpenFilesError(error) && watcher) {
-        const activeWatcher = watcher;
-        watcher = null;
-        void activeWatcher.stop().finally(() => scheduleReconcile(1_000));
+  let changeSource: WorkspaceFsWatcherHandle | null = null;
+  let changeSourceMode: 'git' | 'fs' = 'fs';
+  let gitDegraded = false;
+
+  const handleChangeSourceEvents = async (events: readonly WorkspaceFsEvent[]): Promise<void> => {
+    await enqueueSerial(async () => {
+      const nextPaths = await applyFsEvents(workingDir, manifest.paths, events);
+      if (nextPaths === null) {
+        await reconcileNow();
         return;
       }
-      scheduleReconcile(1_000);
-    },
+      await commitPaths(nextPaths);
+    });
+  };
+
+  const handleChangeSourceError = (error: unknown): void => {
+    if (error instanceof GitWorkspaceCommandError) {
+      console.warn(
+        `[workspace-file-tree] git poll error (${error.operation}) workTree=${error.workTree} relativePath=${error.relativePath || '.'}: ${error.cause.message}`
+      );
+    }
+    options.onError?.(error);
+    if (changeSourceMode === 'fs' && isTooManyOpenFilesError(error) && changeSource) {
+      const active = changeSource;
+      changeSource = null;
+      void active.stop().finally(() => scheduleReconcile(1_000));
+      return;
+    }
+    scheduleReconcile(1_000);
+  };
+
+  const degradeGitToFs = async (reason: string): Promise<void> => {
+    if (gitDegraded || changeSourceMode !== 'git' || !changeSource) return;
+    gitDegraded = true;
+    console.log(`[workspace-file-tree] degrading to fs watcher: ${reason}`);
+    const active = changeSource;
+    changeSource = null;
+    changeSourceMode = 'fs';
+    await active.stop();
+    const fs = createWorkspaceFsWatcher({
+      workingDir,
+      shouldIgnore: shouldIgnorePath,
+      onEvents: handleChangeSourceEvents,
+      onError: handleChangeSourceError,
+    });
+    changeSource = fs;
+    await fs.ready;
+    console.log('[workspace-file-tree] change source: fs (degraded from git)');
+  };
+
+  const change = await createWorkspaceChangeSource({
+    workingDir,
+    pollIntervalMs: options.changeSourcePollIntervalMs,
+    shouldIgnore: shouldIgnorePath,
+    getKnownPaths: () => manifest.paths,
+    onEvents: handleChangeSourceEvents,
+    onNeedsReconcile: () => enqueueSerial(reconcileNow),
+    onError: handleChangeSourceError,
+    onPersistentFailure: () => degradeGitToFs('persistent git poll failures'),
   });
-  await watcher.ready;
+  changeSource = change.source;
+  changeSourceMode = change.mode;
+  if (change.mode === 'git') {
+    console.log(
+      `[workspace-file-tree] change source: git (${change.gitRepoCount ?? 1} repo${(change.gitRepoCount ?? 1) === 1 ? '' : 's'})`
+    );
+  } else {
+    console.log('[workspace-file-tree] change source: fs');
+  }
+  await changeSource.ready;
   scheduleReconcile();
 
   return {
@@ -350,8 +398,8 @@ export async function startWorkspaceFileTreeCoordinator(
       stopped = true;
       if (reconcileTimer) clearTimeout(reconcileTimer);
       reconcileTimer = null;
-      await watcher?.stop();
-      watcher = null;
+      await changeSource?.stop();
+      changeSource = null;
       await serial;
       await saveWorkspaceSyncManifest(manifest);
     },
