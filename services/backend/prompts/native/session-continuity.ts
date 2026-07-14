@@ -20,7 +20,7 @@ export function getOperatingModelLoopFooter(nativeIntegration?: boolean): string
 
 /** Planner + builder: wait for handback via daemon delivery, not polling. */
 export function getNativePlannerDelegationWaitNote(): string {
-  return `After delegating to the builder, **end your turn**. The system delivers their handback when they finish — do not poll \`messages list\`, sleep, or run other tools while waiting. If the builder is offline, implement yourself or report to the user.`;
+  return `After delegating to the builder, **run handoff as your last action and end your turn** — no further tool calls after handoff. The system delivers their handback when they finish — do not poll \`messages list\`, sleep, or run other tools while waiting. If the builder is offline, implement yourself or report to the user.`;
 }
 
 /**
@@ -28,7 +28,10 @@ export function getNativePlannerDelegationWaitNote(): string {
  * Tells the agent to end the current turn so the daemon can deliver the next task.
  */
 export function getNativeHandoffTurnEndGuidance(nextRole: string): string {
-  const lines = ['', '**End your turn now** — stop tool calls. Your session stays active.'];
+  const lines = [
+    '',
+    '**Handoff must be your last action this turn.** After running handoff, **End your turn now** — stop tool calls. Your session stays active.',
+  ];
 
   if (nextRole.toLowerCase() === 'user') {
     lines.push('The system delivers the next chatroom task when the user sends one.');
