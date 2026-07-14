@@ -1,6 +1,40 @@
-import { runGit } from '../../git/run-command.js';
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import type { WorkspaceFsEvent, WorkspaceFsEventKind } from './workspace-fs-watcher.js';
+import { runGit } from '../../git/run-command.js';
+
+export const GIT_POLL_TIMEOUT_MS = 10_000;
+
+export class GitWorkspaceCommandError extends Error {
+  readonly operation: 'readGitHead' | 'readGitPorcelainStatus';
+  readonly workTree: string;
+  readonly relativePath: string;
+  readonly cause: Error;
+
+  constructor(args: {
+    operation: 'readGitHead' | 'readGitPorcelainStatus';
+    workTree: string;
+    relativePath: string;
+    cause: Error;
+  }) {
+    const label = args.relativePath || args.workTree;
+    super(`${args.operation} failed for ${label}: ${args.cause.message}`);
+    this.name = 'GitWorkspaceCommandError';
+    this.operation = args.operation;
+    this.workTree = args.workTree;
+    this.relativePath = args.relativePath;
+    this.cause = args.cause;
+  }
+}
+
+function isEmptyRepoHeadError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('unknown revision') ||
+    message.includes('bad revision') ||
+    message.includes('ambiguous argument') ||
+    message.includes('needed a single revision')
+  );
+}
 
 export interface GitPorcelainEntry {
   xy: string;
@@ -85,10 +119,10 @@ function isCopy(xy: string): boolean {
 }
 
 function kindForEntry(entry: GitPorcelainEntry): {
-  events: Array<{ kind: WorkspaceFsEventKind; path: string }>;
+  events: { kind: WorkspaceFsEventKind; path: string }[];
 } {
   const { xy, path: entryPath } = entry;
-  const events: Array<{ kind: WorkspaceFsEventKind; path: string }> = [];
+  const events: { kind: WorkspaceFsEventKind; path: string }[] = [];
   const isDir = entryPath.endsWith('/');
 
   if (xy === '??') {
@@ -167,9 +201,48 @@ export function diffPorcelainSnapshots(args: {
   return events;
 }
 
+export function porcelainPathsLeftSnapshot(args: {
+  workspaceRoot: string;
+  node: GitRepoNode;
+  prev: readonly GitPorcelainEntry[];
+  next: readonly GitPorcelainEntry[];
+}): string[] {
+  const nextWsPaths = new Set<string>();
+  for (const entry of args.next) {
+    const wsPath = toWorkspaceRelativePath({
+      workspaceRoot: args.workspaceRoot,
+      node: args.node,
+      pathInWorkTree: entry.path,
+    });
+    if (wsPath !== null) nextWsPaths.add(wsPath);
+  }
+
+  const left: string[] = [];
+  for (const entry of args.prev) {
+    const wsPath = toWorkspaceRelativePath({
+      workspaceRoot: args.workspaceRoot,
+      node: args.node,
+      pathInWorkTree: entry.path,
+    });
+    if (wsPath === null) continue;
+    if (!nextWsPaths.has(wsPath)) left.push(wsPath);
+  }
+  return left.sort((a, b) => a.localeCompare(b));
+}
+
 export async function readGitHead(workTree: string): Promise<GitHeadState> {
-  const result = await runGit(['rev-parse', 'HEAD'], workTree);
-  if ('error' in result) return { head: null };
+  const result = await runGit(['rev-parse', 'HEAD'], workTree, {
+    timeout: GIT_POLL_TIMEOUT_MS,
+  });
+  if ('error' in result) {
+    if (isEmptyRepoHeadError(result.error)) return { head: null };
+    throw new GitWorkspaceCommandError({
+      operation: 'readGitHead',
+      workTree,
+      relativePath: '',
+      cause: result.error,
+    });
+  }
   const head = result.stdout.trim();
   return { head: head.length > 0 ? head : null };
 }
@@ -182,7 +255,14 @@ export function headChanged(prev: GitHeadState, next: GitHeadState): boolean {
 export async function readGitPorcelainStatus(node: GitRepoNode): Promise<GitPorcelainEntry[]> {
   const args = ['status', '--porcelain=v1', '-z', '-uall', '--'];
   if (node.pathspec.length > 0) args.push(...node.pathspec);
-  const result = await runGit(args, node.workTree);
-  if ('error' in result) return [];
+  const result = await runGit(args, node.workTree, { timeout: GIT_POLL_TIMEOUT_MS });
+  if ('error' in result) {
+    throw new GitWorkspaceCommandError({
+      operation: 'readGitPorcelainStatus',
+      workTree: node.workTree,
+      relativePath: node.relativePath,
+      cause: result.error,
+    });
+  }
   return parseGitPorcelainZ(result.stdout);
 }

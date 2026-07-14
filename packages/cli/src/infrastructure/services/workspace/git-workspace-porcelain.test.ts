@@ -5,17 +5,19 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { runGit } from '../../git/run-command.js';
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import type { GitPorcelainEntry } from './git-workspace-porcelain.js';
 import {
   diffPorcelainSnapshots,
+  GitWorkspaceCommandError,
   headChanged,
   parseGitPorcelainZ,
+  porcelainPathsLeftSnapshot,
   readGitHead,
   readGitPorcelainStatus,
   toWorkspaceRelativePath,
 } from './git-workspace-porcelain.js';
+import { runGit } from '../../git/run-command.js';
 
 async function gitIn(cwd: string, ...args: string[]): Promise<void> {
   const result = await runGit(args, cwd);
@@ -258,6 +260,17 @@ describe('readGitPorcelainStatus integration', () => {
     const entries = await readGitPorcelainStatus(node);
     expect(entries).toEqual([{ xy: '??', path: 'new.txt' }]);
   });
+
+  it('throws GitWorkspaceCommandError when git fails', async () => {
+    const node: GitRepoNode = {
+      workTree: '/nonexistent-path-xyz-git-porcelain-test',
+      gitDir: '/nonexistent/.git',
+      relativePath: '',
+      pathspec: [],
+      children: [],
+    };
+    await expect(readGitPorcelainStatus(node)).rejects.toBeInstanceOf(GitWorkspaceCommandError);
+  });
 });
 
 describe('readGitHead', () => {
@@ -288,5 +301,62 @@ describe('readGitHead', () => {
     await gitIn(tmpDir, 'init');
     const state = await readGitHead(tmpDir);
     expect(state.head).toBeNull();
+  });
+
+  it('throws GitWorkspaceCommandError for non-existent directory', async () => {
+    await expect(
+      readGitHead('/nonexistent-path-xyz-git-porcelain-head-test')
+    ).rejects.toBeInstanceOf(GitWorkspaceCommandError);
+  });
+});
+
+describe('porcelainPathsLeftSnapshot', () => {
+  const node: GitRepoNode = {
+    workTree: '/repo',
+    gitDir: '/repo/.git',
+    relativePath: '',
+    pathspec: [],
+    children: [],
+  };
+
+  it('returns workspace path when entry leaves porcelain', () => {
+    const left = porcelainPathsLeftSnapshot({
+      workspaceRoot: '/repo',
+      node,
+      prev: [{ xy: ' M', path: 'f.txt' }],
+      next: [],
+    });
+    expect(left).toEqual(['f.txt']);
+  });
+
+  it('returns empty when snapshots match', () => {
+    const left = porcelainPathsLeftSnapshot({
+      workspaceRoot: '/repo',
+      node,
+      prev: [{ xy: '??', path: 'new.txt' }],
+      next: [{ xy: '??', path: 'new.txt' }],
+    });
+    expect(left).toEqual([]);
+  });
+
+  it('returns empty when no prev entries', () => {
+    const left = porcelainPathsLeftSnapshot({
+      workspaceRoot: '/repo',
+      node,
+      prev: [],
+      next: [{ xy: '??', path: 'new.txt' }],
+    });
+    expect(left).toEqual([]);
+  });
+
+  it('ignores entries that match by workspace-relative path', () => {
+    const left = porcelainPathsLeftSnapshot({
+      workspaceRoot: '/repo',
+      node,
+      prev: [{ xy: ' M', path: 'f.txt' }],
+      next: [{ xy: '??', path: 'f.txt' }],
+    });
+    // Path still present in next, just changed status — not "left"
+    expect(left).toEqual([]);
   });
 });
