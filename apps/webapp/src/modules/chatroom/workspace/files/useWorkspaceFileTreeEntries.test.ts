@@ -10,16 +10,43 @@ import {
 
 const mocks = vi.hoisted(() => ({
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),
+  deltaResult: undefined as
+    | {
+        status: 'ok';
+        checkpointRevision: number;
+        currentRevision: number;
+        deltas: {
+          baseRevision: number;
+          revision: number;
+          operations: (
+            | {
+                operation: 'add' | 'type-change';
+                path: string;
+                entryType: 'file' | 'directory';
+              }
+            | { operation: 'remove'; path: string }
+          )[];
+        }[];
+        hasMore: boolean;
+      }
+    | null
+    | undefined,
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mocks.requestMutation,
+  useSessionQuery: (query: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    if (query === 'getFileTreeDeltas') return mocks.deltaResult;
+    return undefined;
+  },
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     workspaceFiles: {
       requestFileTree: 'requestFileTree',
+      getFileTreeDeltas: 'getFileTreeDeltas',
     },
   },
 }));
@@ -33,6 +60,7 @@ const args = { machineId: MACHINE_ID, workingDir: WORKING_DIR };
 beforeEach(() => {
   __resetWorkspaceFileTreeStoreForTests();
   mocks.requestMutation.mockClear();
+  mocks.deltaResult = undefined;
 });
 
 afterEach(() => {
