@@ -237,4 +237,31 @@ describe('savedCommands scope', () => {
       })
     ).rejects.toThrow();
   });
+
+  test('9. User-scoped command appears in all chatrooms owned by the user', async () => {
+    const user = await setupUser('multi-chatroom');
+
+    // Create a second chatroom owned by the same user
+    const chatroomB = await t.mutation(api.chatrooms.create, {
+      sessionId: user.sessionId,
+      teamId: 'solo',
+      teamName: 'Solo',
+      teamRoles: ['user'],
+      teamEntryPoint: 'user',
+    });
+
+    await t.mutation(api.savedCommands.createSavedCommand, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      command: { type: 'prompt', scope: 'user', name: 'Global', prompt: 'everywhere' },
+    });
+
+    // Should appear in the second chatroom too
+    const listB = await t.query(api.savedCommands.listSavedCommands, {
+      sessionId: user.sessionId,
+      chatroomId: chatroomB,
+    });
+    expect(listB).toHaveLength(1);
+    expect(listB[0].name).toBe('Global');
+  });
 });

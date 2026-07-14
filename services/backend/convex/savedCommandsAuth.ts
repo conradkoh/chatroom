@@ -4,6 +4,7 @@ import type { Doc } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { validateSession } from './auth/sessionValidation';
+import { effectiveSavedCommandScope } from './savedCommandValidation';
 
 type SavedCommandDoc = Doc<'chatroom_savedCommands'>;
 
@@ -12,7 +13,9 @@ export async function requireSavedCommandAccess(
   sessionId: string,
   command: SavedCommandDoc
 ): Promise<{ userId: string }> {
-  if (command.scope === 'user') {
+  const scope = effectiveSavedCommandScope(command);
+
+  if (scope === 'user') {
     const sessionResult = await validateSession(ctx, sessionId);
     if (!sessionResult.ok) {
       throw new ConvexError({

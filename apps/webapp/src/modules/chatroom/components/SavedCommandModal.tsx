@@ -20,6 +20,7 @@ import {
   SAVED_COMMAND_TYPE_LABELS,
   SAVED_COMMAND_TYPES,
 } from '../types/savedCommand';
+import { checkDuplicateSavedCommandName } from '../utils/savedCommandValidation';
 
 import { exhaustive } from '@/lib/exhaustive';
 
@@ -30,31 +31,15 @@ interface SavedCommandModalProps {
   onCreated?: () => void;
   /** When provided, the modal is in edit mode and pre-fills from this command. */
   initial?: SavedCommand;
-  /** Names already in use in this chatroom (for duplicate prevention) */
-  existingNames?: string[];
-  /** Names already in use grouped by scope (for duplicate prevention with scope) */
-  existingNamesByScope?: Record<SavedCommandScope, string[]>;
+  /** Names already in use grouped by scope (for duplicate prevention) */
+  existingNamesByScope: Record<SavedCommandScope, string[]>;
 }
 
 /**
  * Pure validation function — checks if a name would create a duplicate within a scope.
- * Returns an error string if duplicate, null if OK.
+ * Re-exported from utils for backward compat in existing tests.
  */
-export function checkDuplicateName(
-  name: string,
-  existingNames: string[],
-  isEditMode: boolean,
-  initialName?: string
-): string | null {
-  const lowerName = name.toLowerCase();
-  const namesToCheck = isEditMode
-    ? existingNames.filter((n) => n.toLowerCase() !== (initialName ?? '').toLowerCase())
-    : existingNames;
-  if (namesToCheck.some((n) => n.toLowerCase() === lowerName)) {
-    return `A command named "${name}" already exists.`;
-  }
-  return null;
-}
+export { checkDuplicateSavedCommandName as checkDuplicateName } from '../utils/savedCommandValidation';
 
 /**
  * Modal dialog for creating or editing a saved command (custom prompt).
@@ -67,8 +52,7 @@ export function SavedCommandModal({
   onClose,
   onCreated,
   initial,
-  existingNames = [],
-  existingNamesByScope,
+  existingNamesByScope = { user: [], chatroom: [] },
 }: SavedCommandModalProps) {
   const isEditMode = Boolean(initial);
   const [type, setType] = useState<SavedCommandType>(initial?.type ?? 'prompt');
@@ -146,8 +130,11 @@ export function SavedCommandModal({
     if (!trimmedName || isSubmitting) return;
 
     // Duplicate name check (case-insensitive, scope-aware)
-    const nameList = isEditMode ? existingNames : (existingNamesByScope?.[scope] ?? existingNames);
-    const dupErr = checkDuplicateName(trimmedName, nameList, isEditMode, initial?.name);
+    const dupErr = checkDuplicateSavedCommandName(trimmedName, scope, existingNamesByScope, {
+      isEditMode,
+      initialName: initial?.name,
+      initialScope: initial?.scope,
+    });
     if (dupErr) {
       setNameError(dupErr);
       return;
@@ -197,7 +184,6 @@ export function SavedCommandModal({
     isSubmitting,
     isEditMode,
     initial,
-    existingNames,
     existingNamesByScope,
     updateSavedCommand,
     createSavedCommand,

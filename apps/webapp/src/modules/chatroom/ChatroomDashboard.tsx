@@ -1796,7 +1796,6 @@ export function ChatroomDashboard({
               chatroomId={chatroomId}
               onClose={handleCloseSavedCommandModal}
               initial={savedCommandEditTarget}
-              existingNames={savedCommands.map((c) => c.name)}
               existingNamesByScope={existingNamesByScope}
             />
 

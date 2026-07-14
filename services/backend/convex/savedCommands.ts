@@ -1,10 +1,15 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { type MutationCtx, mutation, query, type QueryCtx } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireSavedCommandAccess } from './savedCommandsAuth';
-import type { Doc, Id } from './_generated/dataModel';
+import {
+  assertNoDuplicateSavedCommandName,
+  assertSavedCommandNameNotEmpty,
+  assertSavedCommandPromptNotEmpty,
+  effectiveSavedCommandScope,
+} from './savedCommandValidation';
 
 const savedCommandScope = v.union(v.literal('user'), v.literal('chatroom'));
 
@@ -17,50 +22,6 @@ const savedCommandUnion = v.union(
     prompt: v.string(),
   })
 );
-
-function normalizeName(name: string): string {
-  return name.trim();
-}
-
-function effectiveScope(command: Doc<'chatroom_savedCommands'>): 'user' | 'chatroom' {
-  if (command.scope) return command.scope;
-  return command.chatroomId ? 'chatroom' : 'user';
-}
-
-async function assertNoDuplicateName(
-  ctx: QueryCtx | MutationCtx,
-  args: {
-    scope: 'user' | 'chatroom';
-    name: string;
-    chatroomId?: Id<'chatroom_rooms'>;
-    ownerId?: Id<'users'>;
-    excludeId?: Id<'chatroom_savedCommands'>;
-  }
-) {
-  const lower = args.name.toLowerCase();
-  const candidates =
-    args.scope === 'chatroom'
-      ? await ctx.db
-          .query('chatroom_savedCommands')
-          .withIndex('by_chatroom_scope', (q) =>
-            q.eq('chatroomId', args.chatroomId as Id<'chatroom_rooms'>).eq('scope', 'chatroom')
-          )
-          .collect()
-      : await ctx.db
-          .query('chatroom_savedCommands')
-          .withIndex('by_ownerId_scope', (q) =>
-            q.eq('ownerId', args.ownerId as Id<'users'>).eq('scope', 'user')
-          )
-          .collect();
-
-  const dup = candidates.find((c) => c._id !== args.excludeId && c.name.toLowerCase() === lower);
-  if (dup) {
-    throw new ConvexError({
-      code: 'COMMAND_NAME_DUPLICATE',
-      message: `A command named "${args.name}" already exists in this ${args.scope} scope.`,
-    });
-  }
-}
 
 /**
  * List all saved commands for a chatroom, sorted by name ascending.
@@ -104,21 +65,8 @@ export const createSavedCommand = mutation({
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const trimmedName = normalizeName(args.command.name);
-    if (!trimmedName) {
-      throw new ConvexError({
-        code: 'COMMAND_NAME_EMPTY',
-        message: 'Command name must not be empty',
-      });
-    }
-
-    const trimmedPrompt = args.command.prompt.trim();
-    if (!trimmedPrompt) {
-      throw new ConvexError({
-        code: 'COMMAND_PROMPT_EMPTY',
-        message: 'Command prompt must not be empty',
-      });
-    }
+    const trimmedName = assertSavedCommandNameNotEmpty(args.command.name);
+    const trimmedPrompt = assertSavedCommandPromptNotEmpty(args.command.prompt);
 
     const now = Date.now();
     const base = {
@@ -132,7 +80,7 @@ export const createSavedCommand = mutation({
     } as const;
 
     if (args.command.scope === 'chatroom') {
-      await assertNoDuplicateName(ctx, {
+      await assertNoDuplicateSavedCommandName(ctx, {
         scope: 'chatroom',
         name: trimmedName,
         chatroomId: args.chatroomId,
@@ -143,7 +91,7 @@ export const createSavedCommand = mutation({
       });
     }
 
-    await assertNoDuplicateName(ctx, {
+    await assertNoDuplicateSavedCommandName(ctx, {
       scope: 'user',
       name: trimmedName,
       ownerId: session.userId,
@@ -190,16 +138,9 @@ export const updateSavedCommand = mutation({
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
     if (args.name !== undefined) {
-      const trimmedName = normalizeName(args.name);
-      if (!trimmedName) {
-        throw new ConvexError({
-          code: 'COMMAND_NAME_EMPTY',
-          message: 'Command name must not be empty',
-        });
-      }
-
-      await assertNoDuplicateName(ctx, {
-        scope: effectiveScope(command),
+      const trimmedName = assertSavedCommandNameNotEmpty(args.name);
+      await assertNoDuplicateSavedCommandName(ctx, {
+        scope: effectiveSavedCommandScope(command),
         name: trimmedName,
         chatroomId: command.chatroomId ?? undefined,
         ownerId: command.ownerId ?? undefined,
@@ -210,14 +151,7 @@ export const updateSavedCommand = mutation({
 
     if (args.command) {
       if (args.command.type === 'prompt') {
-        const trimmedPrompt = args.command.prompt.trim();
-        if (!trimmedPrompt) {
-          throw new ConvexError({
-            code: 'COMMAND_PROMPT_EMPTY',
-            message: 'Command prompt must not be empty',
-          });
-        }
-        updates.prompt = trimmedPrompt;
+        updates.prompt = assertSavedCommandPromptNotEmpty(args.command.prompt);
       }
     }
 

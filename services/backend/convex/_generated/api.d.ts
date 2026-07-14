@@ -79,6 +79,7 @@ import type * as migrations from "../migrations.js";
 import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
 import type * as prompts_webapp from "../prompts/webapp.js";
+import type * as savedCommandValidation from "../savedCommandValidation.js";
 import type * as savedCommands from "../savedCommands.js";
 import type * as savedCommandsAuth from "../savedCommandsAuth.js";
 import type * as serviceDesk from "../serviceDesk.js";
@@ -177,6 +178,7 @@ declare const fullApi: ApiFromModules<{
   participants: typeof participants;
   presentations: typeof presentations;
   "prompts/webapp": typeof prompts_webapp;
+  savedCommandValidation: typeof savedCommandValidation;
   savedCommands: typeof savedCommands;
   savedCommandsAuth: typeof savedCommandsAuth;
   serviceDesk: typeof serviceDesk;
