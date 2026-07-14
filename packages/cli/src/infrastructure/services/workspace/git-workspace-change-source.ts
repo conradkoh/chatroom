@@ -76,7 +76,8 @@ export function createGitWorkspaceChangeSource(
             readGitHead(node.workTree),
             readGitPorcelainStatus(node),
           ]);
-          if (headChanged(prev.prevHead, nextHead)) {
+          // Skip initial baseline (prev head is null) — only reconcile on real HEAD moves.
+          if (prev.prevHead.head !== null && headChanged(prev.prevHead, nextHead)) {
             needsReconcile = true;
           }
           const events = diffPorcelainSnapshots({

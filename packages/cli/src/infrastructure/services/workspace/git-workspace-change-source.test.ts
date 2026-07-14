@@ -88,7 +88,7 @@ describe('git-workspace-change-source', () => {
     await source.stop();
   });
 
-  it('calls onNeedsReconcile when HEAD changes', async () => {
+  it('calls onNeedsReconcile when HEAD changes after baseline', async () => {
     const onNeedsReconcile = vi.fn();
 
     mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
@@ -104,6 +104,10 @@ describe('git-workspace-change-source', () => {
       onNeedsReconcile,
     });
 
+    // First poll establishes baseline (prev head was null) — must not reconcile.
+    await source.ready;
+    expect(onNeedsReconcile).not.toHaveBeenCalled();
+
     mockPorcelain.readGitHead.mockResolvedValue({ head: 'def' });
     mockPorcelain.headChanged.mockReturnValue(true);
 
@@ -112,6 +116,27 @@ describe('git-workspace-change-source', () => {
       expect(onNeedsReconcile).toHaveBeenCalled();
     });
 
+    await source.stop();
+  });
+
+  it('does not call onNeedsReconcile on initial HEAD baseline', async () => {
+    const onNeedsReconcile = vi.fn();
+
+    mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
+    mockPorcelain.readGitPorcelainStatus.mockResolvedValue([]);
+    mockPorcelain.headChanged.mockReturnValue(true); // would be true for null→abc
+    mockPorcelain.diffPorcelainSnapshots.mockReturnValue([]);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy,
+      pollIntervalMs: 1000,
+      onEvents: vi.fn(),
+      onNeedsReconcile,
+    });
+
+    await source.ready;
+    expect(onNeedsReconcile).not.toHaveBeenCalled();
     await source.stop();
   });
 
