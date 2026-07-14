@@ -257,6 +257,159 @@ describe('useCommandPaletteCommands', () => {
     });
   });
 
+  describe('Create Command actions', () => {
+    it('adds Chatroom: Create Command and User: Create Command when onCreateCommand is provided', () => {
+      const onCreateCommand = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onCreateCommand,
+        })
+      );
+
+      const createChatroomCmd = result.current.find(
+        (c) => c.id === 'action-create-chatroom-command'
+      );
+      const createUserCmd = result.current.find((c) => c.id === 'action-create-user-command');
+
+      expect(createChatroomCmd).toBeDefined();
+      expect(createChatroomCmd).toMatchObject({
+        label: 'Chatroom: Create Command',
+        keywords: expect.arrayContaining(['chatroom', 'local']),
+      });
+
+      expect(createUserCmd).toBeDefined();
+      expect(createUserCmd).toMatchObject({
+        label: 'User: Create Command',
+        keywords: expect.arrayContaining(['user', 'global', 'personal']),
+      });
+    });
+
+    it('Chatroom: Create Command calls onCreateCommand("chatroom")', () => {
+      const onCreateCommand = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onCreateCommand,
+        })
+      );
+
+      const cmd = result.current.find((c) => c.id === 'action-create-chatroom-command');
+      cmd?.action();
+      expect(onCreateCommand).toHaveBeenCalledWith('chatroom');
+    });
+
+    it('User: Create Command calls onCreateCommand("user")', () => {
+      const onCreateCommand = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onCreateCommand,
+        })
+      );
+
+      const cmd = result.current.find((c) => c.id === 'action-create-user-command');
+      cmd?.action();
+      expect(onCreateCommand).toHaveBeenCalledWith('user');
+    });
+
+    it('omits create commands when onCreateCommand is not provided', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      expect(result.current.some((c) => c.id === 'action-create-chatroom-command')).toBe(false);
+      expect(result.current.some((c) => c.id === 'action-create-user-command')).toBe(false);
+    });
+  });
+
+  describe('Saved command palette labels', () => {
+    it('includes scope suffix in saved command labels', () => {
+      const savedCommands = [
+        {
+          _id: 'cmd-1' as any,
+          type: 'prompt' as const,
+          scope: 'user' as const,
+          name: 'My Global',
+          prompt: 'hello',
+        },
+        {
+          _id: 'cmd-2' as any,
+          type: 'prompt' as const,
+          scope: 'chatroom' as const,
+          name: 'My Local',
+          prompt: 'world',
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          savedCommands,
+          onExecuteSavedCommand: vi.fn(),
+        })
+      );
+
+      const cmd1 = result.current.find((c) => c.id === 'saved-cmd-cmd-1');
+      const cmd2 = result.current.find((c) => c.id === 'saved-cmd-cmd-2');
+
+      expect(cmd1?.label).toBe('Command: My Global (User)');
+      expect(cmd2?.label).toBe('Command: My Local (Chatroom)');
+    });
+
+    it('includes scope keywords in saved command entries', () => {
+      const savedCommands = [
+        {
+          _id: 'cmd-user' as any,
+          type: 'prompt' as const,
+          scope: 'user' as const,
+          name: 'Global Cmd',
+          prompt: 'hello',
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          savedCommands,
+          onExecuteSavedCommand: vi.fn(),
+        })
+      );
+
+      const cmd = result.current.find((c) => c.id === 'saved-cmd-cmd-user');
+      expect(cmd?.keywords).toEqual(
+        expect.arrayContaining(['user', 'global', 'personal', 'all chatrooms'])
+      );
+    });
+
+    it('adds saved commands when callbacks are provided', () => {
+      const savedCommands = [
+        {
+          _id: 'cmd-abc' as any,
+          type: 'prompt' as const,
+          scope: 'chatroom' as const,
+          name: 'Test Cmd',
+          prompt: 'hello',
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          savedCommands,
+          onExecuteSavedCommand: vi.fn(),
+          onEditSavedCommand: vi.fn(),
+          onDeleteSavedCommand: vi.fn(),
+        })
+      );
+
+      const cmd = result.current.find((c) => c.id === 'saved-cmd-cmd-abc');
+      expect(cmd).toBeDefined();
+      expect(cmd?.secondaryActions).toHaveLength(2);
+    });
+  });
+
   describe('Chatroom: Refresh Workspace State command', () => {
     it('adds command when handler is provided', () => {
       const onRefreshWorkspaceState = vi.fn();

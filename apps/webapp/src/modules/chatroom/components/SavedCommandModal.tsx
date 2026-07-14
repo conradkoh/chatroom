@@ -10,10 +10,19 @@ import { toast } from 'sonner';
 import type {
   SavedCommand,
   SavedCommandCreateInput,
+  SavedCommandScope,
   SavedCommandType,
   SavedCommandUpdateInput,
 } from '../types/savedCommand';
-import { SAVED_COMMAND_TYPE_LABELS, SAVED_COMMAND_TYPES } from '../types/savedCommand';
+import {
+  SAVED_COMMAND_SCOPE_HINTS,
+  SAVED_COMMAND_SCOPE_LABELS,
+  SAVED_COMMAND_SCOPES,
+  SAVED_COMMAND_SCOPE_SHORT_LABELS,
+  SAVED_COMMAND_TYPE_LABELS,
+  SAVED_COMMAND_TYPES,
+} from '../types/savedCommand';
+import { checkDuplicateSavedCommandName } from '../utils/savedCommandValidation';
 
 import { exhaustive } from '@/lib/exhaustive';
 
@@ -24,28 +33,25 @@ interface SavedCommandModalProps {
   onCreated?: () => void;
   /** When provided, the modal is in edit mode and pre-fills from this command. */
   initial?: SavedCommand;
-  /** Names already in use in this chatroom (for duplicate prevention) */
-  existingNames?: string[];
+  /** Names already in use grouped by scope (for duplicate prevention) */
+  existingNamesByScope: Record<SavedCommandScope, string[]>;
+  /** Default scope in create mode (ignored in edit mode). */
+  defaultScope?: SavedCommandScope;
 }
 
 /**
- * Pure validation function — checks if a name would create a duplicate.
- * Returns an error string if duplicate, null if OK.
+ * Pure validation function — checks if a name would create a duplicate within a scope.
+ * Re-exported from utils for backward compat in existing tests.
  */
-export function checkDuplicateName(
-  name: string,
-  existingNames: string[],
-  isEditMode: boolean,
-  initialName?: string
-): string | null {
-  const lowerName = name.toLowerCase();
-  const namesToCheck = isEditMode
-    ? existingNames.filter((n) => n.toLowerCase() !== (initialName ?? '').toLowerCase())
-    : existingNames;
-  if (namesToCheck.some((n) => n.toLowerCase() === lowerName)) {
-    return `A command named "${name}" already exists.`;
-  }
-  return null;
+export { checkDuplicateSavedCommandName as checkDuplicateName } from '../utils/savedCommandValidation';
+
+function savedCommandErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message.includes('COMMAND_NAME_DUPLICATE'))
+    return 'A command with that name already exists in this scope.';
+  if (message.includes('COMMAND_PROMPT_EMPTY')) return 'Prompt cannot be empty.';
+  if (message.includes('COMMAND_NAME_EMPTY')) return 'Name cannot be empty.';
+  return 'Failed to save command. Please try again.';
 }
 
 /**
@@ -59,10 +65,12 @@ export function SavedCommandModal({
   onClose,
   onCreated,
   initial,
-  existingNames = [],
+  existingNamesByScope = { user: [], chatroom: [] },
+  defaultScope,
 }: SavedCommandModalProps) {
   const isEditMode = Boolean(initial);
   const [type, setType] = useState<SavedCommandType>(initial?.type ?? 'prompt');
+  const [scope, setScope] = useState<SavedCommandScope>(initial?.scope ?? 'chatroom');
   const [name, setName] = useState(initial?.name ?? '');
   const [promptText, setPromptText] = useState(initial?.type === 'prompt' ? initial.prompt : '');
   const [nameError, setNameError] = useState('');
@@ -124,6 +132,7 @@ export function SavedCommandModal({
   useEffect(() => {
     if (!isOpen) return;
     setType(initial?.type ?? 'prompt');
+    setScope(initial?.scope ?? defaultScope ?? 'chatroom');
     setName(initial?.name ?? '');
     setPromptText(initial?.type === 'prompt' ? initial.prompt : '');
     setIsSubmitting(false);
@@ -134,8 +143,12 @@ export function SavedCommandModal({
     const trimmedName = name.trim();
     if (!trimmedName || isSubmitting) return;
 
-    // Duplicate name check (case-insensitive)
-    const dupErr = checkDuplicateName(trimmedName, existingNames, isEditMode, initial?.name);
+    // Duplicate name check (case-insensitive, scope-aware)
+    const dupErr = checkDuplicateSavedCommandName(trimmedName, scope, existingNamesByScope, {
+      isEditMode,
+      initialName: initial?.name,
+      initialScope: initial?.scope,
+    });
     if (dupErr) {
       setNameError(dupErr);
       return;
@@ -147,7 +160,7 @@ export function SavedCommandModal({
     switch (type) {
       case 'prompt': {
         if (!promptText.trim()) return;
-        createPayload = { type: 'prompt', name: trimmedName, prompt: promptText.trim() };
+        createPayload = { type: 'prompt', scope, name: trimmedName, prompt: promptText.trim() };
         updatePayload = { type: 'prompt', prompt: promptText.trim() };
         break;
       }
@@ -163,28 +176,31 @@ export function SavedCommandModal({
           name: trimmedName,
           command: updatePayload,
         });
+        toast.success(`Updated ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
       } else {
         await createSavedCommand({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           command: createPayload,
         });
+        toast.success(`Saved ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
       }
       onCreated?.();
       onClose();
     } catch (error) {
       console.error('Failed to save command:', error);
-      toast.error('Failed to save command. Please try again.');
+      toast.error(savedCommandErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
   }, [
     name,
     type,
+    scope,
     promptText,
     isSubmitting,
     isEditMode,
     initial,
-    existingNames,
+    existingNamesByScope,
     updateSavedCommand,
     createSavedCommand,
     chatroomId,
@@ -299,6 +315,30 @@ export function SavedCommandModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Scope selector */}
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="command-scope"
+              className="text-xs font-medium text-chatroom-text-secondary uppercase tracking-wider"
+            >
+              Scope
+            </label>
+            <select
+              id="command-scope"
+              value={scope}
+              onChange={(e) => setScope(e.target.value as SavedCommandScope)}
+              disabled={isEditMode || isSubmitting}
+              className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-border-strong transition-colors rounded-none disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {SAVED_COMMAND_SCOPES.map((s) => (
+                <option key={s} value={s}>
+                  {SAVED_COMMAND_SCOPE_LABELS[s]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-chatroom-text-muted">{SAVED_COMMAND_SCOPE_HINTS[scope]}</p>
           </div>
 
           {/* Name field */}
