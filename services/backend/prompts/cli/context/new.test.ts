@@ -10,8 +10,20 @@ describe('contextNewCommand', () => {
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
     });
 
-    expect(command).toContain('--trigger-message-id="<userMessageId>"');
+    expect(command).toContain('--trigger-message-id="ORIGIN_MESSAGE_ID"');
     expect(command).toContain("<< 'CHATROOM_CONTEXT_END'");
+  });
+
+  test('heredoc body contains full markdown template with ## Goal, not angle brackets', () => {
+    const command = contextNewCommand({
+      chatroomId: 'room-id',
+      role: 'planner',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+    });
+
+    expect(command).toContain('## Goal');
+    expect(command).not.toContain('<summary of current focus>');
+    expect(command).not.toMatch(/<[^>]+>/);
   });
 
   test('pre-fills trigger message ID when provided', () => {
@@ -23,7 +35,7 @@ describe('contextNewCommand', () => {
     });
 
     expect(command).toContain('--trigger-message-id="pd7bsg0ybba32kfvznhbj4r6s58a0b6r"');
-    expect(command).not.toContain('<userMessageId>');
+    expect(command).not.toContain('ORIGIN_MESSAGE_ID');
   });
 });
 
@@ -36,5 +48,6 @@ describe('contextNewHint', () => {
     expect(hint).toContain(
       'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template'
     );
+    expect(hint).not.toContain('<task>');
   });
 });

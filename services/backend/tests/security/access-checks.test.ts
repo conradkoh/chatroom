@@ -46,6 +46,8 @@ const ACCESS_CHECK_PATTERNS = [
   'authorizeUserMessageOrTaskAccess',
   // convex/backlog.ts — requireBacklogItemForChatroom → requireChatroomAccess
   'requireBacklogItemForChatroom',
+  // savedCommandsAuth.ts — scope-aware access for saved commands
+  'requireSavedCommandAccess',
   'validateSession',
   'checkSession',
   'getAuthenticatedWebUser',

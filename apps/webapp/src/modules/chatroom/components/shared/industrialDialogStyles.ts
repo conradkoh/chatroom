@@ -46,3 +46,10 @@ export const chatroomIndustrialInputErrorClassName = 'border-chatroom-status-err
 /** Opaque surface for Radix-portaled menus (dropdown, select, popover). Never use bg-chatroom-bg-surface here. */
 export const chatroomPortaledMenuSurfaceClassName =
   'bg-chatroom-bg-primary text-chatroom-text-primary border border-chatroom-border rounded-none shadow-md';
+
+/**
+ * Base classes for portaled menu panels — z-index above FixedModal (BASE 50 + stack step 10).
+ * Shared so popover/select/dropdown stay clickable inside modals.
+ */
+// fallow-ignore-next-line unused-export
+export const chatroomPortaledMenuFloatingClassName = `z-[100] pointer-events-auto ${chatroomPortaledMenuSurfaceClassName}`;

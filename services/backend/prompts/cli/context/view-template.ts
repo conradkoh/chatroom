@@ -2,6 +2,12 @@
  * Command generator for context view-template CLI command.
  */
 
+import { getContextViewTemplate } from './context-template';
+
+export function viewContextTemplate(): string {
+  return getContextViewTemplate();
+}
+
 export interface ContextViewTemplateParams {
   /** CLI environment prefix for non-production environments (empty string for production) */
   cliEnvPrefix: string;

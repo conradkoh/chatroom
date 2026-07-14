@@ -125,7 +125,10 @@ export type BackendErrorCode =
 
   // ── Saved Commands ──────────────────────────────────────────────────
   | 'COMMAND_NAME_EMPTY'
+  | 'COMMAND_NAME_DUPLICATE'
+  | 'COMMAND_PROMPT_EMPTY'
   | 'SAVED_COMMAND_NOT_FOUND'
+  | 'SAVED_COMMAND_INVALID'
   | 'COMMAND_TYPE_IMMUTABLE'
 
   // ── Attendance ──────────────────────────────────────────────────────
@@ -313,8 +316,14 @@ export const BACKEND_ERROR_CODES = {
   // ── Saved Commands ──────────────────────────────────────────────────
   /** Command name must not be empty */
   COMMAND_NAME_EMPTY: 'COMMAND_NAME_EMPTY',
+  /** Command name already exists in this scope */
+  COMMAND_NAME_DUPLICATE: 'COMMAND_NAME_DUPLICATE',
+  /** Command prompt must not be empty */
+  COMMAND_PROMPT_EMPTY: 'COMMAND_PROMPT_EMPTY',
   /** Saved command not found */
   SAVED_COMMAND_NOT_FOUND: 'SAVED_COMMAND_NOT_FOUND',
+  /** Saved command has invalid state for the operation */
+  SAVED_COMMAND_INVALID: 'SAVED_COMMAND_INVALID',
   /** Cannot change command type */
   COMMAND_TYPE_IMMUTABLE: 'COMMAND_TYPE_IMMUTABLE',
 
@@ -417,6 +426,9 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.REASON_EMPTY,
   BACKEND_ERROR_CODES.NAME_REQUIRED,
   BACKEND_ERROR_CODES.COMMAND_NAME_EMPTY,
+  BACKEND_ERROR_CODES.COMMAND_NAME_DUPLICATE,
+  BACKEND_ERROR_CODES.COMMAND_PROMPT_EMPTY,
+  BACKEND_ERROR_CODES.SAVED_COMMAND_INVALID,
   BACKEND_ERROR_CODES.INVALID_CONTENT,
   BACKEND_ERROR_CODES.INVALID_ROLE,
   BACKEND_ERROR_CODES.INVALID_TASK,

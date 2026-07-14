@@ -13,8 +13,10 @@ import { isDeliverableTaskStatus } from '@workspace/backend/src/domain/usecase/m
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import { resetRoleDeliveryState } from './native-task-delivery-coordinator.js';
+import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { AgentHarness } from './types.js';
 import { api } from '../../../api.js';
@@ -169,6 +171,22 @@ async function deliverOneTask(
 
   if (!full) return false;
 
+  const ledger = getNativeDeliveryLedger();
+  const ledgerBlock = explainLedgerDeliveryBlock(
+    snapshot.taskId as string,
+    harnessSessionId,
+    ledger
+  );
+  if (ledgerBlock) {
+    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${ledgerBlock}`);
+    return false;
+  }
+  if (!ledger.tryAcquire(snapshot.taskId as string, harnessSessionId)) {
+    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — delivery_ledger_busy`);
+    return false;
+  }
+
+  let deliveredToHarness = false;
   try {
     await Effect.runPromise(
       runNativeInjectionEffect(full, harnessSessionId, {
@@ -182,6 +200,8 @@ async function deliverOneTask(
           },
         },
         onTaskDelivered: ({ chatroomId, role, taskId }) => {
+          deliveredToHarness = true;
+          ledger.markDelivered(taskId, harnessSessionId);
           void deps.agentMgr.setLastInFlightTask(chatroomId, role, taskId);
         },
       })
@@ -192,6 +212,10 @@ async function deliverOneTask(
       `[RestartOrchestrator] deliver failed for task ${snapshot.taskId}: ${getErrorMessage(err)}`
     );
     return false;
+  } finally {
+    if (!deliveredToHarness) {
+      ledger.clearDelivery(snapshot.taskId as string, harnessSessionId);
+    }
   }
 }
 
