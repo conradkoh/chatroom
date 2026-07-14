@@ -219,7 +219,9 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       session.abortResolve?.();
       try {
         await withTimeout(
-          session.activeQuery?.interrupt() ?? Promise.resolve(),
+          session.activeQuery
+            ? session.activeQuery.interrupt().then(() => undefined)
+            : Promise.resolve(undefined),
           5_000,
           'interrupt'
         );
