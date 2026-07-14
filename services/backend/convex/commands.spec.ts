@@ -80,9 +80,7 @@ async function createRunningRun(
 async function getRunStopEvents(runId: Id<'chatroom_commandRuns'>) {
   return t.run(async (ctx) => {
     const all = await ctx.db.query('chatroom_eventStream').collect();
-    return all.filter(
-      (e: any) => e.type === 'command.stop' && e.runId === runId.toString()
-    );
+    return all.filter((e: any) => e.type === 'command.stop' && e.runId === runId.toString());
   });
 }
 
@@ -226,11 +224,19 @@ describe('updateRunStatus', () => {
 
     // Simulate runCommand marking it killed (replace semantics)
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', runId, { status: 'killed', completedAt: FIXED_NOW });
+      await ctx.db.patch('chatroom_commandRuns', runId, {
+        status: 'killed',
+        completedAt: FIXED_NOW,
+      });
     });
 
     // Daemon exit handler reports stopped — should be silently ignored, not throw
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'stopped' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId,
+      status: 'stopped',
+    });
 
     const run = await getRun(runId);
     expect(run!.status).toBe('killed'); // unchanged — first terminal write wins
@@ -240,10 +246,20 @@ describe('updateRunStatus', () => {
     const { sessionId, machineId } = await setupMachine('urs-stopped-killed');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'stopped' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId,
+      status: 'stopped',
+    });
 
     // Second terminal transition should be silently ignored, not throw
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'killed' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId,
+      status: 'killed',
+    });
 
     const run = await getRun(runId);
     expect(run!.status).toBe('stopped'); // first terminal state wins
@@ -253,10 +269,20 @@ describe('updateRunStatus', () => {
     const { sessionId, machineId } = await setupMachine('urs-completed-failed');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'completed' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId,
+      status: 'completed',
+    });
 
     // Any subsequent terminal report is a no-op
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId, status: 'failed' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId,
+      status: 'failed',
+    });
 
     const run = await getRun(runId);
     expect(run!.status).toBe('completed'); // first terminal state wins
@@ -314,11 +340,21 @@ describe('reapOrphansForDaemonRestart', () => {
 
     // completed
     const completedId = await createRunningRun(sessionId, machineId, wd, 'dev');
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId: completedId, status: 'completed' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId: completedId,
+      status: 'completed',
+    });
 
     // failed
     const failedId = await createRunningRun(sessionId, machineId, wd, 'build');
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId: failedId, status: 'failed' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId: failedId,
+      status: 'failed',
+    });
 
     // stopped
     const stoppedId = await createPendingRun(sessionId, machineId, wd, 'test');
@@ -326,7 +362,12 @@ describe('reapOrphansForDaemonRestart', () => {
 
     // killed
     const killedId = await createRunningRun(sessionId, machineId, wd, 'lint');
-    await t.mutation(api.commands.updateRunStatus, { sessionId, machineId, runId: killedId, status: 'killed' });
+    await t.mutation(api.commands.updateRunStatus, {
+      sessionId,
+      machineId,
+      runId: killedId,
+      status: 'killed',
+    });
 
     const result = await t.mutation(api.commands.reapOrphansForDaemonRestart, {
       sessionId,
@@ -354,7 +395,7 @@ describe('reapOrphansForDaemonRestart', () => {
     });
 
     expect(result.reapedCount).toBe(1);
-    expect((await getRun(runA))!.status).toBe('killed');   // reaped
+    expect((await getRun(runA))!.status).toBe('killed'); // reaped
     expect((await getRun(runB))!.status).toBe('pending'); // untouched
   });
 
@@ -472,13 +513,11 @@ describe('listRunsWithLogObservers', () => {
     expect(ids).toEqual([observedRunId, pendingFullRunId].sort());
     expect(ids).not.toContain(ignoredRunId);
     expect(ids).not.toContain(otherMachineRunId);
-    expect(
-      runs.find((r) => r._id === pendingFullRunId)?.pendingFullOutputSync
-    ).toBe(true);
+    expect(runs.find((r) => r._id === pendingFullRunId)?.pendingFullOutputSync).toBe(true);
   });
 
   test('rejects caller without owner access to the machine', async () => {
-    const { sessionId, machineId } = await setupMachine('lro-auth');
+    const { sessionId: _sessionId, machineId } = await setupMachine('lro-auth');
     const { sessionId: otherSession } = await createTestSession('cmds-spec-lro-auth-other');
 
     await expect(
@@ -606,7 +645,10 @@ describe('getRunOutputV2', () => {
         chunkIndex: 1,
         timestamp: FIXED_NOW + 1,
       });
-      await ctx.db.patch('chatroom_commandRuns', runId, { status: 'completed', completedAt: FIXED_NOW });
+      await ctx.db.patch('chatroom_commandRuns', runId, {
+        status: 'completed',
+        completedAt: FIXED_NOW,
+      });
     });
 
     const result = await t.query(api.commands.getRunOutputV2, {
@@ -632,7 +674,10 @@ describe('getRunOutputV2', () => {
         chunkIndex: 0,
         timestamp: FIXED_NOW,
       });
-      await ctx.db.patch('chatroom_commandRuns', runId, { status: 'completed', completedAt: FIXED_NOW });
+      await ctx.db.patch('chatroom_commandRuns', runId, {
+        status: 'completed',
+        completedAt: FIXED_NOW,
+      });
     });
 
     const result = await t.query(api.commands.getRunOutputV2, {
@@ -680,6 +725,42 @@ describe('getRunOutputV2', () => {
     expect(result.chunks).toHaveLength(1);
     expect(result.chunks[0]!.content).toBe('final output');
   });
+
+  test('stopped run with tailOutput but no chunks → returns tail fallback', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-stopped-tail');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', runId, {
+        status: 'stopped',
+        completedAt: FIXED_NOW,
+        tailOutput: {
+          compression: 'gzip' as const,
+          content: 'base64gzippedcontent',
+          byteLength: 1024,
+          totalBytesWritten: 2048,
+          updatedAt: FIXED_NOW,
+          lineCount: 10,
+        },
+      });
+    });
+
+    const result = await t.query(api.commands.getRunOutputV2, {
+      sessionId,
+      runId,
+    });
+
+    expect(result.run!.status).toBe('stopped');
+    expect(result.chunks).toEqual([]);
+    expect(result.tail).toEqual({
+      compression: 'gzip',
+      content: 'base64gzippedcontent',
+      byteLength: 1024,
+      totalBytesWritten: 2048,
+      updatedAt: FIXED_NOW,
+      lineCount: 10,
+    });
+  });
 });
 
 describe('listRunsV2', () => {
@@ -709,4 +790,3 @@ describe('listRunsV2', () => {
     expect(runs[0]).not.toHaveProperty('tailOutput');
   });
 });
-
