@@ -4,6 +4,11 @@ import { isAgentDesiredRunning } from '@workspace/backend/src/domain/usecase/mac
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
 import {
+  isSlotIdle,
+  isSlotSpawning,
+  isSlotStopping,
+} from '../../../domain/agent-lifecycle/predicates/agent-slot.js';
+import {
   isCliIdleNotListening,
   isStaleCliGetNextTaskWaiting,
 } from '../../../domain/native-integration/predicates.js';
@@ -38,10 +43,10 @@ function isSlotUnavailableForPid(
   if (!slot) {
     return true;
   }
-  if (slot.state === 'idle') {
+  if (isSlotIdle(slot.state)) {
     return true;
   }
-  if (slot.state === 'stopping') {
+  if (isSlotStopping(slot.state)) {
     // Hung stop (or unknown age) — treat as down so revive can proceed
     if (!slot.stoppingSince || now - slot.stoppingSince >= STOPPING_TIMEOUT_MS) {
       return true;
@@ -72,7 +77,7 @@ function isNativeAgentSlotDown(
   now = Date.now()
 ): boolean {
   const slot = health.getSlot(task.chatroomId, task.agentConfig.role);
-  if (slot?.state === 'spawning') return false;
+  if (slot && isSlotSpawning(slot.state)) return false;
 
   const pid = task.agentConfig.spawnedAgentPid ?? slot?.pid;
   if (pid == null) {

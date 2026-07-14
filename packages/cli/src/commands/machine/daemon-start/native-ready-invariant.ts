@@ -5,6 +5,10 @@ import {
   isDeliverableTaskStatus,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
+import {
+  isSlotRunning,
+  isTurnPhaseIdle,
+} from '../../../domain/agent-lifecycle/predicates/agent-slot.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
@@ -34,7 +38,7 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!slot) {
     return `slot_missing (expectedPid=${agentConfig.spawnedAgentPid})`;
   }
-  if (slot.state !== 'running') {
+  if (!isSlotRunning(slot.state)) {
     return `slot_not_running (slotState=${slot.state}, expectedPid=${agentConfig.spawnedAgentPid})`;
   }
   if (slot.pid !== agentConfig.spawnedAgentPid) {
@@ -44,7 +48,7 @@ export function explainAgentReadyForNativeDeliveryBlock(
     return 'harness_session_missing';
   }
   const turnPhase = slot.nativeTurnPhase ?? 'idle';
-  if (turnPhase !== 'idle') {
+  if (!isTurnPhaseIdle(turnPhase)) {
     return `turn_not_idle (nativeTurnPhase=${turnPhase})`;
   }
   return null;
