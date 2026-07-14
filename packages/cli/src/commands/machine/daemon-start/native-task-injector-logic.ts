@@ -1,5 +1,7 @@
-import type { parseSessionAugmentation } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type {
+  AssignedTaskSnapshotView,
+  SessionAugmentationMode,
+} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import {
   explainAgentReadyForNativeDeliveryBlock,
@@ -37,25 +39,19 @@ export function explainNativeDeliveryBlock(
   return explainAgentReadyForNativeDeliveryBlock(task, opts.slot);
 }
 
+const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {
+  compact:
+    '⚠️ Context was compacted. Run `chatroom get-system-prompt` only if role instructions are missing.',
+  new_session:
+    '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',
+};
+
 /** Shape injected prompt: task delivery body + optional augmentation preamble. */
 export function buildNativeInjectionPrompt(params: {
   taskDeliveryOutput: string;
-  augmentationMode: ReturnType<typeof parseSessionAugmentation>;
+  augmentationMode: SessionAugmentationMode;
 }): string {
-  const { taskDeliveryOutput, augmentationMode } = params;
-  if (augmentationMode === 'compact') {
-    return [
-      '⚠️ Context was compacted. Run `chatroom get-system-prompt` only if role instructions are missing.',
-      '',
-      taskDeliveryOutput,
-    ].join('\n');
-  }
-  if (augmentationMode === 'new_session') {
-    return [
-      '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',
-      '',
-      taskDeliveryOutput,
-    ].join('\n');
-  }
-  return taskDeliveryOutput;
+  const preamble = AUGMENTATION_PREAMBLES[params.augmentationMode];
+  if (!preamble) return params.taskDeliveryOutput;
+  return [preamble, '', params.taskDeliveryOutput].join('\n');
 }
