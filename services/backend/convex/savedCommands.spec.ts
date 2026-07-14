@@ -264,37 +264,4 @@ describe('savedCommands scope', () => {
     expect(listB).toHaveLength(1);
     expect(listB[0].name).toBe('Global');
   });
-
-  test('10. Legacy command without scope field appears in list as chatroom-scoped', async () => {
-    const { sessionId, chatroomId, userId } = await setupUser('legacy-scope');
-
-    const legacyId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_savedCommands', {
-        chatroomId,
-        createdAt: FIXED_NOW,
-        createdBy: userId,
-        name: 'Legacy Cmd',
-        prompt: 'Before scope existed',
-        type: 'prompt',
-        updatedAt: FIXED_NOW,
-      });
-    });
-    expect(legacyId).toBeDefined();
-
-    const list = await t.query(api.savedCommands.listSavedCommands, {
-      sessionId,
-      chatroomId,
-    });
-    expect(list).toHaveLength(1);
-    expect(list[0].name).toBe('Legacy Cmd');
-    expect(list[0].scope).toBe('chatroom');
-
-    await expect(
-      t.mutation(api.savedCommands.createSavedCommand, {
-        sessionId,
-        chatroomId,
-        command: { type: 'prompt', scope: 'chatroom', name: 'Legacy Cmd', prompt: 'duplicate' },
-      })
-    ).rejects.toThrow();
-  });
 });

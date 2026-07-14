@@ -1,16 +1,16 @@
 /**
  * Migration: backfillSavedCommandScope
  *
- * Tests that the migration correctly:
- * 1. Sets scope='chatroom' on legacy rows with chatroomId and no scope field.
- * 2. Sets scope='user' on legacy rows with ownerId only and no scope field.
- * 3. Skips rows that already have scope set (idempotent).
+ * Tests inference logic and idempotent migration on scoped rows.
+ * Legacy rows without scope cannot be inserted once schema requires scope;
+ * production backfill runs while schema is still optional or on existing legacy data.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { inferLegacySavedCommandScope } from '../../convex/migrations';
 import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
 
@@ -24,67 +24,12 @@ async function runBackfillSavedCommandScope() {
 }
 
 describe('migration: backfillSavedCommandScope', () => {
-  test('backfills scope=chatroom on legacy chatroom-scoped rows', async () => {
-    const { sessionId } = await createTestSession('migrate-scope-chatroom');
-    const chatroomId = await t.mutation(api.chatrooms.create, {
-      sessionId,
-      teamId: 'solo',
-      teamName: 'Solo',
-      teamRoles: ['user'],
-      teamEntryPoint: 'user',
-    });
-    const userId = await t.run(async (ctx) => {
-      const session = await ctx.db
-        .query('sessions')
-        .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-        .unique();
-      return session!.userId;
-    });
-
-    const legacyId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_savedCommands', {
-        chatroomId,
-        createdAt: FIXED_NOW,
-        createdBy: userId,
-        name: 'Legacy chatroom cmd',
-        prompt: 'Before scope existed',
-        type: 'prompt',
-        updatedAt: FIXED_NOW,
-      });
-    });
-
-    await runBackfillSavedCommandScope();
-
-    const after = await t.run(async (ctx) => ctx.db.get(legacyId));
-    expect(after?.scope).toBe('chatroom');
+  test('inferLegacySavedCommandScope maps chatroomId → chatroom', () => {
+    expect(inferLegacySavedCommandScope({ chatroomId: 'room123' })).toBe('chatroom');
   });
 
-  test('backfills scope=user on legacy user-scoped rows (ownerId only)', async () => {
-    const { sessionId } = await createTestSession('migrate-scope-user');
-    const userId = await t.run(async (ctx) => {
-      const session = await ctx.db
-        .query('sessions')
-        .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-        .unique();
-      return session!.userId;
-    });
-
-    const legacyId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_savedCommands', {
-        ownerId: userId,
-        createdAt: FIXED_NOW,
-        createdBy: userId,
-        name: 'Legacy user cmd',
-        prompt: 'User scope before field existed',
-        type: 'prompt',
-        updatedAt: FIXED_NOW,
-      });
-    });
-
-    await runBackfillSavedCommandScope();
-
-    const after = await t.run(async (ctx) => ctx.db.get(legacyId));
-    expect(after?.scope).toBe('user');
+  test('inferLegacySavedCommandScope maps owner-only → user', () => {
+    expect(inferLegacySavedCommandScope({})).toBe('user');
   });
 
   test('skips rows that already have scope set (idempotent)', async () => {
