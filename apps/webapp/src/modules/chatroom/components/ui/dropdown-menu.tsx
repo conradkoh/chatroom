@@ -9,7 +9,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import { CheckIcon, ChevronRightIcon } from 'lucide-react';
 import type * as React from 'react';
 
-import { chatroomPortaledMenuSurfaceClassName } from '../shared/industrialDialogStyles';
+import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
 
@@ -18,7 +18,7 @@ export const chatroomDropdownMenuItemHighlightClassName =
   'rounded-none text-chatroom-text-primary focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary data-[highlighted]:bg-chatroom-bg-hover data-[highlighted]:text-chatroom-text-primary';
 
 /** Shared surface styles for chatroom portaled dropdown panels. */
-export const chatroomDropdownMenuContentClassName = `z-[100] pointer-events-auto p-0 ${chatroomPortaledMenuSurfaceClassName}`;
+export const chatroomDropdownMenuContentClassName = `p-0 ${chatroomPortaledMenuFloatingClassName}`;
 
 function DropdownMenu({
   modal = false,

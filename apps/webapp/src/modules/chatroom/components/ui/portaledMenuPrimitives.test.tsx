@@ -9,7 +9,12 @@ import {
 } from './dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { chatroomPortaledMenuSurfaceClassName } from '../shared/industrialDialogStyles';
+import {
+  chatroomPortaledMenuFloatingClassName,
+  chatroomPortaledMenuSurfaceClassName,
+} from '../shared/industrialDialogStyles';
+
+import { FixedModal } from '@/components/ui/fixed-modal';
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -26,6 +31,14 @@ function expectOpaquePortaledSurface(className: string) {
 describe('chatroomPortaledMenuSurfaceClassName', () => {
   it('uses opaque primary background for portaled menus', () => {
     expectOpaquePortaledSurface(chatroomPortaledMenuSurfaceClassName);
+  });
+});
+
+describe('chatroomPortaledMenuFloatingClassName', () => {
+  it('uses z-index above FixedModal base layer', () => {
+    expect(chatroomPortaledMenuFloatingClassName).toContain('z-[100]');
+    expect(chatroomPortaledMenuFloatingClassName).toContain('pointer-events-auto');
+    expectOpaquePortaledSurface(chatroomPortaledMenuFloatingClassName);
   });
 });
 
@@ -79,5 +92,25 @@ describe('PopoverContent', () => {
     );
 
     expectOpaquePortaledSurface(screen.getByTestId('popover-content').className);
+  });
+
+  it('stacks above FixedModal overlay z-index', () => {
+    render(
+      <FixedModal isOpen onClose={() => undefined}>
+        <Popover open onOpenChange={vi.fn()}>
+          <PopoverTrigger asChild>
+            <button type="button">open</button>
+          </PopoverTrigger>
+          <PopoverContent data-testid="popover-content">panel</PopoverContent>
+        </Popover>
+      </FixedModal>
+    );
+
+    const popoverContent = screen.getByTestId('popover-content');
+    expect(popoverContent.className).toContain('z-[100]');
+
+    const modalOverlay = document.body.querySelector<HTMLElement>('.fixed.inset-0');
+    expect(modalOverlay).not.toBeNull();
+    expect(Number(modalOverlay?.style.zIndex)).toBeLessThan(100);
   });
 });

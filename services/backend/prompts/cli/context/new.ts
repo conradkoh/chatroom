@@ -3,6 +3,7 @@
  */
 
 import { CONTEXT_STDIN_DELIMITER, formatStdinHeredocCommand } from '../stdin-heredoc';
+import { getContextViewTemplate } from './context-template';
 import { contextViewTemplateCommand } from './view-template';
 
 export interface ContextNewParams {
@@ -21,7 +22,7 @@ export interface ContextNewParams {
  */
 export function contextNewHint(params: { cliEnvPrefix: string }): string {
   const viewTemplateCmd = contextViewTemplateCommand({ cliEnvPrefix: params.cliEnvPrefix });
-  return `REQUIRED: All context content MUST conform to the template. Run \`${viewTemplateCmd}\` (no flags). \`--trigger-message-id\` must be the \`origin-message-id\` attribute on the \`<task>\` tag — never \`task-id\`. Use the pre-filled value in the command above when provided.`;
+  return `REQUIRED: All context content MUST conform to the template. Run \`${viewTemplateCmd}\` (no flags). \`--trigger-message-id\` must be the task's \`origin-message-id\` attribute (never \`task-id\`). Use the pre-filled value in the command above when provided.`;
 }
 
 /**
@@ -32,14 +33,14 @@ export function contextNewHint(params: { cliEnvPrefix: string }): string {
 // fallow-ignore-next-line complexity
 export function contextNewCommand(params: ContextNewParams): string {
   const prefix = params.cliEnvPrefix || '';
-  const chatroomId = params.chatroomId || '<chatroom-id>';
-  const role = params.role || '<role>';
+  const chatroomId = params.chatroomId || 'CHATROOM_ID';
+  const role = params.role || 'ROLE';
 
-  const triggerMessageId = params.triggerMessageId ?? '<userMessageId>';
+  const triggerMessageId = params.triggerMessageId ?? 'ORIGIN_MESSAGE_ID';
   const commandPrefix = `${prefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --trigger-message-id="${triggerMessageId}"`;
   return formatStdinHeredocCommand(
     commandPrefix,
     CONTEXT_STDIN_DELIMITER,
-    '<summary of current focus>'
+    getContextViewTemplate()
   );
 }

@@ -241,11 +241,22 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running \`context new\`, run \`context read\` — if the pinned context already uses the same \`--trigger-message-id\` as this task's Origin Message ID, do NOT create another context** (avoids duplicate timeline dividers). Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'CHATROOM_CONTEXT_END'
-      <summary of current focus>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="ORIGIN_MESSAGE_ID" << 'CHATROOM_CONTEXT_END'
+      ## Goal
+      - **User-centric:** _Describe what the user wants in plain language._
+      - **Development-centric:** _Describe what we are building or changing._
+
+      ## Requirements
+      - _One concrete outcome or requirement per bullet._
+
+      ## Structure
+      - _Key files, folders, or architecture decisions (e.g. module boundaries, SSOT locations)._
+
+      ## Avoid
+      - _Out-of-scope work or anti-patterns to skip._
       CHATROOM_CONTEXT_END
       \`\`\`
-      REQUIRED: All context content MUST conform to the template. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template\` (no flags). \`--trigger-message-id\` must be the \`origin-message-id\` attribute on the \`<task>\` tag — never \`task-id\`. Use the pre-filled value in the command above when provided.
+      REQUIRED: All context content MUST conform to the template. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template\` (no flags). \`--trigger-message-id\` must be the task's \`origin-message-id\` attribute (never \`task-id\`). Use the pre-filled value in the command above when provided.
 
 
        **Duo Team Context:**
