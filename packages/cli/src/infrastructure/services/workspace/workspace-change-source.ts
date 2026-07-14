@@ -1,5 +1,6 @@
 import { createGitWorkspaceChangeSource } from './git-workspace-change-source.js';
 import { discoverGitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
+import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import {
   createWorkspaceFsWatcher,
   type WorkspaceFsEvent,
@@ -22,6 +23,11 @@ export type WorkspaceChangeSourceMode = 'git' | 'fs';
 export interface WorkspaceChangeSourceResult {
   mode: WorkspaceChangeSourceMode;
   source: WorkspaceChangeSource;
+  gitRepoCount?: number;
+}
+
+function countGitRepoNodes(root: GitRepoNode): number {
+  return 1 + root.children.reduce((sum, child) => sum + countGitRepoNodes(child), 0);
 }
 
 export async function createWorkspaceChangeSource(
@@ -32,6 +38,7 @@ export async function createWorkspaceChangeSource(
     return {
       mode: 'git',
       source: createGitWorkspaceChangeSource({ ...options, hierarchy }),
+      gitRepoCount: countGitRepoNodes(hierarchy.root),
     };
   }
   return {

@@ -87,6 +87,7 @@ describe('workspace-change-source', () => {
       });
 
       expect(result.mode).toBe('git');
+      expect(result.gitRepoCount).toBe(1);
       expect(result.source).toHaveProperty('ready');
       expect(result.source).toHaveProperty('stop');
 
