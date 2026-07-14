@@ -732,10 +732,19 @@ export function ChatroomDashboard({
       (savedCommandsData ?? []).map((cmd) => ({
         _id: cmd._id,
         type: cmd.type,
+        scope: cmd.scope,
         name: cmd.name,
         prompt: cmd.prompt,
       })),
     [savedCommandsData]
+  );
+
+  const existingNamesByScope = useMemo(
+    () => ({
+      chatroom: savedCommands.filter((c) => c.scope === 'chatroom').map((c) => c.name),
+      user: savedCommands.filter((c) => c.scope === 'user').map((c) => c.name),
+    }),
+    [savedCommands]
   );
 
   // Update team mutation (for switching teams)
@@ -1788,6 +1797,7 @@ export function ChatroomDashboard({
               onClose={handleCloseSavedCommandModal}
               initial={savedCommandEditTarget}
               existingNames={savedCommands.map((c) => c.name)}
+              existingNamesByScope={existingNamesByScope}
             />
 
             {/* Command Palette (Cmd+Shift+P) */}

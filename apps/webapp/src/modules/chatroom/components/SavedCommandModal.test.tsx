@@ -15,7 +15,6 @@ const mockUpdateSavedCommand = vi.fn();
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: (mutationRef: unknown) => {
-    // Return create or update mock based on which mutation is requested
     const ref = mutationRef as { name?: string };
     if (ref && typeof ref === 'object' && 'name' in ref && ref.name === 'updateSavedCommand') {
       return mockUpdateSavedCommand;
@@ -38,6 +37,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 const makeCmd = (overrides?: Partial<SavedCommand>): SavedCommand => ({
   _id: 'cmd-abc' as any,
   type: 'prompt',
+  scope: 'chatroom',
   name: 'Old Name',
   prompt: 'Old prompt',
   ...overrides,
@@ -110,7 +110,12 @@ describe('SavedCommandModal component', () => {
     await waitFor(() => {
       expect(mockCreateSavedCommand).toHaveBeenCalledWith(
         expect.objectContaining({
-          command: { type: 'prompt', name: 'My Command', prompt: 'Do something useful' },
+          command: {
+            type: 'prompt',
+            scope: 'chatroom',
+            name: 'My Command',
+            prompt: 'Do something useful',
+          },
         })
       );
     });
@@ -202,5 +207,75 @@ describe('SavedCommandModal component', () => {
 
     const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
     expect(select).toBeDisabled();
+  });
+
+  // ── Scope Tests ──────────────────────────────────────────────────────────
+
+  it('scope selector shows both options in create mode', () => {
+    render(<SavedCommandModal isOpen={true} chatroomId="room-1" onClose={vi.fn()} />);
+
+    const select = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
+    expect(select).toBeInTheDocument();
+    expect(select.options).toHaveLength(2);
+    expect(select.options[0].text).toBe('User (all chatrooms)');
+    expect(select.options[0].value).toBe('user');
+    expect(select.options[1].text).toBe('Chatroom only');
+    expect(select.options[1].value).toBe('chatroom');
+  });
+
+  it('scope selector is disabled in edit mode', () => {
+    render(
+      <SavedCommandModal isOpen={true} chatroomId="room-1" onClose={vi.fn()} initial={makeCmd()} />
+    );
+
+    const select = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
+    expect(select).toBeDisabled();
+  });
+
+  it('create payload includes scope when chatroom scope is selected', async () => {
+    const onClose = vi.fn();
+    const onCreated = vi.fn();
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={onClose}
+        onCreated={onCreated}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/^name$/i), 'Test Cmd');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'Test prompt');
+
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+
+    await waitFor(() => {
+      expect(mockCreateSavedCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: expect.objectContaining({ scope: 'chatroom' }),
+        })
+      );
+    });
+  });
+
+  it('create payload includes scope when user scope is selected', async () => {
+    const onClose = vi.fn();
+    render(<SavedCommandModal isOpen={true} chatroomId="room-1" onClose={onClose} />);
+
+    const scopeSelect = screen.getByLabelText(/^scope$/i);
+    await user.selectOptions(scopeSelect, 'user');
+
+    await user.type(screen.getByLabelText(/^name$/i), 'My User Cmd');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'User prompt');
+
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+
+    await waitFor(() => {
+      expect(mockCreateSavedCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: expect.objectContaining({ scope: 'user' }),
+        })
+      );
+    });
   });
 });

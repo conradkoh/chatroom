@@ -314,7 +314,21 @@ export const dropEmbeddedRecentCommits = migrations.define({
 });
 
 // --- Saved Commands Migrations ---
-// (none currently — type field shipped with the feature in v1.34.0; production has no legacy rows)
+
+/**
+ * Migration: Backfill scope field for saved commands created before the scope feature.
+ * Legacy rows have no scope field — they default to 'chatroom'.
+ * Idempotent: rows with scope already set are skipped.
+ */
+export const backfillSavedCommandScope = migrations.define({
+  table: 'chatroom_savedCommands',
+  migrateOne: async (_ctx, row) => {
+    const r = row as Record<string, unknown>;
+    if (r.scope === undefined) {
+      return { scope: 'chatroom' as const };
+    }
+  },
+});
 
 /**
  * Migration: Drop embedded availableModels from chatroom_machines.
@@ -368,4 +382,6 @@ export const runAll = migrations.runner([
   internal.migrations.dropEmbeddedRecentCommits,
   // Machine Models
   internal.migrations.dropEmbeddedAvailableModels,
+  // Saved Commands
+  internal.migrations.backfillSavedCommandScope,
 ]);

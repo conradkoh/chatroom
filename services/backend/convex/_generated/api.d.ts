@@ -80,6 +80,7 @@ import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
 import type * as prompts_webapp from "../prompts/webapp.js";
 import type * as savedCommands from "../savedCommands.js";
+import type * as savedCommandsAuth from "../savedCommandsAuth.js";
 import type * as serviceDesk from "../serviceDesk.js";
 import type * as sessions from "../sessions.js";
 import type * as skills from "../skills.js";
@@ -177,6 +178,7 @@ declare const fullApi: ApiFromModules<{
   presentations: typeof presentations;
   "prompts/webapp": typeof prompts_webapp;
   savedCommands: typeof savedCommands;
+  savedCommandsAuth: typeof savedCommandsAuth;
   serviceDesk: typeof serviceDesk;
   sessions: typeof sessions;
   skills: typeof skills;
