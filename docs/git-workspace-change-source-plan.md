@@ -137,6 +137,7 @@ flowchart LR
 - `git-workspace-change-source.test.ts` — unit tests with mocked porcelain (add, no-leave-unlink, HEAD→reconcile, stop, shouldIgnore)
 - `workspace-change-source.test.ts` — added real git repo integration test (mode:git)
 - Pushed to `release/v1.67.0` (rides PR #950)
+- Follow-up fix: skip HEAD→reconcile on initial baseline (`prev.head === null`) so daemon start does not always full-reconcile
 
 ---
 
