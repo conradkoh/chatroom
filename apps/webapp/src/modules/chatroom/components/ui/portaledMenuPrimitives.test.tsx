@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -112,5 +112,38 @@ describe('PopoverContent', () => {
     const modalOverlay = document.body.querySelector<HTMLElement>('.fixed.inset-0');
     expect(modalOverlay).not.toBeNull();
     expect(Number(modalOverlay?.style.zIndex)).toBeLessThan(100);
+  });
+
+  it('registers above FixedModal so escape dismisses popover before modal', () => {
+    const onModalClose = vi.fn();
+    const onPopoverOpenChange = vi.fn();
+
+    const view = render(
+      <FixedModal isOpen onClose={onModalClose}>
+        <Popover open onOpenChange={onPopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <button type="button">open</button>
+          </PopoverTrigger>
+          <PopoverContent data-testid="popover-content">panel</PopoverContent>
+        </Popover>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onModalClose).not.toHaveBeenCalled();
+
+    view.rerender(
+      <FixedModal isOpen onClose={onModalClose}>
+        <Popover open={false} onOpenChange={onPopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <button type="button">open</button>
+          </PopoverTrigger>
+          <PopoverContent data-testid="popover-content">panel</PopoverContent>
+        </Popover>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onModalClose).toHaveBeenCalledTimes(1);
   });
 });

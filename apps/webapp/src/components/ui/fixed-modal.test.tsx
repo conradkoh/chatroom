@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FixedModal } from './fixed-modal';
+
+import { Popover, PopoverContent, PopoverTrigger } from '@/modules/chatroom/components/ui/popover';
 
 describe('FixedModal', () => {
   afterEach(() => {
@@ -68,5 +70,51 @@ describe('FixedModal', () => {
     );
 
     expect(screen.getByText('Modal content')).toBeInTheDocument();
+  });
+
+  it('closes on escape when no portaled menu is above it', () => {
+    const onClose = vi.fn();
+
+    render(
+      <FixedModal isOpen onClose={onClose}>
+        <div>Modal content</div>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close on escape when a portaled popover is open above it', () => {
+    const onClose = vi.fn();
+    const onPopoverOpenChange = vi.fn();
+
+    const view = render(
+      <FixedModal isOpen onClose={onClose}>
+        <Popover open onOpenChange={onPopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <button type="button">open picker</button>
+          </PopoverTrigger>
+          <PopoverContent>picker panel</PopoverContent>
+        </Popover>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+
+    view.rerender(
+      <FixedModal isOpen onClose={onClose}>
+        <Popover open={false} onOpenChange={onPopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <button type="button">open picker</button>
+          </PopoverTrigger>
+          <PopoverContent>picker panel</PopoverContent>
+        </Popover>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
