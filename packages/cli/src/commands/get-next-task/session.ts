@@ -11,6 +11,7 @@ import {
   FATAL_ERROR_CODES,
 } from '@workspace/backend/config/errorCodes.js';
 import { getNextTaskCommand } from '@workspace/backend/prompts/cli/get-next-task/command.js';
+import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
@@ -230,7 +231,7 @@ export class GetNextTaskSession {
         sessionId: this.sessionId,
         chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
         role: this.role,
-        action: 'get-next-task:started',
+        action: GET_NEXT_TASK_STARTED_ACTION,
       });
     } catch (error) {
       // Best-effort — subscription is already running; liveness will catch up

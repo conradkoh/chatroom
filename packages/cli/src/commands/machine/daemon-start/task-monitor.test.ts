@@ -1,4 +1,7 @@
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import {
+  GET_NEXT_TASK_STARTED_ACTION,
+  NATIVE_WAITING_ACTION,
+} from '@workspace/backend/src/domain/entities/participant.js';
 import {
   parseSessionAugmentation,
   resolveSessionAugmentationForRole,
@@ -34,7 +37,7 @@ function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
       desiredState: 'running',
     },
     participant: {
-      lastSeenAction: 'get-next-task:started',
+      lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
       lastSeenAt: 500,
       lastStatus: 'agent.waiting',
     },
@@ -52,7 +55,7 @@ describe('shouldNudgePendingTask', () => {
       makeTask({
         createdAt: 400,
         participant: {
-          lastSeenAction: 'get-next-task:started',
+          lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
           lastSeenAt: 500,
           lastStatus: 'agent.waiting',
         },

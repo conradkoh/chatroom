@@ -1,3 +1,7 @@
+import {
+  GET_NEXT_TASK_STARTED_ACTION,
+  NATIVE_WAITING_ACTION,
+} from '@workspace/backend/src/domain/entities/participant.js';
 import type {
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
@@ -23,7 +27,7 @@ function makeSnapshot(overrides: Partial<AssignedTaskSnapshotView> = {}): Assign
       desiredState: 'running',
     },
     participant: {
-      lastSeenAction: 'native.waiting',
+      lastSeenAction: NATIVE_WAITING_ACTION,
       lastSeenAt: 500,
       lastStatus: 'agent.waiting',
     },
@@ -106,7 +110,7 @@ describe('createTaskMonitorSnapshot', () => {
       chatroomId: 'room_1' as AssignedTaskSignal['chatroomId'],
       role: 'builder',
       lastSeenAt: 900,
-      lastSeenAction: 'get-next-task:started',
+      lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
       presenceUpdatedAt: 900,
       presenceKey: 'presence-key',
     });
@@ -121,7 +125,7 @@ describe('createTaskMonitorSnapshot', () => {
       chatroomId: row!.chatroomId,
       role: row!.agentConfig.role,
       lastSeenAt: 1_100,
-      lastSeenAction: 'get-next-task:started',
+      lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
       presenceUpdatedAt: 1_100,
       presenceKey: 'presence-key-2',
     });
