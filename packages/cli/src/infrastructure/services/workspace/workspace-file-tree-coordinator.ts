@@ -370,6 +370,7 @@ export async function startWorkspaceFileTreeCoordinator(
     workingDir,
     pollIntervalMs: options.changeSourcePollIntervalMs,
     shouldIgnore: shouldIgnorePath,
+    getKnownPaths: () => manifest.paths,
     onEvents: handleChangeSourceEvents,
     onNeedsReconcile: () => enqueueSerial(reconcileNow),
     onError: handleChangeSourceError,

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import type { GitPorcelainEntry } from './git-workspace-porcelain.js';
 import {
+  diffPorcelainAgainstKnownPaths,
   diffPorcelainSnapshots,
   GitWorkspaceCommandError,
   headChanged,
@@ -401,5 +402,35 @@ describe('porcelainPathsLeftSnapshot integration with git restore', () => {
       next: after,
     });
     expect(left).toContain('f.txt');
+  });
+});
+
+describe('diffPorcelainAgainstKnownPaths', () => {
+  const node: GitRepoNode = {
+    workTree: '/repo',
+    gitDir: '/repo/.git',
+    relativePath: '',
+    pathspec: [],
+    children: [],
+  };
+
+  it('emits add for untracked path missing from knownPaths', () => {
+    const events = diffPorcelainAgainstKnownPaths({
+      workspaceRoot: '/repo',
+      node,
+      knownPaths: { 'README.md': 'file' },
+      next: [{ xy: '??', path: 'new.txt' }],
+    });
+    expect(events).toEqual([{ kind: 'add', path: 'new.txt' }]);
+  });
+
+  it('skips paths already in knownPaths', () => {
+    const events = diffPorcelainAgainstKnownPaths({
+      workspaceRoot: '/repo',
+      node,
+      knownPaths: { 'f.txt': 'file' },
+      next: [{ xy: ' M', path: 'f.txt' }],
+    });
+    expect(events).toEqual([]);
   });
 });

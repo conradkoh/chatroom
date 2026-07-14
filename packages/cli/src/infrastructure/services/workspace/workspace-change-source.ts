@@ -14,6 +14,7 @@ export type WorkspaceChangeSourceOptions = WorkspaceFsWatcherOptions & {
   pollIntervalMs?: number;
   onNeedsReconcile?: () => void | Promise<void>;
   onPersistentFailure?: () => void | Promise<void>;
+  getKnownPaths?: () => Readonly<Record<string, unknown>>;
 };
 
 export type WorkspaceChangeSource = WorkspaceFsWatcherHandle;

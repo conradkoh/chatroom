@@ -10,7 +10,17 @@ const mockPorcelain = vi.hoisted(() => ({
   porcelainPathsLeftSnapshot: vi.fn(),
 }));
 
-vi.mock('./git-workspace-porcelain.js', () => mockPorcelain);
+vi.mock('./git-workspace-porcelain.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    readGitHead: mockPorcelain.readGitHead,
+    readGitPorcelainStatus: mockPorcelain.readGitPorcelainStatus,
+    diffPorcelainSnapshots: mockPorcelain.diffPorcelainSnapshots,
+    headChanged: mockPorcelain.headChanged,
+    porcelainPathsLeftSnapshot: mockPorcelain.porcelainPathsLeftSnapshot,
+  };
+});
 
 const { createGitWorkspaceChangeSource } = await import('./git-workspace-change-source.js');
 
@@ -230,7 +240,7 @@ describe('git-workspace-change-source', () => {
     await source.stop();
   });
 
-  it('skips porcelain events on initial baseline', async () => {
+  it('skips porcelain events on initial baseline without getKnownPaths', async () => {
     const onEvents = vi.fn();
 
     mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
@@ -261,6 +271,29 @@ describe('git-workspace-change-source', () => {
 
     expect(mockPorcelain.diffPorcelainSnapshots).toHaveBeenCalledTimes(1);
 
+    await source.stop();
+  });
+
+  it('emits add on baseline for porcelain paths missing from getKnownPaths', async () => {
+    const onEvents = vi.fn();
+    mockPorcelain.readGitHead.mockResolvedValue({ head: 'abc' });
+    mockPorcelain.readGitPorcelainStatus.mockResolvedValue([{ xy: '??', path: 'stale.txt' }]);
+    mockPorcelain.headChanged.mockReturnValue(false);
+    mockPorcelain.porcelainPathsLeftSnapshot.mockReturnValue([]);
+
+    const source = createGitWorkspaceChangeSource({
+      workingDir: '/workspace',
+      hierarchy,
+      pollIntervalMs: 1000,
+      getKnownPaths: () => ({ 'README.md': 'file' }),
+      onEvents,
+    });
+
+    await source.ready;
+    await vi.waitFor(() => {
+      expect(onEvents).toHaveBeenCalledWith([{ kind: 'add', path: 'stale.txt' }]);
+    });
+    expect(mockPorcelain.diffPorcelainSnapshots).not.toHaveBeenCalled();
     await source.stop();
   });
 

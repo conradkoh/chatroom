@@ -201,6 +201,30 @@ export function diffPorcelainSnapshots(args: {
   return events;
 }
 
+export function diffPorcelainAgainstKnownPaths(args: {
+  workspaceRoot: string;
+  node: GitRepoNode;
+  knownPaths: Readonly<Record<string, unknown>>;
+  next: readonly GitPorcelainEntry[];
+}): WorkspaceFsEvent[] {
+  const events: WorkspaceFsEvent[] = [];
+  for (const entry of args.next) {
+    const wsPath = toWorkspaceRelativePath({
+      workspaceRoot: args.workspaceRoot,
+      node: args.node,
+      pathInWorkTree: entry.path,
+    });
+    if (wsPath === null) continue;
+    if (wsPath in args.knownPaths) continue;
+    const entryEvents = kindForEntry(entry);
+    for (const e of entryEvents.events) {
+      events.push({ kind: e.kind, path: wsPath });
+    }
+  }
+  events.sort((a, b) => a.path.localeCompare(b.path));
+  return events;
+}
+
 export function porcelainPathsLeftSnapshot(args: {
   workspaceRoot: string;
   node: GitRepoNode;

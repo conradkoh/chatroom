@@ -237,4 +237,39 @@ describe('workspace-file-tree-coordinator', () => {
 
     await coordinator.stop();
   }, 15_000);
+
+  it('syncs pre-existing untracked files on warm restart in git mode', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-warm-'));
+    await initGitRepo(rootDir, { 'README.md': 'hello' });
+
+    const first = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: async () => ({ status: 'applied', revision: 2 }),
+    });
+    await first.stop();
+
+    await writeFile(join(rootDir, 'orphan.ts'), 'orphan');
+
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 3 }));
+    const second = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: deltas,
+    });
+
+    await waitFor(() => deltas.mock.calls.length > 0, 5_000);
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        added: expect.arrayContaining([{ path: 'orphan.ts', type: 'file' }]),
+      }),
+      expect.any(Number)
+    );
+    expect(second.getTree().entries).toContainEqual({ path: 'orphan.ts', type: 'file' });
+    await second.stop();
+  }, 15_000);
 });

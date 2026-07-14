@@ -1,5 +1,6 @@
 import type { GitRepoNode, GitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
 import {
+  diffPorcelainAgainstKnownPaths,
   diffPorcelainSnapshots,
   headChanged,
   porcelainPathsLeftSnapshot,
@@ -114,6 +115,15 @@ export function createGitWorkspaceChangeSource(
             workspaceRoot: options.hierarchy.workspaceRoot,
             node,
             prev: prev.prevEntries,
+            next: nextEntries,
+          });
+          allEvents.push(...events);
+        } else if (options.getKnownPaths) {
+          const knownPaths = options.getKnownPaths();
+          const events = diffPorcelainAgainstKnownPaths({
+            workspaceRoot: options.hierarchy.workspaceRoot,
+            node,
+            knownPaths,
             next: nextEntries,
           });
           allEvents.push(...events);
