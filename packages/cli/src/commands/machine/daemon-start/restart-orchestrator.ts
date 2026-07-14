@@ -4,6 +4,7 @@
 
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import type { AgentRestartPhase } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskView,
@@ -47,7 +48,7 @@ interface RestartOrchestratorDeps {
 async function emitPhase(
   deps: RestartOrchestratorDeps,
   event: RestartOrchestratorEvent,
-  phase: 'reset' | 'spawn' | 'await_session' | 'ready' | 'deliver' | 'completed' | 'failed',
+  phase: AgentRestartPhase | 'completed' | 'failed',
   detail?: string
 ): Promise<void> {
   await deps.session.backend.mutation(api.machines.emitRestartPhase, {

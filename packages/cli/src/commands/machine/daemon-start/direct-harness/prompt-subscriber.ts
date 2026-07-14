@@ -19,6 +19,7 @@ import {
   startBoundHarness,
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
+import { OPENCODE_SESSION_EVENT_TYPES } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
 
 interface PendingMessage {
   harnessSessionId: string;
@@ -197,7 +198,8 @@ function wireResumedSessionEvents(
           );
       }
     }
-    if (event.type === 'session.idle') {
+    if (event.type === OPENCODE_SESSION_EVENT_TYPES[0]) {
+      // session.idle
       void handleSessionIdle(handle, handle.journal, idleConfig, deps.sessionRepository).catch(
         (err: unknown) => console.warn('[direct-harness] idle handler error (resume):', err)
       );
