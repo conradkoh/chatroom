@@ -10,16 +10,43 @@ import {
 
 const mocks = vi.hoisted(() => ({
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),
+  deltaResult: undefined as
+    | {
+        status: 'ok';
+        checkpointRevision: number;
+        currentRevision: number;
+        deltas: {
+          baseRevision: number;
+          revision: number;
+          operations: (
+            | {
+                operation: 'add' | 'type-change';
+                path: string;
+                entryType: 'file' | 'directory';
+              }
+            | { operation: 'remove'; path: string }
+          )[];
+        }[];
+        hasMore: boolean;
+      }
+    | null
+    | undefined,
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mocks.requestMutation,
+  useSessionQuery: (query: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    if (query === 'getFileTreeDeltas') return mocks.deltaResult;
+    return undefined;
+  },
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     workspaceFiles: {
       requestFileTree: 'requestFileTree',
+      getFileTreeDeltas: 'getFileTreeDeltas',
     },
   },
 }));
@@ -33,6 +60,7 @@ const args = { machineId: MACHINE_ID, workingDir: WORKING_DIR };
 beforeEach(() => {
   __resetWorkspaceFileTreeStoreForTests();
   mocks.requestMutation.mockClear();
+  mocks.deltaResult = undefined;
 });
 
 afterEach(() => {
@@ -119,6 +147,29 @@ describe('useWorkspaceFileTreeEntries', () => {
       machineId: MACHINE_ID,
       workingDir: WORKING_DIR,
       force: true,
+    });
+  });
+
+  it('applies remove delta from store when delta sync receives remove operation', async () => {
+    upsertWorkspaceFileTree(KEY, [{ path: 'test.md', type: 'file' }], 100, 1);
+    mocks.deltaResult = {
+      status: 'ok',
+      checkpointRevision: 1,
+      currentRevision: 2,
+      deltas: [
+        {
+          baseRevision: 1,
+          revision: 2,
+          operations: [{ operation: 'remove', path: 'test.md' }],
+        },
+      ],
+      hasMore: false,
+    };
+
+    const { result } = renderHook(() => useWorkspaceFileTreeEntries(args));
+
+    await vi.waitFor(() => {
+      expect(result.current.entries.find((e) => e.path === 'test.md')).toBeUndefined();
     });
   });
 

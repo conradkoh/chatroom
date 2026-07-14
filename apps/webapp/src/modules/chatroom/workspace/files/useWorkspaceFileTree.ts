@@ -6,7 +6,7 @@ import type {
   FileTree,
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
@@ -16,15 +16,15 @@ import {
   mergeFileTreeShardPayloads,
   type FileTreeShardPayload,
 } from './fileTreeUtils';
+import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
+import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
+import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import {
-  applyWorkspaceFileTreeDeltas,
   getWorkspaceFileTreeEntries,
-  getWorkspaceFileTreeRevision,
   getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
-  type WorkspaceFileTreeDeltaBatch,
 } from './workspaceFileTreeStore';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
 import { decompressGzip } from '../utils/decompressGzip';
@@ -58,17 +58,6 @@ type FileTreeCheckpoint = {
   snapshotId: string;
   publishedAt: number;
 };
-
-type FileTreeDeltaQueryResult =
-  | {
-      status: 'ok';
-      checkpointRevision: number;
-      currentRevision: number;
-      deltas: WorkspaceFileTreeDeltaBatch[];
-      hasMore: boolean;
-    }
-  | { status: 'checkpoint-required'; checkpointRevision: number; currentRevision: number }
-  | { status: 'resync-required'; expectedRevision: number };
 
 export interface UseWorkspaceFileTreeArgs {
   machineId: string;
@@ -105,7 +94,11 @@ export function useWorkspaceFileTree({
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
 
-  const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const requestTree = useRequestWorkspaceFileTree({
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled,
+  });
 
   const checkpoint = useSessionQuery(
     api.workspaceFiles.getFileTreeCheckpoint,
@@ -229,34 +222,14 @@ export function useWorkspaceFileTree({
     () => getWorkspaceFileTreeScannedAt(workspaceKey)
   );
 
-  const storeRevision = useSyncExternalStore(
-    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
-    () => getWorkspaceFileTreeRevision(workspaceKey),
-    () => getWorkspaceFileTreeRevision(workspaceKey)
-  );
+  useWorkspaceFileTreeDeltaSync({
+    workspaceKey,
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled,
+  });
 
-  const deltaResult = useSessionQuery(
-    api.workspaceFiles.getFileTreeDeltas,
-    enabled && storeRevision !== null
-      ? {
-          machineId,
-          workingDir: normalizedWorkingDir,
-          afterRevision: storeRevision,
-        }
-      : 'skip'
-  ) as FileTreeDeltaQueryResult | null | undefined;
-
-  const requestTree = useCallback(
-    (force: boolean) => {
-      if (!enabled) return;
-      requestMutation({
-        machineId,
-        workingDir: normalizedWorkingDir,
-        ...(force ? { force: true } : {}),
-      }).catch(() => {});
-    },
-    [enabled, machineId, normalizedWorkingDir, requestMutation]
-  );
+  const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
 
   const refresh = useCallback(
     (options?: { force?: boolean }) => {
@@ -276,17 +249,6 @@ export function useWorkspaceFileTree({
     },
     [enabled, requestTree]
   );
-
-  useEffect(() => {
-    if (!enabled || !deltaResult) return;
-    if (deltaResult.status === 'resync-required') {
-      requestTree(true);
-      return;
-    }
-    if (deltaResult.status !== 'ok' || deltaResult.deltas.length === 0) return;
-    const result = applyWorkspaceFileTreeDeltas(workspaceKey, deltaResult.deltas);
-    if (result.status === 'requires-refresh') requestTree(true);
-  }, [deltaResult, enabled, requestTree, workspaceKey]);
 
   useEffect(() => {
     if (!enabled) return;

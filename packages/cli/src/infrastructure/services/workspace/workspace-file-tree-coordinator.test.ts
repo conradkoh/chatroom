@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,12 +9,29 @@ import {
   startWorkspaceFileTreeCoordinator,
 } from './workspace-file-tree-coordinator.js';
 import { clearWorkspaceSyncStateForTests } from './workspace-sync-state.js';
+import { runGit } from '../../git/run-command.js';
 
 async function waitFor(predicate: () => boolean, timeoutMs = 8_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {
     if (Date.now() >= deadline) throw new Error('Timed out waiting for filesystem event');
     await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+async function initGitRepo(dir: string, files: Record<string, string> = {}): Promise<void> {
+  const git = (...args: string[]) => runGit(args, dir);
+  await git('init');
+  await git('config', 'user.email', 'test@test.com');
+  await git('config', 'user.name', 'Test');
+  for (const [rel, content] of Object.entries(files)) {
+    const full = join(dir, rel);
+    await mkdir(dirname(full), { recursive: true }).catch(() => {});
+    await writeFile(full, content);
+  }
+  if (Object.keys(files).length > 0) {
+    await git('add', '-A');
+    await git('commit', '-m', 'init');
   }
 }
 
@@ -149,4 +166,144 @@ describe('workspace-file-tree-coordinator', () => {
     await coordinator.stop();
     createWatcherSpy.mockRestore();
   });
+
+  it('sends deltas for new files in a git workspace via porcelain polling', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-'));
+    await initGitRepo(rootDir, { 'README.md': 'hello' });
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 2 }));
+    const coordinator = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: deltas,
+    });
+    await writeFile(join(rootDir, 'added.ts'), 'export {}');
+    await waitFor(() => deltas.mock.calls.length > 0, 5_000);
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        added: expect.arrayContaining([{ path: 'added.ts', type: 'file' }]),
+      }),
+      1
+    );
+    await coordinator.stop();
+  }, 15_000);
+
+  it('removes untracked file from tree when deleted via git clean in git mode', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-clean-'));
+    await initGitRepo(rootDir, { 'tracked.ts': 'x' });
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 2 }));
+    const coordinator = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 200,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: deltas,
+    });
+    await writeFile(join(rootDir, 'dirty.txt'), 'temp');
+    await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'dirty.txt'), 5_000);
+    const git = (...args: string[]) => runGit(args, rootDir);
+    await git('clean', '-f', 'dirty.txt');
+    await waitFor(
+      () => coordinator.getTree().entries.find((e) => e.path === 'dirty.txt') === undefined,
+      5_000
+    );
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        removed: expect.arrayContaining(['dirty.txt']),
+      }),
+      expect.any(Number)
+    );
+    await coordinator.stop();
+  }, 15_000);
+
+  it('degrades to fs watcher after persistent git poll failures', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-degrade-'));
+    await initGitRepo(rootDir, { 'seed.ts': 'seed' });
+
+    const runGitModule = await import('../../git/run-command.js');
+    const runGitSpy = vi.spyOn(runGitModule, 'runGit').mockResolvedValue({
+      error: Object.assign(new Error('git unavailable'), { code: 1 }),
+    } as never);
+
+    const fsWatcherModule = await import('./workspace-fs-watcher.js');
+    const createFsSpy = vi.spyOn(fsWatcherModule, 'createWorkspaceFsWatcher');
+
+    const coordinator = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: async () => ({ status: 'applied' as const, revision: 2 }),
+    });
+
+    await waitFor(() => createFsSpy.mock.calls.length >= 1, 6_000);
+
+    runGitSpy.mockRestore();
+    createFsSpy.mockRestore();
+
+    await coordinator.stop();
+  }, 15_000);
+
+  it('removes untracked file from tree when deleted via rm in git mode', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-rm-'));
+    await initGitRepo(rootDir, { 'README.md': 'hello' });
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 2 }));
+    const coordinator = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: deltas,
+    });
+    await writeFile(join(rootDir, 'temp.md'), 'temp');
+    await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'temp.md'), 5_000);
+    await unlink(join(rootDir, 'temp.md'));
+    await waitFor(
+      () => coordinator.getTree().entries.find((e) => e.path === 'temp.md') === undefined,
+      5_000
+    );
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        removed: expect.arrayContaining(['temp.md']),
+      }),
+      expect.any(Number)
+    );
+    await coordinator.stop();
+  }, 15_000);
+
+  it('syncs pre-existing untracked files on warm restart in git mode', async () => {
+    rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-git-warm-'));
+    await initGitRepo(rootDir, { 'README.md': 'hello' });
+
+    const first = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: async () => ({ status: 'applied', revision: 2 }),
+    });
+    await first.stop();
+
+    await writeFile(join(rootDir, 'orphan.ts'), 'orphan');
+
+    const deltas = vi.fn(async () => ({ status: 'applied' as const, revision: 3 }));
+    const second = await startWorkspaceFileTreeCoordinator({
+      machineId,
+      workingDir: rootDir,
+      changeSourcePollIntervalMs: 100,
+      onCheckpoint: async () => ({ revision: 1 }),
+      onDelta: deltas,
+    });
+
+    await waitFor(() => deltas.mock.calls.length > 0, 5_000);
+    expect(deltas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        added: expect.arrayContaining([{ path: 'orphan.ts', type: 'file' }]),
+      }),
+      expect.any(Number)
+    );
+    expect(second.getTree().entries).toContainEqual({ path: 'orphan.ts', type: 'file' });
+    await second.stop();
+  }, 15_000);
 });
