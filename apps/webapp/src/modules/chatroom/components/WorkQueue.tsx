@@ -65,6 +65,7 @@ export function WorkQueue({
     onRegisterActions?.({
       openBacklog: () => setIsBacklogQueueModalOpen(true),
       openPendingReview: () => setIsPendingReviewModalOpen(true),
+      openBacklogCreate: () => setIsBacklogCreateModalOpen(true),
     });
   }, [onRegisterActions]);
 
