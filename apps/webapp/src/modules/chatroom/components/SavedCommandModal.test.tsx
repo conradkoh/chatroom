@@ -351,4 +351,33 @@ describe('SavedCommandModal component', () => {
       );
     });
   });
+
+  it('renders scope hint text when scope is selected', () => {
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={vi.fn()}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+
+    expect(screen.getByText('Available only in this chatroom.')).toBeInTheDocument();
+  });
+
+  it('opens with defaultScope="user" pre-selects user scope', () => {
+    const onClose = vi.fn();
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={onClose}
+        existingNamesByScope={emptyNamesByScope}
+        defaultScope="user"
+      />
+    );
+
+    const scopeSelect = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
+    expect(scopeSelect.value).toBe('user');
+  });
 });

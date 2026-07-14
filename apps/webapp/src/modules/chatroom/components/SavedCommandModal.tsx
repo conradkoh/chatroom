@@ -15,8 +15,10 @@ import type {
   SavedCommandUpdateInput,
 } from '../types/savedCommand';
 import {
+  SAVED_COMMAND_SCOPE_HINTS,
   SAVED_COMMAND_SCOPE_LABELS,
   SAVED_COMMAND_SCOPES,
+  SAVED_COMMAND_SCOPE_SHORT_LABELS,
   SAVED_COMMAND_TYPE_LABELS,
   SAVED_COMMAND_TYPES,
 } from '../types/savedCommand';
@@ -33,6 +35,8 @@ interface SavedCommandModalProps {
   initial?: SavedCommand;
   /** Names already in use grouped by scope (for duplicate prevention) */
   existingNamesByScope: Record<SavedCommandScope, string[]>;
+  /** Default scope in create mode (ignored in edit mode). */
+  defaultScope?: SavedCommandScope;
 }
 
 /**
@@ -40,6 +44,15 @@ interface SavedCommandModalProps {
  * Re-exported from utils for backward compat in existing tests.
  */
 export { checkDuplicateSavedCommandName as checkDuplicateName } from '../utils/savedCommandValidation';
+
+function savedCommandErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message.includes('COMMAND_NAME_DUPLICATE'))
+    return 'A command with that name already exists in this scope.';
+  if (message.includes('COMMAND_PROMPT_EMPTY')) return 'Prompt cannot be empty.';
+  if (message.includes('COMMAND_NAME_EMPTY')) return 'Name cannot be empty.';
+  return 'Failed to save command. Please try again.';
+}
 
 /**
  * Modal dialog for creating or editing a saved command (custom prompt).
@@ -53,6 +66,7 @@ export function SavedCommandModal({
   onCreated,
   initial,
   existingNamesByScope = { user: [], chatroom: [] },
+  defaultScope,
 }: SavedCommandModalProps) {
   const isEditMode = Boolean(initial);
   const [type, setType] = useState<SavedCommandType>(initial?.type ?? 'prompt');
@@ -118,7 +132,7 @@ export function SavedCommandModal({
   useEffect(() => {
     if (!isOpen) return;
     setType(initial?.type ?? 'prompt');
-    setScope(initial?.scope ?? 'chatroom');
+    setScope(initial?.scope ?? defaultScope ?? 'chatroom');
     setName(initial?.name ?? '');
     setPromptText(initial?.type === 'prompt' ? initial.prompt : '');
     setIsSubmitting(false);
@@ -162,17 +176,19 @@ export function SavedCommandModal({
           name: trimmedName,
           command: updatePayload,
         });
+        toast.success(`Updated ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
       } else {
         await createSavedCommand({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           command: createPayload,
         });
+        toast.success(`Saved ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
       }
       onCreated?.();
       onClose();
     } catch (error) {
       console.error('Failed to save command:', error);
-      toast.error('Failed to save command. Please try again.');
+      toast.error(savedCommandErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -322,6 +338,7 @@ export function SavedCommandModal({
                 </option>
               ))}
             </select>
+            <p className="text-xs text-chatroom-text-muted">{SAVED_COMMAND_SCOPE_HINTS[scope]}</p>
           </div>
 
           {/* Name field */}

@@ -44,3 +44,23 @@ export const SAVED_COMMAND_SCOPE_LABELS: Record<SavedCommandScope, string> = {
   user: 'User (all chatrooms)',
   chatroom: 'Chatroom only',
 };
+
+export const SAVED_COMMAND_SCOPE_SHORT_LABELS: Record<SavedCommandScope, string> = {
+  user: 'User',
+  chatroom: 'Chatroom',
+};
+
+export const SAVED_COMMAND_SCOPE_HINTS: Record<SavedCommandScope, string> = {
+  user: 'Available in all your chatrooms.',
+  chatroom: 'Available only in this chatroom.',
+};
+
+export function formatSavedCommandPaletteLabel(name: string, scope: SavedCommandScope): string {
+  return `Command: ${name} (${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope]})`;
+}
+
+export function savedCommandScopeKeywords(scope: SavedCommandScope): string[] {
+  return scope === 'user'
+    ? ['user', 'global', 'personal', 'all chatrooms']
+    : ['chatroom', 'local', 'room'];
+}
