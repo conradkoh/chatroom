@@ -24,9 +24,8 @@ export async function createWorkspaceChangeSource(
 ): Promise<WorkspaceChangeSourceResult> {
   const hierarchy = await discoverGitWorkspaceHierarchy(options.workingDir);
   if (hierarchy !== null) {
-    throw new Error(
-      'Git workspace change source is not implemented yet (Slice 3). Hierarchy must be null until then.'
-    );
+    // Slice 3 will return a git polling source when hierarchy is available.
+    // Until then, fall back to fs so discovery can ship without breaking callers.
   }
   return {
     mode: 'fs',

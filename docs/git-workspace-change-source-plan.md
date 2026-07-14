@@ -1,6 +1,6 @@
 # Git Workspace Change Source — Plan & Progress
 
-> **Status:** In progress — Slice 0 done; Slice 1 Done  
+> **Status:** In progress — Slice 0 done; Slice 1 Done; Slice 2 Done  
 > **Branch:** `release/v1.67.0`  
 > **Related:** [PR #947](https://github.com/conradkoh/chatroom/pull/947) (chokidar ignore + EMFILE fallback)  
 > **Owner:** Planner coordinates; Builder implements slice-by-slice
@@ -63,7 +63,7 @@ flowchart LR
 | --- | ----------------- | --------------------------------------------------------------------------------------------- | -------- |
 | 0   | Plan              | This document + confirmed decisions                                                           | **Done** |
 | 1   | Interfaces        | Hierarchy types, `WorkspaceChangeSource`, factory selecting git vs fs (fs wired; git stubbed) | **Done** |
-| 2   | Utilities + tests | Hierarchy discovery, porcelain parse, snapshot→events; unit tests                             | Pending  |
+| 2   | Utilities + tests | Hierarchy discovery, porcelain parse, snapshot→events; unit tests                             | **Done** |
 | 3   | Wire-up           | Real git change source (poll); coordinator uses factory; PR to `release/v1.67.0`              | Pending  |
 
 ---
@@ -111,7 +111,10 @@ flowchart LR
 
 **Progress notes:**
 
-- \_
+- Real `discoverGitWorkspaceHierarchy` (hierarchy discovery with nested .git dir/file support, pathspec scoping)
+- `git-workspace-porcelain.ts`: `parseGitPorcelainZ`, `toWorkspaceRelativePath`, `diffPorcelainSnapshots`, `readGitHead`/`headChanged`, `readGitPorcelainStatus`
+- Full test coverage for hierarchy (6 test cases) and porcelain (parse, diff, head, status integration)
+- Factory updated: non-null hierarchy falls back to fs (no longer throws)
 
 ---
 
