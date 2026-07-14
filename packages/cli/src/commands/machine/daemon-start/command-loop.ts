@@ -1,6 +1,7 @@
 /**
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
+// fallow-ignore-file duplication
 
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import {
@@ -10,6 +11,7 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Ref } from 'effect';
 
+import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
@@ -335,12 +337,12 @@ function handleRefreshCapabilitiesEffect(
 }
 
 /** Dispatch table: event type string → per-event Effect handler factory. */
-const commandEventHandlers: Partial<
-  Record<
-    string,
-    (event: CommandEvent, tracker: DedupTracker) => Effect.Effect<void, never, CommandDispatchDeps>
-  >
-> = {
+const commandEventHandlers: {
+  [K in DaemonCommandEventType]?: (
+    event: CommandEvent,
+    tracker: DedupTracker
+  ) => Effect.Effect<void, never, CommandDispatchDeps>;
+} = {
   'agent.requestStart': handleRequestStartEffect,
   'agent.restart': handleRequestRestartEffect,
   'agent.requestStop': handleRequestStopEffect,
@@ -362,7 +364,8 @@ export const dispatchCommandEventEffect = (
   event: CommandEvent,
   tracker: DedupTracker
 ): Effect.Effect<void, never, CommandDispatchDeps> => {
-  const factory = commandEventHandlers[event.type as string];
+  if (!isDaemonCommandEventType(event.type)) return Effect.void;
+  const factory = commandEventHandlers[event.type];
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 
