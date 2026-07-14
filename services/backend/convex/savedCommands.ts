@@ -8,7 +8,6 @@ import {
   assertNoDuplicateSavedCommandName,
   assertSavedCommandNameNotEmpty,
   assertSavedCommandPromptNotEmpty,
-  effectiveSavedCommandScope,
 } from './savedCommandValidation';
 
 const savedCommandScope = v.union(v.literal('user'), v.literal('chatroom'));
@@ -36,26 +35,19 @@ export const listSavedCommands = query({
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const chatroomScoped = (
-      await ctx.db
-        .query('chatroom_savedCommands')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect()
-    ).filter((c) => effectiveSavedCommandScope(c) === 'chatroom');
+    const chatroomScoped = await ctx.db
+      .query('chatroom_savedCommands')
+      .withIndex('by_chatroom_scope', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('scope', 'chatroom')
+      )
+      .collect();
 
-    const userScoped = (
-      await ctx.db
-        .query('chatroom_savedCommands')
-        .withIndex('by_ownerId', (q) => q.eq('ownerId', session.userId))
-        .collect()
-    ).filter((c) => effectiveSavedCommandScope(c) === 'user');
+    const userScoped = await ctx.db
+      .query('chatroom_savedCommands')
+      .withIndex('by_ownerId_scope', (q) => q.eq('ownerId', session.userId).eq('scope', 'user'))
+      .collect();
 
-    return [...chatroomScoped, ...userScoped]
-      .map((cmd) => ({
-        ...cmd,
-        scope: effectiveSavedCommandScope(cmd),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return [...chatroomScoped, ...userScoped].sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -147,7 +139,7 @@ export const updateSavedCommand = mutation({
     if (args.name !== undefined) {
       const trimmedName = assertSavedCommandNameNotEmpty(args.name);
       await assertNoDuplicateSavedCommandName(ctx, {
-        scope: effectiveSavedCommandScope(command),
+        scope: command.scope,
         name: trimmedName,
         chatroomId: command.chatroomId ?? undefined,
         ownerId: command.ownerId ?? undefined,
