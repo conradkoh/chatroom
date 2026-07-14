@@ -49,6 +49,7 @@ export interface WorkspaceFileTreeCoordinatorOptions {
   workingDir: string;
   reconcileIntervalMs?: number;
   checkpointEveryRevisions?: number;
+  changeSourcePollIntervalMs?: number;
   onDelta: (delta: WorkspacePendingDelta, baseRevision: number) => Promise<DeltaPushResult>;
   onCheckpoint: (tree: FileTree, revision: number) => Promise<{ revision: number }>;
   onError?: (error: unknown) => void;
@@ -367,6 +368,7 @@ export async function startWorkspaceFileTreeCoordinator(
 
   const change = await createWorkspaceChangeSource({
     workingDir,
+    pollIntervalMs: options.changeSourcePollIntervalMs,
     shouldIgnore: shouldIgnorePath,
     onEvents: handleChangeSourceEvents,
     onNeedsReconcile: () => enqueueSerial(reconcileNow),

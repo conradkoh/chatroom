@@ -360,3 +360,46 @@ describe('porcelainPathsLeftSnapshot', () => {
     expect(left).toEqual([]);
   });
 });
+
+describe('porcelainPathsLeftSnapshot integration with git restore', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(os.tmpdir(), 'tmp-porcelain-restore-'));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('detects path leaving porcelain after git restore', async () => {
+    await gitIn(tmpDir, 'init');
+    await gitIn(tmpDir, 'config', 'user.email', 'test@test.com');
+    await gitIn(tmpDir, 'config', 'user.name', 'Test');
+    await writeFile(path.join(tmpDir, 'f.txt'), 'original');
+    await gitIn(tmpDir, 'add', '-A');
+    await gitIn(tmpDir, 'commit', '-m', 'init');
+    await writeFile(path.join(tmpDir, 'f.txt'), 'modified');
+
+    const node: GitRepoNode = {
+      workTree: tmpDir,
+      gitDir: path.join(tmpDir, '.git'),
+      relativePath: '',
+      pathspec: [],
+      children: [],
+    };
+    const before = await readGitPorcelainStatus(node);
+    expect(before.some((e) => e.path === 'f.txt')).toBe(true);
+    expect(before.some((e) => e.xy === ' M')).toBe(true);
+
+    await gitIn(tmpDir, 'restore', 'f.txt');
+    const after = await readGitPorcelainStatus(node);
+    const left = porcelainPathsLeftSnapshot({
+      workspaceRoot: tmpDir,
+      node,
+      prev: before,
+      next: after,
+    });
+    expect(left).toContain('f.txt');
+  });
+});
