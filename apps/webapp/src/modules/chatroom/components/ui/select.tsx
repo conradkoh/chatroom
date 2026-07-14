@@ -7,14 +7,41 @@
 
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import { useCallback, useRef } from 'react';
 import type * as React from 'react';
 
+import { useOverlayDismissStack } from '../../hooks/useOverlayDismissStack';
 import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
 
-function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="chatroom-select" {...props} />;
+function Select({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  const dismissRef = useRef<() => void>(() => undefined);
+
+  dismissRef.current = () => {
+    onOpenChange?.(false);
+  };
+
+  const dismiss = useCallback(() => {
+    dismissRef.current();
+  }, []);
+
+  useOverlayDismissStack(open === true, dismiss);
+
+  return (
+    <SelectPrimitive.Root
+      data-slot="chatroom-select"
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    />
+  );
 }
 
 function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {

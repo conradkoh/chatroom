@@ -6,14 +6,43 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { useCallback, useRef } from 'react';
 import type * as React from 'react';
 
+import { useOverlayDismissStack } from '../../hooks/useOverlayDismissStack';
 import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
 
 import { cn } from '@/lib/utils';
 
-function Popover({ modal = false, ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="chatroom-popover" modal={modal} {...props} />;
+function Popover({
+  modal = false,
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+  const dismissRef = useRef<() => void>(() => undefined);
+
+  dismissRef.current = () => {
+    onOpenChange?.(false);
+  };
+
+  const dismiss = useCallback(() => {
+    dismissRef.current();
+  }, []);
+
+  useOverlayDismissStack(open === true, dismiss);
+
+  return (
+    <PopoverPrimitive.Root
+      data-slot="chatroom-popover"
+      modal={modal}
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    />
+  );
 }
 
 function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
