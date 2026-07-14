@@ -1,0 +1,144 @@
+# Git Workspace Change Source — Plan & Progress
+
+> **Status:** In progress — Slice 0 done; Slice 1 Done  
+> **Branch:** `release/v1.67.0`  
+> **Related:** [PR #947](https://github.com/conradkoh/chatroom/pull/947) (chokidar ignore + EMFILE fallback)  
+> **Owner:** Planner coordinates; Builder implements slice-by-slice
+
+## Problem Statement
+
+PR #947 aligned chokidar’s `ignored` callback with workspace ignore rules and added EMFILE → reconcile-only fallback. Large workspaces can still exhaust watchers because chokidar recursively watches real directories.
+
+When git is available, **git status (porcelain) is a better change oracle**: it respects ignore rules, includes untracked files, and does not require per-directory inotify watches. Nested git checkouts (submodules **and** nested `.git` directories) must be discovered and polled individually because a parent repo does not list files inside nested work trees.
+
+## Confirmed Decisions
+
+| #   | Topic                  | Decision                                                                                                              |
+| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1   | Trigger model          | **Poll porcelain only** (~1s default). No `.git` metadata watch acceleration. No workspace-wide chokidar in git mode. |
+| 2   | Nested repos           | **Discover all nested `.git`** (registered submodules and non-submodule nested repos).                                |
+| 3   | Workspace subdirectory | **Scope status with pathspec** to the workspace root (and nested repos under it), not the entire outer monorepo.      |
+
+## Target End State
+
+```mermaid
+flowchart TD
+  coord[WorkspaceFileTreeCoordinator]
+  factory[createWorkspaceChangeSource]
+  hier[discoverGitWorkspaceHierarchy]
+  gitSrc[GitWorkspaceChangeSource]
+  fsSrc[createWorkspaceFsWatcher]
+  apply[applyFsEvents → commitPaths]
+  recon[periodic reconcile / scanFileTree]
+
+  coord --> factory
+  factory -->|git ok| hier
+  hier --> gitSrc
+  factory -->|fallback| fsSrc
+  gitSrc -->|WorkspaceFsEvent[]| apply
+  fsSrc -->|WorkspaceFsEvent[]| apply
+  coord --> recon
+```
+
+```mermaid
+flowchart LR
+  root["workspace-scoped root repo"]
+  nestedA["nested .git under path A"]
+  nestedB["nested .git under path B"]
+  root --> nestedA
+  root --> nestedB
+```
+
+### Core invariants
+
+1. **Same event contract:** git and fs sources both emit `WorkspaceFsEvent[]` consumed by existing `applyFsEvents`.
+2. **Git mode does not start workspace-wide chokidar.**
+3. **Fallback:** missing git binary / not a git workspace / hierarchy discovery failure → existing fs watcher (+ EMFILE reconcile fallback).
+4. **Reconcile remains the correctness backstop** (`scanFileTree` stays filesystem-based; no git-only full scan in this feature).
+5. **Path relativity:** all event paths are relative to the daemon `workingDir` (workspace root), with nested-repo paths prefixed.
+
+## Slices
+
+| #   | Slice             | Deliverable                                                                                   | Status   |
+| --- | ----------------- | --------------------------------------------------------------------------------------------- | -------- |
+| 0   | Plan              | This document + confirmed decisions                                                           | **Done** |
+| 1   | Interfaces        | Hierarchy types, `WorkspaceChangeSource`, factory selecting git vs fs (fs wired; git stubbed) | **Done** |
+| 2   | Utilities + tests | Hierarchy discovery, porcelain parse, snapshot→events; unit tests                             | Pending  |
+| 3   | Wire-up           | Real git change source (poll); coordinator uses factory; PR to `release/v1.67.0`              | Pending  |
+
+---
+
+## Slice 1 — High-level interfaces
+
+**Goal:** Introduce the seam the coordinator will use, without implementing porcelain polling yet.
+
+**Files (planned):**
+
+- `packages/cli/src/infrastructure/services/workspace/workspace-change-source.ts` — shared handle/options + factory
+- `packages/cli/src/infrastructure/services/workspace/git-workspace-hierarchy.ts` — hierarchy types + `discoverGitWorkspaceHierarchy` stub returning structured “unavailable” / empty until Slice 2
+- Re-export / reuse `WorkspaceFsEvent` from `workspace-fs-watcher.ts` (do not duplicate)
+
+**Acceptance:**
+
+- Factory returns `{ mode: 'fs', source }` today when git path is not ready (or always fs until Slice 3), with types ready for `{ mode: 'git', source }`
+- Types compile; no coordinator behavior change yet (or minimal import-only if factory is unused until Slice 3)
+- Plan progress table updated when merged into the branch
+
+**Progress notes:** _(updated by planner after review)_
+
+- `git-workspace-hierarchy.ts`, `workspace-change-source.ts`, `workspace-change-source.test.ts` created; factory returns `{ mode: 'fs', source }` via stubbed hierarchy.
+
+---
+
+## Slice 2 — Low-level utilities + tests
+
+**Goal:** Implement and unit-test hierarchy discovery and porcelain snapshot diffing in isolation.
+
+**Planned APIs:**
+
+- `discoverGitWorkspaceHierarchy(workingDir) → GitWorkspaceHierarchy | null`
+  - Resolve whether `workingDir` is inside a git work tree
+  - Compute workspace-scoped root + pathspec relative to repo toplevel
+  - Walk / discover nested `.git` (file or directory) under the workspace; skip excluded dirs (`node_modules`, etc.)
+- `parseGitPorcelainZ(stdout) → GitPorcelainEntry[]`
+- `diffPorcelainSnapshots(prev, next) → WorkspaceFsEvent[]` (workspace-relative paths)
+- Pathspec helpers for `git -C <workTree> status --porcelain=v1 -z -uall -- <pathspec…>`
+
+**Acceptance:**
+
+- Tests cover: non-git dir, simple repo, nested `.git`, submodule-shaped nested repo, workspace subdirectory pathspec prefixing
+- No coordinator wiring yet
+
+**Progress notes:**
+
+- \_
+
+---
+
+## Slice 3 — Wire-up
+
+**Goal:** Polling git change source + coordinator uses `createWorkspaceChangeSource`.
+
+**Behavior:**
+
+- Default poll interval ~1000ms; coalesce bursts; map snapshot diffs to events
+- On ignore-file changes, existing reconcile path still applies
+- Preserve EMFILE handling for `mode: 'fs'`
+- Feature PR targeting `release/v1.67.0`
+
+**Progress notes:**
+
+- \_
+
+---
+
+## Out of scope
+
+- Replacing `scanFileTree` / full reconcile with git listing
+- Removing chokidar entirely
+- `.git` metadata watch acceleration (explicitly declined)
+- Backend delta/checkpoint protocol changes
+
+## Open questions
+
+None — decisions confirmed 2026-07-14.
