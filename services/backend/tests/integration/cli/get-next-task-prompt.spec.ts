@@ -423,7 +423,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       <next-steps>
       1. Work on the task above.
-      2. **When complete, you MUST run the handoff command** — this completes your work and delivers it to \`user\` (task from \`user\`):
+      2. **When complete, you MUST run the handoff command as your final action this turn** — this completes your work and delivers it to \`user\` (task from \`user\`):
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --next-role="user" << 'CHATROOM_HANDOFF_END'
@@ -432,7 +432,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Fill in the message using the matching template in \`<handoff-templates>\` below. Replace \`[Your message here]\` with the template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). **Do not end your turn without running handoff.**
+      Fill in the message using the matching template in \`<handoff-templates>\` below. Replace \`[Your message here]\` with the template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**
 
       </next-steps>
 
