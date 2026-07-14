@@ -1,6 +1,6 @@
 # Git Workspace Change Source — Plan & Progress
 
-> **Status:** Complete — All slices done. Rides `release/v1.67.0` / PR #950  
+> **Status:** Complete + hardened (P0–P3 reliability fixes on `feat/git-workspace-change-source`)  
 > **Branch:** `release/v1.67.0`  
 > **Related:** [PR #947](https://github.com/conradkoh/chatroom/pull/947) (chokidar ignore + EMFILE fallback)  
 > **Owner:** Planner coordinates; Builder implements slice-by-slice
@@ -59,12 +59,17 @@ flowchart LR
 
 ## Slices
 
-| #   | Slice             | Deliverable                                                                                   | Status   |
-| --- | ----------------- | --------------------------------------------------------------------------------------------- | -------- |
-| 0   | Plan              | This document + confirmed decisions                                                           | **Done** |
-| 1   | Interfaces        | Hierarchy types, `WorkspaceChangeSource`, factory selecting git vs fs (fs wired; git stubbed) | **Done** |
-| 2   | Utilities + tests | Hierarchy discovery, porcelain parse, snapshot→events; unit tests                             | **Done** |
-| 3   | Wire-up           | Real git change source (poll); coordinator uses factory; PR to `release/v1.67.0`              | **Done** |
+| #   | Slice                   | Deliverable                                                                                   | Status   |
+| --- | ----------------------- | --------------------------------------------------------------------------------------------- | -------- |
+| 0   | Plan                    | This document + confirmed decisions                                                           | **Done** |
+| 1   | Interfaces              | Hierarchy types, `WorkspaceChangeSource`, factory selecting git vs fs (fs wired; git stubbed) | **Done** |
+| 2   | Utilities + tests       | Hierarchy discovery, porcelain parse, snapshot→events; unit tests                             | **Done** |
+| 3   | Wire-up                 | Real git change source (poll); coordinator uses factory; PR to `release/v1.67.0`              | **Done** |
+| H1  | Hardening — porcelain   | Typed git errors, timeouts, porcelain-leave detection (reconcile, not unlink)                 | **Done** |
+| H2  | Hardening — poller      | `allSettled`, exponential backoff, baseline skip, `onPersistentFailure`                       | **Done** |
+| H3  | Hardening — coordinator | Git→fs degradation, startup logging, enriched error context, `gitRepoCount`                   | **Done** |
+| H4  | Hardening — tests       | Git-mode coordinator integration tests, porcelain `git restore` leave test, degrade mock      | **Done** |
+| H5  | Hardening — docs        | Reliability table, known limitations (this document)                                          | **Done** |
 
 ---
 
@@ -141,6 +146,26 @@ flowchart LR
 
 ---
 
+## Reliability hardening (P0–P3, 2026-07-15)
+
+| Area               | Behavior                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Git command errors | `readGitHead` / `readGitPorcelainStatus` throw `GitWorkspaceCommandError`; poller preserves state on failure           |
+| Porcelain leave    | `porcelainPathsLeftSnapshot` → `onNeedsReconcile` (e.g. `git restore`, `git clean`) — no false unlink                  |
+| Initial baseline   | `baselineEstablished` per node — first successful poll emits no events                                                 |
+| Backoff            | Exponential backoff on failures (cap 30s); `Promise.allSettled` per-node isolation                                     |
+| Runtime fallback   | After 3 consecutive failure ticks → `onPersistentFailure` → coordinator degrades git→fs (one-way)                      |
+| Observability      | Startup log: `[workspace-file-tree] change source: git (N repos)` or `fs`; enriched git error warnings                 |
+| Tests              | Coordinator git-mode delta + git-clean reconcile; porcelain `git restore` leave; poller unit tests for failure/backoff |
+
+## Known limitations
+
+1. **Gitignored untracked files** — not reported by porcelain; periodic `scanFileTree` reconcile covers them (same as fs watcher + ignore rules).
+2. **Porcelain leave without reconcile latency** — leave detection triggers reconcile asynchronously; tree may be briefly stale until reconcile completes.
+3. **No `git worktree` discovery** — secondary worktrees are not polled; only filesystem `.git` walk under workspace.
+4. **One-way degradation** — git→fs fallback does not re-upgrade until coordinator restarts.
+5. **Committed clean paths** — paths leaving porcelain after commit rely on HEAD-change reconcile (or periodic reconcile); no unlink emitted from diff.
+
 ## Out of scope
 
 - Replacing `scanFileTree` / full reconcile with git listing
@@ -150,4 +175,4 @@ flowchart LR
 
 ## Open questions
 
-None — decisions confirmed 2026-07-14.
+None — decisions confirmed 2026-07-14; hardening decisions resolved 2026-07-15.
