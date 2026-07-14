@@ -1,7 +1,6 @@
 /**
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
-// fallow-ignore-file duplication
 
 import { featureFlags } from '@workspace/backend/config/featureFlags.js';
 import {

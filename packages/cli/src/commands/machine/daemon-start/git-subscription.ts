@@ -32,6 +32,7 @@ import { pushGitStateEffect, type GitStateDeps } from './git-heartbeat.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
+import type { GitPrAction } from '../../../infrastructure/git/request-types.js';
 import { isGitContentAvailable } from '../../../infrastructure/git/result-predicates.js';
 import { runGh } from '../../../infrastructure/git/run-command.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
@@ -185,7 +186,7 @@ async function processPRDiff(deps: GitSubscriptionDeps, req: PendingRequest): Pr
  */
 async function processPRAction(deps: GitSubscriptionDeps, req: PendingRequest): Promise<void> {
   const prNumber = req.prNumber;
-  const action = req.prAction;
+  const action = req.prAction as GitPrAction;
   if (!prNumber || !action) {
     throw new Error('pr_action request missing prNumber or prAction');
   }
