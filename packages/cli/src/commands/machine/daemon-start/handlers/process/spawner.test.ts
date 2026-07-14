@@ -162,7 +162,7 @@ describe('spawnCommandProcess — new output flow', () => {
     expect(appendCalls).toHaveLength(0);
   });
 
-  it('does not appendOutput on exit when full sync was not requested', async () => {
+  it('appends output on exit even when full sync was not requested, if content exists', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
@@ -188,7 +188,7 @@ describe('spawnCommandProcess — new output flow', () => {
     const appendCalls = vi
       .mocked(deps.backend.mutation as any)
       .mock.calls.filter((c: any) => c[0] === 'mock-appendOutput');
-    expect(appendCalls).toHaveLength(0);
+    expect(appendCalls.length).toBeGreaterThan(0);
     expect(mockStore.destroy).toHaveBeenCalled();
   });
 
