@@ -37,7 +37,7 @@ function makeAcknowledgedRow() {
       agentHarness: 'cursor-sdk',
       workingDir: '/test',
       spawnedAgentPid: 42_001,
-      desiredState: 'running',
+      desiredState: 'running' as const,
     },
     participant: {
       lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
