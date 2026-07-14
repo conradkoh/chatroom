@@ -1,7 +1,8 @@
 import { Migrations } from '@convex-dev/migrations';
 
-import { components, internal } from './_generated/api.js';
-import type { DataModel } from './_generated/dataModel.js';
+import { components, internal } from './_generated/api';
+import type { DataModel } from './_generated/dataModel';
+import { effectiveSavedCommandScope } from './savedCommandValidation';
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
@@ -317,16 +318,21 @@ export const dropEmbeddedRecentCommits = migrations.define({
 
 /**
  * Migration: Backfill scope field for saved commands created before the scope feature.
- * Legacy rows have no scope field — they default to 'chatroom'.
+ * Legacy rows have no scope field — inferred via effectiveSavedCommandScope:
+ * chatroomId present → 'chatroom', otherwise → 'user'.
+ *
+ * Run via:
+ *   cd services/backend && pnpm migrate:saved-command-scope
+ *   # or: npx convex run migrations:run '{"fn":"migrations:backfillSavedCommandScope"}'
+ *   # or: pnpm migrate  (included in migrations:runAll)
+ *
  * Idempotent: rows with scope already set are skipped.
  */
 export const backfillSavedCommandScope = migrations.define({
   table: 'chatroom_savedCommands',
   migrateOne: async (_ctx, row) => {
-    const r = row as Record<string, unknown>;
-    if (r.scope === undefined) {
-      return { scope: 'chatroom' as const };
-    }
+    if (row.scope !== undefined) return;
+    return { scope: effectiveSavedCommandScope(row) };
   },
 });
 
