@@ -518,10 +518,13 @@
     },
     "apps/webapp/src/modules/chatroom/components/SavedCommandModal.tsx": {
       "crap_critical": {
-        "count": 2
+        "count": 3
       },
       "crap_high": {
-        "count": 2
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/components/SetupChecklistModal.tsx": {
@@ -990,6 +993,11 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/utils/savedCommandValidation.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/utils/showNotification.ts": {
       "crap_moderate": {
         "count": 1
@@ -1087,6 +1095,11 @@
     },
     "apps/webapp/src/modules/chatroom/workspace/file-renderers/useHighlighter.ts": {
       "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTreeDeltaSync.ts": {
+      "crap_high": {
         "count": 1
       }
     },
@@ -1327,8 +1340,11 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/session-subscriber.ts": {
+      "crap_high": {
+        "count": 1
+      },
       "crap_moderate": {
-        "count": 3
+        "count": 2
       }
     },
     "packages/cli/src/commands/machine/daemon-start/file-content-fulfillment.ts": {
@@ -1352,7 +1368,7 @@
         "count": 4
       },
       "crap_moderate": {
-        "count": 3
+        "count": 2
       }
     },
     "packages/cli/src/commands/machine/daemon-start/handlers/command-runner.ts": {
@@ -1381,11 +1397,6 @@
         "count": 4
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/native-ready-invariant.ts": {
-      "crap_moderate": {
-        "count": 2
-      }
-    },
     "packages/cli/src/commands/machine/daemon-start/native-task-delivery-coordinator.ts": {
       "crap_moderate": {
         "count": 1
@@ -1396,12 +1407,25 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/restart-orchestrator.ts": {
+    "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
       "crap_high": {
         "count": 1
       },
       "crap_moderate": {
-        "count": 3
+        "count": 2
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/refresh-models-outcome.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/restart-orchestrator.ts": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
       }
     },
     "packages/cli/src/commands/machine/daemon-start/task-monitor-logic.ts": {
@@ -1415,14 +1439,6 @@
     "packages/cli/src/commands/machine/daemon-start/task-monitor.ts": {
       "crap_moderate": {
         "count": 1
-      }
-    },
-    "packages/cli/src/commands/machine/daemon-start/observed-sync.ts": {
-      "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 2
       }
     },
     "packages/cli/src/commands/machine/daemon-start/workspace-cache.ts": {
@@ -1590,10 +1606,10 @@
     },
     "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts": {
       "crap_high": {
-        "count": 11
+        "count": 13
       },
       "crap_moderate": {
-        "count": 19
+        "count": 17
       }
     },
     "packages/cli/src/infrastructure/services/harness-spawning/rate-limiter.ts": {
@@ -1666,8 +1682,11 @@
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts": {
+      "crap_critical": {
+        "count": 1
+      },
       "crap_moderate": {
-        "count": 11
+        "count": 10
       }
     },
     "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
@@ -1717,6 +1736,39 @@
     "packages/cli/src/infrastructure/services/workspace/command-discovery.ts": {
       "crap_moderate": {
         "count": 5
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/git-workspace-change-source.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/git-workspace-hierarchy.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/git-workspace-porcelain.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 2
       }
     },
     "packages/cli/src/infrastructure/services/workspace/workspace-path-security.ts": {
@@ -1988,7 +2040,12 @@
       }
     },
     "services/backend/convex/savedCommands.ts": {
-      "crap_high": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/savedCommandsAuth.ts": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -2227,7 +2284,6 @@
     "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTree.ts:untested risk",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
-    "packages/cli/src/domain/native-integration/predicates.ts:high impact",
     "services/backend/prompts/cli/index.ts:dead code",
     "packages/cli/src/commands/auth-login/index.ts:dead code",
     "services/backend/prompts/utils/env.ts:dead code",
@@ -2241,10 +2297,12 @@
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
+    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",
     "services/backend/modules/auth/accessControl.ts:dead code",
-    "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "packages/cli/src/infrastructure/machine/crash-loop-tracker.ts:dead code",
+    "packages/cli/src/infrastructure/git/run-command.ts:high impact",
+    "packages/cli/src/infrastructure/services/workspace/workspace-fs-watcher.ts:high impact",
     "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
     "apps/webapp/src/modules/chatroom/workspace/components/explorerDialogInputUtils.ts:untested risk",
     "services/backend/convex/participants.ts:complexity",
@@ -2256,20 +2314,18 @@
     "apps/webapp/src/modules/chatroom/direct-harness/utils/sessionStatus.ts:high impact",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts:untested risk",
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts:dead code",
-    "packages/cli/src/infrastructure/git/run-command.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
+    "services/backend/convex/machines.ts:complexity",
     "packages/cli/src/domain/agent-lifecycle/policies/terminal-provider-error.ts:untested risk",
-    "packages/cli/src/infrastructure/services/workspace/workspace-fs-watcher.ts:untested risk",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
     "apps/webapp/src/modules/chatroom/triggers/fileReferenceQuery.ts:untested risk",
+    "packages/cli/src/commands/context/index.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
-    "packages/cli/src/commands/context/index.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx:complexity",
     "apps/webapp/src/modules/checklist/use-checklist-sync.ts:complexity",
     "apps/webapp/src/modules/presentation/presentation-controls.tsx:complexity",
