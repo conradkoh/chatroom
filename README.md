@@ -54,6 +54,7 @@ pnpm dev
 
 - Web app: **http://localhost:3000**
 - Convex dev sync runs as part of the backend package’s dev script.
+- After pulling schema changes, run `pnpm migrate` while `convex dev` is running (see [AGENTS.md](AGENTS.md#database-migrations)).
 
 ### 4. Quality checks (optional)
 

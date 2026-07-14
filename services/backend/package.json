@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 convex dev",
     "deploy": "convex deploy",
-    "migrate": "convex run migrations:runAll",
+    "migrate": "bun ../../scripts/migrate.ts",
     "migrate:saved-command-scope": "convex run migrations:run '{\"fn\":\"migrations:backfillSavedCommandScope\"}'",
     "typecheck": "tsc --build",
     "test": "vitest run",

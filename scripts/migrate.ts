@@ -12,7 +12,10 @@
  * If interrupted, they resume from where they left off on the next run.
  *
  * Usage:
- *   pnpm run migrate
+ *   pnpm migrate
+ *
+ * Run while `convex dev` is already running — no dev server restart required.
+ * Agents: use this one-off command after schema changes that include backfill migrations.
  *
  * Environment:
  *   CONVEX_DEPLOY_KEY  — when set, targets production; otherwise targets local dev
@@ -32,7 +35,7 @@ const isLocal = !process.env.CONVEX_DEPLOY_KEY;
 
 if (isLocal) {
   console.log('🏠 Running migrations against LOCAL development server.');
-  console.log('   Make sure `convex dev` is running in another terminal.\n');
+  console.log('   Requires `convex dev` to be running (no restart needed).\n');
 } else {
   console.log('☁️  Running migrations against PRODUCTION deployment.\n');
 }

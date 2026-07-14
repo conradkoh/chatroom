@@ -122,6 +122,20 @@ pnpm dev
 pnpm setup
 ```
 
+### Database migrations
+
+Run pending Convex data migrations as a **one-off command** while `pnpm dev` is already running — do not restart the dev server.
+
+```bash
+# From repo root (local dev — same logic as production CI)
+pnpm migrate
+```
+
+- Uses `scripts/migrate-lib.ts` → `migrations:runAll` (identical path to `.github/workflows/deploy-prod.yml`).
+- Local when `CONVEX_DEPLOY_KEY` is unset; production when set (CI only).
+- Idempotent — safe to re-run.
+- Target a single migration: `cd services/backend && pnpm migrate:saved-command-scope`
+
 ### Testing
 
 ```bash
