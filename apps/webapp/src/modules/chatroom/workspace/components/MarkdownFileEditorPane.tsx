@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen } from 'lucide-react';
+import { BookOpen, FileWarning } from 'lucide-react';
 import { memo, useCallback, useRef, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 
@@ -38,8 +38,18 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
     filePath,
     onOpenSelectionOnRemote
   );
-  const { content, setContent, isDirty, contentRef, save, saving, error, isLoading } =
+  const { content, setContent, isDirty, contentRef, save, saving, error, isLoading, encoding } =
     useMarkdownFileEditor({ machineId, workingDir, filePath, initialEmpty });
+
+  if (encoding === 'binary') {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-chatroom-text-muted p-8">
+        <FileWarning size={40} className="text-chatroom-text-muted/50" />
+        <div className="text-sm">Binary file — cannot be displayed as text</div>
+        <div className="text-xs text-chatroom-text-muted/70">{filePath}</div>
+      </div>
+    );
+  }
 
   const handleKeyDown = useCallback(
     // fallow-ignore-next-line complexity

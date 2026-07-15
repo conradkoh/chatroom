@@ -16,6 +16,7 @@ import { api } from '../../../api.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import { resolvePathWithinWorkspace } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';
+import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
 
 /** Max file content size (500KB). */
 const MAX_CONTENT_BYTES = 500 * 1024;
@@ -42,8 +43,6 @@ function isENOENT(error: unknown): boolean {
   );
 }
 
-import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
-
 function gzipPlainText(text: string): string {
   return gzipSync(Buffer.from(text)).toString('base64');
 }
@@ -61,7 +60,7 @@ function fulfillGzippedContentEffect(
   truncated: boolean,
   encoding: 'utf8' | 'binary' = 'utf8'
 ): Effect.Effect<void> {
-  const content = encoding === 'utf8' ? gzipPlainText(plainText) : '';
+  const content = gzipPlainText(plainText);
   return Effect.catchAll(
     Effect.tryPromise(() =>
       session.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
