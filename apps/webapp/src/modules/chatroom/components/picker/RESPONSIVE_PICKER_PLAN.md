@@ -89,12 +89,13 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 
 ### Lower priority (small / contextual enums)
 
-| Component                | Path                                        | Status | Notes                                          |
-| ------------------------ | ------------------------------------------- | ------ | ---------------------------------------------- |
-| CreateChatroomForm team  | `components/CreateChatroomForm.tsx`         | done   | Search + option row; preserves Enter-to-submit |
-| AgentSettingsModal tabs  | `components/AgentSettingsModal.tsx`         | done   | No search (6 tabs); `sm:hidden` only           |
-| PullRequestsPanel filter | `workspace/.../PullRequestsPanel.tsx`       | done   | No search (3 options)                          |
-| RightSplitPanel mode     | `explorer-split-panels/RightSplitPanel.tsx` | skip   | 2 modes, md+ only panel                        |
+| Component                | Path                                        | Status | Notes                                                     |
+| ------------------------ | ------------------------------------------- | ------ | --------------------------------------------------------- |
+| CreateChatroomForm team  | `components/CreateChatroomForm.tsx`         | done   | Search + option row; preserves Enter-to-submit            |
+| AgentControls model      | `components/AgentControls.tsx`              | done   | ResponsivePickerShell with PickerSearch + PickerOptionRow |
+| AgentSettingsModal tabs  | `components/AgentSettingsModal.tsx`         | done   | No search (6 tabs); `sm:hidden` only                      |
+| PullRequestsPanel filter | `workspace/.../PullRequestsPanel.tsx`       | done   | No search (3 options)                                     |
+| RightSplitPanel mode     | `explorer-split-panels/RightSplitPanel.tsx` | skip   | 2 modes, md+ only panel                                   |
 
 ### Refactor (leave it better)
 
@@ -113,6 +114,23 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 | 4     | Builder | Explorer / direct-harness selects                     | done   |
 | 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | done   |
 | 6     | Planner | Review, PR to `release/v1.65.7`                       | done   |
+
+## Mobile drawer contract (2026-07-15)
+
+Prerequisites:
+
+- `viewportFit: 'cover'` in `apps/webapp/src/app/layout.tsx`
+- `getMobileDrawerContentStyle(keyboardInsetPx)` for safe-area + keyboard insets
+- `MOBILE_DRAWER_*` constants in `mobileDrawerLayout.ts`
+
+Child structure inside `ResponsivePickerShell` (mobile):
+
+1. `PickerPanelHeader?` — `shrink-0`
+2. `PickerSearch?` — `shrink-0` (no autoFocus on mobile)
+3. `PickerScrollBody` — **required** for scrollable lists (`data-picker-scroll-body`)
+4. Footer actions? — `shrink-0`
+
+Do NOT use raw `div.overflow-y-auto` for scroll regions — they bypass drawer flex scroll.
 
 ## Testing strategy
 

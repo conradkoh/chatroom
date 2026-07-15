@@ -1078,7 +1078,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       contentClassName="w-[420px]"
                       trigger={
                         <button
+                          type="button"
                           disabled={isBusy || !displayHarness}
+                          aria-label="Select model"
                           className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                           title="Select Model"
                         >
