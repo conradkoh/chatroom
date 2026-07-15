@@ -27,3 +27,11 @@ export async function copyFullPathToClipboard(
   if (!workingDir) return;
   await copyTextToClipboard(joinWorkingDirPath(workingDir, relativePath), 'Copied full path');
 }
+
+export async function copyFileContentToClipboard(
+  content: string,
+  options?: { truncated?: boolean }
+): Promise<void> {
+  const message = options?.truncated ? 'Copied file content (truncated)' : 'Copied file content';
+  await copyTextToClipboard(content, message);
+}

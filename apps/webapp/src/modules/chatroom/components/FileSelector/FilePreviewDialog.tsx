@@ -3,8 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
-  Check,
-  Copy,
   Loader2,
   ChevronRight,
   ChevronDown,
@@ -16,6 +14,12 @@ import {
   Code2,
   Files,
 } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+import { isBinaryFile } from './binaryDetection';
+import { FileCopyActionsMenu } from './FileCopyActionsMenu';
+import { FileTypeIcon } from './fileIcons';
+import type { FileEntry } from './useFileSelector';
 import {
   isMarkdownFile,
   isCsvFile,
@@ -25,12 +29,7 @@ import {
   CsvTableRenderer,
   SyntaxHighlighter,
 } from '../../workspace/file-renderers';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useFileContent } from '../../workspace/hooks/useFileContent';
-
-import { FileTypeIcon } from './fileIcons';
-import { isBinaryFile } from './binaryDetection';
-import type { FileEntry } from './useFileSelector';
 
 import {
   FixedModal,
@@ -423,7 +422,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 }: FilePreviewDialogProps) {
   const isOpen = !!filePath;
 
-  const [copied, setCopied] = useState(false);
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
   const [viewMode, setViewMode] = useState<FileViewMode>(() => getDefaultViewMode(filePath ?? ''));
 
@@ -436,14 +434,18 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isCsv = filePath ? isCsvFile(filePath) : false;
   const hasToggle = isMarkdown || isCsv;
 
-  const handleCopyPath = useCallback(async () => {
-    if (!filePath) return;
-    try {
-      await navigator.clipboard.writeText(filePath);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  }, [filePath]);
+  // Fetch content result for header metadata (with transparent decompression)
+  const contentResult = useFileContent(
+    machineId && workingDir && filePath ? { machineId, workingDir, filePath } : 'skip'
+  );
+
+  const isBinary = filePath ? isBinaryFile(filePath) : false;
+  const canCopyContent = !!contentResult && !isBinary;
+  const contentDisabledReason = isBinary
+    ? 'Binary files cannot be copied as text'
+    : !contentResult
+      ? 'File content is loading'
+      : undefined;
 
   // Close mobile tree when selecting a file
   const handleMobileSelectFile = useCallback(
@@ -452,11 +454,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
       setMobileTreeOpen(false);
     },
     [onSelectFile]
-  );
-
-  // Fetch content result for header metadata (with transparent decompression)
-  const contentResult = useFileContent(
-    machineId && workingDir && filePath ? { machineId, workingDir, filePath } : 'skip'
   );
 
   return (
@@ -478,7 +475,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             {/* Mobile tree toggle button */}
             <button
               onClick={() => setMobileTreeOpen((prev) => !prev)}
-              className="sm:hidden text-chatroom-text-muted hover:text-chatroom-text-primary p-1 shrink-0"
+              className="sm:hidden text-chatroom-text-muted hover:text-chatroom-text-primary min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
               title="Browse files"
             >
               <Menu className="h-4 w-4" />
@@ -499,13 +496,16 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 {contentResult.content.split('\n').length} lines
               </span>
             )}
-            <button
-              onClick={handleCopyPath}
-              className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1 shrink-0"
-              title="Copy file path"
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            </button>
+            {filePath && (
+              <FileCopyActionsMenu
+                relativePath={filePath}
+                workingDir={workingDir}
+                content={contentResult?.content ?? null}
+                truncated={contentResult?.truncated}
+                contentDisabled={!canCopyContent}
+                contentDisabledReason={contentDisabledReason}
+              />
+            )}
             {hasToggle && (
               <button
                 onClick={() =>
@@ -513,7 +513,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                     prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source'
                   )
                 }
-                className={`p-1 shrink-0 transition-colors ${
+                className={`min-w-8 min-h-8 flex items-center justify-center shrink-0 transition-colors rounded-sm ${
                   viewMode !== 'source'
                     ? 'text-chatroom-accent'
                     : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
@@ -539,7 +539,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                   onOpenInExplorer(filePath);
                   onClose();
                 }}
-                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1 shrink-0"
+                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
                 title="Open in Explorer"
               >
                 <Files className="h-3.5 w-3.5" />
