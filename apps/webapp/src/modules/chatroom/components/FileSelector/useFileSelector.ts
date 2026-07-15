@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
@@ -38,6 +38,8 @@ function readRecentFiles(storageKey: string) {
 export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSelectorOptions) {
   const { activeDialog, openDialog, closeDialog } = useCommandDialog();
   const open = activeDialog === 'file-selector';
+  const openRef = useRef(open);
+  openRef.current = open;
   const setOpen = useCallback(
     (val: boolean) => (val ? openDialog('file-selector') : closeDialog()),
     [openDialog, closeDialog]
@@ -57,6 +59,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   useEffect(() => {
     if (!open || !hasWorkspace) return;
     const frame = requestAnimationFrame(() => {
+      if (!openRef.current) return;
       refresh();
     });
     return () => cancelAnimationFrame(frame);

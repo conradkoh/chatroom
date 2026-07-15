@@ -27,11 +27,15 @@ export const COMMAND_DIALOG_CONTENT_CLASSES = [
   chatroomIndustrialPanelBorderClassName,
   chatroomIndustrialSurfaceClassName,
   'overflow-hidden',
-  // Animation: open instantly (duration-0), close with smooth fade+zoom-out
+  // Animation: open instantly (duration-0), close with smooth fade+zoom-out.
+  // fill-mode-forwards keeps exit opacity/transform after animation — required with
+  // forceMount or the dialog flashes back to full visibility when the animation ends.
   'data-[state=open]:animate-in data-[state=closed]:animate-out',
   'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
   'data-[state=closed]:zoom-out-95',
   'data-[state=open]:duration-0 data-[state=closed]:duration-200',
+  'data-[state=closed]:fill-mode-forwards',
+  'data-[state=closed]:pointer-events-none',
   // Overscroll behavior: prevent scroll chaining on mobile
   'overscroll-contain',
 ] as const;
