@@ -124,6 +124,27 @@ function DropdownMenuCheckboxItem({
   );
 }
 
+function DropdownMenuLabel({
+  className,
+  inset,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Label> & {
+  inset?: boolean;
+}) {
+  return (
+    <DropdownMenuPrimitive.Label
+      data-slot="chatroom-dropdown-menu-label"
+      data-inset={inset}
+      className={cn(
+        'px-2.5 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted select-none',
+        inset && 'pl-8',
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
 function DropdownMenuSeparator({
   className,
   ...props
@@ -185,6 +206,7 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,

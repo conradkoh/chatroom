@@ -43,12 +43,15 @@ describe('FileCopyActionsMenu', () => {
     expect(screen.getByRole('button', { name: /copy file/i })).toBeInTheDocument();
   });
 
-  it('shows all four menu items when dropdown is opened', () => {
-    render(<FileCopyActionsMenu {...defaultProps} />);
+  it('shows all four menu items with section labels when dropdown is opened', () => {
+    render(<FileCopyActionsMenu {...defaultProps} onOpenInExplorer={vi.fn()} />);
     openDropdown();
+    expect(screen.getByText('Path')).toBeInTheDocument();
+    expect(screen.getByText('Content')).toBeInTheDocument();
     expect(screen.getByText('Copy File Name')).toBeInTheDocument();
     expect(screen.getByText('Copy Relative Path')).toBeInTheDocument();
     expect(screen.getByText('Copy Full Path')).toBeInTheDocument();
+    expect(screen.getByText('Open in Explorer')).toBeInTheDocument();
     expect(screen.getByText('Copy File Content')).toBeInTheDocument();
   });
 
@@ -158,6 +161,23 @@ describe('FileCopyActionsMenu', () => {
     render(<FileCopyActionsMenu {...defaultProps} />);
     openDropdown();
     expect(screen.queryByText('Open in Explorer')).not.toBeInTheDocument();
+  });
+
+  it('renders Path and Content section labels', () => {
+    render(<FileCopyActionsMenu {...defaultProps} onOpenInExplorer={vi.fn()} />);
+    openDropdown();
+    expect(screen.getByText('Path')).toBeInTheDocument();
+    expect(screen.getByText('Content')).toBeInTheDocument();
+  });
+
+  it('omits Content section when showFileContent is false', () => {
+    render(
+      <FileCopyActionsMenu {...defaultProps} showFileContent={false} onOpenInExplorer={vi.fn()} />
+    );
+    openDropdown();
+    expect(screen.getByText('Path')).toBeInTheDocument();
+    expect(screen.queryByText('Content')).not.toBeInTheDocument();
+    expect(screen.getByText('Open in Explorer')).toBeInTheDocument();
   });
 });
 

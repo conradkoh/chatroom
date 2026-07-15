@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/modules/chatroom/components/ui/dropdown-menu';
@@ -153,6 +154,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Path</DropdownMenuLabel>
         {showFileName && (
           <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFileName}>
             Copy File Name
@@ -164,20 +166,21 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFullPath} disabled={!workingDir}>
           Copy Full Path
         </WorkspaceDropdownMenuItem>
-        {showFileContent && (
-          <WorkspaceDropdownMenuItem
-            icon={Copy}
-            onSelect={handleCopyContent}
-            disabled={contentDisabled || !content}
-          >
-            {fileContentLabel}
+        {onOpenInExplorer && (
+          <WorkspaceDropdownMenuItem icon={FolderOpen} onSelect={onOpenInExplorer}>
+            Open in Explorer
           </WorkspaceDropdownMenuItem>
         )}
-        {onOpenInExplorer && (
+        {showFileContent && (
           <>
             <DropdownMenuSeparator />
-            <WorkspaceDropdownMenuItem icon={FolderOpen} onSelect={onOpenInExplorer}>
-              Open in Explorer
+            <DropdownMenuLabel>Content</DropdownMenuLabel>
+            <WorkspaceDropdownMenuItem
+              icon={Copy}
+              onSelect={handleCopyContent}
+              disabled={contentDisabled || !content}
+            >
+              {fileContentLabel}
             </WorkspaceDropdownMenuItem>
           </>
         )}
