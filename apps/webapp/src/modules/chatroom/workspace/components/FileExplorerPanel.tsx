@@ -25,12 +25,12 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
+import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
+import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
-import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
-import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -182,11 +182,13 @@ export const FileExplorerPanel = memo(
         type: 'file' | 'directory';
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
-      const { openAtPointer: openContextMenuAtPointer, contextMenu } =
-        useWorkspaceFileContextMenu();
-
-      const { trackContextMenuFile, menuContentState, canCopyMenuFileContent } =
-        useWorkspaceFileMenuContent(machineId ?? null, workingDir ?? null);
+      const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
+        machineId ?? null,
+        workingDir ?? null
+      );
+      const { openAtPointer: openContextMenuAtPointer, contextMenu } = useWorkspaceFileContextMenu(
+        getMenuContentStateForPath
+      );
 
       const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
         machineId: machineId ?? '',
@@ -248,7 +250,6 @@ export const FileExplorerPanel = memo(
               relativePath: path,
               workingDir,
               nodeType: target.type,
-              ...(isFile ? menuContentState : {}),
             },
             handlers: {
               onOpenFileOnRemote: isFile ? () => void openFileOnRemote(path) : undefined,
@@ -260,14 +261,7 @@ export const FileExplorerPanel = memo(
             visibility,
           };
         },
-        [
-          workingDir,
-          menuContentState,
-          canCopyMenuFileContent,
-          openFileOnRemote,
-          openRenameDialog,
-          trackContextMenuFile,
-        ]
+        [workingDir, openFileOnRemote, openRenameDialog, trackContextMenuFile]
       );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.

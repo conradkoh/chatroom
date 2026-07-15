@@ -8,6 +8,11 @@ export interface WorkspaceFileMenuState {
   fileContentLabel?: string;
 }
 
+export type WorkspaceFileMenuContentState = Pick<
+  WorkspaceFileMenuState,
+  'content' | 'contentTruncated' | 'contentDisabled' | 'fileContentLabel'
+>;
+
 export interface WorkspaceFileMenuHandlers {
   onOpenInExplorer?: () => void;
   onOpenFileOnRemote?: () => void;

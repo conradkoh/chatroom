@@ -3,8 +3,8 @@
 import { memo, useCallback } from 'react';
 
 import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
-import type { FileTab } from '../hooks/useFileTabs';
 import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
+import type { FileTab } from '../hooks/useFileTabs';
 import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,11 +36,11 @@ export const FileTabBar = memo(function FileTabBar({
   onToggleExpanded,
   onOpenFileOnRemote,
 }: FileTabBarProps) {
-  const { openAtPointer, contextMenu } = useWorkspaceFileContextMenu();
-  const { trackContextMenuFile, menuContentState } = useWorkspaceFileMenuContent(
+  const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
     machineId,
     workingDir
   );
+  const { openAtPointer, contextMenu } = useWorkspaceFileContextMenu(getMenuContentStateForPath);
 
   const handleCloseOthers = useCallback(
     (path: string) => {
@@ -66,7 +66,7 @@ export const FileTabBar = memo(function FileTabBar({
             onContextMenu={(filePath, event) => {
               trackContextMenuFile(filePath);
               openAtPointer(event, {
-                state: { relativePath: filePath, workingDir, ...menuContentState },
+                state: { relativePath: filePath, workingDir },
                 handlers: {
                   onOpenFileOnRemote: onOpenFileOnRemote
                     ? () => void onOpenFileOnRemote(filePath)

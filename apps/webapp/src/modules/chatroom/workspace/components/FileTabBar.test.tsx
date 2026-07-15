@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FileTabBar } from './FileTabBar';
 import { RightPaneTabBar } from './RightPaneTabBar';
 import { WORKSPACE_HEADER_ROW_HEIGHT_CLASS } from './WorkspaceTabBar';
+import { useFileContent } from '../hooks/useFileContent';
 import type { FileTab } from '../hooks/useFileTabs';
 import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
 
@@ -125,6 +126,34 @@ describe('FileTabBar', () => {
 
     const copyFullPathItem = await screen.findByRole('menuitem', { name: /copy full path/i });
     expect(copyFullPathItem).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('shows the correct content label when switching tab context menus', async () => {
+    const mixedTabs: FileTab[] = [
+      { filePath: 'data.json', name: 'data.json', isPinned: true },
+      { filePath: 'readme.md', name: 'readme.md', isPinned: true },
+    ];
+
+    vi.mocked(useFileContent).mockImplementation((args) => {
+      if (args === 'skip') return null;
+      if (args.filePath === 'data.json') {
+        return { content: '{"a":1}', encoding: 'utf-8', truncated: false, fetchedAt: 1 };
+      }
+      if (args.filePath === 'readme.md') {
+        return { content: '# Hello', encoding: 'utf-8', truncated: false, fetchedAt: 2 };
+      }
+      return null;
+    });
+
+    render(<FileTabBar {...defaultProps} tabs={mixedTabs} activeTabPath="readme.md" />);
+
+    fireEvent.contextMenu(screen.getByTitle('data.json'));
+    fireEvent.contextMenu(screen.getByTitle('readme.md'));
+
+    expect(await screen.findByRole('menuitem', { name: /copy as markdown/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: /^copy file content$/i })
+    ).not.toBeInTheDocument();
   });
 
   it('renders a wrap-capable tab bar container', () => {
