@@ -13,7 +13,7 @@ import { mutation } from '../../_generated/server';
 import type { MutationCtx } from '../../_generated/server';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { trySyncAgenticQueryFromHarnessTurn } from '../../daemon/directHarness/agenticQuerySync';
+import { trySyncAgenticQueryFromHarnessTurn } from '../../daemon/agenticQuery/syncFromHarnessTurn';
 
 async function loadQueryWithAccess(
   ctx: MutationCtx,
