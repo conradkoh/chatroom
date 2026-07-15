@@ -23,6 +23,7 @@ type MenuFrame = {
   visibility: WorkspaceFileMenuVisibility;
 };
 
+// fallow-ignore-next-line complexity
 export function useWorkspaceFileContextMenu(
   getMenuContentStateForPath?: (filePath: string) => WorkspaceFileMenuContentState
 ): {

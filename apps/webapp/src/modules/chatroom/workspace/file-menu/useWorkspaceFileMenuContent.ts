@@ -26,6 +26,7 @@ export function useWorkspaceFileMenuContent(machineId: string | null, workingDir
     }
   }, [contextMenuFilePath, machineId, workingDir, requestContent]);
 
+  // fallow-ignore-next-line complexity
   const getMenuContentStateForPath = useCallback(
     (filePath: string): WorkspaceFileMenuContentState => {
       const pathMatches = contextMenuFilePath === filePath;

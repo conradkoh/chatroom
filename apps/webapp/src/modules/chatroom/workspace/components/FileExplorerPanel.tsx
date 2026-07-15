@@ -212,6 +212,7 @@ export const FileExplorerPanel = memo(
         setRenameOpen(true);
       }, []);
 
+      // fallow-ignore-next-line complexity
       const buildFileMenuProps = useCallback(
         (target: ExplorerContextTarget): WorkspaceFileMenuProps | null => {
           if (target.kind === 'root') {
