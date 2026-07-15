@@ -469,6 +469,21 @@ const typography = {
 6. Don't use circles (use squares)
 7. Don't soften borders below 2px for dividers
 
+## Overlay stacking
+
+Z-index layers for portaled UI. SSOT: `apps/webapp/src/modules/chatroom/components/shared/overlayLayers.ts`.
+
+| Layer         | Constant          | Value   | Use                                             |
+| ------------- | ----------------- | ------- | ----------------------------------------------- |
+| Layout chrome | `Z_LAYOUT_CHROME` | z-30    | Mobile nav scrims                               |
+| Panel         | `Z_PANEL`         | z-40    | Side panels, light backdrops                    |
+| Modal         | `Z_MODAL`         | z-50    | Dialogs, FixedModal base                        |
+| Floating      | `Z_FLOATING`      | z-[100] | Portaled menus, popovers, drawers inside modals |
+
+**Rule:** Any portaled interactive UI that opens _inside_ a modal must use `Z_FLOATING`. `FixedModal` uses inline `zIndex` (50 + 10× stack depth); float layer stays above via z-[100].
+
+**Responsive pickers:** Use `ResponsivePickerShell` for select-style pickers — Popover on desktop, Drawer on mobile — so mobile gets drawer UX consistently.
+
 ## Responsive Behavior
 
 ### Breakpoints

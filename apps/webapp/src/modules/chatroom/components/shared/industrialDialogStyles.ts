@@ -3,6 +3,8 @@
  * See docs/application/design/theme.md — sharp corners, 2px borders, chatroom palette.
  */
 
+import { Z_FLOATING } from './overlayLayers';
+
 const chatroomIndustrialBorderClassName = 'border-2 border-chatroom-border-strong';
 
 export const chatroomIndustrialPanelBorderClassName = 'border-2 border-chatroom-border';
@@ -49,7 +51,7 @@ export const chatroomPortaledMenuSurfaceClassName =
 
 /**
  * Base classes for portaled menu panels — z-index above FixedModal (BASE 50 + stack step 10).
- * Shared so popover/select/dropdown stay clickable inside modals.
+ * Z_FLOATING from overlayLayers.ts (see docs/application/design/theme.md § Overlay stacking).
  */
 // fallow-ignore-next-line unused-export
-export const chatroomPortaledMenuFloatingClassName = `z-[100] pointer-events-auto ${chatroomPortaledMenuSurfaceClassName}`;
+export const chatroomPortaledMenuFloatingClassName = `${Z_FLOATING} pointer-events-auto ${chatroomPortaledMenuSurfaceClassName}`;
