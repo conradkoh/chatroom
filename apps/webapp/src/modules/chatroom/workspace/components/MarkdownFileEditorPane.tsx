@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen, Copy } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import { memo, useCallback, useRef, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 
@@ -10,6 +10,7 @@ import { useMarkdownFileEditor } from '../hooks/useMarkdownFileEditor';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { getFileName } from '@/lib/pathUtils';
+import { FileContentActionBar } from './FileContentActionBar';
 import { cn } from '@/lib/utils';
 
 const EMPTY_FILE_PLACEHOLDER = 'This file is empty.';
@@ -81,44 +82,39 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
       onKeyDown={handleKeyDown}
     >
       {selectionMenu}
-      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-chatroom-border shrink-0">
-        <span className="text-xs text-chatroom-text-secondary truncate">
-          {getFileName(filePath)}
-          {isDirty ? ' *' : ''}
-        </span>
-        {saving && (
-          <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wide">
-            Saving…
-          </span>
-        )}
-        <div className="flex-1" />
-        <button
-          type="button"
-          className={cn(
-            'flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors cursor-pointer',
-            'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
-          )}
-          onClick={() => void handleCopyMarkdown()}
-          title="Copy as markdown"
-        >
-          <Copy size={14} />
-          Copy
-        </button>
-        {onOpenPreview && (
-          <button
-            type="button"
-            className={cn(
-              'flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors cursor-pointer',
-              'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+      <FileContentActionBar
+        copyLabel="Copy as markdown"
+        onCopy={() => void handleCopyMarkdown()}
+        leading={
+          <>
+            <span className="text-xs text-chatroom-text-secondary truncate">
+              {getFileName(filePath)}
+              {isDirty ? ' *' : ''}
+            </span>
+            {saving && (
+              <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wide">
+                Saving…
+              </span>
             )}
-            onClick={() => onOpenPreview(filePath)}
-            title="Open markdown preview"
-          >
-            <BookOpen size={14} />
-            Preview
-          </button>
-        )}
-      </div>
+          </>
+        }
+        trailing={
+          onOpenPreview ? (
+            <button
+              type="button"
+              className={cn(
+                'flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors cursor-pointer',
+                'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+              )}
+              onClick={() => onOpenPreview(filePath)}
+              title="Open markdown preview"
+            >
+              <BookOpen size={14} />
+              Preview
+            </button>
+          ) : undefined
+        }
+      />
 
       {error && (
         <div className="px-4 py-2 text-xs text-chatroom-status-error border-b border-chatroom-border">

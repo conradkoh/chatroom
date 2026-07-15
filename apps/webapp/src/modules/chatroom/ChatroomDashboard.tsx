@@ -290,6 +290,7 @@ const ExplorerContent = memo(function ExplorerContent({
     <FileTabBar
       tabs={fileTabs.tabs}
       activeTabPath={fileTabs.activeTabPath}
+      machineId={activeWorkspace?.machineId ?? null}
       workingDir={activeWorkspace?.workingDir ?? null}
       onActivate={fileTabs.setActiveTab}
       onClose={fileTabs.closeTab}

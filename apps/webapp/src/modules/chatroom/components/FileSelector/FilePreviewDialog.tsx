@@ -18,6 +18,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isBinaryFile } from './binaryDetection';
 import { FileCopyActionsMenu } from './FileCopyActionsMenu';
 import { useContainedSelectAll } from './useContainedSelectAll';
+import { FileContentActionBar } from '../../workspace/components/FileContentActionBar';
+import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
 import {
@@ -335,11 +337,15 @@ const FileContentPanel = memo(function FileContentPanel({
   contentResult,
   isBinary,
   viewMode,
+  copyContentLabel,
+  canCopyContent,
 }: {
   filePath: string | null;
   contentResult: FileContentResult | null | undefined;
   isBinary: boolean;
   viewMode: FileViewMode;
+  copyContentLabel: string;
+  canCopyContent: boolean;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   useContainedSelectAll(contentRef);
@@ -373,32 +379,49 @@ const FileContentPanel = memo(function FileContentPanel({
     );
   }
 
+  const showToolbar = !isBinary && !!contentResult;
+
   return (
-    <div
-      ref={contentRef}
-      tabIndex={-1}
-      onMouseDown={() => contentRef.current?.focus({ preventScroll: true })}
-      className="flex overflow-auto h-full select-text outline-none"
-    >
-      {viewMode === 'preview' && filePath && isMarkdownFile(filePath) ? (
-        /* Rendered markdown preview */
-        <div className="flex-1 p-6 overflow-auto">
-          <MarkdownRenderer content={contentResult.content} />
-        </div>
-      ) : viewMode === 'table' && filePath && isCsvFile(filePath) ? (
-        /* CSV table view */
-        <div className="flex-1 p-4 overflow-auto">
-          <CsvTableRenderer content={contentResult.content} />
-        </div>
-      ) : (
-        /* Raw source with line numbers */
-        <SyntaxHighlighter
-          code={contentResult.content}
-          path={filePath}
-          lineNumbers
-          className="text-[13px] leading-relaxed [&>pre]:p-4 [&>pre]:text-[13px] [&>pre]:leading-relaxed [&>pre]:font-mono [&>pre]:text-chatroom-text-primary [&>pre]:whitespace-pre [&>pre]:overflow-x-auto [&_code]:font-mono flex-1 overflow-auto block"
+    <div className="flex flex-col min-h-0 h-full">
+      {showToolbar && (
+        <FileContentActionBar
+          copyLabel={copyContentLabel}
+          onCopy={() => {
+            if (contentResult.content && canCopyContent) {
+              void copyFileContentToClipboard(contentResult.content, {
+                truncated: contentResult.truncated,
+              });
+            }
+          }}
+          disabled={!canCopyContent}
         />
       )}
+      <div
+        ref={contentRef}
+        tabIndex={-1}
+        onMouseDown={() => contentRef.current?.focus({ preventScroll: true })}
+        className="flex flex-1 overflow-auto min-h-0 select-text outline-none"
+      >
+        {viewMode === 'preview' && filePath && isMarkdownFile(filePath) ? (
+          /* Rendered markdown preview */
+          <div className="flex-1 p-6 overflow-auto">
+            <MarkdownRenderer content={contentResult.content} />
+          </div>
+        ) : viewMode === 'table' && filePath && isCsvFile(filePath) ? (
+          /* CSV table view */
+          <div className="flex-1 p-4 overflow-auto">
+            <CsvTableRenderer content={contentResult.content} />
+          </div>
+        ) : (
+          /* Raw source with line numbers */
+          <SyntaxHighlighter
+            code={contentResult.content}
+            path={filePath}
+            lineNumbers
+            className="text-[13px] leading-relaxed [&>pre]:p-4 [&>pre]:text-[13px] [&>pre]:leading-relaxed [&>pre]:font-mono [&>pre]:text-chatroom-text-primary [&>pre]:whitespace-pre [&>pre]:overflow-x-auto [&_code]:font-mono flex-1 overflow-auto block"
+          />
+        )}
+      </div>
     </div>
   );
 });
@@ -582,6 +605,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               contentResult={contentResult}
               isBinary={isBinary}
               viewMode={viewMode}
+              copyContentLabel={copyContentLabel}
+              canCopyContent={canCopyContent}
             />
           </FixedModalBody>
         </div>

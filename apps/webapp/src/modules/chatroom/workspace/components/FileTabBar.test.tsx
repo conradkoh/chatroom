@@ -11,6 +11,19 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionQuery: () => undefined,
+}));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: { workspaceFiles: { requestFileContent: {}, getFileContentV2: {} } },
+}));
+
+vi.mock('../hooks/useFileContent', () => ({
+  useFileContent: vi.fn(() => null),
+}));
+
 const tabs: FileTab[] = [
   { filePath: 'src/a.ts', name: 'a.ts', isPinned: true },
   { filePath: 'src/b.ts', name: 'b.ts', isPinned: true },
@@ -20,6 +33,7 @@ const tabs: FileTab[] = [
 const defaultProps = {
   tabs,
   activeTabPath: 'src/b.ts',
+  machineId: 'machine-1' as string | null,
   workingDir: '/workspace/project' as string | null,
   onActivate: vi.fn(),
   onClose: vi.fn(),

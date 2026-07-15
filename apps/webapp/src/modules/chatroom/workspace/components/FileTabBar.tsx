@@ -4,7 +4,7 @@ import { memo, useCallback } from 'react';
 
 import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
 import type { FileTab } from '../hooks/useFileTabs';
-import { useWorkspaceFileContextMenu } from '../file-menu';
+import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
 import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers'
 interface FileTabBarProps {
   tabs: FileTab[];
   activeTabPath: string | null;
+  machineId: string | null;
   workingDir: string | null;
   onActivate: (filePath: string) => void;
   onClose: (filePath: string) => void;
@@ -26,6 +27,7 @@ interface FileTabBarProps {
 export const FileTabBar = memo(function FileTabBar({
   tabs,
   activeTabPath,
+  machineId,
   workingDir,
   onActivate,
   onClose,
@@ -35,6 +37,10 @@ export const FileTabBar = memo(function FileTabBar({
   onOpenFileOnRemote,
 }: FileTabBarProps) {
   const { openAtPointer, contextMenu } = useWorkspaceFileContextMenu();
+  const { trackContextMenuFile, menuContentState } = useWorkspaceFileMenuContent(
+    machineId,
+    workingDir
+  );
 
   const handleCloseOthers = useCallback(
     (path: string) => {
@@ -58,8 +64,9 @@ export const FileTabBar = memo(function FileTabBar({
             onPin={onPin}
             onToggleExpanded={onToggleExpanded}
             onContextMenu={(filePath, event) => {
+              trackContextMenuFile(filePath);
               openAtPointer(event, {
-                state: { relativePath: filePath, workingDir },
+                state: { relativePath: filePath, workingDir, ...menuContentState },
                 handlers: {
                   onOpenFileOnRemote: onOpenFileOnRemote
                     ? () => void onOpenFileOnRemote(filePath)
@@ -70,6 +77,7 @@ export const FileTabBar = memo(function FileTabBar({
                   copyFileName: true,
                   copyRelativePath: true,
                   copyFullPath: true,
+                  copyFileContent: true,
                   openFileOnRemote: !!onOpenFileOnRemote,
                   closeOthers: true,
                   closeOthersDisabled: tabs.length <= 1,

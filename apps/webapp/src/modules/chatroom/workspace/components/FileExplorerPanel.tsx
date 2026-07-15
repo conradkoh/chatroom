@@ -1,25 +1,14 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
-import {
-  forwardRef,
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useState,
-} from 'react';
+import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
 import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
-import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,11 +26,10 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
-import { useFileContent } from '../hooks/useFileContent';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
-import { useWorkspaceFileContextMenu } from '../file-menu';
+import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
 import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
 
 export interface FileExplorerPanelHandle {
@@ -197,25 +185,8 @@ export const FileExplorerPanel = memo(
       const { openAtPointer: openContextMenuAtPointer, contextMenu } =
         useWorkspaceFileContextMenu();
 
-      // Fetch content for "Copy File Content" when context menu opens on a file
-      const [contextMenuFilePath, setContextMenuFilePath] = useState<string | null>(null);
-
-      const menuFileContent = useFileContent(
-        contextMenuFilePath && machineId && workingDir
-          ? { machineId, workingDir, filePath: contextMenuFilePath }
-          : 'skip'
-      );
-
-      const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
-
-      useEffect(() => {
-        if (contextMenuFilePath && machineId && workingDir) {
-          requestContent({ machineId, workingDir, filePath: contextMenuFilePath }).catch(() => {});
-        }
-      }, [contextMenuFilePath, machineId, workingDir, requestContent]);
-
-      const menuFileIsBinary = contextMenuFilePath ? isBinaryFile(contextMenuFilePath) : false;
-      const canCopyMenuFileContent = !!menuFileContent?.content && !menuFileIsBinary;
+      const { trackContextMenuFile, menuContentState, canCopyMenuFileContent } =
+        useWorkspaceFileMenuContent(machineId ?? null, workingDir ?? null);
 
       const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
         machineId: machineId ?? '',
@@ -269,7 +240,7 @@ export const FileExplorerPanel = memo(
           };
 
           if (isFile && path) {
-            setContextMenuFilePath(path);
+            trackContextMenuFile(path);
           }
 
           return {
@@ -277,9 +248,7 @@ export const FileExplorerPanel = memo(
               relativePath: path,
               workingDir,
               nodeType: target.type,
-              content: isFile ? (menuFileContent?.content ?? null) : null,
-              contentTruncated: menuFileContent?.truncated,
-              contentDisabled: isFile ? !canCopyMenuFileContent : true,
+              ...(isFile ? menuContentState : {}),
             },
             handlers: {
               onOpenFileOnRemote: isFile ? () => void openFileOnRemote(path) : undefined,
@@ -291,7 +260,14 @@ export const FileExplorerPanel = memo(
             visibility,
           };
         },
-        [workingDir, menuFileContent, canCopyMenuFileContent, openFileOnRemote, openRenameDialog]
+        [
+          workingDir,
+          menuContentState,
+          canCopyMenuFileContent,
+          openFileOnRemote,
+          openRenameDialog,
+          trackContextMenuFile,
+        ]
       );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
