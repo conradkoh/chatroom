@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderWorkspaceAgentSystemPrompt } from './workspace-agent-system-prompt.js';
+import { renderAgenticQuerySystemPrompt } from './system-prompt.js';
 
-describe('renderWorkspaceAgentSystemPrompt', () => {
+describe('renderAgenticQuerySystemPrompt', () => {
   it('includes simplified prompt without role or protocol markers', () => {
-    const prompt = renderWorkspaceAgentSystemPrompt({
+    const prompt = renderAgenticQuerySystemPrompt({
       convexUrl: 'https://example.convex.cloud',
       chatroomId: 'room-1',
       queryId: 'query-1',

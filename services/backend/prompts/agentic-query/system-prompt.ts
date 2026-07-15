@@ -1,11 +1,11 @@
-export interface RenderWorkspaceAgentSystemPromptParams {
+export interface RenderAgenticQuerySystemPromptParams {
   convexUrl: string;
   chatroomId: string;
   queryId: string;
 }
 
-export function renderWorkspaceAgentSystemPrompt(
-  params: RenderWorkspaceAgentSystemPromptParams
+export function renderAgenticQuerySystemPrompt(
+  params: RenderAgenticQuerySystemPromptParams
 ): string {
   const completeCmd = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.queryId} << 'CHATROOM_AGENTIC_QUERY_END'
 ## Summary

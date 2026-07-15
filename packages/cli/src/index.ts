@@ -224,7 +224,7 @@ handoffCommandGroup
 
 const agenticQueryCommand = program
   .command('agentic-query')
-  .description('Complete an agentic search/ask query from the workspace agent');
+  .description('Complete a workspace codebase search/ask query');
 
 agenticQueryCommand
   .command('complete')

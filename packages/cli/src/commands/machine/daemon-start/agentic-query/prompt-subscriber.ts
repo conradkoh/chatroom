@@ -1,4 +1,4 @@
-import { renderWorkspaceAgentSystemPrompt } from '@workspace/backend/prompts/agentic-query/workspace-agent-system-prompt.js';
+import { renderAgenticQuerySystemPrompt } from '@workspace/backend/prompts/agentic-query/system-prompt.js';
 import type { ConvexClient } from 'convex/browser';
 
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
@@ -153,7 +153,7 @@ async function deliverMessage(
     parts: [{ type: 'text', text: msg.content }],
     agent: info.lastUsedConfig.agent,
     ...(info.lastUsedConfig.model ? { model: info.lastUsedConfig.model } : {}),
-    system: renderWorkspaceAgentSystemPrompt({
+    system: renderAgenticQuerySystemPrompt({
       convexUrl: daemonSession.convexUrl,
       chatroomId: info.chatroomId,
       queryId: info.agenticQueryId,
