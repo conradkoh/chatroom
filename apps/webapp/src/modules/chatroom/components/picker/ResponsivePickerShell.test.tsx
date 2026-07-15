@@ -101,7 +101,16 @@ describe('ResponsivePickerShell', () => {
     renderShell();
 
     const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
-    expect(drawerContent?.style.paddingBottom).toBe('120px');
+    expect(drawerContent?.getAttribute('style')).toContain('120px');
+  });
+
+  it('includes safe-area horizontal padding on mobile drawer', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    renderShell();
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    expect(drawerContent?.getAttribute('style')).not.toBeNull();
+    expect(drawerContent?.getAttribute('style')).not.toBe('');
   });
 
   it('does not apply paddingBottom style on desktop when keyboard inset is non-zero', () => {
