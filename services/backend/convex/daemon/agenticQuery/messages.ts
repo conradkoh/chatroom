@@ -1,59 +1,12 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireMachineWorkspaces } from './machineWorkspaces';
-import { mutation, query } from '../../_generated/server';
+import { requireMachineWorkspaces } from '../directHarness/machineWorkspaces';
+import { query } from '../../_generated/server';
 import {
-  getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
-
-// ─── appendMessages ──────────────────────────────────────────────────────────
-
-export const appendMessages = mutation({
-  args: {
-    ...SessionIdArg,
-    harnessSessionId: v.id('chatroom_harnessSessions'),
-    chunks: v.array(
-      v.object({
-        content: v.string(),
-        timestamp: v.number(),
-        messageId: v.optional(v.string()),
-        partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
-      })
-    ),
-  },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await getSessionWithAccess(ctx, args.sessionId, args.harnessSessionId);
-
-    if (args.chunks.length === 0) return { inserted: 0 };
-
-    // Insert chunks without manual seq. Convex's _creationTime orders chunks
-    // across mutations (mutations are serialized). Within a single mutation,
-    // inserts may share the same _creationTime; the frontend handles this via
-    // per-chunk _id deduplication, not a _creationTime high-water mark.
-    for (const chunk of args.chunks) {
-      await ctx.db.insert('chatroom_harnessSessionMessages', {
-        harnessSessionId: args.harnessSessionId,
-        role: 'assistant',
-        content: chunk.content,
-        timestamp: chunk.timestamp,
-        messageId: chunk.messageId,
-        partType: chunk.partType,
-      });
-    }
-
-    await ctx.db.patch('chatroom_harnessSessions', args.harnessSessionId, {
-      lastActiveAt: Date.now(),
-    });
-
-    return { inserted: args.chunks.length };
-  },
-});
-
-// ─── pendingForMachine ───────────────────────────────────────────────────────
 
 export const pendingForMachine = query({
   args: {
@@ -61,14 +14,12 @@ export const pendingForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
     const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
     if (workspaces.length === 0) return { sessions: [], messages: [] };
 
     const workspaceIds = new Set(workspaces.map((w) => w._id));
 
-    // Only process resumable sessions — skip closed/failed to prevent
-    // endless retries for stale sessions. Include idle so disconnected
-    // sessions with queued messages can be lazily resumed.
     const allSessions = (
       await Promise.all(
         [...workspaceIds].flatMap((wsId) => [
@@ -92,21 +43,25 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    // Exclude agentic-query sessions — handled by daemon/agenticQuery module
-    const directSessions = allSessions.filter(
-      (s) => (s as Record<string, unknown>).purpose !== 'agentic-query'
+    const agenticSessions = allSessions.filter(
+      (s) =>
+        (s as Record<string, unknown>).purpose === 'agentic-query' &&
+        (s as Record<string, unknown>).agenticQueryId
     );
 
     const sessions: {
+      kind: 'agentic-query';
       _id: string;
       workspaceId: string;
       harnessName: string;
       opencodeSessionId: string | undefined;
+      agenticQueryId: string;
+      chatroomId: string;
       lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
     }[] = [];
     const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
 
-    for (const session of directSessions) {
+    for (const session of agenticSessions) {
       const cursor = session.lastProcessedTurnSeq ?? 0;
       const pendingTurns = await ctx.db
         .query('chatroom_harnessSessionTurns')
@@ -120,11 +75,19 @@ export const pendingForMachine = query({
 
       if (pending.length > 0) {
         const s = requireOpencodeSession(session);
+        const workspace = workspaces.find((w) => w._id === session.workspaceId);
+        const agenticQueryId = (session as Record<string, unknown>).agenticQueryId as string;
+        const chatroomId = workspace?.chatroomId as string | undefined;
+        if (!agenticQueryId || !chatroomId) continue;
+
         sessions.push({
+          kind: 'agentic-query',
           _id: session._id as string,
           workspaceId: session.workspaceId as string,
           harnessName: s.opencode.harnessName,
           opencodeSessionId: s.opencode.opencodeSessionId,
+          agenticQueryId,
+          chatroomId,
           lastUsedConfig: s.opencode.lastUsedConfig,
         });
         for (const turn of pending) {

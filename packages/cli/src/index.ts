@@ -257,7 +257,6 @@ agenticQueryCommand
 
     const { agenticQueryComplete } = await import('./commands/agentic-query/complete.js');
     await agenticQueryComplete(options.chatroomId, {
-      role: options.role,
       queryId: options.queryId,
       result,
     });

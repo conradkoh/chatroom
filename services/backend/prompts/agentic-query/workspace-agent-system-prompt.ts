@@ -1,28 +1,13 @@
-import { getWorkspaceAgentGuidance } from '../cli/roles/workspace-agent.js';
-import { AGENTIC_QUERY_STDIN_DELIMITER } from '../cli/stdin-heredoc.js';
-
 export interface RenderWorkspaceAgentSystemPromptParams {
   convexUrl: string;
-  chatroomId?: string;
-  queryId?: string;
+  chatroomId: string;
+  queryId: string;
 }
 
-/**
- * System prompt injected into opencode direct-harness sessions for agentic queries.
- * Uses the built-in `build` agent with chatroom overlay instructions.
- */
 export function renderWorkspaceAgentSystemPrompt(
   params: RenderWorkspaceAgentSystemPromptParams
 ): string {
-  const guidance = getWorkspaceAgentGuidance({
-    role: 'workspace-agent',
-    convexUrl: params.convexUrl,
-  });
-
-  const completeExample =
-    params.chatroomId && params.queryId
-      ? `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.queryId} --role=workspace-agent << '${AGENTIC_QUERY_STDIN_DELIMITER}'
----RESULT---
+  const completeCmd = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.queryId} << 'CHATROOM_AGENTIC_QUERY_END'
 ## Summary
 ...
 
@@ -34,22 +19,22 @@ export function renderWorkspaceAgentSystemPrompt(
 
 ## Files
 ...
-${AGENTIC_QUERY_STDIN_DELIMITER}`
-      : `chatroom agentic-query complete --chatroom-id=<id> --query-id=<id> --role=workspace-agent`;
+CHATROOM_AGENTIC_QUERY_END`;
 
   return [
-    guidance,
+    'You answer workspace-scoped search and ask queries by exploring the connected codebase.',
+    'Use tools to read and search files. Prefer evidence over speculation.',
+    'When done, submit results with the CLI heredoc below (markdown body only — no protocol markers like ---RESULT---).',
     '',
-    '## Output contract',
-    'Your final assistant message MUST be valid completion markdown with these sections:',
+    '## Required markdown sections',
     '- ## Summary',
     '- ## Results',
     '- ## Grounding (required for ask mode; path:line evidence)',
     '- ## Files',
     '',
-    'Prefer completing via the CLI (shell tool) using a heredoc:',
-    completeExample,
+    '## Complete command',
+    completeCmd,
     '',
-    'If the CLI succeeds, still emit the same markdown as your final message.',
+    `Convex URL: ${params.convexUrl}`,
   ].join('\n');
 }

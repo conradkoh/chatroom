@@ -4,7 +4,6 @@
 
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
-import { getWorkspaceAgentGuidance } from './workspace-agent';
 
 /**
  * Generate role-specific guidance based on the role
@@ -23,10 +22,6 @@ export function getRoleSpecificGuidance(
 
   if (normalizedRole === 'builder') {
     return getBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-
-  if (normalizedRole === 'workspace-agent') {
-    return getWorkspaceAgentGuidance({ role, convexUrl });
   }
 
   return '';

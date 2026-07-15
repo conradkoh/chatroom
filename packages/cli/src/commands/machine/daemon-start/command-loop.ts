@@ -31,6 +31,7 @@ import {
 } from './daemon-services.js';
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
+import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import {
   startFileContentSubscriptionEffect,
   type FileContentSubscriptionHandle,
@@ -558,6 +559,19 @@ export const startCommandLoopEffect: Effect.Effect<
     commandSubscriptionHandle = handles.commandSubscriptionHandle;
     lifecycleManager = handles.lifecycleManager;
     closeDirectHarnessSessionsOnShutdown = handles.closeSessionsOnShutdown;
+
+    const aqHandles = startAgenticQuerySubscriptions(
+      {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        backend: session.backend,
+        convexUrl: session.convexUrl,
+      },
+      wsClient,
+      activeSessions,
+      harnesses
+    );
+    // Agentic query subscriptions piggyback on the same lifecycle/shutdown
   }
 
   console.log(`\nListening for commands...`);

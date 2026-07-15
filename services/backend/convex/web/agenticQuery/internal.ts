@@ -4,7 +4,6 @@ import type { MutationCtx } from '../../_generated/server';
 import { insertUserTurn } from '../../daemon/directHarness/insertUserTurn';
 
 const OPENCODE_AGENT = 'build';
-const CLI_COMPLETE_ROLE = 'workspace-agent';
 
 export interface AgenticHarnessSpawnConfig {
   harnessName: string;
@@ -43,7 +42,7 @@ export async function spawnAgenticHarnessSession(
   }
 ): Promise<Id<'chatroom_harnessSessions'>> {
   const now = Date.now();
-  const cliCompleteCommand = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.query._id} --role=${CLI_COMPLETE_ROLE}`;
+  const cliCompleteCommand = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.query._id}`;
   const envelope = renderAgenticQueryEnvelope({
     queryId: params.query._id,
     chatroomId: params.chatroomId,

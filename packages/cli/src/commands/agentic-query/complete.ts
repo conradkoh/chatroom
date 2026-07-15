@@ -15,7 +15,6 @@ import {
 import { formatAuthError, formatChatroomIdError } from '../../utils/error-formatting.js';
 
 export interface AgenticQueryCompleteOptions {
-  role: string;
   result: string;
   queryId: string;
 }
