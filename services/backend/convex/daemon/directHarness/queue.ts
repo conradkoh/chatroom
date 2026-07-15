@@ -10,7 +10,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { insertUserTurn } from './insert-user-turn';
+import { insertUserTurn } from './insertUserTurn';
 import { mutation } from '../../_generated/server';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireSession } from '../../auth/session';

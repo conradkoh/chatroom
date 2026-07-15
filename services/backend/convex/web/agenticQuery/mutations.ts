@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { applyAgenticQueryComplete } from './complete-logic';
+import { applyAgenticQueryComplete } from './completeLogic';
 import {
   getAgenticQueryTurns,
   getNextAgenticTurnSeq,
@@ -13,7 +13,7 @@ import { mutation } from '../../_generated/server';
 import type { MutationCtx } from '../../_generated/server';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { trySyncAgenticQueryFromHarnessTurn } from '../../daemon/directHarness/agentic-query-sync';
+import { trySyncAgenticQueryFromHarnessTurn } from '../../daemon/directHarness/agenticQuerySync';
 
 async function loadQueryWithAccess(
   ctx: MutationCtx,

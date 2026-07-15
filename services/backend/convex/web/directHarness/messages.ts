@@ -15,7 +15,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation } from '../../_generated/server';
 import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
-import { insertUserTurn } from '../../daemon/directHarness/insert-user-turn';
+import { insertUserTurn } from '../../daemon/directHarness/insertUserTurn';
 
 // ─── send ─────────────────────────────────────────────────────────────────────
 

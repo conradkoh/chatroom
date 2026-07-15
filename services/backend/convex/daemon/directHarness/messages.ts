@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireMachineWorkspaces } from './machine-workspaces';
+import { requireMachineWorkspaces } from './machineWorkspaces';
 import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,

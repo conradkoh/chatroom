@@ -6,7 +6,7 @@ import type { MutationCtx } from '../../_generated/server';
 import {
   applyAgenticQueryComplete,
   markAgenticQueryFailed,
-} from '../../web/agenticQuery/complete-logic';
+} from '../../web/agenticQuery/completeLogic';
 
 /**
  * After a harness assistant turn finalizes, sync agentic-query sessions:

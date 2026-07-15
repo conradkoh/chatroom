@@ -1,8 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { trySyncAgenticQueryFromHarnessTurn } from './agentic-query-sync';
-import { requireMachineWorkspaces } from './machine-workspaces';
+import { trySyncAgenticQueryFromHarnessTurn } from './agenticQuerySync';
+import { requireMachineWorkspaces } from './machineWorkspaces';
 import type { Id } from '../../_generated/dataModel';
 import { mutation, query } from '../../_generated/server';
 import type { MutationCtx, QueryCtx } from '../../_generated/server';

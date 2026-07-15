@@ -1,7 +1,7 @@
 import { renderAgenticQueryEnvelope } from '../../../prompts/agentic-query/render-task-envelope';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
-import { insertUserTurn } from '../../daemon/directHarness/insert-user-turn';
+import { insertUserTurn } from '../../daemon/directHarness/insertUserTurn';
 
 const OPENCODE_AGENT = 'build';
 const CLI_COMPLETE_ROLE = 'workspace-agent';

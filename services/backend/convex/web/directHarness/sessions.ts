@@ -13,7 +13,7 @@ import {
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { insertUserTurn } from '../../daemon/directHarness/insert-user-turn';
+import { insertUserTurn } from '../../daemon/directHarness/insertUserTurn';
 
 // ─── create ───────────────────────────────────────────────────────────────────
 
