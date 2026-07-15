@@ -13,6 +13,7 @@ import {
   chatroomPortaledMenuFloatingClassName,
   chatroomPortaledMenuSurfaceClassName,
 } from '../shared/industrialDialogStyles';
+import { Z_FLOATING } from '../shared/overlayLayers';
 
 import { FixedModal } from '@/components/ui/fixed-modal';
 
@@ -107,7 +108,7 @@ describe('PopoverContent', () => {
     );
 
     const popoverContent = screen.getByTestId('popover-content');
-    expect(popoverContent.className).toContain('z-[100]');
+    expect(popoverContent.className).toContain(Z_FLOATING);
 
     const modalOverlay = document.body.querySelector<HTMLElement>('.fixed.inset-0');
     expect(modalOverlay).not.toBeNull();
