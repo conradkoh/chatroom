@@ -7,6 +7,7 @@ import {
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
+import { isAgenticQueryHarnessSession } from './isAgenticQueryHarnessSession';
 
 export const pendingForMachine = query({
   args: {
@@ -56,10 +57,8 @@ export const pendingForMachine = query({
     const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
 
     for (const session of allSessions) {
-      const raw = session as Record<string, unknown>;
-      if (raw.purpose !== 'agentic-query') continue;
-      const agenticQueryId = raw.agenticQueryId as string | undefined;
-      if (!agenticQueryId) continue;
+      if (!isAgenticQueryHarnessSession(session)) continue;
+      const agenticQueryId = session.agenticQueryId;
 
       const cursor = session.lastProcessedTurnSeq ?? 0;
       const pendingTurns = await ctx.db

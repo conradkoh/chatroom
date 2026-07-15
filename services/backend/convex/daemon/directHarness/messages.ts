@@ -93,9 +93,7 @@ export const pendingForMachine = query({
     ).flat();
 
     // Exclude agentic-query sessions — handled by daemon/agenticQuery module
-    const directSessions = allSessions.filter(
-      (s) => (s as Record<string, unknown>).purpose !== 'agentic-query'
-    );
+    const directSessions = allSessions.filter((s) => s.purpose !== 'agentic-query');
 
     const sessions: {
       _id: string;

@@ -9,12 +9,10 @@ import { ConvexOutputRepository } from '../../../../infrastructure/repos/convex-
 import { ConvexSessionRepository } from '../../../../infrastructure/repos/convex-session-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
 import type { SessionId } from '../types.js';
+import type { HarnessWorkerSession } from '../shared-harness/types.js';
 
-export interface AgenticQuerySubscriptionSession {
-  sessionId: SessionId;
+export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {
   machineId: string;
-  backend: BackendOps;
-  convexUrl: string;
 }
 
 export interface AgenticQuerySubscriptionHandles {

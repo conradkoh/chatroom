@@ -371,7 +371,7 @@ Map harness turns into `AgenticQueryPanel` thread. On CLI `complete`, finalize s
 
 ## Open decisions (resolved)
 
-1. **Agent role:** Agentic query uses a dedicated system prompt (not a chatroom team role). No `--role` flag on the complete CLI — completion is auth-bound via Convex session.
+1. **Not a chatroom role:** Agentic query uses a dedicated system prompt (not a chatroom team role). No `--role` flag on the complete CLI — completion is auth-bound via Convex session.
 2. **Harness lifecycle:** Ephemeral harness session per query (spawn → complete → close).
 3. **In-editor Cmd+F:** Always agentic search in explorer view — no in-file browser find (including code editor tabs).
 

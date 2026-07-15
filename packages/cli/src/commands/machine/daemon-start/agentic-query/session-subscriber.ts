@@ -8,7 +8,6 @@ import type {
   SessionHandle,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
 import { openPendingHarnessSession } from '../shared-harness/open-pending-session.js';
-import type { HarnessWorkerSession } from '../shared-harness/types.js';
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
 import type { AgenticPendingOpenSession } from './types.js';
 
@@ -37,7 +36,7 @@ export function startSessionSubscriber(
         if (inFlight.has(rowId)) continue;
         inFlight.add(rowId);
         void openPendingHarnessSession(
-          daemonSession as unknown as HarnessWorkerSession,
+          daemonSession,
           deps,
           {
             rowId: session._id,

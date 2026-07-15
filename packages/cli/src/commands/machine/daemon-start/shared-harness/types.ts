@@ -8,9 +8,9 @@ import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import type { SessionId } from '../types.js';
 
 export type HarnessWorkerSession = {
-  sessionId: SessionId;
-  backend: BackendOps;
-  convexUrl: string;
+  readonly sessionId: SessionId;
+  readonly backend: BackendOps;
+  readonly convexUrl: string;
 };
 
 export type SharedHarnessMaps = {

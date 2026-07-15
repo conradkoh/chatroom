@@ -42,6 +42,7 @@ import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as daemon_agenticQuery_index from "../daemon/agenticQuery/index.js";
+import type * as daemon_agenticQuery_isAgenticQueryHarnessSession from "../daemon/agenticQuery/isAgenticQueryHarnessSession.js";
 import type * as daemon_agenticQuery_messages from "../daemon/agenticQuery/messages.js";
 import type * as daemon_agenticQuery_sessions from "../daemon/agenticQuery/sessions.js";
 import type * as daemon_agenticQuery_syncFromHarnessTurn from "../daemon/agenticQuery/syncFromHarnessTurn.js";
@@ -152,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   crypto: typeof crypto;
   "daemon/agenticQuery/index": typeof daemon_agenticQuery_index;
+  "daemon/agenticQuery/isAgenticQueryHarnessSession": typeof daemon_agenticQuery_isAgenticQueryHarnessSession;
   "daemon/agenticQuery/messages": typeof daemon_agenticQuery_messages;
   "daemon/agenticQuery/sessions": typeof daemon_agenticQuery_sessions;
   "daemon/agenticQuery/syncFromHarnessTurn": typeof daemon_agenticQuery_syncFromHarnessTurn;

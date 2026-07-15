@@ -7,6 +7,7 @@ import {
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
+import { isAgenticQueryHarnessSession } from './isAgenticQueryHarnessSession';
 
 export const pendingForMachine = query({
   args: {
@@ -50,11 +51,8 @@ export const pendingForMachine = query({
     }[] = [];
 
     for (const session of allSessions) {
-      const raw = session as Record<string, unknown>;
-      if (raw.purpose !== 'agentic-query') continue;
-      const agenticQueryId = raw.agenticQueryId as string | undefined;
-      if (!agenticQueryId) continue;
-
+      if (!isAgenticQueryHarnessSession(session)) continue;
+      const agenticQueryId = session.agenticQueryId;
       const workspace = workspaces.find((w) => w._id === session.workspaceId);
       const chatroomId = workspace?.chatroomId as string | undefined;
       if (!chatroomId) continue;

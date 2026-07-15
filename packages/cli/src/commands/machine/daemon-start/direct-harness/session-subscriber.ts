@@ -19,7 +19,6 @@ import type {
   SessionHandle,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
 import { openPendingHarnessSession } from '../shared-harness/open-pending-session.js';
-import type { HarnessWorkerSession } from '../shared-harness/types.js';
 
 export type ActiveSession = SessionHandle;
 
@@ -68,7 +67,7 @@ export function startSessionSubscriber(
           const agent = session.opencode?.lastUsedConfig?.agent ?? 'build';
           const model = session.opencode?.lastUsedConfig?.model;
           await openPendingHarnessSession(
-            daemonSession as unknown as HarnessWorkerSession,
+            daemonSession,
             deps,
             {
               rowId: session._id,
