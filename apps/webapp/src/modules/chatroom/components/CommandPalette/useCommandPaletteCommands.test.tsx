@@ -482,4 +482,29 @@ describe('useCommandPaletteCommands', () => {
       expect(result.current.some((c) => c.id === 'action-refresh-workspace-state')).toBe(false);
     });
   });
+
+  describe('Agentic Search/Ask commands', () => {
+    it('adds agentic search and ask commands when callbacks are provided', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onOpenAgenticSearch: vi.fn(),
+          onOpenAgenticAsk: vi.fn(),
+        })
+      );
+      const searchCmd = result.current.find((c) => c.id === 'nav-agentic-search');
+      expect(searchCmd).toBeDefined();
+      expect(searchCmd?.shortcut).toBe('⌘F');
+
+      const askCmd = result.current.find((c) => c.id === 'nav-agentic-ask');
+      expect(askCmd).toBeDefined();
+      expect(askCmd?.shortcut).toBe('⌘⇧F');
+    });
+
+    it('omits agentic commands when callbacks are not provided', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
+      expect(result.current.some((c) => c.id === 'nav-agentic-search')).toBe(false);
+      expect(result.current.some((c) => c.id === 'nav-agentic-ask')).toBe(false);
+    });
+  });
 });

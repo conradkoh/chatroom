@@ -91,9 +91,9 @@ import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
+import { editorTabKey } from './workspace/hooks/useFileTabs';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
-import { editorTabKey } from './workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -252,6 +252,7 @@ interface ExplorerContentProps {
   onOpenPreview: (filePath: string) => void;
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
+  agenticFocusToken: number;
 }
 
 // fallow-ignore-next-line complexity
@@ -261,32 +262,15 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenPreview,
   onOpenTableView,
   onSendSelectionToComposer,
+  agenticFocusToken,
 }: ExplorerContentProps) {
   const machineId = activeWorkspace?.machineId ?? '';
   const workingDir = activeWorkspace?.workingDir ?? '';
   const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
 
-  const [agenticFocusToken, setAgenticFocusToken] = useState(0);
-  const requestAgenticFocus = useCallback(() => setAgenticFocusToken((n) => n + 1), []);
-
-  const { openSearchTab, openAskTab } = useAgenticQueryTabOpener(
-    activeWorkspace?.workspaceId ?? undefined,
-    fileTabs,
-    { onFocusRequest: requestAgenticFocus }
-  );
-
   const activeTab = fileTabs.tabs.find((t) => editorTabKey(t) === fileTabs.activeTabKey) ?? null;
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.filePath : fileTabs.activeTabKey;
   const showTabBar = fileTabs.tabs.length > 0;
-
-  useAgenticSearchShortcut({
-    onOpenSearch: () => {
-      void openSearchTab();
-    },
-    onOpenAsk: () => {
-      void openAskTab();
-    },
-  });
 
   const handleOpenSelectionOnRemote = useCallback(
     (filePath: string, selectedText: string) => {
@@ -601,6 +585,34 @@ export function ChatroomDashboard({
     chatroomId as Id<'chatroom_rooms'>
   );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
+
+  const [agenticFocusToken, setAgenticFocusToken] = useState(0);
+  const requestAgenticFocus = useCallback(() => setAgenticFocusToken((n) => n + 1), []);
+
+  const ensureExplorerForAgentic = useCallback(() => {
+    setActivityView('explorer');
+    setExplorerSidebarVisible(true);
+    fileExplorerPanelRef.current?.refresh();
+  }, []);
+
+  const { openSearchTab, openAskTab } = useAgenticQueryTabOpener(
+    activeWorkspace?.workspaceId ?? undefined,
+    fileTabs,
+    { onFocusRequest: requestAgenticFocus, onBeforeOpen: ensureExplorerForAgentic }
+  );
+
+  const handleOpenAgenticSearch = useCallback(() => {
+    void openSearchTab();
+  }, [openSearchTab]);
+
+  const handleOpenAgenticAsk = useCallback(() => {
+    void openAskTab();
+  }, [openAskTab]);
+
+  useAgenticSearchShortcut({
+    onOpenSearch: handleOpenAgenticSearch,
+    onOpenAsk: handleOpenAgenticAsk,
+  });
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -1384,6 +1396,8 @@ export function ChatroomDashboard({
           fileExplorerPanelRef.current?.refresh();
         }
       : null,
+    onOpenAgenticSearch: activeWorkspace ? handleOpenAgenticSearch : null,
+    onOpenAgenticAsk: activeWorkspace ? handleOpenAgenticAsk : null,
     onShowMessages: () => setActivityView('messages'),
     onToggleChatSplitPanel:
       activeView === 'explorer'
@@ -1674,6 +1688,7 @@ export function ChatroomDashboard({
                             onOpenPreview={handleOpenPreview}
                             onOpenTableView={handleOpenTableView}
                             onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                            agenticFocusToken={agenticFocusToken}
                           />
                         ) : (
                           sourceControlPanel
@@ -1766,6 +1781,7 @@ export function ChatroomDashboard({
                       onOpenPreview={handleOpenPreview}
                       onOpenTableView={handleOpenTableView}
                       onSendSelectionToComposer={handleExplorerSelectionToComposer}
+                      agenticFocusToken={agenticFocusToken}
                     />
                   )}
                 </div>
