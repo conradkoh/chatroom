@@ -441,11 +441,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   const isBinary = filePath ? isBinaryFile(filePath) : false;
   const canCopyContent = !!contentResult && !isBinary;
-  const contentDisabledReason = isBinary
-    ? 'Binary files cannot be copied as text'
-    : !contentResult
-      ? 'File content is loading'
-      : undefined;
 
   // Close mobile tree when selecting a file
   const handleMobileSelectFile = useCallback(
@@ -503,7 +498,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 content={contentResult?.content ?? null}
                 truncated={contentResult?.truncated}
                 contentDisabled={!canCopyContent}
-                contentDisabledReason={contentDisabledReason}
               />
             )}
             {hasToggle && (
@@ -556,8 +550,10 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                   Files
                 </span>
                 <button
+                  type="button"
                   onClick={() => setMobileTreeOpen(false)}
-                  className="text-chatroom-text-muted hover:text-chatroom-text-primary p-1"
+                  className="text-chatroom-text-muted hover:text-chatroom-text-primary min-w-8 min-h-8 flex items-center justify-center rounded-sm"
+                  aria-label="Close file list"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

@@ -6,6 +6,7 @@ import { memo, useCallback, useState } from 'react';
 import { WorkspaceDropdownMenuItem } from '../../workspace/components/WorkspaceDropdownMenuItem';
 import {
   copyFileContentToClipboard,
+  copyFileNameToClipboard,
   copyFullPathToClipboard,
   copyRelativePathToClipboard,
 } from '../../workspace/utils/clipboard';
@@ -23,7 +24,6 @@ export interface FileCopyActionsMenuProps {
   content: string | null;
   truncated?: boolean;
   contentDisabled?: boolean;
-  contentDisabledReason?: string;
   className?: string;
 }
 
@@ -33,10 +33,14 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   content,
   truncated = false,
   contentDisabled = false,
-  contentDisabledReason = 'Content unavailable',
   className,
 }: FileCopyActionsMenuProps) {
   const [open, setOpen] = useState(false);
+
+  const handleCopyFileName = useCallback(() => {
+    void copyFileNameToClipboard(relativePath);
+    setOpen(false);
+  }, [relativePath]);
 
   const handleCopyRelativePath = useCallback(() => {
     void copyRelativePathToClipboard(relativePath);
@@ -70,6 +74,9 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFileName}>
+          Copy File Name
+        </WorkspaceDropdownMenuItem>
         <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyRelativePath}>
           Copy Relative Path
         </WorkspaceDropdownMenuItem>
@@ -80,7 +87,6 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
           icon={Copy}
           onSelect={handleCopyContent}
           disabled={contentDisabled || !content}
-          title={contentDisabled ? contentDisabledReason : undefined}
         >
           Copy File Content
         </WorkspaceDropdownMenuItem>

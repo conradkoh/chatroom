@@ -1,5 +1,7 @@
 import { toast } from 'sonner';
 
+import { getFileName } from '@/lib/pathUtils';
+
 function joinWorkingDirPath(workingDir: string, relativePath: string): string {
   const base = workingDir.replace(/[/\\]+$/, '');
   if (!relativePath) return base;
@@ -14,6 +16,10 @@ async function copyTextToClipboard(text: string, successMessage: string): Promis
   } catch {
     toast.error('Failed to copy to clipboard');
   }
+}
+
+export async function copyFileNameToClipboard(path: string): Promise<void> {
+  await copyTextToClipboard(getFileName(path), 'Copied file name');
 }
 
 export async function copyRelativePathToClipboard(path: string): Promise<void> {
