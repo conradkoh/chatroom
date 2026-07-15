@@ -1,6 +1,7 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
@@ -14,13 +15,19 @@ export function useAgenticQueryTabOpener(
 
   const openSearchTab = useCallback(async () => {
     if (!workspaceId) return;
-    const { queryId } = await createDraft({ workspaceId, mode: 'search' });
+    const { queryId } = await createDraft({
+      workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+      mode: 'search',
+    });
     fileTabs.openAgenticQueryTab(queryId, 'search', 'Agentic Search');
   }, [workspaceId, createDraft, fileTabs]);
 
   const openAskTab = useCallback(async () => {
     if (!workspaceId) return;
-    const { queryId } = await createDraft({ workspaceId, mode: 'ask' });
+    const { queryId } = await createDraft({
+      workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+      mode: 'ask',
+    });
     fileTabs.openAgenticQueryTab(queryId, 'ask', 'Agentic Ask');
   }, [workspaceId, createDraft, fileTabs]);
 

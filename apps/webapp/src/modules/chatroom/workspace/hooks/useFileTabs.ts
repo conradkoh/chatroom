@@ -347,23 +347,15 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     [tabs]
   );
 
-  const closeOtherTabs = useCallback(
-    (key: string) => {
-      setTabs((prev) => {
-        const kept = prev.filter((t) => editorTabKey(t) === key);
-        if (kept.length === 0) return prev;
-        setActiveTabKey(key);
-        return kept;
-      });
-      setExpandState((prev) => {
-        const tab = prev
-          ? tabs.find((t) => t.kind === 'file' && t.filePath === prev.filePath)
-          : undefined;
-        return prev && !tab ? null : prev;
-      });
-    },
-    [tabs]
-  );
+  const closeOtherTabs = useCallback((key: string) => {
+    setTabs((prev) => {
+      const kept = prev.filter((t) => editorTabKey(t) === key);
+      if (kept.length === 0) return prev;
+      setActiveTabKey(key);
+      return kept;
+    });
+    setExpandState((prev) => (prev?.filePath === key ? prev : null));
+  }, []);
 
   const setActive = useCallback((key: string) => {
     setActiveTabKey(key);
