@@ -1,22 +1,32 @@
 import type { ConvexClient } from 'convex/browser';
-
-import { api } from '../../../../api.js';
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { ActiveSession } from '../direct-harness/session-subscriber.js';
+import { api } from '../../../../api.js';
+import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
 
+interface SubscriberDeps {
+  activeSessions: Map<string, ActiveSession>;
+  harnesses: Map<string, BoundHarness>;
+}
+
 export function startSessionSubscriber(
-  session: AgenticQuerySubscriptionSession,
+  _session: AgenticQuerySubscriptionSession,
   wsClient: ConvexClient,
-  _activeSessions: Map<string, ActiveSession>,
-  _harnesses: Map<string, BoundHarness>
+  deps: SubscriberDeps
 ): { stop: () => void } {
   const handle = wsClient.onUpdate(
     api.daemon.agenticQuery.sessions.pendingForMachine,
-    { sessionId: session.sessionId, machineId: session.machineId },
-    async (_pendingSessionIds) => {
-      // Agentic query session opening will be wired in a follow-up slice.
+    { sessionId: _session.sessionId, machineId: _session.machineId },
+    async (pendingSessions) => {
+      if (!pendingSessions || !Array.isArray(pendingSessions)) return;
+
+      // Session opening is handled by the shared direct-harness session subscriber
+      // which opens all pending sessions regardless of purpose.
+      // This subscription keeps the Convex query alive and logs agentic sessions.
+      const count = pendingSessions.length;
+      if (count > 0) {
+        console.log(`[agentic-query] ${count} pending session(s) detected`);
+      }
     }
   );
 

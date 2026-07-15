@@ -231,8 +231,7 @@ agenticQueryCommand
   .description('Submit the structured agentic query result markdown')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--query-id <id>', 'Agentic query identifier')
-  .requiredOption('--role <role>', 'Your role (workspace-agent)')
-  .action(async (options: { chatroomId: string; queryId: string; role: string }) => {
+  .action(async (options: { chatroomId: string; queryId: string }) => {
     await maybeRequireAuth();
 
     const { decode } = await import('./utils/serialization/decode/index.js');
@@ -242,9 +241,11 @@ agenticQueryCommand
     try {
       const { AGENTIC_QUERY_STDIN_DELIMITER, validateStdinHeredocBody } =
         await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
-      const decoded = decode(stdinContent, { singleParam: 'message' });
-      result = decoded.message;
-      validateStdinHeredocBody(result, AGENTIC_QUERY_STDIN_DELIMITER);
+      const decoded = decode(stdinContent, { singleParam: 'result' });
+      let body = decoded.result;
+      body = body.replace(/^(---RESULT---\s*)+/i, '').trim();
+      validateStdinHeredocBody(body, AGENTIC_QUERY_STDIN_DELIMITER);
+      result = body;
     } catch (err) {
       console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
       process.exit(1);

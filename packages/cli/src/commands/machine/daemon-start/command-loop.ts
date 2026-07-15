@@ -401,6 +401,8 @@ export const startCommandLoopEffect: Effect.Effect<
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let commandSubscriptionHandle: { stop: () => void } | null = null;
+  let aqPendingPromptSubscriptionHandle: { stop: () => void } | null = null;
+  let aqPendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let lifecycleManager: HarnessLifecycleManager | null = null;
   let closeDirectHarnessSessionsOnShutdown: (() => Promise<void>) | null = null;
   const activeSessions = new Map<string, SessionHandle>();
@@ -485,6 +487,8 @@ export const startCommandLoopEffect: Effect.Effect<
     pendingHarnessSessionSubscriptionHandle?.stop();
     commandSubscriptionHandle?.stop();
     lifecycleManager?.stopMonitoring();
+    aqPendingPromptSubscriptionHandle?.stop();
+    aqPendingHarnessSessionSubscriptionHandle?.stop();
   };
 
   const runDaemonShutdownEffect = async (): Promise<void> => {
@@ -571,7 +575,8 @@ export const startCommandLoopEffect: Effect.Effect<
       activeSessions,
       harnesses
     );
-    // Agentic query subscriptions piggyback on the same lifecycle/shutdown
+    aqPendingPromptSubscriptionHandle = aqHandles.pendingPromptSubscriptionHandle;
+    aqPendingHarnessSessionSubscriptionHandle = aqHandles.pendingHarnessSessionSubscriptionHandle;
   }
 
   console.log(`\nListening for commands...`);

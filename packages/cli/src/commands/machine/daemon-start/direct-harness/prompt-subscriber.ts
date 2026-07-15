@@ -3,7 +3,6 @@
  * to the harness session.
  */
 
-import { renderWorkspaceAgentSystemPrompt } from '@workspace/backend/prompts/agentic-query/workspace-agent-system-prompt.js';
 import type { ConvexClient } from 'convex/browser';
 
 import type { DirectHarnessSession } from './command-subscriber.js';
@@ -33,9 +32,6 @@ interface PendingSessionInfo {
   workspaceId: string;
   harnessName: string;
   opencodeSessionId: string | undefined;
-  purpose?: 'direct' | 'agentic-query';
-  agenticQueryId?: string;
-  chatroomId?: string;
   lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
 }
 
@@ -223,15 +219,6 @@ async function deliverPendingMessages(
   for (const msg of messages) {
     const override = info?.lastUsedConfig ?? { agent: 'build' };
 
-    const systemPrompt =
-      info?.purpose === 'agentic-query'
-        ? renderWorkspaceAgentSystemPrompt({
-            convexUrl: daemonSession.convexUrl,
-            chatroomId: info.chatroomId,
-            queryId: info.agenticQueryId,
-          })
-        : undefined;
-
     try {
       await deps.sessionRepository.setGenerating(rowId, true);
 
@@ -242,10 +229,7 @@ async function deliverPendingMessages(
         parts: [{ type: 'text', text: msg.content }],
         agent: override.agent,
         ...(override.model ? { model: override.model } : {}),
-        ...(systemPrompt ? { system: systemPrompt } : {}),
       });
-
-      await finalizeAgenticQueryTurnIfNeeded(handle, deps, info);
 
       await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
     } catch (err) {
@@ -260,28 +244,6 @@ async function deliverPendingMessages(
       }
       return;
     }
-  }
-}
-
-/** Belt-and-suspenders finalize when session.idle handler races or times out. */
-async function finalizeAgenticQueryTurnIfNeeded(
-  handle: ActiveSession,
-  deps: MessageSubscriberDeps,
-  info: PendingSessionInfo | undefined
-): Promise<void> {
-  if (info?.purpose !== 'agentic-query' || !handle.currentTurn) return;
-
-  const { turnId } = handle.currentTurn;
-  handle.currentTurn = null;
-  try {
-    await handle.journal.flush();
-    await deps.sessionRepository.finalizeAssistantTurn(turnId);
-  } catch (err) {
-    console.warn(
-      '[direct-harness] agentic-query turn finalize error:',
-      err instanceof Error ? err.message : String(err)
-    );
-    handle.currentTurn = { turnId, messageId: null };
   }
 }
 

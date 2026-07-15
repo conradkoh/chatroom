@@ -36,8 +36,6 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    return allSessions
-      .filter((s) => (s as Record<string, unknown>).purpose === 'agentic-query')
-      .map((s) => s._id);
+    return allSessions.filter((s) => (s as Record<string, unknown>).purpose === 'agentic-query');
   },
 });
