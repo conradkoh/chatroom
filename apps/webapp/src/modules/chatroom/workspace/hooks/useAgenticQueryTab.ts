@@ -10,7 +10,7 @@ export function useAgenticQueryTabOpener(
   workspaceId: string | undefined,
   fileTabs: UseFileTabsReturn
 ) {
-  const createDraft = useSessionMutation(api.web.agenticQuery.createDraft);
+  const createDraft = useSessionMutation(api.web.agenticQuery.index.createDraft);
 
   const openSearchTab = useCallback(async () => {
     if (!workspaceId) return;
