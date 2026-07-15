@@ -140,7 +140,7 @@ describe('MarkdownFileEditorPane', () => {
       />
     );
 
-    await user.click(screen.getByRole('button', { name: /^copy$/i }));
+    await user.click(screen.getByRole('button', { name: /copy as markdown/i }));
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('Copied markdown to clipboard');
     });

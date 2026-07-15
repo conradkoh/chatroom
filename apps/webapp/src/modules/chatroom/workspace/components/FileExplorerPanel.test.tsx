@@ -1,9 +1,26 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React, { createRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileExplorerPanel, type FileExplorerPanelHandle } from './FileExplorerPanel';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
+
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionQuery: () => null,
+}));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: { workspaceFiles: { requestFileContent: {} } },
+}));
+
+vi.mock('../hooks/useFileContent', () => ({
+  useFileContent: vi.fn(() => null),
+}));
 
 let lastRefreshSignal = 0;
 let lastExplorerProps: Record<string, unknown> = {};
@@ -118,6 +135,14 @@ describe('FileExplorerPanel context menu', () => {
     ).toBeNull();
   });
 
+  beforeEach(() => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
   it('copies relative and full paths from the node context menu', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -152,5 +177,36 @@ describe('FileExplorerPanel context menu', () => {
 
     fireEvent.click(await screen.findByText('Copy Full Path'));
     expect(writeText).toHaveBeenCalledWith('/workspace/project/src/index.ts');
+  });
+
+  it('copies file name from the node context menu', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    const node = { path: 'src/index.ts', type: 'file' as const, name: 'index.ts' };
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 10,
+      clientY: 20,
+    });
+    const openNodeMenu = () => {
+      (
+        lastExplorerProps.onNodeContextMenu as (
+          node: { path: string; type: 'file' | 'directory'; name: string },
+          event: MouseEvent
+        ) => void
+      )(node, event);
+    };
+
+    act(openNodeMenu);
+
+    fireEvent.click(await screen.findByText('Copy File Name'));
+    expect(writeText).toHaveBeenCalledWith('index.ts');
   });
 });

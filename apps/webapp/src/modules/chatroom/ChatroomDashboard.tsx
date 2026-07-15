@@ -290,6 +290,7 @@ const ExplorerContent = memo(function ExplorerContent({
     <FileTabBar
       tabs={fileTabs.tabs}
       activeTabPath={fileTabs.activeTabPath}
+      machineId={activeWorkspace?.machineId ?? null}
       workingDir={activeWorkspace?.workingDir ?? null}
       onActivate={fileTabs.setActiveTab}
       onClose={fileTabs.closeTab}
@@ -875,6 +876,18 @@ export function ChatroomDashboard({
       setRevealPath(filePath);
     },
     [fileTabs.pinTab]
+  );
+
+  const { openFileOnRemote: doOpenFileOnRemote } = useOpenFileOnRemote(
+    activeWorkspace?.machineId ?? '',
+    activeWorkspace?.workingDir ?? ''
+  );
+
+  const handleOpenFileOnRemote = useCallback(
+    (filePath: string) => {
+      void doOpenFileOnRemote(filePath);
+    },
+    [doOpenFileOnRemote]
   );
 
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
@@ -1794,6 +1807,7 @@ export function ChatroomDashboard({
               files={fileSelector.files}
               onSelectFile={fileSelector.selectFile}
               onOpenInExplorer={handleOpenInExplorer}
+              onOpenFileOnRemote={handleOpenFileOnRemote}
             />
 
             {/* Setup modal - only shown during setup mode */}

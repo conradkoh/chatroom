@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
 
-interface FileContentResult {
+export interface FileContentResult {
   content: string;
   encoding: string;
   truncated: boolean;
