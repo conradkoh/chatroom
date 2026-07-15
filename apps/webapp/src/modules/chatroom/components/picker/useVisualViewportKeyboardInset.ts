@@ -9,10 +9,14 @@ export function computeKeyboardInsetPx(): number {
   return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
 }
 
-export function useVisualViewportKeyboardInset(): number {
+export function useVisualViewportKeyboardInset(enabled = true): number {
   const [insetPx, setInsetPx] = useState(0);
 
   useEffect(() => {
+    if (!enabled) {
+      setInsetPx(0);
+      return;
+    }
     const update = () => setInsetPx(computeKeyboardInsetPx());
     update();
     window.addEventListener('resize', update);
@@ -23,7 +27,7 @@ export function useVisualViewportKeyboardInset(): number {
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
     };
-  }, []);
+  }, [enabled]);
 
-  return insetPx;
+  return enabled ? insetPx : 0;
 }

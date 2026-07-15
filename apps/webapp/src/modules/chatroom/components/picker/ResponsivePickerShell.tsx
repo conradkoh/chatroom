@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -42,10 +42,18 @@ export function ResponsivePickerShell({
   desktopBreakpoint,
   disabled,
 }: ResponsivePickerShellProps) {
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => setIsClient(true), []);
+
   const isDesktop = useIsDesktop(desktopBreakpoint);
-  const keyboardInsetPx = useVisualViewportKeyboardInset();
+  const keyboardInsetPx = useVisualViewportKeyboardInset(isClient && !isDesktop);
 
   if (disabled) {
+    return <>{trigger}</>;
+  }
+
+  // Avoid Drawer/Popover branch flip before useIsDesktop resolves
+  if (!isClient) {
     return <>{trigger}</>;
   }
 
@@ -65,7 +73,7 @@ export function ResponsivePickerShell({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={onOpenChange} nested>
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(

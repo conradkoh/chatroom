@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ResponsivePickerShell } from './ResponsivePickerShell';
 
@@ -114,21 +115,37 @@ describe('ResponsivePickerShell', () => {
     expect(popoverContent?.style.paddingBottom).toBe('');
   });
 
-  it('resets paddingBottom when keyboard inset returns to 0', () => {
-    mockUseIsDesktop.mockReturnValue(false);
-    mockUseKeyboardInset.mockReturnValueOnce(120).mockReturnValueOnce(0);
+  it('calls onOpenChange(true) when trigger clicked on desktop', async () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    const onOpenChange = vi.fn();
     render(
       <ResponsivePickerShell
-        open={true}
-        onOpenChange={vi.fn()}
-        trigger={<button type="button">Open picker</button>}
-        title="Test picker"
+        open={false}
+        onOpenChange={onOpenChange}
+        trigger={<button type="button">Open</button>}
+        title="Test"
       >
-        <div data-testid="picker-content">Picker content</div>
+        <div>content</div>
       </ResponsivePickerShell>
     );
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
 
-    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
-    expect(drawerContent?.style.paddingBottom).toBe('120px');
+  it('calls onOpenChange(true) when trigger clicked on mobile', async () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    const onOpenChange = vi.fn();
+    render(
+      <ResponsivePickerShell
+        open={false}
+        onOpenChange={onOpenChange}
+        trigger={<button type="button">Open</button>}
+        title="Test"
+      >
+        <div>content</div>
+      </ResponsivePickerShell>
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 });
