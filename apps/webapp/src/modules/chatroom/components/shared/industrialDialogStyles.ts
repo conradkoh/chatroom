@@ -12,12 +12,37 @@ export const chatroomIndustrialPanelBorderClassName = 'border-2 border-chatroom-
 export const chatroomIndustrialSurfaceClassName =
   'bg-chatroom-bg-primary text-chatroom-text-primary';
 
-export const chatroomIndustrialOverlayClassName =
-  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/60';
+const chatroomIndustrialOverlayAnimationClassName =
+  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0';
+
+const chatroomIndustrialModalContentAnimationClassName = [
+  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+  'fixed top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 p-6 shadow-lg duration-200 sm:max-w-lg',
+] as const;
+
+/** Base overlay for standalone chatroom dialogs (page-level). */
+export const chatroomIndustrialOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} z-50 bg-black/60`;
+
+/**
+ * Overlay for dialogs/alerts opened inside FixedModal — above inline modal stack (50 + 10×depth).
+ * See overlayLayers.ts Z_FLOATING and theme.md § Overlay stacking.
+ */
+// fallow-ignore-next-line unused-export
+export const chatroomIndustrialFloatingOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_FLOATING} bg-black/60`;
 
 export const chatroomIndustrialModalContentClassName = [
-  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-  'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 p-6 shadow-lg duration-200 sm:max-w-lg',
+  ...chatroomIndustrialModalContentAnimationClassName,
+  'z-50',
+  'rounded-none',
+  chatroomIndustrialBorderClassName,
+  chatroomIndustrialSurfaceClassName,
+] as const;
+
+/** Modal content for nested confirms inside FixedModal — must match floating overlay z-index. */
+// fallow-ignore-next-line unused-export
+export const chatroomIndustrialFloatingModalContentClassName = [
+  ...chatroomIndustrialModalContentAnimationClassName,
+  Z_FLOATING,
   'rounded-none',
   chatroomIndustrialBorderClassName,
   chatroomIndustrialSurfaceClassName,
