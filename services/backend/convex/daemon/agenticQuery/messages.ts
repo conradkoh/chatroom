@@ -43,12 +43,6 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    const agenticSessions = allSessions.filter(
-      (s) =>
-        (s as Record<string, unknown>).purpose === 'agentic-query' &&
-        (s as Record<string, unknown>).agenticQueryId
-    );
-
     const sessions: {
       kind: 'agentic-query';
       _id: string;
@@ -61,7 +55,12 @@ export const pendingForMachine = query({
     }[] = [];
     const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
 
-    for (const session of agenticSessions) {
+    for (const session of allSessions) {
+      const raw = session as Record<string, unknown>;
+      if (raw.purpose !== 'agentic-query') continue;
+      const agenticQueryId = raw.agenticQueryId as string | undefined;
+      if (!agenticQueryId) continue;
+
       const cursor = session.lastProcessedTurnSeq ?? 0;
       const pendingTurns = await ctx.db
         .query('chatroom_harnessSessionTurns')
@@ -76,9 +75,8 @@ export const pendingForMachine = query({
       if (pending.length > 0) {
         const s = requireOpencodeSession(session);
         const workspace = workspaces.find((w) => w._id === session.workspaceId);
-        const agenticQueryId = (session as Record<string, unknown>).agenticQueryId as string;
         const chatroomId = workspace?.chatroomId as string | undefined;
-        if (!agenticQueryId || !chatroomId) continue;
+        if (!chatroomId) continue;
 
         sessions.push({
           kind: 'agentic-query',

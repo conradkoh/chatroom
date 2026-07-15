@@ -7,30 +7,19 @@ import type { BoundHarness } from '../../../../domain/direct-harness/entities/bo
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
-import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import {
   createChunkExtractor,
   startBoundHarness,
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
+import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 import type { ActiveSession } from '../direct-harness/session-subscriber.js';
-
-interface PendingSessionInfo {
-  _id: string;
-  workspaceId: string;
-  harnessName: string;
-  opencodeSessionId: string | undefined;
-  agenticQueryId: string;
-  chatroomId: string;
-  lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
-}
-
-interface PendingMessage {
-  harnessSessionId: string;
-  content: string;
-  seq: number;
-}
+import type {
+  AgenticPendingBatch,
+  AgenticPendingMessage,
+  AgenticPendingPromptSession,
+} from './types.js';
 
 interface SubscriberDeps {
   activeSessions: Map<string, ActiveSession>;
@@ -46,7 +35,7 @@ interface WorkspaceInfo {
 async function ensureHarnessAlive(
   daemonSession: AgenticQuerySubscriptionSession,
   deps: SubscriberDeps,
-  info: PendingSessionInfo
+  info: AgenticPendingPromptSession
 ): Promise<BoundHarness | null> {
   const key = makeHarnessKey(info.workspaceId, info.harnessName);
   const existing = deps.harnesses.get(key);
@@ -78,7 +67,7 @@ async function ensureHarnessAlive(
 function wireResumedIdle(
   handle: ActiveSession,
   deps: SubscriberDeps,
-  info: PendingSessionInfo
+  info: AgenticPendingPromptSession
 ): void {
   const idleConfig = {
     agent: info.lastUsedConfig.agent ?? 'build',
@@ -97,7 +86,7 @@ function wireResumedIdle(
 async function resolveSessionHandle(
   daemonSession: AgenticQuerySubscriptionSession,
   deps: SubscriberDeps,
-  info: PendingSessionInfo
+  info: AgenticPendingPromptSession
 ): Promise<ActiveSession | null> {
   const rowId = info._id;
   const cached = deps.activeSessions.get(rowId);
@@ -140,8 +129,8 @@ async function deliverMessage(
   deps: SubscriberDeps,
   daemonSession: AgenticQuerySubscriptionSession,
   existingSession: ActiveSession,
-  info: PendingSessionInfo,
-  msg: PendingMessage
+  info: AgenticPendingPromptSession,
+  msg: AgenticPendingMessage
 ): Promise<void> {
   const rowId = info._id;
   await deps.sessionRepository.setGenerating(rowId, true);
@@ -183,7 +172,7 @@ async function deliverMessage(
 async function drainPendingBatch(
   daemonSession: AgenticQuerySubscriptionSession,
   deps: SubscriberDeps,
-  batch: { sessions: PendingSessionInfo[]; messages: PendingMessage[] }
+  batch: { sessions: AgenticPendingPromptSession[]; messages: AgenticPendingMessage[] }
 ): Promise<void> {
   for (const info of batch.sessions) {
     const existingSession = await resolveSessionHandle(daemonSession, deps, info);
@@ -209,11 +198,7 @@ export function startPromptSubscriber(
     { sessionId: daemonSession.sessionId, machineId: daemonSession.machineId },
     async (batch) => {
       if (!batch) return;
-      await drainPendingBatch(
-        daemonSession,
-        deps,
-        batch as unknown as { sessions: PendingSessionInfo[]; messages: PendingMessage[] }
-      );
+      await drainPendingBatch(daemonSession, deps, batch as unknown as AgenticPendingBatch);
     }
   );
 

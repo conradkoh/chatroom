@@ -3,7 +3,10 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { requireMachineWorkspaces } from '../directHarness/machineWorkspaces';
 import { query } from '../../_generated/server';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
+import {
+  requireDirectHarnessWorkers,
+  requireOpencodeSession,
+} from '../../api/directHarnessHelpers';
 
 export const pendingForMachine = query({
   args: {
@@ -36,6 +39,39 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    return allSessions.filter((s) => (s as Record<string, unknown>).purpose === 'agentic-query');
+    const shaped: {
+      kind: 'agentic-query';
+      _id: string;
+      workspaceId: string;
+      harnessName: string;
+      agenticQueryId: string;
+      chatroomId: string;
+      lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
+    }[] = [];
+
+    for (const session of allSessions) {
+      const raw = session as Record<string, unknown>;
+      if (raw.purpose !== 'agentic-query') continue;
+      const agenticQueryId = raw.agenticQueryId as string | undefined;
+      if (!agenticQueryId) continue;
+
+      const workspace = workspaces.find((w) => w._id === session.workspaceId);
+      const chatroomId = workspace?.chatroomId as string | undefined;
+      if (!chatroomId) continue;
+
+      const s = requireOpencodeSession(session);
+
+      shaped.push({
+        kind: 'agentic-query',
+        _id: session._id as string,
+        workspaceId: session.workspaceId as string,
+        harnessName: s.opencode.harnessName,
+        agenticQueryId,
+        chatroomId,
+        lastUsedConfig: s.opencode.lastUsedConfig,
+      });
+    }
+
+    return shaped;
   },
 });

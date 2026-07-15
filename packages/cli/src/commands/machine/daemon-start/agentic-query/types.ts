@@ -1,15 +1,27 @@
-export type AgenticPendingSessionInfo = {
+export type AgenticLastUsedConfig = {
+  agent: string;
+  model?: { providerID: string; modelID: string };
+};
+
+export type AgenticPendingOpenSession = {
   kind: 'agentic-query';
-  harnessSessionId: string;
+  _id: string;
+  workspaceId: string;
+  harnessName: string;
+  agenticQueryId: string;
+  chatroomId: string;
+  lastUsedConfig: AgenticLastUsedConfig;
+};
+
+export type AgenticPendingPromptSession = {
+  kind: 'agentic-query';
+  _id: string;
   workspaceId: string;
   harnessName: string;
   opencodeSessionId: string | undefined;
   agenticQueryId: string;
   chatroomId: string;
-  lastUsedConfig: {
-    agent: string;
-    model?: { providerID: string; modelID: string };
-  };
+  lastUsedConfig: AgenticLastUsedConfig;
 };
 
 export type AgenticPendingMessage = {
@@ -19,6 +31,6 @@ export type AgenticPendingMessage = {
 };
 
 export type AgenticPendingBatch = {
-  sessions: AgenticPendingSessionInfo[];
+  sessions: AgenticPendingPromptSession[];
   messages: AgenticPendingMessage[];
 };
