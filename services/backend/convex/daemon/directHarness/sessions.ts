@@ -194,7 +194,9 @@ export const listPendingSessionsForMachine = query({
           .collect()
       )
     );
-    return sessionGroups.flat();
+    return sessionGroups
+      .flat()
+      .filter((s) => (s as Record<string, unknown>).purpose !== 'agentic-query');
   },
 });
 

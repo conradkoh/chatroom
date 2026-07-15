@@ -2,37 +2,14 @@ import type { ConvexClient } from 'convex/browser';
 
 import { renderWorkspaceAgentSystemPrompt } from '@workspace/backend/prompts/agentic-query/workspace-agent-system-prompt.js';
 
-import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 import type { ActiveSession } from '../direct-harness/session-subscriber.js';
 import { api } from '../../../../api.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
-import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
-import {
-  startBoundHarness,
-  type NativeDirectHarnessName,
-} from '../../../../infrastructure/harnesses/registry.js';
-import { OPENCODE_SESSION_EVENT_TYPES } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
+import { createChunkExtractor } from '../../../../infrastructure/harnesses/registry.js';
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
-
-interface PendingMessage {
-  harnessSessionId: string;
-  content: string;
-  seq: number;
-}
-
-interface PendingSessionInfo {
-  kind: 'agentic-query';
-  _id: string;
-  workspaceId: string;
-  harnessName: string;
-  opencodeSessionId: string | undefined;
-  agenticQueryId: string;
-  chatroomId: string;
-  lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
-}
 
 interface SubscriberDeps {
   activeSessions: Map<string, ActiveSession>;
@@ -42,27 +19,68 @@ interface SubscriberDeps {
 }
 
 export function startPromptSubscriber(
-  session: AgenticQuerySubscriptionSession,
+  daemonSession: AgenticQuerySubscriptionSession,
   wsClient: ConvexClient,
   deps: SubscriberDeps
 ): { stop: () => void } {
   const handle = wsClient.onUpdate(
     api.daemon.agenticQuery.messages.pendingForMachine,
-    { sessionId: session.sessionId, machineId: session.machineId },
+    { sessionId: daemonSession.sessionId, machineId: daemonSession.machineId },
     async (batch) => {
       if (!batch) return;
       const raw = batch as unknown as {
-        sessions: PendingSessionInfo[];
-        messages: PendingMessage[];
+        sessions: {
+          _id: string;
+          workspaceId: string;
+          harnessName: string;
+          opencodeSessionId: string | undefined;
+          agenticQueryId: string;
+          chatroomId: string;
+          lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
+        }[];
+        messages: { harnessSessionId: string; content: string; seq: number }[];
       };
 
       for (const info of raw.sessions) {
         const rowId = info._id;
-        const existingSession = info.opencodeSessionId
-          ? deps.activeSessions.get(info.opencodeSessionId)
-          : undefined;
+        let existingSession = deps.activeSessions.get(rowId);
 
-        if (!existingSession) continue;
+        // Resume if handle is missing but opencodeSessionId is set
+        if (!existingSession && info.opencodeSessionId && info.harnessName) {
+          const harnessKey = `${info.workspaceId}::${info.harnessName}`;
+          const harness = deps.harnesses.get(harnessKey);
+          if (harness) {
+            try {
+              existingSession = await resumeSession(
+                {
+                  harness,
+                  journalFactory: deps.journalFactory,
+                  chunkExtractor: createChunkExtractor(info.harnessName as any),
+                },
+                {
+                  harnessSessionId: rowId,
+                  opencodeSessionId: info.opencodeSessionId,
+                  workspaceId: info.workspaceId,
+                  harnessName: info.harnessName,
+                }
+              );
+              deps.activeSessions.set(rowId, existingSession);
+              console.log(`[agentic-query] Resumed session ${rowId}`);
+            } catch (err) {
+              console.warn(
+                `[agentic-query] Resume failed for ${rowId}: ${err instanceof Error ? err.message : String(err)}`
+              );
+              continue;
+            }
+          } else {
+            console.log(`[agentic-query] No harness for ${rowId} — waiting for session-subscriber`);
+            continue;
+          }
+        }
+
+        if (!existingSession) {
+          continue;
+        }
 
         const pendingMsgs = raw.messages
           .filter((m) => m.harnessSessionId === rowId)
@@ -78,7 +96,7 @@ export function startPromptSubscriber(
             agent: info.lastUsedConfig.agent,
             ...(info.lastUsedConfig.model ? { model: info.lastUsedConfig.model } : {}),
             system: renderWorkspaceAgentSystemPrompt({
-              convexUrl: session.convexUrl,
+              convexUrl: daemonSession.convexUrl,
               chatroomId: info.chatroomId,
               queryId: info.agenticQueryId,
             }),
