@@ -350,6 +350,10 @@ const ExplorerContent = memo(function ExplorerContent({
                 key={editorTabKey(activeTab)}
                 queryId={activeTab.queryId}
                 mode={activeTab.mode}
+                workspaceId={activeWorkspace?.workspaceId ?? ''}
+                onTitleChange={(title) => {
+                  fileTabs.openAgenticQueryTab(activeTab.queryId, activeTab.mode, title);
+                }}
               />
             ) : activeTab.kind === 'file' ? (
               isMarkdownFile(activeTab.filePath) ? (

@@ -430,7 +430,14 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
         const existing = prev.find((t) => t.kind === 'agentic-query' && t.queryId === queryId) as
           | EditorTab
           | undefined;
-        if (existing) return prev;
+        if (existing) {
+          if (name && existing.name !== name) {
+            return prev.map((t) =>
+              t.kind === 'agentic-query' && t.queryId === queryId ? { ...t, name } : t
+            );
+          }
+          return prev;
+        }
         const withoutPreview = prev.filter((t) => t.isPinned);
         return [
           ...withoutPreview,

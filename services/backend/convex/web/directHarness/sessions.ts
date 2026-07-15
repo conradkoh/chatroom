@@ -82,19 +82,21 @@ export const listSessions = query({
       .order('desc')
       .collect();
 
-    return sessions.map((s) => {
-      const o = requireOpencodeSession(s);
-      return {
-        _id: s._id,
-        status: s.status,
-        harnessName: o.opencode.harnessName,
-        sessionTitle: o.opencode.sessionTitle,
-        lastUsedConfig: o.opencode.lastUsedConfig,
-        workspaceId: s.workspaceId,
-        createdAt: s.createdAt,
-        lastActiveAt: s.lastActiveAt,
-      };
-    });
+    return sessions
+      .filter((s) => s.purpose !== 'agentic-query')
+      .map((s) => {
+        const o = requireOpencodeSession(s);
+        return {
+          _id: s._id,
+          status: s.status,
+          harnessName: o.opencode.harnessName,
+          sessionTitle: o.opencode.sessionTitle,
+          lastUsedConfig: o.opencode.lastUsedConfig,
+          workspaceId: s.workspaceId,
+          createdAt: s.createdAt,
+          lastActiveAt: s.lastActiveAt,
+        };
+      });
   },
 });
 

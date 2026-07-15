@@ -1,36 +1,127 @@
 'use client';
 
-import { Search, HelpCircle } from 'lucide-react';
-import { useState } from 'react';
+// fallow-ignore-file complexity
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { Search, HelpCircle, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
 import { cn } from '@/lib/utils';
+import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
+import { useHarnessTurnStore } from '@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore';
 
 export interface AgenticQueryPanelProps {
   queryId: string;
   mode: AgenticQueryMode;
+  workspaceId: string;
+  onTitleChange?: (title: string) => void;
 }
 
+function AgenticStreamingBody({
+  harnessSessionId,
+}: {
+  harnessSessionId: Id<'chatroom_harnessSessions'>;
+}) {
+  const { turns, streamingOverlay, isLoading } = useHarnessTurnStore(harnessSessionId);
+  const latestAssistant = [...turns].reverse().find((t) => t.role === 'assistant');
+  const streamText = streamingOverlay?.textContent?.trim();
+  const content = streamText || latestAssistant?.textContent?.trim();
+
+  if (isLoading && !content) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-chatroom-text-muted">
+        <Loader2 className="size-3 animate-spin" />
+        Agent is working…
+      </div>
+    );
+  }
+
+  if (!content) {
+    return <p className="text-xs text-chatroom-text-muted">Waiting for agent response…</p>;
+  }
+
+  return <TimelineMarkdownBody content={content} />;
+}
+
+// fallow-ignore-next-line complexity
 export function AgenticQueryPanel({
-  queryId: _queryId,
+  queryId,
   mode: initialMode,
+  onTitleChange,
 }: AgenticQueryPanelProps) {
   const [mode, setMode] = useState<AgenticQueryMode>(initialMode);
   const [queryText, setQueryText] = useState('');
+  const [followUpText, setFollowUpText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { query, turns, isRunning, canSubmit, canFollowUp, harnessSessionId, submit, isLoading } =
+    useAgenticQuery(queryId);
+
+  useEffect(() => {
+    if (query?.title && onTitleChange) {
+      onTitleChange(query.title);
+    }
+  }, [onTitleChange, query?.title]);
+
+  useEffect(() => {
+    if (isDraftLike(query?.status) && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [query?.status]);
+
+  const handleSubmit = useCallback(async () => {
+    const message = queryText.trim();
+    if (!message || !canSubmit) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await submit(message);
+      setQueryText('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to submit query');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [canSubmit, queryText, submit]);
+
+  const handleFollowUp = useCallback(async () => {
+    const message = followUpText.trim();
+    if (!message || !canFollowUp) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await submit(message);
+      setFollowUpText('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to submit follow-up');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [canFollowUp, followUpText, submit]);
+
+  const showInitialInput = !turns.length || query?.status === 'draft';
+  const submitLabel = mode === 'search' ? 'Search' : 'Ask';
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 p-4 gap-4">
-      {/* Mode toggle */}
+    <div className="flex-1 flex flex-col min-h-0 p-4 gap-4" data-testid="agentic-query-panel">
       <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={() => setMode('search')}
+          disabled={!!turns.length}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors',
             mode === 'search'
               ? 'bg-chatroom-accent text-white'
-              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted hover:text-chatroom-text-primary'
+              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted hover:text-chatroom-text-primary',
+            turns.length > 0 && 'opacity-60 cursor-not-allowed'
           )}
         >
           <Search size={12} />
@@ -39,46 +130,110 @@ export function AgenticQueryPanel({
         <button
           type="button"
           onClick={() => setMode('ask')}
+          disabled={!!turns.length}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors',
             mode === 'ask'
               ? 'bg-chatroom-accent text-white'
-              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted hover:text-chatroom-text-primary'
+              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted hover:text-chatroom-text-primary',
+            turns.length > 0 && 'opacity-60 cursor-not-allowed'
           )}
         >
           <HelpCircle size={12} />
           Ask
         </button>
+        {isRunning ? (
+          <span className="ml-auto flex items-center gap-1 text-[10px] uppercase tracking-wider text-chatroom-text-muted">
+            <Loader2 className="size-3 animate-spin" />
+            Running
+          </span>
+        ) : null}
       </div>
 
-      {/* Query textarea */}
-      <textarea
-        value={queryText}
-        onChange={(e) => setQueryText(e.target.value)}
-        placeholder={
-          mode === 'search'
-            ? 'Search the codebase… (e.g. "find all WebSocket connection handlers")'
-            : 'Ask a question about the codebase… (e.g. "how does authentication work?")'
-        }
-        className="flex-1 min-h-0 w-full resize-none bg-chatroom-bg-tertiary border border-chatroom-border p-3 text-[13px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none focus:border-chatroom-accent font-mono"
-      />
+      {showInitialInput ? (
+        <>
+          <textarea
+            ref={textareaRef}
+            value={queryText}
+            onChange={(e) => setQueryText(e.target.value)}
+            placeholder={
+              mode === 'search'
+                ? 'Search the codebase… (e.g. "find all WebSocket connection handlers")'
+                : 'Ask a question about the codebase… (e.g. "how does authentication work?")'
+            }
+            className="min-h-[120px] w-full resize-none bg-chatroom-bg-tertiary border border-chatroom-border p-3 text-[13px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none focus:border-chatroom-accent font-mono"
+          />
+          <button
+            type="button"
+            data-testid="agentic-query-submit"
+            disabled={!canSubmit || isSubmitting || !queryText.trim() || isLoading}
+            onClick={() => void handleSubmit()}
+            className="w-full shrink-0 bg-chatroom-accent text-white text-[10px] font-bold uppercase tracking-wider py-2 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Submitting…' : submitLabel}
+          </button>
+        </>
+      ) : null}
 
-      {/* Submit button (disabled — coming in slice 1) */}
-      <button
-        type="button"
-        disabled
-        title="Coming soon"
-        className="w-full shrink-0 bg-chatroom-accent/50 text-white text-[10px] font-bold uppercase tracking-wider py-2 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Submit
-      </button>
+      {error ? <p className="text-xs text-red-500">{error}</p> : null}
 
-      {/* Placeholder thread area */}
-      <div className="flex-1 flex items-center justify-center border border-dashed border-chatroom-border rounded-sm">
-        <span className="text-xs text-chatroom-text-muted">
-          Type a query and submit to get started
-        </span>
+      <div className="flex-1 min-h-0 overflow-y-auto border border-chatroom-border rounded-sm p-3 space-y-4">
+        {turns.length === 0 && !isLoading ? (
+          <span className="text-xs text-chatroom-text-muted">
+            Type a query and submit to get started
+          </span>
+        ) : null}
+
+        {turns.map((turn) => (
+          <div key={turn._id} className="space-y-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+              You
+            </div>
+            <p className="text-[13px] text-chatroom-text-primary whitespace-pre-wrap font-mono">
+              {turn.userMessage}
+            </p>
+            {turn.assistantResponse ? (
+              <>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted pt-2">
+                  Agent
+                </div>
+                <TimelineMarkdownBody content={turn.assistantResponse} />
+              </>
+            ) : isRunning && harnessSessionId ? (
+              <>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted pt-2">
+                  Agent
+                </div>
+                <AgenticStreamingBody harnessSessionId={harnessSessionId} />
+              </>
+            ) : null}
+          </div>
+        ))}
       </div>
+
+      {canFollowUp ? (
+        <div className="shrink-0 space-y-2 border-t border-chatroom-border pt-3">
+          <textarea
+            value={followUpText}
+            onChange={(e) => setFollowUpText(e.target.value)}
+            placeholder="Ask a follow-up or refine the results…"
+            className="min-h-[80px] w-full resize-none bg-chatroom-bg-tertiary border border-chatroom-border p-3 text-[13px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none focus:border-chatroom-accent font-mono"
+          />
+          <button
+            type="button"
+            data-testid="agentic-query-follow-up"
+            disabled={isSubmitting || !followUpText.trim()}
+            onClick={() => void handleFollowUp()}
+            className="w-full shrink-0 bg-chatroom-bg-tertiary text-chatroom-text-primary text-[10px] font-bold uppercase tracking-wider py-2 rounded-sm border border-chatroom-border disabled:opacity-50"
+          >
+            {isSubmitting ? 'Sending…' : 'Follow up'}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function isDraftLike(status: string | undefined): boolean {
+  return status === 'draft' || status === undefined;
 }

@@ -56,6 +56,26 @@ describe('FileTabBar', () => {
     expect(onCloseOthers).toHaveBeenCalledWith('src/b.ts');
   });
 
+  it('renders agentic query tabs without a file context menu', async () => {
+    const agenticTabs: EditorTab[] = [
+      {
+        kind: 'agentic-query',
+        queryId: 'query-1',
+        name: 'Agentic Search',
+        mode: 'search',
+        isPinned: true,
+      },
+    ];
+
+    render(
+      <FileTabBar {...defaultProps} tabs={agenticTabs} activeTabKey="agentic-query:query-1" />
+    );
+
+    expect(screen.getByTitle('agentic-query:query-1')).toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByTitle('agentic-query:query-1'));
+    expect(screen.queryByRole('menuitem', { name: /copy file name/i })).not.toBeInTheDocument();
+  });
+
   it('disables Close Others when only one tab is open', async () => {
     render(<FileTabBar {...defaultProps} tabs={[tabs[0]]} />);
 
