@@ -87,6 +87,7 @@ const WORKSPACE_KEY = toWorkspaceFileTreeKey('machine-1', '/workspace');
 const fileTabs = {
   tabs: [],
   activeTabPath: null,
+  activeTabKey: null,
   expandedTabPath: null,
   expandedPane: null,
   openPreview: vi.fn(),
@@ -97,6 +98,8 @@ const fileTabs = {
   toggleExpanded: vi.fn(),
   togglePreviewExpanded: vi.fn(),
   renamePath: vi.fn(),
+  openAgenticQueryTab: vi.fn(),
+  closeAgenticQueryTab: vi.fn(),
   rightTabs: [],
   activeRightTabKey: null,
   openRight: vi.fn(),

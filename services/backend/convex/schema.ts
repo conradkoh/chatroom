@@ -2748,6 +2748,8 @@ export default defineSchema({
         createdBy: v.id('users'),
         createdAt: v.number(),
         lastActiveAt: v.number(),
+        purpose: v.optional(v.union(v.literal('direct'), v.literal('agentic-query'))),
+        agenticQueryId: v.optional(v.id('chatroom_agenticQueries')),
         /**
          * Cursor for the daemon's turn-based message processing.
          * Indexes into chatroom_harnessSessionTurns. Default treated as 0.
@@ -2783,6 +2785,45 @@ export default defineSchema({
   )
     .index('by_workspace', ['workspaceId'])
     .index('by_workspace_status', ['workspaceId', 'status']),
+
+  /**
+   * Agentic queries — user-submitted search/ask requests that spawn harness sessions.
+   * Each query produces turns (user question + agent response) stored in chatroom_agenticQueryTurns.
+   */
+  chatroom_agenticQueries: defineTable({
+    workspaceId: v.id('chatroom_workspaces'),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('complete'),
+      v.literal('failed')
+    ),
+    mode: v.union(v.literal('search'), v.literal('ask')),
+    title: v.string(),
+    harnessSessionId: v.optional(v.id('chatroom_harnessSessions')),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    lastActiveAt: v.number(),
+    summary: v.optional(v.string()),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_status', ['workspaceId', 'status']),
+
+  /**
+   * Individual turns within an agentic query — user prompt followed by agent response body.
+   * seq is monotonically increasing per query.
+   */
+  chatroom_agenticQueryTurns: defineTable({
+    agenticQueryId: v.id('chatroom_agenticQueries'),
+    seq: v.number(),
+    userMessage: v.string(),
+    assistantResponse: v.optional(v.string()),
+    structuredResult: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_agenticQueryId', ['agenticQueryId'])
+    .index('by_agenticQueryId_seq', ['agenticQueryId', 'seq']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant

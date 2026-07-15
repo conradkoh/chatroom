@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 import { pendingOptimisticDeletePaths } from './pendingOptimisticDeletePaths';
 import { pendingOptimisticNewFilePaths } from './pendingOptimisticNewFilePaths';
-import type { UseFileTabsReturn } from './useFileTabs';
+import type { EditorTab, UseFileTabsReturn } from './useFileTabs';
 
 /** Optimistic explorer file ops: track pending paths and wire panel callbacks. */
 export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
@@ -33,7 +33,9 @@ export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
   const onFileDeleteSubmitted = useCallback(
     (path: string) => {
       pendingOptimisticDeletePaths.add(path);
-      const tabsToClose = fileTabs.tabs
+      type FileTab = Extract<EditorTab, { kind: 'file' }>;
+      const fileTabsList = fileTabs.tabs.filter((t): t is FileTab => t.kind === 'file');
+      const tabsToClose = fileTabsList
         .filter((tab) => tab.filePath === path || (path && tab.filePath.startsWith(`${path}/`)))
         .map((tab) => tab.filePath);
       for (const tabPath of tabsToClose) {

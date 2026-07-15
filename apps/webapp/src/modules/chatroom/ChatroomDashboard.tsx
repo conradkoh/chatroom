@@ -82,6 +82,9 @@ import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
+import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
+import { editorTabKey } from './workspace/hooks/useFileTabs';
+import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
@@ -258,6 +261,24 @@ const ExplorerContent = memo(function ExplorerContent({
   const workingDir = activeWorkspace?.workingDir ?? '';
   const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
 
+  const { openSearchTab } = useAgenticQueryTabOpener(undefined, fileTabs);
+
+  const activeTab = fileTabs.tabs.find((t) => editorTabKey(t) === fileTabs.activeTabKey) ?? null;
+  const activeFilePath = activeTab?.kind === 'file' ? activeTab.filePath : fileTabs.activeTabKey;
+  const showTabBar = fileTabs.tabs.length > 0;
+
+  // Cmd+F opens agentic search tab
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        void openSearchTab();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [openSearchTab]);
+
   const handleOpenSelectionOnRemote = useCallback(
     (filePath: string, selectedText: string) => {
       void openFileOnRemote(filePath, selectedText);
@@ -266,30 +287,29 @@ const ExplorerContent = memo(function ExplorerContent({
   );
 
   const hasSplit = fileTabs.rightTabs.length > 0;
-  const showTabBar = fileTabs.tabs.length > 0;
   const editorExpanded = isEditorExpanded(
     hasSplit,
     fileTabs.expandedTabPath,
     fileTabs.expandedPane,
-    fileTabs.activeTabPath
+    activeFilePath
   );
   const previewExpanded = isPreviewExpanded(
     hasSplit,
     fileTabs.expandedTabPath,
     fileTabs.expandedPane,
-    fileTabs.activeTabPath
+    activeFilePath
   );
 
   const handleTogglePreviewExpanded = useCallback(() => {
-    if (fileTabs.activeTabPath) {
-      fileTabs.togglePreviewExpanded(fileTabs.activeTabPath);
+    if (activeFilePath) {
+      fileTabs.togglePreviewExpanded(activeFilePath);
     }
-  }, [fileTabs.activeTabPath, fileTabs.togglePreviewExpanded]);
+  }, [activeFilePath, fileTabs]);
 
   const fileTabBar = showTabBar ? (
     <FileTabBar
       tabs={fileTabs.tabs}
-      activeTabPath={fileTabs.activeTabPath}
+      activeTabKey={fileTabs.activeTabKey}
       machineId={activeWorkspace?.machineId ?? null}
       workingDir={activeWorkspace?.workingDir ?? null}
       onActivate={fileTabs.setActiveTab}
@@ -300,14 +320,16 @@ const ExplorerContent = memo(function ExplorerContent({
       onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
     />
   ) : null;
+  const hasMachineAndDir = activeWorkspace?.machineId && activeWorkspace?.workingDir;
+  const showContentArea = activeTab && hasMachineAndDir;
 
   return (
     <>
       {/* Full-width tab bar when no preview/table split */}
       {showTabBar && !hasSplit && fileTabBar}
 
-      {/* File Content Area — left pane + optional right pane */}
-      {fileTabs.activeTabPath && activeWorkspace?.machineId && activeWorkspace?.workingDir ? (
+      {/* Content Area — left pane + optional right pane */}
+      {showContentArea ? (
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Left Pane — source code */}
           <div
@@ -322,28 +344,36 @@ const ExplorerContent = memo(function ExplorerContent({
             )}
           >
             {showTabBar && hasSplit && fileTabBar}
-            {isMarkdownFile(fileTabs.activeTabPath) ? (
-              <MarkdownFileEditorPane
-                key={fileTabs.activeTabPath}
-                machineId={activeWorkspace.machineId}
-                workingDir={activeWorkspace.workingDir}
-                filePath={fileTabs.activeTabPath}
-                onSendSelectionToComposer={onSendSelectionToComposer}
-                onOpenPreview={onOpenPreview}
-                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+            {activeTab.kind === 'agentic-query' ? (
+              <AgenticQueryPanel
+                key={editorTabKey(activeTab)}
+                queryId={activeTab.queryId}
+                mode={activeTab.mode}
               />
-            ) : (
-              <FileContentViewer
-                key={fileTabs.activeTabPath}
-                machineId={activeWorkspace.machineId}
-                workingDir={activeWorkspace.workingDir}
-                filePath={fileTabs.activeTabPath}
-                onSendSelectionToComposer={onSendSelectionToComposer}
-                onOpenPreview={onOpenPreview}
-                onOpenTableView={onOpenTableView}
-                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-              />
-            )}
+            ) : activeTab.kind === 'file' ? (
+              isMarkdownFile(activeTab.filePath) ? (
+                <MarkdownFileEditorPane
+                  key={activeTab.filePath}
+                  machineId={activeWorkspace.machineId!}
+                  workingDir={activeWorkspace.workingDir!}
+                  filePath={activeTab.filePath}
+                  onSendSelectionToComposer={onSendSelectionToComposer}
+                  onOpenPreview={onOpenPreview}
+                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+                />
+              ) : (
+                <FileContentViewer
+                  key={activeTab.filePath}
+                  machineId={activeWorkspace.machineId!}
+                  workingDir={activeWorkspace.workingDir!}
+                  filePath={activeTab.filePath}
+                  onSendSelectionToComposer={onSendSelectionToComposer}
+                  onOpenPreview={onOpenPreview}
+                  onOpenTableView={onOpenTableView}
+                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+                />
+              )
+            ) : null}
           </div>
 
           {/* Right Pane — preview/table */}
@@ -360,7 +390,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 onActivate={fileTabs.setActiveRightTab}
                 onClose={fileTabs.closeRight}
                 onTabDoubleClick={(tab) => {
-                  const action = previewTabDoubleClickAction(tab.viewType, fileTabs.activeTabPath);
+                  const action = previewTabDoubleClickAction(tab.viewType, activeFilePath);
                   if (action?.action === 'togglePreviewExpanded') {
                     fileTabs.togglePreviewExpanded(action.filePath);
                   }
@@ -406,7 +436,9 @@ const ExplorerContent = memo(function ExplorerContent({
           <div className="text-center">
             <Files size={32} className="mx-auto mb-2 opacity-40" />
             <p>No files open</p>
-            <p className="text-xs mt-1">Select a file from the explorer to view it</p>
+            <p className="text-xs mt-1">
+              Select a file from the explorer to view it, or press Cmd+F to search
+            </p>
           </div>
         </div>
       )}
