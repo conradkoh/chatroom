@@ -462,6 +462,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Mobile tree toggle button */}
             <button
+              type="button"
+              aria-label="Browse files"
               onClick={() => setMobileTreeOpen((prev) => !prev)}
               className="sm:hidden text-chatroom-text-muted hover:text-chatroom-text-primary min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
               title="Browse files"
@@ -495,6 +497,14 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             )}
             {hasToggle && (
               <button
+                type="button"
+                aria-label={
+                  viewMode === 'source'
+                    ? isMarkdown
+                      ? 'Preview markdown'
+                      : 'View as table'
+                    : 'Show source'
+                }
                 onClick={() =>
                   setViewMode((prev) =>
                     prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source'
@@ -522,6 +532,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             )}
             {onOpenInExplorer && filePath && (
               <button
+                type="button"
+                aria-label="Open in Explorer"
                 onClick={() => {
                   onOpenInExplorer(filePath);
                   onClose();

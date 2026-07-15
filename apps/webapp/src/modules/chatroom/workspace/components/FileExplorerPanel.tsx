@@ -1,6 +1,8 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   MoreHorizontal,
   RefreshCw,
@@ -13,7 +15,15 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useState } from 'react';
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
@@ -21,6 +31,7 @@ import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
 import { WorkspaceDropdownMenuItem } from './WorkspaceDropdownMenuItem';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
+import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,10 +50,16 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
+import { useFileContent } from '../hooks/useFileContent';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
-import { copyFullPathToClipboard, copyRelativePathToClipboard } from '../utils/clipboard';
+import {
+  copyFileContentToClipboard,
+  copyFileNameToClipboard,
+  copyFullPathToClipboard,
+  copyRelativePathToClipboard,
+} from '../utils/clipboard';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -199,6 +216,30 @@ export const FileExplorerPanel = memo(
         null
       );
       const [contextMenuPoint, setContextMenuPoint] = useState({ x: 0, y: 0 });
+
+      // Fetch content for "Copy File Content" when context menu opens on a file
+      const contextMenuFilePath =
+        contextMenuOpen && contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'file'
+          ? contextMenuTarget.path
+          : null;
+
+      const menuFileContent = useFileContent(
+        contextMenuFilePath && machineId && workingDir
+          ? { machineId, workingDir, filePath: contextMenuFilePath }
+          : 'skip'
+      );
+
+      const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
+
+      useEffect(() => {
+        if (contextMenuOpen && contextMenuFilePath && machineId && workingDir) {
+          requestContent({ machineId, workingDir, filePath: contextMenuFilePath }).catch(() => {});
+        }
+      }, [contextMenuOpen, contextMenuFilePath, machineId, workingDir, requestContent]);
+
+      const menuFileIsBinary = contextMenuFilePath ? isBinaryFile(contextMenuFilePath) : false;
+      const canCopyMenuFileContent = !!menuFileContent?.content && !menuFileIsBinary;
+
       const { requestDelete, confirmDelete } = useWorkspaceFileDelete({
         machineId: machineId ?? '',
         workingDir: workingDir ?? '',
@@ -481,6 +522,12 @@ export const FileExplorerPanel = memo(
                 <>
                   <WorkspaceDropdownMenuItem
                     icon={Copy}
+                    onSelect={() => void copyFileNameToClipboard(contextMenuTarget.path)}
+                  >
+                    Copy File Name
+                  </WorkspaceDropdownMenuItem>
+                  <WorkspaceDropdownMenuItem
+                    icon={Copy}
                     onSelect={() => void copyRelativePathToClipboard(contextMenuTarget.path)}
                   >
                     Copy Relative Path
@@ -490,9 +537,25 @@ export const FileExplorerPanel = memo(
                     onSelect={() =>
                       void copyFullPathToClipboard(workingDir, contextMenuTarget.path)
                     }
+                    disabled={!workingDir}
                   >
                     Copy Full Path
                   </WorkspaceDropdownMenuItem>
+                  {contextMenuTarget.type === 'file' && (
+                    <WorkspaceDropdownMenuItem
+                      icon={Copy}
+                      onSelect={() => {
+                        if (menuFileContent?.content) {
+                          void copyFileContentToClipboard(menuFileContent.content, {
+                            truncated: menuFileContent.truncated,
+                          });
+                        }
+                      }}
+                      disabled={!canCopyMenuFileContent}
+                    >
+                      Copy File Content
+                    </WorkspaceDropdownMenuItem>
+                  )}
                   {contextMenuTarget.type === 'file' && (
                     <WorkspaceDropdownMenuItem
                       icon={ExternalLink}

@@ -74,6 +74,21 @@ describe('FileTabBar', () => {
     expect(writeText).toHaveBeenCalledWith('src/b.ts');
   });
 
+  it('copies file name from context menu', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<FileTabBar {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src/b.ts'));
+    fireEvent.click(await screen.findByText('Copy File Name'));
+
+    expect(writeText).toHaveBeenCalledWith('b.ts');
+  });
+
   it('copies full path from context menu', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {

@@ -11,7 +11,11 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
-import { copyFullPathToClipboard, copyRelativePathToClipboard } from '../utils/clipboard';
+import {
+  copyFileNameToClipboard,
+  copyFullPathToClipboard,
+  copyRelativePathToClipboard,
+} from '../utils/clipboard';
 import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -102,6 +106,12 @@ export const FileTabBar = memo(function FileTabBar({
               Open File on Remote
             </WorkspaceDropdownMenuItem>
           )}
+          <WorkspaceDropdownMenuItem
+            icon={Copy}
+            onSelect={() => contextMenuTarget && void copyFileNameToClipboard(contextMenuTarget)}
+          >
+            Copy File Name
+          </WorkspaceDropdownMenuItem>
           <WorkspaceDropdownMenuItem
             icon={Copy}
             onSelect={() =>

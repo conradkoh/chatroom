@@ -69,6 +69,19 @@ vi.mock('sonner', () => ({
   },
 }));
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionQuery: () => null,
+}));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: { workspaceFiles: { requestFileContent: {}, getFileContentV2: {} } },
+}));
+
+vi.mock('../hooks/useFileContent', () => ({
+  useFileContent: vi.fn(() => null),
+}));
+
 const WORKSPACE_KEY = toWorkspaceFileTreeKey('machine-1', '/workspace');
 
 const fileTabs = {
