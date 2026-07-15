@@ -7,9 +7,7 @@ export function getMobileDrawerContentStyle(keyboardInsetPx: number): CSSPropert
   const safeRight = 'env(safe-area-inset-right, 0px)';
 
   const paddingBottom =
-    keyboardInsetPx > 0
-      ? `calc(${keyboardInsetPx}px + ${safeBottom} + 8px)`
-      : `calc(${safeBottom} + 12px)`;
+    keyboardInsetPx > 0 ? `calc(${safeBottom} + 8px)` : `calc(${safeBottom} + 12px)`;
 
   const style: CSSProperties = {
     paddingLeft: `max(16px, ${safeLeft})`,
@@ -18,7 +16,10 @@ export function getMobileDrawerContentStyle(keyboardInsetPx: number): CSSPropert
   };
 
   if (keyboardInsetPx > 0) {
-    style.maxHeight = `calc(100dvh - ${keyboardInsetPx}px - ${safeTop})`;
+    const constrainedHeight = `calc(100dvh - ${keyboardInsetPx}px - ${safeTop})`;
+    style.maxHeight = constrainedHeight;
+    style.height = constrainedHeight;
+    style.overflow = 'hidden';
   }
 
   return style;

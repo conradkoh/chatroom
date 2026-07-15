@@ -10,10 +10,13 @@ describe('getMobileDrawerContentStyle', () => {
     expect(style.paddingBottom).toContain('safe-area-inset-bottom');
   });
 
-  it('adds keyboard inset to paddingBottom and maxHeight when keyboard open', () => {
+  it('adds keyboard inset to maxHeight and height when keyboard open', () => {
     const style = getMobileDrawerContentStyle(300);
-    expect(style.paddingBottom).toContain('300px');
+    expect(style.paddingBottom).toContain('safe-area-inset-bottom');
+    expect(style.paddingBottom).not.toContain('300px');
     expect(style.maxHeight).toContain('300px');
+    expect(style.height).toBe(style.maxHeight);
+    expect(style.overflow).toBe('hidden');
   });
 
   it('does not set maxHeight when keyboard closed', () => {
