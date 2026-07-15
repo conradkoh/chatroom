@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FileCopyActionsMenu, CopyFileNameButton } from './FileCopyActionsMenu';
+import {
+  FileCopyActionsMenu,
+  CopyFileNameButton,
+  CopyFileContentButton,
+} from './FileCopyActionsMenu';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -114,6 +118,14 @@ describe('FileCopyActionsMenu', () => {
     openDropdown();
     expect(screen.queryByText('Copy File Content')).not.toBeInTheDocument();
   });
+
+  it('uses MoreHorizontal trigger when triggerVariant is more', () => {
+    render(<FileCopyActionsMenu {...defaultProps} triggerVariant="more" showFileContent={false} />);
+    const trigger = screen.getByRole('button', { name: /more copy options/i });
+    fireEvent.pointerDown(trigger);
+    expect(screen.getByText('Copy Relative Path')).toBeInTheDocument();
+    expect(screen.queryByText('Copy File Content')).not.toBeInTheDocument();
+  });
 });
 
 describe('CopyFileNameButton', () => {
@@ -132,6 +144,33 @@ describe('CopyFileNameButton', () => {
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
       expect(toast.success).toHaveBeenCalledWith('Copied file name');
+    });
+  });
+});
+
+describe('CopyFileContentButton', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('renders visible label text', () => {
+    render(<CopyFileContentButton content="hello" label="Copy as Markdown" className="flex" />);
+    expect(screen.getByRole('button', { name: /copy as markdown/i })).toHaveTextContent(
+      'Copy as Markdown'
+    );
+  });
+
+  it('copies content when clicked', async () => {
+    render(<CopyFileContentButton content="hello" label="Copy File Content" className="flex" />);
+    fireEvent.click(screen.getByRole('button', { name: /copy file content/i }));
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('hello');
+      expect(toast.success).toHaveBeenCalledWith('Copied file content');
     });
   });
 });

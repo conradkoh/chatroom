@@ -13,12 +13,15 @@ import {
   Eye,
   Code2,
   Files,
-  Copy,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { isBinaryFile } from './binaryDetection';
-import { FileCopyActionsMenu, CopyFileNameButton } from './FileCopyActionsMenu';
+import {
+  FileCopyActionsMenu,
+  CopyFileNameButton,
+  CopyFileContentButton,
+} from './FileCopyActionsMenu';
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
 import {
@@ -31,7 +34,6 @@ import {
   SyntaxHighlighter,
 } from '../../workspace/file-renderers';
 import { useFileContent, type FileContentResult } from '../../workspace/hooks/useFileContent';
-import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
 import {
   FixedModal,
@@ -429,15 +431,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   const isBinary = filePath ? isBinaryFile(filePath) : false;
   const canCopyContent = !!contentResult && !isBinary;
-  const showCopyMarkdownButton = isMarkdown && canCopyContent && isDesktopLayout;
-  const showCopyContentInMenu = canCopyContent && (!isMarkdown || !isDesktopLayout);
-
-  const handleCopyMarkdown = useCallback(() => {
-    if (!contentResult?.content || !canCopyContent) return;
-    void copyFileContentToClipboard(contentResult.content, {
-      truncated: contentResult.truncated,
-    });
-  }, [canCopyContent, contentResult]);
+  const copyContentLabel = isMarkdown ? 'Copy as Markdown' : 'Copy File Content';
+  const showCopyContentInMenu = canCopyContent && !isDesktopLayout;
 
   // Request content mutation (triggers daemon to fetch)
   const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
@@ -487,26 +482,24 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             {filePath && (
               <FileTypeIcon path={filePath} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
             )}
-            <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate">
-              {filePath}
-            </span>
-            {filePath && <CopyFileNameButton relativePath={filePath} />}
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate">
+                {filePath}
+              </span>
+              {filePath && <CopyFileNameButton relativePath={filePath} />}
+            </div>
             {contentResult?.truncated && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 shrink-0">
                 TRUNCATED
               </span>
             )}
-            {showCopyMarkdownButton && (
-              <button
-                type="button"
-                onClick={handleCopyMarkdown}
-                className="hidden sm:flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 rounded-sm"
-                aria-label="Copy as Markdown"
-                title="Copy as Markdown"
-              >
-                <Copy className="h-3.5 w-3.5" aria-hidden />
-                Copy as Markdown
-              </button>
+            {canCopyContent && (
+              <CopyFileContentButton
+                className="hidden sm:flex"
+                content={contentResult?.content ?? null}
+                truncated={contentResult?.truncated}
+                label={copyContentLabel}
+              />
             )}
             {filePath && (
               <FileCopyActionsMenu
@@ -517,7 +510,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 contentDisabled={!canCopyContent}
                 showFileName={false}
                 showFileContent={showCopyContentInMenu}
-                fileContentLabel={isMarkdown ? 'Copy as Markdown' : 'Copy File Content'}
+                fileContentLabel={copyContentLabel}
+                triggerVariant={isDesktopLayout ? 'more' : 'copy'}
               />
             )}
             {hasToggle && (

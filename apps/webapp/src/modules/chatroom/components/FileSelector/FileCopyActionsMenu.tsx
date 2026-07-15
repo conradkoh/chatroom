@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy } from 'lucide-react';
+import { Copy, MoreHorizontal } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 import { WorkspaceDropdownMenuItem } from '../../workspace/components/WorkspaceDropdownMenuItem';
@@ -27,10 +27,15 @@ export interface FileCopyActionsMenuProps {
   className?: string;
   /** When false, omits "Copy File Name" from the dropdown (use inline CopyFileNameButton). */
   showFileName?: boolean;
-  /** When false, omits file content from the dropdown (e.g. desktop markdown uses a header button). */
+  /** When false, omits file content from the dropdown (desktop uses CopyFileContentButton). */
   showFileContent?: boolean;
   fileContentLabel?: string;
+  /** `copy` = mobile all-in-one menu; `more` = desktop path-only overflow menu. */
+  triggerVariant?: 'copy' | 'more';
 }
+
+const copyContentButtonClassName =
+  'items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 rounded-sm disabled:opacity-50 disabled:pointer-events-none';
 
 export const CopyFileNameButton = memo(function CopyFileNameButton({
   relativePath,
@@ -59,6 +64,40 @@ export const CopyFileNameButton = memo(function CopyFileNameButton({
   );
 });
 
+export const CopyFileContentButton = memo(function CopyFileContentButton({
+  content,
+  truncated = false,
+  disabled = false,
+  label,
+  className,
+}: {
+  content: string | null;
+  truncated?: boolean;
+  disabled?: boolean;
+  label: string;
+  className?: string;
+}) {
+  const handleCopy = useCallback(() => {
+    if (!content || disabled) return;
+    void copyFileContentToClipboard(content, { truncated });
+  }, [content, disabled, truncated]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      disabled={disabled || !content}
+      className={cn('flex', copyContentButtonClassName, className)}
+      aria-label={label}
+      title={label}
+    >
+      <Copy className="h-3.5 w-3.5" aria-hidden />
+      {label}
+    </button>
+  );
+});
+
+// fallow-ignore-next-line complexity
 export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   relativePath,
   workingDir,
@@ -69,6 +108,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   showFileName = true,
   showFileContent = true,
   fileContentLabel = 'Copy File Content',
+  triggerVariant = 'copy',
 }: FileCopyActionsMenuProps) {
   const handleCopyFileName = useCallback(() => {
     void copyFileNameToClipboard(relativePath);
@@ -87,6 +127,8 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
     void copyFileContentToClipboard(content, { truncated });
   }, [content, contentDisabled, truncated]);
 
+  const isMoreTrigger = triggerVariant === 'more';
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -96,10 +138,14 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
             'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 min-w-8 min-h-8 flex items-center justify-center rounded-sm',
             className
           )}
-          aria-label="Copy file"
-          title="Copy file"
+          aria-label={isMoreTrigger ? 'More copy options' : 'Copy file'}
+          title={isMoreTrigger ? 'More copy options' : 'Copy file'}
         >
-          <Copy className="h-3.5 w-3.5" aria-hidden />
+          {isMoreTrigger ? (
+            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
