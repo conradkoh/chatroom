@@ -2,6 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 
+import { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
+import {
+  MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
+  MOBILE_DRAWER_CONTENT_CLASSNAME,
+} from './mobileDrawerLayout';
 import { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
@@ -73,19 +78,16 @@ export function ResponsivePickerShell({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} nested>
+    <Drawer open={open} onOpenChange={onOpenChange} nested repositionInputs={false}>
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
-        className={cn(
-          'bg-chatroom-bg-primary border-t border-chatroom-border p-0 max-h-[80vh] rounded-t-none',
-          drawerContentClassName
-        )}
-        style={keyboardInsetPx > 0 ? { paddingBottom: keyboardInsetPx } : undefined}
+        className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}
+        style={getMobileDrawerContentStyle(keyboardInsetPx)}
       >
-        <DrawerHeader className="p-0">
+        <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
         </DrawerHeader>
-        {children}
+        <div className={cn(MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME)}>{children}</div>
       </DrawerContent>
     </Drawer>
   );

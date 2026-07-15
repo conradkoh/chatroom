@@ -9,5 +9,10 @@ export type { PickerPanelHeaderProps } from './PickerPanelHeader';
 export { PickerOptionRow } from './PickerOptionRow';
 export type { PickerOptionRowProps } from './PickerOptionRow';
 export { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
+export { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
+export {
+  MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
+  MOBILE_DRAWER_CONTENT_CLASSNAME,
+} from './mobileDrawerLayout';
 export { usePickerSearchState } from './usePickerSearchState';
 export { filterPickerItems } from './filterPickerItems';

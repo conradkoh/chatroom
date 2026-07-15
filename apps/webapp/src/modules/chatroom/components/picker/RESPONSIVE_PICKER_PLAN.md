@@ -89,12 +89,13 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 
 ### Lower priority (small / contextual enums)
 
-| Component                | Path                                        | Status | Notes                                          |
-| ------------------------ | ------------------------------------------- | ------ | ---------------------------------------------- |
-| CreateChatroomForm team  | `components/CreateChatroomForm.tsx`         | done   | Search + option row; preserves Enter-to-submit |
-| AgentSettingsModal tabs  | `components/AgentSettingsModal.tsx`         | done   | No search (6 tabs); `sm:hidden` only           |
-| PullRequestsPanel filter | `workspace/.../PullRequestsPanel.tsx`       | done   | No search (3 options)                          |
-| RightSplitPanel mode     | `explorer-split-panels/RightSplitPanel.tsx` | skip   | 2 modes, md+ only panel                        |
+| Component                | Path                                        | Status | Notes                                                     |
+| ------------------------ | ------------------------------------------- | ------ | --------------------------------------------------------- |
+| CreateChatroomForm team  | `components/CreateChatroomForm.tsx`         | done   | Search + option row; preserves Enter-to-submit            |
+| AgentControls model      | `components/AgentControls.tsx`              | done   | ResponsivePickerShell with PickerSearch + PickerOptionRow |
+| AgentSettingsModal tabs  | `components/AgentSettingsModal.tsx`         | done   | No search (6 tabs); `sm:hidden` only                      |
+| PullRequestsPanel filter | `workspace/.../PullRequestsPanel.tsx`       | done   | No search (3 options)                                     |
+| RightSplitPanel mode     | `explorer-split-panels/RightSplitPanel.tsx` | skip   | 2 modes, md+ only panel                                   |
 
 ### Refactor (leave it better)
 
@@ -114,6 +115,23 @@ Status legend: `pending` | `in-progress` | `done` | `skip`
 | 5     | Builder | Forms + panels; refactor `ModelFilterPanel`           | done   |
 | 6     | Planner | Review, PR to `release/v1.65.7`                       | done   |
 
+## Mobile drawer contract (2026-07-15)
+
+Prerequisites:
+
+- `viewportFit: 'cover'` in `apps/webapp/src/app/layout.tsx`
+- `getMobileDrawerContentStyle(keyboardInsetPx)` for safe-area + keyboard insets
+- `MOBILE_DRAWER_*` constants in `mobileDrawerLayout.ts`
+
+Child structure inside `ResponsivePickerShell` (mobile):
+
+1. `PickerPanelHeader?` — `shrink-0`
+2. `PickerSearch?` — `shrink-0` (no autoFocus on mobile)
+3. `PickerScrollBody` — **required** for scrollable lists (`data-picker-scroll-body`)
+4. Footer actions? — `shrink-0`
+
+Do NOT use raw `div.overflow-y-auto` for scroll regions — they bypass drawer flex scroll.
+
 ## Testing strategy
 
 - **Foundation**: mock `useIsDesktop` → assert Popover vs Drawer branch; `filterPickerItems` edge cases; `usePickerSearchState` clears on close.
@@ -130,6 +148,7 @@ _(Update as we go.)_
 - **2026-07-13**: Slice 4: `HarnessWorkspaceSwitcher` migrated (keeps empty-state div short-circuit), `DirectHarnessPanel` session picker migrated (preserves responsive `@container`/`@md:` trigger styling, New session sentinel as `PickerOptionRow`), `DirectHarnessView` register dialog machine picker migrated (compact button without search for small lists).
 - **2026-07-13**: Slice 5: Fixed hooks violations (moved useState/usePickerSearchState before conditional returns in HarnessWorkspaceSwitcher and DirectHarnessPanel). Migrated CreateChatroomForm team picker (with search, Enter-to-submit preserved via open state), AgentSettingsModal mobile tab picker (no search, 6 tabs), PullRequestsPanel filter (no search, 3 options). Refactored ModelFilterPanel to use ResponsivePickerShell — removed duplicated Popover/Drawer/useIsDesktop branching.
 - **2026-07-13**: Slice 6: Planner review caught remaining `useMemo` after early return in HarnessWorkspaceSwitcher (fixed). PR #911 opened to `release/v1.65.7`.
+- **2026-07-15**: AgentControls model selector migrated to ResponsivePickerShell (PR #963). Uses PickerSearch + filterPickerItems + PickerOptionRow, matching machine/harness pattern. Removed Popover/Command imports.
 
 ## Branch / PR
 

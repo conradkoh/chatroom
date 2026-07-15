@@ -23,7 +23,7 @@ export function PickerSearch({
   const shouldAutoFocus = autoFocus ?? isDesktop;
 
   return (
-    <div className={cn('px-3 py-1.5 border-b border-chatroom-border', className)}>
+    <div className={cn('px-3 py-1.5 border-b border-chatroom-border shrink-0', className)}>
       <input
         type="search"
         value={value}
