@@ -38,13 +38,7 @@ import {
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   FixedModal,
   FixedModalContent,
@@ -740,7 +734,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent floating className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Purge Cache</DialogTitle>
             <DialogDescription>
