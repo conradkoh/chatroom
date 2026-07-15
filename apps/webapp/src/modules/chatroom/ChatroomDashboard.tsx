@@ -76,15 +76,13 @@ import {
   runAgentStartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
+import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
 import { FileTabBar } from './workspace/components/FileTabBar';
-import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
-import { editorTabKey } from './workspace/hooks/useFileTabs';
-import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
@@ -93,6 +91,9 @@ import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
+import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
+import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
+import { editorTabKey } from './workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -243,7 +244,11 @@ function ChatroomHeaderCenter({
 
 interface ExplorerContentProps {
   fileTabs: UseFileTabsReturn;
-  activeWorkspace: { machineId: string | null; workingDir: string | null } | null;
+  activeWorkspace: {
+    workspaceId: string | null;
+    machineId: string | null;
+    workingDir: string | null;
+  } | null;
   onOpenPreview: (filePath: string) => void;
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
@@ -261,23 +266,19 @@ const ExplorerContent = memo(function ExplorerContent({
   const workingDir = activeWorkspace?.workingDir ?? '';
   const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
 
-  const { openSearchTab } = useAgenticQueryTabOpener(undefined, fileTabs);
+  const { openSearchTab } = useAgenticQueryTabOpener(
+    activeWorkspace?.workspaceId ?? undefined,
+    fileTabs
+  );
 
   const activeTab = fileTabs.tabs.find((t) => editorTabKey(t) === fileTabs.activeTabKey) ?? null;
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.filePath : fileTabs.activeTabKey;
   const showTabBar = fileTabs.tabs.length > 0;
 
-  // Cmd+F opens agentic search tab
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault();
-        void openSearchTab();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [openSearchTab]);
+  // Cmd+F opens agentic search (capture phase beats PWA/browser find-in-page)
+  useAgenticSearchShortcut(() => {
+    void openSearchTab();
+  });
 
   const handleOpenSelectionOnRemote = useCallback(
     (filePath: string, selectedText: string) => {
@@ -354,8 +355,8 @@ const ExplorerContent = memo(function ExplorerContent({
               isMarkdownFile(activeTab.filePath) ? (
                 <MarkdownFileEditorPane
                   key={activeTab.filePath}
-                  machineId={activeWorkspace.machineId!}
-                  workingDir={activeWorkspace.workingDir!}
+                  machineId={machineId}
+                  workingDir={workingDir}
                   filePath={activeTab.filePath}
                   onSendSelectionToComposer={onSendSelectionToComposer}
                   onOpenPreview={onOpenPreview}
@@ -364,8 +365,8 @@ const ExplorerContent = memo(function ExplorerContent({
               ) : (
                 <FileContentViewer
                   key={activeTab.filePath}
-                  machineId={activeWorkspace.machineId!}
-                  workingDir={activeWorkspace.workingDir!}
+                  machineId={machineId}
+                  workingDir={workingDir}
                   filePath={activeTab.filePath}
                   onSendSelectionToComposer={onSendSelectionToComposer}
                   onOpenPreview={onOpenPreview}

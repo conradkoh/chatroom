@@ -361,13 +361,11 @@ Map harness turns into `AgenticQueryPanel` thread. On CLI `complete`, finalize s
 
 ---
 
-## Open decisions (need user input before slice 2)
+## Open decisions (resolved)
 
-1. **Agent role:** Dedicated `workspace-searcher` agent type vs reusing `solo`/`builder` with a scoped prompt?
-2. **Harness reuse:** Single shared harness pool or always ephemeral session per query?
-3. **In-editor Cmd+F:** Should code editor tabs keep local find while explorer chrome uses agentic search?
-
-**Recommendations:** (1) new lightweight `workspace-agent` role in team config, (2) ephemeral session per query, (3) defer in-editor conflict to v2 — explorer Cmd+F only when editor not focused.
+1. **Agent role:** Dedicated `workspace-agent` role (not solo/builder reuse).
+2. **Harness lifecycle:** Ephemeral harness session per query (spawn → complete → close).
+3. **In-editor Cmd+F:** Always agentic search in explorer view — no in-file browser find (including code editor tabs).
 
 ---
 
