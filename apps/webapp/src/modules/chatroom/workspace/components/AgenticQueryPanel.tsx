@@ -6,7 +6,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Search, HelpCircle, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
+import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
 import { cn } from '@/lib/utils';
@@ -50,6 +52,7 @@ function AgenticStreamingBody({
 export function AgenticQueryPanel({
   queryId,
   mode: initialMode,
+  workspaceId,
   onTitleChange,
 }: AgenticQueryPanelProps) {
   const [mode, setMode] = useState<AgenticQueryMode>(initialMode);
@@ -61,6 +64,9 @@ export function AgenticQueryPanel({
 
   const { query, turns, isRunning, canSubmit, canFollowUp, harnessSessionId, submit, isLoading } =
     useAgenticQuery(queryId);
+
+  const harnessSelection = useAgenticQueryHarnessSelection(workspaceId);
+  const harnessControlsDisabled = isRunning || isSubmitting;
 
   useEffect(() => {
     if (query?.title && onTitleChange) {
@@ -76,35 +82,35 @@ export function AgenticQueryPanel({
 
   const handleSubmit = useCallback(async () => {
     const message = queryText.trim();
-    if (!message || !canSubmit) return;
+    if (!message || !canSubmit || !harnessSelection.selectionReady) return;
 
     setIsSubmitting(true);
     setError(null);
     try {
-      await submit(message);
+      await submit(message, harnessSelection.toSubmitSelection());
       setQueryText('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to submit query');
     } finally {
       setIsSubmitting(false);
     }
-  }, [canSubmit, queryText, submit]);
+  }, [canSubmit, harnessSelection, queryText, submit]);
 
   const handleFollowUp = useCallback(async () => {
     const message = followUpText.trim();
-    if (!message || !canFollowUp) return;
+    if (!message || !canFollowUp || !harnessSelection.selectionReady) return;
 
     setIsSubmitting(true);
     setError(null);
     try {
-      await submit(message);
+      await submit(message, harnessSelection.toSubmitSelection());
       setFollowUpText('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to submit follow-up');
     } finally {
       setIsSubmitting(false);
     }
-  }, [canFollowUp, followUpText, submit]);
+  }, [canFollowUp, followUpText, harnessSelection, submit]);
 
   const showInitialInput = !turns.length || query?.status === 'draft';
   const submitLabel = mode === 'search' ? 'Search' : 'Ask';
@@ -152,6 +158,16 @@ export function AgenticQueryPanel({
 
       {showInitialInput ? (
         <>
+          <AgenticQueryHarnessControls
+            harnesses={harnessSelection.harnesses}
+            harnessName={harnessSelection.harnessName}
+            onHarnessChange={harnessSelection.setHarnessName}
+            providers={harnessSelection.providers}
+            selectedModel={harnessSelection.selectedModel}
+            onModelChange={harnessSelection.setSelectedModel}
+            isModelHidden={harnessSelection.isModelHidden}
+            disabled={harnessControlsDisabled}
+          />
           <textarea
             ref={textareaRef}
             value={queryText}
@@ -166,7 +182,13 @@ export function AgenticQueryPanel({
           <button
             type="button"
             data-testid="agentic-query-submit"
-            disabled={!canSubmit || isSubmitting || !queryText.trim() || isLoading}
+            disabled={
+              !canSubmit ||
+              isSubmitting ||
+              !queryText.trim() ||
+              isLoading ||
+              !harnessSelection.selectionReady
+            }
             onClick={() => void handleSubmit()}
             className="w-full shrink-0 bg-chatroom-accent text-white text-[10px] font-bold uppercase tracking-wider py-2 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -213,6 +235,16 @@ export function AgenticQueryPanel({
 
       {canFollowUp ? (
         <div className="shrink-0 space-y-2 border-t border-chatroom-border pt-3">
+          <AgenticQueryHarnessControls
+            harnesses={harnessSelection.harnesses}
+            harnessName={harnessSelection.harnessName}
+            onHarnessChange={harnessSelection.setHarnessName}
+            providers={harnessSelection.providers}
+            selectedModel={harnessSelection.selectedModel}
+            onModelChange={harnessSelection.setSelectedModel}
+            isModelHidden={harnessSelection.isModelHidden}
+            disabled={harnessControlsDisabled}
+          />
           <textarea
             value={followUpText}
             onChange={(e) => setFollowUpText(e.target.value)}
@@ -222,7 +254,7 @@ export function AgenticQueryPanel({
           <button
             type="button"
             data-testid="agentic-query-follow-up"
-            disabled={isSubmitting || !followUpText.trim()}
+            disabled={isSubmitting || !followUpText.trim() || !harnessSelection.selectionReady}
             onClick={() => void handleFollowUp()}
             className="w-full shrink-0 bg-chatroom-bg-tertiary text-chatroom-text-primary text-[10px] font-bold uppercase tracking-wider py-2 rounded-sm border border-chatroom-border disabled:opacity-50"
           >

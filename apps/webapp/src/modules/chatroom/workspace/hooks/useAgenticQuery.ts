@@ -5,6 +5,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
+import type { AgenticQueryHarnessSelection } from './useAgenticQueryHarnessSelection';
+
 export interface AgenticQueryTurn {
   _id: string;
   seq: number;
@@ -35,16 +37,22 @@ export function useAgenticQuery(queryId: string) {
   const submitFollowUpMutation = useSessionMutation(api.web.agenticQuery.mutations.submitFollowUp);
 
   const submit = useCallback(
-    async (message: string) => {
+    async (message: string, selection: AgenticQueryHarnessSelection) => {
+      const harnessArgs = {
+        harnessName: selection.harnessName,
+        model: selection.model,
+      };
       if (data?.query.status === 'draft') {
         return submitMutation({
           queryId: queryId as Id<'chatroom_agenticQueries'>,
           message,
+          ...harnessArgs,
         });
       }
       return submitFollowUpMutation({
         queryId: queryId as Id<'chatroom_agenticQueries'>,
         message,
+        ...harnessArgs,
       });
     },
     [data?.query.status, queryId, submitFollowUpMutation, submitMutation]

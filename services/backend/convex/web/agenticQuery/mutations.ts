@@ -33,7 +33,13 @@ async function loadQueryWithAccess(
 // fallow-ignore-next-line complexity
 async function submitAgenticMessage(
   ctx: MutationCtx,
-  args: { sessionId: string; queryId: Id<'chatroom_agenticQueries'>; message: string },
+  args: {
+    sessionId: string;
+    queryId: Id<'chatroom_agenticQueries'>;
+    message: string;
+    harnessName: string;
+    model?: { providerID: string; modelID: string };
+  },
   allowStatuses: ('draft' | 'complete' | 'failed')[]
 ) {
   requireDirectHarnessWorkers();
@@ -41,6 +47,11 @@ async function submitAgenticMessage(
   const message = args.message.trim();
   if (!message) {
     throw new ConvexError({ code: 'INVALID_MESSAGE', message: 'Message must not be empty' });
+  }
+
+  const harnessName = args.harnessName.trim();
+  if (!harnessName) {
+    throw new ConvexError({ code: 'INVALID_HARNESS', message: 'harnessName must not be empty' });
   }
 
   const { query, workspace, session, chatroomId } = await loadQueryWithAccess(
@@ -81,6 +92,10 @@ async function submitAgenticMessage(
         userMessage: t.userMessage,
         assistantResponse: t.assistantResponse,
       })),
+    harness: {
+      harnessName,
+      model: args.model,
+    },
   });
 
   await ctx.db.patch('chatroom_agenticQueries', args.queryId, {
@@ -94,11 +109,22 @@ async function submitAgenticMessage(
   return { harnessSessionId, turnSeq: seq };
 }
 
+const submitHarnessArgs = {
+  harnessName: v.string(),
+  model: v.optional(
+    v.object({
+      providerID: v.string(),
+      modelID: v.string(),
+    })
+  ),
+};
+
 export const submit = mutation({
   args: {
     ...SessionIdArg,
     queryId: v.id('chatroom_agenticQueries'),
     message: v.string(),
+    ...submitHarnessArgs,
   },
   handler: async (ctx, args) => {
     return submitAgenticMessage(ctx, args, ['draft']);
@@ -110,6 +136,7 @@ export const submitFollowUp = mutation({
     ...SessionIdArg,
     queryId: v.id('chatroom_agenticQueries'),
     message: v.string(),
+    ...submitHarnessArgs,
   },
   handler: async (ctx, args) => {
     return submitAgenticMessage(ctx, args, ['complete', 'failed']);

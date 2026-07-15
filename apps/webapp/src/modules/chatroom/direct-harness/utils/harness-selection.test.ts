@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveNativeHarnessOptions, selectDefaultHarnessName } from './harness-selection';
+import { resolveNativeHarnessOptions, resolveSelectedHarnessName } from './harness-selection';
 import type { HarnessOption } from '../hooks/useHarnessConfig';
 
 function harness(name: string): HarnessOption {
@@ -66,23 +66,35 @@ describe('resolveNativeHarnessOptions', () => {
   });
 });
 
-describe('selectDefaultHarnessName', () => {
+describe('resolveSelectedHarnessName default preference', () => {
   it('prefers pi-sdk when available', () => {
     const harnesses = [harness('opencode-sdk'), harness('cursor-sdk'), harness('pi-sdk')];
-    expect(selectDefaultHarnessName(harnesses)).toBe('pi-sdk');
+    expect(resolveSelectedHarnessName(harnesses, 'missing')).toBe('pi-sdk');
   });
 
   it('falls back to cursor-sdk when pi-sdk is unavailable', () => {
     const harnesses = [harness('opencode-sdk'), harness('cursor-sdk')];
-    expect(selectDefaultHarnessName(harnesses)).toBe('cursor-sdk');
+    expect(resolveSelectedHarnessName(harnesses, 'missing')).toBe('cursor-sdk');
   });
 
   it('falls back to opencode-sdk when only opencode-sdk is available', () => {
     const harnesses = [harness('opencode-sdk')];
-    expect(selectDefaultHarnessName(harnesses)).toBe('opencode-sdk');
+    expect(resolveSelectedHarnessName(harnesses, 'missing')).toBe('opencode-sdk');
   });
 
   it('returns pi-sdk when no harnesses are available', () => {
-    expect(selectDefaultHarnessName([])).toBe('pi-sdk');
+    expect(resolveSelectedHarnessName([], 'missing')).toBe('missing');
+  });
+});
+
+describe('resolveSelectedHarnessName', () => {
+  it('keeps the selected harness when it is available', () => {
+    const harnesses = [harness('opencode-sdk'), harness('cursor-sdk')];
+    expect(resolveSelectedHarnessName(harnesses, 'cursor-sdk')).toBe('cursor-sdk');
+  });
+
+  it('falls back to default when selected harness is unavailable', () => {
+    const harnesses = [harness('opencode-sdk'), harness('cursor-sdk')];
+    expect(resolveSelectedHarnessName(harnesses, 'missing-harness')).toBe('cursor-sdk');
   });
 });

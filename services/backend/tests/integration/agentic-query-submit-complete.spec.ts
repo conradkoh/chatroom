@@ -35,6 +35,7 @@ describe('web.agenticQuery submit and complete', () => {
       sessionId,
       queryId,
       message: 'How does authentication work?',
+      harnessName: 'opencode-sdk',
     });
 
     expect(submitResult.harnessSessionId).toBeDefined();
@@ -47,6 +48,7 @@ describe('web.agenticQuery submit and complete', () => {
       submitResult.harnessSessionId ? ctx.db.get(submitResult.harnessSessionId) : null
     );
     expect(harness?.purpose).toBe('agentic-query');
+    expect(harness?.opencode?.harnessName).toBe('opencode-sdk');
 
     await t.mutation(api.web.agenticQuery.index.complete, {
       sessionId,
@@ -77,6 +79,7 @@ describe('web.agenticQuery submit and complete', () => {
       sessionId,
       queryId,
       message: 'Find websocket handlers',
+      harnessName: 'opencode-sdk',
     });
 
     await t.mutation(api.web.agenticQuery.index.complete, {
@@ -90,6 +93,8 @@ describe('web.agenticQuery submit and complete', () => {
       sessionId,
       queryId,
       message: 'Narrow to server side only',
+      harnessName: 'opencode-sdk',
+      model: { providerID: 'openai', modelID: 'gpt-4o' },
     });
 
     expect(followUp.turnSeq).toBe(1);

@@ -3,8 +3,12 @@ import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { insertUserTurn } from '../../daemon/directHarness/turns';
 
-const DEFAULT_HARNESS_NAME = 'opencode-sdk';
 const AGENT_ROLE = 'workspace-agent';
+
+export interface AgenticHarnessSpawnConfig {
+  harnessName: string;
+  model?: { providerID: string; modelID: string };
+}
 
 export async function getAgenticQueryTurns(
   ctx: { db: MutationCtx['db'] },
@@ -34,6 +38,7 @@ export async function spawnAgenticHarnessSession(
     userId: Id<'users'>;
     userMessage: string;
     priorTurns: { seq: number; userMessage: string; assistantResponse?: string }[];
+    harness: AgenticHarnessSpawnConfig;
   }
 ): Promise<Id<'chatroom_harnessSessions'>> {
   const now = Date.now();
@@ -62,10 +67,13 @@ export async function spawnAgenticHarnessSession(
     createdAt: now,
     lastActiveAt: now,
     opencode: {
-      harnessName: DEFAULT_HARNESS_NAME,
+      harnessName: params.harness.harnessName,
       opencodeSessionId: undefined,
       sessionTitle: params.query.title,
-      lastUsedConfig: { agent: AGENT_ROLE },
+      lastUsedConfig: {
+        agent: AGENT_ROLE,
+        ...(params.harness.model ? { model: params.harness.model } : {}),
+      },
     },
   });
 
