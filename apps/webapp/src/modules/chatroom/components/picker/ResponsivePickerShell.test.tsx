@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PickerScrollBody } from './PickerScrollBody';
+import { PickerSearch } from './PickerSearch';
 import { ResponsivePickerShell } from './ResponsivePickerShell';
 
 const mockUseIsDesktop = vi.fn();
@@ -101,7 +103,16 @@ describe('ResponsivePickerShell', () => {
     renderShell();
 
     const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
-    expect(drawerContent?.style.paddingBottom).toBe('120px');
+    expect(drawerContent?.getAttribute('style')).toContain('120px');
+  });
+
+  it('includes safe-area horizontal padding on mobile drawer', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    renderShell();
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    expect(drawerContent?.getAttribute('style')).not.toBeNull();
+    expect(drawerContent?.getAttribute('style')).not.toBe('');
   });
 
   it('does not apply paddingBottom style on desktop when keyboard inset is non-zero', () => {
@@ -147,5 +158,28 @@ describe('ResponsivePickerShell', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it('applies flex scroll layout to PickerScrollBody in mobile drawer', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    render(
+      <ResponsivePickerShell
+        open={true}
+        onOpenChange={vi.fn()}
+        trigger={<button type="button">Open</button>}
+        title="Test"
+      >
+        <PickerSearch value="" onChange={vi.fn()} />
+        <PickerScrollBody>
+          <div>Option</div>
+        </PickerScrollBody>
+      </ResponsivePickerShell>
+    );
+
+    const scrollBody = document.querySelector('[data-picker-scroll-body]');
+    expect(scrollBody).not.toBeNull();
+    const wrapper = scrollBody?.parentElement;
+    expect(wrapper?.className).toContain('flex-col');
+    expect(wrapper?.className).toContain('overflow-hidden');
   });
 });

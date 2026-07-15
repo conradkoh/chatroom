@@ -54,17 +54,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -739,6 +730,11 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   }, [linkedMachineIdsProp, chatroomWorkspaces]);
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+  const {
+    searchTerm: modelSearch,
+    setSearchTerm: setModelSearch,
+    handleOpenChange: handleModelOpenChange,
+  } = usePickerSearchState(setModelPopoverOpen);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [machinePopoverOpen, setMachinePopoverOpen] = useState(false);
   const [harnessPopoverOpen, setHarnessPopoverOpen] = useState(false);
@@ -793,6 +789,11 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const visibleModels = useMemo(
     () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
     [availableModelsForHarness, machineModelFilter]
+  );
+
+  const filteredModels = useMemo(
+    () => filterPickerItems(visibleModels, modelSearch, (m) => getModelDisplayLabel(m)),
+    [visibleModels, modelSearch]
   );
 
   // True when the currently selected model exists in the full list but is filtered out
@@ -1068,14 +1069,18 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                   </div>
                 ) : (
                   <div className="flex-1 min-w-0">
-                    <Popover
+                    <ResponsivePickerShell
                       open={modelPopoverOpen}
-                      onOpenChange={setModelPopoverOpen}
-                      modal={false}
-                    >
-                      <PopoverTrigger asChild>
+                      onOpenChange={handleModelOpenChange}
+                      disabled={isBusy || !displayHarness}
+                      title="Select model"
+                      align="start"
+                      contentClassName="w-[420px]"
+                      trigger={
                         <button
+                          type="button"
                           disabled={isBusy || !displayHarness}
+                          aria-label="Select model"
                           className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                           title="Select Model"
                         >
@@ -1106,41 +1111,34 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                             <ChevronDown size={10} className="text-chatroom-text-muted" />
                           </div>
                         </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="p-0 w-[420px]">
-                        <Command className="bg-chatroom-bg-primary rounded-none">
-                          <CommandInput
-                            placeholder="Search..."
-                            className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
-                          />
-                          <CommandList className="max-h-60 overflow-y-auto">
-                            <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2">
-                              No models found.
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {visibleModels.map((model) => (
-                                <CommandItem
-                                  key={model}
-                                  value={getModelDisplayLabel(model)}
-                                  onSelect={() => {
-                                    handleModelChange(model);
-                                    setModelPopoverOpen(false);
-                                  }}
-                                  className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                                >
-                                  <span className="truncate">{getModelDisplayLabel(model)}</span>
-                                  {displayModel === model && (
-                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">
-                                      ✓
-                                    </span>
-                                  )}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                      }
+                    >
+                      <PickerSearch
+                        value={modelSearch}
+                        onChange={setModelSearch}
+                        placeholder="Search models…"
+                      />
+                      <PickerScrollBody maxHeightClassName="max-h-60">
+                        {filteredModels.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-chatroom-text-muted">
+                            No models found.
+                          </p>
+                        ) : (
+                          filteredModels.map((model) => (
+                            <PickerOptionRow
+                              key={model}
+                              selected={displayModel === model}
+                              onSelect={() => {
+                                handleModelChange(model);
+                                handleModelOpenChange(false);
+                              }}
+                            >
+                              {getModelDisplayLabel(model)}
+                            </PickerOptionRow>
+                          ))
+                        )}
+                      </PickerScrollBody>
+                    </ResponsivePickerShell>
                   </div>
                 )}
               </div>

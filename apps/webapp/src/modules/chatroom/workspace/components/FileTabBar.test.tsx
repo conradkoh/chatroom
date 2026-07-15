@@ -4,11 +4,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { FileTabBar } from './FileTabBar';
 import { RightPaneTabBar } from './RightPaneTabBar';
 import { WORKSPACE_HEADER_ROW_HEIGHT_CLASS } from './WorkspaceTabBar';
+import { useFileContent } from '../hooks/useFileContent';
 import type { FileTab } from '../hooks/useFileTabs';
 import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionQuery: () => undefined,
+}));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: { workspaceFiles: { requestFileContent: {}, getFileContentV2: {} } },
+}));
+
+vi.mock('../hooks/useFileContent', () => ({
+  useFileContent: vi.fn(() => null),
 }));
 
 const tabs: FileTab[] = [
@@ -20,6 +34,7 @@ const tabs: FileTab[] = [
 const defaultProps = {
   tabs,
   activeTabPath: 'src/b.ts',
+  machineId: 'machine-1' as string | null,
   workingDir: '/workspace/project' as string | null,
   onActivate: vi.fn(),
   onClose: vi.fn(),
@@ -74,6 +89,21 @@ describe('FileTabBar', () => {
     expect(writeText).toHaveBeenCalledWith('src/b.ts');
   });
 
+  it('copies file name from context menu', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<FileTabBar {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src/b.ts'));
+    fireEvent.click(await screen.findByText('Copy File Name'));
+
+    expect(writeText).toHaveBeenCalledWith('b.ts');
+  });
+
   it('copies full path from context menu', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -96,6 +126,34 @@ describe('FileTabBar', () => {
 
     const copyFullPathItem = await screen.findByRole('menuitem', { name: /copy full path/i });
     expect(copyFullPathItem).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('shows the correct content label when switching tab context menus', async () => {
+    const mixedTabs: FileTab[] = [
+      { filePath: 'data.json', name: 'data.json', isPinned: true },
+      { filePath: 'readme.md', name: 'readme.md', isPinned: true },
+    ];
+
+    vi.mocked(useFileContent).mockImplementation((args) => {
+      if (args === 'skip') return null;
+      if (args.filePath === 'data.json') {
+        return { content: '{"a":1}', encoding: 'utf-8', truncated: false, fetchedAt: 1 };
+      }
+      if (args.filePath === 'readme.md') {
+        return { content: '# Hello', encoding: 'utf-8', truncated: false, fetchedAt: 2 };
+      }
+      return null;
+    });
+
+    render(<FileTabBar {...defaultProps} tabs={mixedTabs} activeTabPath="readme.md" />);
+
+    fireEvent.contextMenu(screen.getByTitle('data.json'));
+    fireEvent.contextMenu(screen.getByTitle('readme.md'));
+
+    expect(await screen.findByRole('menuitem', { name: /copy as markdown/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: /^copy file content$/i })
+    ).not.toBeInTheDocument();
   });
 
   it('renders a wrap-capable tab bar container', () => {
