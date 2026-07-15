@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FileCopyActionsMenu } from './FileCopyActionsMenu';
+import { FileCopyActionsMenu, CopyFileNameButton } from './FileCopyActionsMenu';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -92,6 +92,46 @@ describe('FileCopyActionsMenu', () => {
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('src/foo.ts');
       expect(toast.success).toHaveBeenCalledWith('Copied relative path');
+    });
+  });
+
+  it('omits Copy File Name when showFileName is false', () => {
+    render(<FileCopyActionsMenu {...defaultProps} showFileName={false} />);
+    openDropdown();
+    expect(screen.queryByText('Copy File Name')).not.toBeInTheDocument();
+    expect(screen.getByText('Copy Relative Path')).toBeInTheDocument();
+  });
+
+  it('uses custom file content label', () => {
+    render(<FileCopyActionsMenu {...defaultProps} fileContentLabel="Copy as Markdown" />);
+    openDropdown();
+    expect(screen.getByText('Copy as Markdown')).toBeInTheDocument();
+    expect(screen.queryByText('Copy File Content')).not.toBeInTheDocument();
+  });
+
+  it('omits file content item when showFileContent is false', () => {
+    render(<FileCopyActionsMenu {...defaultProps} showFileContent={false} />);
+    openDropdown();
+    expect(screen.queryByText('Copy File Content')).not.toBeInTheDocument();
+  });
+});
+
+describe('CopyFileNameButton', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('copies file name when clicked', async () => {
+    render(<CopyFileNameButton relativePath="src/foo.ts" />);
+    fireEvent.click(screen.getByRole('button', { name: /copy file name/i }));
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('foo.ts');
+      expect(toast.success).toHaveBeenCalledWith('Copied file name');
     });
   });
 });

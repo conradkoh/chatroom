@@ -25,7 +25,39 @@ export interface FileCopyActionsMenuProps {
   truncated?: boolean;
   contentDisabled?: boolean;
   className?: string;
+  /** When false, omits "Copy File Name" from the dropdown (use inline CopyFileNameButton). */
+  showFileName?: boolean;
+  /** When false, omits file content from the dropdown (e.g. desktop markdown uses a header button). */
+  showFileContent?: boolean;
+  fileContentLabel?: string;
 }
+
+export const CopyFileNameButton = memo(function CopyFileNameButton({
+  relativePath,
+  className,
+}: {
+  relativePath: string;
+  className?: string;
+}) {
+  const handleCopy = useCallback(() => {
+    void copyFileNameToClipboard(relativePath);
+  }, [relativePath]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={cn(
+        'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 min-w-8 min-h-8 flex items-center justify-center rounded-sm',
+        className
+      )}
+      aria-label="Copy file name"
+      title="Copy file name"
+    >
+      <Copy className="h-3.5 w-3.5" aria-hidden />
+    </button>
+  );
+});
 
 export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   relativePath,
@@ -34,6 +66,9 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   truncated = false,
   contentDisabled = false,
   className,
+  showFileName = true,
+  showFileContent = true,
+  fileContentLabel = 'Copy File Content',
 }: FileCopyActionsMenuProps) {
   const handleCopyFileName = useCallback(() => {
     void copyFileNameToClipboard(relativePath);
@@ -68,22 +103,26 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFileName}>
-          Copy File Name
-        </WorkspaceDropdownMenuItem>
+        {showFileName && (
+          <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFileName}>
+            Copy File Name
+          </WorkspaceDropdownMenuItem>
+        )}
         <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyRelativePath}>
           Copy Relative Path
         </WorkspaceDropdownMenuItem>
         <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFullPath} disabled={!workingDir}>
           Copy Full Path
         </WorkspaceDropdownMenuItem>
-        <WorkspaceDropdownMenuItem
-          icon={Copy}
-          onSelect={handleCopyContent}
-          disabled={contentDisabled || !content}
-        >
-          Copy File Content
-        </WorkspaceDropdownMenuItem>
+        {showFileContent && (
+          <WorkspaceDropdownMenuItem
+            icon={Copy}
+            onSelect={handleCopyContent}
+            disabled={contentDisabled || !content}
+          >
+            {fileContentLabel}
+          </WorkspaceDropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

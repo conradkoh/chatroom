@@ -13,11 +13,12 @@ import {
   Eye,
   Code2,
   Files,
+  Copy,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { isBinaryFile } from './binaryDetection';
-import { FileCopyActionsMenu } from './FileCopyActionsMenu';
+import { FileCopyActionsMenu, CopyFileNameButton } from './FileCopyActionsMenu';
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
 import {
@@ -30,6 +31,7 @@ import {
   SyntaxHighlighter,
 } from '../../workspace/file-renderers';
 import { useFileContent, type FileContentResult } from '../../workspace/hooks/useFileContent';
+import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
 import {
   FixedModal,
@@ -39,6 +41,7 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface FilePreviewDialogProps {
   filePath: string | null;
@@ -110,6 +113,16 @@ function sortTree(nodes: TreeNode[]): TreeNode[] {
       ...node,
       children: sortTree(node.children),
     }));
+}
+
+/** Parent directory paths for a file path (e.g. `a/b/c` → `a`, `a/b`). */
+function parentDirPaths(selectedPath: string): Set<string> {
+  const parts = selectedPath.split('/');
+  const dirs = new Set<string>();
+  for (let i = 1; i < parts.length; i++) {
+    dirs.add(parts.slice(0, i).join('/'));
+  }
+  return dirs;
 }
 
 // ─── Tree Item Component ────────────────────────────────────────────────────
@@ -202,22 +215,13 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
   // Auto-expand directories that contain the selected file
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => {
     if (!selectedPath) return new Set<string>();
-    const parts = selectedPath.split('/');
-    const dirs = new Set<string>();
-    for (let i = 1; i < parts.length; i++) {
-      dirs.add(parts.slice(0, i).join('/'));
-    }
-    return dirs;
+    return parentDirPaths(selectedPath);
   });
 
   // When selected file changes, expand its parent directories
   useEffect(() => {
     if (!selectedPath) return;
-    const parts = selectedPath.split('/');
-    const dirs = new Set<string>();
-    for (let i = 1; i < parts.length; i++) {
-      dirs.add(parts.slice(0, i).join('/'));
-    }
+    const dirs = parentDirPaths(selectedPath);
     setExpandedDirs((prev) => {
       const next = new Set(prev);
       for (const dir of dirs) next.add(dir);
@@ -416,6 +420,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isMarkdown = filePath ? isMarkdownFile(filePath) : false;
   const isCsv = filePath ? isCsvFile(filePath) : false;
   const hasToggle = isMarkdown || isCsv;
+  const isDesktopLayout = useIsDesktop(640);
 
   // Fetch content result for header metadata (with transparent decompression)
   const contentResult = useFileContent(
@@ -424,6 +429,15 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   const isBinary = filePath ? isBinaryFile(filePath) : false;
   const canCopyContent = !!contentResult && !isBinary;
+  const showCopyMarkdownButton = isMarkdown && canCopyContent && isDesktopLayout;
+  const showCopyContentInMenu = canCopyContent && (!isMarkdown || !isDesktopLayout);
+
+  const handleCopyMarkdown = useCallback(() => {
+    if (!contentResult?.content || !canCopyContent) return;
+    void copyFileContentToClipboard(contentResult.content, {
+      truncated: contentResult.truncated,
+    });
+  }, [canCopyContent, contentResult]);
 
   // Request content mutation (triggers daemon to fetch)
   const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
@@ -476,15 +490,23 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate">
               {filePath}
             </span>
+            {filePath && <CopyFileNameButton relativePath={filePath} />}
             {contentResult?.truncated && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 shrink-0">
                 TRUNCATED
               </span>
             )}
-            {contentResult && (
-              <span className="text-[10px] font-mono text-chatroom-text-muted tabular-nums shrink-0">
-                {contentResult.content.split('\n').length} lines
-              </span>
+            {showCopyMarkdownButton && (
+              <button
+                type="button"
+                onClick={handleCopyMarkdown}
+                className="hidden sm:flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 rounded-sm"
+                aria-label="Copy as Markdown"
+                title="Copy as Markdown"
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                Copy as Markdown
+              </button>
             )}
             {filePath && (
               <FileCopyActionsMenu
@@ -493,6 +515,9 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 content={contentResult?.content ?? null}
                 truncated={contentResult?.truncated}
                 contentDisabled={!canCopyContent}
+                showFileName={false}
+                showFileContent={showCopyContentInMenu}
+                fileContentLabel={isMarkdown ? 'Copy as Markdown' : 'Copy File Content'}
               />
             )}
             {hasToggle && (
