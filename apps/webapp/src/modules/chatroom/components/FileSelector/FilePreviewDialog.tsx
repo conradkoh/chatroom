@@ -51,6 +51,8 @@ interface FilePreviewDialogProps {
   onSelectFile: (filePath: string) => void;
   /** Called when user wants to open the file in the explorer view */
   onOpenInExplorer?: (filePath: string) => void;
+  /** Called when user wants to open the file on the remote machine */
+  onOpenFileOnRemote?: (filePath: string) => void;
 }
 
 // ─── Tree Node Types ────────────────────────────────────────────────────────
@@ -411,6 +413,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   files,
   onSelectFile,
   onOpenInExplorer,
+  onOpenFileOnRemote,
 }: FilePreviewDialogProps) {
   const isOpen = !!filePath;
 
@@ -501,6 +504,9 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                         onClose();
                       }
                     : undefined
+                }
+                onOpenFileOnRemote={
+                  onOpenFileOnRemote ? () => void onOpenFileOnRemote(filePath) : undefined
                 }
               />
             )}

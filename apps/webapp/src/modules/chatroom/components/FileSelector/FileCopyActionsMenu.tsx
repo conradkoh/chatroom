@@ -1,24 +1,15 @@
 'use client';
 
-import { Copy, FolderOpen, MoreHorizontal } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
-import { WorkspaceDropdownMenuItem } from '../../workspace/components/WorkspaceDropdownMenuItem';
+import { WorkspaceFileActionsMenu } from '../../workspace/file-menu';
 import {
   copyFileContentToClipboard,
   copyFileNameToClipboard,
-  copyFullPathToClipboard,
-  copyRelativePathToClipboard,
 } from '../../workspace/utils/clipboard';
 
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/modules/chatroom/components/ui/dropdown-menu';
 
 export interface FileCopyActionsMenuProps {
   relativePath: string;
@@ -36,6 +27,8 @@ export interface FileCopyActionsMenuProps {
   triggerVariant?: 'copy' | 'more';
   /** When provided, shows "Open in Explorer" at bottom of dropdown. */
   onOpenInExplorer?: () => void;
+  /** When provided, shows "Open File on Remote" in Path section. */
+  onOpenFileOnRemote?: () => void;
 }
 
 const copyContentButtonClassName =
@@ -101,90 +94,41 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
   );
 });
 
-// fallow-ignore-next-line complexity
 export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   relativePath,
   workingDir,
   content,
-  truncated = false,
-  contentDisabled = false,
+  truncated,
+  contentDisabled,
   className,
   showFileName = true,
   showFileContent = true,
   fileContentLabel = 'Copy File Content',
   triggerVariant = 'copy',
   onOpenInExplorer,
+  onOpenFileOnRemote,
 }: FileCopyActionsMenuProps) {
-  const handleCopyFileName = useCallback(() => {
-    void copyFileNameToClipboard(relativePath);
-  }, [relativePath]);
-
-  const handleCopyRelativePath = useCallback(() => {
-    void copyRelativePathToClipboard(relativePath);
-  }, [relativePath]);
-
-  const handleCopyFullPath = useCallback(() => {
-    void copyFullPathToClipboard(workingDir, relativePath);
-  }, [workingDir, relativePath]);
-
-  const handleCopyContent = useCallback(() => {
-    if (!content || contentDisabled) return;
-    void copyFileContentToClipboard(content, { truncated });
-  }, [content, contentDisabled, truncated]);
-
-  const isMoreTrigger = triggerVariant === 'more';
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 min-w-8 min-h-8 flex items-center justify-center rounded-sm',
-            className
-          )}
-          aria-label={isMoreTrigger ? 'More copy options' : 'Copy file'}
-          title={isMoreTrigger ? 'More copy options' : 'Copy file'}
-        >
-          {isMoreTrigger ? (
-            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
-          ) : (
-            <Copy className="h-3.5 w-3.5" aria-hidden />
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Path</DropdownMenuLabel>
-        {showFileName && (
-          <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFileName}>
-            Copy File Name
-          </WorkspaceDropdownMenuItem>
-        )}
-        <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyRelativePath}>
-          Copy Relative Path
-        </WorkspaceDropdownMenuItem>
-        <WorkspaceDropdownMenuItem icon={Copy} onSelect={handleCopyFullPath} disabled={!workingDir}>
-          Copy Full Path
-        </WorkspaceDropdownMenuItem>
-        {onOpenInExplorer && (
-          <WorkspaceDropdownMenuItem icon={FolderOpen} onSelect={onOpenInExplorer}>
-            Open in Explorer
-          </WorkspaceDropdownMenuItem>
-        )}
-        {showFileContent && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Content</DropdownMenuLabel>
-            <WorkspaceDropdownMenuItem
-              icon={Copy}
-              onSelect={handleCopyContent}
-              disabled={contentDisabled || !content}
-            >
-              {fileContentLabel}
-            </WorkspaceDropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <WorkspaceFileActionsMenu
+      className={className}
+      triggerVariant={triggerVariant}
+      state={{
+        relativePath,
+        workingDir,
+        content,
+        contentTruncated: truncated,
+        contentDisabled,
+        fileContentLabel,
+      }}
+      handlers={{ onOpenInExplorer, onOpenFileOnRemote }}
+      visibility={{
+        copyFileName: showFileName,
+        copyRelativePath: true,
+        copyFullPath: true,
+        copyFileContent: showFileContent,
+        openInExplorer: !!onOpenInExplorer,
+        openFileOnRemote: !!onOpenFileOnRemote,
+      }}
+    />
   );
 });

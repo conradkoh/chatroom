@@ -1,21 +1,10 @@
 'use client';
 
-import { Copy, ExternalLink, ListX } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback } from 'react';
 
-import { WorkspaceDropdownMenuItem } from './WorkspaceDropdownMenuItem';
 import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
 import type { FileTab } from '../hooks/useFileTabs';
-import {
-  copyFileNameToClipboard,
-  copyFullPathToClipboard,
-  copyRelativePathToClipboard,
-} from '../utils/clipboard';
+import { useWorkspaceFileContextMenu } from '../file-menu';
 import { fileTabDoubleClickExpandAction } from '../utils/explorerExpandHandlers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,24 +34,14 @@ export const FileTabBar = memo(function FileTabBar({
   onToggleExpanded,
   onOpenFileOnRemote,
 }: FileTabBarProps) {
-  const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const [contextMenuTarget, setContextMenuTarget] = useState<string | null>(null);
-  const [contextMenuPoint, setContextMenuPoint] = useState({ x: 0, y: 0 });
+  const { openAtPointer, contextMenu } = useWorkspaceFileContextMenu();
 
-  const openContextMenu = useCallback((filePath: string, event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setContextMenuTarget(filePath);
-    setContextMenuPoint({ x: event.clientX, y: event.clientY });
-    setContextMenuOpen(true);
-  }, []);
-
-  const handleCloseOthers = useCallback(() => {
-    if (contextMenuTarget) {
-      onCloseOthers(contextMenuTarget);
-    }
-    setContextMenuOpen(false);
-  }, [contextMenuTarget, onCloseOthers]);
+  const handleCloseOthers = useCallback(
+    (path: string) => {
+      onCloseOthers(path);
+    },
+    [onCloseOthers]
+  );
 
   if (tabs.length === 0) return null;
 
@@ -78,66 +57,29 @@ export const FileTabBar = memo(function FileTabBar({
             onClose={onClose}
             onPin={onPin}
             onToggleExpanded={onToggleExpanded}
-            onContextMenu={openContextMenu}
+            onContextMenu={(filePath, event) => {
+              openAtPointer(event, {
+                state: { relativePath: filePath, workingDir },
+                handlers: {
+                  onOpenFileOnRemote: onOpenFileOnRemote
+                    ? () => void onOpenFileOnRemote(filePath)
+                    : undefined,
+                  onCloseOthers: () => handleCloseOthers(filePath),
+                },
+                visibility: {
+                  copyFileName: true,
+                  copyRelativePath: true,
+                  copyFullPath: true,
+                  openFileOnRemote: !!onOpenFileOnRemote,
+                  closeOthers: true,
+                  closeOthersDisabled: tabs.length <= 1,
+                },
+              });
+            }}
           />
         ))}
       </WorkspaceTabBarShell>
-
-      <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <span
-            aria-hidden
-            style={{
-              position: 'fixed',
-              left: contextMenuPoint.x,
-              top: contextMenuPoint.y,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none',
-            }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {onOpenFileOnRemote && contextMenuTarget && (
-            <WorkspaceDropdownMenuItem
-              icon={ExternalLink}
-              onSelect={() => void onOpenFileOnRemote(contextMenuTarget)}
-            >
-              Open File on Remote
-            </WorkspaceDropdownMenuItem>
-          )}
-          <WorkspaceDropdownMenuItem
-            icon={Copy}
-            onSelect={() => contextMenuTarget && void copyFileNameToClipboard(contextMenuTarget)}
-          >
-            Copy File Name
-          </WorkspaceDropdownMenuItem>
-          <WorkspaceDropdownMenuItem
-            icon={Copy}
-            onSelect={() =>
-              contextMenuTarget && void copyRelativePathToClipboard(contextMenuTarget)
-            }
-          >
-            Copy Relative Path
-          </WorkspaceDropdownMenuItem>
-          <WorkspaceDropdownMenuItem
-            icon={Copy}
-            onSelect={() =>
-              contextMenuTarget && void copyFullPathToClipboard(workingDir, contextMenuTarget)
-            }
-            disabled={!workingDir}
-          >
-            Copy Full Path
-          </WorkspaceDropdownMenuItem>
-          <WorkspaceDropdownMenuItem
-            icon={ListX}
-            onSelect={handleCloseOthers}
-            disabled={tabs.length <= 1}
-          >
-            Close Others
-          </WorkspaceDropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {contextMenu}
     </>
   );
 });

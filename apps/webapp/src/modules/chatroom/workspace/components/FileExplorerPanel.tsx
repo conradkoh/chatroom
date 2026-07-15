@@ -3,18 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import {
-  MoreHorizontal,
-  RefreshCw,
-  Search,
-  FilePlus,
-  FolderPlus,
-  Pencil,
-  Trash2,
-  Copy,
-  ExternalLink,
-} from 'lucide-react';
-import type { MouseEvent } from 'react';
+import { MoreHorizontal, RefreshCw, Search, FilePlus } from 'lucide-react';
 import {
   forwardRef,
   memo,
@@ -29,7 +18,6 @@ import { toast } from 'sonner';
 import { NewFileDialog } from './NewFileDialog';
 import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
-import { WorkspaceDropdownMenuItem } from './WorkspaceDropdownMenuItem';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import {
@@ -46,7 +34,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
@@ -54,12 +41,8 @@ import { useFileContent } from '../hooks/useFileContent';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
-import {
-  copyFileContentToClipboard,
-  copyFileNameToClipboard,
-  copyFullPathToClipboard,
-  copyRelativePathToClipboard,
-} from '../utils/clipboard';
+import { useWorkspaceFileContextMenu } from '../file-menu';
+import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -211,17 +194,11 @@ export const FileExplorerPanel = memo(
         type: 'file' | 'directory';
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
-      const [contextMenuOpen, setContextMenuOpen] = useState(false);
-      const [contextMenuTarget, setContextMenuTarget] = useState<ExplorerContextTarget | null>(
-        null
-      );
-      const [contextMenuPoint, setContextMenuPoint] = useState({ x: 0, y: 0 });
+      const { openAtPointer: openContextMenuAtPointer, contextMenu } =
+        useWorkspaceFileContextMenu();
 
       // Fetch content for "Copy File Content" when context menu opens on a file
-      const contextMenuFilePath =
-        contextMenuOpen && contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'file'
-          ? contextMenuTarget.path
-          : null;
+      const [contextMenuFilePath, setContextMenuFilePath] = useState<string | null>(null);
 
       const menuFileContent = useFileContent(
         contextMenuFilePath && machineId && workingDir
@@ -232,10 +209,10 @@ export const FileExplorerPanel = memo(
       const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
       useEffect(() => {
-        if (contextMenuOpen && contextMenuFilePath && machineId && workingDir) {
+        if (contextMenuFilePath && machineId && workingDir) {
           requestContent({ machineId, workingDir, filePath: contextMenuFilePath }).catch(() => {});
         }
-      }, [contextMenuOpen, contextMenuFilePath, machineId, workingDir, requestContent]);
+      }, [contextMenuFilePath, machineId, workingDir, requestContent]);
 
       const menuFileIsBinary = contextMenuFilePath ? isBinaryFile(contextMenuFilePath) : false;
       const canCopyMenuFileContent = !!menuFileContent?.content && !menuFileIsBinary;
@@ -262,24 +239,60 @@ export const FileExplorerPanel = memo(
         setRenameOpen(true);
       }, []);
 
-      const openContextMenu = useCallback((target: ExplorerContextTarget, event: MouseEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setContextMenuTarget(target);
-        setContextMenuPoint({ x: event.clientX, y: event.clientY });
-        setContextMenuOpen(true);
-      }, []);
+      const buildFileMenuProps = useCallback(
+        (target: ExplorerContextTarget): WorkspaceFileMenuProps | null => {
+          if (target.kind === 'root') {
+            return {
+              state: { relativePath: '', workingDir },
+              handlers: {
+                onNewFile: () => openNewFileDialog(''),
+                onNewFolder: () => openNewFolderDialog(''),
+              },
+              visibility: { newFile: true, newFolder: true },
+            };
+          }
 
-      const showNewItems =
-        contextMenuTarget?.kind === 'root' ||
-        (contextMenuTarget?.kind === 'node' && contextMenuTarget.type === 'directory');
-      const showPathActions = contextMenuTarget?.kind === 'node' && contextMenuTarget.path !== '';
-      const newItemsParentPath =
-        contextMenuTarget?.kind === 'root'
-          ? ''
-          : contextMenuTarget?.kind === 'node'
-            ? contextMenuTarget.path
-            : '';
+          const isFile = target.type === 'file';
+          const isDir = target.type === 'directory';
+          const path = target.path;
+
+          const visibility: WorkspaceFileMenuVisibility = {
+            copyFileName: true,
+            copyRelativePath: true,
+            copyFullPath: true,
+            copyFileContent: isFile,
+            openFileOnRemote: isFile,
+            rename: true,
+            delete: true,
+            newFile: isDir,
+            newFolder: isDir,
+          };
+
+          if (isFile && path) {
+            setContextMenuFilePath(path);
+          }
+
+          return {
+            state: {
+              relativePath: path,
+              workingDir,
+              nodeType: target.type,
+              content: isFile ? (menuFileContent?.content ?? null) : null,
+              contentTruncated: menuFileContent?.truncated,
+              contentDisabled: isFile ? !canCopyMenuFileContent : true,
+            },
+            handlers: {
+              onOpenFileOnRemote: isFile ? () => void openFileOnRemote(path) : undefined,
+              onRename: () => openRenameDialog(path, target.type),
+              onDelete: () => setDeleteTarget({ path, type: target.type }),
+              onNewFile: isDir ? () => openNewFileDialog(path) : undefined,
+              onNewFolder: isDir ? () => openNewFolderDialog(path) : undefined,
+            },
+            visibility,
+          };
+        },
+        [workingDir, menuFileContent, canCopyMenuFileContent, openFileOnRemote, openRenameDialog]
+      );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
       // When disabled, only external revealPath requests (e.g. "Open in Explorer") are honored.
@@ -466,7 +479,8 @@ export const FileExplorerPanel = memo(
             className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden"
             onContextMenu={(event) => {
               if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
-              openContextMenu({ kind: 'root' }, event);
+              const props = buildFileMenuProps({ kind: 'root' });
+              if (props) openContextMenuAtPointer(event, props);
             }}
           >
             <WorkspaceFileExplorer
@@ -479,113 +493,23 @@ export const FileExplorerPanel = memo(
               revealPath={effectiveRevealPath}
               selectedPath={effectiveSelectedPath}
               filterQuery={filterQuery}
-              onNodeContextMenu={(node, event) =>
-                openContextMenu({ kind: 'node', path: node.path, type: node.type }, event)
-              }
-              onEmptyAreaContextMenu={(event) => openContextMenu({ kind: 'root' }, event)}
+              onNodeContextMenu={(node, event) => {
+                const target: ExplorerContextTarget = {
+                  kind: 'node',
+                  path: node.path,
+                  type: node.type,
+                };
+                const props = buildFileMenuProps(target);
+                if (props) openContextMenuAtPointer(event, props);
+              }}
+              onEmptyAreaContextMenu={(event) => {
+                const props = buildFileMenuProps({ kind: 'root' });
+                if (props) openContextMenuAtPointer(event, props);
+              }}
             />
           </div>
 
-          <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen} modal={false}>
-            <DropdownMenuTrigger asChild>
-              <span
-                aria-hidden
-                style={{
-                  position: 'fixed',
-                  left: contextMenuPoint.x,
-                  top: contextMenuPoint.y,
-                  width: 1,
-                  height: 1,
-                  pointerEvents: 'none',
-                }}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              {showNewItems && (
-                <>
-                  <WorkspaceDropdownMenuItem
-                    icon={FilePlus}
-                    onSelect={() => openNewFileDialog(newItemsParentPath)}
-                  >
-                    New File
-                  </WorkspaceDropdownMenuItem>
-                  <WorkspaceDropdownMenuItem
-                    icon={FolderPlus}
-                    onSelect={() => openNewFolderDialog(newItemsParentPath)}
-                  >
-                    New Folder
-                  </WorkspaceDropdownMenuItem>
-                </>
-              )}
-              {showNewItems && showPathActions && <DropdownMenuSeparator />}
-              {showPathActions && contextMenuTarget?.kind === 'node' && (
-                <>
-                  <WorkspaceDropdownMenuItem
-                    icon={Copy}
-                    onSelect={() => void copyFileNameToClipboard(contextMenuTarget.path)}
-                  >
-                    Copy File Name
-                  </WorkspaceDropdownMenuItem>
-                  <WorkspaceDropdownMenuItem
-                    icon={Copy}
-                    onSelect={() => void copyRelativePathToClipboard(contextMenuTarget.path)}
-                  >
-                    Copy Relative Path
-                  </WorkspaceDropdownMenuItem>
-                  <WorkspaceDropdownMenuItem
-                    icon={Copy}
-                    onSelect={() =>
-                      void copyFullPathToClipboard(workingDir, contextMenuTarget.path)
-                    }
-                    disabled={!workingDir}
-                  >
-                    Copy Full Path
-                  </WorkspaceDropdownMenuItem>
-                  {contextMenuTarget.type === 'file' && (
-                    <WorkspaceDropdownMenuItem
-                      icon={Copy}
-                      onSelect={() => {
-                        if (menuFileContent?.content) {
-                          void copyFileContentToClipboard(menuFileContent.content, {
-                            truncated: menuFileContent.truncated,
-                          });
-                        }
-                      }}
-                      disabled={!canCopyMenuFileContent}
-                    >
-                      Copy File Content
-                    </WorkspaceDropdownMenuItem>
-                  )}
-                  {contextMenuTarget.type === 'file' && (
-                    <WorkspaceDropdownMenuItem
-                      icon={ExternalLink}
-                      onSelect={() => void openFileOnRemote(contextMenuTarget.path)}
-                    >
-                      Open File on Remote
-                    </WorkspaceDropdownMenuItem>
-                  )}
-                </>
-              )}
-              {showPathActions && contextMenuTarget?.kind === 'node' && (
-                <WorkspaceDropdownMenuItem
-                  icon={Pencil}
-                  onSelect={() => openRenameDialog(contextMenuTarget.path, contextMenuTarget.type)}
-                >
-                  Rename
-                </WorkspaceDropdownMenuItem>
-              )}
-              {showPathActions && contextMenuTarget?.kind === 'node' && (
-                <WorkspaceDropdownMenuItem
-                  icon={Trash2}
-                  onSelect={() =>
-                    setDeleteTarget({ path: contextMenuTarget.path, type: contextMenuTarget.type })
-                  }
-                >
-                  Delete
-                </WorkspaceDropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {contextMenu}
         </div>
       );
     }

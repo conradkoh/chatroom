@@ -877,6 +877,18 @@ export function ChatroomDashboard({
     [fileTabs.pinTab]
   );
 
+  const { openFileOnRemote: doOpenFileOnRemote } = useOpenFileOnRemote(
+    activeWorkspace?.machineId ?? '',
+    activeWorkspace?.workingDir ?? ''
+  );
+
+  const handleOpenFileOnRemote = useCallback(
+    (filePath: string) => {
+      void doOpenFileOnRemote(filePath);
+    },
+    [doOpenFileOnRemote]
+  );
+
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
   const handleCmdPFileSelect = useCallback(
     (filePath: string) => {
@@ -1794,6 +1806,7 @@ export function ChatroomDashboard({
               files={fileSelector.files}
               onSelectFile={fileSelector.selectFile}
               onOpenInExplorer={handleOpenInExplorer}
+              onOpenFileOnRemote={handleOpenFileOnRemote}
             />
 
             {/* Setup modal - only shown during setup mode */}
