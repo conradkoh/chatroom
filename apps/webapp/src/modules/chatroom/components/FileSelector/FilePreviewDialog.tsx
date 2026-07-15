@@ -29,7 +29,7 @@ import {
   CsvTableRenderer,
   SyntaxHighlighter,
 } from '../../workspace/file-renderers';
-import { useFileContent } from '../../workspace/hooks/useFileContent';
+import { useFileContent, type FileContentResult } from '../../workspace/hooks/useFileContent';
 
 import {
   FixedModal,
@@ -329,32 +329,15 @@ const FileTreeSidebar = memo(function FileTreeSidebar({
 
 const FileContentPanel = memo(function FileContentPanel({
   filePath,
-  machineId,
-  workingDir,
+  contentResult,
+  isBinary,
   viewMode,
 }: {
   filePath: string | null;
-  machineId: string | null;
-  workingDir: string | null;
+  contentResult: FileContentResult | null | undefined;
+  isBinary: boolean;
   viewMode: FileViewMode;
 }) {
-  // Fetch cached content (with transparent decompression)
-  const contentResult = useFileContent(
-    machineId && workingDir && filePath ? { machineId, workingDir, filePath } : 'skip'
-  );
-
-  // Request content mutation (triggers daemon to fetch)
-  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
-
-  // When file is selected, request its content
-  useEffect(() => {
-    if (filePath && machineId && workingDir) {
-      requestContent({ machineId, workingDir, filePath }).catch(() => {});
-    }
-  }, [filePath, machineId, workingDir, requestContent]);
-
-  const isBinary = filePath ? isBinaryFile(filePath) : false;
-
   if (!filePath) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -441,6 +424,16 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
   const isBinary = filePath ? isBinaryFile(filePath) : false;
   const canCopyContent = !!contentResult && !isBinary;
+
+  // Request content mutation (triggers daemon to fetch)
+  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
+
+  // When file is selected, request its content
+  useEffect(() => {
+    if (filePath && machineId && workingDir) {
+      requestContent({ machineId, workingDir, filePath }).catch(() => {});
+    }
+  }, [filePath, machineId, workingDir, requestContent]);
 
   // Close mobile tree when selecting a file
   const handleMobileSelectFile = useCallback(
@@ -568,8 +561,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
           <FixedModalBody>
             <FileContentPanel
               filePath={filePath}
-              machineId={machineId}
-              workingDir={workingDir}
+              contentResult={contentResult}
+              isBinary={isBinary}
               viewMode={viewMode}
             />
           </FixedModalBody>

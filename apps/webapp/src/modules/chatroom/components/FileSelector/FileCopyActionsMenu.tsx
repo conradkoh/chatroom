@@ -1,7 +1,7 @@
 'use client';
 
 import { Copy } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback } from 'react';
 
 import { WorkspaceDropdownMenuItem } from '../../workspace/components/WorkspaceDropdownMenuItem';
 import {
@@ -35,31 +35,25 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   contentDisabled = false,
   className,
 }: FileCopyActionsMenuProps) {
-  const [open, setOpen] = useState(false);
-
   const handleCopyFileName = useCallback(() => {
     void copyFileNameToClipboard(relativePath);
-    setOpen(false);
   }, [relativePath]);
 
   const handleCopyRelativePath = useCallback(() => {
     void copyRelativePathToClipboard(relativePath);
-    setOpen(false);
   }, [relativePath]);
 
   const handleCopyFullPath = useCallback(() => {
     void copyFullPathToClipboard(workingDir, relativePath);
-    setOpen(false);
   }, [workingDir, relativePath]);
 
   const handleCopyContent = useCallback(() => {
     if (!content || contentDisabled) return;
     void copyFileContentToClipboard(content, { truncated });
-    setOpen(false);
   }, [content, contentDisabled, truncated]);
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
