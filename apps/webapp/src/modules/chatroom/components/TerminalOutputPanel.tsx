@@ -55,9 +55,9 @@ export function TerminalOutputPanel({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
         {/* Semi-transparent overlay */}
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0" />
 
-        <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-50 w-[800px] max-w-[95vw] h-[500px] max-h-[80vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200">
+        <DialogPrimitive.Content className="fixed left-[50%] top-[50%] z-[100] w-[800px] max-w-[95vw] h-[500px] max-h-[80vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2 border-b-2 border-chatroom-border bg-chatroom-bg-primary">
             <div className="flex items-center gap-3 min-w-0">

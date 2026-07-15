@@ -358,7 +358,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
       onClick={handleBackdropClick}
     >
       {/* Modal panel — landscape-oriented, near-full viewport */}

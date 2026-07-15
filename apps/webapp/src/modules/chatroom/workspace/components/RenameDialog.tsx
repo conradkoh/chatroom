@@ -113,7 +113,7 @@ export function RenameDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
+      <DialogContent floating
         className="sm:max-w-md"
         onOpenAutoFocus={(event) => {
           event.preventDefault();

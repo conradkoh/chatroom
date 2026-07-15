@@ -12,6 +12,8 @@ import {
   chatroomIndustrialDialogDescriptionClassName,
   chatroomIndustrialDialogFooterClassName,
   chatroomIndustrialDialogTitleClassName,
+  chatroomIndustrialFloatingModalContentClassName,
+  chatroomIndustrialFloatingOverlayClassName,
   chatroomIndustrialModalContentClassName,
   chatroomIndustrialOverlayClassName,
 } from '../shared/industrialDialogStyles';
@@ -37,12 +39,16 @@ function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.C
 
 function DialogOverlay({
   className,
+  floating,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+}: React.ComponentProps<typeof DialogPrimitive.Overlay> & { floating?: boolean }) {
   return (
     <DialogPrimitive.Overlay
       data-slot="chatroom-dialog-overlay"
-      className={cn(chatroomIndustrialOverlayClassName, className)}
+      className={cn(
+        floating ? chatroomIndustrialFloatingOverlayClassName : chatroomIndustrialOverlayClassName,
+        className
+      )}
       {...props}
     />
   );
@@ -51,17 +57,23 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  floating,
   onEscapeKeyDown,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { floating?: boolean }) {
   useAllowTouchSelection();
 
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay floating={floating} />
       <DialogPrimitive.Content
         data-slot="chatroom-dialog-content"
-        className={cn(chatroomIndustrialModalContentClassName, className)}
+        className={cn(
+          floating
+            ? chatroomIndustrialFloatingModalContentClassName
+            : chatroomIndustrialModalContentClassName,
+          className
+        )}
         onEscapeKeyDown={onEscapeKeyDown}
         {...props}
       >
