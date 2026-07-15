@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, MoreHorizontal } from 'lucide-react';
+import { Copy, FolderOpen, MoreHorizontal } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 import { WorkspaceDropdownMenuItem } from '../../workspace/components/WorkspaceDropdownMenuItem';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/modules/chatroom/components/ui/dropdown-menu';
 
@@ -32,6 +33,8 @@ export interface FileCopyActionsMenuProps {
   fileContentLabel?: string;
   /** `copy` = mobile all-in-one menu; `more` = desktop path-only overflow menu. */
   triggerVariant?: 'copy' | 'more';
+  /** When provided, shows "Open in Explorer" at bottom of dropdown. */
+  onOpenInExplorer?: () => void;
 }
 
 const copyContentButtonClassName =
@@ -109,6 +112,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   showFileContent = true,
   fileContentLabel = 'Copy File Content',
   triggerVariant = 'copy',
+  onOpenInExplorer,
 }: FileCopyActionsMenuProps) {
   const handleCopyFileName = useCallback(() => {
     void copyFileNameToClipboard(relativePath);
@@ -168,6 +172,14 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
           >
             {fileContentLabel}
           </WorkspaceDropdownMenuItem>
+        )}
+        {onOpenInExplorer && (
+          <>
+            <DropdownMenuSeparator />
+            <WorkspaceDropdownMenuItem icon={FolderOpen} onSelect={onOpenInExplorer}>
+              Open in Explorer
+            </WorkspaceDropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

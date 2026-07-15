@@ -126,6 +126,39 @@ describe('FileCopyActionsMenu', () => {
     expect(screen.getByText('Copy Relative Path')).toBeInTheDocument();
     expect(screen.queryByText('Copy File Content')).not.toBeInTheDocument();
   });
+
+  it('renders Open in Explorer item when onOpenInExplorer is provided', () => {
+    const onOpenInExplorer = vi.fn();
+    render(
+      <FileCopyActionsMenu
+        {...defaultProps}
+        onOpenInExplorer={onOpenInExplorer}
+        showFileContent={false}
+      />
+    );
+    openDropdown();
+    expect(screen.getByText('Open in Explorer')).toBeInTheDocument();
+  });
+
+  it('calls onOpenInExplorer callback when Open in Explorer is clicked', () => {
+    const onOpenInExplorer = vi.fn();
+    render(
+      <FileCopyActionsMenu
+        {...defaultProps}
+        onOpenInExplorer={onOpenInExplorer}
+        showFileContent={false}
+      />
+    );
+    openDropdown();
+    fireEvent.click(screen.getByText('Open in Explorer'));
+    expect(onOpenInExplorer).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits Open in Explorer when onOpenInExplorer is undefined', () => {
+    render(<FileCopyActionsMenu {...defaultProps} />);
+    openDropdown();
+    expect(screen.queryByText('Open in Explorer')).not.toBeInTheDocument();
+  });
 });
 
 describe('CopyFileNameButton', () => {
