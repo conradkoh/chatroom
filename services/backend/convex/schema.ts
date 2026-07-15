@@ -468,7 +468,8 @@ export default defineSchema({
     // so 'by_chatroom' on ['chatroomId'] enables efficient time-range queries.
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
-    .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
+    .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
+    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole']),
 
   /**
    * Staging table for queued user messages.

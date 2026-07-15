@@ -2094,13 +2094,10 @@ export const listMessagesBySenderRolePaginated = query({
           .paginate(args.paginationOpts)
       : await ctx.db
           .query('chatroom_messages')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-          .filter((q) =>
-            q.and(
-              q.eq(q.field('senderRole'), args.senderRole),
-              q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff'))
-            )
+          .withIndex('by_chatroom_senderRole_createdAt', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole)
           )
+          .filter((q) => q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff')))
           .order('desc')
           .paginate(args.paginationOpts);
 
