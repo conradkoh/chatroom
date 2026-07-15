@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 
-import { PickerSearch, ResponsivePickerShell } from './picker';
+import { PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell } from './picker';
 import { getModelDisplayLabel } from '../types/machine';
 import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../utils/modelSelection';
 
@@ -172,10 +172,7 @@ export function ModelFilterPanel({
   const panelContent = (
     <>
       {/* Header */}
-      <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
-          Model Visibility
-        </span>
+      <PickerPanelHeader title="Model Visibility" className="shrink-0">
         <div className="flex items-center gap-2">
           {hiddenCount > 0 && (
             <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
@@ -198,12 +195,12 @@ export function ModelFilterPanel({
             </button>
           )}
         </div>
-      </div>
+      </PickerPanelHeader>
 
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models..." />
 
       {/* Model list grouped by provider */}
-      <div className="max-h-[576px] overflow-y-auto">
+      <PickerScrollBody maxHeightClassName="max-h-[576px]">
         {Array.from(filteredModelsByProvider.entries()).map(([providerKey, models]) => {
           const isProviderHidden = hiddenProvidersSet.has(providerKey);
           return (
@@ -281,14 +278,14 @@ export function ModelFilterPanel({
             </div>
           );
         })}
-      </div>
+      </PickerScrollBody>
 
       {/* Reset button */}
       <button
         type="button"
         disabled={disabled || !hasAnyFilter}
         onClick={clearAllFilters}
-        className="w-full text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Reset All
       </button>
