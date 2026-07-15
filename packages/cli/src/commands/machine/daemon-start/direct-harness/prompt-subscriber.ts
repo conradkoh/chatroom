@@ -245,6 +245,8 @@ async function deliverPendingMessages(
         ...(systemPrompt ? { system: systemPrompt } : {}),
       });
 
+      await finalizeAgenticQueryTurnIfNeeded(handle, deps, info);
+
       await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -258,6 +260,28 @@ async function deliverPendingMessages(
       }
       return;
     }
+  }
+}
+
+/** Belt-and-suspenders finalize when session.idle handler races or times out. */
+async function finalizeAgenticQueryTurnIfNeeded(
+  handle: ActiveSession,
+  deps: MessageSubscriberDeps,
+  info: PendingSessionInfo | undefined
+): Promise<void> {
+  if (info?.purpose !== 'agentic-query' || !handle.currentTurn) return;
+
+  const { turnId } = handle.currentTurn;
+  handle.currentTurn = null;
+  try {
+    await handle.journal.flush();
+    await deps.sessionRepository.finalizeAssistantTurn(turnId);
+  } catch (err) {
+    console.warn(
+      '[direct-harness] agentic-query turn finalize error:',
+      err instanceof Error ? err.message : String(err)
+    );
+    handle.currentTurn = { turnId, messageId: null };
   }
 }
 

@@ -7,6 +7,7 @@ import { Search, HelpCircle, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
+import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
@@ -117,6 +118,11 @@ export function AgenticQueryPanel({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 p-4 gap-4" data-testid="agentic-query-panel">
+      <AgenticQueryHarnessSync
+        queryId={queryId as Id<'chatroom_agenticQueries'>}
+        queryStatus={query?.status}
+        harnessSessionId={harnessSessionId}
+      />
       <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
@@ -154,7 +160,14 @@ export function AgenticQueryPanel({
             Running
           </span>
         ) : null}
+        {query?.status === 'failed' ? (
+          <span className="ml-auto text-[10px] uppercase tracking-wider text-red-500">Failed</span>
+        ) : null}
       </div>
+
+      {query?.status === 'failed' && query.summary ? (
+        <p className="text-xs text-red-500 shrink-0">{query.summary}</p>
+      ) : null}
 
       {showInitialInput ? (
         <>

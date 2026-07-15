@@ -13,6 +13,7 @@ import { mutation } from '../../_generated/server';
 import type { MutationCtx } from '../../_generated/server';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
+import { trySyncAgenticQueryFromHarnessTurn } from '../../daemon/directHarness/agentic-query-sync';
 
 async function loadQueryWithAccess(
   ctx: MutationCtx,
@@ -191,5 +192,44 @@ export const complete = mutation({
     }
 
     return { success: true as const };
+  },
+});
+
+export const syncFromHarness = mutation({
+  args: {
+    ...SessionIdArg,
+    queryId: v.id('chatroom_agenticQueries'),
+  },
+  handler: async (ctx, args) => {
+    const { query } = await loadQueryWithAccess(ctx, args.sessionId, args.queryId);
+
+    if (query.status !== 'running' || !query.harnessSessionId) {
+      return { synced: false as const, status: query.status };
+    }
+
+    const harnessSessionId = query.harnessSessionId;
+
+    const harnessTurns = await ctx.db
+      .query('chatroom_harnessSessionTurns')
+      .withIndex('by_session_turnSeq', (q) => q.eq('harnessSessionId', harnessSessionId))
+      .order('desc')
+      .collect();
+
+    const latestCompleteAssistant = harnessTurns.find(
+      (turn) => turn.role === 'assistant' && turn.status === 'complete'
+    );
+
+    if (!latestCompleteAssistant) {
+      return { synced: false as const, status: 'running' as const };
+    }
+
+    await trySyncAgenticQueryFromHarnessTurn(ctx, {
+      harnessSessionId: query.harnessSessionId,
+      assistantText: latestCompleteAssistant.textContent,
+    });
+
+    const updated = await ctx.db.get('chatroom_agenticQueries', args.queryId);
+    const status = updated?.status ?? 'running';
+    return { synced: status !== 'running', status };
   },
 });

@@ -26,6 +26,10 @@ vi.mock('../hooks/useAgenticQueryHarnessSelection', () => ({
   }),
 }));
 
+vi.mock('./AgenticQueryHarnessSync', () => ({
+  AgenticQueryHarnessSync: () => null,
+}));
+
 vi.mock('@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore', () => ({
   useHarnessTurnStore: () => ({
     turns: [],
@@ -112,5 +116,28 @@ describe('AgenticQueryPanel', () => {
     expect(screen.getByTestId('agentic-query-follow-up')).toBeInTheDocument();
     expect(screen.getByText(/Auth uses sessions/i)).toBeInTheDocument();
     expect(screen.getByTestId('agentic-query-harness-controls')).toBeInTheDocument();
+  });
+
+  it('shows failed status and summary', () => {
+    mockUseAgenticQuery.mockReturnValue({
+      query: {
+        status: 'failed',
+        mode: 'search',
+        title: 'Agentic Search',
+        summary: 'Agent produced no response',
+      },
+      turns: [{ _id: 't1', seq: 0, userMessage: 'find auth', createdAt: 1 }],
+      isLoading: false,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: true,
+      canSubmit: true,
+      harnessSessionId: undefined,
+      submit: mockSubmit,
+    });
+
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getByText('Agent produced no response')).toBeInTheDocument();
   });
 });

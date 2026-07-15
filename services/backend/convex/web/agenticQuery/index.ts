@@ -1,2 +1,2 @@
 export { createDraft, get } from './queries';
-export { submit, submitFollowUp, complete } from './mutations';
+export { submit, submitFollowUp, complete, syncFromHarness } from './mutations';
