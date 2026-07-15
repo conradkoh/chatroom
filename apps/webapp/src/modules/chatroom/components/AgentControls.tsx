@@ -44,9 +44,6 @@ import {
 import type { Workspace } from '../types/workspace';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +53,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from './ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+
 import {
   Command,
   CommandEmpty,
@@ -1253,20 +1253,18 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               if (!open) handleCancelRehomeStart();
             }}
           >
-            <AlertDialogContent className="bg-card border-border">
+            <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-foreground">
-                  Move agent to another machine?
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-muted-foreground">
+                <AlertDialogTitle>Move agent to another machine?</AlertDialogTitle>
+                <AlertDialogDescription>
                   {rehomeDialogLabels ? (
                     <>
                       Starting this agent will move the role from{' '}
-                      <span className="font-semibold text-foreground">
+                      <span className="font-semibold text-chatroom-text-primary">
                         {rehomeDialogLabels.previous}
                       </span>{' '}
                       to{' '}
-                      <span className="font-semibold text-foreground">
+                      <span className="font-semibold text-chatroom-text-primary">
                         {rehomeDialogLabels.next}
                       </span>
                       . Existing work on the old machine will continue until it exits. Continue?
@@ -1276,7 +1274,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                   )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter className="border-t border-border pt-4">
+              <AlertDialogFooter>
                 <AlertDialogCancel onClick={handleCancelRehomeStart}>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleConfirmRehomeStart}>Continue</AlertDialogAction>
               </AlertDialogFooter>

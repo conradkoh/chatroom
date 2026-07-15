@@ -51,7 +51,7 @@ export function appendTaskDeliveryNextSteps(
   if (primaryTarget) {
     const senderNote = message ? ` (task from \`${message.senderRole}\`)` : '';
     lines.push(
-      `2. **When complete, you MUST run the handoff command** — this completes your work and delivers it to \`${primaryTarget}\`${senderNote}:`
+      `2. **When complete, you MUST run the handoff command as your final action this turn** — this completes your work and delivers it to \`${primaryTarget}\`${senderNote}:`
     );
     lines.push('');
     lines.push('```bash');
@@ -59,11 +59,11 @@ export function appendTaskDeliveryNextSteps(
     lines.push('```');
     lines.push('');
     lines.push(
-      'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Do not end your turn without running handoff.**'
+      'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
     );
   } else {
     lines.push(
-      '2. **When complete, you MUST run a handoff command** from `<handoffs>` below. **Do not end your turn without running handoff.**'
+      '2. **When complete, you MUST run a handoff command from `<handoffs>` below as your final action this turn. Run handoff last, then end your turn immediately — no further tool calls after handoff.**'
     );
   }
 

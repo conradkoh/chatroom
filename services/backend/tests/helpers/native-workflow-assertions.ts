@@ -35,7 +35,7 @@ export function assertNativePrimaryHandoffInNextSteps(
   expect(nextSteps).toContain('you MUST run the handoff command');
   expect(nextSteps).toContain(`delivers it to \`${primaryTarget}\``);
   expect(nextSteps).toContain(`--next-role="${primaryTarget}"`);
-  expect(nextSteps).toContain('Do not end your turn without running handoff');
+  expect(nextSteps).toContain('Run handoff as your last tool call');
 
   if (senderRole) {
     expect(nextSteps).toContain(`task from \`${senderRole}\``);

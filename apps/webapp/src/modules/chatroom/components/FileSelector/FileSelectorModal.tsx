@@ -2,7 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Loader2 } from 'lucide-react';
-import { memo, useCallback, useState, useRef } from 'react';
+import { memo, useCallback, useEffect, useState, useRef } from 'react';
 
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
@@ -48,13 +48,15 @@ export const FileSelectorModal = memo(function FileSelectorModal({
 
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
-      if (!newOpen) {
-        setSearch('');
-      }
       onOpenChange(newOpen);
     },
     [onOpenChange]
   );
+
+  // Reset search after close — defer to avoid re-rendering list content during exit animation.
+  useEffect(() => {
+    if (!open) setSearch('');
+  }, [open]);
 
   const handleSelect = useCallback(
     (filePath: string) => {

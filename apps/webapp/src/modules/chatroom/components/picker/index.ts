@@ -8,5 +8,6 @@ export { PickerPanelHeader } from './PickerPanelHeader';
 export type { PickerPanelHeaderProps } from './PickerPanelHeader';
 export { PickerOptionRow } from './PickerOptionRow';
 export type { PickerOptionRowProps } from './PickerOptionRow';
+export { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
 export { usePickerSearchState } from './usePickerSearchState';
 export { filterPickerItems } from './filterPickerItems';

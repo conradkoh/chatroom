@@ -1,12 +1,18 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ResponsivePickerShell } from './ResponsivePickerShell';
 
 const mockUseIsDesktop = vi.fn();
+const mockUseKeyboardInset = vi.fn();
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
+}));
+
+vi.mock('./useVisualViewportKeyboardInset', () => ({
+  useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
 }));
 
 function renderShell(overrides: Record<string, unknown> = {}) {
@@ -87,5 +93,59 @@ describe('ResponsivePickerShell', () => {
 
     const drawerContent = document.querySelector('[data-slot="drawer-content"]');
     expect(drawerContent?.className).toContain('custom-drawer-class');
+  });
+
+  it('applies paddingBottom style on mobile when keyboard inset is non-zero', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(120);
+    renderShell();
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    expect(drawerContent?.style.paddingBottom).toBe('120px');
+  });
+
+  it('does not apply paddingBottom style on desktop when keyboard inset is non-zero', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    mockUseKeyboardInset.mockReturnValue(120);
+    renderShell();
+
+    const popoverContent = document.querySelector(
+      '[data-slot="chatroom-popover-content"]'
+    ) as HTMLElement;
+    expect(popoverContent?.style.paddingBottom).toBe('');
+  });
+
+  it('calls onOpenChange(true) when trigger clicked on desktop', async () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    const onOpenChange = vi.fn();
+    render(
+      <ResponsivePickerShell
+        open={false}
+        onOpenChange={onOpenChange}
+        trigger={<button type="button">Open</button>}
+        title="Test"
+      >
+        <div>content</div>
+      </ResponsivePickerShell>
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it('calls onOpenChange(true) when trigger clicked on mobile', async () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    const onOpenChange = vi.fn();
+    render(
+      <ResponsivePickerShell
+        open={false}
+        onOpenChange={onOpenChange}
+        trigger={<button type="button">Open</button>}
+        title="Test"
+      >
+        <div>content</div>
+      </ResponsivePickerShell>
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 });

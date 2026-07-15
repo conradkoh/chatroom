@@ -72,7 +72,9 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
             'data-[state=closed]:zoom-out-95',
-            'data-[state=open]:duration-0 data-[state=closed]:duration-200'
+            'data-[state=open]:duration-0 data-[state=closed]:duration-200',
+            'data-[state=closed]:fill-mode-forwards',
+            'data-[state=closed]:pointer-events-none'
           )}
         >
           <DialogPrimitive.Title className="sr-only">Command Output</DialogPrimitive.Title>

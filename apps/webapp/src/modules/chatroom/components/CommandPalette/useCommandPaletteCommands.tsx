@@ -48,6 +48,8 @@ interface UseCommandPaletteCommandsProps {
   onOpenGitPanel?: (() => void) | null;
   onOpenBacklog: () => void;
   onOpenPendingReview: () => void;
+  /** Opens the create-backlog-item modal (BacklogCreateModal) */
+  onCreateBacklogItem?: (() => void) | null;
   /** Navigation callbacks */
   onOpenChatroomSwitcher: () => void;
   onCreateNewChatroom?: (() => void) | null;
@@ -120,6 +122,7 @@ export function useCommandPaletteCommands({
   onOpenGitPanel,
   onOpenBacklog,
   onOpenPendingReview,
+  onCreateBacklogItem,
   onOpenChatroomSwitcher,
   onCreateNewChatroom,
   onOpenFileSelector,
@@ -410,6 +413,17 @@ export function useCommandPaletteCommands({
       }
     );
 
+    if (onCreateBacklogItem) {
+      commands.push({
+        id: 'action-new-backlog-item',
+        label: 'New Backlog Item',
+        icon: <Plus size={14} />,
+        category: 'Actions',
+        keywords: ['create', 'new', 'backlog', 'item', 'task', 'todo', 'add'],
+        action: onCreateBacklogItem,
+      });
+    }
+
     if (onSwitchToPullRequests || onOpenPRReview) {
       commands.push({
         id: 'panel-pull-requests',
@@ -530,6 +544,7 @@ export function useCommandPaletteCommands({
     onOpenGitPanel,
     onOpenBacklog,
     onOpenPendingReview,
+    onCreateBacklogItem,
     onOpenChatroomSwitcher,
     onCreateNewChatroom,
     onOpenFileSelector,

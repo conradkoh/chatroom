@@ -12,8 +12,8 @@ import {
   chatroomIndustrialDialogDescriptionClassName,
   chatroomIndustrialDialogFooterClassName,
   chatroomIndustrialDialogTitleClassName,
-  chatroomIndustrialModalContentClassName,
-  chatroomIndustrialOverlayClassName,
+  chatroomIndustrialFloatingModalContentClassName,
+  chatroomIndustrialFloatingOverlayClassName,
 } from '../shared/industrialDialogStyles';
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
@@ -40,7 +40,7 @@ function AlertDialogOverlay({
   return (
     <AlertDialogPrimitive.Overlay
       data-slot="chatroom-alert-dialog-overlay"
-      className={cn(chatroomIndustrialOverlayClassName, className)}
+      className={cn(chatroomIndustrialFloatingOverlayClassName, className)}
       {...props}
     />
   );
@@ -57,7 +57,7 @@ function AlertDialogContent({
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         data-slot="chatroom-alert-dialog-content"
-        className={cn(chatroomIndustrialModalContentClassName, className)}
+        className={cn(chatroomIndustrialFloatingModalContentClassName, className)}
         {...props}
       />
     </AlertDialogPortal>
