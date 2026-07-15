@@ -17,11 +17,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { isBinaryFile } from './binaryDetection';
-import {
-  FileCopyActionsMenu,
-  CopyFileNameButton,
-  CopyFileContentButton,
-} from './FileCopyActionsMenu';
+import { FileCopyActionsMenu, CopyFileContentButton } from './FileCopyActionsMenu';
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
 import {
@@ -43,7 +39,6 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface FilePreviewDialogProps {
   filePath: string | null;
@@ -422,7 +417,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isMarkdown = filePath ? isMarkdownFile(filePath) : false;
   const isCsv = filePath ? isCsvFile(filePath) : false;
   const hasToggle = isMarkdown || isCsv;
-  const isDesktopLayout = useIsDesktop(640);
 
   // Fetch content result for header metadata (with transparent decompression)
   const contentResult = useFileContent(
@@ -432,7 +426,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isBinary = filePath ? isBinaryFile(filePath) : false;
   const canCopyContent = !!contentResult && !isBinary;
   const copyContentLabel = isMarkdown ? 'Copy as Markdown' : 'Copy File Content';
-  const showCopyContentInMenu = canCopyContent && !isDesktopLayout;
 
   // Request content mutation (triggers daemon to fetch)
   const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
@@ -467,101 +460,104 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
 
       {/* Right Panel: File Content */}
       <FixedModalContent>
-        <FixedModalHeader onClose={onClose}>
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* Mobile tree toggle button */}
-            <button
-              type="button"
-              aria-label="Browse files"
-              onClick={() => setMobileTreeOpen((prev) => !prev)}
-              className="sm:hidden text-chatroom-text-muted hover:text-chatroom-text-primary min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
-              title="Browse files"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
-            {filePath && (
-              <FileTypeIcon path={filePath} className="h-4 w-4 shrink-0 text-chatroom-text-muted" />
-            )}
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate">
+        <FixedModalHeader onClose={onClose} className="items-start py-2">
+          <div className="flex flex-col gap-1.5 w-full min-w-0">
+            {/* Row 1: filename + path copy menu (+ utility actions) */}
+            <div className="flex items-center gap-2 min-w-0 w-full">
+              <button
+                type="button"
+                aria-label="Browse files"
+                onClick={() => setMobileTreeOpen((prev) => !prev)}
+                className="sm:hidden text-chatroom-text-muted hover:text-chatroom-text-primary min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
+                title="Browse files"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+              {filePath && (
+                <FileTypeIcon
+                  path={filePath}
+                  className="h-4 w-4 shrink-0 text-chatroom-text-muted"
+                />
+              )}
+              <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate min-w-0 flex-1">
                 {filePath}
               </span>
-              {filePath && <CopyFileNameButton relativePath={filePath} />}
+              {filePath && (
+                <FileCopyActionsMenu
+                  relativePath={filePath}
+                  workingDir={workingDir}
+                  content={contentResult?.content ?? null}
+                  truncated={contentResult?.truncated}
+                  contentDisabled={!canCopyContent}
+                  showFileContent={false}
+                  triggerVariant="more"
+                />
+              )}
+              {contentResult?.truncated && (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 shrink-0">
+                  TRUNCATED
+                </span>
+              )}
+              {hasToggle && (
+                <button
+                  type="button"
+                  aria-label={
+                    viewMode === 'source'
+                      ? isMarkdown
+                        ? 'Preview markdown'
+                        : 'View as table'
+                      : 'Show source'
+                  }
+                  onClick={() =>
+                    setViewMode((prev) =>
+                      prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source'
+                    )
+                  }
+                  className={`min-w-8 min-h-8 flex items-center justify-center shrink-0 transition-colors rounded-sm ${
+                    viewMode !== 'source'
+                      ? 'text-chatroom-accent'
+                      : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
+                  }`}
+                  title={
+                    viewMode === 'source'
+                      ? isMarkdown
+                        ? 'Preview markdown'
+                        : 'View as table'
+                      : 'Show source'
+                  }
+                >
+                  {viewMode === 'source' ? (
+                    <Eye className="h-3.5 w-3.5" />
+                  ) : (
+                    <Code2 className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+              {onOpenInExplorer && filePath && (
+                <button
+                  type="button"
+                  aria-label="Open in Explorer"
+                  onClick={() => {
+                    onOpenInExplorer(filePath);
+                    onClose();
+                  }}
+                  className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
+                  title="Open in Explorer"
+                >
+                  <Files className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
-            {contentResult?.truncated && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 shrink-0">
-                TRUNCATED
-              </span>
-            )}
+            {/* Row 2: file content actions */}
             {canCopyContent && (
-              <CopyFileContentButton
-                className="hidden sm:flex"
-                content={contentResult?.content ?? null}
-                truncated={contentResult?.truncated}
-                label={copyContentLabel}
-              />
-            )}
-            {filePath && (
-              <FileCopyActionsMenu
-                relativePath={filePath}
-                workingDir={workingDir}
-                content={contentResult?.content ?? null}
-                truncated={contentResult?.truncated}
-                contentDisabled={!canCopyContent}
-                showFileName={false}
-                showFileContent={showCopyContentInMenu}
-                fileContentLabel={copyContentLabel}
-                triggerVariant={isDesktopLayout ? 'more' : 'copy'}
-              />
-            )}
-            {hasToggle && (
-              <button
-                type="button"
-                aria-label={
-                  viewMode === 'source'
-                    ? isMarkdown
-                      ? 'Preview markdown'
-                      : 'View as table'
-                    : 'Show source'
-                }
-                onClick={() =>
-                  setViewMode((prev) =>
-                    prev === 'source' ? getDefaultViewMode(filePath ?? '') : 'source'
-                  )
-                }
-                className={`min-w-8 min-h-8 flex items-center justify-center shrink-0 transition-colors rounded-sm ${
-                  viewMode !== 'source'
-                    ? 'text-chatroom-accent'
-                    : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
-                }`}
-                title={
-                  viewMode === 'source'
-                    ? isMarkdown
-                      ? 'Preview markdown'
-                      : 'View as table'
-                    : 'Show source'
-                }
-              >
-                {viewMode === 'source' ? (
-                  <Eye className="h-3.5 w-3.5" />
-                ) : (
-                  <Code2 className="h-3.5 w-3.5" />
-                )}
-              </button>
-            )}
-            {onOpenInExplorer && filePath && (
-              <button
-                type="button"
-                aria-label="Open in Explorer"
-                onClick={() => {
-                  onOpenInExplorer(filePath);
-                  onClose();
-                }}
-                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors min-w-8 min-h-8 flex items-center justify-center shrink-0 rounded-sm"
-                title="Open in Explorer"
-              >
-                <Files className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center justify-end w-full">
+                <CopyFileContentButton
+                  className="flex"
+                  content={contentResult?.content ?? null}
+                  truncated={contentResult?.truncated}
+                  label={copyContentLabel}
+                />
+              </div>
             )}
           </div>
         </FixedModalHeader>
