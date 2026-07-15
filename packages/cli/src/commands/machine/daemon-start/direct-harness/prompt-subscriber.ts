@@ -3,6 +3,7 @@
  * to the harness session.
  */
 
+import { renderWorkspaceAgentSystemPrompt } from '@workspace/backend/prompts/agentic-query/workspace-agent-system-prompt.js';
 import type { ConvexClient } from 'convex/browser';
 
 import type { DirectHarnessSession } from './command-subscriber.js';
@@ -32,6 +33,9 @@ interface PendingSessionInfo {
   workspaceId: string;
   harnessName: string;
   opencodeSessionId: string | undefined;
+  purpose?: 'direct' | 'agentic-query';
+  agenticQueryId?: string;
+  chatroomId?: string;
   lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
 }
 
@@ -213,10 +217,20 @@ async function deliverPendingMessages(
   deps: MessageSubscriberDeps,
   rowId: string,
   messages: PendingMessage[],
-  info: PendingSessionInfo | undefined
+  info: PendingSessionInfo | undefined,
+  daemonSession: DirectHarnessSession
 ): Promise<void> {
   for (const msg of messages) {
     const override = info?.lastUsedConfig ?? { agent: 'build' };
+
+    const systemPrompt =
+      info?.purpose === 'agentic-query'
+        ? renderWorkspaceAgentSystemPrompt({
+            convexUrl: daemonSession.convexUrl,
+            chatroomId: info.chatroomId,
+            queryId: info.agenticQueryId,
+          })
+        : undefined;
 
     try {
       await deps.sessionRepository.setGenerating(rowId, true);
@@ -228,6 +242,7 @@ async function deliverPendingMessages(
         parts: [{ type: 'text', text: msg.content }],
         agent: override.agent,
         ...(override.model ? { model: override.model } : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
       });
 
       await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);
@@ -272,5 +287,5 @@ async function processSessionMessages(
     wireResumedSessionEvents(handle, deps, info);
   }
 
-  await deliverPendingMessages(handle, deps, rowId, messages, info);
+  await deliverPendingMessages(handle, deps, rowId, messages, info, session);
 }

@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { applyAgenticQueryComplete } from './complete-logic';
 import {
   getAgenticQueryTurns,
   getNextAgenticTurnSeq,
@@ -180,39 +181,13 @@ export const complete = mutation({
       throw new ConvexError({ code: 'INVALID_RESULT', message: validation.message });
     }
 
-    const turns = await getAgenticQueryTurns(ctx, args.queryId);
-    const latestTurn = turns.sort((a, b) => b.seq - a.seq)[0];
-    if (!latestTurn) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'No turns found for query' });
-    }
-
-    const now = Date.now();
-    const assistantResponse = args.result.trim();
-
-    await ctx.db.patch('chatroom_agenticQueryTurns', latestTurn._id, {
-      assistantResponse,
-      structuredResult: JSON.stringify({
-        summary: validation.summary,
-        results: validation.results,
-        grounding: validation.grounding,
-        files: validation.files,
-      }),
+    const applied = await applyAgenticQueryComplete(ctx, {
+      queryId: args.queryId,
+      result: args.result,
+      harnessSessionId: query.harnessSessionId,
     });
-
-    await ctx.db.patch('chatroom_agenticQueries', args.queryId, {
-      status: 'complete',
-      lastActiveAt: now,
-      summary: validation.summary,
-    });
-
-    if (query.harnessSessionId) {
-      const harnessSession = await ctx.db.get('chatroom_harnessSessions', query.harnessSessionId);
-      if (harnessSession && harnessSession.status !== 'closed') {
-        await ctx.db.patch('chatroom_harnessSessions', query.harnessSessionId, {
-          status: 'closed',
-          lastActiveAt: now,
-        });
-      }
+    if (!applied.ok) {
+      throw new ConvexError({ code: 'INVALID_STATUS', message: applied.message });
     }
 
     return { success: true as const };

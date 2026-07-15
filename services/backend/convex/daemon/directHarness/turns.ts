@@ -1,44 +1,18 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { trySyncAgenticQueryFromHarnessTurn } from './agentic-query-sync';
+import { requireMachineWorkspaces } from './machine-workspaces';
+import type { Id } from '../../_generated/dataModel';
+import { mutation, query } from '../../_generated/server';
+import type { MutationCtx, QueryCtx } from '../../_generated/server';
 import {
   getNextTurnSeq,
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireHarnessSessionOnOwnedMachine,
-} from '../../api/directHarnessHelpers.js';
-import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
-import { mutation, query } from '../../_generated/server.js';
-import type { MutationCtx, QueryCtx } from '../../_generated/server.js';
-import type { Id } from '../../_generated/dataModel.js';
-
-// ─── insertUserTurn (internal helper) ───────────────────────────────────────
-
-/**
- * Inserts a user turn row into chatroom_harnessSessionTurns.
- * Used by the three user-message write sites (web/sessions.create,
- * web/messages.send, daemon/queue.dequeueNext).
- */
-export async function insertUserTurn(
-  ctx: { db: MutationCtx['db'] },
-  harnessSessionId: Id<'chatroom_harnessSessions'>,
-  content: string,
-  timestamp: number
-): Promise<{ turnId: Id<'chatroom_harnessSessionTurns'>; turnSeq: number }> {
-  const turnSeq = await getNextTurnSeq(ctx, harnessSessionId);
-  const turnId = await ctx.db.insert('chatroom_harnessSessionTurns', {
-    harnessSessionId,
-    turnSeq,
-    role: 'user',
-    status: 'complete',
-    textContent: content.trim(),
-    reasoningContent: '',
-    startedAt: timestamp,
-    completedAt: timestamp,
-  });
-  await ctx.db.patch('chatroom_harnessSessions', harnessSessionId, { lastActiveAt: timestamp });
-  return { turnId, turnSeq };
-}
+} from '../../api/directHarnessHelpers';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 
@@ -179,6 +153,11 @@ export const finalizeAssistantTurn = mutation({
       completedAt: Date.now(),
     });
 
+    await trySyncAgenticQueryFromHarnessTurn(ctx, {
+      harnessSessionId: turn.harnessSessionId,
+      assistantText: textContent,
+    });
+
     return { ok: true };
   },
 });
@@ -298,14 +277,7 @@ export const getMachineHarnessSessions = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .collect();
+    const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
     if (workspaces.length === 0) return [];
 
     const results: {

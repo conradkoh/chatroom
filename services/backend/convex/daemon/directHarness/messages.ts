@@ -1,13 +1,13 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { requireMachineWorkspaces } from './machine-workspaces';
 import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
 
@@ -61,13 +61,7 @@ export const pendingForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .collect();
+    const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
     if (workspaces.length === 0) return { sessions: [], messages: [] };
 
     const workspaceIds = new Set(workspaces.map((w) => w._id));
@@ -103,6 +97,9 @@ export const pendingForMachine = query({
       workspaceId: string;
       harnessName: string;
       opencodeSessionId: string | undefined;
+      purpose?: 'direct' | 'agentic-query';
+      agenticQueryId?: string;
+      chatroomId?: string;
       lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
     }[] = [];
     const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
@@ -121,11 +118,15 @@ export const pendingForMachine = query({
 
       if (pending.length > 0) {
         const s = requireOpencodeSession(session);
+        const workspace = workspaces.find((w) => w._id === session.workspaceId);
         sessions.push({
           _id: session._id as string,
           workspaceId: session.workspaceId as string,
           harnessName: s.opencode.harnessName,
           opencodeSessionId: s.opencode.opencodeSessionId,
+          purpose: session.purpose,
+          agenticQueryId: session.agenticQueryId as string | undefined,
+          chatroomId: workspace?.chatroomId as string | undefined,
           lastUsedConfig: s.opencode.lastUsedConfig,
         });
         for (const turn of pending) {

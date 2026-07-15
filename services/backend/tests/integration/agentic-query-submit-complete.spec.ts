@@ -49,6 +49,7 @@ describe('web.agenticQuery submit and complete', () => {
     );
     expect(harness?.purpose).toBe('agentic-query');
     expect(harness?.opencode?.harnessName).toBe('opencode-sdk');
+    expect(harness?.opencode?.lastUsedConfig.agent).toBe('build');
 
     await t.mutation(api.web.agenticQuery.index.complete, {
       sessionId,

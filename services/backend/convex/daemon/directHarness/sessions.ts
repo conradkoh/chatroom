@@ -1,13 +1,13 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { requireMachineWorkspaces } from './machine-workspaces';
 import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── associateHarnessSessionId ────────────────────────────────────────────────
 
@@ -180,13 +180,7 @@ export const listPendingSessionsForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .collect();
+    const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
     if (workspaces.length === 0) return [];
 
     const workspaceIds = new Set(workspaces.map((w) => w._id));

@@ -13,12 +13,9 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import {
-  getSessionWithAccess,
-  requireDirectHarnessWorkers,
-} from '../../api/directHarnessHelpers.js';
-import { insertUserTurn } from '../../daemon/directHarness/turns.js';
-import { mutation } from '../../_generated/server.js';
+import { mutation } from '../../_generated/server';
+import { getSessionWithAccess, requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
+import { insertUserTurn } from '../../daemon/directHarness/insert-user-turn';
 
 // ─── send ─────────────────────────────────────────────────────────────────────
 

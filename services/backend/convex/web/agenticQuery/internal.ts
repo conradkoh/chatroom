@@ -1,9 +1,10 @@
 import { renderAgenticQueryEnvelope } from '../../../prompts/agentic-query/render-task-envelope';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
-import { insertUserTurn } from '../../daemon/directHarness/turns';
+import { insertUserTurn } from '../../daemon/directHarness/insert-user-turn';
 
-const AGENT_ROLE = 'workspace-agent';
+const OPENCODE_AGENT = 'build';
+const CLI_COMPLETE_ROLE = 'workspace-agent';
 
 export interface AgenticHarnessSpawnConfig {
   harnessName: string;
@@ -42,7 +43,7 @@ export async function spawnAgenticHarnessSession(
   }
 ): Promise<Id<'chatroom_harnessSessions'>> {
   const now = Date.now();
-  const cliCompleteCommand = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.query._id} --role=${AGENT_ROLE}`;
+  const cliCompleteCommand = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.query._id} --role=${CLI_COMPLETE_ROLE}`;
   const envelope = renderAgenticQueryEnvelope({
     queryId: params.query._id,
     chatroomId: params.chatroomId,
@@ -71,7 +72,7 @@ export async function spawnAgenticHarnessSession(
       opencodeSessionId: undefined,
       sessionTitle: params.query.title,
       lastUsedConfig: {
-        agent: AGENT_ROLE,
+        agent: OPENCODE_AGENT,
         ...(params.harness.model ? { model: params.harness.model } : {}),
       },
     },
