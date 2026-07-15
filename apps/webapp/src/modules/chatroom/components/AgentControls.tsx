@@ -1076,7 +1076,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       title="Select model"
                       align="start"
                       contentClassName="w-[420px]"
-                      drawerContentClassName="max-h-[80vh]"
                       trigger={
                         <button
                           disabled={isBusy || !displayHarness}

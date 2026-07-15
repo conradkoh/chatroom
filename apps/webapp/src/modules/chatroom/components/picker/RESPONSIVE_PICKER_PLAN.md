@@ -130,6 +130,7 @@ _(Update as we go.)_
 - **2026-07-13**: Slice 4: `HarnessWorkspaceSwitcher` migrated (keeps empty-state div short-circuit), `DirectHarnessPanel` session picker migrated (preserves responsive `@container`/`@md:` trigger styling, New session sentinel as `PickerOptionRow`), `DirectHarnessView` register dialog machine picker migrated (compact button without search for small lists).
 - **2026-07-13**: Slice 5: Fixed hooks violations (moved useState/usePickerSearchState before conditional returns in HarnessWorkspaceSwitcher and DirectHarnessPanel). Migrated CreateChatroomForm team picker (with search, Enter-to-submit preserved via open state), AgentSettingsModal mobile tab picker (no search, 6 tabs), PullRequestsPanel filter (no search, 3 options). Refactored ModelFilterPanel to use ResponsivePickerShell — removed duplicated Popover/Drawer/useIsDesktop branching.
 - **2026-07-13**: Slice 6: Planner review caught remaining `useMemo` after early return in HarnessWorkspaceSwitcher (fixed). PR #911 opened to `release/v1.65.7`.
+- **2026-07-15**: AgentControls model selector migrated to ResponsivePickerShell (PR #963). Uses PickerSearch + filterPickerItems + PickerOptionRow, matching machine/harness pattern. Removed Popover/Command imports.
 
 ## Branch / PR
 

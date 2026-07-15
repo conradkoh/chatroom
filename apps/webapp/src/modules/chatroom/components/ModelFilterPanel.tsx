@@ -303,7 +303,6 @@ export function ModelFilterPanel({
       title="Model Visibility"
       align="end"
       contentClassName="w-[420px]"
-      drawerContentClassName="max-h-[80vh]"
       disabled={disabled}
     >
       {panelContent}
