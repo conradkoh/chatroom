@@ -9,9 +9,9 @@
   "scripts": {
     "build": "bun run typecheck && bun run build.config.ts",
     "typecheck": "tsc -b --force",
-    "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:watch": "vitest",
+    "test": "bash ../../scripts/kill-stale-vitest.sh && vitest run",
+    "test:integration": "bash ../../scripts/kill-stale-vitest.sh && vitest run --config vitest.integration.config.ts",
+    "test:watch": "bash ../../scripts/kill-stale-vitest.sh && vitest",
     "chatroom": "bun run src/index.ts",
     "prepublishOnly": "bun run scripts/guard-workspace-publish.ts",
     "publish:prepare": "bun run scripts/prepare-npm-publish.ts",
