@@ -8,11 +8,12 @@ describe('useAgenticSearchShortcut', () => {
     vi.restoreAllMocks();
   });
 
-  it('calls onOpen for Cmd+F with capture listener', () => {
-    const onOpen = vi.fn();
+  it('calls onOpenSearch for Cmd+F', () => {
+    const onOpenSearch = vi.fn();
+    const onOpenAsk = vi.fn();
     const addSpy = vi.spyOn(window, 'addEventListener');
 
-    renderHook(() => useAgenticSearchShortcut(onOpen));
+    renderHook(() => useAgenticSearchShortcut({ onOpenSearch, onOpenAsk }));
 
     expect(addSpy).toHaveBeenCalledWith('keydown', expect.any(Function), { capture: true });
 
@@ -33,15 +34,56 @@ describe('useAgenticSearchShortcut', () => {
 
     expect(preventDefault).toHaveBeenCalled();
     expect(stopPropagation).toHaveBeenCalled();
-    expect(onOpen).toHaveBeenCalledOnce();
+    expect(onOpenSearch).toHaveBeenCalledOnce();
+    expect(onOpenAsk).not.toHaveBeenCalled();
+  });
+
+  it('calls onOpenAsk for Cmd+Shift+F', () => {
+    const onOpenSearch = vi.fn();
+    const onOpenAsk = vi.fn();
+    const addSpy = vi.spyOn(window, 'addEventListener');
+
+    renderHook(() => useAgenticSearchShortcut({ onOpenSearch, onOpenAsk }));
+
+    const handler = addSpy.mock.calls.find((call) => call[0] === 'keydown')?.[1] as (
+      event: KeyboardEvent
+    ) => void;
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    handler(event);
+
+    expect(onOpenSearch).not.toHaveBeenCalled();
+    expect(onOpenAsk).toHaveBeenCalledOnce();
   });
 
   it('ignores shortcuts without meta or ctrl', () => {
-    const onOpen = vi.fn();
-    renderHook(() => useAgenticSearchShortcut(onOpen));
+    const onOpenSearch = vi.fn();
+    const onOpenAsk = vi.fn();
+    renderHook(() => useAgenticSearchShortcut({ onOpenSearch, onOpenAsk }));
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
 
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(onOpenSearch).not.toHaveBeenCalled();
+    expect(onOpenAsk).not.toHaveBeenCalled();
+  });
+
+  it('ignores Cmd+Alt+F', () => {
+    const onOpenSearch = vi.fn();
+    const onOpenAsk = vi.fn();
+    renderHook(() => useAgenticSearchShortcut({ onOpenSearch, onOpenAsk }));
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'f', metaKey: true, altKey: true, bubbles: true })
+    );
+
+    expect(onOpenSearch).not.toHaveBeenCalled();
+    expect(onOpenAsk).not.toHaveBeenCalled();
   });
 });

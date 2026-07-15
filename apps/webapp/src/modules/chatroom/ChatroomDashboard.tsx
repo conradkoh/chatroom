@@ -266,18 +266,26 @@ const ExplorerContent = memo(function ExplorerContent({
   const workingDir = activeWorkspace?.workingDir ?? '';
   const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
 
-  const { openSearchTab } = useAgenticQueryTabOpener(
+  const [agenticFocusToken, setAgenticFocusToken] = useState(0);
+  const requestAgenticFocus = useCallback(() => setAgenticFocusToken((n) => n + 1), []);
+
+  const { openSearchTab, openAskTab } = useAgenticQueryTabOpener(
     activeWorkspace?.workspaceId ?? undefined,
-    fileTabs
+    fileTabs,
+    { onFocusRequest: requestAgenticFocus }
   );
 
   const activeTab = fileTabs.tabs.find((t) => editorTabKey(t) === fileTabs.activeTabKey) ?? null;
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.filePath : fileTabs.activeTabKey;
   const showTabBar = fileTabs.tabs.length > 0;
 
-  // Cmd+F opens agentic search (capture phase beats PWA/browser find-in-page)
-  useAgenticSearchShortcut(() => {
-    void openSearchTab();
+  useAgenticSearchShortcut({
+    onOpenSearch: () => {
+      void openSearchTab();
+    },
+    onOpenAsk: () => {
+      void openAskTab();
+    },
   });
 
   const handleOpenSelectionOnRemote = useCallback(
@@ -351,8 +359,9 @@ const ExplorerContent = memo(function ExplorerContent({
                 queryId={activeTab.queryId}
                 mode={activeTab.mode}
                 workspaceId={activeWorkspace?.workspaceId ?? ''}
-                onTitleChange={(title) => {
-                  fileTabs.openAgenticQueryTab(activeTab.queryId, activeTab.mode, title);
+                focusToken={agenticFocusToken}
+                onMetaChange={({ title, mode }) => {
+                  fileTabs.openAgenticQueryTab(activeTab.queryId, mode, title);
                 }}
               />
             ) : activeTab.kind === 'file' ? (

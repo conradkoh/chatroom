@@ -431,12 +431,11 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
           | EditorTab
           | undefined;
         if (existing) {
-          if (name && existing.name !== name) {
-            return prev.map((t) =>
-              t.kind === 'agentic-query' && t.queryId === queryId ? { ...t, name } : t
-            );
-          }
-          return prev;
+          return prev.map((t) =>
+            t.kind === 'agentic-query' && t.queryId === queryId
+              ? { ...t, mode, ...(name !== undefined ? { name } : {}) }
+              : t
+          );
         }
         const withoutPreview = prev.filter((t) => t.isPinned);
         return [

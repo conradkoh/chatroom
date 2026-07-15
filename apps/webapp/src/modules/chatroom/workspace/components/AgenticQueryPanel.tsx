@@ -21,7 +21,8 @@ export interface AgenticQueryPanelProps {
   queryId: string;
   mode: AgenticQueryMode;
   workspaceId: string;
-  onTitleChange?: (title: string) => void;
+  onMetaChange?: (meta: { title: string; mode: AgenticQueryMode }) => void;
+  focusToken?: number;
 }
 
 function AgenticStreamingBody({
@@ -55,7 +56,8 @@ export function AgenticQueryPanel({
   queryId,
   mode: initialMode,
   workspaceId,
-  onTitleChange,
+  onMetaChange,
+  focusToken,
 }: AgenticQueryPanelProps) {
   const [mode, setMode] = useState<AgenticQueryMode>(initialMode);
   const [queryText, setQueryText] = useState('');
@@ -63,6 +65,7 @@ export function AgenticQueryPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const followUpRef = useRef<HTMLTextAreaElement>(null);
 
   const {
     query,
@@ -87,10 +90,10 @@ export function AgenticQueryPanel({
   }, [query?.mode, mode, turns.length]);
 
   useEffect(() => {
-    if (query?.title && onTitleChange) {
-      onTitleChange(query.title);
+    if (query?.title && onMetaChange) {
+      onMetaChange({ title: query.title, mode: query.mode });
     }
-  }, [onTitleChange, query?.title]);
+  }, [onMetaChange, query?.title, query?.mode]);
 
   useEffect(() => {
     if (isDraftLike(query?.status) && textareaRef.current) {
@@ -98,18 +101,33 @@ export function AgenticQueryPanel({
     }
   }, [query?.status]);
 
+  useEffect(() => {
+    if (focusToken === undefined || focusToken <= 0) return;
+    if (canFollowUp && followUpRef.current) {
+      followUpRef.current.focus();
+      return;
+    }
+    textareaRef.current?.focus();
+  }, [focusToken, canFollowUp]);
+
+  useEffect(() => {
+    if (!canFollowUp) return;
+    followUpRef.current?.focus();
+  }, [canFollowUp]);
+
   const handleModeChange = useCallback(
     async (next: AgenticQueryMode) => {
       if (next === mode || turns.length > 0) return;
       setMode(next);
       try {
         const result = await updateDraftMode(next);
-        onTitleChange?.(result.title);
-      } catch {
+        onMetaChange?.({ title: result.title, mode: result.mode });
+      } catch (e) {
         setMode(mode);
+        setError(e instanceof Error ? e.message : 'Failed to update mode');
       }
     },
-    [mode, updateDraftMode, onTitleChange, turns.length]
+    [mode, updateDraftMode, onMetaChange, turns.length]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -314,6 +332,7 @@ export function AgenticQueryPanel({
             disabled={harnessControlsDisabled}
           />
           <textarea
+            ref={followUpRef}
             value={followUpText}
             onChange={(e) => setFollowUpText(e.target.value)}
             onKeyDown={handleFollowUpKeyDown}

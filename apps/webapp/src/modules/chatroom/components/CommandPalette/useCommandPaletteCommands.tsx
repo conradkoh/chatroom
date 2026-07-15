@@ -12,6 +12,7 @@ import {
   FileSearch,
   GitBranch,
   GitPullRequest,
+  HelpCircle,
   ListTodo,
   MessagesSquare,
   MessageSquare,
@@ -19,6 +20,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Search,
   Settings,
   StopCircle,
   Terminal,
@@ -78,6 +80,10 @@ interface UseCommandPaletteCommandsProps {
   onOpenProcessesPanel?: () => void;
   /** Callback to switch to Explorer view */
   onShowExplorer?: (() => void) | null;
+  /** Callback to open agentic search */
+  onOpenAgenticSearch?: (() => void) | null;
+  /** Callback to open agentic ask */
+  onOpenAgenticAsk?: (() => void) | null;
   /** Callback to switch to Messages view */
   onShowMessages?: () => void;
   /** Callback to toggle chat in split panel (explorer view only) */
@@ -153,6 +159,8 @@ export function useCommandPaletteCommands({
   onRefreshWorkspaceState,
   onSwitchToSourceControl,
   onSwitchToPullRequests,
+  onOpenAgenticSearch,
+  onOpenAgenticAsk,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -283,6 +291,29 @@ export function useCommandPaletteCommands({
       shortcut: '⌘P',
       action: onOpenFileSelector,
     });
+
+    if (onOpenAgenticSearch) {
+      commands.push({
+        id: 'nav-agentic-search',
+        label: 'Agentic Search',
+        icon: <Search size={14} />,
+        category: 'Navigate',
+        shortcut: '⌘F',
+        keywords: ['search', 'find', 'agentic', 'codebase'],
+        action: onOpenAgenticSearch,
+      });
+    }
+    if (onOpenAgenticAsk) {
+      commands.push({
+        id: 'nav-agentic-ask',
+        label: 'Agentic Ask',
+        icon: <HelpCircle size={14} />,
+        category: 'Navigate',
+        shortcut: '⌘⇧F',
+        keywords: ['ask', 'question', 'agentic', 'codebase'],
+        action: onOpenAgenticAsk,
+      });
+    }
 
     // ─── Workspace Actions ────────────────────────────────
     // When workspaceCommands is provided (multi-workspace mode), use those.
@@ -576,5 +607,7 @@ export function useCommandPaletteCommands({
     onRefreshWorkspaceState,
     onSwitchToSourceControl,
     onSwitchToPullRequests,
+    onOpenAgenticSearch,
+    onOpenAgenticAsk,
   ]);
 }
