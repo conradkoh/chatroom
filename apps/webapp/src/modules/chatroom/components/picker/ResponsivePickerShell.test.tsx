@@ -4,9 +4,14 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { ResponsivePickerShell } from './ResponsivePickerShell';
 
 const mockUseIsDesktop = vi.fn();
+const mockUseKeyboardInset = vi.fn();
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
+}));
+
+vi.mock('./useVisualViewportKeyboardInset', () => ({
+  useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
 }));
 
 function renderShell(overrides: Record<string, unknown> = {}) {
@@ -87,5 +92,43 @@ describe('ResponsivePickerShell', () => {
 
     const drawerContent = document.querySelector('[data-slot="drawer-content"]');
     expect(drawerContent?.className).toContain('custom-drawer-class');
+  });
+
+  it('applies paddingBottom style on mobile when keyboard inset is non-zero', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(120);
+    renderShell();
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    expect(drawerContent?.style.paddingBottom).toBe('120px');
+  });
+
+  it('does not apply paddingBottom style on desktop when keyboard inset is non-zero', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    mockUseKeyboardInset.mockReturnValue(120);
+    renderShell();
+
+    const popoverContent = document.querySelector(
+      '[data-slot="chatroom-popover-content"]'
+    ) as HTMLElement;
+    expect(popoverContent?.style.paddingBottom).toBe('');
+  });
+
+  it('resets paddingBottom when keyboard inset returns to 0', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValueOnce(120).mockReturnValueOnce(0);
+    render(
+      <ResponsivePickerShell
+        open={true}
+        onOpenChange={vi.fn()}
+        trigger={<button type="button">Open picker</button>}
+        title="Test picker"
+      >
+        <div data-testid="picker-content">Picker content</div>
+      </ResponsivePickerShell>
+    );
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    expect(drawerContent?.style.paddingBottom).toBe('120px');
   });
 });

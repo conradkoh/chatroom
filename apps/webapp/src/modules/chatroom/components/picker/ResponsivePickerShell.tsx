@@ -2,6 +2,7 @@
 
 import React from 'react';
 
+import { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
@@ -42,6 +43,7 @@ export function ResponsivePickerShell({
   disabled,
 }: ResponsivePickerShellProps) {
   const isDesktop = useIsDesktop(desktopBreakpoint);
+  const keyboardInsetPx = useVisualViewportKeyboardInset();
 
   if (disabled) {
     return <>{trigger}</>;
@@ -70,6 +72,7 @@ export function ResponsivePickerShell({
           'bg-chatroom-bg-primary border-t border-chatroom-border p-0 max-h-[80vh] rounded-t-none',
           drawerContentClassName
         )}
+        style={keyboardInsetPx > 0 ? { paddingBottom: keyboardInsetPx } : undefined}
       >
         <DrawerHeader className="p-0">
           <DrawerTitle className="sr-only">{title}</DrawerTitle>

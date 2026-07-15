@@ -2,10 +2,9 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 
+import { PickerSearch, ResponsivePickerShell } from './picker';
 import { getModelDisplayLabel } from '../types/machine';
 import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../utils/modelSelection';
-
-import { ResponsivePickerShell } from './picker';
 
 import { cn } from '@/lib/utils';
 
@@ -201,17 +200,7 @@ export function ModelFilterPanel({
         </div>
       </div>
 
-      {/* Search input */}
-      <div className="px-3 py-1.5 border-b border-chatroom-border">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search models..."
-          className="w-full bg-chatroom-bg-tertiary border border-chatroom-border px-2 py-1 text-[11px] text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent"
-          autoFocus
-        />
-      </div>
+      <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models..." />
 
       {/* Model list grouped by provider */}
       <div className="max-h-[576px] overflow-y-auto">
