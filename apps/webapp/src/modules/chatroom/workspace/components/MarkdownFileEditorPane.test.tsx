@@ -145,4 +145,39 @@ describe('MarkdownFileEditorPane', () => {
       expect(toast.success).toHaveBeenCalledWith('Copied markdown to clipboard');
     });
   });
+
+  it('highlights other exact matches when text is selected', async () => {
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: 'foo bar foo',
+      setContent: mockSetContent,
+      isDirty: false,
+      contentRef: { current: 'foo bar foo' },
+      save: mockSave,
+      saving: false,
+      error: null,
+      isLoading: false,
+    });
+
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/workspace"
+        filePath="docs/readme.md"
+      />
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: /edit docs\/readme\.md/i,
+    }) as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(0, 3);
+    textarea.dispatchEvent(new Event('select', { bubbles: true }));
+    document.dispatchEvent(new Event('selectionchange'));
+
+    await waitFor(() => {
+      const marks = document.querySelectorAll('.selection-match-highlight');
+      expect(marks).toHaveLength(1);
+      expect(marks[0]).toHaveTextContent('foo');
+    });
+  });
 });
