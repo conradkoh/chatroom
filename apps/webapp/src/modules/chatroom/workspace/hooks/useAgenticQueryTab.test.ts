@@ -145,7 +145,7 @@ describe('useAgenticQueryTabOpener', () => {
     expect(onBeforeOpen).toHaveBeenCalled();
   });
 
-  it('reuses draft with Agentic Search title regardless of mode', async () => {
+  it('reuses draft with Agentic Search title and normalizes legacy ask tabs to search', async () => {
     const fileTabs = createFileTabsMock({
       tabs: [
         {
@@ -167,7 +167,7 @@ describe('useAgenticQueryTabOpener', () => {
     expect(mockCreateDraft).not.toHaveBeenCalled();
     expect(fileTabs.openAgenticQueryTab).toHaveBeenCalledWith(
       'reusable-ask',
-      'ask',
+      'search',
       'Agentic Search'
     );
   });
