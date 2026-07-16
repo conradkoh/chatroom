@@ -8,9 +8,9 @@
     "build": "next build --turbopack",
     "start": "next start --turbopack",
     "typecheck": "tsc --noEmit",
-    "test": "bash ../../scripts/kill-stale-vitest.sh && vitest run",
-    "test:watch": "bash ../../scripts/kill-stale-vitest.sh && vitest",
-    "test:ui": "bash ../../scripts/kill-stale-vitest.sh && vitest --ui",
+    "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
+    "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest",
+    "test:ui": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest --ui",
     "e2e": "playwright test --config=tests/e2e/playwright.config.ts",
     "generate:icons": "bun run scripts/generate-icons.ts",
     "generate:icons:all": "bun run scripts/generate-icons.ts --favicon"

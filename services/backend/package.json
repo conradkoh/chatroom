@@ -9,8 +9,8 @@
     "migrate": "bun ../../scripts/migrate.ts",
     "migrate:saved-command-scope": "convex run migrations:run '{\"fn\":\"migrations:backfillSavedCommandScope\"}'",
     "typecheck": "tsc --build",
-    "test": "bash ../../scripts/kill-stale-vitest.sh && vitest run",
-    "test:watch": "bash ../../scripts/kill-stale-vitest.sh && vitest"
+    "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
+    "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest"
   },
   "keywords": [],
   "author": "",
