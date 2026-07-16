@@ -7,6 +7,7 @@ import {
 } from '../../../prompts/utils/handoff-quality-principles';
 
 const PRINCIPLE_NAMES = [
+  'Semantic Consistency',
   'Organization & Maintainability',
   'Static Evaluability and Provability',
   'No Revisit',
@@ -14,14 +15,14 @@ const PRINCIPLE_NAMES = [
 ];
 
 describe('handoff-quality-principles', () => {
-  test('getHandoffQualityPrinciplesCommentBlock includes exactly 4 principles', () => {
+  test('getHandoffQualityPrinciplesCommentBlock includes exactly 5 principles', () => {
     const block = getHandoffQualityPrinciplesCommentBlock();
     for (const name of PRINCIPLE_NAMES) {
       expect(block).toContain(name);
     }
-    // Count bullet lines (one per principle)
-    const bullets = block.match(/- /g);
-    expect(bullets).toHaveLength(4);
+    // Count principle bullet lines (not `-->` closing comment)
+    const bulletLines = block.split('\n').filter((line) => line.startsWith('- '));
+    expect(bulletLines).toHaveLength(5);
   });
 
   test('getHandoffQualityPrinciplesCommentBlock is an HTML comment', () => {

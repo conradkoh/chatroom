@@ -5,6 +5,11 @@
 
 const HANDOFF_QUALITY_PRINCIPLES = [
   {
+    name: 'Semantic Consistency',
+    description:
+      'the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.',
+  },
+  {
     name: 'Organization & Maintainability',
     description:
       'a small change in requirements should result in a small change in code in a small number of files and folders.',
