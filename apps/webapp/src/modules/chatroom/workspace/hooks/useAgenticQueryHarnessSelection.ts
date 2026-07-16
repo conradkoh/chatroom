@@ -5,7 +5,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { parseModelKey } from '@/modules/chatroom/direct-harness/components/harness-selectors';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
@@ -94,6 +94,17 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     modelOptions[0]?.value ??
     '';
 
+  const selectedModelRef = useRef(selectedModel);
+  selectedModelRef.current = selectedModel;
+
+  useEffect(() => {
+    if (modelOptions.length === 0) return;
+    const current = selectedModelRef.current;
+    if (modelOptions.some((option) => option.value === current)) return;
+    const fallback = modelOptions[0]?.value ?? '';
+    if (fallback !== current) setSelectedModel(fallback);
+  }, [modelOptions]);
+
   useEffect(() => {
     if (!workspaceId) return;
     writePersisted(workspaceId, {
@@ -114,7 +125,7 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     harnessName: resolvedHarnessName,
     setHarnessName,
     providers,
-    selectedModel: resolvedModel,
+    selectedModel,
     setSelectedModel,
     isModelHidden: filter.isHidden,
     selectionReady,

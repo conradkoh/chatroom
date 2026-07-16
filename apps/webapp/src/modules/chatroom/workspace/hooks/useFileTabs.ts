@@ -427,10 +427,15 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     (queryId: string, mode: AgenticQueryMode, name?: string) => {
       const key = `agentic-query:${queryId}`;
       setTabs((prev) => {
-        const existing = prev.find((t) => t.kind === 'agentic-query' && t.queryId === queryId) as
-          | EditorTab
-          | undefined;
+        const existing = prev.find(
+          (t): t is Extract<EditorTab, { kind: 'agentic-query' }> =>
+            t.kind === 'agentic-query' && t.queryId === queryId
+        );
         if (existing) {
+          const nextName = name ?? existing.name;
+          if (existing.mode === mode && existing.name === nextName) {
+            return prev;
+          }
           return prev.map((t) =>
             t.kind === 'agentic-query' && t.queryId === queryId
               ? { ...t, mode, ...(name !== undefined ? { name } : {}) }
@@ -449,7 +454,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
           },
         ];
       });
-      setActiveTabKey(key);
+      setActiveTabKey((current) => (current === key ? current : key));
     },
     []
   );

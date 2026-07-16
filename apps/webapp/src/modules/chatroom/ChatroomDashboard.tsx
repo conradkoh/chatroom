@@ -93,8 +93,8 @@ import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
+import type { AgenticQueryMode, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { editorTabKey } from './workspace/hooks/useFileTabs';
-import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
 import {
@@ -299,6 +299,16 @@ const ExplorerContent = memo(function ExplorerContent({
     }
   }, [activeFilePath, fileTabs]);
 
+  const activeAgenticQueryId = activeTab?.kind === 'agentic-query' ? activeTab.queryId : null;
+
+  const handleAgenticMetaChange = useCallback(
+    ({ title, mode }: { title: string; mode: AgenticQueryMode }) => {
+      if (!activeAgenticQueryId) return;
+      fileTabs.openAgenticQueryTab(activeAgenticQueryId, mode, title);
+    },
+    [activeAgenticQueryId, fileTabs]
+  );
+
   const fileTabBar = showTabBar ? (
     <FileTabBar
       tabs={fileTabs.tabs}
@@ -344,9 +354,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 mode={activeTab.mode}
                 workspaceId={activeWorkspace?.workspaceId ?? ''}
                 focusToken={agenticFocusToken}
-                onMetaChange={({ title, mode }) => {
-                  fileTabs.openAgenticQueryTab(activeTab.queryId, mode, title);
-                }}
+                onMetaChange={handleAgenticMetaChange}
               />
             ) : activeTab.kind === 'file' ? (
               isMarkdownFile(activeTab.filePath) ? (

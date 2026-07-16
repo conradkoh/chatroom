@@ -64,6 +64,7 @@ export function AgenticQueryPanel({
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const followUpRef = useRef<HTMLTextAreaElement>(null);
+  const lastMetaRef = useRef<{ title: string; mode: AgenticQueryMode } | null>(null);
 
   const { query, turns, isRunning, canSubmit, canFollowUp, harnessSessionId, submit, isLoading } =
     useAgenticQuery(queryId);
@@ -72,9 +73,12 @@ export function AgenticQueryPanel({
   const harnessControlsDisabled = isRunning || isSubmitting;
 
   useEffect(() => {
-    if (query?.title && onMetaChange) {
-      onMetaChange({ title: query.title, mode: query.mode });
-    }
+    if (!query?.title || !onMetaChange) return;
+    const next = { title: query.title, mode: query.mode };
+    const prev = lastMetaRef.current;
+    if (prev?.title === next.title && prev?.mode === next.mode) return;
+    lastMetaRef.current = next;
+    onMetaChange(next);
   }, [onMetaChange, query?.title, query?.mode]);
 
   useEffect(() => {
