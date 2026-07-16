@@ -321,7 +321,7 @@ describe('startAgent use case — wantResume persistence', () => {
     expect(config?.wantResume).toBe(true);
   });
 
-  test('defaults wantResume to true when omitted', async () => {
+  test('defaults wantResume to false for duo builder when omitted', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-default');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-default';
@@ -330,7 +330,7 @@ describe('startAgent use case — wantResume persistence', () => {
     await startAgent(sessionId, machineId, chatroomId, 'builder');
 
     const config = await readTeamConfig(chatroomId, 'builder');
-    expect(config?.wantResume).toBe(true);
+    expect(config?.wantResume).toBe(false);
   });
 
   test('updates persisted wantResume on a subsequent start (false then true)', async () => {

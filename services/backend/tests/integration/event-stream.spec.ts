@@ -74,7 +74,7 @@ test('startAgent use case writes agent.requestStart event', async () => {
     expect(evt.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(evt.workingDir).toBe('/test/workspace');
     expect(evt.reason).toBe('test');
-    expect(evt.wantResume).toBe(true);
+    expect(evt.wantResume).toBe(false);
     expect(typeof evt.deadline).toBe('number');
     expect(typeof evt.timestamp).toBe('number');
   }
@@ -487,8 +487,7 @@ test('recordAgentExited with stopReason=user.stop does NOT schedule ensure-agent
   const crashRecoveryCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
     const checkArgs = argsArray?.[0] as
-      | { snapshotUpdatedAt?: number; chatroomId?: string }
-      | undefined;
+      { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(crashRecoveryCheck).toBeUndefined();
@@ -524,8 +523,7 @@ test('recordAgentExited with crash but no active task does NOT schedule ensure-a
   const crashRecoveryCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
     const checkArgs = argsArray?.[0] as
-      | { snapshotUpdatedAt?: number; chatroomId?: string }
-      | undefined;
+      { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(crashRecoveryCheck).toBeUndefined();
