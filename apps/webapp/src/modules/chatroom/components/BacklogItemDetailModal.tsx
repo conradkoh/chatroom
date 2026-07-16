@@ -22,6 +22,7 @@ import {
   backlogProseClassNames,
 } from './markdown-utils';
 import { useAttachments } from '../attachments';
+import { useOverlayDismissStack } from '../hooks/useOverlayDismissStack';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,28 +80,8 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     }
   }, [isOpen, item, initializedItemId]);
 
-  // Handle Escape key — cancel editing (without closing modal) or close modal
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isEditing) {
-          setIsEditing(false);
-        } else {
-          onClose();
-        }
-      }
-    },
-    [onClose, isEditing]
-  );
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
+  // Escape while editing cancels edit without closing the modal (stacked above FixedModal dismiss).
+  useOverlayDismissStack(isOpen && isEditing, () => setIsEditing(false));
 
   const handleSave = useCallback(async () => {
     if (!item || !editedContent.trim()) return;

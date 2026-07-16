@@ -1,3 +1,4 @@
+import { fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -32,5 +33,18 @@ describe('overlayDismissStack', () => {
     popOverlayDismiss(second);
 
     expect(isTopOverlayDismiss(first)).toBe(true);
+  });
+
+  it('invokes only the top handler on escape', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+
+    pushOverlayDismiss(first);
+    pushOverlayDismiss(second);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
   });
 });

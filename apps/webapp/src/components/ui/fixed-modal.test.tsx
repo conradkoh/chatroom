@@ -72,6 +72,26 @@ describe('FixedModal', () => {
     expect(screen.getByText('Modal content')).toBeInTheDocument();
   });
 
+  it('closes only the top modal on escape when stacked', () => {
+    const parentClose = vi.fn();
+    const childClose = vi.fn();
+
+    render(
+      <>
+        <FixedModal isOpen onClose={parentClose}>
+          <div>List</div>
+        </FixedModal>
+        <FixedModal isOpen onClose={childClose}>
+          <div>Detail</div>
+        </FixedModal>
+      </>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(childClose).toHaveBeenCalledTimes(1);
+    expect(parentClose).not.toHaveBeenCalled();
+  });
+
   it('closes on escape when no portaled menu is above it', () => {
     const onClose = vi.fn();
 

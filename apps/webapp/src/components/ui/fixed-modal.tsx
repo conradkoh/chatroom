@@ -6,13 +6,12 @@ import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
 import {
-  isTopOverlayDismiss,
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '@/modules/chatroom/components/shared/overlayDismissStack';
 
 // ─── Modal Stack ─────────────────────────────────────────────────────────────
-// Tracks open FixedModals so only the topmost modal responds to Escape.
+// Tracks open FixedModals for z-index layering (escape uses overlayDismissStack).
 let modalStack: (() => void)[] = [];
 
 // Reference-counted body scroll lock for nested/stacked modals.
@@ -278,22 +277,14 @@ const FixedModal = memo(function FixedModal({
     return () => popOverlayDismiss(dismissHandler);
   }, [isOpen, dismissHandler]);
 
-  // Handle Escape key — only the topmost overlay responds
+  // Layer z-index for stacked modals (escape handled by overlayDismissStack).
   useEffect(() => {
     if (!isOpen) return;
 
     modalStack.push(dismissHandler);
     setLayerZIndex(BASE_MODAL_Z_INDEX + modalStack.length * MODAL_Z_INDEX_STEP);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isTopOverlayDismiss(dismissHandler)) {
-        onCloseRef.current();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       modalStack = modalStack.filter((h) => h !== dismissHandler);
     };
   }, [isOpen, dismissHandler]);
