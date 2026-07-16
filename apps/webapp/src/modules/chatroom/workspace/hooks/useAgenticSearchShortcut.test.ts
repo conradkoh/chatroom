@@ -91,4 +91,28 @@ describe('useAgenticSearchShortcut', () => {
 
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  it('invokes onOpen on every Cmd+Shift+F press (shortcut does not debounce)', () => {
+    const onOpen = vi.fn();
+    const addSpy = vi.spyOn(window, 'addEventListener');
+
+    renderHook(() => useAgenticSearchShortcut({ onOpen }));
+
+    const handler = addSpy.mock.calls.find((call) => call[0] === 'keydown')?.[1] as (
+      event: KeyboardEvent
+    ) => void;
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    handler(event);
+    handler(event);
+
+    expect(onOpen).toHaveBeenCalledTimes(2);
+  });
 });

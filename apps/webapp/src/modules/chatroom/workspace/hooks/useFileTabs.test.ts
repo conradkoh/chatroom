@@ -325,4 +325,31 @@ describe('useFileTabs agentic query tabs', () => {
     });
     expect(stored.activeTabKey).toBe('agentic-query:query-4');
   });
+
+  it('keeps existing agentic tabs when opening another concurrent search session', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.openAgenticQueryTab('query-a', 'search', 'Agentic Search');
+      result.current.openAgenticQueryTab('query-b', 'search', 'Agentic Search');
+    });
+
+    expect(result.current.tabs).toEqual([
+      {
+        kind: 'agentic-query',
+        queryId: 'query-a',
+        name: 'Agentic Search',
+        mode: 'search',
+        isPinned: true,
+      },
+      {
+        kind: 'agentic-query',
+        queryId: 'query-b',
+        name: 'Agentic Search',
+        mode: 'search',
+        isPinned: true,
+      },
+    ]);
+    expect(result.current.activeTabKey).toBe('agentic-query:query-b');
+  });
 });
