@@ -1,19 +1,17 @@
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { MachineConfigUsageStore } from './machineConfigUsageStore';
+import { getMachineConfigUsageStore } from './machineConfigUsageStore';
 
 const SCOPE_A = 'm1|chatroom_r1#team_duo#role_planner';
 const SCOPE_B = 'm1|chatroom_r1#team_duo#role_builder';
 
 describe('MachineConfigUsageStore', () => {
-  let store: MachineConfigUsageStore;
-
   afterEach(() => {
-    store.clear();
+    getMachineConfigUsageStore().clear();
   });
 
   test('records and retrieves usage', () => {
-    store = new MachineConfigUsageStore();
+    const store = getMachineConfigUsageStore();
     store.recordUsage(SCOPE_A, { agentHarness: 'opencode-sdk' as any, model: 'gpt-4' });
     const usage = store.getAllUsageForScope(SCOPE_A);
     expect(usage.has('opencode-sdk|gpt-4')).toBe(true);
@@ -21,7 +19,7 @@ describe('MachineConfigUsageStore', () => {
   });
 
   test('clearUsage removes entry', () => {
-    store = new MachineConfigUsageStore();
+    const store = getMachineConfigUsageStore();
     const entry = { agentHarness: 'opencode-sdk' as any, model: 'gpt-4' };
     store.recordUsage(SCOPE_A, entry);
     store.clearUsage(SCOPE_A, entry);
@@ -29,7 +27,7 @@ describe('MachineConfigUsageStore', () => {
   });
 
   test('getTimestamps returns empty for unknown entry', () => {
-    store = new MachineConfigUsageStore();
+    const store = getMachineConfigUsageStore();
     const timestamps = store.getTimestamps('unknown', {
       agentHarness: 'opencode-sdk' as any,
       model: 'nonexistent',
@@ -38,7 +36,7 @@ describe('MachineConfigUsageStore', () => {
   });
 
   test('scopes are isolated', () => {
-    store = new MachineConfigUsageStore();
+    const store = getMachineConfigUsageStore();
     const entry = { agentHarness: 'opencode-sdk' as any, model: 'gpt-4' };
     store.recordUsage(SCOPE_A, entry);
     expect(store.getAllUsageForScope(SCOPE_B).has('opencode-sdk|gpt-4')).toBe(false);

@@ -380,6 +380,24 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
   },
 });
 
+/**
+ * TEMPORARY local cleanup: delete pre-teamRoleKey machine config favorites.
+ * Legacy rows stored favorites per (userId, machineId) only and block schema push.
+ *
+ * Usage (local dev only — NOT in runAll):
+ *   cd services/backend && npx convex run migrations:run '{"fn":"migrations:deleteLegacyMachineConfigFavorites"}'
+ *
+ * After running, restore `teamRoleKey: v.string()` in schema.ts (remove v.optional).
+ * Idempotent: rows with teamRoleKey set are skipped.
+ */
+export const deleteLegacyMachineConfigFavorites = migrations.define({
+  table: 'chatroom_machineConfigFavorites',
+  migrateOne: async (ctx, row) => {
+    if (row.teamRoleKey !== undefined) return;
+    await ctx.db.delete('chatroom_machineConfigFavorites', row._id);
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================

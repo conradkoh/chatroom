@@ -13,9 +13,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    machines: {
-      getMachineConfigFavorites: 'machines:getMachineConfigFavorites',
-      setMachineConfigFavorites: 'machines:setMachineConfigFavorites',
+    machineConfigFavorites: {
+      getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
+      setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
     },
   },
 }));
@@ -29,7 +29,10 @@ describe('useMachineConfigFavorites', () => {
   it('skips query when scope is undefined', () => {
     renderHook(() => useMachineConfigFavorites(undefined));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('machines:getMachineConfigFavorites', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith(
+      'machineConfigFavorites:getMachineConfigFavorites',
+      'skip'
+    );
   });
 
   it('skips query when teamId is empty', () => {
@@ -42,7 +45,10 @@ describe('useMachineConfigFavorites', () => {
       })
     );
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('machines:getMachineConfigFavorites', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith(
+      'machineConfigFavorites:getMachineConfigFavorites',
+      'skip'
+    );
   });
 
   it('queries favorites when scope is complete', () => {
@@ -55,9 +61,12 @@ describe('useMachineConfigFavorites', () => {
       })
     );
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('machines:getMachineConfigFavorites', {
-      machineId: 'machine-a',
-      teamRoleKey: 'chatroom_room1#team_duo#role_planner',
-    });
+    expect(mockUseSessionQuery).toHaveBeenCalledWith(
+      'machineConfigFavorites:getMachineConfigFavorites',
+      {
+        machineId: 'machine-a',
+        teamRoleKey: 'chatroom_room1#team_duo#role_planner',
+      }
+    );
   });
 });

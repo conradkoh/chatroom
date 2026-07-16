@@ -20,7 +20,7 @@ interface StorageData {
 }
 
 // fallow-ignore-next-line complexity
-export class MachineConfigUsageStore {
+class MachineConfigUsageStore {
   private data: StorageData;
 
   constructor() {

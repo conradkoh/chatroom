@@ -4,8 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
-import { buildTeamRoleKey, buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import { getMachineConfigUsageStore } from '../lib/machineConfigUsageStore';
+import { buildTeamRoleKey, buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import type { MachineConfigEntry } from '../types/machineConfig';
 import { entriesEqual } from '../types/machineConfig';
 
@@ -16,6 +16,7 @@ export interface MachineConfigFavoriteScope {
   role: string;
 }
 
+// fallow-ignore-next-line complexity
 function isScopeComplete(
   scope: MachineConfigFavoriteScope | undefined
 ): scope is MachineConfigFavoriteScope {
@@ -32,13 +33,13 @@ export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | un
     : undefined;
 
   const queryResult = useSessionQuery(
-    api.machines.getMachineConfigFavorites as any,
-    isScopeComplete(scope) && teamRoleKey
-      ? ({ machineId: scope.machineId, teamRoleKey } as any)
-      : 'skip'
+    api.machineConfigFavorites.getMachineConfigFavorites,
+    isScopeComplete(scope) && teamRoleKey ? { machineId: scope.machineId, teamRoleKey } : 'skip'
   );
 
-  const setFavoritesMutation = useSessionMutation(api.machines.setMachineConfigFavorites as any);
+  const setFavoritesMutation = useSessionMutation(
+    api.machineConfigFavorites.setMachineConfigFavorites
+  );
 
   const favorites = useMemo<MachineConfigEntry[]>(
     () => (queryResult as { favorites?: MachineConfigEntry[] })?.favorites ?? [],
@@ -52,7 +53,7 @@ export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | un
         machineId: scope.machineId,
         teamRoleKey,
         favorites: next,
-      } as any);
+      });
     },
     [scope, teamRoleKey, setFavoritesMutation]
   );
