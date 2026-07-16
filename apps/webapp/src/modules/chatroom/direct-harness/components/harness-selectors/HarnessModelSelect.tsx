@@ -8,21 +8,18 @@ import { HarnessModelSelectList } from './HarnessModelSelectList';
 import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
 import type { ProviderOption } from './types';
 import { ResponsivePickerShell, PickerScrollBody } from '../../../components/picker';
-import { selectTriggerClassName } from '../ui/select';
-
-import { cn } from '@/lib/utils';
+import {
+  pickerTriggerClassName,
+  pickerTriggerChevronClassName,
+  PICKER_TRIGGER_CHEVRON_SIZE,
+} from '../../../components/picker/pickerTriggerStyles';
 
 interface HarnessModelSelectProps {
   providers: ProviderOption[];
   value: string; // "<providerID>::<modelID>"
   onValueChange: (v: string) => void;
-  /**
-   * Optional filter predicate. When provided, models for which `isHidden(key)`
-   * returns true are excluded from the dropdown. Key format: "providerID::modelID".
-   * Provider groups with no visible models are omitted entirely.
-   * The currently-selected model's label still shows in the trigger even if hidden.
-   */
   isHidden?: (modelKey: string) => boolean;
+  disabled?: boolean;
 }
 
 // fallow-ignore-next-line complexity
@@ -31,34 +28,35 @@ export function HarnessModelSelect({
   value,
   onValueChange,
   isHidden,
+  disabled = false,
 }: HarnessModelSelectProps) {
   const [open, setOpen] = useState(false);
   const selectedLabel = getSelectedModelLabel(providers, value);
   const hasProviders = hasVisibleProviders(providers, isHidden);
-  const triggerLabel = selectedLabel ?? (hasProviders ? 'Select model…' : 'No models yet');
+  const isDisabled = !hasProviders || disabled;
+  const triggerLabel = selectedLabel ?? (hasProviders ? 'Model...' : 'No models yet');
 
   return (
     <ResponsivePickerShell
       open={open}
       onOpenChange={setOpen}
-      disabled={!hasProviders}
+      disabled={isDisabled}
       title="Select model"
       align="start"
       contentClassName="w-72"
       trigger={
         <button
           type="button"
-          disabled={!hasProviders}
-          className={selectTriggerClassName}
+          disabled={isDisabled}
+          className={pickerTriggerClassName}
           title={hasProviders ? 'Select model' : CAPABILITIES_REFRESH_HINT}
           aria-label={hasProviders ? 'Select model' : 'No models available yet'}
         >
-          <span
-            className={cn('truncate text-left flex-1', !selectedLabel && 'text-muted-foreground')}
-          >
-            {triggerLabel}
-          </span>
-          <ChevronDown size={12} className="shrink-0 opacity-50" />
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown
+            size={PICKER_TRIGGER_CHEVRON_SIZE}
+            className={pickerTriggerChevronClassName}
+          />
         </button>
       }
     >

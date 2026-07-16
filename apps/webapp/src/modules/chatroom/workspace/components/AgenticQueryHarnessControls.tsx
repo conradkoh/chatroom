@@ -40,14 +40,13 @@ export function AgenticQueryHarnessControls({
           disabled={disabled}
         />
       </div>
-      <div
-        className={disabled ? 'flex-1 min-w-0 pointer-events-none opacity-60' : 'flex-1 min-w-0'}
-      >
+      <div className="flex-1 min-w-0">
         <HarnessModelSelect
           providers={providers}
           value={selectedModel}
           onValueChange={onModelChange}
           isHidden={isModelHidden}
+          disabled={disabled}
         />
       </div>
     </div>
