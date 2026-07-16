@@ -38,7 +38,7 @@ export function useAgenticQueryTabOpener(
         t.kind === 'agentic-query' && t.name === AGENTIC_DEFAULT_TITLE
     );
     if (reusable) {
-      fileTabs.openAgenticQueryTab(reusable.queryId, reusable.mode, reusable.name);
+      fileTabs.openAgenticQueryTab(reusable.queryId, 'search', reusable.name);
       options?.onFocusRequest?.();
       return;
     }
