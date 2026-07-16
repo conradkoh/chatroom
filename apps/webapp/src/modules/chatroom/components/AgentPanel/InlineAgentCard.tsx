@@ -62,6 +62,7 @@ export interface InlineAgentCardProps {
   lockedMachineId?: string;
   lockedWorkingDir?: string;
   onSetupConfigChange?: (harness: AgentHarness | null, model: string | null) => void;
+  teamId?: string;
 }
 
 interface AgentCardRestartSectionProps {
@@ -146,6 +147,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   lockedMachineId,
   lockedWorkingDir,
   onSetupConfigChange,
+  teamId,
 }: InlineAgentCardProps) {
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
@@ -164,6 +166,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     chatroomWorkspacesLoading,
     lockedMachineId,
     lockedWorkingDir,
+    teamId,
   });
 
   const onSetupConfigChangeRef = useRef(onSetupConfigChange);

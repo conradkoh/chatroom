@@ -16,6 +16,7 @@
  */
 
 import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
+import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -106,7 +107,8 @@ export async function startAgent(
   // ── Step 2: Upsert team agent config ──────────────────────────────────
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  const resolvedWantResume = wantResume ?? true;
+  const resolvedWantResume =
+    wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : true);
 
   if (chatroom) {
     if (!chatroom.teamId) {

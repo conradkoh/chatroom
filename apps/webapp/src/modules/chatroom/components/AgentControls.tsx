@@ -44,6 +44,7 @@ import {
 import type { Workspace } from '../types/workspace';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
+import { resolveDefaultWantResume } from '../utils/wantResumeDefaults';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -186,7 +187,9 @@ export function shouldDeferInitUntilWorkspacesLoad(
 export function deriveInitialResumeSession(
   machineId: string | null,
   roleConfigs: AgentConfig[],
-  runningAgentConfig: AgentConfig | undefined
+  runningAgentConfig: AgentConfig | undefined,
+  teamId?: string,
+  role?: string
 ): boolean {
   if (runningAgentConfig?.wantResume !== undefined) {
     return runningAgentConfig.wantResume;
@@ -201,7 +204,7 @@ export function deriveInitialResumeSession(
       return latest.wantResume;
     }
   }
-  return true;
+  return resolveDefaultWantResume(teamId, role ?? '');
 }
 
 export function useAgentControls({
@@ -218,6 +221,7 @@ export function useAgentControls({
   chatroomWorkspacesLoading,
   lockedMachineId,
   lockedWorkingDir,
+  teamId,
 }: {
   role: string;
   chatroomId: string;
@@ -233,6 +237,8 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** Persisted reconnect-on-start preference from team agent config. */
   teamWantResume?: boolean;
+  /** Team ID for role/team-specific defaults. */
+  teamId?: string;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
@@ -256,7 +262,7 @@ export function useAgentControls({
     role,
     teamWantResume,
   });
-  const { seedFromTeamConfig, syncWantResume, effectiveWantResume } = teamBehavior;
+  const { seedFromTeamConfig, effectiveWantResume } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -328,7 +334,13 @@ export function useAgentControls({
     setSelectedHarness(harness);
     setWorkingDir(wd);
     seedFromTeamConfig({
-      wantResume: deriveInitialResumeSession(machine, roleConfigs, runningAgentConfig),
+      wantResume: deriveInitialResumeSession(
+        machine,
+        roleConfigs,
+        runningAgentConfig,
+        teamId,
+        role
+      ),
     });
     setIsInitialized(true);
   }, [
@@ -343,23 +355,10 @@ export function useAgentControls({
     lockedWorkingDir,
   ]);
 
-  // ── Keep the resume toggle in lock-step with the running agent ────
-  // While an agent is running, its actual `wantResume` (from the backend config)
-  // is the source of truth and the toggle is disabled. Mirror that value into
-  // local form state so that when the agent STOPS, the toggle retains what the
-  // agent was started with instead of snapping back to the default `true`. This
-  // covers every stop path (Stop button, Restart, or a stop triggered elsewhere).
-  //
-  // This is a deliberate exception to the "no reactive prop→state sync" rule: the
-  // toggle is disabled while running, so this can never fight user input, and once
-  // the agent stops `runningWantResume` is undefined so it never overrides a value
-  // the user sets after stopping.
-  const runningWantResume = runningAgentConfig?.wantResume;
-  useEffect(() => {
-    if (runningWantResume !== undefined) {
-      syncWantResume(runningWantResume);
-    }
-  }, [runningWantResume, syncWantResume]);
+  // ── Display the persisted preference for next start ──
+  // The toggle shows `effectiveWantResume` from teamBehavior, which reflects
+  // the persisted `setWantResume` preference. While running, the toggle remains
+  // editable so the user can change the preference before the next start.
 
   // Available models from the selected machine filtered by selected harness
   const { availableModels: machineModels, isLoading: machineModelsLoading } = useMachineModels(
@@ -629,6 +628,7 @@ export function useAgentControls({
     rehomeDialogLabels,
     handleConfirmRehomeStart,
     handleCancelRehomeStart,
+    teamId,
   };
 }
 
@@ -671,6 +671,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     runningAgentConfig,
     isAgentRunning,
     isBusy,
+    teamId,
     hasModels,
     canStart,
     canStop,
@@ -696,13 +697,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayHarness = runningConfig?.agentType ?? selectedHarness;
   const displayModel = runningConfig?.model ?? selectedModel;
   const displayWorkingDir = runningConfig?.workingDir ?? workingDir;
-  // When running, show the actual resume preference the agent was started with
-  // (from the backend config). Falls back to local form state for older configs
-  // that predate the persisted field, or while not running.
-  const displayResumeSession =
-    runningConfig?.wantResume !== undefined
-      ? runningConfig.wantResume
-      : teamBehavior.effectiveWantResume;
+  // Always show the persisted preference for next start (not the running agent's value).
+  const displayResumeSession = teamBehavior.effectiveWantResume;
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -1238,9 +1234,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
           <RemoteAgentAdvancedSettings
             role={role}
+            teamId={teamId}
             agentHarness={displayHarness}
             resumeSession={displayResumeSession}
-            disabled={isBusy || isAgentRunning}
+            disabled={isBusy}
             isSavingWantResume={teamBehavior.isSavingWantResume}
             onResumeSessionChange={(checked) => void teamBehavior.updateWantResume(checked)}
           />

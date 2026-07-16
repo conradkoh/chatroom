@@ -8,6 +8,7 @@
 
 import { isAgentAlive } from './is-agent-alive';
 import { listTeamAgentConfigsForChatroom } from './list-team-agent-configs-for-chatroom';
+import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
@@ -65,6 +66,7 @@ async function emitOfflineUserMessageRestart(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   config: RunnableRemoteConfig,
+  teamId: string,
   now: number
 ): Promise<void> {
   await ctx.db.insert(
@@ -78,7 +80,7 @@ async function emitOfflineUserMessageRestart(
         model: config.model,
         workingDir: config.workingDir,
         reason: 'platform.restart_offline_on_user_message',
-        wantResume: config.wantResume ?? true,
+        wantResume: config.wantResume ?? resolveDefaultWantResume(teamId, config.role),
       },
       now
     )
@@ -91,6 +93,8 @@ export async function restartOfflineAgentsOnUserMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<{ restartedRoles: string[] }> {
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  const teamId = chatroom?.teamId ?? '';
   const configs = await listTeamAgentConfigsForChatroom(ctx, chatroomId);
   const participants = await ctx.db
     .query('chatroom_participants')
@@ -108,7 +112,7 @@ export async function restartOfflineAgentsOnUserMessage(
     if (!shouldRestartForOfflineParticipant(participant, config.spawnedAgentPid)) continue;
 
     await ensureRunningClosedCircuit(ctx, config, now);
-    await emitOfflineUserMessageRestart(ctx, chatroomId, config, now);
+    await emitOfflineUserMessageRestart(ctx, chatroomId, config, teamId, now);
     restartedRoles.push(config.role);
   }
 

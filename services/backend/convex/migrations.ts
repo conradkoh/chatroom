@@ -363,6 +363,23 @@ export const dropEmbeddedAvailableModels = migrations.define({
   },
 });
 
+/**
+ * Migration: Set wantResume=false for duo-team builder configs.
+ * Duo builder should always cold-start; UI hides the toggle.
+ *
+ * Usage: npx convex run migrations:run '{"fn":"migrations:setDuoBuilderWantResumeFalse"}'
+ * Idempotent: rows already false are skipped.
+ */
+export const setDuoBuilderWantResumeFalse = migrations.define({
+  table: 'chatroom_teamAgentConfigs',
+  migrateOne: async (_ctx, config) => {
+    if (!config.teamRoleKey.includes('#team_duo#')) return;
+    if (config.role.toLowerCase() !== 'builder') return;
+    if (config.wantResume === false) return;
+    return { wantResume: false };
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -396,4 +413,6 @@ export const runAll = migrations.runner([
   internal.migrations.dropEmbeddedAvailableModels,
   // Saved Commands
   internal.migrations.backfillSavedCommandScope,
+  // Agent Config
+  internal.migrations.setDuoBuilderWantResumeFalse,
 ]);

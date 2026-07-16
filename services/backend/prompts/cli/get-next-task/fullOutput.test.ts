@@ -93,7 +93,7 @@ describe('generateFullCliOutput — nativeIntegration', () => {
     expect(output).toContain('Delegation Brief (Planner → Builder)');
     // Templates should be in handoff-templates, not inline in next-steps
     const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
-    expect(nextSteps).not.toContain('## Proof of Principle');
+    expect(nextSteps).not.toContain('Proof of Principles');
   });
 
   test('CLI mode includes inline task content and get-next-task reminder', () => {
