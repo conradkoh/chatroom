@@ -16,6 +16,7 @@ export interface AgentPanelData {
   machineConfigs: AgentConfig[];
   isLoading: boolean;
   sendCommand: ReturnType<typeof useSessionMutation>;
+  teamId?: string;
 }
 
 export function useAgentPanelData(chatroomId: string): AgentPanelData {
@@ -70,5 +71,6 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
     machineConfigs,
     isLoading,
     sendCommand,
+    teamId: statusResult?.teamId,
   };
 }
