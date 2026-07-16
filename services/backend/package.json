@@ -1,6 +1,6 @@
 {
   "name": "@workspace/backend",
-  "version": "1.68.2",
+  "version": "1.68.3",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -9,8 +9,8 @@
     "migrate": "convex run migrations:runAll",
     "migrate:saved-command-scope": "convex run migrations:run '{\"fn\":\"migrations:backfillSavedCommandScope\"}'",
     "typecheck": "tsc --build",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "bash ../../scripts/kill-stale-vitest.sh && vitest run",
+    "test:watch": "bash ../../scripts/kill-stale-vitest.sh && vitest"
   },
   "keywords": [],
   "author": "",

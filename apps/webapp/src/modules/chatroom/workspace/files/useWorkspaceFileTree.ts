@@ -231,6 +231,36 @@ export function useWorkspaceFileTree({
 
   const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
 
+  // Rehydrate after checkpoint-required clear: if the store was cleared but we
+  // still have V2/V3 data in memory, re-upsert so delta sync can resume.
+  useEffect(() => {
+    if (!enabled || checkpointRevision === null) return;
+    if (storeRevision !== null) return;
+
+    if (useV3 && v3Entries && v3Entries.length >= 0 && manifest) {
+      upsertWorkspaceFileTree(workspaceKey, v3Entries, manifest.scannedAt, checkpointRevision);
+      return;
+    }
+    if (parsedV2) {
+      upsertWorkspaceFileTree(
+        workspaceKey,
+        parsedV2.entries,
+        parsedV2.scannedAt ?? rawV2?.scannedAt ?? null,
+        checkpointRevision
+      );
+    }
+  }, [
+    checkpointRevision,
+    enabled,
+    manifest,
+    parsedV2,
+    rawV2?.scannedAt,
+    storeRevision,
+    useV3,
+    v3Entries,
+    workspaceKey,
+  ]);
+
   const refresh = useCallback(
     (options?: { force?: boolean }) => {
       if (!enabled) return;

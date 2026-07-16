@@ -88,6 +88,30 @@ describe('listMessagesBySenderRolePaginated', () => {
     );
     expect(result.page.map((m) => m.type)).toEqual(expect.arrayContaining(['message', 'handoff']));
   });
+
+  test('planner filter excludes bulk messages from other roles', async () => {
+    const { sessionId } = await createTestSession('pag-role-2');
+    const chatroomId = await createChatroom(sessionId);
+    // 3 planner messages
+    await insertTimelineMessage(chatroomId, 'planner', 'p1', { type: 'message' });
+    await insertTimelineMessage(chatroomId, 'planner', 'p2', { type: 'handoff' });
+    await insertTimelineMessage(chatroomId, 'planner', 'p3', { type: 'message' });
+    // 20 builder messages (noise)
+    for (let i = 0; i < 20; i++) {
+      await insertTimelineMessage(chatroomId, 'builder', `b${i}`);
+    }
+
+    const result = await t.query(api.messages.listMessagesBySenderRolePaginated, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toHaveLength(3);
+    expect(result.page.every((m) => m.senderRole === 'planner')).toBe(true);
+    expect(result.page.map((m) => m.content)).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']));
+  });
 });
 
 describe('listConversationSlicePaginated', () => {

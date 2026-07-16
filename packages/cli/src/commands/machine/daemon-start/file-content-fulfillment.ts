@@ -16,6 +16,7 @@ import { api } from '../../../api.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import { resolvePathWithinWorkspace } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';
+import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
 
 /** Max file content size (500KB). */
 const MAX_CONTENT_BYTES = 500 * 1024;
@@ -42,54 +43,6 @@ function isENOENT(error: unknown): boolean {
   );
 }
 
-/** Known binary file extensions. */
-const BINARY_EXTENSIONS = new Set([
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.ico',
-  '.svg',
-  '.mp3',
-  '.mp4',
-  '.wav',
-  '.ogg',
-  '.webm',
-  '.zip',
-  '.tar',
-  '.gz',
-  '.bz2',
-  '.7z',
-  '.rar',
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.xls',
-  '.xlsx',
-  '.ppt',
-  '.pptx',
-  '.woff',
-  '.woff2',
-  '.ttf',
-  '.otf',
-  '.eot',
-  '.exe',
-  '.dll',
-  '.so',
-  '.dylib',
-  '.bin',
-  '.dat',
-  '.db',
-  '.sqlite',
-]);
-
-function isBinaryFile(path: string): boolean {
-  const lastDot = path.lastIndexOf('.');
-  if (lastDot === -1) return false;
-  return BINARY_EXTENSIONS.has(path.slice(lastDot).toLowerCase());
-}
-
 function gzipPlainText(text: string): string {
   return gzipSync(Buffer.from(text)).toString('base64');
 }
@@ -104,8 +57,10 @@ function fulfillGzippedContentEffect(
   workingDir: string,
   filePath: string,
   plainText: string,
-  truncated: boolean
+  truncated: boolean,
+  encoding: 'utf8' | 'binary' = 'utf8'
 ): Effect.Effect<void> {
+  const content = gzipPlainText(plainText);
   return Effect.catchAll(
     Effect.tryPromise(() =>
       session.backend.mutation(api.workspaceFiles.fulfillFileContentV2, {
@@ -113,8 +68,8 @@ function fulfillGzippedContentEffect(
         machineId: session.machineId,
         workingDir,
         filePath,
-        data: { compression: 'gzip' as const, content: gzipPlainText(plainText) },
-        encoding: 'utf8',
+        data: { compression: 'gzip' as const, content },
+        encoding,
         truncated,
       })
     ),
@@ -189,8 +144,16 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
 
       const absolutePath = resolved.absolutePath;
 
-      if (isBinaryFile(filePath)) {
-        yield* fulfillGzippedContentEffect(session, workingDir, filePath, '[Binary file]', false);
+      if (hasKnownBinaryExtension(filePath)) {
+        // Fast path: known binary extensions skip disk read
+        yield* fulfillGzippedContentEffect(
+          session,
+          workingDir,
+          filePath,
+          '[Binary file]',
+          false,
+          'binary'
+        );
         const elapsed = Date.now() - startTime;
         console.log(
           `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} [binary] (${elapsed}ms)`
@@ -213,45 +176,47 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
         continue;
       }
 
-      const readOutcome: FileReadOutcome = yield* Effect.catchAll(
-        Effect.tryPromise(() => readFile(absolutePath)).pipe(
-          Effect.map((buffer): FileReadOutcome => {
-            if (buffer.length > MAX_CONTENT_BYTES) {
-              return {
-                kind: 'ok',
-                content: buffer.subarray(0, MAX_CONTENT_BYTES).toString('utf8'),
-                truncated: true,
-              };
-            }
-            return {
-              kind: 'ok',
-              content: buffer.toString('utf8'),
-              truncated: false,
-            };
-          })
-        ),
-        (error): Effect.Effect<FileReadOutcome> =>
-          isENOENT(error)
-            ? Effect.succeed({ kind: 'missing' })
-            : Effect.succeed({
-                kind: 'error',
-                content: '[Error reading file]',
-                truncated: false,
-              })
+      let fileNotFound = false;
+      const buffer: Buffer = yield* Effect.catchAll(
+        Effect.tryPromise(() => readFile(absolutePath)),
+        (error): Effect.Effect<Buffer> => {
+          if (isENOENT(error)) {
+            fileNotFound = true;
+            return Effect.succeed(Buffer.alloc(0));
+          }
+          return Effect.succeed(Buffer.from('[Error reading file]'));
+        }
       );
 
-      if (readOutcome.kind === 'missing') {
+      if (fileNotFound) {
         console.log(
           `[${formatTimestamp()}] ⏳ File not on disk yet, deferring content sync: ${filePath}`
         );
         continue;
       }
 
-      const { content, truncated } =
-        readOutcome.kind === 'ok'
-          ? readOutcome
-          : { content: readOutcome.content, truncated: readOutcome.truncated };
+      const classification = classifyFileContent(filePath, new Uint8Array(buffer));
 
+      if (classification.kind === 'binary') {
+        yield* fulfillGzippedContentEffect(
+          session,
+          workingDir,
+          filePath,
+          '[Binary file]',
+          false,
+          'binary'
+        );
+        const elapsed = Date.now() - startTime;
+        console.log(
+          `[${formatTimestamp()}] 📄 File content synced to Convex: ${filePath} [binary] (${elapsed}ms)`
+        );
+        continue;
+      }
+
+      // Text file: decode UTF-8, truncate if needed
+      const truncated = buffer.length > MAX_CONTENT_BYTES;
+      const slice = truncated ? buffer.subarray(0, MAX_CONTENT_BYTES) : buffer;
+      const content = slice.toString('utf8');
       const compressed = gzipSync(Buffer.from(content));
       const contentCompressed = compressed.toString('base64');
 

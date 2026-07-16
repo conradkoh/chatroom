@@ -88,6 +88,7 @@ import { SourceControlPanel } from './workspace/components/panels/SourceControlP
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
+import { isBinaryFile } from './components/FileSelector/binaryDetection';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
@@ -322,17 +323,7 @@ const ExplorerContent = memo(function ExplorerContent({
             )}
           >
             {showTabBar && hasSplit && fileTabBar}
-            {isMarkdownFile(fileTabs.activeTabPath) ? (
-              <MarkdownFileEditorPane
-                key={fileTabs.activeTabPath}
-                machineId={activeWorkspace.machineId}
-                workingDir={activeWorkspace.workingDir}
-                filePath={fileTabs.activeTabPath}
-                onSendSelectionToComposer={onSendSelectionToComposer}
-                onOpenPreview={onOpenPreview}
-                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-              />
-            ) : (
+            {isBinaryFile(fileTabs.activeTabPath) ? (
               <FileContentViewer
                 key={fileTabs.activeTabPath}
                 machineId={activeWorkspace.machineId}
@@ -341,6 +332,16 @@ const ExplorerContent = memo(function ExplorerContent({
                 onSendSelectionToComposer={onSendSelectionToComposer}
                 onOpenPreview={onOpenPreview}
                 onOpenTableView={onOpenTableView}
+                onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+              />
+            ) : (
+              <MarkdownFileEditorPane
+                key={fileTabs.activeTabPath}
+                machineId={activeWorkspace.machineId}
+                workingDir={activeWorkspace.workingDir}
+                filePath={fileTabs.activeTabPath}
+                onSendSelectionToComposer={onSendSelectionToComposer}
+                onOpenPreview={onOpenPreview}
                 onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
               />
             )}

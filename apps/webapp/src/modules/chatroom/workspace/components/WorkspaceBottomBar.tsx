@@ -25,7 +25,7 @@ import {
   GitPullRequest as GitPullRequestIcon,
   PanelBottomOpen,
 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
@@ -56,6 +56,10 @@ import {
 } from '@/components/ui/fixed-modal';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import {
+  useEditableElementFocused,
+  useVisualViewportKeyboardInset,
+} from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
@@ -956,6 +960,30 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
 // ─── WorkspaceBottomBar ───────────────────────────────────────────────────────
 
+// fallow-ignore-next-line unused-export
+export function getWorkspaceBottomBarPaddingBottom(suppressSafeArea: boolean): string | number {
+  return suppressSafeArea ? 0 : 'env(safe-area-inset-bottom, 0px)';
+}
+
+// fallow-ignore-next-line unused-export
+export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
+  const isDesktop = useIsDesktop(640);
+  const mobile = !isDesktop;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
+  const editableFocused = useEditableElementFocused(mobile);
+  const suppressSafeArea = keyboardInsetPx > 0 || editableFocused;
+
+  return (
+    <div
+      data-testid="workspace-bottom-bar"
+      className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface select-none"
+      style={{ paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea) }}
+    >
+      <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
+    </div>
+  );
+}
+
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   workspaces,
   chatroomId,
@@ -1021,10 +1049,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   return (
     <>
       {/* ── Bottom Bar ── */}
-      <div
-        className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center h-8 min-h-[32px] select-none px-2"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
+      <WorkspaceBottomBarShell>
         {isDesktop ? (
           /* Desktop: full workspace selector + status */
           <>
@@ -1136,7 +1161,7 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
             {activeWorkspace && <MobileStatusContent workspace={activeWorkspace} />}
           </button>
         )}
-      </div>
+      </WorkspaceBottomBarShell>
 
       {/* ── Mobile Workspace Modal ── */}
       {!isDesktop && activeWorkspace && (

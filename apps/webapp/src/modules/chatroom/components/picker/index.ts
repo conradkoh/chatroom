@@ -8,7 +8,6 @@ export { PickerPanelHeader } from './PickerPanelHeader';
 export type { PickerPanelHeaderProps } from './PickerPanelHeader';
 export { PickerOptionRow } from './PickerOptionRow';
 export type { PickerOptionRowProps } from './PickerOptionRow';
-export { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
 export { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 export {
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,

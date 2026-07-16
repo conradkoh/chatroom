@@ -16,7 +16,11 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
+import {
+  modalMarkdownComponents,
+  modalMarkdownWrapProseClassNames,
+  backlogProseClassNames,
+} from './markdown-utils';
 import { useAttachments } from '../attachments';
 import {
   DropdownMenu,
@@ -222,10 +226,12 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   />
                 ) : (
                   // Preview Tab — Read-only rendered markdown
-                  <div className={`h-full overflow-y-auto p-4 ${backlogProseClassNames}`}>
+                  <div
+                    className={`h-full overflow-y-auto overflow-x-hidden p-4 min-w-0 ${backlogProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+                  >
                     <Markdown
                       remarkPlugins={chatroomRemarkPlugins}
-                      components={baseMarkdownComponents}
+                      components={modalMarkdownComponents}
                     >
                       {editedContent || '*No content yet*'}
                     </Markdown>
@@ -235,8 +241,10 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
             </div>
           ) : (
             // View mode — Read-only rendered markdown
-            <div className={`p-4 ${backlogProseClassNames}`}>
-              <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
+            <div
+              className={`p-4 min-w-0 overflow-x-hidden ${backlogProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+            >
+              <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
                 {item.content}
               </Markdown>
             </div>
