@@ -33,6 +33,15 @@ describe('filterExplorerTreeNodes', () => {
     expect(result[0]?.children[0]?.path).toBe('src/index.ts');
   });
 
+  it('matches dotfiles by path segments such as drone.yml', () => {
+    const tree: ExplorerTreeNode[] = [
+      { name: '.drone.yml', path: '.drone.yml', type: 'file', children: [] },
+    ];
+    const result = filterExplorerTreeNodes(tree, 'drone.yml');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.path).toBe('.drone.yml');
+  });
+
   it('is case-insensitive', () => {
     const result = filterExplorerTreeNodes(sampleTree, 'PACKAGE');
     expect(result).toHaveLength(1);
