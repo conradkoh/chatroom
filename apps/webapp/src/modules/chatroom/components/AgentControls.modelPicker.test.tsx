@@ -3,7 +3,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RemoteTabContent, useAgentControls } from './AgentControls';
-import type { MachineInfo, SendCommandFn } from '../types/machine';
+import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
@@ -20,6 +20,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    machineConfigFavorites: {
+      getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
+      setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
+    },
     machines: {
       getMachineModels: 'machines:getMachineModels',
       getMachineModelFilters: 'machines:getMachineModelFilters',
@@ -69,7 +73,7 @@ function mkMachine(): MachineInfo {
 function ModelPickerHarness() {
   const machines = [mkMachine()];
   // Seeding config matching the machine so initialization picks machine-a + cursor
-  const seedingConfig: import('../types/machine').AgentConfig = {
+  const seedingConfig: AgentConfig = {
     machineId: 'machine-a',
     hostname: 'host-a',
     role: 'builder',

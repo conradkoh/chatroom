@@ -32,6 +32,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    machineConfigFavorites: {
+      getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
+      setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
+    },
     machines: {
       getMachineModels: 'machines:getMachineModels',
       getMachineModelFilters: 'machines:getMachineModelFilters',

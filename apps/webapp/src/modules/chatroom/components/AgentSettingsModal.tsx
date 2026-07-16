@@ -810,6 +810,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
     machineConfigs: agentConfigs,
     sendCommand,
     isLoading: isPanelLoading,
+    teamId,
   } = useAgentPanelData(chatroomId);
 
   const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
@@ -898,6 +899,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
                 sendCommand={sendCommand}
                 agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
                 restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+                teamId={teamId}
               />
             );
           })}
