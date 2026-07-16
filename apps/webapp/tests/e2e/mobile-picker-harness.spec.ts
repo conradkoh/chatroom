@@ -51,7 +51,7 @@ test('last option is horizontally inside drawer bounds when keyboard closed', as
 
 test('simulated keyboard inset sets maxHeight and keeps scroll body usable', async ({ page }) => {
   await page.evaluate(() => {
-    window.__PICKER_TEST_KEYBOARD_INSET__ = 300;
+    window.__MOBILE_KEYBOARD_TEST_INSET__ = 300;
   });
   await page.getByTestId('open-flat-picker').click();
   await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();

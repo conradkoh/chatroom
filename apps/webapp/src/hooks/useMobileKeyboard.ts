@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 declare global {
   interface Window {
     /** Dev/e2e only — overrides keyboard inset when set (see /dev/mobile-picker-harness). */
-    __PICKER_TEST_KEYBOARD_INSET__?: number;
+    __MOBILE_KEYBOARD_TEST_INSET__?: number;
   }
 }
 
@@ -61,8 +61,8 @@ export function useEditableElementFocused(enabled = true): boolean {
 // fallow-ignore-next-line unused-export
 export function computeKeyboardInsetPx(): number {
   if (typeof window === 'undefined') return 0;
-  if (typeof window.__PICKER_TEST_KEYBOARD_INSET__ === 'number') {
-    return Math.max(0, window.__PICKER_TEST_KEYBOARD_INSET__);
+  if (typeof window.__MOBILE_KEYBOARD_TEST_INSET__ === 'number') {
+    return Math.max(0, window.__MOBILE_KEYBOARD_TEST_INSET__);
   }
   const vv = window.visualViewport;
   if (!vv) return 0;
@@ -119,8 +119,8 @@ export function useVisualViewportKeyboardInset(enabled = true): number {
 
   if (!enabled) return 0;
 
-  if (typeof window !== 'undefined' && typeof window.__PICKER_TEST_KEYBOARD_INSET__ === 'number') {
-    return Math.max(0, window.__PICKER_TEST_KEYBOARD_INSET__);
+  if (typeof window !== 'undefined' && typeof window.__MOBILE_KEYBOARD_TEST_INSET__ === 'number') {
+    return Math.max(0, window.__MOBILE_KEYBOARD_TEST_INSET__);
   }
 
   return insetPx;

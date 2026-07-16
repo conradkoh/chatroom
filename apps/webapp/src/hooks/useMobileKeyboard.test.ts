@@ -115,7 +115,7 @@ describe('computeKeyboardInsetPx', () => {
   });
 
   afterEach(() => {
-    delete window.__PICKER_TEST_KEYBOARD_INSET__;
+    delete window.__MOBILE_KEYBOARD_TEST_INSET__;
     Object.defineProperty(document.documentElement, 'clientHeight', {
       configurable: true,
       value: originalClientHeight,
@@ -154,10 +154,10 @@ describe('computeKeyboardInsetPx', () => {
     expect(computeKeyboardInsetPx()).toBe(320);
   });
 
-  it('uses __PICKER_TEST_KEYBOARD_INSET__ override when set', () => {
-    window.__PICKER_TEST_KEYBOARD_INSET__ = 280;
+  it('uses __MOBILE_KEYBOARD_TEST_INSET__ override when set', () => {
+    window.__MOBILE_KEYBOARD_TEST_INSET__ = 280;
     expect(computeKeyboardInsetPx()).toBe(280);
-    delete window.__PICKER_TEST_KEYBOARD_INSET__;
+    delete window.__MOBILE_KEYBOARD_TEST_INSET__;
   });
 
   it('clamps negative results to 0', () => {
