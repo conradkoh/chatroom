@@ -32,6 +32,7 @@ import { useMachineConfigFavorites } from '../hooks/useMachineConfigFavorites';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import { computeRecommendedMachineConfigs } from '../lib/computeRecommendedMachineConfigs';
 import { getMachineConfigUsageStore } from '../lib/machineConfigUsageStore';
+import { buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -710,13 +711,31 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   // Always show the persisted preference for next start (not the running agent's value).
   const displayResumeSession = teamBehavior.effectiveWantResume;
 
-  // Machine config favorites + recommendations
+  // Machine config favorites + recommendations (scoped by machine+team+role)
+  const favoriteScope = useMemo(() => {
+    if (!displayMachineId || !teamId) return undefined;
+    return { machineId: displayMachineId, chatroomId, teamId, role };
+  }, [displayMachineId, chatroomId, teamId, role]);
+
+  const machineConfigScopeKey = useMemo(
+    () =>
+      favoriteScope
+        ? buildMachineConfigScopeKey(
+            favoriteScope.machineId,
+            favoriteScope.chatroomId,
+            favoriteScope.teamId,
+            favoriteScope.role
+          )
+        : undefined,
+    [favoriteScope]
+  );
+
   const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
-    useMachineConfigFavorites(displayMachineId ?? undefined);
+    useMachineConfigFavorites(favoriteScope);
 
   const recommended = useMemo(() => {
-    if (!displayMachineId) return [];
-    const usage = getMachineConfigUsageStore().getAllUsageForMachine(displayMachineId);
+    if (!machineConfigScopeKey) return [];
+    const usage = getMachineConfigUsageStore().getAllUsageForScope(machineConfigScopeKey);
     const candidates: { agentHarness: AgentHarness; model: string }[] = [];
 
     // Build candidates from favorites + current selection + available harnesses/models
@@ -737,28 +756,32 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     }
 
     return computeRecommendedMachineConfigs(usage, favorites, candidates);
-  }, [displayMachineId, displayHarness, displayModel, favorites, availableHarnessesForMachine]);
+  }, [
+    machineConfigScopeKey,
+    displayHarness,
+    displayModel,
+    favorites,
+    availableHarnessesForMachine,
+  ]);
 
   const handleApplyMachineConfig = useCallback(
     (entry: { agentHarness: AgentHarness; model: string }) => {
-      // Set model first (uses current harness), then harness. Since React batches
-      // state updates, both will be applied before the next render.
       handleModelChange(entry.model);
       handleHarnessChange(entry.agentHarness);
-      if (displayMachineId) {
-        getMachineConfigUsageStore().recordUsage(displayMachineId, entry);
+      if (machineConfigScopeKey) {
+        getMachineConfigUsageStore().recordUsage(machineConfigScopeKey, entry);
       }
     },
-    [handleHarnessChange, handleModelChange, displayMachineId]
+    [handleHarnessChange, handleModelChange, machineConfigScopeKey]
   );
 
   const handleDismissRecommended = useCallback(
     (entry: { agentHarness: AgentHarness; model: string }) => {
-      if (displayMachineId) {
-        getMachineConfigUsageStore().clearUsage(displayMachineId, entry);
+      if (machineConfigScopeKey) {
+        getMachineConfigUsageStore().clearUsage(machineConfigScopeKey, entry);
       }
     },
-    [displayMachineId]
+    [machineConfigScopeKey]
   );
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,

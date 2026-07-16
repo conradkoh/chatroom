@@ -4,18 +4,41 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
+import { buildTeamRoleKey, buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import { getMachineConfigUsageStore } from '../lib/machineConfigUsageStore';
 import type { MachineConfigEntry } from '../types/machineConfig';
 import { entriesEqual } from '../types/machineConfig';
 
+export interface MachineConfigFavoriteScope {
+  machineId: string;
+  chatroomId: string;
+  teamId: string;
+  role: string;
+}
+
+function isScopeComplete(
+  scope: MachineConfigFavoriteScope | undefined
+): scope is MachineConfigFavoriteScope {
+  return Boolean(scope?.machineId && scope?.chatroomId && scope?.teamId && scope?.role);
+}
+
 // fallow-ignore-next-line complexity
-export function useMachineConfigFavorites(machineId: string | undefined) {
+export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | undefined) {
+  const teamRoleKey = isScopeComplete(scope)
+    ? buildTeamRoleKey(scope.chatroomId, scope.teamId, scope.role)
+    : undefined;
+  const scopeKey = isScopeComplete(scope)
+    ? buildMachineConfigScopeKey(scope.machineId, scope.chatroomId, scope.teamId, scope.role)
+    : undefined;
+
   const queryResult = useSessionQuery(
-    api.machines.getMachineConfigFavorites,
-    machineId ? { machineId } : 'skip'
+    api.machines.getMachineConfigFavorites as any,
+    isScopeComplete(scope) && teamRoleKey
+      ? ({ machineId: scope.machineId, teamRoleKey } as any)
+      : 'skip'
   );
 
-  const setFavoritesMutation = useSessionMutation(api.machines.setMachineConfigFavorites);
+  const setFavoritesMutation = useSessionMutation(api.machines.setMachineConfigFavorites as any);
 
   const favorites = useMemo<MachineConfigEntry[]>(
     () => (queryResult as { favorites?: MachineConfigEntry[] })?.favorites ?? [],
@@ -24,10 +47,14 @@ export function useMachineConfigFavorites(machineId: string | undefined) {
 
   const saveFavorites = useCallback(
     async (next: MachineConfigEntry[]) => {
-      if (!machineId) return;
-      await setFavoritesMutation({ machineId, favorites: next });
+      if (!isScopeComplete(scope) || !teamRoleKey) return;
+      await setFavoritesMutation({
+        machineId: scope.machineId,
+        teamRoleKey,
+        favorites: next,
+      } as any);
     },
-    [machineId, setFavoritesMutation]
+    [scope, teamRoleKey, setFavoritesMutation]
   );
 
   const addFavorite = useCallback(
@@ -43,11 +70,11 @@ export function useMachineConfigFavorites(machineId: string | undefined) {
     async (entry: MachineConfigEntry) => {
       const next = favorites.filter((f) => !entriesEqual(f, entry));
       await saveFavorites(next);
-      if (machineId) {
-        getMachineConfigUsageStore().clearUsage(machineId, entry);
+      if (scopeKey) {
+        getMachineConfigUsageStore().clearUsage(scopeKey, entry);
       }
     },
-    [favorites, saveFavorites, machineId]
+    [favorites, saveFavorites, scopeKey]
   );
 
   const moveFavorite = useCallback(

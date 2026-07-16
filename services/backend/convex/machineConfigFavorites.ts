@@ -9,14 +9,18 @@ export const getMachineConfigFavorites = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
+    teamRoleKey: v.string(),
   },
   handler: async (ctx, args) => {
     const auth = await requireMachineWriteAccess(ctx, args.sessionId, args.machineId);
 
     const record = await ctx.db
       .query('chatroom_machineConfigFavorites')
-      .withIndex('by_user_machine', (q) =>
-        q.eq('userId', auth.userId).eq('machineId', args.machineId)
+      .withIndex('by_user_machine_teamRole', (q) =>
+        q
+          .eq('userId', auth.userId)
+          .eq('machineId', args.machineId)
+          .eq('teamRoleKey', args.teamRoleKey)
       )
       .first();
 
@@ -28,6 +32,7 @@ export const setMachineConfigFavorites = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
+    teamRoleKey: v.string(),
     favorites: v.array(
       v.object({
         agentHarness: agentHarnessValidator,
@@ -41,12 +46,15 @@ export const setMachineConfigFavorites = mutation({
     const userId = auth.userId;
     const existing = await ctx.db
       .query('chatroom_machineConfigFavorites')
-      .withIndex('by_user_machine', (q) => q.eq('userId', userId).eq('machineId', args.machineId))
+      .withIndex('by_user_machine_teamRole', (q) =>
+        q.eq('userId', userId).eq('machineId', args.machineId).eq('teamRoleKey', args.teamRoleKey)
+      )
       .first();
 
     const data = {
       userId,
       machineId: args.machineId,
+      teamRoleKey: args.teamRoleKey,
       favorites: args.favorites,
       updatedAt: Date.now(),
     };

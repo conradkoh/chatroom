@@ -26,17 +26,38 @@ describe('useMachineConfigFavorites', () => {
     mockUseSessionQuery.mockReturnValue({ favorites: [] });
   });
 
-  it('skips query via args when machineId is undefined (not as query function)', () => {
+  it('skips query when scope is undefined', () => {
     renderHook(() => useMachineConfigFavorites(undefined));
 
     expect(mockUseSessionQuery).toHaveBeenCalledWith('machines:getMachineConfigFavorites', 'skip');
   });
 
-  it('queries favorites when machineId is provided', () => {
-    renderHook(() => useMachineConfigFavorites('machine-a'));
+  it('skips query when teamId is empty', () => {
+    renderHook(() =>
+      useMachineConfigFavorites({
+        machineId: 'm1',
+        chatroomId: 'room1',
+        teamId: '',
+        role: 'planner',
+      })
+    );
+
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('machines:getMachineConfigFavorites', 'skip');
+  });
+
+  it('queries favorites when scope is complete', () => {
+    renderHook(() =>
+      useMachineConfigFavorites({
+        machineId: 'machine-a',
+        chatroomId: 'room1',
+        teamId: 'duo',
+        role: 'planner',
+      })
+    );
 
     expect(mockUseSessionQuery).toHaveBeenCalledWith('machines:getMachineConfigFavorites', {
       machineId: 'machine-a',
+      teamRoleKey: 'chatroom_room1#team_duo#role_planner',
     });
   });
 });

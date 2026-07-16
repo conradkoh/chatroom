@@ -51,6 +51,18 @@ describe('computeRecommendedMachineConfigs', () => {
     expect(result).toEqual([]);
   });
 
+  test('deduplicates repeated candidates before scoring', () => {
+    const usage = new Map<string, number[]>([['opencode-sdk|opencode/big-pickle', [NOW - HOUR]]]);
+    const entry = makeEntry('opencode-sdk', 'opencode/big-pickle');
+    const result = computeRecommendedMachineConfigs(
+      usage,
+      [],
+      [entry, entry, entry],
+      NOW
+    );
+    expect(result).toEqual([entry]);
+  });
+
   test('limits to 3 recommendations', () => {
     const usage = new Map<string, number[]>();
     const candidates: MachineConfigEntry[] = [];
