@@ -1,7 +1,8 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
+import { requireMachineWriteAccess } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 
 export const getMachineConfigFavorites = query({
@@ -10,13 +11,12 @@ export const getMachineConfigFavorites = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const session = await ctx.auth.getUserIdentity();
-    if (!session) throw new ConvexError({ code: 'AUTH_FAILED', message: 'Not authenticated' });
+    const auth = await requireMachineWriteAccess(ctx, args.sessionId, args.machineId);
 
     const record = await ctx.db
       .query('chatroom_machineConfigFavorites')
       .withIndex('by_user_machine', (q) =>
-        q.eq('userId', session.subject as any).eq('machineId', args.machineId)
+        q.eq('userId', auth.userId).eq('machineId', args.machineId)
       )
       .first();
 
@@ -36,10 +36,9 @@ export const setMachineConfigFavorites = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const session = await ctx.auth.getUserIdentity();
-    if (!session) throw new ConvexError({ code: 'AUTH_FAILED', message: 'Not authenticated' });
+    const auth = await requireMachineWriteAccess(ctx, args.sessionId, args.machineId);
 
-    const userId = session.subject as any;
+    const userId = auth.userId;
     const existing = await ctx.db
       .query('chatroom_machineConfigFavorites')
       .withIndex('by_user_machine', (q) => q.eq('userId', userId).eq('machineId', args.machineId))
