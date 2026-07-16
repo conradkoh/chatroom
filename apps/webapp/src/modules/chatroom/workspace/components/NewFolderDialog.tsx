@@ -106,7 +106,7 @@ export function NewFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent floating
+      <DialogContent
         className="sm:max-w-md"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
