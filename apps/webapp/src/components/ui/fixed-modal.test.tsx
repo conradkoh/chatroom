@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import React from 'react';
+import React, { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FixedModal } from './fixed-modal';
@@ -83,6 +83,32 @@ describe('FixedModal', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps correct z-order when parent onClose identity changes while child opens', () => {
+    const Wrapper = () => {
+      const [, forceRender] = useState(0);
+      const [detailOpen, setDetailOpen] = useState(false);
+      return (
+        <>
+          <FixedModal isOpen onClose={() => forceRender((n) => n + 1)}>
+            <button type="button" onClick={() => setDetailOpen(true)}>
+              open detail
+            </button>
+          </FixedModal>
+          {detailOpen && (
+            <FixedModal isOpen onClose={() => setDetailOpen(false)}>
+              <div>Detail</div>
+            </FixedModal>
+          )}
+        </>
+      );
+    };
+    render(<Wrapper />);
+    fireEvent.click(screen.getByText('open detail'));
+    const overlays = document.body.querySelectorAll<HTMLElement>('.fixed.inset-0');
+    expect(overlays).toHaveLength(2);
+    expect(Number(overlays[0]?.style.zIndex)).toBeLessThan(Number(overlays[1]?.style.zIndex));
   });
 
   it('does not close on escape when a portaled popover is open above it', () => {

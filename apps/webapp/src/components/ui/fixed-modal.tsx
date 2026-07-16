@@ -1,7 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
-import React, { useCallback, useEffect, useLayoutEffect, memo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, memo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
@@ -235,6 +235,13 @@ const FixedModal = memo(function FixedModal({
 }: FixedModalProps) {
   const [layerZIndex, setLayerZIndex] = useState(BASE_MODAL_Z_INDEX);
 
+  // Stable ref for onClose so effects don't re-register when callback identity changes
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Stable handler wrapper — created once, always delegates to latest onCloseRef.current
+  const dismissHandler = useCallback(() => onCloseRef.current(), []);
+
   // Lock body scroll when modal is open (reference-counted for stacked modals)
   useEffect(() => {
     if (!isOpen) return;
@@ -258,41 +265,38 @@ const FixedModal = memo(function FixedModal({
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget && closeOnBackdrop) {
-        onClose();
+        onCloseRef.current();
       }
     },
-    [onClose, closeOnBackdrop]
+    [closeOnBackdrop]
   );
 
   // Register dismiss handler before portaled menu useEffects run (child effects follow parent layout).
   useLayoutEffect(() => {
     if (!isOpen) return;
-
-    const handler = onClose;
-    pushOverlayDismiss(handler);
-    return () => popOverlayDismiss(handler);
-  }, [isOpen, onClose]);
+    pushOverlayDismiss(dismissHandler);
+    return () => popOverlayDismiss(dismissHandler);
+  }, [isOpen, dismissHandler]);
 
   // Handle Escape key — only the topmost overlay responds
   useEffect(() => {
     if (!isOpen) return;
 
-    const handler = onClose;
-    modalStack.push(handler);
+    modalStack.push(dismissHandler);
     setLayerZIndex(BASE_MODAL_Z_INDEX + modalStack.length * MODAL_Z_INDEX_STEP);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isTopOverlayDismiss(handler)) {
-        onClose();
+      if (e.key === 'Escape' && isTopOverlayDismiss(dismissHandler)) {
+        onCloseRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      modalStack = modalStack.filter((h) => h !== handler);
+      modalStack = modalStack.filter((h) => h !== dismissHandler);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, dismissHandler]);
 
   if (!isOpen) return null;
   if (typeof document === 'undefined') return null;
