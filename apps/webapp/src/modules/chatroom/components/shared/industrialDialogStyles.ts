@@ -3,8 +3,6 @@
  * See docs/application/design/theme.md — sharp corners, 2px borders, chatroom palette.
  */
 
-import { Z_FLOATING } from './overlayLayers';
-
 const chatroomIndustrialBorderClassName = 'border-2 border-chatroom-border-strong';
 
 export const chatroomIndustrialPanelBorderClassName = 'border-2 border-chatroom-border';
@@ -23,26 +21,9 @@ const chatroomIndustrialModalContentAnimationClassName = [
 /** Base overlay for standalone chatroom dialogs (page-level). */
 export const chatroomIndustrialOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} z-50 bg-black/60`;
 
-/**
- * Overlay for dialogs/alerts opened inside FixedModal — above inline modal stack (50 + 10×depth).
- * See overlayLayers.ts Z_FLOATING and theme.md § Overlay stacking.
- */
-// fallow-ignore-next-line unused-export
-export const chatroomIndustrialFloatingOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_FLOATING} bg-black/60`;
-
 export const chatroomIndustrialModalContentClassName = [
   ...chatroomIndustrialModalContentAnimationClassName,
   'z-50',
-  'rounded-none',
-  chatroomIndustrialBorderClassName,
-  chatroomIndustrialSurfaceClassName,
-] as const;
-
-/** Modal content for nested confirms inside FixedModal — must match floating overlay z-index. */
-// fallow-ignore-next-line unused-export
-export const chatroomIndustrialFloatingModalContentClassName = [
-  ...chatroomIndustrialModalContentAnimationClassName,
-  Z_FLOATING,
   'rounded-none',
   chatroomIndustrialBorderClassName,
   chatroomIndustrialSurfaceClassName,
@@ -75,8 +56,7 @@ export const chatroomPortaledMenuSurfaceClassName =
   'bg-chatroom-bg-primary text-chatroom-text-primary border border-chatroom-border rounded-none shadow-md';
 
 /**
- * Base classes for portaled menu panels — z-index above FixedModal (BASE 50 + stack step 10).
- * Z_FLOATING from overlayLayers.ts (see docs/application/design/theme.md § Overlay stacking).
+ * Base classes for portaled menu panels — z-50 band (stacking via portal DOM order).
  */
 // fallow-ignore-next-line unused-export
-export const chatroomPortaledMenuFloatingClassName = `${Z_FLOATING} pointer-events-auto ${chatroomPortaledMenuSurfaceClassName}`;
+export const chatroomPortaledMenuFloatingClassName = `z-50 pointer-events-auto ${chatroomPortaledMenuSurfaceClassName}`;

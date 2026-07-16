@@ -4,7 +4,7 @@ import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 
-import { Z_FLOATING } from './shared/overlayLayers';
+import { Z_MODAL } from './shared/overlayLayers';
 
 /**
  * MermaidBlock renders a mermaid diagram from a chart definition string.
@@ -360,7 +360,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 ${Z_FLOATING} flex items-center justify-center bg-black/60`}
+      className={`fixed inset-0 ${Z_MODAL} flex items-center justify-center bg-black/60`}
       onClick={handleBackdropClick}
     >
       {/* Modal panel — landscape-oriented, near-full viewport */}

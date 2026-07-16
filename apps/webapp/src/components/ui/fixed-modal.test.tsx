@@ -11,7 +11,7 @@ describe('FixedModal', () => {
     document.body.style.overflow = '';
   });
 
-  it('assigns higher z-index to later-opened modals', () => {
+  it('later-opened modal appears after first in DOM (portal stacking)', () => {
     render(
       <>
         <FixedModal isOpen onClose={() => undefined}>
@@ -25,7 +25,7 @@ describe('FixedModal', () => {
 
     const overlays = document.body.querySelectorAll<HTMLElement>('.fixed.inset-0');
     expect(overlays).toHaveLength(2);
-    expect(Number(overlays[0]?.style.zIndex)).toBeLessThan(Number(overlays[1]?.style.zIndex));
+    expect(overlays[0]?.compareDocumentPosition(overlays[1]!)).toBe(4);
   });
 
   it('keeps body scroll locked until all modals close', () => {
@@ -72,6 +72,26 @@ describe('FixedModal', () => {
     expect(screen.getByText('Modal content')).toBeInTheDocument();
   });
 
+  it('closes only the top modal on escape when stacked', () => {
+    const parentClose = vi.fn();
+    const childClose = vi.fn();
+
+    render(
+      <>
+        <FixedModal isOpen onClose={parentClose}>
+          <div>List</div>
+        </FixedModal>
+        <FixedModal isOpen onClose={childClose}>
+          <div>Detail</div>
+        </FixedModal>
+      </>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(childClose).toHaveBeenCalledTimes(1);
+    expect(parentClose).not.toHaveBeenCalled();
+  });
+
   it('closes on escape when no portaled menu is above it', () => {
     const onClose = vi.fn();
 
@@ -85,7 +105,7 @@ describe('FixedModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps correct z-order when parent onClose identity changes while child opens', () => {
+  it('keeps correct stacking order when parent onClose identity changes while child opens', () => {
     const Wrapper = () => {
       const [, forceRender] = useState(0);
       const [detailOpen, setDetailOpen] = useState(false);
@@ -108,7 +128,7 @@ describe('FixedModal', () => {
     fireEvent.click(screen.getByText('open detail'));
     const overlays = document.body.querySelectorAll<HTMLElement>('.fixed.inset-0');
     expect(overlays).toHaveLength(2);
-    expect(Number(overlays[0]?.style.zIndex)).toBeLessThan(Number(overlays[1]?.style.zIndex));
+    expect(overlays[0]?.compareDocumentPosition(overlays[1]!)).toBe(4);
   });
 
   it('does not close on escape when a portaled popover is open above it', () => {

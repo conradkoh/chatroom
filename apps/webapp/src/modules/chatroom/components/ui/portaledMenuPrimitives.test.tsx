@@ -13,7 +13,7 @@ import {
   chatroomPortaledMenuFloatingClassName,
   chatroomPortaledMenuSurfaceClassName,
 } from '../shared/industrialDialogStyles';
-import { Z_FLOATING } from '../shared/overlayLayers';
+import { Z_MODAL } from '../shared/overlayLayers';
 
 import { FixedModal } from '@/components/ui/fixed-modal';
 
@@ -37,7 +37,7 @@ describe('chatroomPortaledMenuSurfaceClassName', () => {
 
 describe('chatroomPortaledMenuFloatingClassName', () => {
   it('uses z-index above FixedModal base layer', () => {
-    expect(chatroomPortaledMenuFloatingClassName).toContain('z-[100]');
+    expect(chatroomPortaledMenuFloatingClassName).toContain('z-50');
     expect(chatroomPortaledMenuFloatingClassName).toContain('pointer-events-auto');
     expectOpaquePortaledSurface(chatroomPortaledMenuFloatingClassName);
   });
@@ -108,11 +108,12 @@ describe('PopoverContent', () => {
     );
 
     const popoverContent = screen.getByTestId('popover-content');
-    expect(popoverContent.className).toContain(Z_FLOATING);
+    expect(popoverContent.className).toContain(Z_MODAL);
+    expect(popoverContent.className).toContain('z-50');
 
-    const modalOverlay = document.body.querySelector<HTMLElement>('.fixed.inset-0');
-    expect(modalOverlay).not.toBeNull();
-    expect(Number(modalOverlay?.style.zIndex)).toBeLessThan(100);
+    const modalContent = document.body.querySelector<HTMLElement>('.chatroom-root');
+    expect(modalContent).not.toBeNull();
+    expect(modalContent?.className).toContain('z-50');
   });
 
   it('registers above FixedModal so escape dismisses popover before modal', () => {
