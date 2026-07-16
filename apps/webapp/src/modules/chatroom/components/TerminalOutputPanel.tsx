@@ -14,7 +14,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Square, X, RefreshCw } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
-import { Z_FLOATING } from './shared/overlayLayers';
+import { Z_MODAL } from './shared/overlayLayers';
 import { StatusBadge } from '../features/run-command/components/StatusBadge';
 import { TerminalView } from '../features/run-command/components/TerminalView';
 import type { CommandRun } from '../features/run-command/types/run';
@@ -59,11 +59,11 @@ export function TerminalOutputPanel({
       <DialogPortal>
         {/* Semi-transparent overlay */}
         <DialogPrimitive.Overlay
-          className={`fixed inset-0 ${Z_FLOATING} bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0`}
+          className={`fixed inset-0 ${Z_MODAL} bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0`}
         />
 
         <DialogPrimitive.Content
-          className={`fixed left-[50%] top-[50%] ${Z_FLOATING} w-[800px] max-w-[95vw] h-[500px] max-h-[80vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200`}
+          className={`fixed left-[50%] top-[50%] ${Z_MODAL} w-[800px] max-w-[95vw] h-[500px] max-h-[80vh] translate-x-[-50%] translate-y-[-50%] rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:duration-150 data-[state=closed]:duration-200`}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2 border-b-2 border-chatroom-border bg-chatroom-bg-primary">

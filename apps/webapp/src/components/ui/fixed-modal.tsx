@@ -1,25 +1,20 @@
 'use client';
 
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import React, { useCallback, useEffect, useLayoutEffect, memo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useLayoutEffect, memo, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 import {
+  isTopOverlayDismiss,
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '@/modules/chatroom/components/shared/overlayDismissStack';
-
-// ─── Modal Stack ─────────────────────────────────────────────────────────────
-// Tracks open FixedModals for z-index layering (escape uses overlayDismissStack).
-let modalStack: (() => void)[] = [];
+import { Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
 
 // Reference-counted body scroll lock for nested/stacked modals.
 let scrollLockCount = 0;
 let savedBodyOverflow: string | null = null;
-
-const BASE_MODAL_Z_INDEX = 50;
-const MODAL_Z_INDEX_STEP = 10;
 
 // ─── Composition Sub-Components ─────────────────────────────────────────
 
@@ -232,13 +227,11 @@ const FixedModal = memo(function FixedModal({
   className,
   closeOnBackdrop = true,
 }: FixedModalProps) {
-  const [layerZIndex, setLayerZIndex] = useState(BASE_MODAL_Z_INDEX);
-
   // Stable ref for onClose so effects don't re-register when callback identity changes
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  // Stable handler wrapper — created once, always delegates to latest onCloseRef.current
+  // Stable handler wrapper — delegates to latest onCloseRef.current
   const dismissHandler = useCallback(() => onCloseRef.current(), []);
 
   // Lock body scroll when modal is open (reference-counted for stacked modals)
@@ -260,16 +253,6 @@ const FixedModal = memo(function FixedModal({
     };
   }, [isOpen]);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget && closeOnBackdrop) {
-        onCloseRef.current();
-      }
-    },
-    [closeOnBackdrop]
-  );
-
   // Register dismiss handler before portaled menu useEffects run (child effects follow parent layout).
   useLayoutEffect(() => {
     if (!isOpen) return;
@@ -277,40 +260,51 @@ const FixedModal = memo(function FixedModal({
     return () => popOverlayDismiss(dismissHandler);
   }, [isOpen, dismissHandler]);
 
-  // Layer z-index for stacked modals (escape handled by overlayDismissStack).
-  useEffect(() => {
-    if (!isOpen) return;
-
-    modalStack.push(dismissHandler);
-    setLayerZIndex(BASE_MODAL_Z_INDEX + modalStack.length * MODAL_Z_INDEX_STEP);
-
-    return () => {
-      modalStack = modalStack.filter((h) => h !== dismissHandler);
-    };
-  }, [isOpen, dismissHandler]);
-
-  if (!isOpen) return null;
   if (typeof document === 'undefined') return null;
 
-  return createPortal(
-    <div
-      style={{ zIndex: layerZIndex }}
-      className="fixed inset-0 flex items-center justify-center bg-black/50 p-0 sm:p-4"
-      onClick={handleBackdropClick}
+  return (
+    <DialogPrimitive.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onCloseRef.current();
+      }}
     >
-      <div
-        className={cn(
-          'chatroom-root w-full flex bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-hidden',
-          // Full screen on mobile, fixed 70vh on desktop
-          'h-full sm:h-[70vh]',
-          maxWidth,
-          className
-        )}
-      >
-        {children}
-      </div>
-    </div>,
-    document.body
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className={cn(
+            Z_MODAL,
+            'fixed inset-0 flex items-center justify-center bg-black/50 p-0 sm:p-4',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+            'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+          )}
+          onClick={closeOnBackdrop ? undefined : (e) => e.preventDefault()}
+        />
+        <DialogPrimitive.Content
+          className={cn(
+            'chatroom-root',
+            Z_MODAL,
+            'fixed left-1/2 top-1/2 flex w-full -translate-x-1/2 -translate-y-1/2',
+            'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-hidden',
+            'h-full sm:h-[70vh]',
+            maxWidth,
+            className
+          )}
+          onPointerDownOutside={(e) => {
+            if (!closeOnBackdrop) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (!closeOnBackdrop) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (!isTopOverlayDismiss(dismissHandler)) {
+              e.preventDefault();
+            }
+          }}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 });
 

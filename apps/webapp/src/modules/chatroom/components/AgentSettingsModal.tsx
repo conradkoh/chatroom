@@ -27,10 +27,11 @@ import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import type { SettingsTab } from './CommandPalette/types';
 import { IntegrationsTab } from './IntegrationsTab';
+import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
-import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   clearWorkspaceFileTree,
   toWorkspaceFileTreeKey,
@@ -38,7 +39,6 @@ import {
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   FixedModal,
   FixedModalContent,
@@ -734,7 +734,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
           }
         }}
       >
-        <DialogContent floating className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Purge Cache</DialogTitle>
             <DialogDescription>

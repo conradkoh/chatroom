@@ -130,7 +130,7 @@ describe('AgentControls re-home', () => {
     await user.click(start);
 
     const dialog = await screen.findByRole('alertdialog');
-    expect(dialog.className).toContain('z-[100]');
+    expect(dialog.className).toContain('z-50');
     expect(
       within(dialog).getByText(/Starting this agent will move the role from/i)
     ).toBeInTheDocument();
