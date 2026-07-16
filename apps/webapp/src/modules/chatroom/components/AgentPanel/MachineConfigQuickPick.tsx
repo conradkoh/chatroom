@@ -40,7 +40,7 @@ export const MachineConfigQuickPick = memo(function MachineConfigQuickPick({
 
   const currentIsFavorite = currentEntry != null && isFavorite(currentEntry);
 
-  if (favorites.length === 0 && recommended.length === 0 && !hasCurrentSelection) return null;
+  if (favorites.length === 0 && recommended.length === 0 && currentEntry == null) return null;
 
   return (
     <div className="space-y-2" data-testid="machine-config-quick-pick">
