@@ -3,17 +3,16 @@
 // fallow-ignore-file complexity
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Search, HelpCircle, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
+import { isModEnterKey } from '../../utils/isModEnterKey';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
-import { isModEnterKey } from '../../utils/isModEnterKey';
 
-import { cn } from '@/lib/utils';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
 import { useHarnessTurnStore } from '@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore';
 
@@ -54,12 +53,11 @@ function AgenticStreamingBody({
 // fallow-ignore-next-line complexity
 export function AgenticQueryPanel({
   queryId,
-  mode: initialMode,
+  mode: _mode,
   workspaceId,
   onMetaChange,
   focusToken,
 }: AgenticQueryPanelProps) {
-  const [mode, setMode] = useState<AgenticQueryMode>(initialMode);
   const [queryText, setQueryText] = useState('');
   const [followUpText, setFollowUpText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,27 +65,11 @@ export function AgenticQueryPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const followUpRef = useRef<HTMLTextAreaElement>(null);
 
-  const {
-    query,
-    turns,
-    isRunning,
-    canSubmit,
-    canFollowUp,
-    harnessSessionId,
-    submit,
-    updateDraftMode,
-    isLoading,
-  } = useAgenticQuery(queryId);
+  const { query, turns, isRunning, canSubmit, canFollowUp, harnessSessionId, submit, isLoading } =
+    useAgenticQuery(queryId);
 
   const harnessSelection = useAgenticQueryHarnessSelection(workspaceId);
   const harnessControlsDisabled = isRunning || isSubmitting;
-
-  // Sync mode from server once loaded
-  useEffect(() => {
-    if (query?.mode && query.mode !== mode && turns.length === 0) {
-      setMode(query.mode);
-    }
-  }, [query?.mode, mode, turns.length]);
 
   useEffect(() => {
     if (query?.title && onMetaChange) {
@@ -114,21 +96,6 @@ export function AgenticQueryPanel({
     if (!canFollowUp) return;
     followUpRef.current?.focus();
   }, [canFollowUp]);
-
-  const handleModeChange = useCallback(
-    async (next: AgenticQueryMode) => {
-      if (next === mode || turns.length > 0) return;
-      setMode(next);
-      try {
-        const result = await updateDraftMode(next);
-        onMetaChange?.({ title: result.title, mode: result.mode });
-      } catch (e) {
-        setMode(mode);
-        setError(e instanceof Error ? e.message : 'Failed to update mode');
-      }
-    },
-    [mode, updateDraftMode, onMetaChange, turns.length]
-  );
 
   const handleSubmit = useCallback(async () => {
     const message = queryText.trim();
@@ -181,7 +148,6 @@ export function AgenticQueryPanel({
   );
 
   const showInitialInput = !turns.length || query?.status === 'draft';
-  const submitLabel = mode === 'search' ? 'Search' : 'Ask';
 
   return (
     <div className="flex-1 flex flex-col min-h-0 p-4 gap-4" data-testid="agentic-query-panel">
@@ -191,44 +157,14 @@ export function AgenticQueryPanel({
         harnessSessionId={harnessSessionId}
       />
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={() => void handleModeChange('search')}
-          disabled={!!turns.length}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors',
-            mode === 'search'
-              ? 'bg-chatroom-accent text-white'
-              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted hover:text-chatroom-text-primary',
-            turns.length > 0 && 'opacity-60 cursor-not-allowed'
-          )}
-        >
-          <Search size={12} />
-          Search
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleModeChange('ask')}
-          disabled={!!turns.length}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors',
-            mode === 'ask'
-              ? 'bg-chatroom-accent text-white'
-              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted hover:text-chatroom-text-primary',
-            turns.length > 0 && 'opacity-60 cursor-not-allowed'
-          )}
-        >
-          <HelpCircle size={12} />
-          Ask
-        </button>
         {isRunning ? (
-          <span className="ml-auto flex items-center gap-1 text-[10px] uppercase tracking-wider text-chatroom-text-muted">
+          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-chatroom-text-muted">
             <Loader2 className="size-3 animate-spin" />
             Running
           </span>
         ) : null}
         {query?.status === 'failed' ? (
-          <span className="ml-auto text-[10px] uppercase tracking-wider text-red-500">Failed</span>
+          <span className="text-[10px] uppercase tracking-wider text-red-500">Failed</span>
         ) : null}
       </div>
 
@@ -253,17 +189,11 @@ export function AgenticQueryPanel({
             value={queryText}
             onChange={(e) => setQueryText(e.target.value)}
             onKeyDown={handleQueryKeyDown}
-            placeholder={
-              mode === 'search'
-                ? 'Search the codebase… (e.g. "find all WebSocket connection handlers")'
-                : 'Ask a question about the codebase… (e.g. "how does authentication work?")'
-            }
+            placeholder='Search or ask about the codebase… (e.g. "how does authentication work?")'
             className="min-h-[120px] w-full resize-none bg-chatroom-bg-tertiary border border-chatroom-border p-3 text-[13px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none focus:border-chatroom-accent font-mono"
           />
           <div className="flex items-center justify-between shrink-0">
-            <span className="text-[10px] text-chatroom-text-muted">
-              ⌘Enter to {submitLabel.toLowerCase()}
-            </span>
+            <span className="text-[10px] text-chatroom-text-muted">⌘Enter to search</span>
             <button
               type="button"
               data-testid="agentic-query-submit"
@@ -277,7 +207,7 @@ export function AgenticQueryPanel({
               onClick={() => void handleSubmit()}
               className="bg-chatroom-accent text-white text-[10px] font-bold uppercase tracking-wider py-2 px-4 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : submitLabel}
+              {isSubmitting ? 'Submitting…' : 'Search'}
             </button>
           </div>
         </>

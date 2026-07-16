@@ -36,7 +36,7 @@ export async function applyAgenticQueryComplete(
     };
   }
 
-  const validation = validateAgenticQueryCompleteResult(params.result, query.mode);
+  const validation = validateAgenticQueryCompleteResult(params.result);
   if (!validation.ok) {
     return { ok: false, reason: 'invalid_result', message: validation.message };
   }

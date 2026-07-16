@@ -42,7 +42,7 @@ describe('useAgenticQueryTabOpener', () => {
     const { result } = renderHook(() => useAgenticQueryTabOpener(undefined, fileTabs));
 
     await act(async () => {
-      await result.current.openSearchTab();
+      await result.current.openTab();
     });
 
     expect(mockCreateDraft).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe('useAgenticQueryTabOpener', () => {
     const { result } = renderHook(() => useAgenticQueryTabOpener('workspace-1', fileTabs));
 
     await act(async () => {
-      await result.current.openSearchTab();
+      await result.current.openTab();
     });
 
     expect(mockCreateDraft).toHaveBeenCalledWith({
@@ -66,21 +66,6 @@ describe('useAgenticQueryTabOpener', () => {
       'search',
       'Agentic Search'
     );
-  });
-
-  it('creates an ask draft and opens the tab', async () => {
-    const fileTabs = createFileTabsMock();
-    const { result } = renderHook(() => useAgenticQueryTabOpener('workspace-1', fileTabs));
-
-    await act(async () => {
-      await result.current.openAskTab();
-    });
-
-    expect(mockCreateDraft).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      mode: 'ask',
-    });
-    expect(fileTabs.openAgenticQueryTab).toHaveBeenCalledWith('query-123', 'ask', 'Agentic Ask');
   });
 
   it('calls onFocusRequest and not createDraft when active tab is agentic-query', async () => {
@@ -103,7 +88,7 @@ describe('useAgenticQueryTabOpener', () => {
     );
 
     await act(async () => {
-      await result.current.openSearchTab();
+      await result.current.openTab();
     });
 
     expect(onBeforeOpen).toHaveBeenCalled();
@@ -133,7 +118,7 @@ describe('useAgenticQueryTabOpener', () => {
     );
 
     await act(async () => {
-      await result.current.openSearchTab();
+      await result.current.openTab();
     });
 
     expect(onBeforeOpen).toHaveBeenCalled();
@@ -154,9 +139,36 @@ describe('useAgenticQueryTabOpener', () => {
     );
 
     await act(async () => {
-      await result.current.openSearchTab();
+      await result.current.openTab();
     });
 
     expect(onBeforeOpen).toHaveBeenCalled();
+  });
+
+  it('reuses draft with Agentic Search title regardless of mode', async () => {
+    const fileTabs = createFileTabsMock({
+      tabs: [
+        {
+          kind: 'agentic-query',
+          queryId: 'reusable-ask',
+          name: 'Agentic Search',
+          mode: 'ask',
+          isPinned: true,
+        },
+      ],
+      activeTabKey: 'a.ts',
+    });
+    const { result } = renderHook(() => useAgenticQueryTabOpener('workspace-1', fileTabs));
+
+    await act(async () => {
+      await result.current.openTab();
+    });
+
+    expect(mockCreateDraft).not.toHaveBeenCalled();
+    expect(fileTabs.openAgenticQueryTab).toHaveBeenCalledWith(
+      'reusable-ask',
+      'ask',
+      'Agentic Search'
+    );
   });
 });

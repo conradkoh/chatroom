@@ -29,7 +29,7 @@ describe('web.agenticQuery.index.createDraft', () => {
     expect(query!.createdBy).toBeDefined();
   });
 
-  test('creates an ask draft with the correct title', async () => {
+  test('legacy ask mode still stores mode but uses unified title', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('agentic-ask');
 
     const result = await t.mutation(api.web.agenticQuery.index.createDraft, {
@@ -40,7 +40,7 @@ describe('web.agenticQuery.index.createDraft', () => {
 
     const query = await t.run(async (ctx) => ctx.db.get(result.queryId));
     expect(query!.mode).toBe('ask');
-    expect(query!.title).toBe('Agentic Ask');
+    expect(query!.title).toBe('Agentic Search');
   });
 
   test('rejects when workspace does not exist', async () => {

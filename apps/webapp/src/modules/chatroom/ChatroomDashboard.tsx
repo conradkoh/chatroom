@@ -91,9 +91,9 @@ import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
-import { editorTabKey } from './workspace/hooks/useFileTabs';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
+import { editorTabKey } from './workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -435,7 +435,7 @@ const ExplorerContent = memo(function ExplorerContent({
             <Files size={32} className="mx-auto mb-2 opacity-40" />
             <p>No files open</p>
             <p className="text-xs mt-1">
-              Select a file from the explorer to view it, or press Cmd+F to search
+              Select a file from the explorer to view it, or press Cmd+Shift+F to search
             </p>
           </div>
         </div>
@@ -595,24 +595,17 @@ export function ChatroomDashboard({
     fileExplorerPanelRef.current?.refresh();
   }, []);
 
-  const { openSearchTab, openAskTab } = useAgenticQueryTabOpener(
+  const { openTab } = useAgenticQueryTabOpener(
     activeWorkspace?.workspaceId ?? undefined,
     fileTabs,
     { onFocusRequest: requestAgenticFocus, onBeforeOpen: ensureExplorerForAgentic }
   );
 
-  const handleOpenAgenticSearch = useCallback(() => {
-    void openSearchTab();
-  }, [openSearchTab]);
+  const handleOpenAgenticQuery = useCallback(() => {
+    void openTab();
+  }, [openTab]);
 
-  const handleOpenAgenticAsk = useCallback(() => {
-    void openAskTab();
-  }, [openAskTab]);
-
-  useAgenticSearchShortcut({
-    onOpenSearch: handleOpenAgenticSearch,
-    onOpenAsk: handleOpenAgenticAsk,
-  });
+  useAgenticSearchShortcut({ onOpen: handleOpenAgenticQuery });
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -1396,8 +1389,7 @@ export function ChatroomDashboard({
           fileExplorerPanelRef.current?.refresh();
         }
       : null,
-    onOpenAgenticSearch: activeWorkspace ? handleOpenAgenticSearch : null,
-    onOpenAgenticAsk: activeWorkspace ? handleOpenAgenticAsk : null,
+    onOpenAgenticSearch: activeWorkspace ? handleOpenAgenticQuery : null,
     onShowMessages: () => setActivityView('messages'),
     onToggleChatSplitPanel:
       activeView === 'explorer'

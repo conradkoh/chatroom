@@ -177,7 +177,7 @@ export const complete = mutation({
       });
     }
 
-    const validation = validateAgenticQueryCompleteResult(args.result, query.mode);
+    const validation = validateAgenticQueryCompleteResult(args.result);
     if (!validation.ok) {
       throw new ConvexError({ code: 'INVALID_RESULT', message: validation.message });
     }

@@ -4,37 +4,6 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 
-export const updateDraftMode = mutation({
-  args: {
-    ...SessionIdArg,
-    queryId: v.id('chatroom_agenticQueries'),
-    mode: v.union(v.literal('search'), v.literal('ask')),
-  },
-  handler: async (ctx, args) => {
-    const queryDoc = await ctx.db.get('chatroom_agenticQueries', args.queryId);
-    if (!queryDoc) throw new ConvexError({ code: 'NOT_FOUND', message: 'Agentic query not found' });
-    const workspace = await ctx.db.get('chatroom_workspaces', queryDoc.workspaceId);
-    if (!workspace) throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
-    await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
-
-    if (queryDoc.status !== 'draft') {
-      throw new ConvexError({
-        code: 'INVALID_STATE',
-        message: `Cannot change mode while query status is ${queryDoc.status}`,
-      });
-    }
-
-    const title = args.mode === 'search' ? 'Agentic Search' : 'Agentic Ask';
-    await ctx.db.patch('chatroom_agenticQueries', args.queryId, {
-      mode: args.mode,
-      title,
-      lastActiveAt: Date.now(),
-    });
-
-    return { mode: args.mode, title };
-  },
-});
-
 export const createDraft = mutation({
   args: {
     ...SessionIdArg,
@@ -54,7 +23,7 @@ export const createDraft = mutation({
       workspaceId: args.workspaceId,
       status: 'draft',
       mode: args.mode,
-      title: args.mode === 'search' ? 'Agentic Search' : 'Agentic Ask',
+      title: 'Agentic Search',
       createdBy: session.userId,
       createdAt: now,
       lastActiveAt: now,

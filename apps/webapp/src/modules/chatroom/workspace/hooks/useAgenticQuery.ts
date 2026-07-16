@@ -35,7 +35,6 @@ export function useAgenticQuery(queryId: string) {
 
   const submitMutation = useSessionMutation(api.web.agenticQuery.mutations.submit);
   const submitFollowUpMutation = useSessionMutation(api.web.agenticQuery.mutations.submitFollowUp);
-  const updateDraftModeMutation = useSessionMutation(api.web.agenticQuery.queries.updateDraftMode);
 
   const submit = useCallback(
     async (message: string, selection: AgenticQueryHarnessSelection) => {
@@ -61,15 +60,6 @@ export function useAgenticQuery(queryId: string) {
 
   const isRunning = data?.query.status === 'running';
   const isDraft = data?.query.status === 'draft';
-  const updateDraftMode = useCallback(
-    async (mode: 'search' | 'ask') => {
-      return updateDraftModeMutation({
-        queryId: queryId as Id<'chatroom_agenticQueries'>,
-        mode,
-      });
-    },
-    [queryId, updateDraftModeMutation]
-  );
 
   const canFollowUp = data?.query.status === 'complete' || data?.query.status === 'failed';
   const canSubmit = isDraft || canFollowUp;
@@ -89,8 +79,7 @@ export function useAgenticQuery(queryId: string) {
       canSubmit,
       harnessSessionId,
       submit,
-      updateDraftMode,
     }),
-    [canFollowUp, canSubmit, data, harnessSessionId, isDraft, isRunning, submit, updateDraftMode]
+    [canFollowUp, canSubmit, data, harnessSessionId, isDraft, isRunning, submit]
   );
 }

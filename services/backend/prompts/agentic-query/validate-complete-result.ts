@@ -29,8 +29,7 @@ function extractSection(body: string, heading: string): string | null {
 
 // fallow-ignore-next-line complexity
 export function validateAgenticQueryCompleteResult(
-  body: string,
-  mode: 'search' | 'ask'
+  body: string
 ): AgenticQueryCompleteValidationResult {
   const trimmed = body.trim();
   if (!trimmed) {
@@ -50,9 +49,6 @@ export function validateAgenticQueryCompleteResult(
   }
   if (!files) {
     return { ok: false, message: 'Missing required ## Files section' };
-  }
-  if (mode === 'ask' && (!grounding || grounding.length === 0)) {
-    return { ok: false, message: 'Ask mode requires a non-empty ## Grounding section' };
   }
 
   return {

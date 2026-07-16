@@ -28,7 +28,7 @@ describe('web.agenticQuery submit and complete', () => {
     const { queryId } = await t.mutation(api.web.agenticQuery.index.createDraft, {
       sessionId,
       workspaceId,
-      mode: 'ask',
+      mode: 'search',
     });
 
     const submitResult = await t.mutation(api.web.agenticQuery.index.submit, {

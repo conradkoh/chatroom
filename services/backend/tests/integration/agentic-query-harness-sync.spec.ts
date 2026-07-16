@@ -28,7 +28,7 @@ describe('agentic query harness sync', () => {
     const { queryId } = await t.mutation(api.web.agenticQuery.index.createDraft, {
       sessionId,
       workspaceId,
-      mode: 'ask',
+      mode: 'search',
     });
 
     const submitResult = await t.mutation(api.web.agenticQuery.index.submit, {
@@ -81,7 +81,7 @@ describe('agentic query harness sync', () => {
     const { queryId } = await t.mutation(api.web.agenticQuery.index.createDraft, {
       sessionId,
       workspaceId,
-      mode: 'ask',
+      mode: 'search',
     });
 
     const submitResult = await t.mutation(api.web.agenticQuery.index.submit, {

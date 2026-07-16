@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgenticQueryPanel } from './AgenticQueryPanel';
 
 const mockSubmit = vi.fn();
-const mockUpdateDraftMode = vi.fn();
 const mockUseAgenticQuery = vi.fn();
 const mockToSubmitSelection = vi.fn();
 
@@ -58,7 +57,6 @@ describe('AgenticQueryPanel', () => {
     vi.clearAllMocks();
     mockSubmit.mockResolvedValue(undefined);
     mockToSubmitSelection.mockReturnValue({ harnessName: 'opencode-sdk' });
-    mockUpdateDraftMode.mockResolvedValue({ mode: 'ask', title: 'Agentic Ask' });
     mockUseAgenticQuery.mockReturnValue({
       query: { status: 'draft', mode: 'search', title: 'Agentic Search' },
       turns: [],
@@ -69,7 +67,6 @@ describe('AgenticQueryPanel', () => {
       canSubmit: true,
       harnessSessionId: undefined,
       submit: mockSubmit,
-      updateDraftMode: mockUpdateDraftMode,
     });
   });
 
@@ -81,7 +78,7 @@ describe('AgenticQueryPanel', () => {
   it('submits a draft query with harness selection', async () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
-    fireEvent.change(screen.getByPlaceholderText(/Search the codebase/i), {
+    fireEvent.change(screen.getByPlaceholderText(/Search or ask about the codebase/i), {
       target: { value: 'find auth handlers' },
     });
     fireEvent.click(screen.getByTestId('agentic-query-submit'));
@@ -95,7 +92,7 @@ describe('AgenticQueryPanel', () => {
 
   it('shows follow-up input when query can be refined', () => {
     mockUseAgenticQuery.mockReturnValue({
-      query: { status: 'complete', mode: 'ask', title: 'How auth works' },
+      query: { status: 'complete', mode: 'search', title: 'How auth works' },
       turns: [
         {
           _id: 'turn-1',
@@ -112,10 +109,9 @@ describe('AgenticQueryPanel', () => {
       canSubmit: false,
       harnessSessionId: undefined,
       submit: mockSubmit,
-      updateDraftMode: mockUpdateDraftMode,
     });
 
-    render(<AgenticQueryPanel queryId="query-1" mode="ask" workspaceId="ws-1" />);
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
     expect(screen.getByTestId('agentic-query-follow-up')).toBeInTheDocument();
     expect(screen.getByText(/Auth uses sessions/i)).toBeInTheDocument();
@@ -125,7 +121,7 @@ describe('AgenticQueryPanel', () => {
   it('submits on Cmd+Enter', async () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
-    const textarea = screen.getByPlaceholderText(/Search the codebase/i);
+    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
     fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
     fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
 
@@ -139,7 +135,7 @@ describe('AgenticQueryPanel', () => {
   it('submits on Ctrl+Enter', async () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
-    const textarea = screen.getByPlaceholderText(/Search the codebase/i);
+    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
     fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
     fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
 
@@ -153,7 +149,7 @@ describe('AgenticQueryPanel', () => {
   it('does not submit on Enter alone', () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
-    const textarea = screen.getByPlaceholderText(/Search the codebase/i);
+    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
     fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
     fireEvent.keyDown(textarea, { key: 'Enter', metaKey: false, ctrlKey: false });
 
@@ -165,14 +161,10 @@ describe('AgenticQueryPanel', () => {
     expect(screen.getByText(/⌘Enter to search/i)).toBeInTheDocument();
   });
 
-  it('calls updateDraftMode when Ask is clicked', async () => {
+  it('does not render Search/Ask mode toggle', () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
-
-    fireEvent.click(screen.getByText('Ask'));
-
-    await waitFor(() => {
-      expect(mockUpdateDraftMode).toHaveBeenCalledWith('ask');
-    });
+    expect(screen.queryByText('Ask')).not.toBeInTheDocument();
+    expect(screen.getByTestId('agentic-query-submit')).toHaveTextContent('Search');
   });
 
   it('shows failed status and summary', () => {
@@ -191,7 +183,6 @@ describe('AgenticQueryPanel', () => {
       canSubmit: true,
       harnessSessionId: undefined,
       submit: mockSubmit,
-      updateDraftMode: mockUpdateDraftMode,
     });
 
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);

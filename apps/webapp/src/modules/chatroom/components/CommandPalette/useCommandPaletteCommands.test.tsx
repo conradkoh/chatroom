@@ -483,28 +483,22 @@ describe('useCommandPaletteCommands', () => {
     });
   });
 
-  describe('Agentic Search/Ask commands', () => {
-    it('adds agentic search and ask commands when callbacks are provided', () => {
+  describe('Agentic Search command', () => {
+    it('adds agentic search command when callback is provided', () => {
       const { result } = renderHook(() =>
         useCommandPaletteCommands({
           ...baseProps,
           onOpenAgenticSearch: vi.fn(),
-          onOpenAgenticAsk: vi.fn(),
         })
       );
       const searchCmd = result.current.find((c) => c.id === 'nav-agentic-search');
       expect(searchCmd).toBeDefined();
-      expect(searchCmd?.shortcut).toBe('⌘F');
-
-      const askCmd = result.current.find((c) => c.id === 'nav-agentic-ask');
-      expect(askCmd).toBeDefined();
-      expect(askCmd?.shortcut).toBe('⌘⇧F');
+      expect(searchCmd?.shortcut).toBe('⌘⇧F');
     });
 
-    it('omits agentic commands when callbacks are not provided', () => {
+    it('omits agentic search command when callback is not provided', () => {
       const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
       expect(result.current.some((c) => c.id === 'nav-agentic-search')).toBe(false);
-      expect(result.current.some((c) => c.id === 'nav-agentic-ask')).toBe(false);
     });
   });
 });

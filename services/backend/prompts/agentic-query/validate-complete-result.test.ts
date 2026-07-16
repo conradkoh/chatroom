@@ -20,8 +20,8 @@ Short answer.
 `;
 
 describe('validateAgenticQueryCompleteResult', () => {
-  it('accepts a valid ask result with grounding', () => {
-    const result = validateAgenticQueryCompleteResult(VALID_BODY, 'ask');
+  it('accepts a valid result with grounding', () => {
+    const result = validateAgenticQueryCompleteResult(VALID_BODY);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.summary).toContain('Short answer');
@@ -29,20 +29,14 @@ describe('validateAgenticQueryCompleteResult', () => {
     }
   });
 
-  it('accepts search without grounding section', () => {
+  it('accepts result without grounding section', () => {
     const body = `## Summary\n\nDone.\n\n## Results\n\n- item\n\n## Files\n\n- a.ts`;
-    const result = validateAgenticQueryCompleteResult(body, 'search');
+    const result = validateAgenticQueryCompleteResult(body);
     expect(result.ok).toBe(true);
   });
 
-  it('rejects ask mode without grounding', () => {
-    const body = `## Summary\n\nDone.\n\n## Results\n\n- item\n\n## Files\n\n- a.ts`;
-    const result = validateAgenticQueryCompleteResult(body, 'ask');
-    expect(result.ok).toBe(false);
-  });
-
   it('rejects missing summary', () => {
-    const result = validateAgenticQueryCompleteResult('## Results\n\nx\n\n## Files\n\ny', 'search');
+    const result = validateAgenticQueryCompleteResult('## Results\n\nx\n\n## Files\n\ny');
     expect(result.ok).toBe(false);
   });
 });

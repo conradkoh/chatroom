@@ -12,7 +12,6 @@ import {
   FileSearch,
   GitBranch,
   GitPullRequest,
-  HelpCircle,
   ListTodo,
   MessagesSquare,
   MessageSquare,
@@ -82,8 +81,6 @@ interface UseCommandPaletteCommandsProps {
   onShowExplorer?: (() => void) | null;
   /** Callback to open agentic search */
   onOpenAgenticSearch?: (() => void) | null;
-  /** Callback to open agentic ask */
-  onOpenAgenticAsk?: (() => void) | null;
   /** Callback to switch to Messages view */
   onShowMessages?: () => void;
   /** Callback to toggle chat in split panel (explorer view only) */
@@ -160,7 +157,6 @@ export function useCommandPaletteCommands({
   onSwitchToSourceControl,
   onSwitchToPullRequests,
   onOpenAgenticSearch,
-  onOpenAgenticAsk,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -298,20 +294,9 @@ export function useCommandPaletteCommands({
         label: 'Agentic Search',
         icon: <Search size={14} />,
         category: 'Navigate',
-        shortcut: '⌘F',
-        keywords: ['search', 'find', 'agentic', 'codebase'],
-        action: onOpenAgenticSearch,
-      });
-    }
-    if (onOpenAgenticAsk) {
-      commands.push({
-        id: 'nav-agentic-ask',
-        label: 'Agentic Ask',
-        icon: <HelpCircle size={14} />,
-        category: 'Navigate',
         shortcut: '⌘⇧F',
-        keywords: ['ask', 'question', 'agentic', 'codebase'],
-        action: onOpenAgenticAsk,
+        keywords: ['search', 'ask', 'find', 'agentic', 'codebase', 'question'],
+        action: onOpenAgenticSearch,
       });
     }
 
@@ -608,6 +593,5 @@ export function useCommandPaletteCommands({
     onSwitchToSourceControl,
     onSwitchToPullRequests,
     onOpenAgenticSearch,
-    onOpenAgenticAsk,
   ]);
 }

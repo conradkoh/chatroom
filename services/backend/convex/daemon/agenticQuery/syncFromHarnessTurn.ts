@@ -41,7 +41,7 @@ export async function trySyncAgenticQueryFromHarnessTurn(
     return;
   }
 
-  const validation = validateAgenticQueryCompleteResult(text, query.mode);
+  const validation = validateAgenticQueryCompleteResult(text);
   if (!validation.ok) {
     await markAgenticQueryFailed(ctx, query, validation.message, text);
     return;

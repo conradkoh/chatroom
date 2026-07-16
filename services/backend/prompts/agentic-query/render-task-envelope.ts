@@ -34,17 +34,10 @@ function renderPriorTurns(turns: AgenticQueryTurnContext[]): string[] {
   return lines;
 }
 
-function modeRequirements(mode: 'search' | 'ask'): string[] {
-  if (mode === 'search') {
-    return [
-      '- Return ranked findings with file paths, short excerpts, and relevance notes.',
-      '- Keep results concise and scannable.',
-      '- Include a ## Files section listing every referenced path.',
-    ];
-  }
+function modeRequirements(): string[] {
   return [
-    '- Return a concise answer in ## Summary and ## Results.',
-    '- **Required:** include ## Grounding with path:line evidence for every claim.',
+    '- Return ranked findings or a concise answer in ## Summary and ## Results.',
+    '- Include ## Grounding with path:line evidence when making factual claims.',
     '- Include a ## Files section listing every referenced path.',
   ];
 }
@@ -63,11 +56,11 @@ function renderAgenticQueryEnvelopeLines(params: RenderAgenticQueryEnvelopeParam
     '</query>',
     ...renderPriorTurns(params.priorTurns ?? []),
     '<requirements>',
-    ...modeRequirements(params.mode),
+    ...modeRequirements(),
     '</requirements>',
     '<complete>',
     'Submit via: chatroom agentic-query complete --chatroom-id=<id> --query-id=<id>',
-    'Body: markdown only with ## Summary, ## Results, ## Grounding (ask), ## Files -- no protocol markers.',
+    'Body: markdown only with ## Summary, ## Results, optional ## Grounding, ## Files -- no protocol markers.',
     '</complete>',
     '<cli-complete-command>',
     escapeXmlText(params.cliCompleteCommand),
