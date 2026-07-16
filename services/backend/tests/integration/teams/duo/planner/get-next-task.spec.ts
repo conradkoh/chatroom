@@ -59,7 +59,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).not.toContain('Do the work → follow PROCESS above');
     // Eagerly delivered report template (what changed + nested proofs + mermaid system design)
     expect(output).toContain('## What changed');
-    expect(output).toContain('### Proof of Principle');
+    expect(output).toContain('### Proof of Principles');
     expect(output).toContain('### Proof of Completion');
     expect(output).toContain('## System Design');
     expect(output).toContain('```mermaid');

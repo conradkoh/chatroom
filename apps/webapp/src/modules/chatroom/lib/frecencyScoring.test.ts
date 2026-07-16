@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
+
 import {
   computeFrecencyScore,
   computeAllFrecencyScores,
@@ -171,5 +172,16 @@ describe('createRankedFilter', () => {
 
     const result = filter('Unknown Command', '');
     expect(result).toBeGreaterThan(0); // Still shown
+  });
+
+  test('uses resolveFrecencyKey when label differs from score key', () => {
+    const scores = new Map([['saved-cmd-abc', 100]]);
+    const resolveKey = (label: string) =>
+      label === 'Command: My Cmd (Chatroom)' ? 'saved-cmd-abc' : label;
+    const filter = createRankedFilter(mockFuzzy, scores, resolveKey);
+
+    // Without resolveKey, wouldn't find the score
+    const result = filter('Command: My Cmd (Chatroom)', '');
+    expect(result).toBeGreaterThan(1); // boosted by frecency
   });
 });
