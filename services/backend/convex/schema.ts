@@ -946,6 +946,22 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_machine_harness', ['machineId', 'agentHarness']),
 
+  /** Per-user ranked harness+model favorites for a machine+role scope. */
+  chatroom_machineConfigFavorites: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    /** Scoped to chatroom+team+role — same format as chatroom_teamAgentConfigs.teamRoleKey */
+    teamRoleKey: v.string(),
+    /** Ordered list — index 0 = top rank */
+    favorites: v.array(
+      v.object({
+        agentHarness: agentHarnessValidator,
+        model: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_user_machine_teamRole', ['userId', 'machineId', 'teamRoleKey']),
+
   /**
    * Team-level agent configuration.
    * Tracks how agents for each team/role are configured to start.

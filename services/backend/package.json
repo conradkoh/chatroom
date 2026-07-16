@@ -8,6 +8,7 @@
     "deploy": "convex deploy",
     "migrate": "bun ../../scripts/migrate.ts",
     "migrate:saved-command-scope": "convex run migrations:run '{\"fn\":\"migrations:backfillSavedCommandScope\"}'",
+    "migrate:duo-builder-want-resume": "convex run migrations:run '{\"fn\":\"migrations:setDuoBuilderWantResumeFalse\"}'",
     "typecheck": "tsc --build",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest"

@@ -6,6 +6,7 @@
  */
 
 import { buildAgentRestartEvent } from './build-agent-restart-event';
+import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -45,7 +46,8 @@ export async function restartAgent(
   const releasedTaskCount = await releaseTasksOnAgentExit(ctx, { chatroomId, role });
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  const resolvedWantResume = input.wantResume ?? true;
+  const resolvedWantResume =
+    input.wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : true);
   const now = Date.now();
   const correlationId = crypto.randomUUID();
 

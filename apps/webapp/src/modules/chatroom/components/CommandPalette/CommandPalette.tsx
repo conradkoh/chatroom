@@ -24,6 +24,7 @@ import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContex
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
+import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
 
 interface CommandPaletteProps {
   commands: CommandItem[];
@@ -67,8 +68,8 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     [closeDialog]
   );
 
-  // Frécency-boosted ranking
-  const { rankedFilter, trackUsage, frecencyScores } = useCommandRanking();
+  // Frécency-boosted ranking with command-aware keys and refresh
+  const { rankedFilter, trackUsage, frecencyScores, getScore } = useCommandRanking(commands);
 
   // Reset search when closing
   useEffect(() => {
@@ -94,14 +95,15 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   const isSearching = searchValue.trim().length > 0;
 
-  // Get recently used commands (frecency > 0) for browse mode
+  // Get recently used commands (frecency > 0) sorted by frecency desc for browse mode
   const recentCommands = useMemo(() => {
-    return commands.filter((cmd) => (frecencyScores.get(cmd.label) ?? 0) > 0);
-  }, [commands, frecencyScores]);
+    const withUsage = commands.filter((cmd) => getScore(cmd) > 0);
+    return sortCommandsByFrecency(withUsage, frecencyScores);
+  }, [commands, getScore, frecencyScores]);
 
   const handleSelect = useCallback(
     (command: CommandItem) => {
-      trackUsage(command.label);
+      trackUsage(command);
 
       if (command.showOutputInline && command.script) {
         inlineCommandRef.current.run(command.label, command.script);
@@ -145,7 +147,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
           {command.shortcut}
         </span>
       )}
-      {!isSearching && (frecencyScores.get(command.label) ?? 0) > 0 && (
+      {!isSearching && getScore(command) > 0 && (
         <span
           className="w-1.5 h-1.5 rounded-full bg-blue-500/60 flex-shrink-0"
           title="Recently used"
@@ -218,7 +220,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                         // In browse mode, skip items already shown in Recent
                         const itemsToShow =
                           recentCommands.length > 0
-                            ? items.filter((item) => (frecencyScores.get(item.label) ?? 0) === 0)
+                            ? items.filter((item) => getScore(item) === 0)
                             : items;
                         if (itemsToShow.length === 0) return null;
                         return (
