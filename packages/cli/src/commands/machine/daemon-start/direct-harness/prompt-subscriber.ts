@@ -20,6 +20,7 @@ import {
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
 import { OPENCODE_SESSION_EVENT_TYPES } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
+import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
 
 interface PendingMessage {
   harnessSessionId: string;
@@ -184,20 +185,9 @@ function wireResumedSessionEvents(
     agent: info.lastUsedConfig.agent ?? 'build',
     model: info.lastUsedConfig.model,
   };
-  let lastBoundKey: string | null = null;
+  const bindTurnMessage = bindTurnMessageOnEvent(handle, deps.sessionRepository, 'direct-harness');
   handle.session.onEvent((event) => {
-    const turn = handle.currentTurn;
-    if (turn?.messageId !== null && turn?.messageId !== undefined) {
-      const key = `${turn.turnId}:${turn.messageId}`;
-      if (key !== lastBoundKey) {
-        lastBoundKey = key;
-        deps.sessionRepository
-          .bindTurnMessageId(turn.turnId, turn.messageId)
-          .catch((err: unknown) =>
-            console.warn('[direct-harness] bindTurnMessageId error (resume):', err)
-          );
-      }
-    }
+    bindTurnMessage();
     if (event.type === OPENCODE_SESSION_EVENT_TYPES[0]) {
       // session.idle
       void handleSessionIdle(handle, handle.journal, idleConfig, deps.sessionRepository).catch(
@@ -214,7 +204,7 @@ async function deliverPendingMessages(
   rowId: string,
   messages: PendingMessage[],
   info: PendingSessionInfo | undefined,
-  daemonSession: DirectHarnessSession
+  _daemonSession: DirectHarnessSession
 ): Promise<void> {
   for (const msg of messages) {
     const override = info?.lastUsedConfig ?? { agent: 'build' };

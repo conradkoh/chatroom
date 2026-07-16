@@ -1,7 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { trySyncAgenticQueryFromHarnessTurn } from '../agenticQuery/syncFromHarnessTurn';
 import { requireMachineWorkspaces } from './machineWorkspaces';
 import type { Id } from '../../_generated/dataModel';
 import { mutation, query } from '../../_generated/server';
@@ -13,6 +12,7 @@ import {
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers';
 import { requireMachineOwner } from '../../auth/cli/machineAccess';
+import { trySyncAgenticQueryFromHarnessTurn } from '../agenticQuery/syncFromHarnessTurn';
 
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 
@@ -123,28 +123,7 @@ export const finalizeAssistantTurn = mutation({
     // Verify session access
     await getSessionWithAccess(ctx, args.sessionId, turn.harnessSessionId);
 
-    let textContent = '';
-    let reasoningContent = '';
-
-    if (turn.messageId) {
-      // Aggregate chunks from the chunk table for this messageId using the index
-      const chunks = await ctx.db
-        .query('chatroom_harnessSessionMessages')
-        .withIndex('by_messageId', (q) => q.eq('messageId', turn.messageId))
-        .collect();
-
-      // Chunks are returned in _creationTime (insertion) order by the by_messageId index.
-
-      for (const chunk of chunks) {
-        const partType = chunk.partType ?? 'text';
-        if (partType === 'text') {
-          textContent += chunk.content;
-        } else if (partType === 'reasoning') {
-          reasoningContent += chunk.content;
-        }
-      }
-    }
-    // If no messageId (pending → idle with no chunks), finalize with empty content
+    const { textContent, reasoningContent } = await aggregateChunksForTurn(ctx, turn);
 
     await ctx.db.patch('chatroom_harnessSessionTurns', args.turnId, {
       status: 'complete',
@@ -162,25 +141,46 @@ export const finalizeAssistantTurn = mutation({
   },
 });
 
-// ─── aggregateChunksByMessageId (shared helper) ──────────────────────────────
+// ─── aggregateChunksForTurn (shared helper) ──────────────────────────────────
 
 /**
- * Aggregates text and reasoning content from chunks for a given messageId.
- * Used by both finalizeAssistantTurn and markOrphanTurnsFailed.
+ * Aggregates assistant chunks that belong to a turn.
+ *
+ * OpenCode (and some other harnesses) may emit multiple SDK messageIds per logical
+ * turn — e.g. reasoning-only messages followed by a final text message. We join
+ * chunks to a turn by timestamp window: [turn.startedAt, nextTurn.startedAt).
  */
-export async function aggregateChunksByMessageId(
+export async function aggregateChunksForTurn(
   ctx: { db: MutationCtx['db'] | QueryCtx['db'] },
-  messageId: string
+  turn: {
+    harnessSessionId: Id<'chatroom_harnessSessions'>;
+    turnSeq: number;
+    startedAt: number;
+  }
 ): Promise<{ textContent: string; reasoningContent: string }> {
+  const nextTurn = await ctx.db
+    .query('chatroom_harnessSessionTurns')
+    .withIndex('by_session_turnSeq', (q) =>
+      q.eq('harnessSessionId', turn.harnessSessionId).gt('turnSeq', turn.turnSeq)
+    )
+    .order('asc')
+    .first();
+
+  const upperBound = nextTurn?.startedAt ?? Number.MAX_SAFE_INTEGER;
+
   const chunks = await ctx.db
     .query('chatroom_harnessSessionMessages')
-    .withIndex('by_messageId', (q) => q.eq('messageId', messageId))
+    .withIndex('by_session_role', (q) =>
+      q.eq('harnessSessionId', turn.harnessSessionId).eq('role', 'assistant')
+    )
     .collect();
-  // Chunks are returned in _creationTime (insertion) order by the by_messageId index.
 
   let textContent = '';
   let reasoningContent = '';
   for (const chunk of chunks) {
+    // Use Convex insertion time — daemon `timestamp` may be stale in tests or replays.
+    const chunkTime = chunk._creationTime;
+    if (chunkTime < turn.startedAt || chunkTime >= upperBound) continue;
     const partType = chunk.partType ?? 'text';
     if (partType === 'text') {
       textContent += chunk.content;
@@ -224,12 +224,9 @@ export const markOrphanTurnsFailed = mutation({
       let textContent = '';
       let reasoningContent = '';
 
-      if (turn.messageId) {
-        // Aggregate chunks for best-effort partial content
-        const aggregated = await aggregateChunksByMessageId(ctx, turn.messageId);
-        textContent = aggregated.textContent;
-        reasoningContent = aggregated.reasoningContent;
-      }
+      const aggregated = await aggregateChunksForTurn(ctx, turn);
+      textContent = aggregated.textContent;
+      reasoningContent = aggregated.reasoningContent;
 
       await ctx.db.patch('chatroom_harnessSessionTurns', turn._id, {
         status: 'failed',

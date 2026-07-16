@@ -201,7 +201,7 @@ describe('turns.finalizeAssistantTurn', () => {
           messageId: 'msg-agg',
           partType: 'reasoning',
         },
-        // Different messageId — should be ignored
+        // Different messageId — still aggregated when in the same turn window
         { content: 'other', timestamp: 4, messageId: 'msg-other', partType: 'text' },
       ],
     });
@@ -215,7 +215,7 @@ describe('turns.finalizeAssistantTurn', () => {
       ctx.db.get(turnId as Id<'chatroom_harnessSessionTurns'>)
     );
     expect(row?.status).toBe('complete');
-    expect(row?.textContent).toBe('Hello World');
+    expect(row?.textContent).toBe('Hello Worldother');
     expect(row?.reasoningContent).toBe('<think>reasoning</think>');
     expect(row?.completedAt).toBeDefined();
   });

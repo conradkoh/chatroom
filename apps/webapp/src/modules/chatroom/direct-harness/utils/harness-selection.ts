@@ -27,7 +27,12 @@ function getNativeHarnessCatalog(): HarnessOption[] {
 export function resolveNativeHarnessOptions(reported: HarnessOption[]): HarnessOption[] {
   const byName = new Map(getNativeHarnessCatalog().map((h) => [h.name, h]));
   for (const harness of filterNativeHarnesses(reported)) {
-    byName.set(harness.name, harness);
+    const catalog = byName.get(harness.name);
+    byName.set(harness.name, {
+      ...catalog,
+      ...harness,
+      displayName: catalog?.displayName ?? harness.displayName,
+    });
   }
   return NATIVE_SDK_HARNESS_NAMES.flatMap((name) => {
     const harness = byName.get(name);

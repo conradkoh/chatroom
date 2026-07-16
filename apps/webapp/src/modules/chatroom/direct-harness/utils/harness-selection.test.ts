@@ -39,6 +39,7 @@ describe('resolveNativeHarnessOptions', () => {
     const reported = [
       {
         ...harness('opencode-sdk'),
+        displayName: 'Opencode',
         agents: [{ name: 'build', mode: 'primary' as const }],
         providers: [{ providerID: 'openai', name: 'OpenAI', models: [] }],
       },
@@ -51,6 +52,7 @@ describe('resolveNativeHarnessOptions', () => {
       'opencode-sdk',
       'claude-sdk',
     ]);
+    expect(resolved.find((h) => h.name === 'opencode-sdk')?.displayName).toBe('OpenCode (SDK)');
     expect(resolved.find((h) => h.name === 'opencode-sdk')?.agents).toHaveLength(1);
     expect(resolved.find((h) => h.name === 'pi-sdk')?.agents).toEqual([]);
   });

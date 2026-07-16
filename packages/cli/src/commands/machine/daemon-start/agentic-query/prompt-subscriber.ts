@@ -2,24 +2,25 @@ import { renderAgenticQuerySystemPrompt } from '@workspace/backend/prompts/agent
 import type { ConvexClient } from 'convex/browser';
 
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
-import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
-import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
-import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
-import {
-  createChunkExtractor,
-  startBoundHarness,
-  type NativeDirectHarnessName,
-} from '../../../../infrastructure/harnesses/registry.js';
-import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
-import { handleSessionIdle } from '../direct-harness/idle-handler.js';
-import type { ActiveSession } from '../direct-harness/session-subscriber.js';
 import type {
   AgenticPendingBatch,
   AgenticPendingMessage,
   AgenticPendingPromptSession,
 } from './types.js';
+import { api } from '../../../../api.js';
+import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
+import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
+import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
+import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
+import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
+import {
+  createChunkExtractor,
+  startBoundHarness,
+  type NativeDirectHarnessName,
+} from '../../../../infrastructure/harnesses/registry.js';
+import { handleSessionIdle } from '../direct-harness/idle-handler.js';
+import type { ActiveSession } from '../direct-harness/session-subscriber.js';
+import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
 
 interface SubscriberDeps {
   activeSessions: Map<string, ActiveSession>;
@@ -73,7 +74,9 @@ function wireResumedIdle(
     agent: info.lastUsedConfig.agent ?? 'build',
     model: info.lastUsedConfig.model,
   };
+  const bindTurnMessage = bindTurnMessageOnEvent(handle, deps.sessionRepository, 'agentic-query');
   handle.session.onEvent((event) => {
+    bindTurnMessage();
     if (event.type === 'session.idle') {
       void handleSessionIdle(handle, handle.journal, idleConfig, deps.sessionRepository).catch(
         (err: unknown) => console.warn('[agentic-query] idle handler error (resume):', err)
@@ -148,17 +151,6 @@ async function deliverMessage(
       queryId: info.agenticQueryId,
     }),
   });
-
-  if (existingSession.currentTurn) {
-    const { turnId: finalTurnId } = existingSession.currentTurn;
-    existingSession.currentTurn = null;
-    try {
-      await existingSession.journal.flush();
-      await deps.sessionRepository.finalizeAssistantTurn(finalTurnId);
-    } catch {
-      existingSession.currentTurn = { turnId: finalTurnId, messageId: null };
-    }
-  }
 
   try {
     await deps.sessionRepository.markTurnProcessed(rowId, msg.seq);

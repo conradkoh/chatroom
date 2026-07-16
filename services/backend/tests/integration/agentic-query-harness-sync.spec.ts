@@ -75,6 +75,68 @@ describe('agentic query harness sync', () => {
     expect(completed.turns[0]?.assistantResponse).toContain('## Summary');
   });
 
+  test('finalizeAssistantTurn aggregates text from later opencode messageId', async () => {
+    const { sessionId, workspaceId } = await setupWorkspaceForSession('agentic-multi-msg');
+
+    const { queryId } = await t.mutation(api.web.agenticQuery.index.createDraft, {
+      sessionId,
+      workspaceId,
+      mode: 'search',
+    });
+
+    const submitResult = await t.mutation(api.web.agenticQuery.index.submit, {
+      sessionId,
+      queryId,
+      message: 'How does authentication work?',
+      harnessName: 'opencode-sdk',
+      model: { providerID: 'opencode', modelID: 'big-pickle' },
+    });
+
+    const harnessSessionId = submitResult.harnessSessionId!;
+
+    const { turnId } = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
+      sessionId,
+      harnessSessionId,
+    });
+
+    // OpenCode may emit reasoning on an early messageId before the final text message.
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId,
+      chunks: [
+        {
+          content: 'Thinking about auth...',
+          timestamp: Date.now(),
+          messageId: 'msg-reasoning',
+          partType: 'reasoning',
+        },
+      ],
+    });
+
+    await t.mutation(api.daemon.directHarness.turns.bindTurnMessageId, {
+      sessionId,
+      turnId,
+      messageId: 'msg-reasoning',
+    });
+
+    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+      sessionId,
+      harnessSessionId,
+      chunks: [
+        { content: VALID_RESULT, timestamp: Date.now(), messageId: 'msg-text', partType: 'text' },
+      ],
+    });
+
+    await t.mutation(api.daemon.directHarness.turns.finalizeAssistantTurn, {
+      sessionId,
+      turnId,
+    });
+
+    const completed = await t.query(api.web.agenticQuery.index.get, { sessionId, queryId });
+    expect(completed.query.status).toBe('complete');
+    expect(completed.turns[0]?.assistantResponse).toContain('## Summary');
+  });
+
   test('syncFromHarness completes running query from harness turn markdown', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('agentic-sync-web');
 
