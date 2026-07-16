@@ -3453,3 +3453,6 @@ export const getObservedChatroomsForMachine = query({
     return result;
   },
 });
+
+// Re-export machine config favorites queries/mutations
+export { getMachineConfigFavorites, setMachineConfigFavorites } from './machineConfigFavorites';
