@@ -8,17 +8,14 @@ import { getMachineConfigUsageStore } from '../lib/machineConfigUsageStore';
 import type { MachineConfigEntry } from '../types/machineConfig';
 import { entriesEqual } from '../types/machineConfig';
 
-const QUERY = 'getMachineConfigFavorites' as any;
-const MUTATION = 'setMachineConfigFavorites' as any;
-
 // fallow-ignore-next-line complexity
 export function useMachineConfigFavorites(machineId: string | undefined) {
   const queryResult = useSessionQuery(
-    machineId ? (api.machines as any)[QUERY] : 'skip',
-    machineId ? ({ machineId } as any) : undefined
+    api.machines.getMachineConfigFavorites,
+    machineId ? { machineId } : 'skip'
   );
 
-  const setFavoritesMutation = useSessionMutation((api.machines as any)[MUTATION]);
+  const setFavoritesMutation = useSessionMutation(api.machines.setMachineConfigFavorites);
 
   const favorites = useMemo<MachineConfigEntry[]>(
     () => (queryResult as { favorites?: MachineConfigEntry[] })?.favorites ?? [],
