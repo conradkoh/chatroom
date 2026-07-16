@@ -10,7 +10,8 @@ export function bindTurnMessageOnEvent(
   let lastBoundKey: string | null = null;
   return () => {
     const turn = handle.currentTurn;
-    const messageId = turn?.messageId;
+    if (!turn) return;
+    const messageId = turn.messageId;
     if (messageId == null) return;
 
     const key = `${turn.turnId}:${messageId}`;
