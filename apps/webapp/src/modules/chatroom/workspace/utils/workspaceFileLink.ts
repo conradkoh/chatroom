@@ -2,6 +2,8 @@
  * File extensions we auto-linkify. Longest names first so regex alternation
  * matches `tsx` before `ts`, `jsx` before `js`, etc.
  */
+import { parseFileLocation, serializeFileLocationHref } from './fileLocation';
+
 const WORKSPACE_LINKABLE_EXTENSION_NAMES = [
   'tsx',
   'jsx',
@@ -42,19 +44,27 @@ const WORKSPACE_LINKABLE_EXTENSIONS = new RegExp(`\\.(${WORKSPACE_EXTENSION_ALTE
 
 /** Repo-relative path segment: letters, digits, common filename chars. */
 const WORKSPACE_PATH_BODY = new RegExp(
-  `(?:\\.\\./|\\.\\/)?(?:[A-Za-z0-9_@+.-]+\\/)+[A-Za-z0-9_@+.-]+\\.(${WORKSPACE_EXTENSION_ALTERNATION})`,
+  `(?:\\.\\./|\\.\\/)?(?:[A-Za-z0-9_@+.-]+\\/)+[A-Za-z0-9_@+.-]+\\.(${WORKSPACE_EXTENSION_ALTERNATION})(?::\\d+(?:-\\d+)?)?`,
   'gi'
 );
 
+function pathHasLinkableExtension(path: string): boolean {
+  return WORKSPACE_LINKABLE_EXTENSIONS.test(path);
+}
+
+// fallow-ignore-next-line complexity
 export function looksLikeWorkspacePath(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || /\s/.test(trimmed)) return false;
   if (/^(https?:|mailto:|data:|javascript:|#)/i.test(trimmed)) return false;
-  if (!trimmed.includes('/')) return false;
-  return WORKSPACE_LINKABLE_EXTENSIONS.test(trimmed);
+  const loc = parseFileLocation(trimmed);
+  const path = loc?.filePath ?? trimmed;
+  if (!path.includes('/')) return false;
+  return pathHasLinkableExtension(path);
 }
 
 /** Split prose text into mdast phrasing nodes (text + link). */
+// fallow-ignore-next-line complexity
 export function splitTextOnWorkspacePaths(
   text: string
 ): (
@@ -69,13 +79,18 @@ export function splitTextOnWorkspacePaths(
   const re = new RegExp(WORKSPACE_PATH_BODY.source, 'gi');
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
-    const path = match[0];
-    if (!looksLikeWorkspacePath(path)) continue;
+    const matched = match[0];
+    const loc = parseFileLocation(matched);
+    if (!loc || !pathHasLinkableExtension(loc.filePath)) continue;
     if (match.index > lastIndex) {
       nodes.push({ type: 'text', value: text.slice(lastIndex, match.index) });
     }
-    nodes.push({ type: 'link', url: path, children: [{ type: 'text', value: path }] });
-    lastIndex = match.index + path.length;
+    nodes.push({
+      type: 'link',
+      url: serializeFileLocationHref(loc),
+      children: [{ type: 'text', value: matched }],
+    });
+    lastIndex = match.index + matched.length;
   }
   if (lastIndex < text.length) {
     nodes.push({ type: 'text', value: text.slice(lastIndex) });
@@ -93,14 +108,9 @@ export function splitTextOnWorkspacePaths(
 export function isWorkspaceFileLink(href: string | undefined): href is string {
   if (!href || href.startsWith('#')) return false;
   if (/^(https?:|mailto:|data:|javascript:)/i.test(href)) return false;
+  if (href.startsWith('workspace:')) return true;
+  if (href.includes('#L')) return true;
   return true;
-}
-
-/** Normalize a workspace file href to a repo-relative path for the explorer. */
-export function normalizeWorkspaceFilePath(href: string): string {
-  const withoutProtocol = href.startsWith('file://') ? href.slice('file://'.length) : href;
-  const trimmed = withoutProtocol.replace(/^\/+/, '');
-  return trimmed.startsWith('./') ? trimmed.slice(2) : trimmed;
 }
 
 export type WorkspaceFileLinkOpenTarget = 'explorer' | 'preview';

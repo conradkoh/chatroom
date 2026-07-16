@@ -4,11 +4,8 @@ import { Check, Copy } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
 
 import { useWorkspaceFileLink } from '../context/WorkspaceFileLinkContext';
-import {
-  isWorkspaceFileLink,
-  looksLikeWorkspacePath,
-  normalizeWorkspaceFilePath,
-} from '../workspace/utils/workspaceFileLink';
+import { parseFileLocation } from '../workspace/utils/fileLocation';
+import { isWorkspaceFileLink, looksLikeWorkspacePath } from '../workspace/utils/workspaceFileLink';
 
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>
@@ -137,7 +134,10 @@ function WorkspaceFileLinkButton({ href, children }: { href: string; children: R
     <button
       type="button"
       className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm`}
-      onClick={() => onOpenFile(normalizeWorkspaceFilePath(href))}
+      onClick={() => {
+        const location = parseFileLocation(href);
+        if (location) onOpenFile(location);
+      }}
     >
       {children}
     </button>

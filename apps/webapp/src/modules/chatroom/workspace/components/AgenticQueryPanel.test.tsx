@@ -118,47 +118,96 @@ describe('AgenticQueryPanel', () => {
     expect(screen.getByTestId('agentic-query-harness-controls')).toBeInTheDocument();
   });
 
-  it('submits on Cmd+Enter', async () => {
+  it('keeps the composer above results with latest response directly below', () => {
+    mockUseAgenticQuery.mockReturnValue({
+      query: { status: 'complete', mode: 'search', title: 'How auth works' },
+      turns: [
+        {
+          _id: 'turn-1',
+          seq: 0,
+          userMessage: 'First question',
+          assistantResponse: 'First answer',
+          createdAt: 1,
+        },
+        {
+          _id: 'turn-2',
+          seq: 1,
+          userMessage: 'Latest question',
+          assistantResponse: 'Latest answer',
+          createdAt: 2,
+        },
+      ],
+      isLoading: false,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: true,
+      canSubmit: false,
+      harnessSessionId: undefined,
+      submit: mockSubmit,
+    });
+
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
-    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
-    fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
-    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+    const composer = screen.getByTestId('agentic-query-composer');
+    const results = screen.getByTestId('agentic-query-results');
+    const latestTurn = screen.getByTestId('agentic-query-latest-turn');
 
-    await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith('find auth handlers', {
-        harnessName: 'opencode-sdk',
-      });
-    });
+    expect(
+      composer.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(latestTurn).toHaveTextContent('Latest question');
+    expect(latestTurn).toHaveTextContent('Latest answer');
+    expect(screen.getByText('First answer')).toBeInTheDocument();
+    expect(screen.getByText('First question')).toBeInTheDocument();
   });
 
-  it('submits on Ctrl+Enter', async () => {
-    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
-
-    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
-    fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
-    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
-
-    await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith('find auth handlers', {
-        harnessName: 'opencode-sdk',
-      });
-    });
-  });
-
-  it('does not submit on Enter alone', () => {
+  it('submits on Enter', async () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
 
     const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
     fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
     fireEvent.keyDown(textarea, { key: 'Enter', metaKey: false, ctrlKey: false });
 
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenCalledWith('find auth handlers', {
+        harnessName: 'opencode-sdk',
+      });
+    });
+  });
+
+  it('does not submit on Cmd+Enter', () => {
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
+    fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it('shows ⌘Enter hint in submit section', () => {
+  it('does not submit on Ctrl+Enter', () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
-    expect(screen.getByText(/⌘Enter to search/i)).toBeInTheDocument();
+
+    const textarea = screen.getByPlaceholderText(/Search or ask about the codebase/i);
+    fireEvent.change(textarea, { target: { value: 'find auth handlers' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it('renders a single-line composer by default', () => {
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    const textarea = screen.getByTestId('agentic-query-composer-input');
+    expect(textarea).toHaveAttribute('rows', '1');
+    expect(textarea.className).toContain('min-h-[2.5rem]');
+    expect(textarea.className).not.toContain('min-h-[120px]');
+  });
+
+  it('shows Enter keyboard hint in submit section', () => {
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+    expect(screen.getByText(/Enter to search/i)).toBeInTheDocument();
+    expect(screen.getByText(/⌘Enter for new line/i)).toBeInTheDocument();
   });
 
   it('does not render Search/Ask mode toggle', () => {

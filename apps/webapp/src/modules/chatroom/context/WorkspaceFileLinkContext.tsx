@@ -2,8 +2,10 @@
 
 import { createContext, useContext, type ReactNode } from 'react';
 
+import type { FileLocation } from '../workspace/utils/fileLocation';
+
 interface WorkspaceFileLinkContextValue {
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (location: FileLocation) => void;
 }
 
 const WorkspaceFileLinkContext = createContext<WorkspaceFileLinkContextValue>({});
@@ -12,7 +14,7 @@ export function WorkspaceFileLinkProvider({
   onOpenFile,
   children,
 }: {
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (location: FileLocation) => void;
   children: ReactNode;
 }) {
   return (
