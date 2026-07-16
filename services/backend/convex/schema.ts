@@ -945,6 +945,19 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_machine_harness', ['machineId', 'agentHarness']),
 
+  /** User favorites for agentic search harness+model configs. Scoped per machine. */
+  chatroom_searchConfigFavorites: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    favorites: v.array(
+      v.object({
+        harnessName: v.string(),
+        modelKey: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_user_machine', ['userId', 'machineId']),
+
   /**
    * Team-level agent configuration.
    * Tracks how agents for each team/role are configured to start.

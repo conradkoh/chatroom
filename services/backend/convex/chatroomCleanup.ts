@@ -180,6 +180,13 @@ export const cleanupMachines = internalMutation({
         .collect();
       for (const row of modelFilters) await ctx.db.delete('chatroom_machineModelFilters', row._id);
 
+      const searchConfigFavorites = await ctx.db
+        .query('chatroom_searchConfigFavorites')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of searchConfigFavorites)
+        await ctx.db.delete('chatroom_searchConfigFavorites', row._id);
+
       const teamConfigs = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))

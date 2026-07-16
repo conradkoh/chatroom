@@ -89,6 +89,7 @@ import type * as prompts_webapp from "../prompts/webapp.js";
 import type * as savedCommandValidation from "../savedCommandValidation.js";
 import type * as savedCommands from "../savedCommands.js";
 import type * as savedCommandsAuth from "../savedCommandsAuth.js";
+import type * as searchConfigFavorites from "../searchConfigFavorites.js";
 import type * as serviceDesk from "../serviceDesk.js";
 import type * as sessions from "../sessions.js";
 import type * as skills from "../skills.js";
@@ -200,6 +201,7 @@ declare const fullApi: ApiFromModules<{
   savedCommandValidation: typeof savedCommandValidation;
   savedCommands: typeof savedCommands;
   savedCommandsAuth: typeof savedCommandsAuth;
+  searchConfigFavorites: typeof searchConfigFavorites;
   serviceDesk: typeof serviceDesk;
   sessions: typeof sessions;
   skills: typeof skills;
