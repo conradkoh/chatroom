@@ -5,34 +5,13 @@ import { AlertCircle, ChevronRight, KeyRound, KeySquare, Loader2 } from 'lucide-
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
+import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import { Button } from '@/components/ui/button';
 import { useGoogleAuthAvailable } from '@/modules/app/useAppInfo';
 import { AnonymousLoginButton } from '@/modules/auth/AnonymousLoginButton';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { GoogleLoginButton } from '@/modules/auth/GoogleLoginButton';
-
-/**
- * Component that handles search params with proper error handling
- */
-function SearchParamsHandler() {
-  const searchParams = useSearchParams();
-
-  // Handle error messages from OAuth redirects
-  useEffect(() => {
-    const error = searchParams.get('error');
-    if (error) {
-      toast.error(decodeURIComponent(error));
-      // Clear the error from URL without causing a page reload
-      const url = new URL(window.location.href);
-      url.searchParams.delete('error');
-      window.history.replaceState({}, '', url.toString());
-    }
-  }, [searchParams]);
-
-  return null; // This component only handles side effects
-}
 
 /**
  * Validates a redirect URL is safe (relative path only, prevents open redirect).
@@ -104,7 +83,7 @@ function LoginPageContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={_renderLoadingState()}>
-      <SearchParamsHandler />
+      <SearchParamsErrorHandler />
       <LoginPageContent />
     </Suspense>
   );
