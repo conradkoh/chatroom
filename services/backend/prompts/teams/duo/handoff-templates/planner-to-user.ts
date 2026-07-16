@@ -27,6 +27,10 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getContextReadDisclosureBlock } from '../../../utils/context-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
+import {
+  getHandoffQualityPrinciplesCommentBlock,
+  PROOF_OF_PRINCIPLES_HEADING_H3,
+} from '../../../utils/handoff-quality-principles';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
@@ -58,13 +62,8 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 ## What changed
 <high-level view of what changed since the user's message before the detailed proofs below>
 
-### Proof of Principle
-<!-- Demonstrate adherence to:
-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-- No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-- Leave It Better: leave the code in a slightly better state than before when touching files.
--->
+${PROOF_OF_PRINCIPLES_HEADING_H3}
+${getHandoffQualityPrinciplesCommentBlock()}
 <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
 ### Proof of Completion
