@@ -28,7 +28,11 @@ import {
   filterPickerItems,
 } from './picker';
 import { useMachineModels } from '../../../hooks/useMachineModels';
+import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
+import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
+import { computeRecommendedMachineConfigs } from '../lib/computeRecommendedMachineConfigs';
+import { buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -43,6 +47,7 @@ import {
 } from '../types/machine';
 import type { Workspace } from '../types/workspace';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
+import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { resolveDefaultWantResume } from '../utils/wantResumeDefaults';
 import {
@@ -446,6 +451,17 @@ export function useAgentControls({
   const canStop = isAgentRunning && !isStopping && !success;
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
 
+  const machineConfigScopeKeyForControls = useMemo(
+    () =>
+      selectedMachineId && teamId
+        ? buildMachineConfigScopeKey(selectedMachineId, chatroomId, teamId, role)
+        : undefined,
+    [selectedMachineId, chatroomId, teamId, role]
+  );
+  const { recordUsage: recordMachineConfigUsage } = useMachineConfigUsage(
+    machineConfigScopeKeyForControls
+  );
+
   const executeStartAgent = useCallback(
     async (allowNewMachine?: boolean) => {
       if (!selectedMachineId || !selectedHarness) return;
@@ -465,6 +481,12 @@ export function useAgentControls({
             ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
           },
         });
+        if (selectedHarness && selectedModel) {
+          recordMachineConfigUsage({
+            agentHarness: selectedHarness,
+            model: selectedModel,
+          });
+        }
         setSuccess('Start command sent!');
         setTimeout(() => setSuccess(null), 2000);
       } catch (err) {
@@ -482,6 +504,7 @@ export function useAgentControls({
       sendCommand,
       chatroomId,
       role,
+      recordMachineConfigUsage,
     ]
   );
 
@@ -699,6 +722,82 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayWorkingDir = runningConfig?.workingDir ?? workingDir;
   // Always show the persisted preference for next start (not the running agent's value).
   const displayResumeSession = teamBehavior.effectiveWantResume;
+
+  // Machine config favorites + recommendations (scoped by machine+team+role)
+  const favoriteScope = useMemo(() => {
+    if (!displayMachineId || !teamId) return undefined;
+    return { machineId: displayMachineId, chatroomId, teamId, role };
+  }, [displayMachineId, chatroomId, teamId, role]);
+
+  const machineConfigScopeKey = useMemo(
+    () =>
+      favoriteScope
+        ? buildMachineConfigScopeKey(
+            favoriteScope.machineId,
+            favoriteScope.chatroomId,
+            favoriteScope.teamId,
+            favoriteScope.role
+          )
+        : undefined,
+    [favoriteScope]
+  );
+
+  const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
+    useMachineConfigFavorites(favoriteScope);
+
+  const {
+    usageForScope: machineConfigUsage,
+    recordUsage: recordMachineConfigUsageOnApply,
+    clearUsage: clearMachineConfigUsage,
+  } = useMachineConfigUsage(machineConfigScopeKey);
+
+  const recommended = useMemo(() => {
+    if (!machineConfigScopeKey) return [];
+    const usage = machineConfigUsage;
+    const candidates: { agentHarness: AgentHarness; model: string }[] = [];
+
+    // Build candidates from favorites + current selection + available harnesses/models
+    for (const fav of favorites) {
+      if (availableHarnessesForMachine.includes(fav.agentHarness as AgentHarness)) {
+        candidates.push(fav);
+      }
+    }
+    if (displayHarness && displayModel) {
+      candidates.push({ agentHarness: displayHarness, model: displayModel });
+    }
+    // Add from usage keys that are still valid
+    for (const key of usage.keys()) {
+      const [harness, model] = key.split('|');
+      if (harness && model && availableHarnessesForMachine.includes(harness as AgentHarness)) {
+        candidates.push({ agentHarness: harness as AgentHarness, model });
+      }
+    }
+
+    return computeRecommendedMachineConfigs(usage, favorites, candidates);
+  }, [
+    machineConfigScopeKey,
+    machineConfigUsage,
+    displayHarness,
+    displayModel,
+    favorites,
+    availableHarnessesForMachine,
+  ]);
+
+  const handleApplyMachineConfig = useCallback(
+    (entry: { agentHarness: AgentHarness; model: string }) => {
+      handleModelChange(entry.model);
+      handleHarnessChange(entry.agentHarness);
+      recordMachineConfigUsageOnApply(entry);
+    },
+    [handleHarnessChange, handleModelChange, recordMachineConfigUsageOnApply]
+  );
+
+  const handleDismissRecommended = useCallback(
+    (entry: { agentHarness: AgentHarness; model: string }) => {
+      clearMachineConfigUsage(entry);
+    },
+    [clearMachineConfigUsage]
+  );
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,
   // `selectedMachineId` (form state) may still point to the same machine, but
@@ -1231,6 +1330,28 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               </div>
             )}
           </div>
+
+          {displayMachineId && !setupMode && (
+            <MachineConfigQuickPick
+              favorites={favorites}
+              recommended={recommended}
+              currentHarness={displayHarness}
+              currentModel={displayModel}
+              disabled={isBusy}
+              onApply={handleApplyMachineConfig}
+              onToggleFavorite={(entry) => {
+                if (isFavorite(entry)) {
+                  void removeFavorite(entry);
+                } else {
+                  void addFavorite(entry);
+                }
+              }}
+              onRemoveFavorite={(entry) => void removeFavorite(entry)}
+              onMoveFavorite={(from, to) => void moveFavorite(from, to)}
+              onDismissRecommended={handleDismissRecommended}
+              isFavorite={isFavorite}
+            />
+          )}
 
           <RemoteAgentAdvancedSettings
             role={role}

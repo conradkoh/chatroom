@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,9 +6,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RemoteTabContent, useAgentControls } from './AgentControls';
 import type { AgentConfig, MachineInfo, SendCommandFn } from '../types/machine';
 
+const mockUseSessionQuery = vi.fn();
+
 vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
   useChatroomWorkspaces: () => ({
-    workspaces: [],
+    workspaces: [
+      {
+        machineId: 'machine-a',
+        workingDir: '/code',
+        id: 'machine-a::/code',
+        hostname: 'dev',
+        machineAlias: undefined,
+        agentRoles: [],
+        _registryId: 'r1',
+      },
+    ],
     isLoading: false,
     removeWorkspace: vi.fn(),
   }),
@@ -16,7 +28,13 @@ vi.mock('../workspace/hooks/useChatroomWorkspaces', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
-  useSessionQuery: () => undefined,
+  useSessionQuery: (query: unknown, args: unknown) => {
+    mockUseSessionQuery(query, args);
+    if (query === 'machineConfigFavorites:getMachineConfigFavorites' && args !== 'skip') {
+      return { favorites: [] };
+    }
+    return undefined;
+  },
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -31,8 +49,18 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       upsertMachineModelFilters: 'machines:upsertMachineModelFilters',
       requestCapabilitiesRefresh: 'machines:requestCapabilitiesRefresh',
       getCapabilitiesRefreshBatch: 'machines:getCapabilitiesRefreshBatch',
+      setWantResume: 'machines:setWantResume',
     },
   },
+}));
+
+vi.mock('../../../hooks/useMachineModels', () => ({
+  useMachineModels: () => ({
+    availableModels: {
+      'opencode-sdk': ['opencode/big-pickle'],
+    },
+    isLoading: false,
+  }),
 }));
 
 Object.defineProperty(window, 'matchMedia', {
@@ -49,48 +77,41 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-const CHATROOM_ID = 'jd7testchatroom0000000000000001';
+const CHATROOM_ID = 'n576raxak4gfqyr503d22dmf718a9p4w';
 
-function mkMachine(id: string): MachineInfo {
+function mkMachine(id: string, hostname: string): MachineInfo {
   return {
     machineId: id,
-    hostname: `host-${id}`,
-    os: 'linux',
-    availableHarnesses: ['cursor-sdk'],
+    hostname,
+    os: 'darwin',
+    availableHarnesses: ['opencode-sdk'],
     harnessVersions: {},
   };
 }
 
-function mkRunningConfig(wantResume: boolean): AgentConfig {
-  return {
-    machineId: 'a',
+function FavoritesScopeHarness() {
+  const machines = [mkMachine('machine-a', 'host-a')];
+  const roleConfig: AgentConfig = {
+    role: 'planner',
+    machineId: 'machine-a',
     hostname: 'host-a',
-    role: 'builder',
-    agentType: 'cursor-sdk',
-    workingDir: '/workspace',
-    availableHarnesses: ['cursor-sdk'],
+    agentType: 'opencode-sdk',
+    model: 'opencode/big-pickle',
+    workingDir: '/code',
+    availableHarnesses: ['opencode-sdk'],
     updatedAt: Date.now(),
-    spawnedAgentPid: 4242,
-    spawnedAt: Date.now(),
-    wantResume,
   };
-}
-
-function Harness({
-  agentConfigs,
-  sendCommand = vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
-}: {
-  agentConfigs: AgentConfig[];
-  sendCommand?: SendCommandFn;
-}) {
-  const machines = [mkMachine('a')];
   const controls = useAgentControls({
-    role: 'builder',
+    role: 'planner',
     chatroomId: CHATROOM_ID as Id<'chatroom_rooms'>,
     connectedMachines: machines,
-    agentConfigs,
-    sendCommand,
+    agentConfigs: [roleConfig],
+    sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
+    teamConfigHarness: 'opencode-sdk',
+    teamConfigMachineId: 'machine-a',
+    teamId: 'duo',
   });
+
   return (
     <RemoteTabContent
       controls={controls}
@@ -98,22 +119,27 @@ function Harness({
       isLoadingMachines={false}
       daemonStartCommand="chatroom daemon"
       chatroomId={CHATROOM_ID}
-      role="builder"
+      role="planner"
     />
   );
 }
 
-describe('AgentControls resume toggle persistence', () => {
+describe('AgentControls favorites scope', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders reconnect toggle for daemon-memory-capable harnesses', async () => {
-    render(<Harness agentConfigs={[mkRunningConfig(true)]} />);
+  it('queries machine config favorites with teamRoleKey for the active role', async () => {
+    render(<FavoritesScopeHarness />);
 
     await waitFor(() => {
-      expect(screen.getByTitle('Stop Agent')).toBeInTheDocument();
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'machineConfigFavorites:getMachineConfigFavorites',
+        {
+          machineId: 'machine-a',
+          teamRoleKey: `chatroom_${CHATROOM_ID}#team_duo#role_planner`,
+        }
+      );
     });
-    expect(screen.getByRole('switch', { name: 'Reconnect to last session' })).toBeInTheDocument();
   });
 });
