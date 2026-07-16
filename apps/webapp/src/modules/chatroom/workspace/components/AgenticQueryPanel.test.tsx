@@ -13,7 +13,7 @@ vi.mock('../hooks/useAgenticQuery', () => ({
 
 vi.mock('../hooks/useAgenticQueryHarnessSelection', () => ({
   useAgenticQueryHarnessSelection: () => ({
-    harnesses: [{ name: 'opencode-sdk', providers: [] }],
+    harnesses: [{ name: 'opencode-sdk', label: 'SDK', providers: [] }],
     harnessName: 'opencode-sdk',
     setHarnessName: vi.fn(),
     providers: [],
@@ -23,6 +23,16 @@ vi.mock('../hooks/useAgenticQueryHarnessSelection', () => ({
     selectionReady: true,
     toSubmitSelection: mockToSubmitSelection,
     isLoading: false,
+    machineId: 'machine-1',
+    filter: { isHidden: undefined, setFilter: vi.fn(), enabled: true },
+    currentEntry: null,
+    applyConfig: vi.fn(),
+    favorites: [],
+    addFavorite: vi.fn(),
+    removeFavorite: vi.fn(),
+    moveFavorite: vi.fn(),
+    isFavorite: () => false,
+    favoritesLoading: false,
   }),
 }));
 
@@ -70,9 +80,9 @@ describe('AgenticQueryPanel', () => {
     });
   });
 
-  it('renders harness controls for draft queries', () => {
+  it('renders config bar for draft queries', () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
-    expect(screen.getByTestId('agentic-query-harness-controls')).toBeInTheDocument();
+    expect(screen.getByTestId('agentic-query-config-bar')).toBeInTheDocument();
   });
 
   it('submits a draft query with harness selection', async () => {
@@ -115,7 +125,7 @@ describe('AgenticQueryPanel', () => {
 
     expect(screen.getByTestId('agentic-query-follow-up')).toBeInTheDocument();
     expect(screen.getByText(/Auth uses sessions/i)).toBeInTheDocument();
-    expect(screen.getByTestId('agentic-query-harness-controls')).toBeInTheDocument();
+    expect(screen.getByTestId('agentic-query-config-bar')).toBeInTheDocument();
   });
 
   it('keeps the composer above results with latest response directly below', () => {

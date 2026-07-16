@@ -42,6 +42,17 @@ vi.mock('@/modules/chatroom/features/search-config/hooks/useSearchConfigUsage', 
   }),
 }));
 
+vi.mock('@/modules/chatroom/features/search-config/hooks/useSearchConfigFavorites', () => ({
+  useSearchConfigFavorites: () => ({
+    favorites: [],
+    addFavorite: vi.fn(),
+    removeFavorite: vi.fn(),
+    moveFavorite: vi.fn(),
+    isFavorite: () => false,
+    isLoading: false,
+  }),
+}));
+
 describe('useAgenticQueryHarnessSelection', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -135,5 +146,22 @@ describe('useAgenticQueryHarnessSelection', () => {
       expect(result.current.selectionReady).toBe(true);
     });
     // recordUsage should have been called
+  });
+
+  it('returns favorites, currentEntry, and machineId', async () => {
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    expect(result.current.machineId).toBe('machine-1');
+    expect(result.current.favorites).toEqual([]);
+    expect(result.current.currentEntry).toEqual({
+      harnessName: 'opencode-sdk',
+      modelKey: 'openai::gpt-4o',
+    });
+    expect(typeof result.current.applyConfig).toBe('function');
+    expect(typeof result.current.isFavorite).toBe('function');
   });
 });

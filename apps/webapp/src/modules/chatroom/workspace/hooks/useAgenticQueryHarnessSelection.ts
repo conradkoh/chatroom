@@ -5,12 +5,14 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { parseModelKey } from '@/modules/chatroom/direct-harness/components/harness-selectors';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import { useNativeHarnessWorkspace } from '@/modules/chatroom/direct-harness/hooks/useNativeHarnessWorkspace';
 import { useSearchConfigUsage } from '@/modules/chatroom/features/search-config/hooks/useSearchConfigUsage';
+import { useSearchConfigFavorites } from '@/modules/chatroom/features/search-config/hooks/useSearchConfigFavorites';
+import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 
 export interface AgenticQueryHarnessSelection {
   harnessName: string;
@@ -91,6 +93,14 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
 
   const machineId = (capabilities as { machineId?: string } | null)?.machineId ?? null;
   const { getLastUsed, recordUsage } = useSearchConfigUsage(machineId);
+  const {
+    favorites,
+    addFavorite,
+    removeFavorite,
+    moveFavorite,
+    isFavorite,
+    isLoading: favoritesLoading,
+  } = useSearchConfigFavorites(machineId);
 
   const [harnessName, setHarnessName] = useState<string>('opencode-sdk');
   const [selectedModel, setSelectedModel] = useState('');
@@ -170,6 +180,16 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     model: parseModelKey(resolvedModel),
   });
 
+  const currentEntry: SearchConfigEntry | null =
+    resolvedHarnessName && resolvedModel
+      ? { harnessName: resolvedHarnessName, modelKey: resolvedModel }
+      : null;
+
+  const applyConfig = useCallback((entry: SearchConfigEntry) => {
+    setHarnessName(entry.harnessName);
+    setSelectedModel(entry.modelKey);
+  }, []);
+
   return {
     harnesses,
     harnessName: resolvedHarnessName,
@@ -181,5 +201,15 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     selectionReady,
     toSubmitSelection,
     isLoading: workspaceId ? capabilities === undefined : false,
+    machineId,
+    filter,
+    currentEntry,
+    applyConfig,
+    favorites,
+    addFavorite,
+    removeFavorite,
+    moveFavorite,
+    isFavorite,
+    favoritesLoading,
   };
 }

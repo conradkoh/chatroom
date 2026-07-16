@@ -6,7 +6,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
+import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
 import { isModEnterKey } from '../../utils/isModEnterKey';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
@@ -222,15 +222,23 @@ export function AgenticQueryPanel({
           <p className="text-xs text-red-500">{query.summary}</p>
         ) : null}
 
-        <AgenticQueryHarnessControls
+        <AgenticQueryConfigBar
           harnesses={harnessSelection.harnesses}
           harnessName={harnessSelection.harnessName}
-          onHarnessChange={harnessSelection.setHarnessName}
-          providers={harnessSelection.providers}
           selectedModel={harnessSelection.selectedModel}
-          onModelChange={harnessSelection.setSelectedModel}
+          providers={harnessSelection.providers}
           isModelHidden={harnessSelection.isModelHidden}
+          favorites={harnessSelection.favorites}
+          currentEntry={harnessSelection.currentEntry}
           disabled={harnessControlsDisabled}
+          onApplyConfig={harnessSelection.applyConfig}
+          onAddFavorite={harnessSelection.addFavorite}
+          onRemoveFavorite={harnessSelection.removeFavorite}
+          onMoveFavorite={harnessSelection.moveFavorite}
+          isFavorite={harnessSelection.isFavorite}
+          onHarnessChange={harnessSelection.setHarnessName}
+          onModelChange={harnessSelection.setSelectedModel}
+          filter={harnessSelection.filter}
         />
 
         <textarea
