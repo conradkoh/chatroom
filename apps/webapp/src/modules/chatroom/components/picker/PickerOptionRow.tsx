@@ -1,6 +1,7 @@
 'use client';
 
 import { Check } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 
 export interface PickerOptionRowProps {
@@ -20,7 +21,7 @@ export function PickerOptionRow({ children, selected, onSelect, disabled }: Pick
       onClick={onSelect}
       className={cn(
         'w-full px-3 py-2 text-xs text-left flex items-center justify-between gap-2',
-        'hover:bg-chatroom-bg-hover transition-colors',
+        'cursor-pointer hover:bg-chatroom-bg-hover transition-colors',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         selected && 'bg-chatroom-bg-hover'
       )}
