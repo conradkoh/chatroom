@@ -1,14 +1,13 @@
 /**
  * MachineConfigUsageStore — localStorage-backed usage tracking for machine configs.
- * Mirrors commandUsageStore.ts pattern with scope-keyed storage.
  *
  * Key structure: scopeKey (machineId|teamRoleKey) → configKey (harness|model) → timestamps[]
  *
  * Version 2: scoped by machineId+teamRoleKey instead of bare machineId.
  */
 
-import type { MachineConfigEntry } from '../types/machineConfig';
-import { buildMachineConfigKey } from '../types/machineConfig';
+import type { MachineConfigEntry } from '../../../types/machineConfig';
+import { buildMachineConfigKey } from '../../../types/machineConfig';
 
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_TIMESTAMPS_PER_CONFIG = 100;
@@ -17,6 +16,14 @@ const STORAGE_KEY = 'chatroom:machine-config-usage';
 interface StorageData {
   scopes: Record<string, Record<string, number[]>>;
   version: 2;
+}
+
+const listeners = new Set<() => void>();
+let revision = 0;
+
+function emit(): void {
+  revision += 1;
+  for (const listener of listeners) listener();
 }
 
 // fallow-ignore-next-line complexity
@@ -76,6 +83,7 @@ class MachineConfigUsageStore {
     this.save();
   }
 
+  // fallow-ignore-next-line complexity
   private load(): StorageData {
     try {
       if (typeof window === 'undefined') return { scopes: {}, version: 2 };
@@ -93,6 +101,7 @@ class MachineConfigUsageStore {
     try {
       if (typeof window === 'undefined') return;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+      emit();
     } catch {
       // silently fail
     }
@@ -106,4 +115,13 @@ export function getMachineConfigUsageStore(): MachineConfigUsageStore {
     instance = new MachineConfigUsageStore();
   }
   return instance;
+}
+
+export function subscribeMachineConfigUsage(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function getMachineConfigUsageRevision(): number {
+  return revision;
 }

@@ -28,10 +28,10 @@ import {
   filterPickerItems,
 } from './picker';
 import { useMachineModels } from '../../../hooks/useMachineModels';
-import { useMachineConfigFavorites } from '../hooks/useMachineConfigFavorites';
+import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
+import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import { computeRecommendedMachineConfigs } from '../lib/computeRecommendedMachineConfigs';
-import { getMachineConfigUsageStore } from '../lib/machineConfigUsageStore';
 import { buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import type {
   AgentHarness,
@@ -451,6 +451,17 @@ export function useAgentControls({
   const canStop = isAgentRunning && !isStopping && !success;
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
 
+  const machineConfigScopeKeyForControls = useMemo(
+    () =>
+      selectedMachineId && teamId
+        ? buildMachineConfigScopeKey(selectedMachineId, chatroomId, teamId, role)
+        : undefined,
+    [selectedMachineId, chatroomId, teamId, role]
+  );
+  const { recordUsage: recordMachineConfigUsage } = useMachineConfigUsage(
+    machineConfigScopeKeyForControls
+  );
+
   const executeStartAgent = useCallback(
     async (allowNewMachine?: boolean) => {
       if (!selectedMachineId || !selectedHarness) return;
@@ -470,8 +481,8 @@ export function useAgentControls({
             ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
           },
         });
-        if (selectedMachineId && selectedHarness && selectedModel) {
-          getMachineConfigUsageStore().recordUsage(selectedMachineId, {
+        if (selectedHarness && selectedModel) {
+          recordMachineConfigUsage({
             agentHarness: selectedHarness,
             model: selectedModel,
           });
@@ -493,6 +504,7 @@ export function useAgentControls({
       sendCommand,
       chatroomId,
       role,
+      recordMachineConfigUsage,
     ]
   );
 
@@ -733,9 +745,15 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
     useMachineConfigFavorites(favoriteScope);
 
+  const {
+    usageForScope: machineConfigUsage,
+    recordUsage: recordMachineConfigUsageOnApply,
+    clearUsage: clearMachineConfigUsage,
+  } = useMachineConfigUsage(machineConfigScopeKey);
+
   const recommended = useMemo(() => {
     if (!machineConfigScopeKey) return [];
-    const usage = getMachineConfigUsageStore().getAllUsageForScope(machineConfigScopeKey);
+    const usage = machineConfigUsage;
     const candidates: { agentHarness: AgentHarness; model: string }[] = [];
 
     // Build candidates from favorites + current selection + available harnesses/models
@@ -758,6 +776,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     return computeRecommendedMachineConfigs(usage, favorites, candidates);
   }, [
     machineConfigScopeKey,
+    machineConfigUsage,
     displayHarness,
     displayModel,
     favorites,
@@ -768,20 +787,16 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     (entry: { agentHarness: AgentHarness; model: string }) => {
       handleModelChange(entry.model);
       handleHarnessChange(entry.agentHarness);
-      if (machineConfigScopeKey) {
-        getMachineConfigUsageStore().recordUsage(machineConfigScopeKey, entry);
-      }
+      recordMachineConfigUsageOnApply(entry);
     },
-    [handleHarnessChange, handleModelChange, machineConfigScopeKey]
+    [handleHarnessChange, handleModelChange, recordMachineConfigUsageOnApply]
   );
 
   const handleDismissRecommended = useCallback(
     (entry: { agentHarness: AgentHarness; model: string }) => {
-      if (machineConfigScopeKey) {
-        getMachineConfigUsageStore().clearUsage(machineConfigScopeKey, entry);
-      }
+      clearMachineConfigUsage(entry);
     },
-    [machineConfigScopeKey]
+    [clearMachineConfigUsage]
   );
 
   // Harness version lookup must use `displayMachineId` — when an agent is running,

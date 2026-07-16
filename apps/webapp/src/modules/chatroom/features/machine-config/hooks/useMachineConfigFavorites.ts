@@ -4,10 +4,10 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
-import { getMachineConfigUsageStore } from '../lib/machineConfigUsageStore';
-import { buildTeamRoleKey, buildMachineConfigScopeKey } from '../lib/teamRoleKey';
-import type { MachineConfigEntry } from '../types/machineConfig';
-import { entriesEqual } from '../types/machineConfig';
+import { useMachineConfigUsage } from './useMachineConfigUsage';
+import { buildTeamRoleKey, buildMachineConfigScopeKey } from '../../../lib/teamRoleKey';
+import type { MachineConfigEntry } from '../../../types/machineConfig';
+import { entriesEqual } from '../../../types/machineConfig';
 
 export interface MachineConfigFavoriteScope {
   machineId: string;
@@ -31,6 +31,8 @@ export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | un
   const scopeKey = isScopeComplete(scope)
     ? buildMachineConfigScopeKey(scope.machineId, scope.chatroomId, scope.teamId, scope.role)
     : undefined;
+
+  const { clearUsage } = useMachineConfigUsage(scopeKey);
 
   const queryResult = useSessionQuery(
     api.machineConfigFavorites.getMachineConfigFavorites,
@@ -71,17 +73,15 @@ export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | un
     async (entry: MachineConfigEntry) => {
       const next = favorites.filter((f) => !entriesEqual(f, entry));
       await saveFavorites(next);
-      if (scopeKey) {
-        getMachineConfigUsageStore().clearUsage(scopeKey, entry);
-      }
+      clearUsage(entry);
     },
-    [favorites, saveFavorites, scopeKey]
+    [favorites, saveFavorites, clearUsage]
   );
 
   const moveFavorite = useCallback(
     async (fromIndex: number, toIndex: number) => {
-      if (fromIndex < 0 || fromIndex >= favorites.length) return;
-      if (toIndex < 0 || toIndex >= favorites.length) return;
+      const inBounds = (index: number) => index >= 0 && index < favorites.length;
+      if (!inBounds(fromIndex) || !inBounds(toIndex)) return;
       const next = [...favorites];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
