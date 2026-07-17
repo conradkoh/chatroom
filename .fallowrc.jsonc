@@ -80,6 +80,10 @@
       "exports": ["discoverModels", "initDaemonEffect"],
     },
     {
+      "file": "**/lib/messageExport/index.ts",
+      "exports": ["replaceMermaidFencesWithSvg"],
+    },
+    {
       "file": "**/hooks/useChatroomMessageStore.ts",
       "exports": ["trimMessagesToInitialWindow"],
     },

@@ -3,13 +3,28 @@
  */
 import { render, screen } from '@testing-library/react';
 import type React from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { TimelineEventRow } from './TimelineEventRow';
 import { TIMELINE_MESSAGE_HEADER_STICKY } from './timelineRowStyles';
 import { AttachmentsProvider } from '../../attachments';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
+
+// matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
 
 function renderRow(ui: React.ReactElement) {
   return render(<AttachmentsProvider>{ui}</AttachmentsProvider>);

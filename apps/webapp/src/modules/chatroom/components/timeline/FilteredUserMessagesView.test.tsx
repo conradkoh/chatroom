@@ -1,6 +1,8 @@
 /**
  * FilteredUserMessagesView — user-only message list with conversation slice panel.
  */
+
+// matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu)
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type React from 'react';
@@ -9,6 +11,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FilteredUserMessagesView } from './FilteredUserMessagesView';
 import { AttachmentsProvider } from '../../attachments';
 import type { Message } from '../../types/message';
+
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
 
 const TEST_CHATROOM_ID = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2';
 

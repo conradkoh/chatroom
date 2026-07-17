@@ -1,10 +1,13 @@
 /**
  * ChatroomTimelineFeed — virtualizer stability and scroll-pin wiring tests.
  */
+
+// matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu/ResponsivePickerShell)
+
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import {
@@ -16,19 +19,25 @@ import { AttachmentsProvider } from '../../attachments';
 import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
 
-// matchMedia polyfill needed by useIsDesktop (used by TimelineEventCountMenu)
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+// matchMedia polyfill needed by useIsDesktop (used by TimelineEventCountMenu / download menu)
+beforeAll(() => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+  );
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
 });
 
 const virtualizerOptions: {

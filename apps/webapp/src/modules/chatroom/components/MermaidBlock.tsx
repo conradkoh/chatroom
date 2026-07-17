@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 
 import { Z_MODAL } from './shared/overlayLayers';
+import { renderMermaidChartToSvg } from '../lib/mermaid/renderMermaidChartToSvg';
 
 /**
  * MermaidBlock renders a mermaid diagram from a chart definition string.
@@ -456,119 +457,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
 
     async function renderChart() {
       try {
-        const mermaid = (await import('mermaid')).default;
-        const isDark =
-          typeof document !== 'undefined' &&
-          (document.documentElement.classList.contains('dark') ||
-            window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: isDark ? 'dark' : 'default',
-          securityLevel: 'strict',
-          // IMPORTANT: htmlLabels must be at the top level.
-          // In Mermaid 11.x, flowchart.htmlLabels is deprecated and ignored.
-          // The global htmlLabels controls whether node labels use SVG
-          // foreignObject (true) or native SVG text (false).
-          //
-          // foreignObject has a fixed height that Mermaid calculates from
-          // estimated text metrics. Safari's text measurements differ from
-          // Chrome's, so multi-line labels (e.g., "stepKey\nDescription\n[role]")
-          // overflow the foreignObject boundary and get clipped. Native SVG
-          // text nodes auto-size to content, eliminating this entirely.
-          htmlLabels: false,
-          flowchart: {
-            curve: 'basis',
-            nodeSpacing: 30,
-            rankSpacing: 50,
-            // useMaxWidth:false renders at natural size instead of constraining
-            // to container width. Safari clips SVG content that extends beyond
-            // the calculated viewBox when the diagram is scaled down to fit.
-            // With useMaxWidth:false the SVG is rendered at full size and the
-            // container scrolls horizontally if needed.
-            useMaxWidth: false,
-            // Increase internal node padding for a more polished look.
-            // Default is 15px which feels cramped with multi-line labels.
-            padding: 20,
-            // Remove the 200px wrapping cap — let the layout engine size nodes
-            // naturally based on their content length.
-            wrappingWidth: 500,
-            // Add more breathing room around the entire diagram.
-            // Default is 8px which feels tight.
-            diagramPadding: 16,
-          },
-          themeVariables: {
-            fontSize: '12px',
-          },
-        });
-
-        const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
-        const { svg: renderedSvg } = await mermaid.render(id, chart);
-
-        // Post-process the rendered SVG for cross-browser compatibility.
-        //
-        // Safari-specific issues:
-        // 1. Safari strictly clips SVG content at the viewBox boundary. When
-        //    Mermaid calculates the viewBox from text bounding boxes, Safari's
-        //    slightly different text metrics can cause labels to be cut off.
-        // 2. Safari respects overflow="hidden" on SVG elements (the SVG spec
-        //    default), whereas Chrome is more lenient.
-        // 3. Mermaid injects a max-width inline style that constrains the SVG.
-        //
-        // Fixes applied:
-        // a) Remove max-width from inline style
-        // b) Set overflow="visible" on the root SVG element
-        // c) Add padding to the viewBox so content near edges isn't clipped
-        let cleanedSvg = renderedSvg;
-
-        // (a) Remove max-width inline style
-        cleanedSvg = cleanedSvg.replace(
-          /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
-          (_m, open, before, after) => {
-            const cleanStyle = (before + after)
-              .replace(/;\s*;/g, ';')
-              .replace(/^\s*;\s*|\s*;\s*$/g, '');
-            return cleanStyle ? `${open} style="${cleanStyle}"` : open;
-          }
-        );
-
-        // (b) Force overflow="visible" on the root SVG — Safari clips at
-        // viewBox bounds by default (SVG spec says overflow:hidden).
-        // Replace existing overflow attribute or add it.
-        if (/(<svg[^>]*)\boverflow="[^"]*"/.test(cleanedSvg)) {
-          cleanedSvg = cleanedSvg.replace(/(<svg[^>]*)\boverflow="[^"]*"/, '$1overflow="visible"');
-        } else {
-          cleanedSvg = cleanedSvg.replace(/(<svg\b)/, '$1 overflow="visible"');
-        }
-
-        // (c) Pad the viewBox by 8px on each side to give text breathing room.
-        // Safari's text metrics differ from Chrome's, so the tight viewBox
-        // Mermaid computes can clip the last few pixels of text in Safari.
-        const VB_PAD = 8;
-        cleanedSvg = cleanedSvg.replace(/(<svg[^>]*\bviewBox=")([^"]*)(")/, (_m, pre, vb, post) => {
-          const parts = vb.trim().split(/\s+/).map(Number);
-          if (parts.length === 4 && parts.every((n: number) => !isNaN(n))) {
-            const [x, y, w, h] = parts;
-            return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
-          }
-          return _m;
-        });
-
-        // (d) Defense-in-depth: if foreignObject elements are still present
-        // (htmlLabels may not take effect for all diagram types), ensure they
-        // have overflow:visible so Safari doesn't clip their content at the
-        // fixed height boundary. Also add a generous height to prevent clipping.
-        cleanedSvg = cleanedSvg.replace(/<foreignObject([^>]*)>/g, (_m, attrs) => {
-          // Add overflow="visible" to the foreignObject
-          let newAttrs = attrs;
-          if (/overflow=/.test(newAttrs)) {
-            newAttrs = newAttrs.replace(/overflow="[^"]*"/, 'overflow="visible"');
-          } else {
-            newAttrs += ' overflow="visible"';
-          }
-          return `<foreignObject${newAttrs}>`;
-        });
-
+        const cleanedSvg = await renderMermaidChartToSvg(chart);
         if (!cancelled) {
           setSvg(cleanedSvg);
           setLoading(false);
