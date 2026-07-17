@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AgenticQueryPanel } from './AgenticQueryPanel';
 
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '@/modules/chatroom/components/shared/industrialDialogStyles';
+
 const mockSubmit = vi.fn();
 const mockUseAgenticQuery = vi.fn();
 const mockToSubmitSelection = vi.fn();
@@ -214,16 +219,93 @@ describe('AgenticQueryPanel', () => {
     expect(textarea.className).not.toContain('min-h-[120px]');
   });
 
-  it('shows Enter keyboard hint in submit section', () => {
-    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
-    expect(screen.getByText(/Enter to search/i)).toBeInTheDocument();
-    expect(screen.getByText(/⌘Enter for new line/i)).toBeInTheDocument();
-  });
-
   it('does not render Search/Ask mode toggle', () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
     expect(screen.queryByText('Ask')).not.toBeInTheDocument();
-    expect(screen.getByTestId('agentic-query-submit')).toHaveTextContent('Search');
+    expect(screen.getByTestId('agentic-query-submit')).toHaveAttribute('aria-label', 'Search');
+    expect(screen.getByTestId('agentic-query-submit').className).toContain('md:hidden');
+  });
+
+  describe('composer submit button regressions', () => {
+    it('places the submit button inline with the composer input', () => {
+      render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+      const textarea = screen.getByTestId('agentic-query-composer-input');
+      const submitButton = screen.getByTestId('agentic-query-submit');
+      const row = textarea.parentElement;
+
+      expect(row).not.toBeNull();
+      expect(row?.className).toContain('flex');
+      expect(row?.contains(submitButton)).toBe(true);
+      expect(textarea.className).toContain('flex-1');
+    });
+
+    it('uses industrial primary classes for the search submit button', () => {
+      render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+      const submitButton = screen.getByTestId('agentic-query-submit');
+      for (const token of chatroomIndustrialButtonPrimaryClassName.split(/\s+/)) {
+        expect(submitButton.className).toContain(token);
+      }
+      expect(submitButton.className).not.toContain('text-white');
+      expect(submitButton.className).toContain('text-chatroom-bg-primary');
+    });
+
+    it('uses industrial secondary classes for the follow-up submit button', () => {
+      mockUseAgenticQuery.mockReturnValue({
+        query: { status: 'complete', mode: 'search', title: 'How auth works' },
+        turns: [
+          {
+            _id: 'turn-1',
+            seq: 0,
+            userMessage: 'How auth works?',
+            assistantResponse: 'Auth uses sessions.',
+            createdAt: 1,
+          },
+        ],
+        isLoading: false,
+        isRunning: false,
+        isDraft: false,
+        canFollowUp: true,
+        canSubmit: false,
+        harnessSessionId: undefined,
+        submit: mockSubmit,
+      });
+
+      render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+      const followUpButton = screen.getByTestId('agentic-query-follow-up');
+      for (const token of chatroomIndustrialButtonSecondaryClassName.split(/\s+/)) {
+        expect(followUpButton.className).toContain(token);
+      }
+      expect(followUpButton).toHaveAttribute('aria-label', 'Follow up');
+    });
+
+    it('renders icon-only submit controls without visible button labels', () => {
+      render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+      const submitButton = screen.getByTestId('agentic-query-submit');
+      expect(submitButton).toHaveTextContent('');
+      expect(submitButton.querySelector('svg')).toBeInTheDocument();
+      expect(submitButton.querySelector('svg')?.classList.toString()).toContain('lucide-search');
+    });
+
+    it('does not render removed composer help text', () => {
+      render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+      expect(screen.queryByText(/Type a query and submit to get started/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Enter to search/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/⌘Enter for new line/i)).not.toBeInTheDocument();
+    });
+
+    it('uses the concise search placeholder', () => {
+      render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+      expect(screen.getByTestId('agentic-query-composer-input')).toHaveAttribute(
+        'placeholder',
+        'Search or ask about the codebase…'
+      );
+    });
   });
 
   it('shows failed status and summary', () => {

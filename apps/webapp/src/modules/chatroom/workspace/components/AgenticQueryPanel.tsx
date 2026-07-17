@@ -3,7 +3,7 @@
 // fallow-ignore-file complexity
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search, Send } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
@@ -13,6 +13,11 @@ import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
+import { cn } from '@/lib/utils';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
 import { useHarnessTurnStore } from '@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore';
 
@@ -194,6 +199,20 @@ export function AgenticQueryPanel({
     [handleCompose]
   );
 
+  const submitDisabled =
+    !canCompose ||
+    isSubmitting ||
+    !composerText.trim() ||
+    isLoading ||
+    !harnessSelection.selectionReady;
+  const submitLabel = isSubmitting
+    ? isFollowUpMode
+      ? 'Sending…'
+      : 'Submitting…'
+    : isFollowUpMode
+      ? 'Follow up'
+      : 'Search';
+
   return (
     <div className="flex-1 flex flex-col min-h-0" data-testid="agentic-query-panel">
       <AgenticQueryHarnessSync
@@ -241,51 +260,41 @@ export function AgenticQueryPanel({
           filter={harnessSelection.filter}
         />
 
-        <textarea
-          ref={composerRef}
-          rows={1}
-          value={composerText}
-          onChange={(e) => setComposerText(e.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          placeholder={
-            isFollowUpMode
-              ? 'Ask a follow-up or refine the results…'
-              : 'Search or ask about the codebase… (e.g. "how does authentication work?")'
-          }
-          className="min-h-[2.5rem] max-h-48 w-full resize-none overflow-hidden bg-chatroom-bg-tertiary border border-chatroom-border px-3 py-2 text-[13px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none focus:border-chatroom-accent font-mono leading-normal"
-          data-testid="agentic-query-composer-input"
-        />
-
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-chatroom-text-muted">
-            {isFollowUpMode
-              ? 'Enter to follow up · ⌘Enter for new line'
-              : 'Enter to search · ⌘Enter for new line'}
-          </span>
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={composerRef}
+            rows={1}
+            value={composerText}
+            onChange={(e) => setComposerText(e.target.value)}
+            onKeyDown={handleComposerKeyDown}
+            placeholder={
+              isFollowUpMode
+                ? 'Ask a follow-up or refine the results…'
+                : 'Search or ask about the codebase…'
+            }
+            className="min-h-[2.5rem] max-h-48 flex-1 min-w-0 resize-none overflow-hidden bg-chatroom-bg-tertiary border border-chatroom-border px-3 py-2 text-[13px] text-chatroom-text-primary placeholder:text-chatroom-text-muted outline-none focus:border-chatroom-accent font-mono leading-normal"
+            data-testid="agentic-query-composer-input"
+          />
           <button
             type="button"
             data-testid={isFollowUpMode ? 'agentic-query-follow-up' : 'agentic-query-submit'}
-            disabled={
-              !canCompose ||
-              isSubmitting ||
-              !composerText.trim() ||
-              isLoading ||
-              !harnessSelection.selectionReady
-            }
+            disabled={submitDisabled}
             onClick={() => void handleCompose()}
-            className={
+            aria-label={submitLabel}
+            className={cn(
+              'md:hidden size-10 shrink-0 !h-10 !w-10 !px-0 rounded-sm disabled:cursor-not-allowed',
               isFollowUpMode
-                ? 'bg-chatroom-bg-tertiary text-chatroom-text-primary text-[10px] font-bold uppercase tracking-wider py-2 px-4 rounded-sm border border-chatroom-border disabled:opacity-50'
-                : 'bg-chatroom-accent text-white text-[10px] font-bold uppercase tracking-wider py-2 px-4 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed'
-            }
+                ? chatroomIndustrialButtonSecondaryClassName
+                : chatroomIndustrialButtonPrimaryClassName
+            )}
           >
-            {isSubmitting
-              ? isFollowUpMode
-                ? 'Sending…'
-                : 'Submitting…'
-              : isFollowUpMode
-                ? 'Follow up'
-                : 'Search'}
+            {isSubmitting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : isFollowUpMode ? (
+              <Send className="size-4" />
+            ) : (
+              <Search className="size-4" />
+            )}
           </button>
         </div>
 
@@ -296,12 +305,6 @@ export function AgenticQueryPanel({
         className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
         data-testid="agentic-query-results"
       >
-        {turns.length === 0 && !isLoading ? (
-          <span className="text-xs text-chatroom-text-muted">
-            Type a query and submit to get started
-          </span>
-        ) : null}
-
         {latestTurn ? (
           <AgenticTurnBlock
             turn={latestTurn}

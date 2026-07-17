@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAgenticQueryHarnessSelection } from './useAgenticQueryHarnessSelection';
@@ -18,6 +18,9 @@ let mockCapabilities: {
   harnesses: [],
 };
 
+const mockGetLastUsed = vi.fn(() => null);
+const mockRecordUsage = vi.fn();
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (_api: unknown, args: unknown) => {
     if (args === 'skip') return undefined;
@@ -36,8 +39,8 @@ vi.mock('@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter', () => (
 vi.mock('@/modules/chatroom/features/search-config/hooks/useSearchConfigUsage', () => ({
   useSearchConfigUsage: () => ({
     getAllUsage: vi.fn(() => new Map()),
-    getLastUsed: vi.fn(() => null),
-    recordUsage: vi.fn(),
+    getLastUsed: mockGetLastUsed,
+    recordUsage: mockRecordUsage,
     clearUsage: vi.fn(),
   }),
 }));
@@ -56,6 +59,8 @@ vi.mock('@/modules/chatroom/features/search-config/hooks/useSearchConfigFavorite
 describe('useAgenticQueryHarnessSelection', () => {
   beforeEach(() => {
     localStorage.clear();
+    mockGetLastUsed.mockReturnValue(null);
+    mockRecordUsage.mockReset();
     mockCapabilities = {
       machineId: 'machine-1',
       harnesses: [
@@ -66,6 +71,11 @@ describe('useAgenticQueryHarnessSelection', () => {
               providerID: 'openai',
               name: 'OpenAI',
               models: [{ modelID: 'gpt-4o', name: 'GPT-4o' }],
+            },
+            {
+              providerID: 'opencode',
+              name: 'OpenCode Zen',
+              models: [{ modelID: 'big-pickle', name: 'Big Pickle' }],
             },
           ],
         },
@@ -145,7 +155,69 @@ describe('useAgenticQueryHarnessSelection', () => {
     await waitFor(() => {
       expect(result.current.selectionReady).toBe(true);
     });
-    // recordUsage should have been called
+
+    expect(mockRecordUsage).toHaveBeenCalledWith({
+      harnessName: 'opencode-sdk',
+      modelKey: 'openai::gpt-4o',
+    });
+  });
+
+  it('prefers persisted UI selection over last-used search config on init', async () => {
+    localStorage.setItem(
+      'agentic-query-harness:machine-1',
+      JSON.stringify({ harnessName: 'opencode-sdk', modelKey: 'opencode::big-pickle' })
+    );
+    mockGetLastUsed.mockReturnValue({
+      harnessName: 'opencode-sdk',
+      modelKey: 'openai::gpt-4o',
+    });
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectedModel).toBe('opencode::big-pickle');
+    });
+
+    expect(result.current.harnessName).toBe('opencode-sdk');
+  });
+
+  it('persists selection changes before a search is submitted', async () => {
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    act(() => {
+      result.current.applyConfig({
+        harnessName: 'opencode-sdk',
+        modelKey: 'opencode::big-pickle',
+      });
+    });
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem('agentic-query-harness:machine-1') ?? '{}');
+      expect(stored.modelKey).toBe('opencode::big-pickle');
+    });
+
+    const { result: freshResult } = renderHook(() => useAgenticQueryHarnessSelection('ws-2'));
+
+    await waitFor(() => {
+      expect(freshResult.current.selectedModel).toBe('opencode::big-pickle');
+    });
+  });
+
+  it('falls back to last-used search config when no persisted selection exists', async () => {
+    mockGetLastUsed.mockReturnValue({
+      harnessName: 'opencode-sdk',
+      modelKey: 'opencode::big-pickle',
+    });
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectedModel).toBe('opencode::big-pickle');
+    });
   });
 
   it('returns favorites, currentEntry, and machineId', async () => {

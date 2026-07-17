@@ -16,6 +16,7 @@ interface StorageData {
   version: 1;
 }
 
+// fallow-ignore-next-line unused-export
 export class SearchConfigUsageStore {
   private data: StorageData;
 

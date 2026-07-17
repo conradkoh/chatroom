@@ -10,8 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseModelKey } from '@/modules/chatroom/direct-harness/components/harness-selectors';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import { useNativeHarnessWorkspace } from '@/modules/chatroom/direct-harness/hooks/useNativeHarnessWorkspace';
-import { useSearchConfigUsage } from '@/modules/chatroom/features/search-config/hooks/useSearchConfigUsage';
 import { useSearchConfigFavorites } from '@/modules/chatroom/features/search-config/hooks/useSearchConfigFavorites';
+import { useSearchConfigUsage } from '@/modules/chatroom/features/search-config/hooks/useSearchConfigUsage';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 
 export interface AgenticQueryHarnessSelection {
@@ -121,14 +121,14 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     }
     // Try machine-scoped key
     if (!persisted) persisted = readPersisted(machineId);
-    // Try last-used from usage store
+    // Prefer explicit persisted UI selection over usage-store last search
     const lastUsed = getLastUsed();
-    if (lastUsed) {
-      setHarnessName(lastUsed.harnessName);
-      setSelectedModel(lastUsed.modelKey);
-    } else if (persisted) {
+    if (persisted) {
       setHarnessName(persisted.harnessName);
       setSelectedModel(persisted.modelKey);
+    } else if (lastUsed) {
+      setHarnessName(lastUsed.harnessName);
+      setSelectedModel(lastUsed.modelKey);
     }
   }, [machineId, workspaceId, initialized, getLastUsed]);
 
@@ -152,26 +152,26 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
   selectedModelRef.current = selectedModel;
 
   useEffect(() => {
-    if (modelOptions.length === 0) return;
+    if (!initialized || modelOptions.length === 0) return;
     const current = selectedModelRef.current;
     if (modelOptions.some((option) => option.value === current)) return;
     const fallback = modelOptions[0]?.value ?? '';
     if (fallback !== current) setSelectedModel(fallback);
-  }, [modelOptions]);
+  }, [initialized, modelOptions]);
 
   useEffect(() => {
-    if (!machineId) return;
+    if (!machineId || !initialized) return;
     writePersisted(machineId, {
       harnessName: resolvedHarnessName,
       modelKey: resolvedModel,
     });
-  }, [resolvedHarnessName, resolvedModel, machineId]);
+  }, [resolvedHarnessName, resolvedModel, machineId, initialized]);
 
-  // Record usage when selection resolves
+  // Record usage when selection resolves after initialization
   useEffect(() => {
-    if (!machineId || !resolvedHarnessName || !resolvedModel) return;
+    if (!machineId || !initialized || !resolvedHarnessName || !resolvedModel) return;
     recordUsage({ harnessName: resolvedHarnessName, modelKey: resolvedModel });
-  }, [machineId, resolvedHarnessName, resolvedModel, recordUsage]);
+  }, [machineId, initialized, resolvedHarnessName, resolvedModel, recordUsage]);
 
   const selectionReady = !!resolvedHarnessName && (modelOptions.length === 0 || !!resolvedModel);
 
