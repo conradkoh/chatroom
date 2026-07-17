@@ -27,7 +27,12 @@ function getNativeHarnessCatalog(): HarnessOption[] {
 export function resolveNativeHarnessOptions(reported: HarnessOption[]): HarnessOption[] {
   const byName = new Map(getNativeHarnessCatalog().map((h) => [h.name, h]));
   for (const harness of filterNativeHarnesses(reported)) {
-    byName.set(harness.name, harness);
+    const catalog = byName.get(harness.name);
+    byName.set(harness.name, {
+      ...catalog,
+      ...harness,
+      displayName: catalog?.displayName ?? harness.displayName,
+    });
   }
   return NATIVE_SDK_HARNESS_NAMES.flatMap((name) => {
     const harness = byName.get(name);
@@ -37,11 +42,21 @@ export function resolveNativeHarnessOptions(reported: HarnessOption[]): HarnessO
 
 /** Pick the preferred default harness from available native options. */
 // fallow-ignore-next-line complexity
-export function selectDefaultHarnessName(harnesses: HarnessOption[]): string {
+function selectDefaultHarnessName(harnesses: HarnessOption[]): string {
   for (const preferred of DEFAULT_HARNESS_PREFERENCE) {
     if (harnesses.some((h) => h.name === preferred)) {
       return preferred;
     }
   }
   return harnesses[0]?.name ?? 'pi-sdk';
+}
+
+/** Resolve a user-selected harness name against available native options. */
+export function resolveSelectedHarnessName(
+  harnesses: HarnessOption[],
+  harnessName: string
+): string {
+  if (harnesses.length === 0) return harnessName;
+  if (harnesses.some((h) => h.name === harnessName)) return harnessName;
+  return selectDefaultHarnessName(harnesses);
 }

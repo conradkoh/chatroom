@@ -1,19 +1,20 @@
 'use client';
 
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 
 import { FileTypeIcon } from './FileSelector/fileIcons';
 import type { FileEntry } from './FileSelector/useFileSelector';
 
 import { getFileName, getParentDir } from '@/lib/pathUtils';
 import { decodeWorkspaceId, getWorkspaceDisplayName } from '@/lib/workspaceIdentifier';
+import type { FileReferenceDropdownPlacement } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
 
 interface FileReferenceAutocompleteProps {
   /** Pre-filtered results from the trigger system */
   results: FileEntry[];
   /** Currently highlighted item index */
   selectedIndex: number;
-  /** Position of the dropdown (relative to the textarea) */
+  /** Position of the dropdown (relative to the anchor) */
   position: { top: number; left: number } | null;
   /** Called when a file is selected (via mouse click) */
   onSelect: (filePath: string) => void;
@@ -21,12 +22,24 @@ interface FileReferenceAutocompleteProps {
   onHoverItem: (index: number) => void;
   /** Whether the autocomplete is visible */
   visible: boolean;
+  /** `above` anchors with `bottom`; `below` anchors with `top`. */
+  placement?: FileReferenceDropdownPlacement;
 }
 
 /** Max items visible in the dropdown (for scroll height calculation) */
 const MAX_VISIBLE_ITEMS = 8;
 /** Dropdown width in pixels */
 const DROPDOWN_WIDTH = 400;
+
+function autocompleteDropdownStyle(
+  placement: FileReferenceDropdownPlacement,
+  position: { top: number; left: number }
+): CSSProperties {
+  if (placement === 'below') {
+    return { top: position.top, left: position.left };
+  }
+  return { bottom: position.top, left: position.left };
+}
 
 /**
  * Resolve workspace display names for a set of results.
@@ -60,6 +73,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
   onSelect,
   onHoverItem,
   visible,
+  placement = 'above',
 }: FileReferenceAutocompleteProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,10 +111,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
     <div
       ref={containerRef}
       className="absolute z-50 w-[400px] max-w-[90vw] border-2 border-chatroom-border bg-chatroom-bg-primary shadow-lg overflow-hidden"
-      style={{
-        bottom: position.top,
-        left: position.left,
-      }}
+      style={autocompleteDropdownStyle(placement, position)}
     >
       <div
         ref={listRef}

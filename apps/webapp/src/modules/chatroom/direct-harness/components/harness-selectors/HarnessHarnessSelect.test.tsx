@@ -60,6 +60,15 @@ describe('HarnessHarnessSelect', () => {
     expect(screen.getByRole('button', { name: 'Select harness' })).not.toBeDisabled();
   });
 
+  it('uses conventional chatroom picker trigger styling', () => {
+    render(<HarnessHarnessSelect harnesses={HARNESSES} value="pi-sdk" onValueChange={vi.fn()} />);
+
+    const trigger = screen.getByRole('button', { name: 'Select harness' });
+    expect(trigger.className).toContain('bg-chatroom-bg-tertiary');
+    expect(trigger.className).toContain('uppercase');
+    expect(trigger.className).not.toContain('border-input');
+  });
+
   it('opens picker and shows harness option rows', () => {
     render(<HarnessHarnessSelect harnesses={HARNESSES} value="pi-sdk" onValueChange={vi.fn()} />);
     openDropdown();

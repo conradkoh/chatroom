@@ -39,7 +39,10 @@ function slotToArgs(slot: WorkspaceSlot | null | undefined) {
   };
 }
 
-export function useMultiWorkspaceFileTrees(workspaces: Workspace[]): {
+export function useMultiWorkspaceFileTrees(
+  workspaces: Workspace[],
+  options?: { autoRefreshOnMount?: boolean }
+): {
   refreshAll: (options?: { force?: boolean }) => void;
 } {
   const workspaceSlotsKey = JSON.stringify(
@@ -82,8 +85,9 @@ export function useMultiWorkspaceFileTrees(workspaces: Workspace[]): {
   );
 
   useEffect(() => {
+    if (!options?.autoRefreshOnMount) return;
     refreshAll();
-  }, [refreshAll]);
+  }, [options?.autoRefreshOnMount, refreshAll]);
 
   return useMemo(() => ({ refreshAll }), [refreshAll]);
 }

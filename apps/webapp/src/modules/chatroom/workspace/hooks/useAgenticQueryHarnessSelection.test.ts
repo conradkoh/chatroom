@@ -1,0 +1,241 @@
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useAgenticQueryHarnessSelection } from './useAgenticQueryHarnessSelection';
+
+import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
+
+let mockCapabilities: {
+  machineId: string | null;
+  harnesses: {
+    name: string;
+    providers: {
+      providerID: string;
+      name: string;
+      models: { modelID: string; name: string }[];
+    }[];
+  }[];
+} = {
+  machineId: null,
+  harnesses: [],
+};
+
+const mockGetLastUsed = vi.fn((): SearchConfigEntry | null => null);
+const mockRecordUsage = vi.fn();
+
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: (_api: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    return mockCapabilities;
+  },
+  useSessionMutation: () => vi.fn(),
+}));
+
+vi.mock('@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter', () => ({
+  useHarnessModelFilter: () => ({
+    isHidden: undefined,
+    setFilter: vi.fn(),
+  }),
+}));
+
+vi.mock('@/modules/chatroom/features/search-config/hooks/useSearchConfigUsage', () => ({
+  useSearchConfigUsage: () => ({
+    getAllUsage: vi.fn(() => new Map()),
+    getLastUsed: mockGetLastUsed,
+    recordUsage: mockRecordUsage,
+    clearUsage: vi.fn(),
+  }),
+}));
+
+vi.mock('@/modules/chatroom/features/search-config/hooks/useSearchConfigFavorites', () => ({
+  useSearchConfigFavorites: () => ({
+    favorites: [],
+    addFavorite: vi.fn(),
+    removeFavorite: vi.fn(),
+    moveFavorite: vi.fn(),
+    isFavorite: () => false,
+    isLoading: false,
+  }),
+}));
+
+describe('useAgenticQueryHarnessSelection', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockGetLastUsed.mockReturnValue(null);
+    mockRecordUsage.mockReset();
+    mockCapabilities = {
+      machineId: 'machine-1',
+      harnesses: [
+        {
+          name: 'opencode-sdk',
+          providers: [
+            {
+              providerID: 'openai',
+              name: 'OpenAI',
+              models: [{ modelID: 'gpt-4o', name: 'GPT-4o' }],
+            },
+            {
+              providerID: 'opencode',
+              name: 'OpenCode Zen',
+              models: [{ modelID: 'big-pickle', name: 'Big Pickle' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  it('returns harness and model selection ready for submit', async () => {
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    expect(result.current.harnessName).toBe('opencode-sdk');
+    expect(result.current.toSubmitSelection()).toEqual({
+      harnessName: 'opencode-sdk',
+      model: { providerID: 'openai', modelID: 'gpt-4o' },
+    });
+  });
+
+  it('persists selection per machine in localStorage', async () => {
+    const { result, rerender } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    rerender();
+
+    // Should be stored under machine key, not workspace key
+    const stored = JSON.parse(localStorage.getItem('agentic-query-harness:machine-1') ?? '{}');
+    expect(stored.harnessName).toBe('opencode-sdk');
+    expect(stored.modelKey).toBe('openai::gpt-4o');
+
+    // Workspace key should not exist
+    expect(localStorage.getItem('agentic-query-harness:ws-1')).toBeNull();
+  });
+
+  it('restores selection for different workspace on same machine', async () => {
+    localStorage.setItem(
+      'agentic-query-harness:machine-1',
+      JSON.stringify({ harnessName: 'opencode-sdk', modelKey: 'openai::gpt-4o' })
+    );
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-2'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    expect(result.current.harnessName).toBe('opencode-sdk');
+    expect(result.current.selectedModel).toBe('openai::gpt-4o');
+  });
+
+  it('migrates legacy workspace key once on first use', async () => {
+    // Set legacy data
+    localStorage.setItem(
+      'agentic-query-harness:ws-legacy',
+      JSON.stringify({ harnessName: 'opencode-sdk', modelKey: 'openai::gpt-4o' })
+    );
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-legacy'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    // Legacy key migrated to machine-scoped key
+    const stored = JSON.parse(localStorage.getItem('agentic-query-harness:machine-1') ?? '{}');
+    expect(stored.harnessName).toBe('opencode-sdk');
+  });
+
+  it('records usage when selection resolves', async () => {
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    expect(mockRecordUsage).toHaveBeenCalledWith({
+      harnessName: 'opencode-sdk',
+      modelKey: 'openai::gpt-4o',
+    });
+  });
+
+  it('prefers persisted UI selection over last-used search config on init', async () => {
+    localStorage.setItem(
+      'agentic-query-harness:machine-1',
+      JSON.stringify({ harnessName: 'opencode-sdk', modelKey: 'opencode::big-pickle' })
+    );
+    mockGetLastUsed.mockReturnValue({
+      harnessName: 'opencode-sdk',
+      modelKey: 'openai::gpt-4o',
+    });
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectedModel).toBe('opencode::big-pickle');
+    });
+
+    expect(result.current.harnessName).toBe('opencode-sdk');
+  });
+
+  it('persists selection changes before a search is submitted', async () => {
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    act(() => {
+      result.current.applyConfig({
+        harnessName: 'opencode-sdk',
+        modelKey: 'opencode::big-pickle',
+      });
+    });
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem('agentic-query-harness:machine-1') ?? '{}');
+      expect(stored.modelKey).toBe('opencode::big-pickle');
+    });
+
+    const { result: freshResult } = renderHook(() => useAgenticQueryHarnessSelection('ws-2'));
+
+    await waitFor(() => {
+      expect(freshResult.current.selectedModel).toBe('opencode::big-pickle');
+    });
+  });
+
+  it('falls back to last-used search config when no persisted selection exists', async () => {
+    mockGetLastUsed.mockReturnValue({
+      harnessName: 'opencode-sdk',
+      modelKey: 'opencode::big-pickle',
+    });
+
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectedModel).toBe('opencode::big-pickle');
+    });
+  });
+
+  it('returns favorites, currentEntry, and machineId', async () => {
+    const { result } = renderHook(() => useAgenticQueryHarnessSelection('ws-1'));
+
+    await waitFor(() => {
+      expect(result.current.selectionReady).toBe(true);
+    });
+
+    expect(result.current.machineId).toBe('machine-1');
+    expect(result.current.favorites).toEqual([]);
+    expect(result.current.currentEntry).toEqual({
+      harnessName: 'opencode-sdk',
+      modelKey: 'openai::gpt-4o',
+    });
+    expect(typeof result.current.applyConfig).toBe('function');
+    expect(typeof result.current.isFavorite).toBe('function');
+  });
+});

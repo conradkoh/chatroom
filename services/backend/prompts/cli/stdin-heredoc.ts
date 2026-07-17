@@ -14,6 +14,9 @@ export const CONTEXT_STDIN_DELIMITER = 'CHATROOM_CONTEXT_END';
 /** Bash heredoc terminator for `chatroom backlog add` / `update` stdin. */
 export const BACKLOG_STDIN_DELIMITER = 'CHATROOM_BACKLOG_END';
 
+/** Bash heredoc terminator for `chatroom agentic-query complete` stdin. */
+export const AGENTIC_QUERY_STDIN_DELIMITER = 'CHATROOM_AGENTIC_QUERY_END';
+
 /** Bash heredoc terminator for structured multi-param commands (e.g. classify). */
 const CLASSIFY_STDIN_DELIMITER = 'CHATROOM_CLASSIFY_END';
 
@@ -24,11 +27,13 @@ const RESERVED_STDIN_HEREDOC_DELIMITERS = [
   HANDOFF_STDIN_DELIMITER,
   CONTEXT_STDIN_DELIMITER,
   BACKLOG_STDIN_DELIMITER,
+  AGENTIC_QUERY_STDIN_DELIMITER,
   CLASSIFY_STDIN_DELIMITER,
 ] as const;
 
 const RESERVED_STRUCTURED_PARAM_MARKERS = [
   HANDOFF_MESSAGE_MARKER,
+  '---RESULT---',
   '---TITLE---',
   '---DESCRIPTION---',
   '---TECH_SPECS---',

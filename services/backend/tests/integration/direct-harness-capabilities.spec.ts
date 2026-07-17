@@ -26,8 +26,7 @@ afterEach(() => {
 
 describe('publishMachineCapabilities', () => {
   test('upserts a machine registry entry', async () => {
-    const { sessionId, machineId, workspaceId } =
-      await setupWorkspaceForSession('pub-success');
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pub-success');
 
     await t.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
@@ -40,7 +39,7 @@ describe('publishMachineCapabilities', () => {
           harnesses: [
             {
               name: 'opencode-sdk',
-              displayName: 'Opencode',
+              displayName: 'OpenCode (SDK)',
               agents: [{ name: 'build', mode: 'primary' as const }],
               providers: [],
             },
@@ -51,8 +50,7 @@ describe('publishMachineCapabilities', () => {
   });
 
   test('second publish replaces the previous entry (upsert semantics)', async () => {
-    const { sessionId, machineId, workspaceId } =
-      await setupWorkspaceForSession('pub-upsert');
+    const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pub-upsert');
 
     await t.mutation(api.daemon.directHarness.capabilities.publishMachineCapabilities, {
       sessionId,
@@ -73,7 +71,7 @@ describe('publishMachineCapabilities', () => {
           harnesses: [
             {
               name: 'opencode-sdk',
-              displayName: 'Opencode',
+              displayName: 'OpenCode (SDK)',
               agents: [
                 { name: 'build', mode: 'primary' as const },
                 { name: 'debug', mode: 'subagent' as const },
@@ -101,5 +99,3 @@ describe('publishMachineCapabilities', () => {
     ).rejects.toThrow('directHarnessWorkers feature flag is disabled');
   });
 });
-
-

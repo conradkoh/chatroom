@@ -1,10 +1,14 @@
+// fallow-ignore-next-line unused-export
 export { useMultiWorkspaceFiles } from './useMultiWorkspaceFiles';
+export { useMultiWorkspaceFileSync } from './useMultiWorkspaceFileSync';
 // fallow-ignore-next-line unused-export
 export { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 export { useWorkspaceDirExplorer } from './useWorkspaceDirExplorer';
 // fallow-ignore-next-line unused-export
 export { useWorkspaceFileTree } from './useWorkspaceFileTree';
+// fallow-ignore-next-line unused-export
 export { useMultiWorkspaceFileTrees } from './useMultiWorkspaceFileTrees';
+export { refreshWorkspaceFileTree } from './workspaceFileTreeRefreshCoordinator';
 export {
   // fallow-ignore-next-line unused-export
   fileTreeEntriesToExplorerNodes,

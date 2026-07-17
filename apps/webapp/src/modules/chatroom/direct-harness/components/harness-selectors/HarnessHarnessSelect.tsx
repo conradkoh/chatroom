@@ -4,8 +4,6 @@ import { ChevronDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
-import type { HarnessOption } from '../../hooks/useHarnessConfig';
-import { selectTriggerClassName } from '../ui/select';
 import {
   ResponsivePickerShell,
   PickerSearch,
@@ -14,8 +12,12 @@ import {
   usePickerSearchState,
   filterPickerItems,
 } from '../../../components/picker';
-
-import { cn } from '@/lib/utils';
+import {
+  pickerTriggerClassName,
+  pickerTriggerChevronClassName,
+  PICKER_TRIGGER_CHEVRON_SIZE,
+} from '../../../components/picker/pickerTriggerStyles';
+import type { HarnessOption } from '../../hooks/useHarnessConfig';
 
 interface HarnessHarnessSelectProps {
   harnesses: HarnessOption[];
@@ -41,7 +43,7 @@ export function HarnessHarnessSelect({
     [harnesses, value]
   );
   const triggerLabel = hasHarnesses
-    ? (selectedHarness?.displayName ?? 'Harness')
+    ? (selectedHarness?.displayName ?? 'Harness...')
     : 'No harnesses available';
 
   const filteredHarnesses = filterPickerItems(
@@ -62,19 +64,15 @@ export function HarnessHarnessSelect({
         <button
           type="button"
           disabled={isDisabled}
-          className={selectTriggerClassName}
+          className={pickerTriggerClassName}
           title={hasHarnesses ? 'Select harness' : CAPABILITIES_REFRESH_HINT}
           aria-label={hasHarnesses ? 'Select harness' : 'No harnesses available'}
         >
-          <span
-            className={cn(
-              'truncate text-left flex-1',
-              !selectedHarness && hasHarnesses && 'text-muted-foreground'
-            )}
-          >
-            {triggerLabel}
-          </span>
-          <ChevronDown size={12} className="shrink-0 opacity-50" />
+          <span className="truncate flex items-center min-w-0">{triggerLabel}</span>
+          <ChevronDown
+            size={PICKER_TRIGGER_CHEVRON_SIZE}
+            className={pickerTriggerChevronClassName}
+          />
         </button>
       }
     >

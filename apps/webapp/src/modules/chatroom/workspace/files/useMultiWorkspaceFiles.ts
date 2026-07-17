@@ -3,45 +3,23 @@
 
 import { useCallback, useMemo } from 'react';
 
+import {
+  MAX_MULTI_WORKSPACE_SLOTS,
+  multiWorkspaceSlotsKey,
+  prepareMultiWorkspaceSlots,
+  tagFileEntriesWithWorkspaceId,
+} from './multiWorkspaceSlots';
 import { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 
-import { encodeWorkspaceId, normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import type { Workspace } from '@/modules/chatroom/types/workspace';
-
-const MAX_WORKSPACES = 10;
-
-interface WorkspaceSlot {
-  machineId: string;
-  workingDir: string;
-  workspaceId: string;
-}
 
 interface UseMultiWorkspaceFilesResult {
   files: FileEntry[];
   refreshAll: (options?: { force?: boolean }) => void;
 }
 
-// fallow-ignore-next-line code-duplication
-function prepareSlots(workspaces: Workspace[]): (WorkspaceSlot | null)[] {
-  const slots: (WorkspaceSlot | null)[] = [];
-  for (let i = 0; i < MAX_WORKSPACES; i++) {
-    const ws = workspaces[i];
-    if (ws && ws.machineId && ws.workingDir) {
-      const workingDir = normalizeWorkspaceWorkingDir(ws.workingDir);
-      slots.push({
-        machineId: ws.machineId,
-        workingDir,
-        workspaceId: encodeWorkspaceId(ws.machineId, workingDir),
-      });
-    } else {
-      slots.push(null);
-    }
-  }
-  return slots;
-}
-
-function slotToArgs(slot: WorkspaceSlot | null | undefined) {
+function slotToArgs(slot: ReturnType<typeof prepareMultiWorkspaceSlots>[number]) {
   return {
     machineId: slot?.machineId ?? '',
     workingDir: slot?.workingDir ?? '',
@@ -50,16 +28,10 @@ function slotToArgs(slot: WorkspaceSlot | null | undefined) {
   };
 }
 
-function tagEntries(entries: FileEntry[], workspaceId: string | undefined): FileEntry[] {
-  if (!workspaceId || entries.length === 0) return entries;
-  return entries.map((e) => ({ ...e, workspaceId }));
-}
-
+// fallow-ignore-next-line unused-export
 export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspaceFilesResult {
-  const workspaceSlotsKey = JSON.stringify(
-    workspaces.slice(0, MAX_WORKSPACES).map((w) => `${w.machineId}::${w.workingDir}`)
-  );
-  const slots = useMemo(() => prepareSlots(workspaces), [workspaceSlotsKey]);
+  const workspaceSlotsKey = multiWorkspaceSlotsKey(workspaces);
+  const slots = useMemo(() => prepareMultiWorkspaceSlots(workspaces), [workspaceSlotsKey]);
 
   const listing0 = useWorkspaceFileTreeEntries(slotToArgs(slots[0]));
   const listing1 = useWorkspaceFileTreeEntries(slotToArgs(slots[1]));
@@ -107,8 +79,11 @@ export function useMultiWorkspaceFiles(workspaces: Workspace[]): UseMultiWorkspa
 
   const files = useMemo(() => {
     const merged: FileEntry[] = [];
-    for (let i = 0; i < MAX_WORKSPACES; i++) {
-      const tagged = tagEntries(listings[i]?.entries ?? [], slots[i]?.workspaceId);
+    for (let i = 0; i < MAX_MULTI_WORKSPACE_SLOTS; i++) {
+      const tagged = tagFileEntriesWithWorkspaceId(
+        listings[i]?.entries ?? [],
+        slots[i]?.workspaceId
+      );
       if (tagged.length > 0) {
         merged.push(...tagged);
       }

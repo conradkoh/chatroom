@@ -85,6 +85,15 @@ describe('HarnessModelSelect', () => {
     expect(screen.getByRole('button', { name: 'No models available yet' })).toBeDisabled();
   });
 
+  it('uses conventional chatroom picker trigger styling', () => {
+    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+
+    const trigger = screen.getByRole('button', { name: 'Select model' });
+    expect(trigger.className).toContain('bg-chatroom-bg-tertiary');
+    expect(trigger.className).toContain('uppercase');
+    expect(trigger.className).not.toContain('border-input');
+  });
+
   it('renders popover content with opaque chatroom primary background', () => {
     mockUseIsDesktop.mockReturnValue(true);
     render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);

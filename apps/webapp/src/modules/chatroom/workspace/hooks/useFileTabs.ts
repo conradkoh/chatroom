@@ -8,13 +8,20 @@ import { getFileName } from '@/lib/pathUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface FileTab {
-  /** Relative file path (unique key) */
-  filePath: string;
-  /** Display name (file name only) */
-  name: string;
-  /** Whether this tab is pinned (double-click) vs preview (single-click, italic) */
-  isPinned: boolean;
+export type AgenticQueryMode = 'search' | 'ask';
+
+export type EditorTab =
+  | { kind: 'file'; filePath: string; name: string; isPinned: boolean }
+  | {
+      kind: 'agentic-query';
+      queryId: string;
+      name: string;
+      mode: AgenticQueryMode;
+      isPinned: boolean;
+    };
+
+export function editorTabKey(tab: EditorTab): string {
+  return tab.kind === 'file' ? tab.filePath : `agentic-query:${tab.queryId}`;
 }
 
 export type RightPaneViewType = 'preview' | 'table';
@@ -40,8 +47,8 @@ interface ExpandState {
 }
 
 interface FileTabsPersistedState {
-  tabs: FileTab[];
-  activeTabPath: string | null;
+  tabs: EditorTab[];
+  activeTabKey: string | null;
   expandedTabPath: string | null;
   expandedPane: ExpandPane | null;
   rightTabs: RightPaneTab[];
@@ -50,7 +57,7 @@ interface FileTabsPersistedState {
 
 const defaultPersistedState: FileTabsPersistedState = {
   tabs: [],
-  activeTabPath: null,
+  activeTabKey: null,
   expandedTabPath: null,
   expandedPane: null,
   rightTabs: [],
@@ -61,11 +68,20 @@ function getStorageKey(chatroomId: string | undefined): string {
   return `fileTabs:${chatroomId ?? 'global'}`;
 }
 
-function parseFileTabs(raw: unknown): FileTab[] {
+function parseEditorTabs(raw: unknown): EditorTab[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((item): item is FileTab => {
+  return raw.filter((item): item is EditorTab => {
     if (!item || typeof item !== 'object') return false;
     const t = item as Record<string, unknown>;
+    if (t.kind === 'agentic-query') {
+      return (
+        typeof t.queryId === 'string' &&
+        typeof t.name === 'string' &&
+        (t.mode === 'search' || t.mode === 'ask') &&
+        typeof t.isPinned === 'boolean'
+      );
+    }
+    // Default: treat as file tab (backward compat with saved FileTab[])
     return (
       typeof t.filePath === 'string' &&
       typeof t.name === 'string' &&
@@ -88,6 +104,13 @@ function parseRightTabs(raw: unknown): RightPaneTab[] {
   });
 }
 
+function normalizeTab(t: EditorTab): EditorTab {
+  if (t.kind === 'file') {
+    return { ...t, name: t.name || getFileName(t.filePath) };
+  }
+  return t;
+}
+
 function expandStateFromSaved(saved: FileTabsPersistedState): ExpandState | null {
   if (!saved.expandedTabPath) return null;
   return {
@@ -97,13 +120,13 @@ function expandStateFromSaved(saved: FileTabsPersistedState): ExpandState | null
 }
 
 function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersistedState {
-  const tabPaths = new Set(state.tabs.map((t) => t.filePath));
-  let { activeTabPath, expandedTabPath, expandedPane, activeRightTabKey } = state;
+  const tabKeys = new Set(state.tabs.map(editorTabKey));
+  let { activeTabKey, expandedTabPath, expandedPane, activeRightTabKey } = state;
 
-  if (activeTabPath !== null && !tabPaths.has(activeTabPath)) {
-    activeTabPath = state.tabs.length > 0 ? state.tabs[0].filePath : null;
+  if (activeTabKey !== null && !tabKeys.has(activeTabKey)) {
+    activeTabKey = state.tabs.length > 0 ? editorTabKey(state.tabs[0]) : null;
   }
-  if (expandedTabPath !== null && !tabPaths.has(expandedTabPath)) {
+  if (expandedTabPath !== null && !tabKeys.has(expandedTabPath)) {
     expandedTabPath = null;
     expandedPane = null;
   }
@@ -116,7 +139,7 @@ function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersiste
     activeRightTabKey = state.rightTabs.length > 0 ? state.rightTabs[0].key : null;
   }
 
-  return { ...state, activeTabPath, expandedTabPath, expandedPane, activeRightTabKey };
+  return { ...state, activeTabKey, expandedTabPath, expandedPane, activeRightTabKey };
 }
 
 function readSavedState(storageKey: string): FileTabsPersistedState {
@@ -128,7 +151,13 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
     const data = JSON.parse(raw) as Record<string, unknown>;
     if (!data || typeof data !== 'object') return { ...defaultPersistedState };
 
-    const activeTabPath = typeof data.activeTabPath === 'string' ? data.activeTabPath : null;
+    // Backward compat: try activeTabKey first, then activeTabPath
+    const activeTabKey =
+      typeof data.activeTabKey === 'string'
+        ? data.activeTabKey
+        : typeof data.activeTabPath === 'string'
+          ? data.activeTabPath
+          : null;
     const expandedTabPath = typeof data.expandedTabPath === 'string' ? data.expandedTabPath : null;
     const expandedPane =
       data.expandedPane === 'editor' || data.expandedPane === 'preview'
@@ -140,8 +169,8 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
       typeof data.activeRightTabKey === 'string' ? data.activeRightTabKey : null;
 
     return sanitizePersistedState({
-      tabs: parseFileTabs(data.tabs),
-      activeTabPath,
+      tabs: parseEditorTabs(data.tabs).map(normalizeTab),
+      activeTabKey,
       expandedTabPath,
       expandedPane,
       rightTabs: parseRightTabs(data.rightTabs),
@@ -161,20 +190,24 @@ function writeSavedState(storageKey: string, state: FileTabsPersistedState): voi
   }
 }
 
+// ─── Public return type ───────────────────────────────────────────────────────
+
 export interface UseFileTabsReturn {
-  // Left pane
-  tabs: FileTab[];
+  tabs: EditorTab[];
+  activeTabKey: string | null;
   activeTabPath: string | null;
   expandedTabPath: string | null;
   expandedPane: ExpandPane | null;
   openPreview: (filePath: string) => void;
   pinTab: (filePath: string) => void;
-  closeTab: (filePath: string) => void;
-  closeOtherTabs: (filePath: string) => void;
-  setActiveTab: (filePath: string) => void;
+  closeTab: (key: string) => void;
+  closeOtherTabs: (key: string) => void;
+  setActiveTab: (key: string) => void;
   toggleExpanded: (filePath: string) => void;
   togglePreviewExpanded: (filePath: string) => void;
   renamePath: (oldPath: string, newPath: string) => void;
+  openAgenticQueryTab: (queryId: string, mode: AgenticQueryMode, name?: string) => void;
+  closeAgenticQueryTab: (queryId: string) => void;
   // Right pane
   rightTabs: RightPaneTab[];
   activeRightTabKey: string | null;
@@ -184,6 +217,13 @@ export interface UseFileTabsReturn {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function activeFilePath(tabs: EditorTab[], activeTabKey: string | null): string | null {
+  if (!activeTabKey) return null;
+  const tab = tabs.find((t) => editorTabKey(t) === activeTabKey);
+  if (tab?.kind === 'file') return tab.filePath;
+  return null;
+}
 
 function rightTabKey(filePath: string, viewType: RightPaneViewType): string {
   return `${filePath}::${viewType}`;
@@ -200,19 +240,16 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   const chatroomId = options?.chatroomId;
   const storageKey = getStorageKey(chatroomId);
 
-  // Track which storage key was used for the current state to prevent cross-contamination
   const lastStorageKeyRef = useRef<string>(storageKey);
 
-  // Synchronous restore on mount so the first persist cycle never writes empty state.
-  const [tabs, setTabs] = useState<FileTab[]>(() => readSavedState(storageKey).tabs);
-  const [activeTabPath, setActiveTabPath] = useState<string | null>(
-    () => readSavedState(storageKey).activeTabPath
+  const [tabs, setTabs] = useState<EditorTab[]>(() => readSavedState(storageKey).tabs);
+  const [activeTabKey, setActiveTabKey] = useState<string | null>(
+    () => readSavedState(storageKey).activeTabKey
   );
   const [expandState, setExpandState] = useState<ExpandState | null>(() =>
     expandStateFromSaved(readSavedState(storageKey))
   );
 
-  // Right pane state
   const [rightTabs, setRightTabs] = useState<RightPaneTab[]>(
     () => readSavedState(storageKey).rightTabs
   );
@@ -220,16 +257,14 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     () => readSavedState(storageKey).activeRightTabKey
   );
 
-  /** Skip one persist cycle after the restore effect applies (chatroom switch). */
   const skipNextPersistRef = useRef(false);
 
-  // Restore state from localStorage when storage key changes (chatroom switch)
   useEffect(() => {
     if (lastStorageKeyRef.current === storageKey) return;
 
     const saved = readSavedState(storageKey);
     setTabs(saved.tabs);
-    setActiveTabPath(saved.activeTabPath);
+    setActiveTabKey(saved.activeTabKey);
     setExpandState(expandStateFromSaved(saved));
     setRightTabs(saved.rightTabs);
     setActiveRightTabKey(saved.activeRightTabKey);
@@ -237,7 +272,6 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     skipNextPersistRef.current = true;
   }, [storageKey]);
 
-  // Persist state to localStorage when it changes
   useEffect(() => {
     if (skipNextPersistRef.current) {
       skipNextPersistRef.current = false;
@@ -247,64 +281,84 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
     writeSavedState(storageKey, {
       tabs,
-      activeTabPath,
+      activeTabKey,
       expandedTabPath: expandState?.filePath ?? null,
       expandedPane: expandState?.pane ?? null,
       rightTabs,
       activeRightTabKey,
     });
-  }, [storageKey, tabs, activeTabPath, expandState, rightTabs, activeRightTabKey]);
+  }, [storageKey, tabs, activeTabKey, expandState, rightTabs, activeRightTabKey]);
 
   // ─── Left pane ──────────────────────────────────────────────
 
   const openPreview = useCallback((filePath: string) => {
     setTabs((prev) => {
-      const existing = prev.find((t) => t.filePath === filePath);
+      const existing = prev.find((t) => t.kind === 'file' && t.filePath === filePath) as
+        | EditorTab
+        | undefined;
       if (existing) return prev;
       const withoutPreview = prev.filter((t) => t.isPinned);
-      return [...withoutPreview, { filePath, name: getFileName(filePath), isPinned: false }];
+      return [
+        ...withoutPreview,
+        { kind: 'file' as const, filePath, name: getFileName(filePath), isPinned: false },
+      ];
     });
-    setActiveTabPath(filePath);
+    setActiveTabKey(filePath);
   }, []);
 
   const pinTab = useCallback((filePath: string) => {
     setTabs((prev) => {
-      const existing = prev.find((t) => t.filePath === filePath);
+      const existing = prev.find((t) => t.kind === 'file' && t.filePath === filePath) as
+        | EditorTab
+        | undefined;
       if (existing) {
-        return prev.map((t) => (t.filePath === filePath ? { ...t, isPinned: true } : t));
+        return prev.map((t) =>
+          t.kind === 'file' && t.filePath === filePath ? { ...t, isPinned: true } : t
+        );
       }
       const withoutPreview = prev.filter((t) => t.isPinned);
-      return [...withoutPreview, { filePath, name: getFileName(filePath), isPinned: true }];
+      return [
+        ...withoutPreview,
+        { kind: 'file' as const, filePath, name: getFileName(filePath), isPinned: true },
+      ];
     });
-    setActiveTabPath(filePath);
+    setActiveTabKey(filePath);
   }, []);
 
-  const closeTab = useCallback((filePath: string) => {
-    setTabs((prev) => {
-      const next = prev.filter((t) => t.filePath !== filePath);
-      setActiveTabPath((currentActive) => {
-        if (currentActive !== filePath) return currentActive;
-        const idx = prev.findIndex((t) => t.filePath === filePath);
-        if (next.length === 0) return null;
-        return next[Math.min(idx, next.length - 1)].filePath;
+  const closeTab = useCallback(
+    (key: string) => {
+      setTabs((prev) => {
+        const next = prev.filter((t) => editorTabKey(t) !== key);
+        setActiveTabKey((currentActive) => {
+          if (currentActive !== key) return currentActive;
+          const idx = prev.findIndex((t) => editorTabKey(t) === key);
+          if (next.length === 0) return null;
+          return editorTabKey(next[Math.min(idx, next.length - 1)]);
+        });
+        return next;
       });
-      return next;
-    });
-    setExpandState((prev) => (prev?.filePath === filePath ? null : prev));
-  }, []);
+      setExpandState((prev) => {
+        const tab = prev
+          ? tabs.find((t) => t.kind === 'file' && t.filePath === prev.filePath)
+          : undefined;
+        return prev && !tab ? null : prev;
+      });
+    },
+    [tabs]
+  );
 
-  const closeOtherTabs = useCallback((keepFilePath: string) => {
+  const closeOtherTabs = useCallback((key: string) => {
     setTabs((prev) => {
-      const kept = prev.filter((t) => t.filePath === keepFilePath);
+      const kept = prev.filter((t) => editorTabKey(t) === key);
       if (kept.length === 0) return prev;
-      setActiveTabPath(keepFilePath);
+      setActiveTabKey(key);
       return kept;
     });
-    setExpandState((prev) => (prev?.filePath === keepFilePath ? prev : null));
+    setExpandState((prev) => (prev?.filePath === key ? prev : null));
   }, []);
 
-  const setActive = useCallback((filePath: string) => {
-    setActiveTabPath(filePath);
+  const setActive = useCallback((key: string) => {
+    setActiveTabKey(key);
   }, []);
 
   const toggleExpanded = useCallback((filePath: string) => {
@@ -330,13 +384,14 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
     setTabs((prev) =>
       prev.map((tab) => {
+        if (tab.kind !== 'file') return tab;
         const remapped = remapFilePath(tab.filePath);
         if (remapped === tab.filePath) return tab;
         return { ...tab, filePath: remapped, name: getFileName(remapped) };
       })
     );
 
-    setActiveTabPath((prev) => (prev ? remapFilePath(prev) : prev));
+    setActiveTabKey((prev) => (prev ? remapFilePath(prev) : prev));
     setExpandState((prev) => {
       if (!prev) return prev;
       const remapped = remapFilePath(prev.filePath);
@@ -368,13 +423,57 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     });
   }, []);
 
+  const openAgenticQueryTab = useCallback(
+    (queryId: string, mode: AgenticQueryMode, name?: string) => {
+      const key = `agentic-query:${queryId}`;
+      setTabs((prev) => {
+        const existing = prev.find(
+          (t): t is Extract<EditorTab, { kind: 'agentic-query' }> =>
+            t.kind === 'agentic-query' && t.queryId === queryId
+        );
+        if (existing) {
+          const nextName = name ?? existing.name;
+          if (existing.mode === mode && existing.name === nextName) {
+            return prev;
+          }
+          return prev.map((t) =>
+            t.kind === 'agentic-query' && t.queryId === queryId
+              ? { ...t, mode, ...(name !== undefined ? { name } : {}) }
+              : t
+          );
+        }
+        const withoutPreview = prev.filter((t) => t.isPinned);
+        return [
+          ...withoutPreview,
+          {
+            kind: 'agentic-query' as const,
+            queryId,
+            name: name ?? (mode === 'search' ? 'Agentic Search' : 'Agentic Ask'),
+            mode,
+            isPinned: true,
+          },
+        ];
+      });
+      setActiveTabKey((current) => (current === key ? current : key));
+    },
+    []
+  );
+
+  const closeAgenticQueryTab = useCallback(
+    (queryId: string) => {
+      const key = `agentic-query:${queryId}`;
+      closeTab(key);
+    },
+    [closeTab]
+  );
+
   // ─── Right pane ─────────────────────────────────────────────
 
   const openRight = useCallback((filePath: string, viewType: RightPaneViewType) => {
     const key = rightTabKey(filePath, viewType);
     setRightTabs((prev) => {
       const existing = prev.find((t) => t.key === key);
-      if (existing) return prev; // already open, just activate
+      if (existing) return prev;
       return [...prev, { key, filePath, name: rightTabName(filePath, viewType), viewType }];
     });
     setActiveRightTabKey(key);
@@ -397,10 +496,12 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setActiveRightTabKey(key);
   }, []);
 
+  const computedActiveTabPath = activeFilePath(tabs, activeTabKey);
+
   return {
-    // Left
     tabs,
-    activeTabPath,
+    activeTabKey,
+    activeTabPath: computedActiveTabPath,
     expandedTabPath: expandState?.filePath ?? null,
     expandedPane: expandState?.pane ?? null,
     openPreview,
@@ -411,7 +512,8 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     toggleExpanded,
     togglePreviewExpanded,
     renamePath,
-    // Right
+    openAgenticQueryTab,
+    closeAgenticQueryTab,
     rightTabs,
     activeRightTabKey,
     openRight,

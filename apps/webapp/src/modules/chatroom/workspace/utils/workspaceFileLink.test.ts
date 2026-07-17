@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   isWorkspaceFileLink,
   looksLikeWorkspacePath,
-  normalizeWorkspaceFilePath,
   resolveWorkspaceFileLinkOpenTarget,
   splitTextOnWorkspacePaths,
 } from './workspaceFileLink';
@@ -14,6 +13,11 @@ describe('workspaceFileLink', () => {
       expect(looksLikeWorkspacePath('apps/webapp/src/foo.ts')).toBe(true);
       expect(looksLikeWorkspacePath('./README.md')).toBe(true);
       expect(looksLikeWorkspacePath('src/index.tsx')).toBe(true);
+    });
+
+    it('returns true for paths with line number suffixes', () => {
+      expect(looksLikeWorkspacePath('apps/webapp/src/foo.ts:42')).toBe(true);
+      expect(looksLikeWorkspacePath('apps/webapp/src/foo.ts:42-48')).toBe(true);
     });
 
     it('returns false for non-path text', () => {
@@ -71,6 +75,29 @@ describe('workspaceFileLink', () => {
         'd/styles/main.scss',
       ]);
     });
+
+    it('linkifies paths with line numbers using hash fragment href encoding', () => {
+      expect(splitTextOnWorkspacePaths('See apps/webapp/src/foo.ts:42 for auth')).toEqual([
+        { type: 'text', value: 'See ' },
+        {
+          type: 'link',
+          url: 'apps/webapp/src/foo.ts#L42',
+          children: [{ type: 'text', value: 'apps/webapp/src/foo.ts:42' }],
+        },
+        { type: 'text', value: ' for auth' },
+      ]);
+    });
+
+    it('linkifies paths with line ranges using hash fragment href encoding', () => {
+      expect(splitTextOnWorkspacePaths('apps/webapp/src/foo.ts:10-15 handles it')).toEqual([
+        {
+          type: 'link',
+          url: 'apps/webapp/src/foo.ts#L10-L15',
+          children: [{ type: 'text', value: 'apps/webapp/src/foo.ts:10-15' }],
+        },
+        { type: 'text', value: ' handles it' },
+      ]);
+    });
   });
 
   describe('isWorkspaceFileLink', () => {
@@ -79,21 +106,16 @@ describe('workspaceFileLink', () => {
       expect(isWorkspaceFileLink('src/index.ts')).toBe(true);
     });
 
+    it('returns true for workspace href citations', () => {
+      expect(isWorkspaceFileLink('workspace:apps/webapp/src/foo.ts#L42')).toBe(true);
+      expect(isWorkspaceFileLink('workspace:apps/webapp/src/foo.ts#L42-L48')).toBe(true);
+    });
+
     it('returns false for external URLs and anchors', () => {
       expect(isWorkspaceFileLink('https://example.com')).toBe(false);
       expect(isWorkspaceFileLink('http://example.com')).toBe(false);
       expect(isWorkspaceFileLink('mailto:a@b.com')).toBe(false);
       expect(isWorkspaceFileLink('#section')).toBe(false);
-    });
-  });
-
-  describe('normalizeWorkspaceFilePath', () => {
-    it('strips ./ prefix', () => {
-      expect(normalizeWorkspaceFilePath('./apps/webapp/page.tsx')).toBe('apps/webapp/page.tsx');
-    });
-
-    it('strips file:// prefix', () => {
-      expect(normalizeWorkspaceFilePath('file://src/foo.ts')).toBe('src/foo.ts');
     });
   });
 

@@ -17,11 +17,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { isBinaryFile } from './binaryDetection';
 import { FileCopyActionsMenu } from './FileCopyActionsMenu';
-import { useContainedSelectAll } from './useContainedSelectAll';
-import { FileContentActionBar } from '../../workspace/components/FileContentActionBar';
-import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 import { FileTypeIcon } from './fileIcons';
+import { useContainedSelectAll } from './useContainedSelectAll';
 import type { FileEntry } from './useFileSelector';
+import { usePendingFileHighlight } from '../../context/PendingFileHighlightContext';
+import { FileContentActionBar } from '../../workspace/components/FileContentActionBar';
 import {
   isMarkdownFile,
   isCsvFile,
@@ -32,6 +32,7 @@ import {
   SyntaxHighlighter,
 } from '../../workspace/file-renderers';
 import { useFileContent, type FileContentResult } from '../../workspace/hooks/useFileContent';
+import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
 import {
   FixedModal,
@@ -349,6 +350,8 @@ const FileContentPanel = memo(function FileContentPanel({
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   useContainedSelectAll(contentRef);
+  const { peekHighlightForFile } = usePendingFileHighlight();
+  const fileHighlight = filePath ? peekHighlightForFile(filePath) : null;
 
   if (!filePath) {
     return (
@@ -402,6 +405,14 @@ const FileContentPanel = memo(function FileContentPanel({
         onMouseDown={() => contentRef.current?.focus({ preventScroll: true })}
         className="flex flex-1 overflow-auto min-h-0 select-text outline-none"
       >
+        {fileHighlight ? (
+          <span
+            data-testid="file-preview-pending-highlight"
+            data-start-line={fileHighlight.startLine}
+            data-end-line={fileHighlight.endLine}
+            className="sr-only"
+          />
+        ) : null}
         {viewMode === 'preview' && filePath && isMarkdownFile(filePath) ? (
           /* Rendered markdown preview */
           <div className="flex-1 p-6 overflow-auto">

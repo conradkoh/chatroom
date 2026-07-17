@@ -79,7 +79,7 @@ export interface OpencodeSdkHarnessOptions {
 
 export class OpencodeSdkHarness implements BoundHarness {
   readonly type = 'opencode-sdk' as const;
-  readonly displayName = 'Opencode';
+  readonly displayName = 'OpenCode (SDK)';
 
   private readonly client: OpencodeClient;
   private readonly childProcess: ChildProcess;
