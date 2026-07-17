@@ -175,6 +175,12 @@ export function SavedCommandModal({
         await updateSavedCommand({
           commandId: initial._id,
           name: trimmedName,
+          ...(scope !== initial.scope
+            ? {
+                scope,
+                ...(scope === 'chatroom' ? { chatroomId: chatroomId as Id<'chatroom_rooms'> } : {}),
+              }
+            : {}),
           command: updatePayload,
         });
         toast.success(`Updated ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
@@ -329,8 +335,11 @@ export function SavedCommandModal({
             <select
               id="command-scope"
               value={scope}
-              onChange={(e) => setScope(e.target.value as SavedCommandScope)}
-              disabled={isEditMode || isSubmitting}
+              onChange={(e) => {
+                setScope(e.target.value as SavedCommandScope);
+                setNameError('');
+              }}
+              disabled={isSubmitting}
               className="w-full px-3 py-2 text-sm bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-border-strong transition-colors rounded-none disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {SAVED_COMMAND_SCOPES.map((s) => (
