@@ -96,6 +96,7 @@ import { isMarkdownFile } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
+import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
 import type { AgenticQueryMode, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { editorTabKey } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
@@ -628,6 +629,11 @@ export function ChatroomDashboard({
   }, [openTab]);
 
   useAgenticSearchShortcut({ onOpen: handleOpenAgenticQuery });
+  useExplorerTabCloseShortcut({
+    enabled: activeView === 'explorer',
+    activeTabKey: fileTabs.activeTabKey,
+    onCloseTab: fileTabs.closeTab,
+  });
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
