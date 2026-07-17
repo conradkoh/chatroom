@@ -79,6 +79,10 @@
       "file": "**/commands/machine/daemon-start/init.ts",
       "exports": ["discoverModels", "initDaemonEffect"],
     },
+    {
+      "file": "**/workspace/hooks/useExplorerTabCloseShortcut.ts",
+      "exports": ["isExplorerTabCloseShortcut", "isAppNavigationTarget"],
+    },
   ],
   "duplicates": {
     "ignore": [
