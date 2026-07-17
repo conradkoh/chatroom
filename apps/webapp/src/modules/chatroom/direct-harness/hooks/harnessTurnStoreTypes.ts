@@ -3,12 +3,12 @@ import type {
   HarnessMessage,
 } from '@workspace/backend/src/domain/direct-harness/types';
 
-/** Typed config for the parameterized core hook — no `any` query refs. */
+/** Typed config for the parameterized core hook. Query refs are Convex FunctionReference. */
 export interface HarnessTurnStoreQueries {
-  readonly getLatestTurns: { (...args: any[]): any };
-  readonly getTurnsSince: { (...args: any[]): any };
-  readonly getOlderTurns: { (...args: any[]): any };
-  readonly getStreamingTurnChunks: { (...args: any[]): any };
+  readonly getLatestTurns: any;
+  readonly getTurnsSince: any;
+  readonly getOlderTurns: any;
+  readonly getStreamingTurnChunks: any;
 }
 
 export interface HarnessTurnStoreConfig<TScopeId extends string> {
