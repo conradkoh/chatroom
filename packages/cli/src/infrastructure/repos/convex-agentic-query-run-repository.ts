@@ -1,16 +1,9 @@
-// fallow-ignore-file unused-class-member code-duplication
-
 import { api } from '../../api.js';
 import type { OpenCodeSessionId } from '../../domain/direct-harness/entities/harness-session.js';
 import type { SessionRepository } from '../../domain/direct-harness/ports/session-repository.js';
+import type { ConvexRepositoryOptions } from './convex-repository-options.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BackendCall = (endpoint: any, args: any) => Promise<any>;
-
-export interface ConvexAgenticQueryRunRepositoryOptions {
-  readonly backend: { mutation: BackendCall; query: BackendCall };
-  readonly sessionId: string;
-}
+export type ConvexAgenticQueryRunRepositoryOptions = ConvexRepositoryOptions;
 
 export class ConvexAgenticQueryRunRepository implements SessionRepository {
   constructor(private readonly options: ConvexAgenticQueryRunRepositoryOptions) {}
@@ -30,10 +23,12 @@ export class ConvexAgenticQueryRunRepository implements SessionRepository {
   }
 
   async getOpenCodeSessionId(harnessSessionId: string): Promise<OpenCodeSessionId | undefined> {
-    const result = (await this.options.backend.query(api.daemon.agenticQuery.runs.getRun, {
+    const { backend, sessionId } = this.options;
+    const result = (await backend.query(api.daemon.agenticQuery.runs.getRun, {
+      sessionId,
       runId: harnessSessionId,
-    })) as { opencodeSessionId?: string } | null;
-    return result?.opencodeSessionId as OpenCodeSessionId | undefined;
+    })) as { opencode?: { opencodeSessionId?: string } } | null;
+    return result?.opencode?.opencodeSessionId as OpenCodeSessionId | undefined;
   }
 
   async markClosed(harnessSessionId: string): Promise<void> {

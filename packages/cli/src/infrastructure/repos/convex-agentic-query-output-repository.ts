@@ -1,18 +1,11 @@
-// fallow-ignore-file unused-class-member
-
 import { api } from '../../api.js';
 import type {
   OutputRepository,
   OutputChunk,
 } from '../../domain/direct-harness/ports/output-repository.js';
+import type { ConvexMutationRepositoryOptions } from './convex-repository-options.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BackendCall = (endpoint: any, args: any) => Promise<any>;
-
-export interface ConvexAgenticQueryOutputRepositoryOptions {
-  readonly backend: { mutation: BackendCall };
-  readonly sessionId: string;
-}
+export type ConvexAgenticQueryOutputRepositoryOptions = ConvexMutationRepositoryOptions;
 
 export class ConvexAgenticQueryOutputRepository implements OutputRepository {
   constructor(private readonly options: ConvexAgenticQueryOutputRepositoryOptions) {}
