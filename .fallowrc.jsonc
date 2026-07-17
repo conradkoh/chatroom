@@ -79,6 +79,14 @@
       "file": "**/commands/machine/daemon-start/init.ts",
       "exports": ["discoverModels", "initDaemonEffect"],
     },
+    {
+      "file": "**/CommandPalette/commandPaletteRows.ts",
+      "exports": ["filterCommandsForSearch"],
+    },
+    {
+      "file": "**/EventStreamModal/EventStreamModalVirtualizedList.tsx",
+      "exports": ["EVENT_STREAM_ROW_HEIGHT"],
+    },
   ],
   "duplicates": {
     "ignore": [
