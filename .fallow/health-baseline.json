@@ -769,15 +769,14 @@
         "count": 1
       }
     },
-    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessTurnStore.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_high": {
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/harnessTurnStoreReducer.ts": {
+      "crap_moderate": {
         "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessTurnStoreStreaming.ts": {
+      "crap_high": {
+        "count": 1
       },
       "crap_moderate": {
         "count": 1
