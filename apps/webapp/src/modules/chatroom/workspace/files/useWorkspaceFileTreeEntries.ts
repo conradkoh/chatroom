@@ -3,11 +3,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
+import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
 import {
   getWorkspaceFileTreeEntries,
   subscribeWorkspaceFileTree,
@@ -17,7 +18,6 @@ import {
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 
-const REFRESH_DEDUP_WINDOW_MS = 1500;
 const EMPTY_ENTRIES: FileEntry[] = [];
 
 export interface UseWorkspaceFileTreeEntriesArgs {
@@ -40,7 +40,6 @@ export function useWorkspaceFileTreeEntries({
   enabled = true,
   includeDirectories = false,
 }: UseWorkspaceFileTreeEntriesArgs): UseWorkspaceFileTreeEntriesResult {
-  const lastRefreshAtRef = useRef<number | null>(null);
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
 
@@ -74,23 +73,20 @@ export function useWorkspaceFileTreeEntries({
     (options?: { force?: boolean }) => {
       if (!enabled) return;
 
-      const now = Date.now();
-      if (
-        lastRefreshAtRef.current !== null &&
-        now - lastRefreshAtRef.current < REFRESH_DEDUP_WINDOW_MS
-      ) {
-        return;
-      }
-      lastRefreshAtRef.current = now;
-
-      const force = !!options?.force;
-      requestMutation({
+      requestWorkspaceFileTreeRefresh({
+        workspaceKey,
         machineId,
         workingDir: normalizedWorkingDir,
-        ...(force ? { force: true } : {}),
-      }).catch(() => {});
+        force: !!options?.force,
+        request: (args) =>
+          requestMutation({
+            machineId: args.machineId,
+            workingDir: args.workingDir,
+            ...(args.force ? { force: true } : {}),
+          }).catch(() => {}),
+      });
     },
-    [enabled, machineId, normalizedWorkingDir, requestMutation]
+    [enabled, machineId, normalizedWorkingDir, requestMutation, workspaceKey]
   );
 
   return useMemo(

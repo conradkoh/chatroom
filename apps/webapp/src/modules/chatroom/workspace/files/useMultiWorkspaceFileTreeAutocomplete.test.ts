@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useMultiWorkspaceFiles } from './useMultiWorkspaceFiles';
 import { useWorkspaceFileTree } from './useWorkspaceFileTree';
+import { __resetWorkspaceFileTreeRefreshCoordinatorForTests } from './workspaceFileTreeRefreshCoordinator';
 import {
   __resetWorkspaceFileTreeStoreForTests,
   getWorkspaceFileTreeEntries,
@@ -85,6 +86,7 @@ function seedTreeInConvex() {
 }
 
 beforeEach(() => {
+  __resetWorkspaceFileTreeRefreshCoordinatorForTests();
   __resetWorkspaceFileTreeStoreForTests();
   mocks.manifest = null;
   mocks.rawV2 = undefined;

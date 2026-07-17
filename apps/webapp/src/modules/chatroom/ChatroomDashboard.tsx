@@ -92,7 +92,7 @@ import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile } from './workspace/file-renderers';
-import { useMultiWorkspaceFileTrees, useMultiWorkspaceFiles } from './workspace/files';
+import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import type { AgenticQueryMode, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
@@ -928,11 +928,11 @@ export function ChatroomDashboard({
   });
 
   // Multi-workspace file tree: producer sync + store-backed autocomplete
-  const { refreshAll: refreshFileTrees } = useMultiWorkspaceFileTrees(chatroomWorkspaces);
-  const { files: autocompleteFiles } = useMultiWorkspaceFiles(chatroomWorkspaces);
+  const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
+    useMultiWorkspaceFileSync(chatroomWorkspaces);
   const handleAtTriggerActivate = useCallback(() => {
-    refreshFileTrees();
-  }, [refreshFileTrees]);
+    refreshAutocompleteFiles();
+  }, [refreshAutocompleteFiles]);
   const hasAutocompleteWorkspace = chatroomWorkspaces.some(
     (workspace) => workspace.machineId && workspace.workingDir
   );
