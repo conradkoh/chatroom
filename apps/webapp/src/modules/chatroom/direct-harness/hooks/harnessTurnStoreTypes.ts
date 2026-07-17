@@ -2,13 +2,14 @@ import type {
   HarnessTurnView,
   HarnessMessage,
 } from '@workspace/backend/src/domain/direct-harness/types';
+import type { FunctionReference } from 'convex/server';
 
 /** Typed config for the parameterized core hook. Query refs are Convex FunctionReference. */
 export interface HarnessTurnStoreQueries {
-  readonly getLatestTurns: any;
-  readonly getTurnsSince: any;
-  readonly getOlderTurns: any;
-  readonly getStreamingTurnChunks: any;
+  readonly getLatestTurns: FunctionReference<'query'>;
+  readonly getTurnsSince: FunctionReference<'query'>;
+  readonly getOlderTurns: FunctionReference<'query'>;
+  readonly getStreamingTurnChunks: FunctionReference<'query'>;
 }
 
 export interface HarnessTurnStoreConfig<TScopeId extends string> {
