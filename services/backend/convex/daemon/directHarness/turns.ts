@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireMachineWorkspaces } from './machineWorkspaces';
+import { withMachineWorkspaces } from './machineWorkspaces';
 import type { Id } from '../../_generated/dataModel';
 import { mutation, query } from '../../_generated/server';
 import type { MutationCtx, QueryCtx } from '../../_generated/server';
@@ -262,49 +262,46 @@ export const markOrphanTurnsFailed = mutation({
  * Returns harness sessions whose workspace belongs to the given machine,
  * filtered to 'active' and 'idle' statuses (sessions that should have a daemon attached).
  */
-// fallow-ignore-next-line code-duplication
 export const getMachineHarnessSessions = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
   },
-  handler: async (ctx, args) => {
-    const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
-    if (workspaces.length === 0) return [];
+  handler: async (ctx, args) =>
+    withMachineWorkspaces(ctx, args.sessionId, args.machineId, [], async (workspaces) => {
+      const results: {
+        harnessSessionId: Id<'chatroom_harnessSessions'>;
+        chatroomId: Id<'chatroom_rooms'>;
+        workspaceId: Id<'chatroom_workspaces'>;
+        status: string;
+      }[] = [];
 
-    const results: {
-      harnessSessionId: Id<'chatroom_harnessSessions'>;
-      chatroomId: Id<'chatroom_rooms'>;
-      workspaceId: Id<'chatroom_workspaces'>;
-      status: string;
-    }[] = [];
+      for (const workspace of workspaces) {
+        // Fetch active sessions for this workspace
+        const activeSessions = await ctx.db
+          .query('chatroom_harnessSessions')
+          .withIndex('by_workspace_status', (q) =>
+            q.eq('workspaceId', workspace._id).eq('status', 'active')
+          )
+          .collect();
+        // Fetch idle sessions for this workspace
+        const idleSessions = await ctx.db
+          .query('chatroom_harnessSessions')
+          .withIndex('by_workspace_status', (q) =>
+            q.eq('workspaceId', workspace._id).eq('status', 'idle')
+          )
+          .collect();
 
-    for (const workspace of workspaces) {
-      // Fetch active sessions for this workspace
-      const activeSessions = await ctx.db
-        .query('chatroom_harnessSessions')
-        .withIndex('by_workspace_status', (q) =>
-          q.eq('workspaceId', workspace._id).eq('status', 'active')
-        )
-        .collect();
-      // Fetch idle sessions for this workspace
-      const idleSessions = await ctx.db
-        .query('chatroom_harnessSessions')
-        .withIndex('by_workspace_status', (q) =>
-          q.eq('workspaceId', workspace._id).eq('status', 'idle')
-        )
-        .collect();
-
-      for (const session of [...activeSessions, ...idleSessions]) {
-        results.push({
-          harnessSessionId: session._id,
-          chatroomId: workspace.chatroomId,
-          workspaceId: workspace._id,
-          status: session.status,
-        });
+        for (const session of [...activeSessions, ...idleSessions]) {
+          results.push({
+            harnessSessionId: session._id,
+            chatroomId: workspace.chatroomId,
+            workspaceId: workspace._id,
+            status: session.status,
+          });
+        }
       }
-    }
 
-    return results;
-  },
+      return results;
+    }),
 });

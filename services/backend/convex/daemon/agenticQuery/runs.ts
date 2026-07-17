@@ -8,7 +8,7 @@ import {
   requireDirectHarnessWorkers,
   requireOpencodeRun,
 } from '../../api/agenticQueryHelpers';
-import { requireMachineWorkspaces } from '../directHarness/machineWorkspaces';
+import { withMachineWorkspaces } from '../directHarness/machineWorkspaces';
 
 export const associateOpenCodeSessionId = mutation({
   args: {
@@ -135,60 +135,57 @@ export const pendingForMachine = query({
     ...SessionIdArg,
     machineId: v.string(),
   },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
-    if (workspaces.length === 0) return [];
+  handler: async (ctx, args) =>
+    withMachineWorkspaces(ctx, args.sessionId, args.machineId, [], async (workspaces) => {
+      const workspaceIds = new Set(workspaces.map((w) => w._id));
 
-    const workspaceIds = new Set(workspaces.map((w) => w._id));
+      const allRuns = (
+        await Promise.all(
+          [...workspaceIds].flatMap((wsId) => [
+            ctx.db
+              .query('chatroom_agenticQueryRuns')
+              .withIndex('by_workspace_status', (q) =>
+                q.eq('workspaceId', wsId).eq('status', 'pending')
+              )
+              .collect(),
+            ctx.db
+              .query('chatroom_agenticQueryRuns')
+              .withIndex('by_workspace_status', (q) =>
+                q.eq('workspaceId', wsId).eq('status', 'spawning')
+              )
+              .collect(),
+          ])
+        )
+      ).flat();
 
-    const allRuns = (
-      await Promise.all(
-        [...workspaceIds].flatMap((wsId) => [
-          ctx.db
-            .query('chatroom_agenticQueryRuns')
-            .withIndex('by_workspace_status', (q) =>
-              q.eq('workspaceId', wsId).eq('status', 'pending')
-            )
-            .collect(),
-          ctx.db
-            .query('chatroom_agenticQueryRuns')
-            .withIndex('by_workspace_status', (q) =>
-              q.eq('workspaceId', wsId).eq('status', 'spawning')
-            )
-            .collect(),
-        ])
-      )
-    ).flat();
+      const shaped: {
+        kind: 'agentic-query';
+        runId: string;
+        workspaceId: string;
+        harnessName: string;
+        agenticQueryId: string;
+        chatroomId: string;
+        lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
+      }[] = [];
 
-    const shaped: {
-      kind: 'agentic-query';
-      runId: string;
-      workspaceId: string;
-      harnessName: string;
-      agenticQueryId: string;
-      chatroomId: string;
-      lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
-    }[] = [];
+      for (const run of allRuns) {
+        const workspace = workspaces.find((w) => w._id === run.workspaceId);
+        const chatroomId = workspace?.chatroomId as string | undefined;
+        if (!chatroomId) continue;
 
-    for (const run of allRuns) {
-      const workspace = workspaces.find((w) => w._id === run.workspaceId);
-      const chatroomId = workspace?.chatroomId as string | undefined;
-      if (!chatroomId) continue;
+        const s = requireOpencodeRun(run);
 
-      const s = requireOpencodeRun(run);
+        shaped.push({
+          kind: 'agentic-query',
+          runId: run._id as string,
+          workspaceId: run.workspaceId as string,
+          harnessName: s.opencode.harnessName,
+          agenticQueryId: run.agenticQueryId as string,
+          chatroomId,
+          lastUsedConfig: s.opencode.lastUsedConfig,
+        });
+      }
 
-      shaped.push({
-        kind: 'agentic-query',
-        runId: run._id as string,
-        workspaceId: run.workspaceId as string,
-        harnessName: s.opencode.harnessName,
-        agenticQueryId: run.agenticQueryId as string,
-        chatroomId,
-        lastUsedConfig: s.opencode.lastUsedConfig,
-      });
-    }
-
-    return shaped;
-  },
+      return shaped;
+    }),
 });

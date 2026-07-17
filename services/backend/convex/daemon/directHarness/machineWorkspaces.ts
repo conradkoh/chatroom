@@ -17,3 +17,19 @@ export async function requireMachineWorkspaces(
     .withIndex('by_machine', (q) => q.eq('machineId', machineId))
     .collect();
 }
+
+/**
+ * Load machine workspaces or return `onEmpty` when none are registered.
+ * Shared scaffold for daemon machine-scoped queries.
+ */
+export async function withMachineWorkspaces<T>(
+  ctx: QueryCtx,
+  sessionId: string,
+  machineId: string,
+  onEmpty: T,
+  run: (workspaces: Doc<'chatroom_workspaces'>[]) => Promise<T>
+): Promise<T> {
+  const workspaces = await requireMachineWorkspaces(ctx, sessionId, machineId);
+  if (workspaces.length === 0) return onEmpty;
+  return run(workspaces);
+}

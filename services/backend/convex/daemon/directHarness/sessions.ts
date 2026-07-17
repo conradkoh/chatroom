@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireMachineWorkspaces } from './machineWorkspaces';
+import { withMachineWorkspaces } from './machineWorkspaces';
 import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,
@@ -174,29 +174,26 @@ export const getSession = query({
 
 // ─── listPendingSessionsForMachine ────────────────────────────────────────────
 
-// fallow-ignore-next-line code-duplication
 export const listPendingSessionsForMachine = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
   },
-  handler: async (ctx, args) => {
-    const workspaces = await requireMachineWorkspaces(ctx, args.sessionId, args.machineId);
-    if (workspaces.length === 0) return [];
-
-    const workspaceIds = new Set(workspaces.map((w) => w._id));
-    const sessionGroups = await Promise.all(
-      [...workspaceIds].map((workspaceId) =>
-        ctx.db
-          .query('chatroom_harnessSessions')
-          .withIndex('by_workspace_status', (q) =>
-            q.eq('workspaceId', workspaceId).eq('status', 'pending')
-          )
-          .collect()
-      )
-    );
-    return sessionGroups.flat();
-  },
+  handler: async (ctx, args) =>
+    withMachineWorkspaces(ctx, args.sessionId, args.machineId, [], async (workspaces) => {
+      const workspaceIds = new Set(workspaces.map((w) => w._id));
+      const sessionGroups = await Promise.all(
+        [...workspaceIds].map((workspaceId) =>
+          ctx.db
+            .query('chatroom_harnessSessions')
+            .withIndex('by_workspace_status', (q) =>
+              q.eq('workspaceId', workspaceId).eq('status', 'pending')
+            )
+            .collect()
+        )
+      );
+      return sessionGroups.flat();
+    }),
 });
 
 // ─── updateSessionTitle ───────────────────────────────────────────────────────
