@@ -4,7 +4,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Loader2, Search, Send } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
@@ -17,6 +17,7 @@ import type { AgenticQueryMode } from '../hooks/useFileTabs';
 import { cn } from '@/lib/utils';
 import { FileReferenceAutocomplete } from '@/modules/chatroom/components/FileReferenceAutocomplete';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
+import { measureTextareaContentHeightPx } from '@/modules/chatroom/components/messageInputAutosize';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
@@ -185,16 +186,31 @@ export function AgenticQueryPanel({
     }
   }, [canCompose, composerText, harnessSelection, isFollowUpMode, submit]);
 
+  const AGENTIC_COMPOSER_MAX_HEIGHT_PX = 192;
+  const AGENTIC_COMPOSER_MIN_HEIGHT_PX = 40;
+
   const adjustComposerHeight = useCallback(() => {
     const el = composerRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    const measured = measureTextareaContentHeightPx(el, AGENTIC_COMPOSER_MAX_HEIGHT_PX);
+    el.style.height = `${Math.max(measured, AGENTIC_COMPOSER_MIN_HEIGHT_PX)}px`;
   }, []);
+
+  useLayoutEffect(() => {
+    adjustComposerHeight();
+  }, [adjustComposerHeight]);
 
   useEffect(() => {
     adjustComposerHeight();
   }, [composerText, adjustComposerHeight]);
+
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => adjustComposerHeight());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [adjustComposerHeight]);
 
   // ── @ file reference autocomplete ──────────────────────────────────────
   const composerAnchorRef = useRef<HTMLDivElement>(null);
