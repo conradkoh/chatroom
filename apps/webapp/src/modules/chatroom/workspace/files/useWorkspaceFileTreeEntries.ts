@@ -1,11 +1,10 @@
 'use client';
 // fallow-ignore-file code-duplication complexity
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
+import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
@@ -17,6 +16,7 @@ import {
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
+import type { FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
 
 const EMPTY_ENTRIES: FileEntry[] = [];
 
@@ -29,6 +29,8 @@ export interface UseWorkspaceFileTreeEntriesArgs {
 
 export interface UseWorkspaceFileTreeEntriesResult {
   entries: FileEntry[];
+  /** Raw store entries (includes directories) — for explorer tree building */
+  treeEntries: FileTreeEntry[];
   isLoading: boolean;
   hasTree: boolean;
   refresh: (options?: { force?: boolean }) => void;
@@ -43,7 +45,11 @@ export function useWorkspaceFileTreeEntries({
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
 
-  const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
+  const requestTree = useRequestWorkspaceFileTree({
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled,
+  });
 
   useWorkspaceFileTreeDeltaSync({
     workspaceKey,
@@ -78,24 +84,20 @@ export function useWorkspaceFileTreeEntries({
         machineId,
         workingDir: normalizedWorkingDir,
         force: !!options?.force,
-        request: (args) =>
-          requestMutation({
-            machineId: args.machineId,
-            workingDir: args.workingDir,
-            ...(args.force ? { force: true } : {}),
-          }).catch(() => {}),
+        request: (args) => requestTree(!!args.force),
       });
     },
-    [enabled, machineId, normalizedWorkingDir, requestMutation, workspaceKey]
+    [enabled, machineId, normalizedWorkingDir, requestTree, workspaceKey]
   );
 
   return useMemo(
     () => ({
       entries,
+      treeEntries: storeEntries,
       isLoading,
       hasTree,
       refresh,
     }),
-    [entries, hasTree, isLoading, refresh]
+    [entries, storeEntries, hasTree, isLoading, refresh]
   );
 }

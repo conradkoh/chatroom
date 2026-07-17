@@ -8,6 +8,7 @@ export { useWorkspaceDirExplorer } from './useWorkspaceDirExplorer';
 export { useWorkspaceFileTree } from './useWorkspaceFileTree';
 // fallow-ignore-next-line unused-export
 export { useMultiWorkspaceFileTrees } from './useMultiWorkspaceFileTrees';
+export { refreshWorkspaceFileTree } from './workspaceFileTreeRefreshCoordinator';
 export {
   // fallow-ignore-next-line unused-export
   fileTreeEntriesToExplorerNodes,
