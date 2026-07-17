@@ -84,6 +84,17 @@ type WorkspaceWithMachine = Workspace & { machineId: string };
 
 const ACTIVE_WS_KEY_PREFIX = 'chatroom-active-workspace-';
 
+/** Minimum visualViewport inset (px) before treating keyboard as open. Filters mobile browser chrome false positives. */
+export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
+
+export function shouldSuppressWorkspaceBottomBarSafeArea(
+  keyboardInsetPx: number,
+  editableFocused: boolean
+): boolean {
+  if (editableFocused) return true;
+  return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getWorkspaceName(workingDir: string): string {
@@ -971,13 +982,19 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const mobile = !isDesktop;
   const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
   const editableFocused = useEditableElementFocused(mobile);
-  const suppressSafeArea = keyboardInsetPx > 0 || editableFocused;
+  const suppressSafeArea = shouldSuppressWorkspaceBottomBarSafeArea(
+    keyboardInsetPx,
+    editableFocused
+  );
 
   return (
     <div
       data-testid="workspace-bottom-bar"
-      className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface select-none"
-      style={{ paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea) }}
+      className={cn(
+        'shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface select-none',
+        !suppressSafeArea && 'pb-[env(safe-area-inset-bottom,0px)]'
+      )}
+      style={suppressSafeArea ? { paddingBottom: 0 } : undefined}
     >
       <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
     </div>

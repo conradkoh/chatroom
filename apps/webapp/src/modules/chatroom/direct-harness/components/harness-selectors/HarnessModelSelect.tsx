@@ -7,7 +7,12 @@ import { getSelectedModelLabel, hasVisibleProviders } from './harness-model-sele
 import { HarnessModelSelectList } from './HarnessModelSelectList';
 import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
 import type { ProviderOption } from './types';
-import { ResponsivePickerShell, PickerScrollBody } from '../../../components/picker';
+import {
+  ResponsivePickerShell,
+  PickerSearch,
+  PickerScrollBody,
+  usePickerSearchState,
+} from '../../../components/picker';
 import {
   pickerTriggerClassName,
   pickerTriggerChevronClassName,
@@ -16,7 +21,7 @@ import {
 
 interface HarnessModelSelectProps {
   providers: ProviderOption[];
-  value: string; // "<providerID>::<modelID>"
+  value: string;
   onValueChange: (v: string) => void;
   isHidden?: (modelKey: string) => boolean;
   disabled?: boolean;
@@ -31,6 +36,7 @@ export function HarnessModelSelect({
   disabled = false,
 }: HarnessModelSelectProps) {
   const [open, setOpen] = useState(false);
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setOpen);
   const selectedLabel = getSelectedModelLabel(providers, value);
   const hasProviders = hasVisibleProviders(providers, isHidden);
   const isDisabled = !hasProviders || disabled;
@@ -39,7 +45,7 @@ export function HarnessModelSelect({
   return (
     <ResponsivePickerShell
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       disabled={isDisabled}
       title="Select model"
       align="start"
@@ -60,13 +66,15 @@ export function HarnessModelSelect({
         </button>
       }
     >
+      <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models…" />
       <PickerScrollBody maxHeightClassName="max-h-60">
         <HarnessModelSelectList
           providers={providers}
           value={value}
           onValueChange={onValueChange}
-          onClose={() => setOpen(false)}
+          onClose={() => handleOpenChange(false)}
           isHidden={isHidden}
+          searchTerm={searchTerm}
         />
       </PickerScrollBody>
     </ResponsivePickerShell>

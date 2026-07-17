@@ -165,17 +165,15 @@ describe('savedCommands scope', () => {
     ).rejects.toThrow();
   });
 
-  test('6. Scope cannot be changed on update', async () => {
-    const { sessionId, chatroomId } = await setupUser('scope-immutable');
+  test('6a. Scope unchanged when not passed on update', async () => {
+    const { sessionId, chatroomId } = await setupUser('scope-unchanged');
 
-    // Create chatroom-scoped command
     const cmdId = await t.mutation(api.savedCommands.createSavedCommand, {
       sessionId,
       chatroomId,
       command: { type: 'prompt', scope: 'chatroom', name: 'Original', prompt: 'test' },
     });
 
-    // Update the command — scope is not in the update args, so it should stay
     await t.mutation(api.savedCommands.updateSavedCommand, {
       sessionId,
       commandId: cmdId,
@@ -189,6 +187,84 @@ describe('savedCommands scope', () => {
     expect(list).toHaveLength(1);
     expect(list[0].name).toBe('Updated Name');
     expect(list[0].scope).toBe('chatroom');
+  });
+
+  test('6b. Scope can be changed from chatroom to user on update', async () => {
+    const { sessionId, chatroomId, userId } = await setupUser('scope-to-user');
+
+    const cmdId = await t.mutation(api.savedCommands.createSavedCommand, {
+      sessionId,
+      chatroomId,
+      command: { type: 'prompt', scope: 'chatroom', name: 'Shared', prompt: 'was room' },
+    });
+
+    await t.mutation(api.savedCommands.updateSavedCommand, {
+      sessionId,
+      commandId: cmdId,
+      scope: 'user',
+    });
+
+    const cmd = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_savedCommands', cmdId);
+    });
+    expect(cmd?.scope).toBe('user');
+    expect(cmd?.ownerId).toBe(userId);
+    expect(cmd?.chatroomId).toBeUndefined();
+    expect(cmd?.name).toBe('Shared');
+    expect(cmd?.prompt).toBe('was room');
+  });
+
+  test('6c. Scope can be changed from user to chatroom on update', async () => {
+    const { sessionId, chatroomId } = await setupUser('scope-to-chatroom');
+
+    const cmdId = await t.mutation(api.savedCommands.createSavedCommand, {
+      sessionId,
+      chatroomId,
+      command: { type: 'prompt', scope: 'user', name: 'Personal', prompt: 'was user' },
+    });
+
+    await t.mutation(api.savedCommands.updateSavedCommand, {
+      sessionId,
+      commandId: cmdId,
+      scope: 'chatroom',
+      chatroomId,
+    });
+
+    const cmd = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_savedCommands', cmdId);
+    });
+    expect(cmd?.scope).toBe('chatroom');
+    expect(cmd?.chatroomId).toBe(chatroomId);
+    expect(cmd?.ownerId).toBeUndefined();
+    expect(cmd?.name).toBe('Personal');
+    expect(cmd?.prompt).toBe('was user');
+  });
+
+  test('6d. Scope change rejects duplicate name in target scope', async () => {
+    const { sessionId, chatroomId } = await setupUser('scope-dup');
+
+    await t.mutation(api.savedCommands.createSavedCommand, {
+      sessionId,
+      chatroomId,
+      command: { type: 'prompt', scope: 'user', name: 'Conflict', prompt: 'user version' },
+    });
+
+    const cmdId = await t.mutation(api.savedCommands.createSavedCommand, {
+      sessionId,
+      chatroomId,
+      command: { type: 'prompt', scope: 'chatroom', name: 'Chat Only', prompt: 'chat version' },
+    });
+
+    // Renaming chatroom-scoped to "Conflict" while changing scope should fail
+    // because "Conflict" already exists in user scope
+    await expect(
+      t.mutation(api.savedCommands.updateSavedCommand, {
+        sessionId,
+        commandId: cmdId,
+        name: 'Conflict',
+        scope: 'user',
+      })
+    ).rejects.toThrow();
   });
 
   test('7. updateSavedCommand rejects duplicate rename within same scope', async () => {

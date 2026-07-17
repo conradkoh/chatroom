@@ -31,9 +31,6 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
-// cmdk calls scrollIntoView on list items — mock for jsdom
-Element.prototype.scrollIntoView = () => {};
-
 const PROVIDERS = [
   {
     providerID: 'openai',
@@ -179,5 +176,14 @@ describe('HarnessModelSelect', () => {
     const gpt4oItem = listItems.find((el) => el.textContent?.includes('GPT-4o'));
     // Hidden from the dropdown (but trigger label unchanged)
     expect(gpt4oItem).toBeUndefined();
+  });
+
+  it('renders a focusable search input on mobile viewport', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    openDropdown();
+    const searchInput = screen.getByPlaceholderText('Search models…');
+    expect(searchInput).toBeInTheDocument();
+    expect(searchInput).toHaveAttribute('type', 'search');
   });
 });
