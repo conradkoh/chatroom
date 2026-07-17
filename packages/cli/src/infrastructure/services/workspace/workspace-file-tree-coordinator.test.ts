@@ -204,10 +204,10 @@ describe('workspace-file-tree-coordinator', () => {
     await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'dirty.txt'), 5_000);
     const git = (...args: string[]) => runGit(args, rootDir);
     await git('clean', '-f', 'dirty.txt');
-    await waitFor(
-      () => coordinator.getTree().entries.find((e) => e.path === 'dirty.txt') === undefined,
-      5_000
-    );
+    await waitFor(() => {
+      const calls = deltas.mock.calls as [{ removed?: string[] }?][];
+      return calls.some((call) => call[0]?.removed?.includes('dirty.txt'));
+    }, 5_000);
     expect(deltas).toHaveBeenCalledWith(
       expect.objectContaining({
         removed: expect.arrayContaining(['dirty.txt']),
