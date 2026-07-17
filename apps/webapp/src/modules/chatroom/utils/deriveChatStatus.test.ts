@@ -41,10 +41,19 @@ describe('deriveChatStatus', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('active');
   });
 
-  it('returns active when an agent is awaiting handoff (agent.awaitingHandoff)', () => {
+  it('returns working when an agent is awaiting handoff (agent.awaitingHandoff)', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.awaitingHandoff' })])).toBe(
-      'active'
+      'working'
     );
+  });
+
+  it('returns working when mixed waiting + awaitingHandoff', () => {
+    expect(
+      deriveChatStatus('active', [
+        agent({ lastStatus: 'agent.waiting' }),
+        agent({ lastStatus: 'agent.awaitingHandoff' }),
+      ])
+    ).toBe('working');
   });
 
   it('matches the agent sidebar: non-working event types stay active', () => {

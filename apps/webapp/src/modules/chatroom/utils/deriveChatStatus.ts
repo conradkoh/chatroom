@@ -41,7 +41,9 @@ export function deriveChatStatus(
   }
 
   const hasWorking = onlineAgents.some(
-    (a) => resolveAgentStatus(a.lastStatus, a.lastDesiredState, true).variant === 'working'
+    (a) =>
+      resolveAgentStatus(a.lastStatus, a.lastDesiredState, true).variant === 'working' ||
+      a.lastStatus === 'agent.awaitingHandoff'
   );
 
   if (hasWorking) return 'working';
