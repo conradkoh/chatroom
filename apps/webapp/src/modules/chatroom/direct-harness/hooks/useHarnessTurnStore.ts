@@ -3,9 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { useHarnessTurnStoreCore, type StreamingOverlay } from './useHarnessTurnStoreCore';
-
-export type { StreamingOverlay };
+import { useHarnessTurnStoreCore } from './useHarnessTurnStoreCore';
 
 export function useHarnessTurnStore(harnessSessionId: Id<'chatroom_harnessSessions'>) {
   return useHarnessTurnStoreCore({

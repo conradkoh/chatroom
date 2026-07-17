@@ -3,12 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import {
-  useHarnessTurnStoreCore,
-  type StreamingOverlay,
-} from '@/modules/chatroom/direct-harness/hooks/useHarnessTurnStoreCore';
-
-export type { StreamingOverlay };
+import { useHarnessTurnStoreCore } from '@/modules/chatroom/direct-harness/hooks/useHarnessTurnStoreCore';
 
 export function useAgenticQueryRunTurnStore(runId: Id<'chatroom_agenticQueryRuns'>) {
   return useHarnessTurnStoreCore({
