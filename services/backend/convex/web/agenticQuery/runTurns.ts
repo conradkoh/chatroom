@@ -1,5 +1,3 @@
-// fallow-ignore-file code-duplication
-
 /**
  * Web-facing agentic query run turn endpoints (streaming UI).
  */
@@ -9,31 +7,12 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { query } from '../../_generated/server';
 import { getRunWithAccess, requireDirectHarnessWorkers } from '../../api/agenticQueryHelpers';
-
-function toView(row: {
-  _id: string;
-  turnSeq: number;
-  role: 'user' | 'assistant';
-  status: 'pending' | 'streaming' | 'complete' | 'failed';
-  messageId?: string;
-  textContent: string;
-  reasoningContent: string;
-  startedAt: number;
-  completedAt?: number;
-  [key: string]: unknown;
-}) {
-  return {
-    _id: row._id,
-    turnSeq: row.turnSeq,
-    role: row.role,
-    status: row.status,
-    messageId: row.messageId,
-    textContent: row.textContent,
-    reasoningContent: row.reasoningContent,
-    startedAt: row.startedAt,
-    completedAt: row.completedAt,
-  };
-}
+import {
+  buildLatestTurnsPage,
+  buildOlderTurnsPage,
+  fetchStreamingTurnChunks,
+  toHarnessTurnView,
+} from '../../api/harnessTurnViewHelpers';
 
 export const getLatestTurns = query({
   args: {
@@ -53,11 +32,7 @@ export const getLatestTurns = query({
       .order('desc')
       .take(limit + 1);
 
-    const hasMore = rows.length > limit;
-    const turns = rows.slice(0, limit).reverse().map(toView);
-    const newestTurnSeq = turns.at(-1)?.turnSeq ?? null;
-
-    return { turns, hasMore, newestTurnSeq };
+    return buildLatestTurnsPage(rows, limit);
   },
 });
 
@@ -79,7 +54,7 @@ export const getTurnsSince = query({
       .order('asc')
       .collect();
 
-    return rows.map(toView);
+    return rows.map(toHarnessTurnView);
   },
 });
 
@@ -104,10 +79,7 @@ export const getOlderTurns = query({
       .order('desc')
       .take(limit + 1);
 
-    const hasMore = rows.length > limit;
-    const turns = rows.slice(0, limit).reverse().map(toView);
-
-    return { turns, hasMore };
+    return buildOlderTurnsPage(rows, limit);
   },
 });
 
@@ -123,23 +95,10 @@ export const getStreamingTurnChunks = query({
     requireDirectHarnessWorkers();
     await getRunWithAccess(ctx, args.sessionId, args.runId);
 
-    const limit = args.limit ?? 200;
-
-    const baseIdx = ctx.db
-      .query('chatroom_agenticQueryRunMessages')
-      .withIndex('by_messageId', (q) => {
-        const eq = q.eq('messageId', args.messageId);
-        return args.afterCreationTime !== undefined
-          ? eq.gte('_creationTime', args.afterCreationTime)
-          : eq;
-      });
-
-    if (args.afterCreationTime !== undefined) {
-      return await baseIdx.order('asc').take(limit);
-    }
-
-    const rows = await baseIdx.order('desc').take(limit);
-    rows.sort((a, b) => a._creationTime - b._creationTime);
-    return rows;
+    return fetchStreamingTurnChunks(ctx, 'chatroom_agenticQueryRunMessages', {
+      messageId: args.messageId,
+      limit: args.limit ?? 200,
+      afterCreationTime: args.afterCreationTime,
+    });
   },
 });
