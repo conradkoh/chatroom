@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAgenticQueryHarnessSelection } from './useAgenticQueryHarnessSelection';
 
+import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
+
 let mockCapabilities: {
   machineId: string | null;
   harnesses: {
@@ -18,7 +20,7 @@ let mockCapabilities: {
   harnesses: [],
 };
 
-const mockGetLastUsed = vi.fn(() => null);
+const mockGetLastUsed = vi.fn((): SearchConfigEntry | null => null);
 const mockRecordUsage = vi.fn();
 
 vi.mock('convex-helpers/react/sessions', () => ({
