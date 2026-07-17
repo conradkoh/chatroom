@@ -1,10 +1,13 @@
 /**
  * ChatroomTimelineFeed — virtualizer stability and scroll-pin wiring tests.
  */
+
+// matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu/ResponsivePickerShell)
+
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import {
@@ -15,6 +18,26 @@ import {
 import { AttachmentsProvider } from '../../attachments';
 import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
+
+beforeAll(() => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+  );
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 const virtualizerOptions: {
   count: number;
@@ -955,8 +978,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
   it('registers custom measureElement that caches rounded heights by data-id', () => {
     renderFeed();
     const measureElement = virtualizerOptions.at(-1)?.measureElement as
-      | ((el: HTMLElement) => number)
-      | undefined;
+      ((el: HTMLElement) => number) | undefined;
     expect(measureElement).toBeTypeOf('function');
 
     const row = document.createElement('div');
@@ -974,8 +996,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     // Get the estimateSize function from the virtualizer options
     const estimateSize = virtualizerOptions.at(-1)?.estimateSize as
-      | ((index: number) => number)
-      | undefined;
+      ((index: number) => number) | undefined;
     expect(estimateSize).toBeTypeOf('function');
 
     // First render: cache should return estimated size (100) for unmeasured items

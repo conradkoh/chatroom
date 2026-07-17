@@ -4,11 +4,13 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Copy, Paperclip } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
+import { MessageDownloadMenu } from './MessageDownloadMenu';
 import { useAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { formatTimestamp } from '../../viewModels/eventStreamViewModel';
 
 /** Small copy-to-clipboard button with brief check-mark feedback. */
+
 const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,6 +90,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         >
           <Paperclip size={12} />
         </button>
+        <MessageDownloadMenu message={message} />
       </div>
       <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
         {formatTimestamp(message._creationTime)}
