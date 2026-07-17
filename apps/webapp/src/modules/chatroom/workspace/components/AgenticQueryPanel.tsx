@@ -4,7 +4,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Loader2, Search, Send } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
@@ -14,6 +14,10 @@ import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarness
 import { useAgenticQueryRunTurnStore } from '../hooks/useAgenticQueryRunTurnStore';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
+import { decodeWorkspaceId } from '@/lib/workspaceIdentifier';
+import { FileReferenceAutocomplete } from '@/modules/chatroom/components/FileReferenceAutocomplete';
+import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
+import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 import { cn } from '@/lib/utils';
 import {
   chatroomIndustrialButtonPrimaryClassName,
@@ -185,14 +189,54 @@ export function AgenticQueryPanel({
     adjustComposerHeight();
   }, [composerText, adjustComposerHeight]);
 
+  // ── @ file reference autocomplete ──────────────────────────────────────
+  const composerAnchorRef = useRef<HTMLDivElement>(null);
+
+  const workspaceMeta = useMemo(() => {
+    if (!workspaceId) return null;
+    try {
+      const { machineId, workingDir } = decodeWorkspaceId(workspaceId);
+      return { machineId, workingDir, workspaceId };
+    } catch {
+      return null;
+    }
+  }, [workspaceId]);
+
+  const { entries: treeEntries, refresh: refreshFileTree } = useWorkspaceFileTreeEntries({
+    machineId: workspaceMeta?.machineId ?? '',
+    workingDir: workspaceMeta?.workingDir ?? '',
+    enabled: !!workspaceMeta,
+    includeDirectories: true,
+  });
+
+  const autocompleteFiles = useMemo(
+    () =>
+      workspaceMeta
+        ? treeEntries.map((e) => ({ ...e, workspaceId: workspaceMeta.workspaceId }))
+        : [],
+    [treeEntries, workspaceMeta]
+  );
+
+  const fileAutocomplete = useFileReferenceAutocomplete({
+    files: autocompleteFiles,
+    hasWorkspace: !!workspaceMeta,
+    onAtTriggerActivate: () => refreshFileTree(),
+    textareaRef: composerRef,
+    anchorRef: composerAnchorRef,
+    text: composerText,
+    onTextChange: setComposerText,
+    onAfterUpdate: adjustComposerHeight,
+  });
+
   const handleComposerKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (fileAutocomplete.handleAutocompleteKeyDown(e)) return;
       if (e.key !== 'Enter') return;
       if (isModEnterKey(e)) return;
       e.preventDefault();
       void handleCompose();
     },
-    [handleCompose]
+    [fileAutocomplete, handleCompose]
   );
 
   const submitDisabled =
@@ -256,12 +300,20 @@ export function AgenticQueryPanel({
           filter={harnessSelection.filter}
         />
 
-        <div className="flex gap-2 items-end">
+        <div ref={composerAnchorRef} className="relative flex gap-2 items-end">
+          <FileReferenceAutocomplete
+            results={fileAutocomplete.autocompleteState.results}
+            selectedIndex={fileAutocomplete.autocompleteState.selectedIndex}
+            position={fileAutocomplete.autocompleteState.position}
+            onSelect={fileAutocomplete.handleFileSelect}
+            onHoverItem={fileAutocomplete.setSelectedIndex}
+            visible={fileAutocomplete.autocompleteState.visible}
+          />
           <textarea
             ref={composerRef}
             rows={1}
             value={composerText}
-            onChange={(e) => setComposerText(e.target.value)}
+            onChange={fileAutocomplete.handleTextareaChange}
             onKeyDown={handleComposerKeyDown}
             placeholder={
               isFollowUpMode

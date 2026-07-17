@@ -45,6 +45,33 @@ vi.mock('./AgenticQueryHarnessSync', () => ({
   AgenticQueryHarnessSync: () => null,
 }));
 
+vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
+  useWorkspaceFileTreeEntries: () => ({
+    entries: [],
+    refresh: vi.fn(),
+    isLoading: false,
+    hasTree: false,
+  }),
+}));
+
+vi.mock('@/modules/chatroom/hooks/useFileReferenceAutocomplete', () => {
+  const actual = vi.importActual('@/modules/chatroom/hooks/useFileReferenceAutocomplete');
+  return {
+    useFileReferenceAutocomplete: (opts: any) => {
+      return {
+        autocompleteState: { results: [], selectedIndex: -1, position: null, visible: false },
+        handleTextareaChange: (e: any) => {
+          opts?.onTextChange?.(e.target.value);
+          opts?.onAfterUpdate?.();
+        },
+        handleAutocompleteKeyDown: vi.fn(() => false),
+        handleFileSelect: vi.fn(),
+        setSelectedIndex: vi.fn(),
+      };
+    },
+  };
+});
+
 vi.mock('@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore', () => ({
   useHarnessTurnStore: () => ({
     turns: [],
