@@ -83,6 +83,10 @@
       "file": "**/workspace/hooks/useExplorerTabCloseShortcut.ts",
       "exports": ["isExplorerTabCloseShortcut", "isAppNavigationTarget"],
     },
+    {
+      "file": "**/CommandPalette/commandPaletteRows.ts",
+      "exports": ["filterCommandsForSearch"],
+    },
   ],
   "duplicates": {
     "ignore": [
