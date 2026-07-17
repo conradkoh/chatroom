@@ -33,6 +33,7 @@ import type {
   SpawnResult,
   VersionInfo,
 } from '../remote-agent-service.js';
+import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
@@ -536,74 +537,84 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               }
             }
 
-            const run = await withTimeout(
-              agent.send(nextPrompt, {
-                local: { force: isFirstTurn },
-                idempotencyKey: randomUUID(),
-              }),
-              SEND_TIMEOUT_MS,
-              'agent.send'
-            );
-            session.run = run;
-            isFirstTurn = false;
-
-            const adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
-            wireNativeStreamAdapter({
-              adapter,
-              assistantTextCallbacks,
-              outputCallbacks,
-              agentEndCallbacks,
-              entry,
-            });
+            const notifyHarnessOutput = () => {
+              entry.lastOutputAt = Date.now();
+              for (const cb of outputCallbacks) cb();
+            };
+            const restoreStreamTap = tapProcessStreamWrites(notifyHarnessOutput);
 
             try {
-              for await (const message of run.stream()) {
-                if (session.aborted) break;
-                adapter.handleMessage(message);
-              }
-            } catch (streamErr) {
-              exitCode = 1;
-              writeSpawnError(logPrefix, streamErr, emitLogLine);
-              break;
-            }
-
-            if (session.aborted) {
-              exitCode = 1;
-              exitSignal = 'SIGTERM';
-              break;
-            }
-
-            let result;
-            try {
-              result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
-            } catch (waitErr) {
-              exitCode = 1;
-              writeSpawnError(logPrefix, waitErr, emitLogLine);
-              break;
-            }
-
-            adapter.flushPendingOutput();
-
-            if (result.status === 'error') {
-              exitCode = 2;
-              const detail =
-                typeof result.result === 'string' && result.result.trim().length > 0
-                  ? result.result.trim()
-                  : `no error detail from SDK (run ${result.id})`;
-              const runErrorLine = formatAgentLogLine(
-                logPrefix,
-                'run-error',
-                `run ${result.id} failed: ${detail}`
+              const run = await withTimeout(
+                agent.send(nextPrompt, {
+                  local: { force: isFirstTurn },
+                  idempotencyKey: randomUUID(),
+                }),
+                SEND_TIMEOUT_MS,
+                'agent.send'
               );
-              process.stderr.write(`${runErrorLine}\n`);
-              emitLogLine(runErrorLine);
-              break;
+              session.run = run;
+              isFirstTurn = false;
+
+              const adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
+              wireNativeStreamAdapter({
+                adapter,
+                assistantTextCallbacks,
+                outputCallbacks,
+                agentEndCallbacks,
+                entry,
+              });
+
+              try {
+                for await (const message of run.stream()) {
+                  if (session.aborted) break;
+                  adapter.handleMessage(message);
+                }
+              } catch (streamErr) {
+                exitCode = 1;
+                writeSpawnError(logPrefix, streamErr, emitLogLine);
+                break;
+              }
+
+              if (session.aborted) {
+                exitCode = 1;
+                exitSignal = 'SIGTERM';
+                break;
+              }
+
+              let result;
+              try {
+                result = await withTimeout(run.wait(), RUN_WAIT_TIMEOUT_MS, 'run.wait');
+              } catch (waitErr) {
+                exitCode = 1;
+                writeSpawnError(logPrefix, waitErr, emitLogLine);
+                break;
+              }
+
+              adapter.flushPendingOutput();
+
+              if (result.status === 'error') {
+                exitCode = 2;
+                const detail =
+                  typeof result.result === 'string' && result.result.trim().length > 0
+                    ? result.result.trim()
+                    : `no error detail from SDK (run ${result.id})`;
+                const runErrorLine = formatAgentLogLine(
+                  logPrefix,
+                  'run-error',
+                  `run ${result.id} failed: ${detail}`
+                );
+                process.stderr.write(`${runErrorLine}\n`);
+                emitLogLine(runErrorLine);
+                break;
+              }
+
+              // finish() emits agent_end (wired to agentEndCallbacks) after a successful run.
+              adapter.finish();
+
+              nextPrompt = null;
+            } finally {
+              restoreStreamTap();
             }
-
-            // finish() emits agent_end (wired to agentEndCallbacks) after a successful run.
-            adapter.finish();
-
-            nextPrompt = null;
           } catch (turnErr) {
             exitCode = 1;
             writeSpawnError(logPrefix, turnErr, emitLogLine);
