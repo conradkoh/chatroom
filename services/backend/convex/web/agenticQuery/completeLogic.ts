@@ -8,7 +8,7 @@ import type { MutationCtx } from '../../_generated/server';
 export interface ApplyAgenticQueryCompleteParams {
   queryId: Id<'chatroom_agenticQueries'>;
   result: string;
-  harnessSessionId?: Id<'chatroom_harnessSessions'>;
+  runId?: Id<'chatroom_agenticQueryRuns'>;
 }
 
 export type ApplyAgenticQueryCompleteResult =
@@ -66,11 +66,11 @@ export async function applyAgenticQueryComplete(
     summary: validation.summary,
   });
 
-  const harnessSessionId = params.harnessSessionId ?? query.harnessSessionId;
-  if (harnessSessionId) {
-    const harnessSession = await ctx.db.get('chatroom_harnessSessions', harnessSessionId);
-    if (harnessSession && harnessSession.status !== 'closed') {
-      await ctx.db.patch('chatroom_harnessSessions', harnessSessionId, {
+  const runId = params.runId ?? query.activeRunId;
+  if (runId) {
+    const run = await ctx.db.get('chatroom_agenticQueryRuns', runId);
+    if (run && run.status !== 'closed') {
+      await ctx.db.patch('chatroom_agenticQueryRuns', runId, {
         status: 'closed',
         lastActiveAt: now,
       });
@@ -102,10 +102,10 @@ export async function markAgenticQueryFailed(
     summary: message.slice(0, 200),
   });
 
-  if (query.harnessSessionId) {
-    const harnessSession = await ctx.db.get('chatroom_harnessSessions', query.harnessSessionId);
-    if (harnessSession && harnessSession.status !== 'closed') {
-      await ctx.db.patch('chatroom_harnessSessions', query.harnessSessionId, {
+  if (query.activeRunId) {
+    const run = await ctx.db.get('chatroom_agenticQueryRuns', query.activeRunId);
+    if (run && run.status !== 'closed') {
+      await ctx.db.patch('chatroom_agenticQueryRuns', query.activeRunId, {
         status: 'closed',
         lastActiveAt: now,
       });

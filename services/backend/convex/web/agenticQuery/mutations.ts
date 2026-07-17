@@ -2,18 +2,14 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { applyAgenticQueryComplete } from './completeLogic';
-import {
-  getAgenticQueryTurns,
-  getNextAgenticTurnSeq,
-  spawnAgenticHarnessSession,
-} from './internal';
+import { getAgenticQueryTurns, getNextAgenticTurnSeq, spawnAgenticQueryRun } from './internal';
 import { validateAgenticQueryCompleteResult } from '../../../prompts/agentic-query/validate-complete-result';
 import type { Id } from '../../_generated/dataModel';
 import { mutation } from '../../_generated/server';
 import type { MutationCtx } from '../../_generated/server';
 import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { trySyncAgenticQueryFromHarnessTurn } from '../../daemon/agenticQuery/syncFromHarnessTurn';
+import { trySyncAgenticQueryFromRunTurn } from '../../daemon/agenticQuery/syncFromRunTurn';
 
 async function loadQueryWithAccess(
   ctx: MutationCtx,
@@ -81,12 +77,13 @@ async function submitAgenticMessage(
     createdAt: now,
   });
 
-  const harnessSessionId = await spawnAgenticHarnessSession(ctx, {
+  const runId = await spawnAgenticQueryRun(ctx, {
     query: { ...query, title },
     workspace,
     chatroomId,
     userId: session.userId,
     userMessage: message,
+    turnSeq: seq,
     priorTurns: priorTurns
       .filter((t) => t.assistantResponse)
       .map((t) => ({
@@ -103,12 +100,12 @@ async function submitAgenticMessage(
   await ctx.db.patch('chatroom_agenticQueries', args.queryId, {
     status: 'running',
     title,
-    harnessSessionId,
+    activeRunId: runId,
     lastActiveAt: now,
     summary: undefined,
   });
 
-  return { harnessSessionId, turnSeq: seq };
+  return { runId, turnSeq: seq };
 }
 
 const submitHarnessArgs = {
@@ -185,7 +182,7 @@ export const complete = mutation({
     const applied = await applyAgenticQueryComplete(ctx, {
       queryId: args.queryId,
       result: args.result,
-      harnessSessionId: query.harnessSessionId,
+      runId: query.activeRunId,
     });
     if (!applied.ok) {
       throw new ConvexError({ code: 'INVALID_STATUS', message: applied.message });
@@ -203,19 +200,19 @@ export const syncFromHarness = mutation({
   handler: async (ctx, args) => {
     const { query } = await loadQueryWithAccess(ctx, args.sessionId, args.queryId);
 
-    if (query.status !== 'running' || !query.harnessSessionId) {
+    if (query.status !== 'running' || !query.activeRunId) {
       return { synced: false as const, status: query.status };
     }
 
-    const harnessSessionId = query.harnessSessionId;
+    const runId = query.activeRunId;
 
-    const harnessTurns = await ctx.db
-      .query('chatroom_harnessSessionTurns')
-      .withIndex('by_session_turnSeq', (q) => q.eq('harnessSessionId', harnessSessionId))
+    const runTurns = await ctx.db
+      .query('chatroom_agenticQueryRunTurns')
+      .withIndex('by_run_turnSeq', (q) => q.eq('runId', runId))
       .order('desc')
       .collect();
 
-    const latestCompleteAssistant = harnessTurns.find(
+    const latestCompleteAssistant = runTurns.find(
       (turn) => turn.role === 'assistant' && turn.status === 'complete'
     );
 
@@ -223,8 +220,8 @@ export const syncFromHarness = mutation({
       return { synced: false as const, status: 'running' as const };
     }
 
-    await trySyncAgenticQueryFromHarnessTurn(ctx, {
-      harnessSessionId: query.harnessSessionId,
+    await trySyncAgenticQueryFromRunTurn(ctx, {
+      runId,
       assistantText: latestCompleteAssistant.textContent,
     });
 

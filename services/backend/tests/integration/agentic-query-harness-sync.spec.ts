@@ -21,7 +21,7 @@ Found auth handlers.
 - services/backend/convex/auth/chatroomAccess.ts — access checks
 `;
 
-describe('agentic query harness sync', () => {
+describe('agentic query run sync', () => {
   test('finalizeAssistantTurn auto-completes agentic query with valid markdown', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('agentic-sync');
 
@@ -39,33 +39,32 @@ describe('agentic query harness sync', () => {
       model: { providerID: 'opencode', modelID: 'big-pickle' },
     });
 
-    const harnessSessionId = submitResult.harnessSessionId;
-    expect(harnessSessionId).toBeDefined();
+    const runId = submitResult.runId;
+    expect(runId).toBeDefined();
 
-    const harness = await t.run(async (ctx) => ctx.db.get(harnessSessionId!));
-    expect(harness?.opencode?.lastUsedConfig.agent).toBe('build');
-    expect(harness?.purpose).toBe('agentic-query');
+    const run = await t.run(async (ctx) => ctx.db.get(runId!));
+    expect(run?.opencode?.lastUsedConfig.agent).toBe('build');
 
-    const { turnId } = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
+    const { turnId } = await t.mutation(api.daemon.agenticQuery.turns.beginAssistantTurn, {
       sessionId,
-      harnessSessionId: harnessSessionId!,
+      runId: runId!,
     });
 
-    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.agenticQuery.messages.appendMessages, {
       sessionId,
-      harnessSessionId: harnessSessionId!,
+      runId: runId!,
       chunks: [
         { content: VALID_RESULT, timestamp: Date.now(), messageId: 'msg-1', partType: 'text' },
       ],
     });
 
-    await t.mutation(api.daemon.directHarness.turns.bindTurnMessageId, {
+    await t.mutation(api.daemon.agenticQuery.turns.bindTurnMessageId, {
       sessionId,
       turnId,
       messageId: 'msg-1',
     });
 
-    await t.mutation(api.daemon.directHarness.turns.finalizeAssistantTurn, {
+    await t.mutation(api.daemon.agenticQuery.turns.finalizeAssistantTurn, {
       sessionId,
       turnId,
     });
@@ -92,17 +91,16 @@ describe('agentic query harness sync', () => {
       model: { providerID: 'opencode', modelID: 'big-pickle' },
     });
 
-    const harnessSessionId = submitResult.harnessSessionId!;
+    const runId = submitResult.runId!;
 
-    const { turnId } = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
+    const { turnId } = await t.mutation(api.daemon.agenticQuery.turns.beginAssistantTurn, {
       sessionId,
-      harnessSessionId,
+      runId,
     });
 
-    // OpenCode may emit reasoning on an early messageId before the final text message.
-    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.agenticQuery.messages.appendMessages, {
       sessionId,
-      harnessSessionId,
+      runId,
       chunks: [
         {
           content: 'Thinking about auth...',
@@ -113,21 +111,21 @@ describe('agentic query harness sync', () => {
       ],
     });
 
-    await t.mutation(api.daemon.directHarness.turns.bindTurnMessageId, {
+    await t.mutation(api.daemon.agenticQuery.turns.bindTurnMessageId, {
       sessionId,
       turnId,
       messageId: 'msg-reasoning',
     });
 
-    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.agenticQuery.messages.appendMessages, {
       sessionId,
-      harnessSessionId,
+      runId,
       chunks: [
         { content: VALID_RESULT, timestamp: Date.now(), messageId: 'msg-text', partType: 'text' },
       ],
     });
 
-    await t.mutation(api.daemon.directHarness.turns.finalizeAssistantTurn, {
+    await t.mutation(api.daemon.agenticQuery.turns.finalizeAssistantTurn, {
       sessionId,
       turnId,
     });
@@ -137,7 +135,7 @@ describe('agentic query harness sync', () => {
     expect(completed.turns[0]?.assistantResponse).toContain('## Summary');
   });
 
-  test('syncFromHarness completes running query from harness turn markdown', async () => {
+  test('syncFromHarness completes running query from run turn markdown', async () => {
     const { sessionId, workspaceId } = await setupWorkspaceForSession('agentic-sync-web');
 
     const { queryId } = await t.mutation(api.web.agenticQuery.index.createDraft, {
@@ -154,28 +152,28 @@ describe('agentic query harness sync', () => {
       model: { providerID: 'opencode', modelID: 'big-pickle' },
     });
 
-    const harnessSessionId = submitResult.harnessSessionId!;
+    const runId = submitResult.runId!;
 
-    const { turnId } = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
+    const { turnId } = await t.mutation(api.daemon.agenticQuery.turns.beginAssistantTurn, {
       sessionId,
-      harnessSessionId,
+      runId,
     });
 
-    await t.mutation(api.daemon.directHarness.messages.appendMessages, {
+    await t.mutation(api.daemon.agenticQuery.messages.appendMessages, {
       sessionId,
-      harnessSessionId,
+      runId,
       chunks: [
         { content: VALID_RESULT, timestamp: Date.now(), messageId: 'msg-sync', partType: 'text' },
       ],
     });
 
-    await t.mutation(api.daemon.directHarness.turns.bindTurnMessageId, {
+    await t.mutation(api.daemon.agenticQuery.turns.bindTurnMessageId, {
       sessionId,
       turnId,
       messageId: 'msg-sync',
     });
 
-    await t.mutation(api.daemon.directHarness.turns.finalizeAssistantTurn, {
+    await t.mutation(api.daemon.agenticQuery.turns.finalizeAssistantTurn, {
       sessionId,
       turnId,
     });

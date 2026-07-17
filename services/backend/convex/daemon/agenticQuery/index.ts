@@ -1,10 +1,50 @@
-import { pendingForMachine as messagesPendingForMachine } from './messages';
-import { pendingForMachine as sessionsPendingForMachine } from './sessions';
+import { appendMessages, pendingForMachine as messagesPendingForMachine } from './messages';
+import { dequeueNext, setGenerating } from './queue';
+import {
+  associateOpenCodeSessionId,
+  closeRun,
+  getRun,
+  markActive,
+  markFailed,
+  markIdle,
+  pendingForMachine as runsPendingForMachine,
+} from './runs';
+import {
+  beginAssistantTurn,
+  bindTurnMessageId,
+  finalizeAssistantTurn,
+  markOrphanTurnsFailed,
+  markTurnProcessed,
+} from './turns';
 
-export const messages = {
-  pendingForMachine: messagesPendingForMachine,
+export const runs = {
+  associateOpenCodeSessionId,
+  closeRun,
+  markIdle,
+  markFailed,
+  markActive,
+  getRun,
+  pendingForMachine: runsPendingForMachine,
 };
 
 export const sessions = {
-  pendingForMachine: sessionsPendingForMachine,
+  pendingForMachine: runsPendingForMachine,
+};
+
+export const messages = {
+  appendMessages,
+  pendingForMachine: messagesPendingForMachine,
+};
+
+export const turns = {
+  beginAssistantTurn,
+  bindTurnMessageId,
+  finalizeAssistantTurn,
+  markOrphanTurnsFailed,
+  markTurnProcessed,
+};
+
+export const queue = {
+  setGenerating,
+  dequeueNext,
 };

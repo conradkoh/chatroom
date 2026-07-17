@@ -51,7 +51,7 @@ async function ensureHarnessAlive(
     workspaceId: info.workspaceId,
   })) as WorkspaceInfo | null;
   if (!workspace) {
-    console.warn(`[agentic-query] Cannot resume ${info._id}: workspace not found`);
+    console.warn(`[agentic-query] Cannot resume ${info.runId}: workspace not found`);
     return null;
   }
 
@@ -91,7 +91,7 @@ async function resolveSessionHandle(
   deps: SubscriberDeps,
   info: AgenticPendingPromptSession
 ): Promise<ActiveSession | null> {
-  const rowId = info._id;
+  const rowId = info.runId;
   const cached = deps.activeSessions.get(rowId);
   if (cached) return cached;
   if (!info.opencodeSessionId || !info.harnessName) {
@@ -135,7 +135,7 @@ async function deliverMessage(
   info: AgenticPendingPromptSession,
   msg: AgenticPendingMessage
 ): Promise<void> {
-  const rowId = info._id;
+  const rowId = info.runId;
   await deps.sessionRepository.setGenerating(rowId, true);
 
   const { turnId } = await deps.sessionRepository.beginAssistantTurn(rowId);
@@ -171,7 +171,7 @@ async function drainPendingBatch(
     if (!existingSession) continue;
 
     const pendingMsgs = batch.messages
-      .filter((m) => m.harnessSessionId === info._id)
+      .filter((m) => m.runId === info.runId)
       .sort((a, b) => a.seq - b.seq);
 
     for (const msg of pendingMsgs) {

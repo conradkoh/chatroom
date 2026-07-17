@@ -1,7 +1,7 @@
 import { renderAgenticQueryEnvelope } from '../../../prompts/agentic-query/render-task-envelope';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
-import { insertUserTurn } from '../../daemon/directHarness/insertUserTurn';
+import { insertAgenticQueryUserTurn } from '../../daemon/agenticQuery/insertUserTurn';
 
 const OPENCODE_AGENT = 'build';
 
@@ -29,7 +29,7 @@ export async function getNextAgenticTurnSeq(
   return Math.max(...turns.map((t) => t.seq)) + 1;
 }
 
-export async function spawnAgenticHarnessSession(
+export async function spawnAgenticQueryRun(
   ctx: MutationCtx,
   params: {
     query: Doc<'chatroom_agenticQueries'>;
@@ -37,10 +37,11 @@ export async function spawnAgenticHarnessSession(
     chatroomId: Id<'chatroom_rooms'>;
     userId: Id<'users'>;
     userMessage: string;
+    turnSeq: number;
     priorTurns: { seq: number; userMessage: string; assistantResponse?: string }[];
     harness: AgenticHarnessSpawnConfig;
   }
-): Promise<Id<'chatroom_harnessSessions'>> {
+): Promise<Id<'chatroom_agenticQueryRuns'>> {
   const now = Date.now();
   const cliCompleteCommand = `chatroom agentic-query complete --chatroom-id=${params.chatroomId} --query-id=${params.query._id}`;
   const envelope = renderAgenticQueryEnvelope({
@@ -57,12 +58,12 @@ export async function spawnAgenticHarnessSession(
     cliCompleteCommand,
   });
 
-  const harnessSessionId = await ctx.db.insert('chatroom_harnessSessions', {
+  const runId = await ctx.db.insert('chatroom_agenticQueryRuns', {
     type: 'opencode',
+    agenticQueryId: params.query._id,
+    turnSeq: params.turnSeq,
     workspaceId: params.workspace._id,
     status: 'pending',
-    purpose: 'agentic-query',
-    agenticQueryId: params.query._id,
     createdBy: params.userId,
     createdAt: now,
     lastActiveAt: now,
@@ -77,6 +78,6 @@ export async function spawnAgenticHarnessSession(
     },
   });
 
-  await insertUserTurn(ctx, harnessSessionId, envelope, now);
-  return harnessSessionId;
+  await insertAgenticQueryUserTurn(ctx, runId, envelope, now);
+  return runId;
 }

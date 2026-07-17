@@ -10,6 +10,7 @@
 
 import type * as agentResumeStorm from "../agentResumeStorm.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
+import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
 import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
@@ -43,10 +44,12 @@ import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as daemon_agenticQuery_index from "../daemon/agenticQuery/index.js";
-import type * as daemon_agenticQuery_isAgenticQueryHarnessSession from "../daemon/agenticQuery/isAgenticQueryHarnessSession.js";
+import type * as daemon_agenticQuery_insertUserTurn from "../daemon/agenticQuery/insertUserTurn.js";
 import type * as daemon_agenticQuery_messages from "../daemon/agenticQuery/messages.js";
-import type * as daemon_agenticQuery_sessions from "../daemon/agenticQuery/sessions.js";
-import type * as daemon_agenticQuery_syncFromHarnessTurn from "../daemon/agenticQuery/syncFromHarnessTurn.js";
+import type * as daemon_agenticQuery_queue from "../daemon/agenticQuery/queue.js";
+import type * as daemon_agenticQuery_runs from "../daemon/agenticQuery/runs.js";
+import type * as daemon_agenticQuery_syncFromRunTurn from "../daemon/agenticQuery/syncFromRunTurn.js";
+import type * as daemon_agenticQuery_turns from "../daemon/agenticQuery/turns.js";
 import type * as daemon_commands from "../daemon/commands.js";
 import type * as daemon_directHarness_capabilities from "../daemon/directHarness/capabilities.js";
 import type * as daemon_directHarness_commands from "../daemon/directHarness/commands.js";
@@ -104,6 +107,7 @@ import type * as web_agenticQuery_index from "../web/agenticQuery/index.js";
 import type * as web_agenticQuery_internal from "../web/agenticQuery/internal.js";
 import type * as web_agenticQuery_mutations from "../web/agenticQuery/mutations.js";
 import type * as web_agenticQuery_queries from "../web/agenticQuery/queries.js";
+import type * as web_agenticQuery_runTurns from "../web/agenticQuery/runTurns.js";
 import type * as web_directHarness_capabilities from "../web/directHarness/capabilities.js";
 import type * as web_directHarness_commands from "../web/directHarness/commands.js";
 import type * as web_directHarness_messageQueue from "../web/directHarness/messageQueue.js";
@@ -123,6 +127,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   agentResumeStorm: typeof agentResumeStorm;
   agenticQueryCleanup: typeof agenticQueryCleanup;
+  "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
   "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;
@@ -156,10 +161,12 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   crypto: typeof crypto;
   "daemon/agenticQuery/index": typeof daemon_agenticQuery_index;
-  "daemon/agenticQuery/isAgenticQueryHarnessSession": typeof daemon_agenticQuery_isAgenticQueryHarnessSession;
+  "daemon/agenticQuery/insertUserTurn": typeof daemon_agenticQuery_insertUserTurn;
   "daemon/agenticQuery/messages": typeof daemon_agenticQuery_messages;
-  "daemon/agenticQuery/sessions": typeof daemon_agenticQuery_sessions;
-  "daemon/agenticQuery/syncFromHarnessTurn": typeof daemon_agenticQuery_syncFromHarnessTurn;
+  "daemon/agenticQuery/queue": typeof daemon_agenticQuery_queue;
+  "daemon/agenticQuery/runs": typeof daemon_agenticQuery_runs;
+  "daemon/agenticQuery/syncFromRunTurn": typeof daemon_agenticQuery_syncFromRunTurn;
+  "daemon/agenticQuery/turns": typeof daemon_agenticQuery_turns;
   "daemon/commands": typeof daemon_commands;
   "daemon/directHarness/capabilities": typeof daemon_directHarness_capabilities;
   "daemon/directHarness/commands": typeof daemon_directHarness_commands;
@@ -217,6 +224,7 @@ declare const fullApi: ApiFromModules<{
   "web/agenticQuery/internal": typeof web_agenticQuery_internal;
   "web/agenticQuery/mutations": typeof web_agenticQuery_mutations;
   "web/agenticQuery/queries": typeof web_agenticQuery_queries;
+  "web/agenticQuery/runTurns": typeof web_agenticQuery_runTurns;
   "web/directHarness/capabilities": typeof web_directHarness_capabilities;
   "web/directHarness/commands": typeof web_directHarness_commands;
   "web/directHarness/messageQueue": typeof web_directHarness_messageQueue;

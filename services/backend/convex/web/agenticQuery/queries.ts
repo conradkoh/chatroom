@@ -65,7 +65,7 @@ export const get = query({
         status: queryDoc.status,
         mode: queryDoc.mode,
         title: queryDoc.title,
-        harnessSessionId: queryDoc.harnessSessionId,
+        activeRunId: queryDoc.activeRunId,
         summary: queryDoc.summary,
         createdAt: queryDoc.createdAt,
         lastActiveAt: queryDoc.lastActiveAt,

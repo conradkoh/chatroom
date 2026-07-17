@@ -11,6 +11,7 @@ import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
 import { isModEnterKey } from '../../utils/isModEnterKey';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
+import { useAgenticQueryRunTurnStore } from '../hooks/useAgenticQueryRunTurnStore';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
 import { cn } from '@/lib/utils';
@@ -19,7 +20,6 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
-import { useHarnessTurnStore } from '@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore';
 
 export interface AgenticQueryPanelProps {
   queryId: string;
@@ -37,12 +37,8 @@ type AgenticTurn = {
   createdAt: number;
 };
 
-function AgenticStreamingBody({
-  harnessSessionId,
-}: {
-  harnessSessionId: Id<'chatroom_harnessSessions'>;
-}) {
-  const { turns, streamingOverlay, isLoading } = useHarnessTurnStore(harnessSessionId);
+function AgenticStreamingBody({ runId }: { runId: Id<'chatroom_agenticQueryRuns'> }) {
+  const { turns, streamingOverlay, isLoading } = useAgenticQueryRunTurnStore(runId);
   const latestAssistant = [...turns].reverse().find((t) => t.role === 'assistant');
   const streamText = streamingOverlay?.textContent?.trim();
   const content = streamText || latestAssistant?.textContent?.trim();
@@ -67,14 +63,14 @@ function AgenticTurnBlock({
   turn,
   isLatest,
   isRunning,
-  harnessSessionId,
+  activeRunId,
 }: {
   turn: AgenticTurn;
   isLatest: boolean;
   isRunning: boolean;
-  harnessSessionId?: Id<'chatroom_harnessSessions'>;
+  activeRunId?: Id<'chatroom_agenticQueryRuns'>;
 }) {
-  const showStreaming = isLatest && isRunning && !turn.assistantResponse && harnessSessionId;
+  const showStreaming = isLatest && isRunning && !turn.assistantResponse && activeRunId;
 
   return (
     <div
@@ -99,7 +95,7 @@ function AgenticTurnBlock({
           <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted pt-2">
             Agent
           </div>
-          <AgenticStreamingBody harnessSessionId={harnessSessionId} />
+          <AgenticStreamingBody runId={activeRunId} />
         </>
       ) : null}
     </div>
@@ -120,7 +116,7 @@ export function AgenticQueryPanel({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const lastMetaRef = useRef<{ title: string; mode: AgenticQueryMode } | null>(null);
 
-  const { query, turns, isRunning, canSubmit, canFollowUp, harnessSessionId, submit, isLoading } =
+  const { query, turns, isRunning, canSubmit, canFollowUp, activeRunId, submit, isLoading } =
     useAgenticQuery(queryId);
 
   const harnessSelection = useAgenticQueryHarnessSelection(workspaceId);
@@ -218,7 +214,7 @@ export function AgenticQueryPanel({
       <AgenticQueryHarnessSync
         queryId={queryId as Id<'chatroom_agenticQueries'>}
         queryStatus={query?.status}
-        harnessSessionId={harnessSessionId}
+        activeRunId={activeRunId}
       />
 
       <div
@@ -310,7 +306,7 @@ export function AgenticQueryPanel({
             turn={latestTurn}
             isLatest
             isRunning={isRunning}
-            harnessSessionId={harnessSessionId}
+            activeRunId={activeRunId}
           />
         ) : null}
 
@@ -320,7 +316,7 @@ export function AgenticQueryPanel({
             turn={turn}
             isLatest={false}
             isRunning={false}
-            harnessSessionId={harnessSessionId}
+            activeRunId={activeRunId}
           />
         ))}
       </div>

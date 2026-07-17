@@ -1,7 +1,7 @@
 /**
  * Agentic Query Cleanup — TTL-based cleanup for agentic search history.
  *
- * Deletes stale agentic queries (and their turns + harness session data) older
+ * Deletes stale agentic queries (and their turns + run data) older
  * than 7 days by lastActiveAt. Runs hourly via cron with batched, self-rescheduling
  * mutations to stay within Convex write limits.
  */
@@ -26,21 +26,21 @@ const ACTIVE_STATUSES = new Set(['running', 'pending']);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function deleteHarnessSessionData(
+async function deleteAgenticQueryRunData(
   ctx: MutationCtx,
-  harnessSessionId: Id<'chatroom_harnessSessions'>,
+  runId: Id<'chatroom_agenticQueryRuns'>,
   budget: { remaining: number }
 ): Promise<number> {
   let deleted = 0;
 
   while (budget.remaining > 0) {
     const messages = await ctx.db
-      .query('chatroom_harnessSessionMessages')
-      .withIndex('by_session', (q) => q.eq('harnessSessionId', harnessSessionId))
+      .query('chatroom_agenticQueryRunMessages')
+      .withIndex('by_run', (q) => q.eq('runId', runId))
       .take(CHILD_ROW_BATCH);
     if (messages.length === 0) break;
     for (const row of messages) {
-      await ctx.db.delete('chatroom_harnessSessionMessages', row._id);
+      await ctx.db.delete('chatroom_agenticQueryRunMessages', row._id);
       deleted++;
       budget.remaining--;
       if (budget.remaining <= 0) break;
@@ -49,26 +49,12 @@ async function deleteHarnessSessionData(
 
   while (budget.remaining > 0) {
     const turns = await ctx.db
-      .query('chatroom_harnessSessionTurns')
-      .withIndex('by_session_turnSeq', (q) => q.eq('harnessSessionId', harnessSessionId))
+      .query('chatroom_agenticQueryRunTurns')
+      .withIndex('by_run_turnSeq', (q) => q.eq('runId', runId))
       .take(CHILD_ROW_BATCH);
     if (turns.length === 0) break;
     for (const row of turns) {
-      await ctx.db.delete('chatroom_harnessSessionTurns', row._id);
-      deleted++;
-      budget.remaining--;
-      if (budget.remaining <= 0) break;
-    }
-  }
-
-  while (budget.remaining > 0) {
-    const queued = await ctx.db
-      .query('chatroom_harnessMessageQueue')
-      .withIndex('by_session_status', (q) => q.eq('harnessSessionId', harnessSessionId))
-      .take(CHILD_ROW_BATCH);
-    if (queued.length === 0) break;
-    for (const row of queued) {
-      await ctx.db.delete('chatroom_harnessMessageQueue', row._id);
+      await ctx.db.delete('chatroom_agenticQueryRunTurns', row._id);
       deleted++;
       budget.remaining--;
       if (budget.remaining <= 0) break;
@@ -76,11 +62,33 @@ async function deleteHarnessSessionData(
   }
 
   if (budget.remaining > 0) {
-    const session = await ctx.db.get('chatroom_harnessSessions', harnessSessionId);
-    if (session) {
-      await ctx.db.delete('chatroom_harnessSessions', harnessSessionId);
+    const run = await ctx.db.get('chatroom_agenticQueryRuns', runId);
+    if (run) {
+      await ctx.db.delete('chatroom_agenticQueryRuns', runId);
       deleted++;
       budget.remaining--;
+    }
+  }
+
+  return deleted;
+}
+
+async function deleteAgenticQueryRuns(
+  ctx: MutationCtx,
+  agenticQueryId: Id<'chatroom_agenticQueries'>,
+  budget: { remaining: number }
+): Promise<number> {
+  let deleted = 0;
+
+  while (budget.remaining > 0) {
+    const runs = await ctx.db
+      .query('chatroom_agenticQueryRuns')
+      .withIndex('by_agenticQueryId', (q) => q.eq('agenticQueryId', agenticQueryId))
+      .take(CHILD_ROW_BATCH);
+    if (runs.length === 0) break;
+    for (const run of runs) {
+      deleted += await deleteAgenticQueryRunData(ctx, run._id, budget);
+      if (budget.remaining <= 0) break;
     }
   }
 
@@ -125,11 +133,9 @@ async function deleteAgenticQuery(
     return { deleted, fullyRemoved: false };
   }
 
-  if (query.harnessSessionId) {
-    deleted += await deleteHarnessSessionData(ctx, query.harnessSessionId, budget);
-    if (budget.remaining <= 0) {
-      return { deleted, fullyRemoved: false };
-    }
+  deleted += await deleteAgenticQueryRuns(ctx, queryId, budget);
+  if (budget.remaining <= 0) {
+    return { deleted, fullyRemoved: false };
   }
 
   await ctx.db.delete('chatroom_agenticQueries', queryId);

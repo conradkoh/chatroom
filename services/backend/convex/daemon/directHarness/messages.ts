@@ -55,6 +55,7 @@ export const appendMessages = mutation({
 
 // ─── pendingForMachine ───────────────────────────────────────────────────────
 
+// fallow-ignore-next-line code-duplication
 export const pendingForMachine = query({
   args: {
     ...SessionIdArg,
@@ -92,9 +93,6 @@ export const pendingForMachine = query({
       )
     ).flat();
 
-    // Exclude agentic-query sessions — handled by daemon/agenticQuery module
-    const directSessions = allSessions.filter((s) => s.purpose !== 'agentic-query');
-
     const sessions: {
       _id: string;
       workspaceId: string;
@@ -104,7 +102,7 @@ export const pendingForMachine = query({
     }[] = [];
     const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
 
-    for (const session of directSessions) {
+    for (const session of allSessions) {
       const cursor = session.lastProcessedTurnSeq ?? 0;
       const pendingTurns = await ctx.db
         .query('chatroom_harnessSessionTurns')

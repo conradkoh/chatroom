@@ -5,7 +5,7 @@ export type AgenticLastUsedConfig = {
 
 export type AgenticPendingOpenSession = {
   kind: 'agentic-query';
-  _id: string;
+  runId: string;
   workspaceId: string;
   harnessName: string;
   agenticQueryId: string;
@@ -15,7 +15,7 @@ export type AgenticPendingOpenSession = {
 
 export type AgenticPendingPromptSession = {
   kind: 'agentic-query';
-  _id: string;
+  runId: string;
   workspaceId: string;
   harnessName: string;
   opencodeSessionId: string | undefined;
@@ -25,7 +25,7 @@ export type AgenticPendingPromptSession = {
 };
 
 export type AgenticPendingMessage = {
-  harnessSessionId: string;
+  runId: string;
   content: string;
   seq: number;
 };

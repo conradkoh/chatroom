@@ -2,13 +2,11 @@ import type { ConvexClient } from 'convex/browser';
 
 import { startPromptSubscriber } from './prompt-subscriber.js';
 import { startSessionSubscriber } from './session-subscriber.js';
-import type { ActiveSession } from '../direct-harness/session-subscriber.js';
 import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import { ConvexOutputRepository } from '../../../../infrastructure/repos/convex-output-repository.js';
-import { ConvexSessionRepository } from '../../../../infrastructure/repos/convex-session-repository.js';
+import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
+import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
-import type { SessionId } from '../types.js';
+import type { ActiveSession } from '../direct-harness/session-subscriber.js';
 import type { HarnessWorkerSession } from '../shared-harness/types.js';
 
 export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {
@@ -26,11 +24,11 @@ export function startAgenticQuerySubscriptions(
   activeSessions: Map<string, ActiveSession>,
   harnesses: Map<string, BoundHarness>
 ): AgenticQuerySubscriptionHandles {
-  const sessionRepository = new ConvexSessionRepository({
+  const sessionRepository = new ConvexAgenticQueryRunRepository({
     backend: session.backend,
     sessionId: session.sessionId,
   });
-  const outputRepository = new ConvexOutputRepository({
+  const outputRepository = new ConvexAgenticQueryOutputRepository({
     backend: session.backend,
     sessionId: session.sessionId,
   });

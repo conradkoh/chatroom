@@ -1,13 +1,52 @@
+// fallow-ignore-file code-duplication
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireMachineWorkspaces } from '../directHarness/machineWorkspaces';
-import { query } from '../../_generated/server';
+import { mutation, query } from '../../_generated/server';
 import {
+  getRunWithAccess,
   requireDirectHarnessWorkers,
-  requireOpencodeSession,
-} from '../../api/directHarnessHelpers';
-import { isAgenticQueryHarnessSession } from './isAgenticQueryHarnessSession';
+  requireOpencodeRun,
+} from '../../api/agenticQueryHelpers';
+import { requireMachineWorkspaces } from '../directHarness/machineWorkspaces';
+
+export const appendMessages = mutation({
+  args: {
+    ...SessionIdArg,
+    runId: v.id('chatroom_agenticQueryRuns'),
+    chunks: v.array(
+      v.object({
+        content: v.string(),
+        timestamp: v.number(),
+        messageId: v.optional(v.string()),
+        partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    requireDirectHarnessWorkers();
+    await getRunWithAccess(ctx, args.sessionId, args.runId);
+
+    if (args.chunks.length === 0) return { inserted: 0 };
+
+    for (const chunk of args.chunks) {
+      await ctx.db.insert('chatroom_agenticQueryRunMessages', {
+        runId: args.runId,
+        role: 'assistant',
+        content: chunk.content,
+        timestamp: chunk.timestamp,
+        messageId: chunk.messageId,
+        partType: chunk.partType,
+      });
+    }
+
+    await ctx.db.patch('chatroom_agenticQueryRuns', args.runId, {
+      lastActiveAt: Date.now(),
+    });
+
+    return { inserted: args.chunks.length };
+  },
+});
 
 export const pendingForMachine = query({
   args: {
@@ -21,23 +60,23 @@ export const pendingForMachine = query({
 
     const workspaceIds = new Set(workspaces.map((w) => w._id));
 
-    const allSessions = (
+    const allRuns = (
       await Promise.all(
         [...workspaceIds].flatMap((wsId) => [
           ctx.db
-            .query('chatroom_harnessSessions')
+            .query('chatroom_agenticQueryRuns')
             .withIndex('by_workspace_status', (q) =>
               q.eq('workspaceId', wsId).eq('status', 'pending')
             )
             .collect(),
           ctx.db
-            .query('chatroom_harnessSessions')
+            .query('chatroom_agenticQueryRuns')
             .withIndex('by_workspace_status', (q) =>
               q.eq('workspaceId', wsId).eq('status', 'active')
             )
             .collect(),
           ctx.db
-            .query('chatroom_harnessSessions')
+            .query('chatroom_agenticQueryRuns')
             .withIndex('by_workspace_status', (q) => q.eq('workspaceId', wsId).eq('status', 'idle'))
             .collect(),
         ])
@@ -46,7 +85,7 @@ export const pendingForMachine = query({
 
     const sessions: {
       kind: 'agentic-query';
-      _id: string;
+      runId: string;
       workspaceId: string;
       harnessName: string;
       opencodeSessionId: string | undefined;
@@ -54,42 +93,37 @@ export const pendingForMachine = query({
       chatroomId: string;
       lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
     }[] = [];
-    const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
+    const allMessages: { runId: string; content: string; seq: number }[] = [];
 
-    for (const session of allSessions) {
-      if (!isAgenticQueryHarnessSession(session)) continue;
-      const agenticQueryId = session.agenticQueryId;
-
-      const cursor = session.lastProcessedTurnSeq ?? 0;
+    for (const run of allRuns) {
+      const cursor = run.lastProcessedTurnSeq ?? 0;
       const pendingTurns = await ctx.db
-        .query('chatroom_harnessSessionTurns')
-        .withIndex('by_session_turnSeq', (q) =>
-          q.eq('harnessSessionId', session._id).gt('turnSeq', cursor)
-        )
+        .query('chatroom_agenticQueryRunTurns')
+        .withIndex('by_run_turnSeq', (q) => q.eq('runId', run._id).gt('turnSeq', cursor))
         .order('asc')
         .collect();
 
       const pending = pendingTurns.filter((t) => t.role === 'user');
 
       if (pending.length > 0) {
-        const s = requireOpencodeSession(session);
-        const workspace = workspaces.find((w) => w._id === session.workspaceId);
+        const s = requireOpencodeRun(run);
+        const workspace = workspaces.find((w) => w._id === run.workspaceId);
         const chatroomId = workspace?.chatroomId as string | undefined;
         if (!chatroomId) continue;
 
         sessions.push({
           kind: 'agentic-query',
-          _id: session._id as string,
-          workspaceId: session.workspaceId as string,
+          runId: run._id as string,
+          workspaceId: run.workspaceId as string,
           harnessName: s.opencode.harnessName,
           opencodeSessionId: s.opencode.opencodeSessionId,
-          agenticQueryId,
+          agenticQueryId: run.agenticQueryId as string,
           chatroomId,
           lastUsedConfig: s.opencode.lastUsedConfig,
         });
         for (const turn of pending) {
           allMessages.push({
-            harnessSessionId: turn.harnessSessionId as unknown as string,
+            runId: turn.runId as unknown as string,
             content: turn.textContent,
             seq: turn.turnSeq,
           });

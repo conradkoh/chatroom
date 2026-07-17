@@ -1,5 +1,4 @@
-// fallow-ignore-file complexity
-
+// fallow-ignore-file code-duplication complexity
 import { validateAgenticQueryCompleteResult } from '../../../prompts/agentic-query/validate-complete-result';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -9,28 +8,24 @@ import {
 } from '../../web/agenticQuery/completeLogic';
 
 /**
- * After a harness assistant turn finalizes, sync agentic-query sessions:
+ * After an agentic run assistant turn finalizes, sync domain query state:
  * - Valid structured markdown → complete the query
  * - Empty response → mark failed
  * - Invalid markdown with content → save partial text and mark failed
  */
-export async function trySyncAgenticQueryFromHarnessTurn(
+export async function trySyncAgenticQueryFromRunTurn(
   ctx: MutationCtx,
   params: {
-    harnessSessionId: Id<'chatroom_harnessSessions'>;
+    runId: Id<'chatroom_agenticQueryRuns'>;
     assistantText: string;
   }
 ): Promise<void> {
-  const harnessSession = await ctx.db.get('chatroom_harnessSessions', params.harnessSessionId);
-  if (
-    !harnessSession ||
-    harnessSession.purpose !== 'agentic-query' ||
-    !harnessSession.agenticQueryId
-  ) {
+  const run = await ctx.db.get('chatroom_agenticQueryRuns', params.runId);
+  if (!run) {
     return;
   }
 
-  const query = await ctx.db.get('chatroom_agenticQueries', harnessSession.agenticQueryId);
+  const query = await ctx.db.get('chatroom_agenticQueries', run.agenticQueryId);
   if (!query || query.status !== 'running') {
     return;
   }
@@ -48,8 +43,8 @@ export async function trySyncAgenticQueryFromHarnessTurn(
   }
 
   await applyAgenticQueryComplete(ctx, {
-    queryId: harnessSession.agenticQueryId,
+    queryId: run.agenticQueryId,
     result: text,
-    harnessSessionId: params.harnessSessionId,
+    runId: params.runId,
   });
 }

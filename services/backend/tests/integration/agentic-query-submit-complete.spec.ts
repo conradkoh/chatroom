@@ -22,7 +22,7 @@ Found auth handlers.
 `;
 
 describe('web.agenticQuery submit and complete', () => {
-  test('submit spawns harness session and complete finalizes turn', async () => {
+  test('submit spawns agentic query run and complete finalizes turn', async () => {
     const { sessionId, chatroomId, workspaceId } = await setupWorkspaceForSession('agentic-e2e');
 
     const { queryId } = await t.mutation(api.web.agenticQuery.index.createDraft, {
@@ -38,18 +38,17 @@ describe('web.agenticQuery submit and complete', () => {
       harnessName: 'opencode-sdk',
     });
 
-    expect(submitResult.harnessSessionId).toBeDefined();
+    expect(submitResult.runId).toBeDefined();
 
     const running = await t.run(async (ctx) => ctx.db.get(queryId));
     expect(running?.status).toBe('running');
-    expect(running?.harnessSessionId).toBe(submitResult.harnessSessionId);
+    expect(running?.activeRunId).toBe(submitResult.runId);
 
-    const harness = await t.run(async (ctx) =>
-      submitResult.harnessSessionId ? ctx.db.get(submitResult.harnessSessionId) : null
+    const run = await t.run(async (ctx) =>
+      submitResult.runId ? ctx.db.get(submitResult.runId) : null
     );
-    expect(harness?.purpose).toBe('agentic-query');
-    expect(harness?.opencode?.harnessName).toBe('opencode-sdk');
-    expect(harness?.opencode?.lastUsedConfig.agent).toBe('build');
+    expect(run?.opencode?.harnessName).toBe('opencode-sdk');
+    expect(run?.opencode?.lastUsedConfig.agent).toBe('build');
 
     await t.mutation(api.web.agenticQuery.index.complete, {
       sessionId,

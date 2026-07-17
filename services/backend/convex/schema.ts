@@ -2761,8 +2761,6 @@ export default defineSchema({
         createdBy: v.id('users'),
         createdAt: v.number(),
         lastActiveAt: v.number(),
-        purpose: v.optional(v.union(v.literal('direct'), v.literal('agentic-query'))),
-        agenticQueryId: v.optional(v.id('chatroom_agenticQueries')),
         /**
          * Cursor for the daemon's turn-based message processing.
          * Indexes into chatroom_harnessSessionTurns. Default treated as 0.
@@ -2814,7 +2812,7 @@ export default defineSchema({
     ),
     mode: v.union(v.literal('search'), v.literal('ask')),
     title: v.string(),
-    harnessSessionId: v.optional(v.id('chatroom_harnessSessions')),
+    activeRunId: v.optional(v.id('chatroom_agenticQueryRuns')),
     createdBy: v.id('users'),
     createdAt: v.number(),
     lastActiveAt: v.number(),
@@ -2838,6 +2836,83 @@ export default defineSchema({
   })
     .index('by_agenticQueryId', ['agenticQueryId'])
     .index('by_agenticQueryId_seq', ['agenticQueryId', 'seq']),
+
+  /**
+   * One SDK harness execution per agentic query submit/follow-up.
+   * Parallel to chatroom_harnessSessions but owned exclusively by agentic query.
+   */
+  chatroom_agenticQueryRuns: defineTable({
+    agenticQueryId: v.id('chatroom_agenticQueries'),
+    /** Domain turn seq in chatroom_agenticQueryTurns that this run serves. */
+    turnSeq: v.number(),
+    workspaceId: v.id('chatroom_workspaces'),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('spawning'),
+      v.literal('active'),
+      v.literal('idle'),
+      v.literal('closed'),
+      v.literal('failed')
+    ),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    lastActiveAt: v.number(),
+    lastProcessedTurnSeq: v.optional(v.number()),
+    isGenerating: v.optional(v.boolean()),
+    type: v.literal('opencode'),
+    opencode: v.object({
+      harnessName: v.string(),
+      opencodeSessionId: v.optional(v.string()),
+      sessionTitle: v.optional(v.string()),
+      lastUsedConfig: v.object({
+        agent: v.string(),
+        model: v.optional(v.object({ providerID: v.string(), modelID: v.string() })),
+        system: v.optional(v.string()),
+        tools: v.optional(v.record(v.string(), v.boolean())),
+      }),
+    }),
+  })
+    .index('by_agenticQueryId', ['agenticQueryId'])
+    .index('by_workspace_status', ['workspaceId', 'status']),
+
+  /**
+   * Daemon turn store for an agentic query run (user envelope + assistant response).
+   */
+  chatroom_agenticQueryRunTurns: defineTable({
+    runId: v.id('chatroom_agenticQueryRuns'),
+    turnSeq: v.number(),
+    role: v.union(v.literal('user'), v.literal('assistant')),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('streaming'),
+      v.literal('complete'),
+      v.literal('failed')
+    ),
+    messageId: v.optional(v.string()),
+    textContent: v.string(),
+    reasoningContent: v.string(),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_run_turnSeq', ['runId', 'turnSeq'])
+    .index('by_run_status', ['runId', 'status'])
+    .index('by_messageId', ['messageId'])
+    .index('by_status_completedAt', ['status', 'completedAt']),
+
+  /**
+   * Ephemeral streaming chunks for an agentic query run.
+   */
+  chatroom_agenticQueryRunMessages: defineTable({
+    runId: v.id('chatroom_agenticQueryRuns'),
+    role: v.union(v.literal('user'), v.literal('assistant')),
+    content: v.string(),
+    timestamp: v.number(),
+    messageId: v.optional(v.string()),
+    partType: v.optional(v.union(v.literal('text'), v.literal('reasoning'))),
+  })
+    .index('by_run', ['runId'])
+    .index('by_run_role', ['runId', 'role'])
+    .index('by_messageId', ['messageId']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant

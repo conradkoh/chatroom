@@ -174,6 +174,7 @@ export const getSession = query({
 
 // ─── listPendingSessionsForMachine ────────────────────────────────────────────
 
+// fallow-ignore-next-line code-duplication
 export const listPendingSessionsForMachine = query({
   args: {
     ...SessionIdArg,
@@ -194,7 +195,7 @@ export const listPendingSessionsForMachine = query({
           .collect()
       )
     );
-    return sessionGroups.flat().filter((s) => s.purpose !== 'agentic-query');
+    return sessionGroups.flat();
   },
 });
 

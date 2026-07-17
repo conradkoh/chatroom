@@ -23,6 +23,7 @@ export interface AgenticQueryData {
   mode: 'search' | 'ask';
   title: string;
   harnessSessionId?: string;
+  activeRunId?: string;
   summary?: string;
   createdAt: number;
   lastActiveAt: number;
@@ -64,9 +65,7 @@ export function useAgenticQuery(queryId: string) {
   const canFollowUp = data?.query.status === 'complete' || data?.query.status === 'failed';
   const canSubmit = isDraft || canFollowUp;
 
-  const harnessSessionId = data?.query.harnessSessionId as
-    | Id<'chatroom_harnessSessions'>
-    | undefined;
+  const activeRunId = data?.query.activeRunId as Id<'chatroom_agenticQueryRuns'> | undefined;
 
   return useMemo(
     () => ({
@@ -77,9 +76,9 @@ export function useAgenticQuery(queryId: string) {
       isDraft,
       canFollowUp,
       canSubmit,
-      harnessSessionId,
+      activeRunId,
       submit,
     }),
-    [canFollowUp, canSubmit, data, harnessSessionId, isDraft, isRunning, submit]
+    [activeRunId, canFollowUp, canSubmit, data, isDraft, isRunning, submit]
   );
 }

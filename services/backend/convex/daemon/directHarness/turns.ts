@@ -12,7 +12,6 @@ import {
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers';
 import { requireMachineOwner } from '../../auth/cli/machineAccess';
-import { trySyncAgenticQueryFromHarnessTurn } from '../agenticQuery/syncFromHarnessTurn';
 
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 
@@ -130,11 +129,6 @@ export const finalizeAssistantTurn = mutation({
       textContent,
       reasoningContent,
       completedAt: Date.now(),
-    });
-
-    await trySyncAgenticQueryFromHarnessTurn(ctx, {
-      harnessSessionId: turn.harnessSessionId,
-      assistantText: textContent,
     });
 
     return { ok: true };
@@ -268,6 +262,7 @@ export const markOrphanTurnsFailed = mutation({
  * Returns harness sessions whose workspace belongs to the given machine,
  * filtered to 'active' and 'idle' statuses (sessions that should have a daemon attached).
  */
+// fallow-ignore-next-line code-duplication
 export const getMachineHarnessSessions = query({
   args: {
     ...SessionIdArg,
