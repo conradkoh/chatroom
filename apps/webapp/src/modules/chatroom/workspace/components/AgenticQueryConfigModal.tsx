@@ -51,7 +51,7 @@ export function AgenticQueryConfigModal({
   const currentIsFavorite = currentEntry != null && checkFavorite(currentEntry);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
       <DialogContent data-testid="agentic-query-config-modal" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Search configuration</DialogTitle>
@@ -66,8 +66,8 @@ export function AgenticQueryConfigModal({
             onModelChange={onModelChange}
             isModelHidden={isModelHidden}
             disabled={disabled}
+            filterButton={<HarnessFilterButton filter={filter} providers={providers} />}
           />
-          <HarnessFilterButton filter={filter} providers={providers} />
           {currentEntry && !currentIsFavorite && (
             <button
               type="button"

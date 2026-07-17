@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
 import { HarnessModelSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessModelSelect';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
@@ -14,6 +16,7 @@ export interface AgenticQueryHarnessControlsProps {
   onModelChange: (modelKey: string) => void;
   isModelHidden?: (modelKey: string) => boolean;
   disabled?: boolean;
+  filterButton?: ReactNode;
 }
 
 export function AgenticQueryHarnessControls({
@@ -25,10 +28,11 @@ export function AgenticQueryHarnessControls({
   onModelChange,
   isModelHidden,
   disabled = false,
+  filterButton,
 }: AgenticQueryHarnessControlsProps) {
   return (
     <div
-      className="flex gap-2 shrink-0"
+      className="flex items-center gap-2 min-w-0"
       data-testid="agentic-query-harness-controls"
       aria-disabled={disabled}
     >
@@ -49,6 +53,7 @@ export function AgenticQueryHarnessControls({
           disabled={disabled}
         />
       </div>
+      {filterButton ? <div className="shrink-0">{filterButton}</div> : null}
     </div>
   );
 }
