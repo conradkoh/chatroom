@@ -79,6 +79,13 @@
       "file": "**/commands/machine/daemon-start/init.ts",
       "exports": ["discoverModels", "initDaemonEffect"],
     },
+    {
+      "file": "**/workspace/components/WorkspaceBottomBar.tsx",
+      "exports": [
+        "WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX",
+        "shouldSuppressWorkspaceBottomBarSafeArea",
+      ],
+    },
   ],
   "duplicates": {
     "ignore": [
