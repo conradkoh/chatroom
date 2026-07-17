@@ -54,24 +54,8 @@ vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => 
   }),
 }));
 
-vi.mock('@/modules/chatroom/hooks/useFileReferenceAutocomplete', () => ({
-  useFileReferenceAutocomplete: (opts: {
-    onTextChange?: (value: string) => void;
-    onAfterUpdate?: () => void;
-  }) => ({
-    autocompleteState: { results: [], selectedIndex: -1, position: null, visible: false },
-    handleTextareaChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      opts?.onTextChange?.(e.target.value);
-      opts?.onAfterUpdate?.();
-    },
-    handleAutocompleteKeyDown: vi.fn(() => false),
-    handleFileSelect: vi.fn(),
-    setSelectedIndex: vi.fn(),
-  }),
-}));
-
-vi.mock('@/modules/chatroom/direct-harness/hooks/useHarnessTurnStore', () => ({
-  useHarnessTurnStore: () => ({
+vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
+  useAgenticQueryRunTurnStore: () => ({
     turns: [],
     streamingOverlay: null,
     isLoading: false,

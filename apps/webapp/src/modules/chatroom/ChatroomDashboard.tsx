@@ -356,6 +356,8 @@ const ExplorerContent = memo(function ExplorerContent({
                 queryId={activeTab.queryId}
                 mode={activeTab.mode}
                 workspaceId={activeWorkspace?.workspaceId ?? ''}
+                machineId={activeWorkspace?.machineId ?? ''}
+                workingDir={activeWorkspace?.workingDir ?? ''}
                 focusToken={agenticFocusToken}
                 onMetaChange={handleAgenticMetaChange}
               />

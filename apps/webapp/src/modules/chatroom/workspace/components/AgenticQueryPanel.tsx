@@ -14,21 +14,25 @@ import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarness
 import { useAgenticQueryRunTurnStore } from '../hooks/useAgenticQueryRunTurnStore';
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
-import { decodeWorkspaceId } from '@/lib/workspaceIdentifier';
-import { FileReferenceAutocomplete } from '@/modules/chatroom/components/FileReferenceAutocomplete';
-import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
-import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 import { cn } from '@/lib/utils';
+import { encodeWorkspaceId } from '@/lib/workspaceIdentifier';
+import { FileReferenceAutocomplete } from '@/modules/chatroom/components/FileReferenceAutocomplete';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
+import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
+import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 
 export interface AgenticQueryPanelProps {
   queryId: string;
   mode: AgenticQueryMode;
+  /** Convex registry workspace ID (harness selection, API calls). */
   workspaceId: string;
+  /** Machine + path for workspace file tree (@ autocomplete). */
+  machineId?: string;
+  workingDir?: string;
   onMetaChange?: (meta: { title: string; mode: AgenticQueryMode }) => void;
   focusToken?: number;
 }
@@ -111,6 +115,8 @@ export function AgenticQueryPanel({
   queryId,
   mode: _mode,
   workspaceId,
+  machineId = '',
+  workingDir = '',
   onMetaChange,
   focusToken,
 }: AgenticQueryPanelProps) {
@@ -192,34 +198,31 @@ export function AgenticQueryPanel({
   // ── @ file reference autocomplete ──────────────────────────────────────
   const composerAnchorRef = useRef<HTMLDivElement>(null);
 
-  const workspaceMeta = useMemo(() => {
-    if (!workspaceId) return null;
-    try {
-      const { machineId, workingDir } = decodeWorkspaceId(workspaceId);
-      return { machineId, workingDir, workspaceId };
-    } catch {
-      return null;
-    }
-  }, [workspaceId]);
+  const hasFileTreeWorkspace = Boolean(machineId && workingDir);
 
   const { entries: treeEntries, refresh: refreshFileTree } = useWorkspaceFileTreeEntries({
-    machineId: workspaceMeta?.machineId ?? '',
-    workingDir: workspaceMeta?.workingDir ?? '',
-    enabled: !!workspaceMeta,
+    machineId,
+    workingDir,
+    enabled: hasFileTreeWorkspace,
     includeDirectories: true,
   });
 
+  const fileTreeWorkspaceId = useMemo(
+    () => (hasFileTreeWorkspace ? encodeWorkspaceId(machineId, workingDir) : null),
+    [hasFileTreeWorkspace, machineId, workingDir]
+  );
+
   const autocompleteFiles = useMemo(
     () =>
-      workspaceMeta
-        ? treeEntries.map((e) => ({ ...e, workspaceId: workspaceMeta.workspaceId }))
+      fileTreeWorkspaceId
+        ? treeEntries.map((e) => ({ ...e, workspaceId: fileTreeWorkspaceId }))
         : [],
-    [treeEntries, workspaceMeta]
+    [treeEntries, fileTreeWorkspaceId]
   );
 
   const fileAutocomplete = useFileReferenceAutocomplete({
     files: autocompleteFiles,
-    hasWorkspace: !!workspaceMeta,
+    hasWorkspace: hasFileTreeWorkspace,
     onAtTriggerActivate: () => refreshFileTree(),
     textareaRef: composerRef,
     anchorRef: composerAnchorRef,
