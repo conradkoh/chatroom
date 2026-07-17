@@ -6,8 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // ── Imports ───────────────────────────────────────────────────────────────────
 
 import { checkDuplicateName, SavedCommandModal } from './SavedCommandModal';
-import type { SavedCommand } from '../types/savedCommand';
-import type { SavedCommandScope } from '../types/savedCommand';
+import type { SavedCommand, SavedCommandScope } from '../types/savedCommand';
 
 // ── Mocks (must be before imports that use them) ─────────────────────────────
 
@@ -282,7 +281,7 @@ describe('SavedCommandModal component', () => {
     expect(select.options[1].value).toBe('chatroom');
   });
 
-  it('scope selector is disabled in edit mode', () => {
+  it('scope selector is enabled in edit mode', () => {
     render(
       <SavedCommandModal
         isOpen={true}
@@ -294,7 +293,39 @@ describe('SavedCommandModal component', () => {
     );
 
     const select = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
-    expect(select).toBeDisabled();
+    expect(select).not.toBeDisabled();
+  });
+
+  it('updateSavedCommand includes scope when changed in edit mode', async () => {
+    const onClose = vi.fn();
+    const onCreated = vi.fn();
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={onClose}
+        onCreated={onCreated}
+        initial={makeCmd({ scope: 'chatroom' })}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+
+    const scopeSelect = screen.getByLabelText(/^scope$/i);
+    await user.selectOptions(scopeSelect, 'user');
+
+    const nameInput = screen.getByLabelText(/^name$/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Changed Scope Cmd');
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateSavedCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: 'user' })
+      );
+    });
+    expect(onCreated).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('create payload includes scope when chatroom scope is selected', async () => {

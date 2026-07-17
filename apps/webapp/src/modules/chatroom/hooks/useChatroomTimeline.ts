@@ -19,6 +19,7 @@ export interface UseChatroomTimelineResult {
   isLoadingOlder: boolean;
   loadOlderEvents: () => void;
   removeMessagesForTask: (taskId: string) => void;
+  purgeToInitialWindow: () => void;
 }
 
 export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResult {
@@ -29,6 +30,7 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     isLoadingOlder,
     loadOlderMessages,
     removeMessagesForTask,
+    purgeToInitialWindow,
   } = useChatroomMessageStore(chatroomId);
 
   const events = useMemo(() => messages.map(mapMessageToTimelineEvent), [messages]);
@@ -40,5 +42,6 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     isLoadingOlder,
     loadOlderEvents: loadOlderMessages,
     removeMessagesForTask,
+    purgeToInitialWindow,
   };
 }

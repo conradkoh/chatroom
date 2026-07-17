@@ -19,6 +19,7 @@ import { AttachmentsProvider } from '../../attachments';
 import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
 
+// matchMedia polyfill needed by useIsDesktop (used by TimelineEventCountMenu / download menu)
 beforeAll(() => {
   vi.stubGlobal(
     'matchMedia',
