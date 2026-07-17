@@ -16,6 +16,21 @@ import { AttachmentsProvider } from '../../attachments';
 import { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
 import type { TimelineEvent } from '../../timeline/types';
 
+// matchMedia polyfill needed by useIsDesktop (used by TimelineEventCountMenu)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 const virtualizerOptions: {
   count: number;
   getItemKey: (index: number) => string;
@@ -955,8 +970,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
   it('registers custom measureElement that caches rounded heights by data-id', () => {
     renderFeed();
     const measureElement = virtualizerOptions.at(-1)?.measureElement as
-      | ((el: HTMLElement) => number)
-      | undefined;
+      ((el: HTMLElement) => number) | undefined;
     expect(measureElement).toBeTypeOf('function');
 
     const row = document.createElement('div');
@@ -974,8 +988,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     // Get the estimateSize function from the virtualizer options
     const estimateSize = virtualizerOptions.at(-1)?.estimateSize as
-      | ((index: number) => number)
-      | undefined;
+      ((index: number) => number) | undefined;
     expect(estimateSize).toBeTypeOf('function');
 
     // First render: cache should return estimated size (100) for unmeasured items
