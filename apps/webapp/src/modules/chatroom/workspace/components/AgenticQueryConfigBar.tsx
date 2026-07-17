@@ -6,7 +6,6 @@ import { memo, useState } from 'react';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import type { UseHarnessModelFilterResult } from '@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter';
-import { SearchConfigQuickPick } from '@/modules/chatroom/features/search-config/components/SearchConfigQuickPick';
 import { SearchConfigFavoriteDropdown } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoriteDropdown';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 import { AgenticQueryConfigModal } from './AgenticQueryConfigModal';
@@ -75,18 +74,6 @@ export const AgenticQueryConfigBar = memo(function AgenticQueryConfigBar({
         </button>
       </div>
 
-      <SearchConfigQuickPick
-        favorites={favorites}
-        harnesses={harnesses}
-        currentEntry={currentEntry}
-        disabled={disabled}
-        onApply={onApplyConfig}
-        onAddFavorite={onAddFavorite}
-        onRemoveFavorite={onRemoveFavorite}
-        onMoveFavorite={onMoveFavorite}
-        isFavorite={checkFavorite}
-      />
-
       <AgenticQueryConfigModal
         open={configModalOpen}
         onOpenChange={setConfigModalOpen}
@@ -101,6 +88,10 @@ export const AgenticQueryConfigBar = memo(function AgenticQueryConfigBar({
         currentEntry={currentEntry}
         isFavorite={checkFavorite}
         onAddFavorite={onAddFavorite}
+        onApplyConfig={onApplyConfig}
+        onRemoveFavorite={onRemoveFavorite}
+        onMoveFavorite={onMoveFavorite}
+        favorites={favorites}
         disabled={disabled}
       />
     </div>

@@ -14,6 +14,7 @@ import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useH
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import type { UseHarnessModelFilterResult } from '@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
+import { SearchConfigFavoritesList } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoritesList';
 
 export interface AgenticQueryConfigModalProps {
   open: boolean;
@@ -29,6 +30,10 @@ export interface AgenticQueryConfigModalProps {
   currentEntry: SearchConfigEntry | null;
   isFavorite: (entry: SearchConfigEntry) => boolean;
   onAddFavorite: (entry: SearchConfigEntry) => void;
+  onApplyConfig: (entry: SearchConfigEntry) => void;
+  onRemoveFavorite: (entry: SearchConfigEntry) => void;
+  onMoveFavorite: (fromIndex: number, toIndex: number) => void;
+  favorites: SearchConfigEntry[];
   disabled?: boolean;
 }
 
@@ -46,6 +51,10 @@ export function AgenticQueryConfigModal({
   currentEntry,
   isFavorite: checkFavorite,
   onAddFavorite,
+  onApplyConfig,
+  onRemoveFavorite,
+  onMoveFavorite,
+  favorites,
   disabled = false,
 }: AgenticQueryConfigModalProps) {
   const currentIsFavorite = currentEntry != null && checkFavorite(currentEntry);
@@ -85,6 +94,14 @@ export function AgenticQueryConfigModal({
               Current config is favorited
             </div>
           )}
+          <SearchConfigFavoritesList
+            favorites={favorites}
+            harnesses={harnesses}
+            disabled={disabled}
+            onApply={onApplyConfig}
+            onRemoveFavorite={onRemoveFavorite}
+            onMoveFavorite={onMoveFavorite}
+          />
         </div>
       </DialogContent>
     </Dialog>
