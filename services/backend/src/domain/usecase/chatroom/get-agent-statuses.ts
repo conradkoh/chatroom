@@ -36,6 +36,7 @@ export interface AgentRoleView {
 export interface ChatroomAgentStatus {
   teamRoles: string[];
   agents: AgentRoleView[];
+  teamId?: string;
 }
 
 export interface GetAgentStatusInput {
@@ -128,5 +129,6 @@ export async function getAgentStatusForChatroom(
   return {
     teamRoles,
     agents,
+    teamId: chatroom.teamId,
   };
 }

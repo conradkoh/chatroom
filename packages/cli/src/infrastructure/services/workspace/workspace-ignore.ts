@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import ignore, { type Ignore } from 'ignore';
 
-import { isAlwaysExcludedDirName, isPathVisible } from './workspace-visibility-policy.js';
+import { classifyDirectorySyncMode, isPathVisible } from './workspace-visibility-policy.js';
 
 const IGNORE_FILES = ['.gitignore', '.cursorignore'] as const;
 
@@ -129,6 +129,27 @@ export async function isWorkspacePathIgnored(
   return isPathIgnoredByRuleSets(ruleSets, relativePath);
 }
 
+export function mergeWorkspaceIgnoreRuleSets(
+  inheritedRuleSets: readonly WorkspaceIgnoreRuleSet[],
+  localRuleSets: readonly WorkspaceIgnoreRuleSet[]
+): WorkspaceIgnoreRuleSet[] {
+  return localRuleSets.length === 0
+    ? [...inheritedRuleSets]
+    : [...inheritedRuleSets, ...localRuleSets];
+}
+
+export async function readWorkspaceDirectoryDirents(
+  rootDir: string,
+  relDir: string
+): Promise<Dirent[] | null> {
+  const absDir = relDir ? path.join(rootDir, relDir) : rootDir;
+  try {
+    return await fsPromises.readdir(absDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Walk the workspace once and collect every applicable ignore rule set.
  * Prunes ignored directories so gitignored trees are not traversed.
@@ -144,25 +165,25 @@ export async function loadAllWorkspaceIgnoreRuleSets(
     inheritedRuleSets: readonly WorkspaceIgnoreRuleSet[]
   ): Promise<void> {
     const localRuleSets = await loadDirectoryIgnoreRuleSets(rootDir, relDir);
-    const ruleSets =
-      localRuleSets.length === 0 ? inheritedRuleSets : [...inheritedRuleSets, ...localRuleSets];
+    const ruleSets = mergeWorkspaceIgnoreRuleSets(inheritedRuleSets, localRuleSets);
     collected.push(...localRuleSets);
 
-    const absDir = relDir ? path.join(rootDir, relDir) : rootDir;
-    let dirents: Dirent[];
-    try {
-      dirents = await fsPromises.readdir(absDir, { withFileTypes: true });
-    } catch {
-      return;
-    }
+    const dirents = await readWorkspaceDirectoryDirents(rootDir, relDir);
+    if (!dirents) return;
 
     for (const ent of dirents) {
       if (!ent.isDirectory()) continue;
-      if (isAlwaysExcludedDirName(ent.name)) continue;
 
       const relativePath = relDir ? `${relDir}/${ent.name}` : ent.name;
       if (!isPathVisible(relativePath)) continue;
       if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
+
+      const syncMode = classifyDirectorySyncMode(ent.name, {
+        relativePath,
+        immediateSiblingCount: dirents.length,
+        immediateChildCount: 0,
+      });
+      if (syncMode !== 'full') continue;
 
       await visit(relativePath, ruleSets);
     }

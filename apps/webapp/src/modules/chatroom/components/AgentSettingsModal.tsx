@@ -27,10 +27,11 @@ import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import type { SettingsTab } from './CommandPalette/types';
 import { IntegrationsTab } from './IntegrationsTab';
+import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
-import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   clearWorkspaceFileTree,
   toWorkspaceFileTreeKey,
@@ -38,13 +39,6 @@ import {
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   FixedModal,
   FixedModalContent,
@@ -816,6 +810,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
     machineConfigs: agentConfigs,
     sendCommand,
     isLoading: isPanelLoading,
+    teamId,
   } = useAgentPanelData(chatroomId);
 
   const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
@@ -904,6 +899,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
                 sendCommand={sendCommand}
                 agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
                 restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+                teamId={teamId}
               />
             );
           })}

@@ -2,7 +2,7 @@
 
 This document records the initial fallow findings when the tool replaced knip. Downstream projects should use these findings as a reference to understand which files/dependencies are intentionally unused and should not be fixed in one pass.
 
-**Baseline generated:** 2026-06-03
+**Baseline generated:** 2026-07-14
 
 ## Machine-readable baseline
 
@@ -14,17 +14,14 @@ To refresh the baseline after intentional cleanup:
 pnpm exec fallow dead-code --save-baseline .fallow/baseline.json
 ```
 
-## Unused files (3)
+## Unused files (0)
 
-These files exist but are not reachable from any entry point. They may be placeholders, deprecated code, or loaded only via configuration.
+All previously flagged unused files have been addressed:
 
-Test files are excluded from analysis via `.fallowrc.jsonc`. ShadCN UI export noise is suppressed with `ignoreExports` only (UI stays in the import graph).
-
-```
-apps/webapp/src/components/DateRangePicker.tsx
-apps/webapp/src/components/ThemeToggle.tsx
-apps/webapp/src/modules/checklist/checklist-empty-state.tsx
-```
+- `apps/webapp/src/components/DateRangePicker.tsx` — deleted (unused)
+- `apps/webapp/src/components/ThemeToggle.tsx` — deleted (unused)
+- `apps/webapp/src/modules/checklist/checklist-empty-state.tsx` — now wired into `checklist.tsx`
+- `apps/webapp/src/hooks/useAllowTouchSelection.ts` — suppressed via `// fallow-ignore-file unused-file` because it is consumed only from `components/ui/*` which are in `ignorePatterns`. This is a documented false positive.
 
 ## Scripts
 

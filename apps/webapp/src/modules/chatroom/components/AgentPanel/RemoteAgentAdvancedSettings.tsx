@@ -4,13 +4,14 @@ import { Loader2 } from 'lucide-react';
 import { memo } from 'react';
 
 import type { AgentHarness } from '../../types/machine';
-import { harnessSupportsDaemonMemoryResume } from '../../types/machine';
+import { shouldShowResumeSessionToggle } from '../../utils/wantResumeDefaults';
 
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export interface RemoteAgentAdvancedSettingsProps {
   role: string;
+  teamId?: string;
   agentHarness: AgentHarness | null;
   resumeSession: boolean;
   disabled?: boolean;
@@ -19,14 +20,15 @@ export interface RemoteAgentAdvancedSettingsProps {
 }
 
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
+  role,
+  teamId,
   agentHarness,
   resumeSession,
   disabled = false,
   isSavingWantResume = false,
   onResumeSessionChange,
 }: RemoteAgentAdvancedSettingsProps) {
-  const showResumeSessionSetting =
-    agentHarness != null && harnessSupportsDaemonMemoryResume(agentHarness);
+  const showResumeSessionSetting = shouldShowResumeSessionToggle(teamId, role, agentHarness);
 
   if (!showResumeSessionSetting) {
     return null;

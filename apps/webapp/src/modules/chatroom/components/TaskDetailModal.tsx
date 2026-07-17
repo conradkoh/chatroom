@@ -6,7 +6,11 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
+import {
+  modalMarkdownComponents,
+  modalMarkdownWrapProseClassNames,
+  taskDetailProseClassNames,
+} from './markdown-utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
 import {
@@ -249,11 +253,11 @@ export function TaskDetailModal({
                     />
                   ) : (
                     <div
-                      className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}
+                      className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
                     >
                       <Markdown
                         remarkPlugins={chatroomRemarkPlugins}
-                        components={baseMarkdownComponents}
+                        components={modalMarkdownComponents}
                       >
                         {editedContent || '*No content yet*'}
                       </Markdown>
@@ -262,8 +266,13 @@ export function TaskDetailModal({
                 </div>
               </>
             ) : (
-              <div className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}>
-                <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
+              <div
+                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+              >
+                <Markdown
+                  remarkPlugins={chatroomRemarkPlugins}
+                  components={modalMarkdownComponents}
+                >
                   {task.content}
                 </Markdown>
               </div>

@@ -10,7 +10,7 @@
  * @returns Promise<string> - The hex-encoded hash
  * @throws Error if password or salt is empty/undefined
  */
-export async function generatePasswordHash(password: string, salt: string): Promise<string> {
+async function generatePasswordHash(password: string, salt: string): Promise<string> {
   // Validate inputs
   if (!password || typeof password !== 'string') {
     throw new Error('Password is required and must be a non-empty string');

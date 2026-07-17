@@ -1,15 +1,21 @@
 'use client';
 
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { MessageSquare } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 import { ConversationSlicePanel } from './ConversationSlicePanel';
 import type { MachineNameEntry } from './timelineRowStyles';
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import { TimelineUserMessage } from './TimelineUserMessage';
+import {
+  FILTERED_MESSAGE_ESTIMATE_SIZE,
+  FILTERED_MESSAGE_OVERSCAN,
+} from './timelineVirtualizerConfig';
 import { formatMessageViewRoleLabel } from '../../hooks/persistence/messageViewMode';
 import { useFilteredMessagesByRole } from '../../hooks/useFilteredMessagesByRole';
+import type { Message } from '../../types/message';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { cn } from '@/lib/utils';
@@ -35,6 +41,55 @@ export function FilteredUserMessagesView({
   );
 
   const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
+  const scrollParentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => FILTERED_MESSAGE_ESTIMATE_SIZE,
+    overscan: FILTERED_MESSAGE_OVERSCAN,
+    getItemKey: (index) => messages[index]?._id ?? index,
+  });
+
+  const renderMessageRow = (message: Message) => {
+    const row = isUserRole ? (
+      <TimelineUserMessage message={message} chatroomId={chatroomId} />
+    ) : (
+      <TimelineTeamMessage message={message} chatroomId={chatroomId} machines={machines} />
+    );
+
+    if (!isUserRole) {
+      return (
+        <div key={message._id} data-testid={`filtered-user-message-${message._id}`}>
+          {row}
+        </div>
+      );
+    }
+
+    const selectMessage = () => setSelectedAnchorId(message._id as Id<'chatroom_messages'>);
+
+    return (
+      <div
+        key={message._id}
+        role="button"
+        tabIndex={0}
+        onClick={selectMessage}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectMessage();
+          }
+        }}
+        className={cn(
+          'w-full text-left cursor-pointer transition-colors hover:bg-chatroom-bg-hover/40',
+          selectedAnchorId === message._id && 'ring-2 ring-inset ring-chatroom-accent/50'
+        )}
+        data-testid={`filtered-user-message-${message._id}`}
+      >
+        {row}
+      </div>
+    );
+  };
 
   const listContent = (
     <>
@@ -48,45 +103,28 @@ export function FilteredUserMessagesView({
           <div>No {roleLabel.toLowerCase()} messages yet</div>
         </div>
       ) : (
-        messages.map((message) => {
-          const row = isUserRole ? (
-            <TimelineUserMessage message={message} chatroomId={chatroomId} />
-          ) : (
-            <TimelineTeamMessage message={message} chatroomId={chatroomId} machines={machines} />
-          );
-
-          if (!isUserRole) {
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const message = messages[virtualRow.index];
+            if (!message) return null;
             return (
-              <div key={message._id} data-testid={`filtered-user-message-${message._id}`}>
-                {row}
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {renderMessageRow(message)}
               </div>
             );
-          }
-
-          const selectMessage = () => setSelectedAnchorId(message._id as Id<'chatroom_messages'>);
-
-          return (
-            <div
-              key={message._id}
-              role="button"
-              tabIndex={0}
-              onClick={selectMessage}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  selectMessage();
-                }
-              }}
-              className={cn(
-                'w-full text-left cursor-pointer transition-colors hover:bg-chatroom-bg-hover/40',
-                selectedAnchorId === message._id && 'ring-2 ring-inset ring-chatroom-accent/50'
-              )}
-              data-testid={`filtered-user-message-${message._id}`}
-            >
-              {row}
-            </div>
-          );
-        })
+          })}
+        </div>
       )}
       {isLoadingMore && (
         <div className="py-2 flex justify-center">
@@ -100,6 +138,7 @@ export function FilteredUserMessagesView({
     <div className="flex-1 flex min-h-0 overflow-hidden" data-testid="filtered-user-messages-view">
       {/* List pane */}
       <div
+        ref={scrollParentRef}
         onScroll={(e) => {
           if (!canLoadMore || isLoadingMore) return;
           const { scrollHeight, scrollTop, clientHeight } = e.currentTarget;

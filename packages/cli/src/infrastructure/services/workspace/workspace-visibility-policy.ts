@@ -3,10 +3,17 @@
  * and which file content can be read remotely.
  */
 
+/** Directories that never appear in explorer listings or sync. */
 // fallow-ignore-next-line unused-export
-export const ALWAYS_EXCLUDE_DIR_NAMES = new Set([
+export const HIDDEN_DIR_NAMES = new Set(['.git']);
+
+/**
+ * Known heavy/cache directories: show a folder stub in the explorer but skip
+ * recursive sync of children (lazy loading).
+ */
+// fallow-ignore-next-line unused-export
+export const SHALLOW_SYNC_DIR_NAMES = new Set([
   'node_modules',
-  '.git',
   'dist',
   'build',
   '.next',
@@ -20,6 +27,10 @@ export const ALWAYS_EXCLUDE_DIR_NAMES = new Set([
   '.vercel',
 ]);
 
+/** @deprecated Use classifyDirectorySyncMode — kept for callers that only need a boolean skip. */
+// fallow-ignore-next-line unused-export
+export const ALWAYS_EXCLUDE_DIR_NAMES = new Set([...HIDDEN_DIR_NAMES, ...SHALLOW_SYNC_DIR_NAMES]);
+
 // fallow-ignore-next-line unused-export
 export const SECRET_PATH_PATTERNS: RegExp[] = [
   /^\.env$/,
@@ -32,8 +43,57 @@ export const SECRET_PATH_PATTERNS: RegExp[] = [
   /^\.aws(\/|$)/,
 ];
 
+export type DirectorySyncMode = 'hidden' | 'shallow' | 'full';
+
+export type DirectorySyncContext = {
+  relativePath: string;
+  /** Number of entries returned by readdir for the directory's parent (sibling count signal). */
+  immediateSiblingCount: number;
+  /** Number of entries returned by readdir inside this directory. */
+  immediateChildCount: number;
+};
+
+const SHALLOW_HEURISTIC_MIN_CHILD_COUNT = 500;
+
+function isHiddenDirName(name: string): boolean {
+  return HIDDEN_DIR_NAMES.has(name);
+}
+
+function isShallowSyncDirName(name: string): boolean {
+  return SHALLOW_SYNC_DIR_NAMES.has(name);
+}
+
+/** @deprecated Prefer classifyDirectorySyncMode for directory handling during walks. */
 export function isAlwaysExcludedDirName(name: string): boolean {
-  return ALWAYS_EXCLUDE_DIR_NAMES.has(name);
+  return isHiddenDirName(name) || isShallowSyncDirName(name);
+}
+
+function shouldShallowSyncByHeuristics(context: DirectorySyncContext): boolean {
+  if (context.immediateChildCount >= SHALLOW_HEURISTIC_MIN_CHILD_COUNT) return true;
+
+  // Very flat workspaces with hundreds of root-level folders are often dependency trees.
+  if (!context.relativePath.includes('/') && context.immediateSiblingCount >= 300) {
+    return context.immediateChildCount >= 100;
+  }
+
+  return false;
+}
+
+/**
+ * Decide how a directory should be synced.
+ *
+ * - hidden: never listed
+ * - shallow: list the folder stub only (children deferred)
+ * - full: recurse normally
+ */
+export function classifyDirectorySyncMode(
+  dirName: string,
+  context: DirectorySyncContext
+): DirectorySyncMode {
+  if (isHiddenDirName(dirName)) return 'hidden';
+  if (isShallowSyncDirName(dirName)) return 'shallow';
+  if (shouldShallowSyncByHeuristics(context)) return 'shallow';
+  return 'full';
 }
 
 // fallow-ignore-next-line unused-export
@@ -42,9 +102,18 @@ export function isSecretPath(relativePath: string): boolean {
   return SECRET_PATH_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
+// fallow-ignore-next-line complexity
 export function hasExcludedDirSegment(relativePath: string): boolean {
   const segments = relativePath.split('/');
-  return segments.some((segment) => isAlwaysExcludedDirName(segment));
+  const lastIndex = segments.length - 1;
+
+  for (let index = 0; index < segments.length; index++) {
+    const name = segments[index];
+    if (isHiddenDirName(name)) return true;
+    if (isShallowSyncDirName(name) && index < lastIndex) return true;
+  }
+
+  return false;
 }
 
 export function isPathVisible(relativePath: string): boolean {

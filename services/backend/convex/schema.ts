@@ -468,7 +468,8 @@ export default defineSchema({
     // so 'by_chatroom' on ['chatroomId'] enables efficient time-range queries.
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
-    .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
+    .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
+    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole']),
 
   /**
    * Staging table for queued user messages.
@@ -944,6 +945,22 @@ export default defineSchema({
     // Last updated
     updatedAt: v.number(),
   }).index('by_machine_harness', ['machineId', 'agentHarness']),
+
+  /** Per-user ranked harness+model favorites for a machine+role scope. */
+  chatroom_machineConfigFavorites: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    /** Scoped to chatroom+team+role — same format as chatroom_teamAgentConfigs.teamRoleKey */
+    teamRoleKey: v.string(),
+    /** Ordered list — index 0 = top rank */
+    favorites: v.array(
+      v.object({
+        agentHarness: agentHarnessValidator,
+        model: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_user_machine_teamRole', ['userId', 'machineId', 'teamRoleKey']),
 
   /**
    * Team-level agent configuration.

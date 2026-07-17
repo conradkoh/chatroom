@@ -7,7 +7,6 @@ import {
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
-import { useVisualViewportKeyboardInset } from './useVisualViewportKeyboardInset';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
@@ -18,6 +17,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 export interface ResponsivePickerShellProps {

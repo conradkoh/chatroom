@@ -71,6 +71,7 @@ import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
+import type * as machineConfigFavorites from "../machineConfigFavorites.js";
 import type * as machineStatusCron from "../machineStatusCron.js";
 import type * as machines from "../machines.js";
 import type * as messageList from "../messageList.js";
@@ -170,6 +171,7 @@ declare const fullApi: ApiFromModules<{
   "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
+  machineConfigFavorites: typeof machineConfigFavorites;
   machineStatusCron: typeof machineStatusCron;
   machines: typeof machines;
   messageList: typeof messageList;

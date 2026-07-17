@@ -57,7 +57,7 @@ describe('walkWorkspaceFiles', () => {
     expect(result.filePaths).not.toContain('packages/app/scratch.tmp');
   });
 
-  it('does not walk ALWAYS_EXCLUDE directories', async () => {
+  it('does not walk shallow-sync directories but keeps a directory stub', async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-exclude-'));
     await mkdir(join(tmpDir, 'node_modules'));
     await writeFile(join(tmpDir, 'node_modules', 'pkg.js'), 'x');
@@ -66,6 +66,18 @@ describe('walkWorkspaceFiles', () => {
     const result = await walkWorkspaceFiles(tmpDir);
 
     expect(result.filePaths).toEqual(['app.ts']);
+    expect(result.directoryStubs).toContain('node_modules');
+  });
+
+  it('includes empty application directories such as .gdp', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-gdp-'));
+    await mkdir(join(tmpDir, '.gdp'));
+    await writeFile(join(tmpDir, '.drone.yml'), 'kind: pipeline');
+
+    const result = await walkWorkspaceFiles(tmpDir);
+
+    expect(result.directoryStubs).toContain('.gdp');
+    expect(result.filePaths).toContain('.drone.yml');
   });
 
   it('caps at maxFilePaths', async () => {

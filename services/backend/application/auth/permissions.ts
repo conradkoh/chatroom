@@ -2,7 +2,7 @@
  * Application permission registry.
  * Add new permissions here before referencing them in roles.
  */
-export const permissions = {
+const permissions = {
   'system_admin:access': {
     description:
       'Access platform system administration UI (system administrators only — not business/org admin roles)',

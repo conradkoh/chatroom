@@ -36,6 +36,22 @@ function makeTimelineEvent(id: string) {
   };
 }
 
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number; getItemKey?: (index: number) => unknown }) => {
+    const items = Array.from({ length: options.count }, (_, index) => ({
+      index,
+      key: options.getItemKey?.(index) ?? index,
+      start: index * 120,
+      size: 120,
+    }));
+    return {
+      getVirtualItems: () => items,
+      getTotalSize: () => options.count * 120,
+      measureElement: () => undefined,
+    };
+  },
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
 }));

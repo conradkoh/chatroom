@@ -18,7 +18,7 @@ export function useHarnessDrawerMetrics(
   }, []);
 
   useEffect(() => {
-    window.__PICKER_TEST_KEYBOARD_INSET__ = keyboardInset;
+    window.__MOBILE_KEYBOARD_TEST_INSET__ = keyboardInset;
     window.dispatchEvent(new Event('resize'));
     refreshMetrics();
   }, [keyboardInset, refreshMetrics]);

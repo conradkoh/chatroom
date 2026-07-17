@@ -46,3 +46,9 @@ export function isBinaryFile(path: string): boolean {
   if (lastDot === -1) return false;
   return BINARY_EXTENSIONS.has(path.slice(lastDot).toLowerCase());
 }
+
+/** True when the daemon reported binary encoding or the client extension denylist matches. */
+export function isBinaryFileContent(path: string, encoding?: string | null): boolean {
+  if (encoding === 'binary') return true;
+  return isBinaryFile(path);
+}

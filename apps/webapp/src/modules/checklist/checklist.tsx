@@ -4,6 +4,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { CheckCheck, GripVertical, Loader2, MoreVertical, RotateCcw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { ChecklistEmptyState } from './checklist-empty-state';
 import { ChecklistInlineInput } from './checklist-inline-input';
 import type { ChecklistItemWithOptimistic, ChecklistProps } from './types';
 import { useChecklistSync } from './use-checklist-sync';
@@ -283,12 +284,8 @@ export function Checklist({ title, checklistKey, description, className }: Check
       </CardHeader>
       <CardContent className="pt-0">
         <div className="h-[250px] overflow-y-auto px-1 pb-1">
-          {items.length === 0 && !isActive ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-sm text-muted-foreground italic">
-                This checklist has been concluded.
-              </div>
-            </div>
+          {items.length === 0 ? (
+            <ChecklistEmptyState isActive={isActive} onAddItem={() => {}} />
           ) : (
             <ul className="space-y-2">
               {items.map((item, index) => (

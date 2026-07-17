@@ -3,7 +3,7 @@
 import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
 import { memo, useRef } from 'react';
 
-import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
+import { isBinaryFileContent } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
 import {
   useExplorerSelectionKeyboard,
@@ -49,7 +49,7 @@ export const FileContentViewer = memo(function FileContentViewer({
   onOpenSelectionOnRemote,
 }: FileContentViewerProps) {
   // Binary file guard
-  if (isBinaryFile(filePath)) {
+  if (isBinaryFileContent(filePath)) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-chatroom-text-muted p-8">
         <FileWarning size={40} className="text-chatroom-text-muted/50" />
