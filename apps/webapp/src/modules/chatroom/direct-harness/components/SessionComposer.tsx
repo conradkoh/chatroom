@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Send } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { HarnessSelectorBar, parseModelKey } from './harness-selectors';
 import type { SessionStatus } from './StatusDot';
@@ -13,8 +13,9 @@ import { Textarea } from './ui/textarea';
 import { useCreateSession } from '../hooks/useCreateSession';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
 import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
+import { useNativeHarnessWorkspace } from '../hooks/useNativeHarnessWorkspace';
 import { useSendMessage } from '../hooks/useSendMessage';
-import { resolveNativeHarnessOptions, selectDefaultHarnessName } from '../utils/harness-selection';
+import { resolveNativeHarnessOptions } from '../utils/harness-selection';
 
 function ComposerSendRow({
   textareaRef,
@@ -99,17 +100,10 @@ function useWorkspaceHarnessConfig(
 
 function useNewSessionHarnessConfig(workspaceId: Id<'chatroom_workspaces'>, harnessName: string) {
   const capabilities = useWorkspaceCapabilities(workspaceId);
-
-  const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
-  const machineId = capabilities?.machineId ?? null;
-
-  const resolvedHarnessName = useMemo(() => {
-    if (harnesses.length === 0) return harnessName;
-    if (harnesses.some((h) => h.name === harnessName)) return harnessName;
-    return selectDefaultHarnessName(harnesses);
-  }, [harnesses, harnessName]);
-
-  const filter = useHarnessModelFilter(machineId, resolvedHarnessName);
+  const { harnesses, resolvedHarnessName, filter } = useNativeHarnessWorkspace(
+    capabilities,
+    harnessName
+  );
   const config = useHarnessConfig({
     harnesses,
     harnessName: resolvedHarnessName,

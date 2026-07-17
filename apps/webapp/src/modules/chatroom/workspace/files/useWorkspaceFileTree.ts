@@ -7,7 +7,7 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
 import {
@@ -19,6 +19,7 @@ import {
 import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
+import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
 import {
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeScannedAt,
@@ -32,7 +33,6 @@ import { decompressGzip } from '../utils/decompressGzip';
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 
-const REFRESH_DEDUP_WINDOW_MS = 1500;
 const EMPTY_FILE_ENTRIES: FileEntry[] = [];
 const EMPTY_ROOT_NODES: ExplorerTreeNode[] = [];
 
@@ -90,7 +90,6 @@ export function useWorkspaceFileTree({
   workingDir,
   enabled = true,
 }: UseWorkspaceFileTreeArgs): UseWorkspaceFileTreeResult {
-  const lastRefreshAtRef = useRef<number | null>(null);
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
 
@@ -265,19 +264,15 @@ export function useWorkspaceFileTree({
     (options?: { force?: boolean }) => {
       if (!enabled) return;
 
-      const now = Date.now();
-      if (
-        lastRefreshAtRef.current !== null &&
-        now - lastRefreshAtRef.current < REFRESH_DEDUP_WINDOW_MS
-      ) {
-        return;
-      }
-      lastRefreshAtRef.current = now;
-
-      const force = !!options?.force;
-      requestTree(force);
+      requestWorkspaceFileTreeRefresh({
+        workspaceKey,
+        machineId,
+        workingDir: normalizedWorkingDir,
+        force: !!options?.force,
+        request: (args) => requestTree(!!args.force),
+      });
     },
-    [enabled, requestTree]
+    [enabled, machineId, normalizedWorkingDir, requestTree, workspaceKey]
   );
 
   useEffect(() => {

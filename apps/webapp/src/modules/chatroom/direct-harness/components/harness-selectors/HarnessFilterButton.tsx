@@ -28,7 +28,6 @@ export function HarnessFilterButton({ filter, providers }: HarnessFilterButtonPr
       trigger={
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
           className="shrink-0 h-8 w-8 flex items-center justify-center border border-input bg-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
           title="Configure visible models"
           aria-label="Configure visible models"

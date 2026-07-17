@@ -4,6 +4,7 @@ import { AlertTriangle, BookOpen, FileWarning, Table2 } from 'lucide-react';
 import { memo, useRef } from 'react';
 
 import { isBinaryFileContent } from '../../components/FileSelector/binaryDetection';
+import { usePendingFileHighlight } from '../../context/PendingFileHighlightContext';
 import { isMarkdownFile, isCsvFile, SyntaxHighlighter } from '../file-renderers';
 import {
   useExplorerSelectionKeyboard,
@@ -85,6 +86,8 @@ const FileContentInner = memo(function FileContentInner({
   onOpenSelectionOnRemote,
 }: FileContentViewerProps) {
   const contentContainerRef = useRef<HTMLDivElement>(null);
+  const { peekHighlightForFile } = usePendingFileHighlight();
+  const fileHighlight = peekHighlightForFile(filePath);
 
   useExplorerSelectionKeyboard(contentContainerRef, filePath, onSendSelectionToComposer);
   const { onContextMenu, selectionMenu } = useRemoteSelectionContextMenu(
@@ -188,6 +191,14 @@ const FileContentInner = memo(function FileContentInner({
 
       {/* File content — source only */}
       <div ref={contentContainerRef} className="flex-1 overflow-auto" onContextMenu={onContextMenu}>
+        {fileHighlight ? (
+          <span
+            data-testid="file-content-pending-highlight"
+            data-start-line={fileHighlight.startLine}
+            data-end-line={fileHighlight.endLine}
+            className="sr-only"
+          />
+        ) : null}
         {content.content.length === 0 ? (
           <p className="p-4 text-[13px] italic text-chatroom-text-muted">
             {EMPTY_FILE_PLACEHOLDER}

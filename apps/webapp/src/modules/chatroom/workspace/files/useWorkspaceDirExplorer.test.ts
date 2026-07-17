@@ -6,6 +6,7 @@ import {
   __resetWorkspaceFileTreeStoreForTests,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
+  getWorkspaceFileTreeEntries,
 } from './workspaceFileTreeStore';
 
 const MACHINE_ID = 'machine-1';
@@ -19,12 +20,16 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./useWorkspaceFileTreeEntries', () => ({
-  useWorkspaceFileTreeEntries: () => ({
-    entries: [],
-    isLoading: mocks.isLoading,
-    hasTree: mocks.hasTree,
-    refresh: mocks.treeRefresh,
-  }),
+  useWorkspaceFileTreeEntries: () => {
+    const entries = getWorkspaceFileTreeEntries(WORKSPACE_KEY);
+    return {
+      entries: [],
+      treeEntries: entries,
+      isLoading: mocks.isLoading,
+      hasTree: mocks.hasTree,
+      refresh: mocks.treeRefresh,
+    };
+  },
 }));
 
 beforeEach(() => {
@@ -149,7 +154,7 @@ describe('useWorkspaceDirExplorer', () => {
     expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
   });
 
-  it('ensures tree sync on mount without forcing a rescan when store has entries', () => {
+  it('skips mount refresh when store is already hydrated', () => {
     mocks.hasTree = true;
 
     renderHook(() =>
@@ -160,10 +165,10 @@ describe('useWorkspaceDirExplorer', () => {
       })
     );
 
-    expect(mocks.treeRefresh).toHaveBeenCalledWith();
+    expect(mocks.treeRefresh).not.toHaveBeenCalled();
   });
 
-  it('pulls tree on mount without force when store is empty', () => {
+  it('pulls tree on mount when store is empty', () => {
     mocks.hasTree = false;
 
     renderHook(() =>

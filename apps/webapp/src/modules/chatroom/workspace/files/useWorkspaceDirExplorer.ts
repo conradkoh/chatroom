@@ -1,16 +1,11 @@
 'use client';
 // fallow-ignore-file complexity
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { isExplorerSearchMode } from './explorer-tree';
 import { filterFileTreeEntries, fileTreeEntriesToExplorerNodes } from './fileTreeUtils';
 import { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
-import {
-  getWorkspaceFileTreeEntries,
-  subscribeWorkspaceFileTree,
-  toWorkspaceFileTreeKey,
-} from './workspaceFileTreeStore';
 import { filterExplorerTreeNodes, type ExplorerTreeNode } from '../components/explorerTreeFilter';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
@@ -39,10 +34,10 @@ export function useWorkspaceDirExplorer({
   isSearchMode: boolean;
 } {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
-  const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
   const mountPullRef = useRef(false);
 
   const {
+    treeEntries,
     isLoading,
     hasTree,
     refresh: treeRefresh,
@@ -53,22 +48,14 @@ export function useWorkspaceDirExplorer({
     includeDirectories: true,
   });
 
-  const storeEntries = useSyncExternalStore(
-    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
-    () => getWorkspaceFileTreeEntries(workspaceKey),
-    () => getWorkspaceFileTreeEntries(workspaceKey)
-  );
-
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = isExplorerSearchMode(trimmedSearch);
 
   const rootNodes = useMemo(() => {
     if (!enabled) return [];
-    const entries = isSearchMode
-      ? filterFileTreeEntries(storeEntries, trimmedSearch)
-      : storeEntries;
+    const entries = isSearchMode ? filterFileTreeEntries(treeEntries, trimmedSearch) : treeEntries;
     return fileTreeEntriesToExplorerNodes(entries);
-  }, [enabled, isSearchMode, storeEntries, trimmedSearch]);
+  }, [enabled, isSearchMode, treeEntries, trimmedSearch]);
 
   const displayNodes = useMemo(() => {
     if (isSearchMode) return rootNodes;
@@ -92,8 +79,9 @@ export function useWorkspaceDirExplorer({
     }
     if (mountPullRef.current) return;
     mountPullRef.current = true;
+    if (hasTree) return;
     treeRefresh();
-  }, [enabled, treeRefresh]);
+  }, [enabled, hasTree, treeRefresh]);
 
   return useMemo(
     () => ({

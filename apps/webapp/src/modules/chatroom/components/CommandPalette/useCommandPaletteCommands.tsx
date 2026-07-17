@@ -19,6 +19,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Search,
   Settings,
   StopCircle,
   Terminal,
@@ -78,6 +79,8 @@ interface UseCommandPaletteCommandsProps {
   onOpenProcessesPanel?: () => void;
   /** Callback to switch to Explorer view */
   onShowExplorer?: (() => void) | null;
+  /** Callback to open agentic search */
+  onOpenAgenticSearch?: (() => void) | null;
   /** Callback to switch to Messages view */
   onShowMessages?: () => void;
   /** Callback to toggle chat in split panel (explorer view only) */
@@ -153,6 +156,7 @@ export function useCommandPaletteCommands({
   onRefreshWorkspaceState,
   onSwitchToSourceControl,
   onSwitchToPullRequests,
+  onOpenAgenticSearch,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
   // Track favorites changes from Process Manager via custom event
   const [favoritesVersion, setFavoritesVersion] = useState(0);
@@ -283,6 +287,18 @@ export function useCommandPaletteCommands({
       shortcut: '⌘P',
       action: onOpenFileSelector,
     });
+
+    if (onOpenAgenticSearch) {
+      commands.push({
+        id: 'nav-agentic-search',
+        label: 'Agentic Search',
+        icon: <Search size={14} />,
+        category: 'Navigate',
+        shortcut: '⌘⇧F',
+        keywords: ['search', 'ask', 'find', 'agentic', 'codebase', 'question'],
+        action: onOpenAgenticSearch,
+      });
+    }
 
     // ─── Workspace Actions ────────────────────────────────
     // When workspaceCommands is provided (multi-workspace mode), use those.
@@ -576,5 +592,6 @@ export function useCommandPaletteCommands({
     onRefreshWorkspaceState,
     onSwitchToSourceControl,
     onSwitchToPullRequests,
+    onOpenAgenticSearch,
   ]);
 }

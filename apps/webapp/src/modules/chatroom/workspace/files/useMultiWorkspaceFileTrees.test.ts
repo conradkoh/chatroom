@@ -52,7 +52,9 @@ describe('useMultiWorkspaceFileTrees', () => {
       makeWorkspace('machine-1', '/repo-a/'),
       makeWorkspace('machine-2', '/repo-b'),
     ];
-    const { result } = renderHook(() => useMultiWorkspaceFileTrees(workspaces));
+    const { result } = renderHook(() =>
+      useMultiWorkspaceFileTrees(workspaces, { autoRefreshOnMount: true })
+    );
 
     expect(mocks.useWorkspaceFileTree).toHaveBeenCalledTimes(10);
     expect(mocks.refreshFns).toHaveLength(2);

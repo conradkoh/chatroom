@@ -1,6 +1,5 @@
 export type FileContentClassification =
-  | { kind: 'text'; encoding: 'utf8' }
-  | { kind: 'binary'; encoding: 'binary' };
+  { kind: 'text'; encoding: 'utf8' } | { kind: 'binary'; encoding: 'binary' };
 
 const BINARY_EXTENSIONS = new Set([
   '.png',

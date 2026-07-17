@@ -222,6 +222,47 @@ handoffCommandGroup
     });
   });
 
+const agenticQueryCommand = program
+  .command('agentic-query')
+  .description('Agentic search/ask query commands');
+
+agenticQueryCommand
+  .command('complete')
+  .description('Submit the structured agentic query result markdown')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--query-id <id>', 'Agentic query identifier')
+  .action(async (options: { chatroomId: string; queryId: string }) => {
+    await maybeRequireAuth();
+
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+
+    let result: string;
+    try {
+      const { AGENTIC_QUERY_STDIN_DELIMITER, validateStdinHeredocBody } =
+        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+      const decoded = decode(stdinContent, { singleParam: 'result' });
+      let body = decoded.result;
+      body = body.replace(/^(---RESULT---\s*)+/i, '').trim();
+      validateStdinHeredocBody(body, AGENTIC_QUERY_STDIN_DELIMITER);
+      result = body;
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    if (!result?.trim()) {
+      console.error('❌ Result body is empty');
+      process.exit(1);
+    }
+
+    const { agenticQueryComplete } = await import('./commands/agentic-query/complete.js');
+    await agenticQueryComplete(options.chatroomId, {
+      queryId: options.queryId,
+      result,
+    });
+  });
+
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
 // ============================================================================

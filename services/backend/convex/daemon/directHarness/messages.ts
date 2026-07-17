@@ -1,13 +1,13 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { withMachineWorkspaces } from './machineWorkspaces';
 import { mutation, query } from '../../_generated/server';
 import {
   getSessionWithAccess,
   requireDirectHarnessWorkers,
   requireOpencodeSession,
 } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── appendMessages ──────────────────────────────────────────────────────────
 
@@ -60,84 +60,84 @@ export const pendingForMachine = query({
     ...SessionIdArg,
     machineId: v.string(),
   },
-  handler: async (ctx, args) => {
-    requireDirectHarnessWorkers();
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+  handler: async (ctx, args) =>
+    withMachineWorkspaces(
+      ctx,
+      args.sessionId,
+      args.machineId,
+      { sessions: [], messages: [] },
+      async (workspaces) => {
+        const workspaceIds = new Set(workspaces.map((w) => w._id));
 
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .collect();
-    if (workspaces.length === 0) return { sessions: [], messages: [] };
+        // Only process resumable sessions — skip closed/failed to prevent
+        // endless retries for stale sessions. Include idle so disconnected
+        // sessions with queued messages can be lazily resumed.
+        const allSessions = (
+          await Promise.all(
+            [...workspaceIds].flatMap((wsId) => [
+              ctx.db
+                .query('chatroom_harnessSessions')
+                .withIndex('by_workspace_status', (q) =>
+                  q.eq('workspaceId', wsId).eq('status', 'pending')
+                )
+                .collect(),
+              ctx.db
+                .query('chatroom_harnessSessions')
+                .withIndex('by_workspace_status', (q) =>
+                  q.eq('workspaceId', wsId).eq('status', 'active')
+                )
+                .collect(),
+              ctx.db
+                .query('chatroom_harnessSessions')
+                .withIndex('by_workspace_status', (q) =>
+                  q.eq('workspaceId', wsId).eq('status', 'idle')
+                )
+                .collect(),
+            ])
+          )
+        ).flat();
 
-    const workspaceIds = new Set(workspaces.map((w) => w._id));
+        const sessions: {
+          _id: string;
+          workspaceId: string;
+          harnessName: string;
+          opencodeSessionId: string | undefined;
+          lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
+        }[] = [];
+        const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
 
-    // Only process resumable sessions — skip closed/failed to prevent
-    // endless retries for stale sessions. Include idle so disconnected
-    // sessions with queued messages can be lazily resumed.
-    const allSessions = (
-      await Promise.all(
-        [...workspaceIds].flatMap((wsId) => [
-          ctx.db
-            .query('chatroom_harnessSessions')
-            .withIndex('by_workspace_status', (q) =>
-              q.eq('workspaceId', wsId).eq('status', 'pending')
+        for (const session of allSessions) {
+          const cursor = session.lastProcessedTurnSeq ?? 0;
+          const pendingTurns = await ctx.db
+            .query('chatroom_harnessSessionTurns')
+            .withIndex('by_session_turnSeq', (q) =>
+              q.eq('harnessSessionId', session._id).gt('turnSeq', cursor)
             )
-            .collect(),
-          ctx.db
-            .query('chatroom_harnessSessions')
-            .withIndex('by_workspace_status', (q) =>
-              q.eq('workspaceId', wsId).eq('status', 'active')
-            )
-            .collect(),
-          ctx.db
-            .query('chatroom_harnessSessions')
-            .withIndex('by_workspace_status', (q) => q.eq('workspaceId', wsId).eq('status', 'idle'))
-            .collect(),
-        ])
-      )
-    ).flat();
+            .order('asc')
+            .collect();
 
-    const sessions: {
-      _id: string;
-      workspaceId: string;
-      harnessName: string;
-      opencodeSessionId: string | undefined;
-      lastUsedConfig: { agent: string; model?: { providerID: string; modelID: string } };
-    }[] = [];
-    const allMessages: { harnessSessionId: string; content: string; seq: number }[] = [];
+          const pending = pendingTurns.filter((t) => t.role === 'user');
 
-    for (const session of allSessions) {
-      const cursor = session.lastProcessedTurnSeq ?? 0;
-      const pendingTurns = await ctx.db
-        .query('chatroom_harnessSessionTurns')
-        .withIndex('by_session_turnSeq', (q) =>
-          q.eq('harnessSessionId', session._id).gt('turnSeq', cursor)
-        )
-        .order('asc')
-        .collect();
-
-      const pending = pendingTurns.filter((t) => t.role === 'user');
-
-      if (pending.length > 0) {
-        const s = requireOpencodeSession(session);
-        sessions.push({
-          _id: session._id as string,
-          workspaceId: session.workspaceId as string,
-          harnessName: s.opencode.harnessName,
-          opencodeSessionId: s.opencode.opencodeSessionId,
-          lastUsedConfig: s.opencode.lastUsedConfig,
-        });
-        for (const turn of pending) {
-          allMessages.push({
-            harnessSessionId: turn.harnessSessionId as unknown as string,
-            content: turn.textContent,
-            seq: turn.turnSeq,
-          });
+          if (pending.length > 0) {
+            const s = requireOpencodeSession(session);
+            sessions.push({
+              _id: session._id as string,
+              workspaceId: session.workspaceId as string,
+              harnessName: s.opencode.harnessName,
+              opencodeSessionId: s.opencode.opencodeSessionId,
+              lastUsedConfig: s.opencode.lastUsedConfig,
+            });
+            for (const turn of pending) {
+              allMessages.push({
+                harnessSessionId: turn.harnessSessionId as unknown as string,
+                content: turn.textContent,
+                seq: turn.turnSeq,
+              });
+            }
+          }
         }
-      }
-    }
 
-    return { sessions, messages: allMessages };
-  },
+        return { sessions, messages: allMessages };
+      }
+    ),
 });

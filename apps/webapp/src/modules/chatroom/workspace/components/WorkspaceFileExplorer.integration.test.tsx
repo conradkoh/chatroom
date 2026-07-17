@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 import {
   __resetWorkspaceFileTreeStoreForTests,
+  getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
 } from '../files/workspaceFileTreeStore';
@@ -11,12 +12,22 @@ import {
 const treeRefresh = vi.hoisted(() => vi.fn());
 
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
-  useWorkspaceFileTreeEntries: () => ({
-    entries: [],
-    isLoading: false,
-    hasTree: true,
-    refresh: treeRefresh,
-  }),
+  useWorkspaceFileTreeEntries: ({
+    machineId,
+    workingDir,
+  }: {
+    machineId: string;
+    workingDir: string;
+  }) => {
+    const treeEntries = getWorkspaceFileTreeEntries(toWorkspaceFileTreeKey(machineId, workingDir));
+    return {
+      entries: [],
+      treeEntries,
+      isLoading: false,
+      hasTree: treeEntries.length > 0,
+      refresh: treeRefresh,
+    };
+  },
 }));
 
 const WORKSPACE_KEY = toWorkspaceFileTreeKey('machine-1', '/workspace');

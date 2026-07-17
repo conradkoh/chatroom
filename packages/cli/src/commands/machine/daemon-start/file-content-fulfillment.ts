@@ -11,12 +11,12 @@ import { gzipSync } from 'node:zlib';
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
+import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import { resolvePathWithinWorkspace } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';
-import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
 
 /** Max file content size (500KB). */
 const MAX_CONTENT_BYTES = 500 * 1024;
@@ -46,11 +46,6 @@ function isENOENT(error: unknown): boolean {
 function gzipPlainText(text: string): string {
   return gzipSync(Buffer.from(text)).toString('base64');
 }
-
-type FileReadOutcome =
-  | { kind: 'ok'; content: string; truncated: boolean }
-  | { kind: 'missing' }
-  | { kind: 'error'; content: string; truncated: boolean };
 
 function fulfillGzippedContentEffect(
   session: DaemonSessionServiceShape,

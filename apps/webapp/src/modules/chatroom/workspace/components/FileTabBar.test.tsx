@@ -5,7 +5,7 @@ import { FileTabBar } from './FileTabBar';
 import { RightPaneTabBar } from './RightPaneTabBar';
 import { WORKSPACE_HEADER_ROW_HEIGHT_CLASS } from './WorkspaceTabBar';
 import { useFileContent } from '../hooks/useFileContent';
-import type { FileTab } from '../hooks/useFileTabs';
+import type { EditorTab } from '../hooks/useFileTabs';
 import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
 
 vi.mock('sonner', () => ({
@@ -25,15 +25,15 @@ vi.mock('../hooks/useFileContent', () => ({
   useFileContent: vi.fn(() => null),
 }));
 
-const tabs: FileTab[] = [
-  { filePath: 'src/a.ts', name: 'a.ts', isPinned: true },
-  { filePath: 'src/b.ts', name: 'b.ts', isPinned: true },
-  { filePath: 'src/c.ts', name: 'c.ts', isPinned: false },
+const tabs: EditorTab[] = [
+  { kind: 'file', filePath: 'src/a.ts', name: 'a.ts', isPinned: true },
+  { kind: 'file', filePath: 'src/b.ts', name: 'b.ts', isPinned: true },
+  { kind: 'file', filePath: 'src/c.ts', name: 'c.ts', isPinned: false },
 ];
 
 const defaultProps = {
   tabs,
-  activeTabPath: 'src/b.ts',
+  activeTabKey: 'src/b.ts',
   machineId: 'machine-1' as string | null,
   workingDir: '/workspace/project' as string | null,
   onActivate: vi.fn(),
@@ -56,17 +56,28 @@ describe('FileTabBar', () => {
     expect(onCloseOthers).toHaveBeenCalledWith('src/b.ts');
   });
 
-  it('disables Close Others when only one tab is open', async () => {
-    const onCloseOthers = vi.fn();
+  it('renders agentic query tabs without a file context menu', async () => {
+    const agenticTabs: EditorTab[] = [
+      {
+        kind: 'agentic-query',
+        queryId: 'query-1',
+        name: 'Agentic Search',
+        mode: 'search',
+        isPinned: true,
+      },
+    ];
 
     render(
-      <FileTabBar
-        {...defaultProps}
-        tabs={[tabs[0]]}
-        activeTabPath="src/a.ts"
-        onCloseOthers={onCloseOthers}
-      />
+      <FileTabBar {...defaultProps} tabs={agenticTabs} activeTabKey="agentic-query:query-1" />
     );
+
+    expect(screen.getByTitle('agentic-query:query-1')).toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByTitle('agentic-query:query-1'));
+    expect(screen.queryByRole('menuitem', { name: /copy file name/i })).not.toBeInTheDocument();
+  });
+
+  it('disables Close Others when only one tab is open', async () => {
+    render(<FileTabBar {...defaultProps} tabs={[tabs[0]]} />);
 
     fireEvent.contextMenu(screen.getByTitle('src/a.ts'));
 
@@ -129,9 +140,9 @@ describe('FileTabBar', () => {
   });
 
   it('shows the correct content label when switching tab context menus', async () => {
-    const mixedTabs: FileTab[] = [
-      { filePath: 'data.json', name: 'data.json', isPinned: true },
-      { filePath: 'readme.md', name: 'readme.md', isPinned: true },
+    const mixedTabs: EditorTab[] = [
+      { kind: 'file', filePath: 'data.json', name: 'data.json', isPinned: true },
+      { kind: 'file', filePath: 'readme.md', name: 'readme.md', isPinned: true },
     ];
 
     vi.mocked(useFileContent).mockImplementation((args) => {
@@ -145,7 +156,7 @@ describe('FileTabBar', () => {
       return null;
     });
 
-    render(<FileTabBar {...defaultProps} tabs={mixedTabs} activeTabPath="readme.md" />);
+    render(<FileTabBar {...defaultProps} tabs={mixedTabs} activeTabKey="readme.md" />);
 
     fireEvent.contextMenu(screen.getByTitle('data.json'));
     fireEvent.contextMenu(screen.getByTitle('readme.md'));

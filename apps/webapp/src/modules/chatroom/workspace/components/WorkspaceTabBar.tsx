@@ -77,7 +77,8 @@ export const WorkspaceHeaderRow = memo(function WorkspaceHeaderRow({
 export interface WorkspaceTabBarItemProps {
   isActive: boolean;
   label: string;
-  iconPath: string;
+  iconPath?: string;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
   title: string;
   italic?: boolean;
   onClick: () => void;
@@ -90,6 +91,7 @@ export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
   isActive,
   label,
   iconPath,
+  icon: Icon,
   title,
   italic = false,
   onClick,
@@ -112,7 +114,13 @@ export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
       onContextMenu={onContextMenu}
       title={title}
     >
-      <FileTypeIcon path={iconPath} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
+      {Icon ? (
+        <Icon size={16} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
+      ) : (
+        iconPath && (
+          <FileTypeIcon path={iconPath} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
+        )
+      )}
       <span className={cn('truncate', italic && 'italic')}>{label}</span>
       <button
         type="button"

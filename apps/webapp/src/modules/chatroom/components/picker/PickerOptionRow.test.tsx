@@ -34,6 +34,22 @@ describe('PickerOptionRow', () => {
     expect(document.querySelector('svg')).toBeNull();
   });
 
+  it('uses pointer cursor when enabled', () => {
+    render(<PickerOptionRow onSelect={vi.fn()}>Option A</PickerOptionRow>);
+    expect(screen.getByRole('option')).toHaveClass('cursor-pointer');
+  });
+
+  it('uses not-allowed cursor when disabled', () => {
+    render(
+      <PickerOptionRow disabled onSelect={vi.fn()}>
+        Option A
+      </PickerOptionRow>
+    );
+    const option = screen.getByRole('option');
+    expect(option).toBeDisabled();
+    expect(option.className).toContain('disabled:cursor-not-allowed');
+  });
+
   it('respects disabled state', () => {
     const onSelect = vi.fn();
     render(

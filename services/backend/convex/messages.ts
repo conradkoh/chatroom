@@ -90,8 +90,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -108,8 +107,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    | { _id: string; filename: string; description?: string; mimeType?: string }[]
-    | undefined;
+    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))

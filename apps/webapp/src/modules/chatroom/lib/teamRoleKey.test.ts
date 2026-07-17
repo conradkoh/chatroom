@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { buildTeamRoleKey, buildMachineConfigScopeKey } from './teamRoleKey';
 
 describe('teamRoleKey', () => {

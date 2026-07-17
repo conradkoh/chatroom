@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 import {
   AttachedBacklogItemChip,
@@ -30,8 +30,7 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
-import { useTriggerAutocomplete } from '../hooks/useTriggerAutocomplete';
-import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
+import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,71 +155,6 @@ export function MessageInput({
 
   const [editorOpen, setEditorOpen] = useState(false);
 
-  // ── Trigger autocomplete (for @ file references) ───────────────────────────
-  const fileRefTrigger = useMemo(
-    () =>
-      createFileReferenceTrigger(files, {
-        onActivate: onAtTriggerActivate,
-        hasWorkspace: hasAutocompleteWorkspace,
-      }),
-    [files, hasAutocompleteWorkspace, onAtTriggerActivate]
-  );
-  const triggers = useMemo(() => [fileRefTrigger], [fileRefTrigger]);
-
-  // Get caret pixel position from native textarea
-  const getCaretPosition = useCallback(() => {
-    const textarea = textareaRef.current;
-    const formEl = formContainerRef.current;
-    if (!textarea || !formEl) return null;
-
-    // Create a mirror element to measure cursor position
-    const mirror = document.createElement('div');
-    const style = window.getComputedStyle(textarea);
-
-    // Copy textarea styling to mirror
-    mirror.style.position = 'absolute';
-    mirror.style.visibility = 'hidden';
-    mirror.style.whiteSpace = 'pre-wrap';
-    mirror.style.wordWrap = 'break-word';
-    mirror.style.overflowWrap = 'break-word';
-    mirror.style.width = style.width;
-    mirror.style.font = style.font;
-    mirror.style.fontSize = style.fontSize;
-    mirror.style.fontFamily = style.fontFamily;
-    mirror.style.lineHeight = style.lineHeight;
-    mirror.style.padding = style.padding;
-    mirror.style.border = style.border;
-    mirror.style.boxSizing = style.boxSizing;
-
-    const textBeforeCursor = textarea.value.substring(0, textarea.selectionStart);
-    // Replace newlines with <br> for mirror measurement
-    mirror.innerHTML =
-      textBeforeCursor.replace(/\n$/, '\n\u00A0').replace(/\n/g, '<br>') +
-      '<span id="caret">|</span>';
-
-    document.body.appendChild(mirror);
-    const caretSpan = mirror.querySelector('#caret');
-    if (!caretSpan) {
-      document.body.removeChild(mirror);
-      return null;
-    }
-
-    const textareaRect = textarea.getBoundingClientRect();
-    const formRect = formEl.getBoundingClientRect();
-    const caretRect = caretSpan.getBoundingClientRect();
-    const mirrorRect = mirror.getBoundingClientRect();
-
-    document.body.removeChild(mirror);
-
-    // Calculate position relative to textarea
-    const top = caretRect.top - mirrorRect.top + textareaRect.top - formRect.top;
-    const left = caretRect.left - mirrorRect.left + textareaRect.left - formRect.left;
-
-    return { top, left, height: caretRect.height };
-  }, []);
-
-  const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
-
   // Register focus callback for external callers
   useEffect(() => {
     onRegisterFocus?.(() => {
@@ -314,6 +248,21 @@ export function MessageInput({
     return () => observer.disconnect();
   }, [autoResize]);
 
+  // ── Shared @ file reference autocomplete (after autoResize is defined) ──────
+  const fileAutocomplete = useFileReferenceAutocomplete({
+    files,
+    hasWorkspace: hasAutocompleteWorkspace,
+    onAtTriggerActivate,
+    textareaRef,
+    anchorRef: formContainerRef,
+    text: message,
+    onTextChange: (v) => {
+      setMessage(v);
+      setSendError(null);
+    },
+    onAfterUpdate: autoResize,
+  });
+
   // Re-measure textarea height whenever message changes (covers draft restore,
   // editor modal close, and autocomplete file select uniformly)
   useEffect(() => {
@@ -393,80 +342,21 @@ export function MessageInput({
   }, [doSend, message]);
 
   // ── Input handlers ─────────────────────────────────────────────────────────
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value;
-      setMessage(newValue);
-      setSendError(null);
-      autoResize();
-
-      // Delegate trigger detection to autocomplete
-      const cursorPos = e.target.selectionStart ?? newValue.length;
-      autocomplete.handleInputChange(newValue, cursorPos);
-    },
-    [autocomplete, autoResize]
-  );
-
-  const applyAutocompleteSelection = useCallback(
-    (item: FileEntry) => {
-      const { newText, newCursorPos, keepOpen } = autocomplete.handleSelect(item, message);
-      setMessage(newText);
-      autoResize();
-      setTimeout(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
-        if (keepOpen) {
-          autocomplete.handleInputChange(newText, newCursorPos);
-        }
-      }, 0);
-    },
-    [autocomplete, message, autoResize]
-  );
+  const handleChange = fileAutocomplete.handleTextareaChange;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Let the trigger autocomplete hook handle navigation keys first
-      if (autocomplete.state.visible) {
-        if (autocomplete.handleKeyDown(e.nativeEvent)) return;
-
-        // Enter/Tab: select the current result
-        if (
-          (e.key === 'Enter' || e.key === 'Tab') &&
-          autocomplete.state.results.length > 0 &&
-          autocomplete.state.selectedIndex < autocomplete.state.results.length
-        ) {
-          e.preventDefault();
-          const selectedItem = autocomplete.state.results[autocomplete.state.selectedIndex];
-          if (!selectedItem) return;
-          applyAutocompleteSelection(selectedItem);
-          return;
-        }
-      }
-
-      // On touch devices (mobile), Enter creates a newline — send via button only
-      if (isTouchDevice) {
-        // Allow default newline behavior
-        return;
-      }
-
-      // Desktop: Enter without Shift sends, Shift+Enter = newline
+      if (fileAutocomplete.handleAutocompleteKeyDown(e)) return;
+      if (isTouchDevice) return;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit, isTouchDevice, autocomplete, applyAutocompleteSelection]
+    [fileAutocomplete, handleSubmit, isTouchDevice]
   );
 
-  // ── Autocomplete file select ───────────────────────────────────────────────
-  const handleFileSelect = useCallback(
-    (filePath: string) => {
-      const fileEntry = autocomplete.state.results.find((f) => f.path === filePath);
-      if (!fileEntry) return;
-      applyAutocompleteSelection(fileEntry);
-    },
-    [autocomplete, applyAutocompleteSelection]
-  );
+  const handleFileSelect = fileAutocomplete.handleFileSelect;
 
   // ── Editor modal callbacks ─────────────────────────────────────────────────
   const handleEditorClose = useCallback((editedText: string) => {
@@ -511,12 +401,12 @@ export function MessageInput({
     <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
-        results={autocomplete.state.results}
-        selectedIndex={autocomplete.state.selectedIndex}
-        position={autocomplete.state.position}
+        results={fileAutocomplete.autocompleteState.results}
+        selectedIndex={fileAutocomplete.autocompleteState.selectedIndex}
+        position={fileAutocomplete.autocompleteState.position}
         onSelect={handleFileSelect}
-        onHoverItem={autocomplete.setSelectedIndex}
-        visible={autocomplete.state.visible}
+        onHoverItem={fileAutocomplete.setSelectedIndex}
+        visible={fileAutocomplete.autocompleteState.visible}
       />
 
       {/* Attachment chips row */}

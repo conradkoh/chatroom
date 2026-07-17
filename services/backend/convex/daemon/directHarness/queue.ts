@@ -10,10 +10,10 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireSession } from '../../auth/session.js';
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
-import { insertUserTurn } from './turns.js';
-import { mutation } from '../../_generated/server.js';
+import { insertUserTurn } from './insertUserTurn';
+import { mutation } from '../../_generated/server';
+import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
+import { requireSession } from '../../auth/session';
 
 // ─── setGenerating ────────────────────────────────────────────────────────────
 
