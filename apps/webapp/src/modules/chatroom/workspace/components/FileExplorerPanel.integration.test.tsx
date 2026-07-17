@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileExplorerPanel } from './FileExplorerPanel';
 import {
   __resetWorkspaceFileTreeStoreForTests,
+  getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
 } from '../files/workspaceFileTreeStore';
@@ -20,12 +21,22 @@ const mockRequestMkdir = vi.hoisted(() => vi.fn());
 const mockConfirmMkdir = vi.hoisted(() => vi.fn());
 
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
-  useWorkspaceFileTreeEntries: () => ({
-    entries: [],
-    isLoading: false,
-    hasTree: true,
-    refresh: treeRefresh,
-  }),
+  useWorkspaceFileTreeEntries: ({
+    machineId,
+    workingDir,
+  }: {
+    machineId: string;
+    workingDir: string;
+  }) => {
+    const treeEntries = getWorkspaceFileTreeEntries(toWorkspaceFileTreeKey(machineId, workingDir));
+    return {
+      entries: [],
+      treeEntries,
+      isLoading: false,
+      hasTree: treeEntries.length > 0,
+      refresh: treeRefresh,
+    };
+  },
 }));
 
 vi.mock('../hooks/useWorkspaceFileCreate', () => ({
