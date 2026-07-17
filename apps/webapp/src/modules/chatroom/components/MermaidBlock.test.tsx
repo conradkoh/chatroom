@@ -145,53 +145,44 @@ describe('MermaidBlock — structure', () => {
   });
 });
 
-// ─── Mermaid Configuration Tests ─────────────────────────────────────────────
+// ─── Mermaid Configuration Tests (moved to renderMermaidChartToSvg) ─────────
 
-describe('MermaidBlock — mermaid configuration', () => {
+describe('renderMermaidChartToSvg — mermaid configuration', () => {
   test('htmlLabels is set at the top level (not nested under flowchart)', () => {
-    // In Mermaid 11.x, flowchart.htmlLabels is deprecated.
-    // The setting must be at the top level of mermaid.initialize().
-    // Extract the mermaid.initialize call
-    const initMatch = source.match(/mermaid\.initialize\(\{[\s\S]*?\}\);/);
+    const initMatch = renderSvgSource.match(/mermaid\.initialize\(\{[\s\S]*?\n\s{4}\}\);/);
     expect(initMatch).not.toBeNull();
     const initBlock = initMatch![0];
 
-    // htmlLabels: false should appear BEFORE the flowchart block
     const htmlLabelsIdx = initBlock.indexOf('htmlLabels: false');
     const flowchartIdx = initBlock.indexOf('flowchart:');
     expect(htmlLabelsIdx).toBeGreaterThan(-1);
     expect(flowchartIdx).toBeGreaterThan(-1);
-    // htmlLabels must come before flowchart (top-level, not nested)
     expect(htmlLabelsIdx).toBeLessThan(flowchartIdx);
   });
 
   test('htmlLabels is not set inside the flowchart config block', () => {
-    // Extract just the flowchart config object
-    const flowchartMatch = source.match(/flowchart:\s*\{[\s\S]*?\},/);
+    const flowchartMatch = renderSvgSource.match(/flowchart:\s*\{[\s\S]*?\n\s{6}\},/m);
     expect(flowchartMatch).not.toBeNull();
     const flowchartBlock = flowchartMatch![0];
-
-    // flowchart block should NOT contain htmlLabels
     expect(flowchartBlock).not.toContain('htmlLabels');
   });
 
   test('useMaxWidth is set to false for natural sizing', () => {
-    const flowchartMatch = source.match(/flowchart:\s*\{[\s\S]*?\},/);
+    const flowchartMatch = renderSvgSource.match(/flowchart:\s*\{[\s\S]*?\n\s{6}\},/m);
     expect(flowchartMatch).not.toBeNull();
     expect(flowchartMatch![0]).toContain('useMaxWidth: false');
   });
 
   test('node padding is increased for polished appearance', () => {
-    const flowchartMatch = source.match(/flowchart:\s*\{[\s\S]*?\},/);
+    const flowchartMatch = renderSvgSource.match(/flowchart:\s*\{[\s\S]*?\n\s{6}\},/m);
     expect(flowchartMatch).not.toBeNull();
-    // padding should be >= 20 (default is 15)
     const paddingMatch = flowchartMatch![0].match(/padding:\s*(\d+)/);
     expect(paddingMatch).not.toBeNull();
     expect(Number(paddingMatch![1])).toBeGreaterThanOrEqual(20);
   });
 
   test('wrappingWidth is set to 500 to prevent excessive wrapping', () => {
-    expect(source).toContain('wrappingWidth: 500');
+    expect(renderSvgSource).toContain('wrappingWidth: 500');
   });
 });
 
