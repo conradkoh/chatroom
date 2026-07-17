@@ -12,6 +12,7 @@ import {
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers';
 import { requireMachineOwner } from '../../auth/cli/machineAccess';
+import { aggregateAssistantChunks } from '../../api/harnessChunkAggregate';
 
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 
@@ -169,20 +170,7 @@ export async function aggregateChunksForTurn(
     )
     .collect();
 
-  let textContent = '';
-  let reasoningContent = '';
-  for (const chunk of chunks) {
-    // Use Convex insertion time — daemon `timestamp` may be stale in tests or replays.
-    const chunkTime = chunk._creationTime;
-    if (chunkTime < turn.startedAt || chunkTime >= upperBound) continue;
-    const partType = chunk.partType ?? 'text';
-    if (partType === 'text') {
-      textContent += chunk.content;
-    } else if (partType === 'reasoning') {
-      reasoningContent += chunk.content;
-    }
-  }
-  return { textContent, reasoningContent };
+  return aggregateAssistantChunks(chunks, turn.startedAt, upperBound);
 }
 
 // ─── markOrphanTurnsFailed ───────────────────────────────────────────────────

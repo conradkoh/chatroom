@@ -27,10 +27,6 @@ export const runs = {
   pendingForMachine: runsPendingForMachine,
 };
 
-export const sessions = {
-  pendingForMachine: runsPendingForMachine,
-};
-
 export const messages = {
   appendMessages,
   pendingForMachine: messagesPendingForMachine,

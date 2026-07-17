@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication
 /**
  * Helper utilities for the agentic-query backend module.
  */
@@ -42,6 +41,19 @@ export function requireOpencodeRun(
   return run;
 }
 
+async function loadRunAndWorkspace(
+  ctx: QueryCtx | MutationCtx,
+  runId: Id<'chatroom_agenticQueryRuns'>
+): Promise<{ run: Doc<'chatroom_agenticQueryRuns'>; workspace: Doc<'chatroom_workspaces'> }> {
+  const run = await ctx.db.get('chatroom_agenticQueryRuns', runId);
+  if (!run)
+    throw new ConvexError({ code: 'NOT_FOUND', message: `Agentic query run ${runId} not found` });
+  const workspace = await ctx.db.get('chatroom_workspaces', run.workspaceId);
+  if (!workspace)
+    throw new ConvexError({ code: 'NOT_FOUND', message: `Workspace ${run.workspaceId} not found` });
+  return { run, workspace };
+}
+
 export interface RunAccess extends AuthenticatedChatroomAccess {
   run: Doc<'chatroom_agenticQueryRuns'>;
   workspace: Doc<'chatroom_workspaces'>;
@@ -52,22 +64,7 @@ export async function getRunWithAccess(
   sessionId: string,
   runId: Id<'chatroom_agenticQueryRuns'>
 ): Promise<RunAccess> {
-  const run = await ctx.db.get('chatroom_agenticQueryRuns', runId);
-  if (!run) {
-    throw new ConvexError({
-      code: 'NOT_FOUND',
-      message: `Agentic query run ${runId} not found`,
-    });
-  }
-
-  const workspace = await ctx.db.get('chatroom_workspaces', run.workspaceId);
-  if (!workspace) {
-    throw new ConvexError({
-      code: 'NOT_FOUND',
-      message: `Workspace ${run.workspaceId} not found`,
-    });
-  }
-
+  const { run, workspace } = await loadRunAndWorkspace(ctx, runId);
   const chatroomAccess = await requireChatroomAccess(ctx, sessionId, workspace.chatroomId);
   return { ...chatroomAccess, run, workspace };
 }
@@ -85,22 +82,7 @@ export async function requireRunOnOwnedMachine(
   runId: Id<'chatroom_agenticQueryRuns'>
 ): Promise<RunOnMachineAccess> {
   const auth = await requireMachineOwner(ctx, sessionId, machineId);
-
-  const run = await ctx.db.get('chatroom_agenticQueryRuns', runId);
-  if (!run) {
-    throw new ConvexError({
-      code: 'NOT_FOUND',
-      message: `Agentic query run ${runId} not found`,
-    });
-  }
-
-  const workspace = await ctx.db.get('chatroom_workspaces', run.workspaceId);
-  if (!workspace) {
-    throw new ConvexError({
-      code: 'NOT_FOUND',
-      message: `Workspace ${run.workspaceId} not found`,
-    });
-  }
+  const { run, workspace } = await loadRunAndWorkspace(ctx, runId);
 
   if (workspace.machineId !== machineId) {
     throw new ConvexError({

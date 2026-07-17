@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication complexity
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -109,12 +108,12 @@ export const markActive = mutation({
 
 export const getRun = query({
   args: {
+    ...SessionIdArg,
     runId: v.id('chatroom_agenticQueryRuns'),
   },
   handler: async (ctx, args) => {
     requireDirectHarnessWorkers();
-    const run = await ctx.db.get('chatroom_agenticQueryRuns', args.runId);
-    if (!run) return null;
+    const { run } = await getRunWithAccess(ctx, args.sessionId, args.runId);
     const s = requireOpencodeRun(run);
     return {
       _id: s._id,
@@ -126,6 +125,7 @@ export const getRun = query({
       lastUsedConfig: s.opencode.lastUsedConfig,
       workspaceId: s.workspaceId,
       agenticQueryId: s.agenticQueryId,
+      opencode: s.opencode,
     };
   },
 });

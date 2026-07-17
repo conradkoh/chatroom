@@ -1,4 +1,3 @@
-// fallow-ignore-file code-duplication complexity
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -13,6 +12,7 @@ import {
   requireRunOnOwnedMachine,
 } from '../../api/agenticQueryHelpers';
 import { requireMachineOwner } from '../../auth/cli/machineAccess';
+import { aggregateAssistantChunks } from '../../api/harnessChunkAggregate';
 
 export const beginAssistantTurn = mutation({
   args: {
@@ -150,19 +150,7 @@ export async function aggregateChunksForRunTurn(
     .withIndex('by_run_role', (q) => q.eq('runId', turn.runId).eq('role', 'assistant'))
     .collect();
 
-  let textContent = '';
-  let reasoningContent = '';
-  for (const chunk of chunks) {
-    const chunkTime = chunk._creationTime;
-    if (chunkTime < turn.startedAt || chunkTime >= upperBound) continue;
-    const partType = chunk.partType ?? 'text';
-    if (partType === 'text') {
-      textContent += chunk.content;
-    } else if (partType === 'reasoning') {
-      reasoningContent += chunk.content;
-    }
-  }
-  return { textContent, reasoningContent };
+  return aggregateAssistantChunks(chunks, turn.startedAt, upperBound);
 }
 
 export const markOrphanTurnsFailed = mutation({

@@ -12,6 +12,7 @@ import type * as agentResumeStorm from "../agentResumeStorm.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
 import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
+import type * as api_harnessChunkAggregate from "../api/harnessChunkAggregate.js";
 import type * as api_harnessTurnViewHelpers from "../api/harnessTurnViewHelpers.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   agenticQueryCleanup: typeof agenticQueryCleanup;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
   "api/directHarnessHelpers": typeof api_directHarnessHelpers;
+  "api/harnessChunkAggregate": typeof api_harnessChunkAggregate;
   "api/harnessTurnViewHelpers": typeof api_harnessTurnViewHelpers;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;
