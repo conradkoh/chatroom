@@ -20,7 +20,7 @@ const DAY = 24 * HOUR;
  * Tuned so that 3 uses within 4 hours (3×150=450) significantly outranks
  * older commands and causes them to rank first.
  */
-const DECAY_BRACKETS: Array<{ maxAge: number; weight: number }> = [
+const DECAY_BRACKETS: { maxAge: number; weight: number }[] = [
   { maxAge: 4 * HOUR, weight: 150 },
   { maxAge: 1 * DAY, weight: 120 },
   { maxAge: 3 * DAY, weight: 90 },
@@ -102,12 +102,14 @@ export function getMaxFrecencyScore(scores: Map<string, number>): number {
  * Create a cmdk-compatible filter function that combines fuzzy matching with frécency boosting.
  *
  * @param fuzzyFilter The original fuzzy filter function (value, search) => number
- * @param frecencyScores Map of command label → frécency score
+ * @param frecencyScores Map of frécency key → score
+ * @param resolveFrecencyKey Resolve cmdk value (label) → frécency key. Defaults to identity.
  * @returns A filter function compatible with cmdk's `filter` prop
  */
 export function createRankedFilter(
   fuzzyFilter: (value: string, search: string, keywords?: string[]) => number,
-  frecencyScores: Map<string, number>
+  frecencyScores: Map<string, number>,
+  resolveFrecencyKey: (value: string) => string = (v) => v
 ): (value: string, search: string, keywords?: string[]) => number {
   const maxScore = getMaxFrecencyScore(frecencyScores);
 
@@ -118,7 +120,7 @@ export function createRankedFilter(
     if (fuzzyScore === 0 && search.length > 0) return 0;
 
     // Compute normalized frécency boost (0 to 1)
-    const frecency = frecencyScores.get(value) ?? 0;
+    const frecency = frecencyScores.get(resolveFrecencyKey(value)) ?? 0;
     const boost = maxScore > 0 ? frecency / maxScore : 0;
 
     if (search.length === 0) {

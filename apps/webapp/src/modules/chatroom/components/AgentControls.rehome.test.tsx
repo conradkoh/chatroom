@@ -41,6 +41,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    machineConfigFavorites: {
+      getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
+      setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
+    },
     machines: {
       getMachineModels: 'machines:getMachineModels',
       getMachineModelFilters: 'machines:getMachineModelFilters',
@@ -130,7 +134,7 @@ describe('AgentControls re-home', () => {
     await user.click(start);
 
     const dialog = await screen.findByRole('alertdialog');
-    expect(dialog.className).toContain('z-[100]');
+    expect(dialog.className).toContain('z-50');
     expect(
       within(dialog).getByText(/Starting this agent will move the role from/i)
     ).toBeInTheDocument();

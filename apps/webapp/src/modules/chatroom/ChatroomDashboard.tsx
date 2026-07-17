@@ -41,6 +41,7 @@ import {
   type CommandItem,
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import { isBinaryFile } from './components/FileSelector/binaryDetection';
 import type { FileEntry } from './components/FileSelector/useFileSelector';
 import { MessageInput } from './components/MessageInput';
 import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
@@ -370,17 +371,7 @@ const ExplorerContent = memo(function ExplorerContent({
                 onMetaChange={handleAgenticMetaChange}
               />
             ) : activeTab.kind === 'file' ? (
-              isMarkdownFile(activeTab.filePath) ? (
-                <MarkdownFileEditorPane
-                  key={activeTab.filePath}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  filePath={activeTab.filePath}
-                  onSendSelectionToComposer={onSendSelectionToComposer}
-                  onOpenPreview={onOpenPreview}
-                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-                />
-              ) : (
+              isBinaryFile(activeTab.filePath) ? (
                 <FileContentViewer
                   key={activeTab.filePath}
                   machineId={machineId}
@@ -389,6 +380,16 @@ const ExplorerContent = memo(function ExplorerContent({
                   onSendSelectionToComposer={onSendSelectionToComposer}
                   onOpenPreview={onOpenPreview}
                   onOpenTableView={onOpenTableView}
+                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+                />
+              ) : (
+                <MarkdownFileEditorPane
+                  key={activeTab.filePath}
+                  machineId={machineId}
+                  workingDir={workingDir}
+                  filePath={activeTab.filePath}
+                  onSendSelectionToComposer={onSendSelectionToComposer}
+                  onOpenPreview={onOpenPreview}
                   onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
                 />
               )

@@ -19,6 +19,7 @@ vi.mock('../file-renderers', () => ({
 
 vi.mock('../../components/FileSelector/binaryDetection', () => ({
   isBinaryFile: () => false,
+  isBinaryFileContent: () => false,
 }));
 
 describe('FileContentViewer', () => {

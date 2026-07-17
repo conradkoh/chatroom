@@ -125,6 +125,8 @@ export function useMarkdownFileEditor({
       loadedContent === null ||
       isTransientNewFileReadError(loadedContent?.content, filePath));
 
+  const encoding = loadedContent?.encoding ?? null;
+
   return {
     content,
     setContent,
@@ -135,5 +137,6 @@ export function useMarkdownFileEditor({
     error: error ?? loadError,
     lastSavedAt,
     isLoading,
+    encoding,
   };
 }

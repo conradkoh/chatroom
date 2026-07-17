@@ -44,6 +44,7 @@
     "class-variance-authority",
     "react-day-picker",
     "vaul",
+    "@legendapp/state",
   ],
   "ignoreUnresolvedImports": [
     "**/convex/_generated/**",

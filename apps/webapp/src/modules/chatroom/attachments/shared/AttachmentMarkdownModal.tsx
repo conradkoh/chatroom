@@ -3,6 +3,12 @@
 import type { ReactNode } from 'react';
 import Markdown from 'react-markdown';
 
+import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
+import {
+  modalMarkdownComponents,
+  modalMarkdownWrapProseClassNames,
+} from '../../components/markdown-utils';
+
 import {
   FixedModal,
   FixedModalBody,
@@ -39,8 +45,12 @@ export function AttachmentMarkdownModal({
           </div>
         </FixedModalHeader>
         <FixedModalBody>
-          <div className={`p-4 ${proseClassName}`}>
-            <Markdown>{content}</Markdown>
+          <div
+            className={`p-4 min-w-0 overflow-x-hidden ${proseClassName} ${modalMarkdownWrapProseClassNames}`}
+          >
+            <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
+              {content}
+            </Markdown>
           </div>
         </FixedModalBody>
       </FixedModalContent>

@@ -520,15 +520,6 @@ export function WorkQueue({
         onSubmit={handleAddTask}
       />
 
-      {/* Backlog Item Detail Modal */}
-      {selectedBacklogItem && (
-        <BacklogItemDetailModal
-          isOpen={true}
-          item={selectedBacklogItem}
-          onClose={() => setSelectedBacklogItemId(null)}
-        />
-      )}
-
       {/* Backlog Queue Modal - shows all backlog items */}
       {isBacklogQueueModalOpen && (
         <BacklogQueueModal
@@ -537,6 +528,15 @@ export function WorkQueue({
           onItemClick={(item) => {
             setSelectedBacklogItemId(item._id);
           }}
+        />
+      )}
+
+      {/* Backlog item detail portals after queue so it stacks above the queue modal */}
+      {selectedBacklogItem && (
+        <BacklogItemDetailModal
+          isOpen={true}
+          item={selectedBacklogItem}
+          onClose={() => setSelectedBacklogItemId(null)}
         />
       )}
 

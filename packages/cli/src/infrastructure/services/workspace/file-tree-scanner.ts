@@ -29,7 +29,8 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
 
   const walk = await walkWorkspaceFiles(rootDir, { maxFilePaths: maxEntries });
   const filteredPaths = walk.filePaths.filter((p) => !isExcluded(p));
-  const entries = buildEntries(filteredPaths, maxEntries);
+  const filteredStubs = walk.directoryStubs.filter((p) => !isExcluded(p));
+  const entries = buildEntries(filteredPaths, filteredStubs, maxEntries);
 
   return {
     entries,
@@ -44,14 +45,22 @@ export function isExcluded(filePath: string): boolean {
   return hasExcludedDirSegment(filePath);
 }
 
+function entryDepth(entryPath: string): number {
+  return entryPath.split('/').length;
+}
+
 /**
- * Build FileTreeEntry array from file paths.
- * Derives directory entries from the file paths.
- * Caps at maxEntries total (files + directories).
+ * Build FileTreeEntry array from file paths and explicit directory stubs.
+ * Caps at maxEntries total (files + directories), preferring shallower paths first
+ * so root-level files like `.drone.yml` are not crowded out by deep directories.
  */
 // fallow-ignore-next-line unused-export complexity
-export function buildEntries(filePaths: string[], maxEntries: number): FileTreeEntry[] {
-  const directories = new Set<string>();
+export function buildEntries(
+  filePaths: string[],
+  directoryStubs: string[],
+  maxEntries: number
+): FileTreeEntry[] {
+  const directories = new Set<string>(directoryStubs);
   for (const filePath of filePaths) {
     const parts = filePath.split('/');
     for (let i = 1; i < parts.length; i++) {
@@ -59,19 +68,21 @@ export function buildEntries(filePaths: string[], maxEntries: number): FileTreeE
     }
   }
 
-  const entries: FileTreeEntry[] = [];
+  const entries: FileTreeEntry[] = [
+    ...Array.from(directories).map((dir) => ({ path: dir, type: 'directory' as const })),
+    ...filePaths.map((file) => ({ path: file, type: 'file' as const })),
+  ];
 
-  const sortedDirs = Array.from(directories).sort();
-  for (const dir of sortedDirs) {
-    if (entries.length >= maxEntries) break;
-    entries.push({ path: dir, type: 'directory' });
+  const uniqueByPath = new Map<string, FileTreeEntry>();
+  for (const entry of entries) {
+    uniqueByPath.set(entry.path, entry);
   }
 
-  const sortedFiles = filePaths.slice().sort();
-  for (const file of sortedFiles) {
-    if (entries.length >= maxEntries) break;
-    entries.push({ path: file, type: 'file' });
-  }
-
-  return entries;
+  return Array.from(uniqueByPath.values())
+    .sort((left, right) => {
+      const depthDelta = entryDepth(left.path) - entryDepth(right.path);
+      if (depthDelta !== 0) return depthDelta;
+      return left.path.localeCompare(right.path);
+    })
+    .slice(0, maxEntries);
 }

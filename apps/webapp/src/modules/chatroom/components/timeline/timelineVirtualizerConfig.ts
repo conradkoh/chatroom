@@ -39,15 +39,13 @@ export function shouldTriggerLoadOlder(input: {
 }): boolean {
   const { scrollTop, scrollHeight, clientHeight, firstVisibleIndex } = input;
 
-  const atBottom =
-    scrollHeight - scrollTop - clientHeight < TIMELINE_SCROLL_END_THRESHOLD;
+  const atBottom = scrollHeight - scrollTop - clientHeight < TIMELINE_SCROLL_END_THRESHOLD;
   if (atBottom) return false;
 
   const maxScrollTop = scrollHeight - clientHeight;
   if (maxScrollTop <= 0) return false;
 
-  const nearTop =
-    scrollTop <= maxScrollTop * TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION;
+  const nearTop = scrollTop <= maxScrollTop * TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION;
   const sentinelVisible = firstVisibleIndex <= TIMELINE_LOAD_OLDER_SENTINEL_INDEX;
 
   return nearTop && sentinelVisible;
@@ -68,3 +66,7 @@ export const TIMELINE_PADDING_END = 16;
 export function getTimelineItemKey(index: number, events: TimelineEvent[]): string {
   return events[index]?.id ?? String(index);
 }
+
+/** Row height estimate for filtered role message list (team/user tabs). */
+export const FILTERED_MESSAGE_ESTIMATE_SIZE = 120;
+export const FILTERED_MESSAGE_OVERSCAN = 5;

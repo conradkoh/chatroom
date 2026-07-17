@@ -13,9 +13,13 @@ vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
 }));
 
-vi.mock('./useVisualViewportKeyboardInset', () => ({
-  useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
-}));
+vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...(actual as Record<string, unknown>),
+    useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
+  };
+});
 
 function renderShell(overrides: Record<string, unknown> = {}) {
   return render(

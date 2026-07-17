@@ -48,6 +48,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     machineConfigs: agentConfigs,
     isLoading: isPanelLoading,
     sendCommand,
+    teamId,
   } = useAgentPanelData(chatroomId);
 
   // Fetch live agent statuses from event stream
@@ -143,6 +144,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
                     sendCommand={sendCommand}
                     agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
                     restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
+                    teamId={teamId}
                   />
                 );
               })

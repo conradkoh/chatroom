@@ -115,8 +115,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## What changed
       <high-level view of what changed since the user's message before the detailed proofs below>
 
-      ### Proof of Principle
+      ### Proof of Principles
       <!-- Demonstrate adherence to:
+      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
       - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
@@ -205,8 +206,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I've read and followed the role guidance before starting any work
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
-      ## Proof of Principle
+      ## Proof of Principles
       <!-- Demonstrate adherence to:
+      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
       - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
@@ -482,8 +484,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## What changed
       <high-level view of what changed since the user's message before the detailed proofs below>
 
-      ### Proof of Principle
+      ### Proof of Principles
       <!-- Demonstrate adherence to:
+      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
       - No Revisit: implemented in a way so the user does not have to revisit this implementation again.

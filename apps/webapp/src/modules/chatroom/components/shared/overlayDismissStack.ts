@@ -6,8 +6,29 @@
 type OverlayDismissHandler = () => void;
 
 let overlayDismissStack: OverlayDismissHandler[] = [];
+let escapeListenerAttached = false;
+
+function handleGlobalEscape(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || overlayDismissStack.length === 0) {
+    return;
+  }
+
+  const top = overlayDismissStack[overlayDismissStack.length - 1];
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  top();
+}
+
+function ensureEscapeListener(): void {
+  if (escapeListenerAttached || typeof window === 'undefined') {
+    return;
+  }
+  escapeListenerAttached = true;
+  window.addEventListener('keydown', handleGlobalEscape, true);
+}
 
 export function pushOverlayDismiss(handler: OverlayDismissHandler): void {
+  ensureEscapeListener();
   overlayDismissStack.push(handler);
 }
 

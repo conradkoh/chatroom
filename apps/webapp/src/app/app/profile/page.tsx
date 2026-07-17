@@ -5,10 +5,10 @@ import { useAction } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
 import { CopyIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,27 +26,6 @@ import { useAuthState } from '@/modules/auth/AuthProvider';
 import { LoginCodeGenerator } from '@/modules/auth/LoginCodeGenerator';
 import { NameEditForm } from '@/modules/profile/NameEditForm';
 import { ThemeSettings } from '@/modules/theme/ThemeSettings';
-
-/**
- * Component that handles search params with proper error handling
- */
-function SearchParamsHandler() {
-  const searchParams = useSearchParams();
-
-  // Handle error messages from OAuth redirects
-  useEffect(() => {
-    const error = searchParams.get('error');
-    if (error) {
-      toast.error(decodeURIComponent(error));
-      // Clear the error from URL without causing a page reload
-      const url = new URL(window.location.href);
-      url.searchParams.delete('error');
-      window.history.replaceState({}, '', url.toString());
-    }
-  }, [searchParams]);
-
-  return null; // This component only handles side effects
-}
 
 /**
  * Displays the user profile page with account management, theme settings, and recovery options.
@@ -125,7 +104,7 @@ function ProfilePageLoading() {
 export default function ProfilePage() {
   return (
     <Suspense fallback={<ProfilePageLoading />}>
-      <SearchParamsHandler />
+      <SearchParamsErrorHandler />
       <ProfilePageContent />
     </Suspense>
   );

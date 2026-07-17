@@ -49,7 +49,7 @@ export const proseClassNames =
  * Note: Layout classes like `p-4` should be added in the component, not here.
  */
 export const backlogProseClassNames =
-  'text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none';
+  'text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none break-words [overflow-wrap:anywhere] min-w-0 prose-code:break-words prose-code:whitespace-pre-wrap prose-pre:whitespace-pre-wrap prose-pre:break-words prose-pre:overflow-x-hidden';
 
 /**
  * Task detail prose styling (success-colored inline code).
@@ -63,7 +63,11 @@ export const backlogProseClassNames =
  * Note: Layout classes like `h-full overflow-y-auto p-4 text-sm` should be added in the component.
  */
 export const taskDetailProseClassNames =
-  'prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-ul:my-2 prose-ol:my-2 prose-li:my-0 text-chatroom-text-primary';
+  'prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 text-chatroom-text-primary';
+
+/** Extra prose modifiers for modal markdown — wrap long paths instead of horizontal scroll. */
+export const modalMarkdownWrapProseClassNames =
+  'break-words [overflow-wrap:anywhere] min-w-0 prose-code:break-words prose-code:whitespace-pre-wrap prose-pre:whitespace-pre-wrap prose-pre:break-words prose-pre:overflow-x-hidden';
 
 /**
  * Message feed prose styling (compact, table scrolling).
@@ -133,7 +137,7 @@ function WorkspaceFileLinkButton({ href, children }: { href: string; children: R
   return (
     <button
       type="button"
-      className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm`}
+      className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] text-left`}
       onClick={() => {
         const location = parseFileLocation(href);
         if (location) onOpenFile(location);
@@ -170,7 +174,7 @@ function PlainInlineCode({
     return <code className={className}>{children}</code>;
   }
   return (
-    <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em]">
+    <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em] break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
       {children}
     </code>
   );
@@ -371,6 +375,52 @@ export const fullMarkdownComponents = {
   },
   // Inline code (not in pre) - workspace paths linkify; otherwise simple styling
   code: InlineCodeOrWorkspaceLink,
+};
+
+/**
+ * Modal markdown components — like fullMarkdownComponents but wraps long lines
+ * instead of overflow-x scroll for code blocks. Used in modal previews where
+ * horizontal scroll is undesirable (AttachmentMarkdownModal, TaskDetailModal,
+ * BacklogItemDetailModal).
+ */
+export const modalMarkdownComponents = {
+  a: MarkdownLink,
+  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
+    <InlineCodeOrWorkspaceLink className={className} children={children} />
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => {
+    if (React.isValidElement(children)) {
+      const codeProps = children.props as { children?: React.ReactNode; className?: string };
+      if (codeProps.className === 'language-mermaid') {
+        const chart = extractTextContent(codeProps.children);
+        return (
+          <Suspense
+            fallback={
+              <div className="my-3 flex justify-center p-4 bg-chatroom-bg-tertiary border-2 border-chatroom-border">
+                <span className="text-xs text-chatroom-text-muted">Loading diagram...</span>
+              </div>
+            }
+          >
+            <MermaidBlock chart={chart} />
+          </Suspense>
+        );
+      }
+      return (
+        <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] overflow-x-hidden text-sm text-chatroom-text-primary">
+          <code
+            className={`${codeProps.className || ''} break-words whitespace-pre-wrap [overflow-wrap:anywhere]`}
+          >
+            {codeProps.children}
+          </code>
+        </pre>
+      );
+    }
+    return (
+      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] overflow-x-hidden text-sm text-chatroom-text-primary">
+        {children}
+      </pre>
+    );
+  },
 };
 
 /**

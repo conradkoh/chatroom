@@ -1,12 +1,7 @@
 import type { AuthState } from '@workspace/backend/modules/auth/types/AuthState';
 
 import { allPermissions, type Permission } from './permissions';
-import {
-  type AppRole,
-  getPermissionsForRole,
-  type RolePermissionGrant,
-  roleDefinitions,
-} from './roles';
+import { type AppRole, getPermissionsForRole, type RolePermissionGrant } from './roles';
 
 /** Minimal user shape for permission resolution (matches backend UserForPermissions). */
 export type UserForPermissions = {
@@ -78,5 +73,3 @@ export function authStateHasPermission(
 export function getResolvedPermissionsForUser(user: UserForPermissions): Permission[] {
   return allPermissions.filter((permission) => hasPermission(user, permission));
 }
-
-export const appRoles = roleDefinitions.map((definition) => definition.role);

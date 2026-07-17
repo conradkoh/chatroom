@@ -16,8 +16,13 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
+import {
+  modalMarkdownComponents,
+  modalMarkdownWrapProseClassNames,
+  backlogProseClassNames,
+} from './markdown-utils';
 import { useAttachments } from '../attachments';
+import { useOverlayDismissStack } from '../hooks/useOverlayDismissStack';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,28 +80,8 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     }
   }, [isOpen, item, initializedItemId]);
 
-  // Handle Escape key — cancel editing (without closing modal) or close modal
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isEditing) {
-          setIsEditing(false);
-        } else {
-          onClose();
-        }
-      }
-    },
-    [onClose, isEditing]
-  );
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
+  // Escape while editing cancels edit without closing the modal (stacked above FixedModal dismiss).
+  useOverlayDismissStack(isOpen && isEditing, () => setIsEditing(false));
 
   const handleSave = useCallback(async () => {
     if (!item || !editedContent.trim()) return;
@@ -222,10 +207,12 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   />
                 ) : (
                   // Preview Tab — Read-only rendered markdown
-                  <div className={`h-full overflow-y-auto p-4 ${backlogProseClassNames}`}>
+                  <div
+                    className={`h-full overflow-y-auto overflow-x-hidden p-4 min-w-0 ${backlogProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+                  >
                     <Markdown
                       remarkPlugins={chatroomRemarkPlugins}
-                      components={baseMarkdownComponents}
+                      components={modalMarkdownComponents}
                     >
                       {editedContent || '*No content yet*'}
                     </Markdown>
@@ -235,8 +222,10 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
             </div>
           ) : (
             // View mode — Read-only rendered markdown
-            <div className={`p-4 ${backlogProseClassNames}`}>
-              <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
+            <div
+              className={`p-4 min-w-0 overflow-x-hidden ${backlogProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+            >
+              <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
                 {item.content}
               </Markdown>
             </div>

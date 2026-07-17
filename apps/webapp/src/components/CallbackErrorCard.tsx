@@ -5,6 +5,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getGoogleOAuthUserFriendlyError } from '@/modules/auth/google-oauth-errors';
 
 // 2. Public interfaces and types
 export interface CallbackErrorCardProps {
@@ -27,7 +28,7 @@ export function CallbackErrorCard({
   onRetry,
   onClose,
 }: CallbackErrorCardProps) {
-  const userFriendlyError = _getUserFriendlyError(error, flowType);
+  const userFriendlyError = getGoogleOAuthUserFriendlyError(error, flowType);
   const title = flowType === 'connect' ? 'Connection Failed' : 'Sign In Failed';
 
   return (
@@ -107,38 +108,4 @@ export function CallbackErrorCard({
 }
 
 // 5. Internal helper functions (at bottom)
-/**
- * Maps common error types to user-friendly messages based on flow type.
- */
-function _getUserFriendlyError(errorMessage: string, flowType: 'login' | 'connect'): string {
-  const lowerError = errorMessage.toLowerCase();
-
-  if (lowerError.includes('expired')) {
-    return 'The authentication request has expired. Please try again.';
-  }
-
-  if (lowerError.includes('invalid') || lowerError.includes('state')) {
-    return 'The authentication request is invalid. Please start the process again.';
-  }
-
-  if (lowerError.includes('already_connected') || lowerError.includes('already connected')) {
-    return 'This Google account is already connected to your profile.';
-  }
-
-  if (lowerError.includes('email_already_exists') || lowerError.includes('email already exists')) {
-    return 'An account with this email already exists. Please try signing in instead.';
-  }
-
-  if (lowerError.includes('feature_disabled')) {
-    return 'Google authentication is currently unavailable. Please try again later.';
-  }
-
-  if (lowerError.includes('network') || lowerError.includes('fetch')) {
-    return 'Network error occurred. Please check your connection and try again.';
-  }
-
-  // Default message for unknown errors
-  return flowType === 'connect'
-    ? 'Unable to connect your Google account. Please try again.'
-    : 'Unable to sign in with Google. Please try again.';
-}
+// None needed — using getGoogleOAuthUserFriendlyError from shared module

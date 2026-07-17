@@ -6,7 +6,7 @@
  * what changed but the reasoning behind it:
  *  1. Template disclosure confirmation — builder attests they saw this template
  *     at task start before implementing (soft verification for debugging).
- *  2. Proof of principle — how the work adhered to organization/maintainability
+ *  2. Proof of principles — how the work adhered to organization/maintainability
  *     and static evaluability/provability principles.
  *  3. Proof of completion — evidence the delegation goal was met (files changed).
  */
@@ -16,6 +16,10 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
+import {
+  getHandoffQualityPrinciplesCommentBlock,
+  PROOF_OF_PRINCIPLES_HEADING_H2,
+} from '../../../utils/handoff-quality-principles';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
@@ -37,13 +41,8 @@ export function getBuilderToPlannerHandoffTemplate(
 - [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
 ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
-## Proof of Principle
-<!-- Demonstrate adherence to:
-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-- No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-- Leave It Better: leave the code in a slightly better state than before when touching files.
--->
+${PROOF_OF_PRINCIPLES_HEADING_H2}
+${getHandoffQualityPrinciplesCommentBlock()}
 <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
 ## Proof of Completion

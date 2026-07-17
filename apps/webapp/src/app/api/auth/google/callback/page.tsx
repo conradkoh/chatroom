@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 
 import { CallbackErrorCard } from '@/components/CallbackErrorCard';
 import { CallbackSuccessCard } from '@/components/CallbackSuccessCard';
+import { getGoogleOAuthUserFriendlyError } from '@/modules/auth/google-oauth-errors';
 
 // 2. Public interfaces and types
 export interface GoogleOAuthCallbackPageProps {
@@ -41,7 +42,8 @@ export default async function GoogleOAuthCallbackPage({
   if (params.error) {
     console.error('OAuth error from Google:', params.error, params.error_description);
 
-    const userFriendlyError = _getUserFriendlyError(params.error, params.error_description);
+    const raw = [params.error, params.error_description].filter(Boolean).join(': ');
+    const userFriendlyError = getGoogleOAuthUserFriendlyError(raw, 'login');
 
     return <CallbackErrorCard error={userFriendlyError} flowType="login" />;
   }
@@ -124,47 +126,7 @@ export default async function GoogleOAuthCallbackPage({
 }
 
 // 5. Internal helper functions (at bottom)
-/**
- * Creates user-friendly error messages from OAuth error codes and descriptions.
- */
-function _getUserFriendlyError(errorCode: string, errorDescription?: string): string {
-  const lowerError = errorCode.toLowerCase();
-  const lowerDescription = errorDescription?.toLowerCase() || '';
-
-  if (lowerError.includes('access_denied')) {
-    return 'You cancelled the authentication process.';
-  }
-
-  if (lowerError.includes('expired')) {
-    return 'The authentication request has expired. Please try again.';
-  }
-
-  if (lowerError.includes('invalid') || lowerDescription.includes('invalid')) {
-    return 'The authentication request is invalid. Please start the process again.';
-  }
-
-  if (lowerError.includes('network') || lowerDescription.includes('network')) {
-    return 'Network error occurred. Please check your connection and try again.';
-  }
-
-  if (lowerError.includes('already_connected') || lowerDescription.includes('already connected')) {
-    return 'This Google account is already connected to your profile.';
-  }
-
-  if (
-    lowerError.includes('email_already_exists') ||
-    lowerDescription.includes('email already exists')
-  ) {
-    return 'An account with this email already exists. Please try signing in instead.';
-  }
-
-  if (lowerError.includes('feature_disabled')) {
-    return 'Google authentication is currently unavailable. Please try again later.';
-  }
-
-  // Default message
-  return 'Authentication was cancelled or failed. Please try again.';
-}
+// None needed — using getGoogleOAuthUserFriendlyError from shared module
 
 /**
  * Displays a loading state while processing the OAuth callback.

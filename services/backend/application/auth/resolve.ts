@@ -1,10 +1,5 @@
 import { allPermissions, type Permission } from './permissions';
-import {
-  type AppRole,
-  getPermissionsForRole,
-  type RolePermissionGrant,
-  roleDefinitions,
-} from './roles';
+import { type AppRole, getPermissionsForRole, type RolePermissionGrant } from './roles';
 import type { Doc } from '../../convex/_generated/dataModel';
 
 export type UserForPermissions = Pick<Doc<'users'>, 'accessLevel'>;
@@ -69,6 +64,3 @@ export function hasPermission(user: UserForPermissions, permission: Permission):
 export function getResolvedPermissionsForUser(user: UserForPermissions): Permission[] {
   return allPermissions.filter((permission) => hasPermission(user, permission));
 }
-
-/** All defined application roles (for documentation and future role-management UI). */
-export const appRoles = roleDefinitions.map((definition) => definition.role);

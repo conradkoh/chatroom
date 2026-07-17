@@ -1,7 +1,6 @@
-import {
-  allPermissions as backendPermissions,
-  roleDefinitions as backendRoles,
-} from '@workspace/backend/application/auth/index';
+// Direct imports from source files (not barrel) after fallow cleanup trimmed the barrel
+import { allPermissions as backendPermissions } from '@workspace/backend/application/auth/permissions';
+import { roleDefinitions as backendRoles } from '@workspace/backend/application/auth/roles';
 import { describe, expect, it } from 'vitest';
 
 import { allPermissions as webappPermissions } from '../permissions';
