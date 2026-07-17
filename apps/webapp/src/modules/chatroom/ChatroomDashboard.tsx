@@ -41,6 +41,7 @@ import {
   type CommandItem,
 } from './components/CommandPalette';
 import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './components/FileSelector';
+import type { FileEntry } from './components/FileSelector/useFileSelector';
 import { MessageInput } from './components/MessageInput';
 import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
@@ -252,6 +253,9 @@ interface ExplorerContentProps {
     machineId: string | null;
     workingDir: string | null;
   } | null;
+  autocompleteFiles: FileEntry[];
+  hasAutocompleteWorkspace: boolean;
+  onAtTriggerActivate: () => void;
   onOpenPreview: (filePath: string) => void;
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
@@ -262,6 +266,9 @@ interface ExplorerContentProps {
 const ExplorerContent = memo(function ExplorerContent({
   fileTabs,
   activeWorkspace,
+  autocompleteFiles,
+  hasAutocompleteWorkspace,
+  onAtTriggerActivate,
   onOpenPreview,
   onOpenTableView,
   onSendSelectionToComposer,
@@ -356,8 +363,9 @@ const ExplorerContent = memo(function ExplorerContent({
                 queryId={activeTab.queryId}
                 mode={activeTab.mode}
                 workspaceId={activeWorkspace?.workspaceId ?? ''}
-                machineId={activeWorkspace?.machineId ?? ''}
-                workingDir={activeWorkspace?.workingDir ?? ''}
+                autocompleteFiles={autocompleteFiles}
+                hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+                onAtTriggerActivate={onAtTriggerActivate}
                 focusToken={agenticFocusToken}
                 onMetaChange={handleAgenticMetaChange}
               />
@@ -1706,6 +1714,9 @@ export function ChatroomDashboard({
                             <ExplorerContent
                               fileTabs={fileTabs}
                               activeWorkspace={activeWorkspace}
+                              autocompleteFiles={autocompleteFiles}
+                              hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+                              onAtTriggerActivate={handleAtTriggerActivate}
                               onOpenPreview={handleOpenPreview}
                               onOpenTableView={handleOpenTableView}
                               onSendSelectionToComposer={handleExplorerSelectionToComposer}
@@ -1799,6 +1810,9 @@ export function ChatroomDashboard({
                       <ExplorerContent
                         fileTabs={fileTabs}
                         activeWorkspace={activeWorkspace}
+                        autocompleteFiles={autocompleteFiles}
+                        hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+                        onAtTriggerActivate={handleAtTriggerActivate}
                         onOpenPreview={handleOpenPreview}
                         onOpenTableView={handleOpenTableView}
                         onSendSelectionToComposer={handleExplorerSelectionToComposer}

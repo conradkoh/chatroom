@@ -10,8 +10,7 @@ import { AgenticQueryPanel } from './AgenticQueryPanel';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 
 const mockSubmit = vi.fn();
-const mockRefreshFileTree = vi.fn();
-let mockFileEntries: FileEntry[] = [];
+const mockOnAtTriggerActivate = vi.fn();
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -80,28 +79,21 @@ vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
   }),
 }));
 
-vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
-  useWorkspaceFileTreeEntries: () => ({
-    entries: mockFileEntries,
-    refresh: mockRefreshFileTree,
-    isLoading: false,
-    hasTree: mockFileEntries.length > 0,
-  }),
-}));
-
 const REGISTRY_WORKSPACE_ID = 'jd7fake_registry_workspace_id';
-const MACHINE_ID = 'machine-abc';
-const WORKING_DIR = '/Users/dev/chatroom';
 
-function renderAgenticComposer(fileEntries: FileEntry[] = [], withMachine = true) {
-  mockFileEntries = fileEntries;
+function renderAgenticComposer(
+  fileEntries: FileEntry[] = [],
+  options: { hasAutocompleteWorkspace?: boolean } = {}
+) {
+  const { hasAutocompleteWorkspace = fileEntries.length > 0 } = options;
   return render(
     <AgenticQueryPanel
       queryId="query-1"
       mode="search"
       workspaceId={REGISTRY_WORKSPACE_ID}
-      machineId={withMachine ? MACHINE_ID : ''}
-      workingDir={withMachine ? WORKING_DIR : ''}
+      autocompleteFiles={fileEntries}
+      hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+      onAtTriggerActivate={mockOnAtTriggerActivate}
     />
   );
 }
@@ -109,11 +101,10 @@ function renderAgenticComposer(fileEntries: FileEntry[] = [], withMachine = true
 describe('AgenticQueryPanel @ trigger', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFileEntries = [];
     mockSubmit.mockResolvedValue(undefined);
   });
 
-  it('shows file results when typing @ with machineId and workingDir (registry workspaceId)', async () => {
+  it('shows file results when typing @ with shared autocomplete files', async () => {
     const files: FileEntry[] = [
       { path: 'src/a.ts', type: 'file' },
       { path: 'src/b.ts', type: 'file' },
@@ -129,9 +120,8 @@ describe('AgenticQueryPanel @ trigger', () => {
     });
   });
 
-  it('does not enable autocomplete when machineId/workingDir are missing', async () => {
-    const files: FileEntry[] = [{ path: 'src/a.ts', type: 'file' }];
-    renderAgenticComposer(files, false);
+  it('does not enable autocomplete when no workspace and no files', async () => {
+    renderAgenticComposer([], { hasAutocompleteWorkspace: false });
 
     const textarea = screen.getByTestId('agentic-query-composer-input');
     fireEvent.change(textarea, { target: { value: '@', selectionStart: 1 } });
@@ -164,14 +154,29 @@ describe('AgenticQueryPanel @ trigger', () => {
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it('calls refresh when @ activates', async () => {
+  it('calls onAtTriggerActivate when @ activates', async () => {
     renderAgenticComposer([{ path: 'src/a.ts', type: 'file' }]);
 
     const textarea = screen.getByTestId('agentic-query-composer-input');
     fireEvent.change(textarea, { target: { value: '@', selectionStart: 1 } });
 
     await waitFor(() => {
-      expect(mockRefreshFileTree).toHaveBeenCalled();
+      expect(mockOnAtTriggerActivate).toHaveBeenCalled();
+    });
+  });
+
+  it('positions the dropdown below the composer (top anchor)', async () => {
+    renderAgenticComposer([{ path: 'src/a.ts', type: 'file' }]);
+
+    const textarea = screen.getByTestId('agentic-query-composer-input');
+    fireEvent.change(textarea, { target: { value: '@', selectionStart: 1 } });
+
+    await waitFor(() => {
+      const dropdown = document.querySelector('[data-autocomplete-item]')?.parentElement
+        ?.parentElement;
+      expect(dropdown).toBeTruthy();
+      expect(dropdown?.style.top).not.toBe('');
+      expect(dropdown?.style.bottom).toBe('');
     });
   });
 });

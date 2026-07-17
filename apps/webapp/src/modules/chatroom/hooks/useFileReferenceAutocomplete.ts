@@ -2,15 +2,34 @@
 
 import { useCallback, useMemo, type RefObject } from 'react';
 
+import { useTriggerAutocomplete } from './useTriggerAutocomplete';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
-import { useTriggerAutocomplete } from './useTriggerAutocomplete';
 import { getTextareaCaretOffsetInContainer } from '../utils/textareaCaretPosition';
+
+export type FileReferenceDropdownPlacement = 'above' | 'below';
+
+const DROPDOWN_GAP_PX = 4;
+
+type CaretOffset = { top: number; left: number; height: number };
+
+function fileReferenceDropdownPosition(
+  offset: CaretOffset,
+  placement: FileReferenceDropdownPlacement
+): { top: number; left: number; height: number } {
+  const top =
+    placement === 'below'
+      ? offset.top + offset.height + DROPDOWN_GAP_PX
+      : offset.height + DROPDOWN_GAP_PX;
+  return { top, left: offset.left, height: offset.height };
+}
 
 export interface UseFileReferenceAutocompleteOptions {
   files: FileEntry[];
   hasWorkspace?: boolean;
   onAtTriggerActivate?: () => void;
+  /** `above` for bottom-of-screen composers; `below` for top-of-panel composers. */
+  dropdownPlacement?: FileReferenceDropdownPlacement;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   anchorRef: RefObject<HTMLElement | null>;
   text: string;
@@ -22,6 +41,7 @@ export function useFileReferenceAutocomplete({
   files,
   hasWorkspace = false,
   onAtTriggerActivate,
+  dropdownPlacement = 'above',
   textareaRef,
   anchorRef,
   text,
@@ -44,8 +64,8 @@ export function useFileReferenceAutocomplete({
     if (!textarea || !anchor) return null;
     const offset = getTextareaCaretOffsetInContainer(textarea, anchor);
     if (!offset) return null;
-    return { top: offset.height + 4, left: offset.left, height: offset.height };
-  }, [textareaRef, anchorRef]);
+    return fileReferenceDropdownPosition(offset, dropdownPlacement);
+  }, [textareaRef, anchorRef, dropdownPlacement]);
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
 

@@ -4,7 +4,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Loader2, Search, Send } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
@@ -15,24 +15,24 @@ import { useAgenticQueryRunTurnStore } from '../hooks/useAgenticQueryRunTurnStor
 import type { AgenticQueryMode } from '../hooks/useFileTabs';
 
 import { cn } from '@/lib/utils';
-import { encodeWorkspaceId } from '@/lib/workspaceIdentifier';
 import { FileReferenceAutocomplete } from '@/modules/chatroom/components/FileReferenceAutocomplete';
+import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
 import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
-import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 
 export interface AgenticQueryPanelProps {
   queryId: string;
   mode: AgenticQueryMode;
   /** Convex registry workspace ID (harness selection, API calls). */
   workspaceId: string;
-  /** Machine + path for workspace file tree (@ autocomplete). */
-  machineId?: string;
-  workingDir?: string;
+  /** Same merged file list as MessageInput @ autocomplete. */
+  autocompleteFiles?: FileEntry[];
+  hasAutocompleteWorkspace?: boolean;
+  onAtTriggerActivate?: () => void;
   onMetaChange?: (meta: { title: string; mode: AgenticQueryMode }) => void;
   focusToken?: number;
 }
@@ -115,8 +115,9 @@ export function AgenticQueryPanel({
   queryId,
   mode: _mode,
   workspaceId,
-  machineId = '',
-  workingDir = '',
+  autocompleteFiles = [],
+  hasAutocompleteWorkspace = false,
+  onAtTriggerActivate,
   onMetaChange,
   focusToken,
 }: AgenticQueryPanelProps) {
@@ -198,32 +199,11 @@ export function AgenticQueryPanel({
   // ── @ file reference autocomplete ──────────────────────────────────────
   const composerAnchorRef = useRef<HTMLDivElement>(null);
 
-  const hasFileTreeWorkspace = Boolean(machineId && workingDir);
-
-  const { entries: treeEntries, refresh: refreshFileTree } = useWorkspaceFileTreeEntries({
-    machineId,
-    workingDir,
-    enabled: hasFileTreeWorkspace,
-    includeDirectories: true,
-  });
-
-  const fileTreeWorkspaceId = useMemo(
-    () => (hasFileTreeWorkspace ? encodeWorkspaceId(machineId, workingDir) : null),
-    [hasFileTreeWorkspace, machineId, workingDir]
-  );
-
-  const autocompleteFiles = useMemo(
-    () =>
-      fileTreeWorkspaceId
-        ? treeEntries.map((e) => ({ ...e, workspaceId: fileTreeWorkspaceId }))
-        : [],
-    [treeEntries, fileTreeWorkspaceId]
-  );
-
   const fileAutocomplete = useFileReferenceAutocomplete({
     files: autocompleteFiles,
-    hasWorkspace: hasFileTreeWorkspace,
-    onAtTriggerActivate: () => refreshFileTree(),
+    hasWorkspace: hasAutocompleteWorkspace,
+    onAtTriggerActivate,
+    dropdownPlacement: 'below',
     textareaRef: composerRef,
     anchorRef: composerAnchorRef,
     text: composerText,
@@ -311,6 +291,7 @@ export function AgenticQueryPanel({
             onSelect={fileAutocomplete.handleFileSelect}
             onHoverItem={fileAutocomplete.setSelectedIndex}
             visible={fileAutocomplete.autocompleteState.visible}
+            placement="below"
           />
           <textarea
             ref={composerRef}
