@@ -26,6 +26,7 @@ export function useChatroomTimelineFeedData(chatroomId: string) {
     isLoadingOlder,
     loadOlderEvents,
     removeMessagesForTask,
+    purgeToInitialWindow,
   } = useChatroomTimeline(chatroomId);
 
   const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
@@ -57,6 +58,7 @@ export function useChatroomTimelineFeedData(chatroomId: string) {
     isLoadingOlder,
     loadOlderEvents,
     removeMessagesForTask,
+    purgeToInitialWindow,
     isEventStreamOpen,
     setIsEventStreamOpen,
     latestEvent,

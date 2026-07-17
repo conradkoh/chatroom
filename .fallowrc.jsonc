@@ -79,6 +79,10 @@
       "file": "**/commands/machine/daemon-start/init.ts",
       "exports": ["discoverModels", "initDaemonEffect"],
     },
+    {
+      "file": "**/hooks/useChatroomMessageStore.ts",
+      "exports": ["trimMessagesToInitialWindow"],
+    },
   ],
   "duplicates": {
     "ignore": [
