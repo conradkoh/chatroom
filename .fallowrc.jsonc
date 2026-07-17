@@ -79,6 +79,10 @@
       "file": "**/commands/machine/daemon-start/init.ts",
       "exports": ["discoverModels", "initDaemonEffect"],
     },
+    {
+      "file": "**/CommandPalette/commandPaletteRows.ts",
+      "exports": ["filterCommandsForSearch"],
+    },
   ],
   "duplicates": {
     "ignore": [

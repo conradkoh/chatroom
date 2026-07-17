@@ -4,20 +4,12 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
+import { buildCommandPaletteRows } from './commandPaletteRows';
+import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
-import {
-  COMMAND_DIALOG_CONTENT_CLASSES,
-  COMMAND_GROUP_HEADING_CLASSES,
-} from '../shared/commandDialogStyles';
+import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem as CommandItemUI,
-  CommandList,
-} from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
@@ -101,6 +93,20 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     return sortCommandsByFrecency(withUsage, frecencyScores);
   }, [commands, getScore, frecencyScores]);
 
+  const rows = useMemo(
+    () =>
+      buildCommandPaletteRows({
+        commands,
+        search: searchValue,
+        rankedFilter,
+        recentCommands,
+        groupedCommands,
+        getScore,
+        frecencyScores,
+      }),
+    [commands, searchValue, rankedFilter, recentCommands, groupedCommands, getScore, frecencyScores]
+  );
+
   const handleSelect = useCallback(
     (command: CommandItem) => {
       trackUsage(command);
@@ -121,57 +127,58 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     [trackUsage, closeDialog]
   );
 
-  const renderCommandItem = (command: CommandItem) => (
-    <CommandItemUI
-      key={command.id}
-      value={command.label}
-      keywords={command.keywords}
-      onSelect={() => handleSelect(command)}
-      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
-    >
-      {command.icon && (
-        <span className="flex-shrink-0 text-chatroom-text-muted">{command.icon}</span>
-      )}
-      <span className="flex-1 min-w-0">
-        <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary block truncate">
-          {command.label}
-        </span>
-        {command.detail && (
-          <span className="text-[10px] text-chatroom-text-muted block truncate">
-            {command.detail}
+  const renderCommandItemContent = useCallback(
+    (command: CommandItem) => {
+      // Returns the content nodes (without the CommandItemUI wrapper) for the virtual list.
+      // The virtual list renders its own item wrapper for keyboard nav compatibility.
+      return (
+        <>
+          {command.icon && (
+            <span className="flex-shrink-0 text-chatroom-text-muted">{command.icon}</span>
+          )}
+          <span className="flex-1 min-w-0">
+            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary block truncate">
+              {command.label}
+            </span>
+            {command.detail && (
+              <span className="text-[10px] text-chatroom-text-muted block truncate">
+                {command.detail}
+              </span>
+            )}
           </span>
-        )}
-      </span>
-      {command.shortcut && (
-        <span className="text-xs text-chatroom-text-muted font-mono tracking-wide flex-shrink-0">
-          {command.shortcut}
-        </span>
-      )}
-      {!isSearching && getScore(command) > 0 && (
-        <span
-          className="w-1.5 h-1.5 rounded-full bg-blue-500/60 flex-shrink-0"
-          title="Recently used"
-        />
-      )}
-      {command.secondaryActions && command.secondaryActions.length > 0 && (
-        <span className="flex items-center gap-1 flex-shrink-0">
-          {command.secondaryActions.map((sa) => (
-            <button
-              key={sa.id}
-              type="button"
-              title={sa.label}
-              onClick={(e) => {
-                e.stopPropagation();
-                sa.action();
-              }}
-              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-primary transition-colors"
-            >
-              {sa.icon ?? sa.label}
-            </button>
-          ))}
-        </span>
-      )}
-    </CommandItemUI>
+          {command.shortcut && (
+            <span className="text-xs text-chatroom-text-muted font-mono tracking-wide flex-shrink-0">
+              {command.shortcut}
+            </span>
+          )}
+          {!isSearching && getScore(command) > 0 && (
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-blue-500/60 flex-shrink-0"
+              title="Recently used"
+            />
+          )}
+          {command.secondaryActions && command.secondaryActions.length > 0 && (
+            <span className="flex items-center gap-1 flex-shrink-0">
+              {command.secondaryActions.map((sa) => (
+                <button
+                  key={sa.id}
+                  type="button"
+                  title={sa.label}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sa.action();
+                  }}
+                  className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-primary transition-colors"
+                >
+                  {sa.icon ?? sa.label}
+                </button>
+              ))}
+            </span>
+          )}
+        </>
+      );
+    },
+    [isSearching, getScore]
   );
 
   return (
@@ -191,7 +198,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
             {/* Command list section */}
             <div className="flex flex-col w-full">
               <Command
-                filter={rankedFilter}
+                shouldFilter={false}
                 className="bg-chatroom-bg-primary text-chatroom-text-primary"
               >
                 <CommandInput
@@ -200,41 +207,17 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                   value={searchValue}
                   onValueChange={setSearchValue}
                 />
-                <CommandList className="min-h-[244px] h-[244px]">
-                  <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                    No commands found.
-                  </CommandEmpty>
-
-                  {isSearching ? (
-                    /* Search mode: flat list, ranked by frécency */
-                    <CommandGroup>{commands.map(renderCommandItem)}</CommandGroup>
-                  ) : (
-                    /* Browse mode: Recent section at top, then grouped by category */
-                    <>
-                      {recentCommands.length > 0 && (
-                        <CommandGroup heading="Recent" className={COMMAND_GROUP_HEADING_CLASSES}>
-                          {recentCommands.map(renderCommandItem)}
-                        </CommandGroup>
-                      )}
-                      {Array.from(groupedCommands.entries()).map(([category, items]) => {
-                        // In browse mode, skip items already shown in Recent
-                        const itemsToShow =
-                          recentCommands.length > 0
-                            ? items.filter((item) => getScore(item) === 0)
-                            : items;
-                        if (itemsToShow.length === 0) return null;
-                        return (
-                          <CommandGroup
-                            key={category}
-                            heading={category}
-                            className={COMMAND_GROUP_HEADING_CLASSES}
-                          >
-                            {itemsToShow.map(renderCommandItem)}
-                          </CommandGroup>
-                        );
-                      })}
-                    </>
+                <CommandList className="min-h-[244px] h-[244px] p-0 overflow-hidden">
+                  {rows.length === 0 && (
+                    <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+                      No commands found.
+                    </CommandEmpty>
                   )}
+                  <CommandPaletteVirtualizedList
+                    rows={rows}
+                    onSelect={handleSelect}
+                    renderCommandItemContent={renderCommandItemContent}
+                  />
                 </CommandList>
               </Command>
             </div>
