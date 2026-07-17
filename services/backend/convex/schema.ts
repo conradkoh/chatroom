@@ -2821,7 +2821,8 @@ export default defineSchema({
     summary: v.optional(v.string()),
   })
     .index('by_workspace', ['workspaceId'])
-    .index('by_workspace_status', ['workspaceId', 'status']),
+    .index('by_workspace_status', ['workspaceId', 'status'])
+    .index('by_lastActiveAt', ['lastActiveAt']),
 
   /**
    * Individual turns within an agentic query — user prompt followed by agent response body.

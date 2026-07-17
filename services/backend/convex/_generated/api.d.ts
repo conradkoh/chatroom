@@ -9,6 +9,7 @@
  */
 
 import type * as agentResumeStorm from "../agentResumeStorm.js";
+import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
 import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
@@ -121,6 +122,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agentResumeStorm: typeof agentResumeStorm;
+  agenticQueryCleanup: typeof agenticQueryCleanup;
   "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;

@@ -85,6 +85,13 @@ crons.interval(
   internal.directHarnessCleanup.purgeFinalizedChunks
 );
 
+// Agentic query cleanup — search history (7-day TTL, hourly)
+crons.interval(
+  'cleanup stale agentic queries',
+  { hours: 1 },
+  internal.agenticQueryCleanup.cleanupStaleAgenticQueries
+);
+
 // Connection close requests — purge expired rows (every 5 minutes)
 crons.interval(
   'cleanup connection close requests',
