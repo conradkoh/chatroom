@@ -80,6 +80,13 @@
       "exports": ["discoverModels", "initDaemonEffect"],
     },
     {
+      "file": "**/workspace/components/WorkspaceBottomBar.tsx",
+      "exports": [
+        "WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX",
+        "shouldSuppressWorkspaceBottomBarSafeArea",
+      ],
+    },
+    {
       "file": "**/workspace/hooks/useExplorerTabCloseShortcut.ts",
       "exports": ["isExplorerTabCloseShortcut", "isAppNavigationTarget"],
     },
