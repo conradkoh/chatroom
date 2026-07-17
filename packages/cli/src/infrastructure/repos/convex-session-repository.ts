@@ -1,14 +1,9 @@
 import { api } from '../../api.js';
 import type { SessionRepository } from '../../domain/direct-harness/ports/session-repository.js';
 import type { OpenCodeSessionId } from '../../domain/direct-harness/entities/harness-session.js';
+import type { ConvexRepositoryOptions } from './convex-repository-options.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BackendCall = (endpoint: any, args: any) => Promise<any>;
-
-export interface ConvexSessionRepositoryOptions {
-  readonly backend: { mutation: BackendCall; query: BackendCall };
-  readonly sessionId: string;
-}
+export type ConvexSessionRepositoryOptions = ConvexRepositoryOptions;
 
 export class ConvexSessionRepository implements SessionRepository {
   constructor(private readonly options: ConvexSessionRepositoryOptions) {}
