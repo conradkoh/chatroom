@@ -65,7 +65,7 @@ describe('useMachineConfigFavorites', () => {
       'machineConfigFavorites:getMachineConfigFavorites',
       {
         machineId: 'machine-a',
-        teamRoleKey: 'chatroom_room1#team_duo#role_planner',
+        teamRoleKey: 'team_duo#role_planner',
       }
     );
   });
