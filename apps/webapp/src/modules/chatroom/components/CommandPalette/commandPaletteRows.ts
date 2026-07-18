@@ -7,7 +7,8 @@ export type CommandPaletteRow =
   | { type: 'heading'; id: string; label: string }
   | { type: 'item'; id: string; command: CommandItem };
 
-export const COMMAND_PALETTE_ITEM_ROW_HEIGHT = 44;
+export const COMMAND_PALETTE_ITEM_ROW_HEIGHT = 32;
+export const COMMAND_PALETTE_ITEM_WITH_DETAIL_ROW_HEIGHT = 46;
 export const COMMAND_PALETTE_HEADING_ROW_HEIGHT = 28;
 
 export function filterCommandsForSearch(
