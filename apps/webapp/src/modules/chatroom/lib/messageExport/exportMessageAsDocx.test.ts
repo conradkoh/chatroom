@@ -16,6 +16,7 @@ vi.mock('./replaceMermaidFencesWithSvg', () => ({
   replaceMermaidFencesWithSvg: vi.fn((md: string) =>
     Promise.resolve({ markdown: md, diagrams: new Map() })
   ),
+  MERMAID_EXPORT_PLACEHOLDER_PREFIX: 'MERMAID_EXPORT_PLACEHOLDER_',
 }));
 
 vi.mock('./downloadTextFile', () => ({
@@ -28,7 +29,7 @@ vi.mock('react-markdown', () => ({
 }));
 
 describe('exportMessageAsDocx', () => {
-  it('calls convertHtmlToDocx and downloads blob', async () => {
+  it('calls convertHtmlToDocx with computed style source and downloads blob', async () => {
     const message = {
       _id: 'msg-1',
       type: 'message' as const,
@@ -40,6 +41,14 @@ describe('exportMessageAsDocx', () => {
     await exportMessageAsDocx(message as never);
 
     expect(convertHtmlToDocx).toHaveBeenCalledOnce();
+    expect(convertHtmlToDocx).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        styleSource: 'computed',
+        rasterizeInPlace: { scale: 2 },
+        root: expect.any(HTMLDivElement),
+      })
+    );
     expect(downloadBlobFile).toHaveBeenCalledOnce();
     expect(downloadBlobFile).toHaveBeenCalledWith('test.docx', expect.any(Blob));
   });
