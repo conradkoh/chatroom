@@ -2,7 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import React, { useCallback, useEffect, useLayoutEffect, memo, useRef } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, memo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import {
@@ -10,6 +10,7 @@ import {
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '@/modules/chatroom/components/shared/overlayDismissStack';
+import { OverlayPortalContainerProvider } from '@/modules/chatroom/components/shared/overlayPortalContainer';
 import { Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
 
 // Reference-counted body scroll lock for nested/stacked modals.
@@ -234,6 +235,10 @@ const FixedModal = memo(function FixedModal({
   // Stable handler wrapper — delegates to latest onCloseRef.current
   const dismissHandler = useCallback(() => onCloseRef.current(), []);
 
+  // Portal container ref — Dialog.Content DOM node, used by nested overlays (Drawer/Popover)
+  // to portal into this modal's FocusScope rather than document.body.
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
   // Lock body scroll when modal is open (reference-counted for stacked modals)
   useEffect(() => {
     if (!isOpen) return;
@@ -280,6 +285,7 @@ const FixedModal = memo(function FixedModal({
           onClick={closeOnBackdrop ? undefined : (e) => e.preventDefault()}
         />
         <DialogPrimitive.Content
+          ref={(node) => setPortalContainer(node)}
           className={cn(
             'chatroom-root',
             Z_MODAL,
@@ -301,7 +307,9 @@ const FixedModal = memo(function FixedModal({
             }
           }}
         >
-          {children}
+          <OverlayPortalContainerProvider container={portalContainer}>
+            {children}
+          </OverlayPortalContainerProvider>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

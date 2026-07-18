@@ -101,6 +101,16 @@ test('simulated keyboard inset sets maxHeight and keeps scroll body usable', asy
   expect(metricsText).toContain('"scrollBodyScrollHeight"');
 });
 
+test('nested FixedModal picker search focuses after tap', async ({ page }) => {
+  await page.getByTestId('open-nested-modal').click();
+  await page.getByTestId('open-nested-picker').click();
+  const search = page.getByPlaceholder('Search harnesses…');
+  await search.click();
+  await expect(search).toBeFocused();
+  await search.fill('Claude');
+  await expect(search).toHaveValue('Claude');
+});
+
 test('filter panel picker uses scroll body inside drawer', async ({ page }) => {
   await page.getByTestId('open-filter-picker').click();
   await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();

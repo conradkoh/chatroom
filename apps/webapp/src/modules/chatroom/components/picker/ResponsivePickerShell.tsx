@@ -16,6 +16,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,7 @@ export function ResponsivePickerShell({
 
   const isDesktop = useIsDesktop(desktopBreakpoint);
   const keyboardInsetPx = useVisualViewportKeyboardInset(isClient && !isDesktop);
+  const portalContainer = useOverlayPortalContainer();
 
   if (disabled) {
     return <>{trigger}</>;
@@ -78,7 +80,14 @@ export function ResponsivePickerShell({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} nested repositionInputs={false} handleOnly>
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      nested
+      repositionInputs={false}
+      handleOnly
+      container={portalContainer ?? undefined}
+    >
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}

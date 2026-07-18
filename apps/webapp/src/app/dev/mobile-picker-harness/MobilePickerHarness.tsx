@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { FilterPickerSection, FlatPickerSection } from './HarnessPickerSections';
 import { KeyboardInsetSlider } from './KeyboardInsetSlider';
+import { NestedFixedModalPickerSection } from './NestedFixedModalPickerSection';
 import { useHarnessDrawerMetrics } from './useHarnessDrawerMetrics';
 
 const MODELS = Array.from(
@@ -61,6 +62,8 @@ export function MobilePickerHarness() {
       </header>
 
       <KeyboardInsetSlider value={keyboardInset} onChange={setKeyboardInset} />
+
+      <NestedFixedModalPickerSection />
 
       <FlatPickerSection
         open={flatOpen}

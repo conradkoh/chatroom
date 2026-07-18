@@ -61,7 +61,17 @@ function DrawerContent({
         {...props}
       >
         <DrawerHandle />
-        <div onPointerDown={(e) => e.stopPropagation()}>{children}</div>
+        <div
+          className="contents"
+          onPointerDown={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+              e.stopPropagation();
+            }
+          }}
+        >
+          {children}
+        </div>
       </DrawerPrimitive.Content>
     </DrawerPortal>
   );

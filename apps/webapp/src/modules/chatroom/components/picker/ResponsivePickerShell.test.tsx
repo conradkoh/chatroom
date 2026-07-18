@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
 import { PickerScrollBody } from './PickerScrollBody';
 import { PickerSearch } from './PickerSearch';
 import { ResponsivePickerShell } from './ResponsivePickerShell';
@@ -169,6 +170,50 @@ describe('ResponsivePickerShell', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it('portals drawer content into overlay container when provided', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    render(
+      <OverlayPortalContainerProvider container={container}>
+        <ResponsivePickerShell
+          open={true}
+          onOpenChange={vi.fn()}
+          trigger={<button type="button">Open picker</button>}
+          title="Test picker"
+        >
+          <div data-testid="picker-content">Picker content</div>
+        </ResponsivePickerShell>
+      </OverlayPortalContainerProvider>
+    );
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]');
+    expect(drawerContent).not.toBeNull();
+    expect(container.contains(drawerContent)).toBe(true);
+    document.body.removeChild(container);
+  });
+
+  it('popover portals into overlay container when provided', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    render(
+      <OverlayPortalContainerProvider container={container}>
+        <ResponsivePickerShell
+          open={true}
+          onOpenChange={vi.fn()}
+          trigger={<button type="button">Open picker</button>}
+          title="Test picker"
+        >
+          <div data-testid="picker-content">Picker content</div>
+        </ResponsivePickerShell>
+      </OverlayPortalContainerProvider>
+    );
+    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    expect(popoverContent).not.toBeNull();
+    expect(container.contains(popoverContent)).toBe(true);
+    document.body.removeChild(container);
   });
 
   it('applies flex scroll layout to PickerScrollBody in mobile drawer', () => {
