@@ -79,6 +79,29 @@
       "file": "**/commands/machine/daemon-start/init.ts",
       "exports": ["discoverModels", "initDaemonEffect"],
     },
+    {
+      "file": "**/lib/messageExport/index.ts",
+      "exports": ["replaceMermaidFencesWithSvg"],
+    },
+    {
+      "file": "**/hooks/useChatroomMessageStore.ts",
+      "exports": ["trimMessagesToInitialWindow"],
+    },
+    {
+      "file": "**/workspace/components/WorkspaceBottomBar.tsx",
+      "exports": [
+        "WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX",
+        "shouldSuppressWorkspaceBottomBarSafeArea",
+      ],
+    },
+    {
+      "file": "**/workspace/hooks/useExplorerTabCloseShortcut.ts",
+      "exports": ["isExplorerTabCloseShortcut", "isAppNavigationTarget"],
+    },
+    {
+      "file": "**/CommandPalette/commandPaletteRows.ts",
+      "exports": ["filterCommandsForSearch"],
+    },
   ],
   "duplicates": {
     "ignore": [

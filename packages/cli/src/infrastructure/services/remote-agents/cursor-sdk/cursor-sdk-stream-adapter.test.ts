@@ -81,6 +81,15 @@ describe('CursorSdkStreamAdapter', () => {
     }
   );
 
+  it('invokes onOutput for tool_call messages', () => {
+    let count = 0;
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    adapter.onOutput(() => count++);
+    adapter.handleMessage(toolCallMessage());
+
+    expect(count).toBe(1);
+  });
+
   it('writes bash/shell tool_call as a clean running: <command> line', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
     adapter.handleMessage(bashToolCallMessage());

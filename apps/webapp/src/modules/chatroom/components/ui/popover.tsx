@@ -11,6 +11,7 @@ import type * as React from 'react';
 
 import { useOverlayDismissStack } from '../../hooks/useOverlayDismissStack';
 import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 
 import { cn } from '@/lib/utils';
 
@@ -55,8 +56,9 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const portalContainer = useOverlayPortalContainer();
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={portalContainer ?? undefined}>
       <PopoverPrimitive.Content
         data-slot="chatroom-popover-content"
         align={align}

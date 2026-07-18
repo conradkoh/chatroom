@@ -61,3 +61,27 @@ describe('PickerSearch autoFocus', () => {
     expect(screen.getByRole('searchbox')).not.toHaveFocus();
   });
 });
+
+describe('PickerSearch iOS click-to-focus', () => {
+  it('focuses input on container click', () => {
+    mockDesktop(false);
+    renderSearch();
+    const input = screen.getByRole('searchbox');
+    expect(input).not.toHaveFocus();
+    input.parentElement!.click();
+    expect(input).toHaveFocus();
+  });
+});
+
+describe('PickerSearch vaul drawer support', () => {
+  it('wraps input in data-vaul-no-drag container', () => {
+    renderSearch();
+    const wrapper = screen.getByRole('searchbox').parentElement;
+    expect(wrapper).toHaveAttribute('data-vaul-no-drag');
+  });
+
+  it('input has data-vaul-no-drag attribute', () => {
+    renderSearch();
+    expect(screen.getByRole('searchbox')).toHaveAttribute('data-vaul-no-drag');
+  });
+});

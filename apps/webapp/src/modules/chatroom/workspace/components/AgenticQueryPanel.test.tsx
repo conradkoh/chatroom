@@ -228,6 +228,16 @@ describe('AgenticQueryPanel', () => {
     expect(textarea.className).not.toContain('min-h-[120px]');
   });
 
+  it('sets single-line inline height on mount before user input', () => {
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    const textarea = screen.getByTestId('agentic-query-composer-input') as HTMLTextAreaElement;
+    const inlineHeight = parseInt(textarea.style.height, 10);
+    expect(inlineHeight).toBeGreaterThanOrEqual(40);
+    expect(inlineHeight).toBeLessThanOrEqual(192);
+    expect(inlineHeight).toBeLessThan(80);
+  });
+
   it('does not render Search/Ask mode toggle', () => {
     render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
     expect(screen.queryByText('Ask')).not.toBeInTheDocument();

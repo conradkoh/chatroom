@@ -500,6 +500,50 @@ describe('CursorSdkAgentService', () => {
       expect(runWait).toHaveBeenCalled();
     });
 
+    it('fires onOutput when subprocess stdout bypasses the stream adapter during a turn', async () => {
+      const run = {
+        id: 'run-subprocess',
+        stream: async function* () {
+          process.stdout.write('subprocess tool output\n');
+          yield {
+            type: 'assistant',
+            agent_id: 'agent-1',
+            run_id: 'run-subprocess',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'done\n' }],
+            },
+          };
+        },
+        wait: vi.fn().mockResolvedValue({ id: 'run-subprocess', status: 'finished' }),
+        supports: () => false,
+        cancel: vi.fn(),
+      };
+
+      const agent = {
+        agentId: 'agent-1',
+        send: sharedAgentSendFn.mockResolvedValue(run),
+        close: sharedAgentCloseFn,
+      };
+      sharedAgentCreateFn.mockResolvedValue(agent);
+
+      const child = makeFakeChild(7780);
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const onOutput = vi.fn();
+      const result = await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('run tools'),
+        systemPrompt: 'system',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+      result.onOutput(onOutput);
+
+      await vi.waitFor(() => expect(onOutput).toHaveBeenCalled());
+    });
+
     it('stop while waiting for resume exits the session', async () => {
       stubSdkAgent();
       const child = makeFakeChild(6666);

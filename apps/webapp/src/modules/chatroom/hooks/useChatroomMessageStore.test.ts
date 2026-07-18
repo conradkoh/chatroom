@@ -6,6 +6,7 @@ import {
   inferHasMoreOlder,
   MESSAGE_STORE_LIMIT,
   removeMessagesForTaskId,
+  trimMessagesToInitialWindow,
 } from './useChatroomMessageStore';
 import type { Message } from '../types/message';
 
@@ -31,6 +32,26 @@ describe('inferHasMoreOlder', () => {
 
   it('returns false for short windows with no server hasMore', () => {
     expect(inferHasMoreOlder(MESSAGE_STORE_LIMIT - 1, false)).toBe(false);
+  });
+});
+
+describe('trimMessagesToInitialWindow', () => {
+  function makeMsg(id: string, creationTime: number): Message {
+    return { _id: id, _creationTime: creationTime } as Message;
+  }
+
+  it('returns same array when at or below limit', () => {
+    const msgs = [makeMsg('a', 1), makeMsg('b', 2)];
+    expect(trimMessagesToInitialWindow(msgs)).toBe(msgs);
+    const atLimit = Array.from({ length: MESSAGE_STORE_LIMIT }, (_, i) => makeMsg(`${i}`, i));
+    expect(trimMessagesToInitialWindow(atLimit)).toBe(atLimit);
+  });
+
+  it('keeps only the most recent MESSAGE_STORE_LIMIT messages', () => {
+    const msgs = Array.from({ length: 12 }, (_, i) => makeMsg(`${i}`, i));
+    const result = trimMessagesToInitialWindow(msgs);
+    expect(result).toHaveLength(MESSAGE_STORE_LIMIT);
+    expect(result.map((m) => m._id)).toEqual(['7', '8', '9', '10', '11']);
   });
 });
 
