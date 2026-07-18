@@ -9,6 +9,31 @@ import {
   upsertWorkspaceFileTree,
 } from '../files/workspaceFileTreeStore';
 
+// Mock @tanstack/react-virtual so VirtualizedScrollList renders all items in jsdom
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({
+    count,
+    estimateSize,
+    getItemKey,
+  }: {
+    count: number;
+    estimateSize: (i: number) => number;
+    getItemKey: (i: number) => string;
+  }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({
+        key: getItemKey(index),
+        index,
+        size: estimateSize(index),
+        start: index * estimateSize(index),
+        end: (index + 1) * estimateSize(index),
+        lane: 0,
+      })),
+    getTotalSize: () => count * 28,
+    scrollToIndex: vi.fn(),
+  }),
+}));
+
 const treeRefresh = vi.hoisted(() => vi.fn());
 
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({

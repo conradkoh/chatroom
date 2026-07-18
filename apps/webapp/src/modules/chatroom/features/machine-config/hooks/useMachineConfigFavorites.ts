@@ -5,7 +5,7 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { useCallback, useMemo } from 'react';
 
 import { useMachineConfigUsage } from './useMachineConfigUsage';
-import { buildTeamRoleKey, buildMachineConfigScopeKey } from '../../../lib/teamRoleKey';
+import { buildMachineFavoriteScopeKey, buildMachineConfigScopeKey } from '../../../lib/teamRoleKey';
 import type { MachineConfigEntry } from '../../../types/machineConfig';
 import { entriesEqual } from '../../../types/machineConfig';
 
@@ -26,10 +26,10 @@ function isScopeComplete(
 // fallow-ignore-next-line complexity
 export function useMachineConfigFavorites(scope: MachineConfigFavoriteScope | undefined) {
   const teamRoleKey = isScopeComplete(scope)
-    ? buildTeamRoleKey(scope.chatroomId, scope.teamId, scope.role)
+    ? buildMachineFavoriteScopeKey(scope.teamId, scope.role)
     : undefined;
   const scopeKey = isScopeComplete(scope)
-    ? buildMachineConfigScopeKey(scope.machineId, scope.chatroomId, scope.teamId, scope.role)
+    ? buildMachineConfigScopeKey(scope.machineId, scope.teamId, scope.role)
     : undefined;
 
   const { clearUsage } = useMachineConfigUsage(scopeKey);

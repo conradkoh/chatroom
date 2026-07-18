@@ -103,6 +103,7 @@ import type * as skills from "../skills.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
 import type * as tasks from "../tasks.js";
+import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as utils_types from "../utils/types.js";
 import type * as web_agenticQuery_completeLogic from "../web/agenticQuery/completeLogic.js";
@@ -223,6 +224,7 @@ declare const fullApi: ApiFromModules<{
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
   tasks: typeof tasks;
+  "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   "utils/types": typeof utils_types;
   "web/agenticQuery/completeLogic": typeof web_agenticQuery_completeLogic;

@@ -4,7 +4,6 @@
 
 import {
   getParticipantForChatroomRole,
-  loadMachineAssignedTaskContext,
   loadRemoteAgentConfigsForMachine,
   toParticipantView,
 } from './assigned-tasks-core';
@@ -377,6 +376,9 @@ export async function assertMachineSnapshotAccess(
   machineId: string,
   userId: Id<'users'>
 ): Promise<boolean> {
-  const context = await loadMachineAssignedTaskContext(ctx, machineId, userId);
-  return context !== undefined;
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+    .first();
+  return machine !== null && machine.userId === userId;
 }

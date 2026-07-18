@@ -44,7 +44,7 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="w-full md:min-w-0 flex flex-col items-start gap-1.5 md:flex-row md:items-center md:gap-2 px-3 py-2 md:py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 overflow-hidden cursor-pointer hover:bg-chatroom-status-info/15 transition-colors text-left"
+          className="w-full flex flex-col items-start gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 overflow-hidden cursor-pointer hover:bg-chatroom-status-info/15 transition-colors text-left"
         >
           <span className="flex items-center gap-2 shrink-0">
             <Sparkles size={10} className="shrink-0" />
@@ -57,14 +57,7 @@ export const TimelineContextMessage = memo(function TimelineContextMessage({
             )}
           </span>
 
-          <span
-            className="hidden md:inline text-chatroom-status-info/50 shrink-0"
-            aria-hidden="true"
-          >
-            —
-          </span>
-
-          <span className="w-full md:flex-1 md:min-w-0 normal-case font-medium tracking-normal line-clamp-2 md:line-clamp-none md:truncate text-chatroom-text-secondary [&_*]:inline">
+          <span className="w-full normal-case font-medium tracking-normal line-clamp-2 text-chatroom-text-secondary">
             <Markdown
               remarkPlugins={chatroomRemarkPlugins}
               components={backlogReviewCompactMarkdownComponents}
