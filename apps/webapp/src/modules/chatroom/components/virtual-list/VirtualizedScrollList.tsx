@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export interface VirtualizedScrollListProps<T> {
   items: T[];
-  height: number;
+  height: number | string;
   estimateSize: (index: number, item: T) => number;
   getItemKey: (index: number, item: T) => string;
   renderItem: (item: T, index: number) => React.ReactNode;
