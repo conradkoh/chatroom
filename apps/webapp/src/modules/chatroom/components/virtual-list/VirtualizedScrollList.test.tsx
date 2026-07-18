@@ -20,6 +20,36 @@ describe('VirtualizedScrollList', () => {
     expect(scrollContainer).toHaveStyle('height: 200px');
   });
 
+  it('does not throw when scrollToItemKey is not in items (retry on items change)', () => {
+    const items = [{ id: 'a' }, { id: 'b' }];
+    const { container, rerender } = render(
+      <VirtualizedScrollList
+        items={items}
+        height={200}
+        estimateSize={() => 50}
+        getItemKey={(_, item) => item.id}
+        renderItem={(item) => <div>{item.id}</div>}
+        scrollToItemKey="missing"
+      />
+    );
+    const scrollContainer = container.querySelector('.overflow-y-auto');
+    expect(scrollContainer).toBeInTheDocument();
+
+    // Rerender with the target now present — should find it and scroll
+    const itemsWithTarget = [{ id: 'a' }, { id: 'b' }, { id: 'missing' }];
+    rerender(
+      <VirtualizedScrollList
+        items={itemsWithTarget}
+        height={200}
+        estimateSize={() => 50}
+        getItemKey={(_, item) => item.id}
+        renderItem={(item) => <div>{item.id}</div>}
+        scrollToItemKey="missing"
+      />
+    );
+    expect(container.querySelector('.overflow-y-auto')).toBeInTheDocument();
+  });
+
   it('accepts scrollToItemKey prop', () => {
     const items = [{ id: 'target' }, { id: 'other' }];
     const { container } = render(
