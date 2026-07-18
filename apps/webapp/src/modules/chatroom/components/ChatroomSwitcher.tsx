@@ -20,6 +20,7 @@ import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { cn } from '@/lib/utils';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
+import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
@@ -27,7 +28,45 @@ import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStat
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
 import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
+function getChatroomSwitcherKeywords(
+  chatroom: Pick<ChatroomWithStatus, 'name' | 'teamName'>
+): string[] {
+  const displayName = getChatroomDisplayName(chatroom);
+  if (chatroom.teamName && chatroom.teamName !== displayName) {
+    return [displayName, chatroom.teamName];
+  }
+  return [displayName];
+}
+
 // Status indicator uses shared chatStatusDisplay (mirrors ChatroomSidebar + listing page)
+
+function ChatroomSwitcherItem({
+  chatroom,
+  onSelect,
+}: {
+  chatroom: ChatroomWithStatus;
+  onSelect: (chatroomId: string) => void;
+}) {
+  const displayName = getChatroomDisplayName(chatroom);
+
+  return (
+    <CommandItem
+      value={chatroom._id}
+      keywords={getChatroomSwitcherKeywords(chatroom)}
+      onSelect={() => onSelect(chatroom._id)}
+      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
+    >
+      <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
+      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
+        {displayName}
+      </span>
+      {chatroom.isFavorite && (
+        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+      )}
+      {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
+    </CommandItem>
+  );
+}
 
 /**
  * Global Cmd+K chatroom switcher.
@@ -61,10 +100,11 @@ export function ChatroomSwitcher() {
   const searchParams = useSearchParams();
   const activeChatroomId = pathname === '/app/chatroom' ? searchParams.get('id') : null;
   const { chatrooms } = useChatroomListing();
-  const switcherChatrooms = useMemo(
-    () => (chatrooms ? sortChatroomsWithCurrentFirst(chatrooms, activeChatroomId) : undefined),
-    [chatrooms, activeChatroomId]
-  );
+  const switcherChatrooms = useMemo(() => {
+    if (!chatrooms) return undefined;
+    const activeChatrooms = chatrooms.filter((chatroom) => chatroom.chatStatus !== 'completed');
+    return sortChatroomsWithCurrentFirst(activeChatrooms, activeChatroomId);
+  }, [chatrooms, activeChatroomId]);
 
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
@@ -120,34 +160,11 @@ export function ChatroomSwitcher() {
                   className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
                 >
                   {switcherChatrooms.map((chatroom) => (
-                    <CommandItem
+                    <ChatroomSwitcherItem
                       key={chatroom._id}
-                      value={getChatroomDisplayName(chatroom)}
-                      onSelect={() => handleSelect(chatroom._id)}
-                      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
-                    >
-                      {/* Status indicator dot */}
-                      <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
-
-                      {/* Chatroom name */}
-                      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
-                        {getChatroomDisplayName(chatroom)}
-                      </span>
-
-                      {/* Favourite star */}
-                      {chatroom.isFavorite && (
-                        <Star
-                          size={10}
-                          className="text-yellow-500 flex-shrink-0"
-                          fill="currentColor"
-                        />
-                      )}
-
-                      {/* Unread dot */}
-                      {chatroom.hasUnread && (
-                        <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />
-                      )}
-                    </CommandItem>
+                      chatroom={chatroom}
+                      onSelect={handleSelect}
+                    />
                   ))}
                 </CommandGroup>
               )}

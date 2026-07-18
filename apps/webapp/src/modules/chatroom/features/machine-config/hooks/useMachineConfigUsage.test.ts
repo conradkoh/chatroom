@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { useMachineConfigUsage } from './useMachineConfigUsage';
 import { getMachineConfigUsageStore } from '../stores/machineConfigUsageStore';
 
-const SCOPE = 'm1|chatroom_r1#team_duo#role_planner';
+const SCOPE = 'm1|team_duo#role_planner';
 
 describe('useMachineConfigUsage', () => {
   afterEach(() => {
