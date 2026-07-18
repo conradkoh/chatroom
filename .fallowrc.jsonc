@@ -80,12 +80,35 @@
       "exports": ["discoverModels", "initDaemonEffect"],
     },
     {
+      "file": "**/lib/messageExport/index.ts",
+      "exports": ["replaceMermaidFencesWithSvg"],
+    },
+    {
+      "file": "**/hooks/useChatroomMessageStore.ts",
+      "exports": ["trimMessagesToInitialWindow"],
+    },
+    {
+      "file": "**/workspace/components/WorkspaceBottomBar.tsx",
+      "exports": [
+        "WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX",
+        "shouldSuppressWorkspaceBottomBarSafeArea",
+      ],
+    },
+    {
+      "file": "**/workspace/hooks/useExplorerTabCloseShortcut.ts",
+      "exports": ["isExplorerTabCloseShortcut", "isAppNavigationTarget"],
+    },
+    {
       "file": "**/CommandPalette/commandPaletteRows.ts",
       "exports": ["filterCommandsForSearch"],
     },
     {
       "file": "**/EventStreamModal/EventStreamModalVirtualizedList.tsx",
       "exports": ["EVENT_STREAM_ROW_HEIGHT"],
+    },
+    {
+      "file": "**/shared/overlayPortalContainer.tsx",
+      "exports": ["OverlayPortalContainerProvider"],
     },
   ],
   "duplicates": {

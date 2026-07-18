@@ -7,6 +7,7 @@ import {
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
@@ -52,6 +53,7 @@ export function ResponsivePickerShell({
 
   const isDesktop = useIsDesktop(desktopBreakpoint);
   const keyboardInsetPx = useVisualViewportKeyboardInset(isClient && !isDesktop);
+  const portalContainer = useOverlayPortalContainer();
 
   if (disabled) {
     return <>{trigger}</>;
@@ -78,7 +80,14 @@ export function ResponsivePickerShell({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} nested repositionInputs={false}>
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      nested
+      repositionInputs={false}
+      handleOnly
+      container={portalContainer ?? undefined}
+    >
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { FilterPickerSection, FlatPickerSection } from './HarnessPickerSections';
 import { KeyboardInsetSlider } from './KeyboardInsetSlider';
+import { NestedFixedModalPickerSection } from './NestedFixedModalPickerSection';
 import { useHarnessDrawerMetrics } from './useHarnessDrawerMetrics';
 
 const MODELS = Array.from(
@@ -11,12 +12,34 @@ const MODELS = Array.from(
   (_, i) => `provider/model-${String(i + 1).padStart(2, '0')}`
 );
 
+function activeElementIdPart(el: HTMLElement): string {
+  return el.id ? `#${el.id}` : '';
+}
+
+function activeElementPlaceholderPart(el: HTMLElement): string {
+  if (!(el instanceof HTMLInputElement) || !el.placeholder) return '';
+  return `[placeholder="${el.placeholder}"]`;
+}
+
+function describeActiveElement(el: Element | null): string {
+  if (!(el instanceof HTMLElement) || el === document.body) return '(none)';
+  return `${el.tagName.toLowerCase()}${activeElementIdPart(el)}${activeElementPlaceholderPart(el)}`;
+}
+
 export function MobilePickerHarness() {
   const [flatOpen, setFlatOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [flatSearch, setFlatSearch] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [activeElementDesc, setActiveElementDesc] = useState('(none)');
+  useEffect(() => {
+    const update = () => setActiveElementDesc(describeActiveElement(document.activeElement));
+    document.addEventListener('focusin', update);
+    update();
+    return () => document.removeEventListener('focusin', update);
+  }, []);
+
   const metrics = useHarnessDrawerMetrics(
     flatOpen,
     filterOpen,
@@ -42,6 +65,8 @@ export function MobilePickerHarness() {
 
       <KeyboardInsetSlider value={keyboardInset} onChange={setKeyboardInset} />
 
+      <NestedFixedModalPickerSection />
+
       <FlatPickerSection
         open={flatOpen}
         onOpenChange={setFlatOpen}
@@ -56,6 +81,11 @@ export function MobilePickerHarness() {
         search={filterSearch}
         onSearchChange={setFilterSearch}
       />
+
+      <div className="text-[10px] bg-chatroom-bg-tertiary border border-chatroom-border p-2">
+        <span className="font-semibold">Focus: </span>
+        <span data-testid="focus-indicator">{activeElementDesc}</span>
+      </div>
 
       <pre
         data-testid="drawer-metrics"

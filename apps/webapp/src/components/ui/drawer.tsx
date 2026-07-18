@@ -60,10 +60,36 @@ function DrawerContent({
         )}
         {...props}
       >
-        <div className="mx-auto mt-4 mb-1 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted-foreground/40 group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
-        {children}
+        <DrawerHandle />
+        <div
+          className="contents"
+          onPointerDown={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+              e.stopPropagation();
+            }
+          }}
+        >
+          {children}
+        </div>
       </DrawerPrimitive.Content>
     </DrawerPortal>
+  );
+}
+
+function DrawerHandle({
+  className,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Handle>) {
+  return (
+    <DrawerPrimitive.Handle
+      data-slot="drawer-handle"
+      className={cn(
+        'mx-auto mt-4 mb-1 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted-foreground/40 group-data-[vaul-drawer-direction=bottom]/drawer-content:block',
+        className
+      )}
+      {...props}
+    />
   );
 }
 
@@ -124,4 +150,5 @@ export {
   DrawerFooter,
   DrawerTitle,
   DrawerDescription,
+  DrawerHandle,
 };

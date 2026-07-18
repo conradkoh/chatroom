@@ -1,7 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WorkspaceBottomBarShell, getWorkspaceBottomBarPaddingBottom } from './WorkspaceBottomBar';
+import {
+  WorkspaceBottomBarShell,
+  getWorkspaceBottomBarPaddingBottom,
+  shouldSuppressWorkspaceBottomBarSafeArea,
+  WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX,
+} from './WorkspaceBottomBar';
 
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn();
@@ -27,6 +32,25 @@ describe('getWorkspaceBottomBarPaddingBottom', () => {
 
   it('returns 0 when suppressed', () => {
     expect(getWorkspaceBottomBarPaddingBottom(true)).toBe(0);
+  });
+});
+
+describe('shouldSuppressWorkspaceBottomBarSafeArea', () => {
+  it('does not suppress for small browser-chrome inset', () => {
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(34, false)).toBe(false);
+  });
+
+  it('suppresses at keyboard threshold', () => {
+    expect(
+      shouldSuppressWorkspaceBottomBarSafeArea(
+        WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX,
+        false
+      )
+    ).toBe(true);
+  });
+
+  it('suppresses when editable focused regardless of inset', () => {
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(0, true)).toBe(true);
   });
 });
 
@@ -61,7 +85,9 @@ describe('WorkspaceBottomBarShell', () => {
         <span>content</span>
       </WorkspaceBottomBarShell>
     );
-    expect(screen.getByTestId('workspace-bottom-bar').style.paddingBottom).toBe('0px');
+    const outer = screen.getByTestId('workspace-bottom-bar');
+    expect(outer.style.paddingBottom).toBe('0px');
+    expect(outer.className).not.toContain('pb-[env(safe-area-inset-bottom,0px)]');
   });
 
   it('suppresses safe-area when editable element is focused (iOS fallback)', () => {
@@ -71,7 +97,9 @@ describe('WorkspaceBottomBarShell', () => {
         <span>content</span>
       </WorkspaceBottomBarShell>
     );
-    expect(screen.getByTestId('workspace-bottom-bar').style.paddingBottom).toBe('0px');
+    const outer = screen.getByTestId('workspace-bottom-bar');
+    expect(outer.style.paddingBottom).toBe('0px');
+    expect(outer.className).not.toContain('pb-[env(safe-area-inset-bottom,0px)]');
   });
 
   it('keeps safe-area on desktop', () => {
@@ -82,6 +110,20 @@ describe('WorkspaceBottomBarShell', () => {
         <span>content</span>
       </WorkspaceBottomBarShell>
     );
-    expect(screen.getByTestId('workspace-bottom-bar').style.paddingBottom).not.toBe('0px');
+    const outer = screen.getByTestId('workspace-bottom-bar');
+    expect(outer.className).toContain('pb-[env(safe-area-inset-bottom,0px)]');
+    expect(outer.style.paddingBottom).not.toBe('0px');
+  });
+
+  it('keeps safe-area for small visualViewport inset (browser chrome)', () => {
+    mockUseKeyboardInset.mockReturnValue(34);
+    render(
+      <WorkspaceBottomBarShell>
+        <span>content</span>
+      </WorkspaceBottomBarShell>
+    );
+    const outer = screen.getByTestId('workspace-bottom-bar');
+    expect(outer.className).toContain('pb-[env(safe-area-inset-bottom,0px)]');
+    expect(outer.style.paddingBottom).not.toBe('0px');
   });
 });

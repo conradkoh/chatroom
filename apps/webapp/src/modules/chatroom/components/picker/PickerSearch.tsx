@@ -23,13 +23,24 @@ export function PickerSearch({
   const shouldAutoFocus = autoFocus ?? isDesktop;
 
   return (
-    <div className={cn('px-3 py-1.5 border-b border-chatroom-border shrink-0', className)}>
+    <div
+      className={cn('px-3 py-1.5 border-b border-chatroom-border shrink-0', className)}
+      data-vaul-no-drag=""
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        const input = e.currentTarget.querySelector('input');
+        input?.focus();
+      }}
+    >
       <input
         type="search"
+        enterKeyHint="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoFocus={shouldAutoFocus}
+        data-vaul-no-drag=""
+        onPointerDown={(e) => e.stopPropagation()}
         className="w-full bg-chatroom-bg-tertiary border border-chatroom-border px-2 py-1 text-[11px] text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent rounded-none"
       />
     </div>

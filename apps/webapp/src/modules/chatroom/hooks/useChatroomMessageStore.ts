@@ -31,6 +31,11 @@ export function inferHasMoreOlder(messageCount: number, hasMoreFromServer: boole
   return hasMoreFromServer || messageCount >= MESSAGE_STORE_LIMIT;
 }
 
+export function trimMessagesToInitialWindow(messages: Message[]): Message[] {
+  if (messages.length <= MESSAGE_STORE_LIMIT) return messages;
+  return messages.slice(-MESSAGE_STORE_LIMIT);
+}
+
 /** History is exhausted only when the server returns zero rows for a page. */
 export function hasMoreOlderAfterPage(pageLength: number): boolean {
   return pageLength > 0;
@@ -98,7 +103,8 @@ type Action =
   | { type: 'LOAD_OLDER_FAILED' }
   | { type: 'RESET' }
   | { type: 'APPLY_VISIBLE_UPDATES'; updates: VisibleUpdate[] }
-  | { type: 'REMOVE_BY_TASK_ID'; taskId: string };
+  | { type: 'REMOVE_BY_TASK_ID'; taskId: string }
+  | { type: 'TRIM_TO_INITIAL_WINDOW' };
 
 function mergeMessagesById(existing: Message[], incoming: Message[]): Message[] {
   if (incoming.length === 0) return existing;
@@ -208,6 +214,20 @@ function reducer(state: State, action: Action): State {
       return state.isLoadingOlder ? state : { ...state, isLoadingOlder: true };
     case 'LOAD_OLDER_FAILED':
       return { ...state, isLoadingOlder: false };
+    case 'TRIM_TO_INITIAL_WINDOW': {
+      if (!state.isInitialized) return state;
+      const trimmed = trimMessagesToInitialWindow(state.messages);
+      if (trimmed.length === state.messages.length) return state;
+      const tail = trimmed[trimmed.length - 1];
+      if (!tail) return { ...state, messages: trimmed, hasMoreOlder: true };
+      return {
+        ...state,
+        messages: trimmed,
+        tailAfterCreationTime: tail._creationTime,
+        hasMoreOlder: true,
+        isLoadingOlder: false,
+      };
+    }
     case 'RESET':
       return initialState;
     default:
@@ -290,6 +310,7 @@ export interface UseChatroomMessageStoreResult {
   isLoadingOlder: boolean;
   loadOlderMessages: () => void;
   removeMessagesForTask: (taskId: string) => void;
+  purgeToInitialWindow: () => void;
 }
 
 export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageStoreResult {
@@ -441,6 +462,11 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
     []
   );
 
+  const purgeToInitialWindow = useCallback(() => {
+    loadOlderBeforeRef.current = null;
+    dispatch({ type: 'TRIM_TO_INITIAL_WINDOW' });
+  }, []);
+
   return {
     messages: state.messages,
     isLoading: !state.isInitialized,
@@ -448,5 +474,6 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
     isLoadingOlder: state.isLoadingOlder,
     loadOlderMessages,
     removeMessagesForTask,
+    purgeToInitialWindow,
   };
 }

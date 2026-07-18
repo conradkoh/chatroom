@@ -22,6 +22,7 @@ import { useChatroomTimelineFeedData } from '../../hooks/useChatroomTimelineFeed
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 import { EventStreamModal } from '../EventStreamModal';
 import { QueuedMessagesIndicator } from '../QueuedMessagesIndicator';
+import { TimelineEventCountMenu } from './TimelineEventCountMenu';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import { logLoadOlder } from './timelineLoadOlderDebug';
@@ -35,6 +36,7 @@ import {
   TIMELINE_PADDING_END,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
+import { MESSAGE_STORE_LIMIT } from '../../hooks/useChatroomMessageStore';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
@@ -77,6 +79,7 @@ export function ChatroomTimelineFeed({
     isLoadingOlder,
     loadOlderEvents,
     removeMessagesForTask,
+    purgeToInitialWindow,
     isEventStreamOpen,
     setIsEventStreamOpen,
     latestEvent,
@@ -324,6 +327,13 @@ export function ChatroomTimelineFeed({
     }
   }, [coordinator, topChromeHeight, tryLoadOlder, virtualizer]);
 
+  const handlePurgeLoadedHistory = useCallback(() => {
+    purgeToInitialWindow();
+    measurementCacheRef.current.clear();
+    coordinator.current.resetForChatroom();
+    coordinator.current.jumpToEnd();
+  }, [purgeToInitialWindow, coordinator]);
+
   const virtualizedContentHeight = virtualizer.getTotalSize();
 
   useEffect(() => {
@@ -368,9 +378,11 @@ export function ChatroomTimelineFeed({
           event={latestEvent}
           onClick={() => setIsEventStreamOpen((prev) => !prev)}
         />
-        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono">
-          {events.length} EVENTS
-        </span>
+        <TimelineEventCountMenu
+          eventCount={events.length}
+          canPurge={events.length > MESSAGE_STORE_LIMIT}
+          onPurge={handlePurgeLoadedHistory}
+        />
       </div>
     </>
   );

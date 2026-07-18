@@ -30,7 +30,16 @@ export function Navigation() {
   const hideUserMenu = portalContent.hideUserMenu ?? false;
 
   return (
-    <header className="relative z-50 w-full shrink-0 border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80">
+    <header
+      data-app-navigation
+      tabIndex={-1}
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget || e.currentTarget.contains(e.target as Node)) {
+          e.currentTarget.focus();
+        }
+      }}
+      className="relative z-50 w-full shrink-0 border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80"
+    >
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left section: Logo and portal content */}
         <div className="flex h-full items-center gap-4">
