@@ -58,4 +58,19 @@ describe('TimelineContextMessage', () => {
     expect(buttons).toHaveLength(1);
     expect(buttons[0]).toHaveAccessibleName(/New Context/i);
   });
+
+  it('uses column layout on mobile and row layout on md+', () => {
+    const { container } = render(
+      <TimelineContextMessage message={makeContextMessage({ contextCreatedBy: 'planner' })} />
+    );
+
+    const wrapper = container.querySelector('[data-testid="timeline-context"] > div');
+    expect(wrapper?.className).toContain('flex-col');
+    expect(wrapper?.className).toContain('md:flex-row');
+
+    const button = screen.getByRole('button', { name: /New Context/i });
+    expect(button.className).toContain('flex-col');
+    expect(button.className).toContain('md:flex-row');
+    expect(button.className).toContain('w-full');
+  });
 });
