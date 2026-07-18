@@ -13,7 +13,9 @@ vi.mock('dom-docx/browser', () => ({
 }));
 
 vi.mock('./replaceMermaidFencesWithSvg', () => ({
-  replaceMermaidFencesWithSvg: vi.fn((md: string) => Promise.resolve(md)),
+  replaceMermaidFencesWithSvg: vi.fn((md: string) =>
+    Promise.resolve({ markdown: md, diagrams: new Map() })
+  ),
 }));
 
 vi.mock('./downloadTextFile', () => ({

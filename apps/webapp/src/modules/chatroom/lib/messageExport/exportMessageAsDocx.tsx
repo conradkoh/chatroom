@@ -3,18 +3,35 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import Markdown from 'react-markdown';
 
 import { downloadBlobFile, messageExportFilename } from './downloadTextFile';
-import { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
+import {
+  MERMAID_EXPORT_PLACEHOLDER_PREFIX,
+  replaceMermaidFencesWithSvg,
+} from './replaceMermaidFencesWithSvg';
 import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
 import { fullMarkdownComponents } from '../../components/markdown-utils';
 import type { Message } from '../../types/message';
 
-export async function exportMessageAsDocx(message: Message): Promise<void> {
-  const withDiagrams = await replaceMermaidFencesWithSvg(message.content);
+function injectMermaidDiagrams(bodyHtml: string, diagrams: Map<number, string>): string {
+  let html = bodyHtml;
+  for (const [index, svg] of diagrams) {
+    const placeholder = `${MERMAID_EXPORT_PLACEHOLDER_PREFIX}${index}`;
+    const diagramHtml = `<div class="export-diagram" style="margin:12px 0;text-align:center;">${svg}</div>`;
+    html = html.replace(new RegExp(`<p>\\s*${placeholder}\\s*</p>`, 'g'), diagramHtml);
+    html = html.replace(placeholder, diagramHtml);
+  }
+  return html;
+}
 
-  const bodyHtml = renderToStaticMarkup(
-    <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
-      {withDiagrams}
-    </Markdown>
+export async function exportMessageAsDocx(message: Message): Promise<void> {
+  const { markdown, diagrams } = await replaceMermaidFencesWithSvg(message.content);
+
+  const bodyHtml = injectMermaidDiagrams(
+    renderToStaticMarkup(
+      <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
+        {markdown}
+      </Markdown>
+    ),
+    diagrams
   );
 
   const role = message.senderRole ?? 'message';
