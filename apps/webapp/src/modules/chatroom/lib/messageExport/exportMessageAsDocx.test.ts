@@ -1,10 +1,10 @@
 import { convertHtmlToDocx } from 'dom-docx/browser';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { exportMessageAsDocx } from './exportMessageAsDocx';
 
-let mockPromptSaveFile = vi.fn().mockResolvedValue({ kind: 'anchor' });
-let mockWriteBlobToSaveTarget = vi.fn().mockResolvedValue('downloaded');
+const mockPromptSaveFile = vi.fn().mockResolvedValue({ kind: 'anchor' });
+const mockWriteBlobToSaveTarget = vi.fn().mockResolvedValue('downloaded');
 
 vi.mock('dom-docx/browser', () => ({
   convertHtmlToDocx: vi.fn().mockResolvedValue(
