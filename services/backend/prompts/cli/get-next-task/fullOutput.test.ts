@@ -202,3 +202,51 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
     expect(output).toContain('const x = 1;');
   });
 });
+
+describe('generateFullCliOutput — standing instructions', () => {
+  const attachments = {
+    attachedBacklogItems: [
+      {
+        _id: 'backlog-item-001',
+        status: 'backlog',
+        content: 'Implement dark mode toggle',
+      },
+    ],
+  } as const;
+
+  test('CLI mode places standing instructions above attachments with XML escaping', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: false,
+      standingInstructions: 'Prefer <strict> mode & coverage',
+      sourceAttachments: { ...attachments },
+    });
+    expect(output).toContain('<standing-instructions>');
+    expect(output).toContain('Prefer &lt;strict&gt; mode &amp; coverage');
+    expect(output.indexOf('<standing-instructions>')).toBeLessThan(output.indexOf('<attachments>'));
+    expect(output.indexOf('</standing-instructions>')).toBeLessThan(
+      output.indexOf('<attachments>')
+    );
+  });
+
+  test('native mode places standing instructions above attachments with XML escaping', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: true,
+      standingInstructions: 'Prefer <strict> mode & coverage',
+      sourceAttachments: { ...attachments },
+    });
+    expect(output).toContain('<standing-instructions>');
+    expect(output).toContain('Prefer &lt;strict&gt; mode &amp; coverage');
+    expect(output.indexOf('<standing-instructions>')).toBeLessThan(output.indexOf('<attachments>'));
+  });
+
+  test('omits standing-instructions block when inactive/null', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      nativeIntegration: false,
+      standingInstructions: null,
+    });
+    expect(output).not.toContain('<standing-instructions>');
+  });
+});

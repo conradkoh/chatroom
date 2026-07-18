@@ -82,6 +82,28 @@ describe('renderTaskEnvelopeLines', () => {
     expect(output.indexOf('<message-content>')).toBeGreaterThan(output.indexOf('</attachments>'));
   });
 
+  test('standing instructions appear above attachments and escape XML', () => {
+    const lines = renderTaskEnvelopeLines({
+      ...BASE_PARAMS,
+      task: { _id: 'task-005b', content: 'Main content' },
+      message: { _id: 'msg-004b', senderRole: 'user' },
+      standingInstructions: 'Prefer <strict> mode & tests',
+      sourceAttachments: {
+        attachedBacklogItems: [
+          { _id: 'bl-001', status: 'backlog', content: 'Backlog item content' },
+        ],
+      },
+    });
+    const output = lines.join('\n');
+    expect(output).toContain('<standing-instructions>');
+    expect(output).toContain('Prefer &lt;strict&gt; mode &amp; tests');
+    expect(output.indexOf('<standing-instructions>')).toBeLessThan(output.indexOf('<attachments>'));
+    expect(output.indexOf('</standing-instructions>')).toBeLessThan(
+      output.indexOf('<attachments>')
+    );
+    expect(output.indexOf('<attachments>')).toBeLessThan(output.indexOf('<message sender='));
+  });
+
   test('includes intake note when provided', () => {
     const lines = renderTaskEnvelopeLines({
       ...BASE_PARAMS,

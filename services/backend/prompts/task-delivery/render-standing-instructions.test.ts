@@ -31,4 +31,11 @@ describe('appendStandingInstructionsSection', () => {
     appendStandingInstructionsSection(lines, '');
     expect(lines).toEqual([]);
   });
+
+  test('escapes XML special characters in standing instruction body', () => {
+    const lines: string[] = [];
+    appendStandingInstructionsSection(lines, 'Use <b>bold</b> & "quotes"');
+    expect(lines).toContain('Use &lt;b&gt;bold&lt;/b&gt; &amp; "quotes"');
+    expect(lines.join('\n')).not.toContain('<b>');
+  });
 });
