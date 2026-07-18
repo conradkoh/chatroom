@@ -3421,19 +3421,23 @@ export const getObservedChatroomsForMachine = query({
       chatroomWorkingDirsMap.set(ws.chatroomId, existing);
     }
 
-    // Fetch active observations in a single range query (avoids N+1 per chatroom)
-    const activeObservations = await ctx.db
-      .query('chatroom_observation')
-      .withIndex('by_lastObservedAt', (q) => q.gte('lastObservedAt', ttlThreshold))
-      .collect();
+    // Observation reads scoped to this machine's chatrooms (point lookups on
+    // by_chatroomId). Avoids a global by_lastObservedAt collect so unrelated
+    // observation heartbeats elsewhere in the deployment are not in the read set.
+    const chatroomIds = [...chatroomWorkingDirsMap.keys()];
+    const observationMap = new Map<Id<'chatroom_rooms'>, { lastRefreshedAt?: number }>();
+    await Promise.all(
+      chatroomIds.map(async (chatroomId) => {
+        const obs = await ctx.db
+          .query('chatroom_observation')
+          .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
+          .first();
+        if (obs && obs.lastObservedAt >= ttlThreshold) {
+          observationMap.set(chatroomId, obs);
+        }
+      })
+    );
 
-    // Build a map from chatroomId → observation record for fast lookup
-    const observationMap = new Map<Id<'chatroom_rooms'>, (typeof activeObservations)[number]>();
-    for (const obs of activeObservations) {
-      observationMap.set(obs.chatroomId, obs);
-    }
-
-    // Intersect with this machine's chatrooms
     const result: {
       chatroomId: Id<'chatroom_rooms'>;
       workingDirs: string[];

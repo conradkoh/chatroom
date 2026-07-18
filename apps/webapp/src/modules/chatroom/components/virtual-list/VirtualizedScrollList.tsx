@@ -1,7 +1,7 @@
 'use client';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,7 @@ export interface VirtualizedScrollListProps<T> {
   className?: string;
   overscan?: number;
   listRef?: React.Ref<HTMLDivElement>;
+  scrollToItemKey?: string;
 }
 
 export function VirtualizedScrollList<T>({
@@ -25,8 +26,13 @@ export function VirtualizedScrollList<T>({
   className,
   overscan = 8,
   listRef,
+  scrollToItemKey,
 }: VirtualizedScrollListProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const prevScrollKeyRef = useRef<string | undefined>(undefined);
+  const scrollToIndexRef = useRef<
+    (index: number, opts?: { align?: 'auto' | 'start' | 'center' | 'end' }) => void
+  >(() => {});
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
@@ -34,6 +40,15 @@ export function VirtualizedScrollList<T>({
     getItemKey: (index) => getItemKey(index, items[index]),
     overscan,
   });
+  scrollToIndexRef.current = virtualizer.scrollToIndex;
+
+  useEffect(() => {
+    if (!scrollToItemKey || scrollToItemKey === prevScrollKeyRef.current) return;
+    const index = items.findIndex((item, i) => getItemKey(i, item) === scrollToItemKey);
+    if (index < 0) return;
+    prevScrollKeyRef.current = scrollToItemKey;
+    scrollToIndexRef.current(index, { align: 'auto' });
+  }, [scrollToItemKey, items, getItemKey]);
 
   const setRef = (el: HTMLDivElement | null) => {
     (parentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;

@@ -4,6 +4,31 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { WorkspaceFileExplorer } from './WorkspaceFileExplorer';
 
+// Mock @tanstack/react-virtual so VirtualizedScrollList renders all items in jsdom
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({
+    count,
+    estimateSize,
+    getItemKey,
+  }: {
+    count: number;
+    estimateSize: (i: number) => number;
+    getItemKey: (i: number) => string;
+  }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({
+        key: getItemKey(index),
+        index,
+        size: estimateSize(index),
+        start: index * estimateSize(index),
+        end: (index + 1) * estimateSize(index),
+        lane: 0,
+      })),
+    getTotalSize: () => count * 28,
+    scrollToIndex: vi.fn(),
+  }),
+}));
+
 const mockDisplayNodes = [
   { name: 'src', path: 'src', type: 'directory' as const, children: [] },
   {

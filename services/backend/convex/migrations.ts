@@ -1,7 +1,13 @@
 import { Migrations } from '@convex-dev/migrations';
 
 import { components, internal } from './_generated/api';
-import type { DataModel } from './_generated/dataModel';
+import type { DataModel, Doc } from './_generated/dataModel';
+import {
+  isLegacyMachineFavoriteScopeKey,
+  normalizeMachineFavoriteScopeKey,
+} from './utils/machineFavoriteScopeKey';
+
+type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
@@ -398,6 +404,67 @@ export const deleteLegacyMachineConfigFavorites = migrations.define({
   },
 });
 
+/**
+ * Merge two arrays of machine config favorites, deduplicating by harness+model.
+ * Prefers entries from `a` (primary), then appends entries from `b` not already present.
+ */
+function mergeMachineConfigFavorites(a: FavoriteEntry[], b: FavoriteEntry[]): FavoriteEntry[] {
+  const seen = new Set<string>();
+  const result: FavoriteEntry[] = [];
+  for (const entry of a) {
+    const key = `${entry.agentHarness}|${entry.model}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(entry);
+  }
+  for (const entry of b) {
+    const key = `${entry.agentHarness}|${entry.model}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(entry);
+  }
+  return result;
+}
+
+/**
+ * Migration: Convert chatroom-scoped machine config favorites to machine-scoped.
+ * Legacy key format: chatroom_<id>#team_<team>#role_<role>
+ * New key format:    team_<team>#role_<role>
+ *
+ * Merges duplicate rows for the same normalized scope (dedup by harness+model).
+ *
+ * Usage (add to runAll after deploy):
+ *   cd services/backend && npx convex run migrations:run '{"fn":"migrations:migrateMachineConfigFavoritesToMachineScope"}'
+ *
+ * Idempotent: rows already in new format are skipped.
+ */
+export const migrateMachineConfigFavoritesToMachineScope = migrations.define({
+  table: 'chatroom_machineConfigFavorites',
+  migrateOne: async (ctx, row) => {
+    if (!isLegacyMachineFavoriteScopeKey(row.teamRoleKey)) return;
+    const newKey = normalizeMachineFavoriteScopeKey(row.teamRoleKey);
+
+    const existing = await ctx.db
+      .query('chatroom_machineConfigFavorites')
+      .withIndex('by_user_machine_teamRole', (q) =>
+        q.eq('userId', row.userId).eq('machineId', row.machineId).eq('teamRoleKey', newKey)
+      )
+      .first();
+
+    if (existing && existing._id !== row._id) {
+      const merged = mergeMachineConfigFavorites(existing.favorites, row.favorites);
+      await ctx.db.patch('chatroom_machineConfigFavorites', existing._id, {
+        favorites: merged,
+        updatedAt: Math.max(existing.updatedAt, row.updatedAt),
+      });
+      await ctx.db.delete('chatroom_machineConfigFavorites', row._id);
+      return;
+    }
+
+    return { teamRoleKey: newKey };
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -433,4 +500,6 @@ export const runAll = migrations.runner([
   internal.migrations.backfillSavedCommandScope,
   // Agent Config
   internal.migrations.setDuoBuilderWantResumeFalse,
+  // Machine Config Favorites
+  internal.migrations.migrateMachineConfigFavoritesToMachineScope,
 ]);

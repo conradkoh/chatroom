@@ -454,7 +454,7 @@ export function useAgentControls({
   const machineConfigScopeKeyForControls = useMemo(
     () =>
       selectedMachineId && teamId
-        ? buildMachineConfigScopeKey(selectedMachineId, chatroomId, teamId, role)
+        ? buildMachineConfigScopeKey(selectedMachineId, teamId, role)
         : undefined,
     [selectedMachineId, chatroomId, teamId, role]
   );
@@ -734,7 +734,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
       favoriteScope
         ? buildMachineConfigScopeKey(
             favoriteScope.machineId,
-            favoriteScope.chatroomId,
             favoriteScope.teamId,
             favoriteScope.role
           )
