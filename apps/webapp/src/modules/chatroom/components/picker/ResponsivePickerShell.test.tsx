@@ -57,6 +57,13 @@ describe('ResponsivePickerShell', () => {
     expect(drawerContent).not.toBeNull();
   });
 
+  it('renders drawer handle on mobile', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    renderShell();
+    const handle = document.querySelector('[data-slot="drawer-handle"]');
+    expect(handle).not.toBeNull();
+  });
+
   it('renders drawer with sr-only title when isDesktop is false', () => {
     mockUseIsDesktop.mockReturnValue(false);
     renderShell({ title: 'Custom Test Title' });

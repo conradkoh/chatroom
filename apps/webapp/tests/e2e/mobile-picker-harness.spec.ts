@@ -15,6 +15,16 @@ test('flat picker opens drawer on mobile viewport', async ({ page }) => {
   await expect(page.locator('[data-slot="chatroom-popover-content"]')).toHaveCount(0);
 });
 
+test('search input is focusable by click in drawer on mobile', async ({ page }) => {
+  await page.getByTestId('open-flat-picker').click();
+  await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
+  const searchInput = page.getByPlaceholder('Search models…');
+  await searchInput.click();
+  await expect(searchInput).toBeFocused();
+  await searchInput.fill('test');
+  await expect(searchInput).toHaveValue('test');
+});
+
 test('drawer applies safe-area inline padding when keyboard closed', async ({ page }) => {
   await page.getByTestId('open-flat-picker').click();
   const drawer = page.locator('[data-slot="drawer-content"]');

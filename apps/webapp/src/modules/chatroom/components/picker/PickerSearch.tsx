@@ -27,6 +27,10 @@ export function PickerSearch({
       className={cn('px-3 py-1.5 border-b border-chatroom-border shrink-0', className)}
       data-vaul-no-drag=""
       onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        const input = e.currentTarget.querySelector('input');
+        input?.focus();
+      }}
     >
       <input
         type="search"

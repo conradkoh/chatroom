@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { FilterPickerSection, FlatPickerSection } from './HarnessPickerSections';
 import { KeyboardInsetSlider } from './KeyboardInsetSlider';
@@ -17,6 +17,26 @@ export function MobilePickerHarness() {
   const [flatSearch, setFlatSearch] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [activeElementDesc, setActiveElementDesc] = useState('(none)');
+  useEffect(() => {
+    const update = () => {
+      const el = document.activeElement;
+      if (!el || el === document.body) {
+        setActiveElementDesc('(none)');
+        return;
+      }
+      const tag = el.tagName.toLowerCase();
+      const id = el.id ? `#${el.id}` : '';
+      const placeholder = (el as HTMLInputElement).placeholder
+        ? `[placeholder="${(el as HTMLInputElement).placeholder}"]`
+        : '';
+      setActiveElementDesc(`${tag}${id}${placeholder}`);
+    };
+    document.addEventListener('focusin', update);
+    update();
+    return () => document.removeEventListener('focusin', update);
+  }, []);
+
   const metrics = useHarnessDrawerMetrics(
     flatOpen,
     filterOpen,
@@ -56,6 +76,11 @@ export function MobilePickerHarness() {
         search={filterSearch}
         onSearchChange={setFilterSearch}
       />
+
+      <div className="text-[10px] bg-chatroom-bg-tertiary border border-chatroom-border p-2">
+        <span className="font-semibold">Focus: </span>
+        <span data-testid="focus-indicator">{activeElementDesc}</span>
+      </div>
 
       <pre
         data-testid="drawer-metrics"

@@ -78,7 +78,7 @@ export function ResponsivePickerShell({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} nested repositionInputs={false}>
+    <Drawer open={open} onOpenChange={onOpenChange} nested repositionInputs={false} handleOnly>
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}
