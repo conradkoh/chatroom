@@ -2,7 +2,12 @@ import { convertHtmlToDocx } from 'dom-docx/browser';
 import { renderToStaticMarkup } from 'react-dom/server';
 import Markdown from 'react-markdown';
 
-import { downloadBlobFile, messageExportFilename } from './downloadTextFile';
+import {
+  messageExportFilename,
+  promptSaveFile,
+  writeBlobToSaveTarget,
+  type SaveFileResult,
+} from './downloadTextFile';
 import {
   MERMAID_EXPORT_PLACEHOLDER_PREFIX,
   replaceMermaidFencesWithSvg,
@@ -62,7 +67,17 @@ function injectMermaidDiagrams(bodyHtml: string, diagrams: Map<number, string>):
   return html;
 }
 
-export async function exportMessageAsDocx(message: Message): Promise<void> {
+export async function exportMessageAsDocx(message: Message): Promise<SaveFileResult> {
+  const suggestedName = messageExportFilename(message, 'docx');
+  const saveTarget = await promptSaveFile(suggestedName, {
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    extensions: ['.docx'],
+    description: 'Word Document',
+  });
+  if (saveTarget.kind === 'cancelled') {
+    return 'cancelled';
+  }
+
   const { markdown, diagrams } = await replaceMermaidFencesWithSvg(message.content);
 
   const bodyHtml = injectMermaidDiagrams(
@@ -110,7 +125,7 @@ export async function exportMessageAsDocx(message: Message): Promise<void> {
       root,
       rasterizeInPlace: { scale: 2 },
     });
-    downloadBlobFile(messageExportFilename(message, 'docx'), blob);
+    return writeBlobToSaveTarget(saveTarget, suggestedName, blob);
   } finally {
     document.body.removeChild(root);
   }

@@ -1,8 +1,10 @@
 import { convertHtmlToDocx } from 'dom-docx/browser';
 import { describe, expect, it, vi } from 'vitest';
 
-import { downloadBlobFile } from './downloadTextFile';
 import { exportMessageAsDocx } from './exportMessageAsDocx';
+
+let mockPromptSaveFile = vi.fn().mockResolvedValue({ kind: 'anchor' });
+let mockWriteBlobToSaveTarget = vi.fn().mockResolvedValue('downloaded');
 
 vi.mock('dom-docx/browser', () => ({
   convertHtmlToDocx: vi.fn().mockResolvedValue(
@@ -20,8 +22,9 @@ vi.mock('./replaceMermaidFencesWithSvg', () => ({
 }));
 
 vi.mock('./downloadTextFile', () => ({
-  downloadBlobFile: vi.fn(),
   messageExportFilename: () => 'test.docx',
+  promptSaveFile: (...args: unknown[]) => mockPromptSaveFile(...args),
+  writeBlobToSaveTarget: (...args: unknown[]) => mockWriteBlobToSaveTarget(...args),
 }));
 
 vi.mock('react-markdown', () => ({
@@ -29,7 +32,12 @@ vi.mock('react-markdown', () => ({
 }));
 
 describe('exportMessageAsDocx', () => {
-  it('calls convertHtmlToDocx with computed style source and no dark theme tokens', async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPromptSaveFile.mockResolvedValue({ kind: 'anchor' });
+    mockWriteBlobToSaveTarget.mockResolvedValue('downloaded');
+  });
+  it('prompts before converting and writes blob to save target', async () => {
     const message = {
       _id: 'msg-1',
       type: 'message' as const,
@@ -39,6 +47,12 @@ describe('exportMessageAsDocx', () => {
     };
 
     await exportMessageAsDocx(message as never);
+
+    expect(mockPromptSaveFile).toHaveBeenCalledWith('test.docx', {
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      extensions: ['.docx'],
+      description: 'Word Document',
+    });
 
     expect(convertHtmlToDocx).toHaveBeenCalledOnce();
     expect(convertHtmlToDocx).toHaveBeenCalledWith(
@@ -50,15 +64,26 @@ describe('exportMessageAsDocx', () => {
       })
     );
 
-    const htmlArg = vi.mocked(convertHtmlToDocx).mock.calls[0]![0] as string;
-    expect(htmlArg).not.toContain('chatroom-root');
-    expect(htmlArg).not.toContain('bg-chatroom-bg-primary');
-    expect(htmlArg).not.toContain('dark:prose-invert');
-    expect(htmlArg).not.toContain('border-b-2');
-    expect(htmlArg).toMatch(/<p[\s>]/i);
-    expect(htmlArg).toMatch(/<hr[\s/>]/i);
+    expect(mockWriteBlobToSaveTarget).toHaveBeenCalledWith(
+      { kind: 'anchor' },
+      'test.docx',
+      expect.any(Blob)
+    );
+  });
 
-    expect(downloadBlobFile).toHaveBeenCalledOnce();
-    expect(downloadBlobFile).toHaveBeenCalledWith('test.docx', expect.any(Blob));
+  it('does not convert when save prompt is cancelled', async () => {
+    mockPromptSaveFile.mockResolvedValueOnce({ kind: 'cancelled' });
+
+    const message = {
+      _id: 'msg-1',
+      type: 'message' as const,
+      senderRole: 'user',
+      content: 'Hello **world**',
+      _creationTime: 1_700_000_000_000,
+    };
+
+    const result = await exportMessageAsDocx(message as never);
+    expect(result).toBe('cancelled');
+    expect(convertHtmlToDocx).not.toHaveBeenCalled();
   });
 });

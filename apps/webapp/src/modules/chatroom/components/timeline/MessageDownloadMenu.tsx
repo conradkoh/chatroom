@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from '../../components/picker';
 import {
-  downloadTextFile,
+  saveTextFile,
   messageExportFilename,
   buildMessageMarkdownDownload,
   exportMessageAsDocx,
@@ -21,21 +21,25 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const handleMarkdown = useCallback(() => {
-    downloadTextFile(
+  const handleMarkdown = useCallback(async () => {
+    const result = await saveTextFile(
       messageExportFilename(message, 'md'),
       buildMessageMarkdownDownload(message),
-      'text/markdown'
+      'text/markdown',
+      ['.md']
     );
-    toast.success('Downloaded markdown');
+    if (result !== 'cancelled') {
+      toast.success(result === 'saved' ? 'Saved markdown' : 'Downloaded markdown');
+    }
     setOpen(false);
   }, [message]);
 
   const handleDocx = useCallback(async () => {
     setBusy(true);
     try {
-      await exportMessageAsDocx(message);
-      toast.success('Downloaded DOCX');
+      const result = await exportMessageAsDocx(message);
+      if (result === 'cancelled') return;
+      toast.success(result === 'saved' ? 'Saved DOCX' : 'Downloaded DOCX');
     } catch {
       toast.error('Failed to prepare DOCX');
     } finally {

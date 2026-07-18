@@ -12,10 +12,10 @@ vi.mock('@/hooks/useIsDesktop', () => ({
 }));
 
 vi.mock('../../lib/messageExport', () => ({
-  downloadTextFile: vi.fn(),
+  saveTextFile: vi.fn().mockResolvedValue('saved'),
   messageExportFilename: (_message: Message, ext: string) => `test-${ext}`,
   buildMessageMarkdownDownload: (message: Message) => `# ${message.content}`,
-  exportMessageAsDocx: vi.fn().mockResolvedValue(undefined),
+  exportMessageAsDocx: vi.fn().mockResolvedValue('saved'),
 }));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
