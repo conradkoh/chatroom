@@ -9,7 +9,6 @@ import {
   downloadTextFile,
   messageExportFilename,
   buildMessageMarkdownDownload,
-  printMessageAsPdf,
 } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
@@ -19,7 +18,6 @@ interface MessageDownloadMenuProps {
 
 export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const handleMarkdown = useCallback(() => {
     downloadTextFile(
@@ -29,19 +27,6 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
     );
     toast.success('Downloaded markdown');
     setOpen(false);
-  }, [message]);
-
-  const handlePdf = useCallback(async () => {
-    setBusy(true);
-    try {
-      await printMessageAsPdf(message);
-      toast.success('Opened print dialog — save as PDF');
-    } catch {
-      toast.error('Failed to prepare PDF');
-    } finally {
-      setBusy(false);
-      setOpen(false);
-    }
   }, [message]);
 
   return (
@@ -62,11 +47,8 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
       }
     >
       <PickerScrollBody>
-        <PickerOptionRow selected={false} onSelect={handleMarkdown} disabled={busy}>
+        <PickerOptionRow selected={false} onSelect={handleMarkdown}>
           <span>Download as Markdown</span>
-        </PickerOptionRow>
-        <PickerOptionRow selected={false} onSelect={handlePdf} disabled={busy}>
-          <span>{busy ? 'Preparing PDF...' : 'Download as PDF'}</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </ResponsivePickerShell>

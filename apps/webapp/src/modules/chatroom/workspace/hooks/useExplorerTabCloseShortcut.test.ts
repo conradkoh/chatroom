@@ -118,6 +118,37 @@ describe('useExplorerTabCloseShortcut', () => {
     expect(onCloseTab).not.toHaveBeenCalled();
   });
 
+  it('does not call onCloseTab when document.activeElement is inside navigation', () => {
+    const onCloseTab = vi.fn();
+    const addSpy = vi.spyOn(window, 'addEventListener');
+
+    renderHook(() =>
+      useExplorerTabCloseShortcut({ enabled: true, activeTabKey: 'tab-1', onCloseTab })
+    );
+
+    const handler = addSpy.mock.calls.find((call) => call[0] === 'keydown')?.[1] as (
+      event: KeyboardEvent
+    ) => void;
+
+    const nav = document.createElement('header');
+    nav.setAttribute('data-app-navigation', '');
+    nav.tabIndex = -1;
+    document.body.appendChild(nav);
+    nav.focus();
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'w',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'target', { value: document.body });
+    handler(event);
+
+    expect(onCloseTab).not.toHaveBeenCalled();
+    document.body.removeChild(nav);
+  });
+
   it('does not call onCloseTab when event target is inside navigation', () => {
     const onCloseTab = vi.fn();
     const addSpy = vi.spyOn(window, 'addEventListener');
