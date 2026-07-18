@@ -35,9 +35,11 @@ const LIGHT_EXPORT_CSS_VARS: Record<string, string> = {
   'color-scheme': 'light',
 };
 
-/** Same feed prose without dark:prose-invert (html.dark must not invert Word text). */
+/** Same feed prose without dark:prose-invert and web-specific overflow utilities. */
 const messageExportProseClassNames = messageFeedProseClassNames
   .replace(/\bdark:prose-invert\b/, '')
+  .replace(/\boverflow-x-hidden\b/, '')
+  .replace(/\bprose-table:overflow-x-auto\b/, '')
   .replace(/\s+/g, ' ')
   .trim();
 
@@ -76,14 +78,19 @@ export async function exportMessageAsDocx(message: Message): Promise<void> {
   const timestamp = new Date(message._creationTime).toLocaleString();
 
   const htmlFragment = renderToStaticMarkup(
-    <div className="chatroom-root p-4 text-[13px] leading-relaxed text-chatroom-text-primary">
-      <div className="border-b-2 border-chatroom-border-strong pb-3 mb-5 text-xs text-chatroom-text-muted">
+    <div
+      style={{ background: 'transparent' }}
+      className="text-[13px] leading-relaxed text-chatroom-text-primary"
+    >
+      <p className="text-xs text-chatroom-text-muted" style={{ marginBottom: 8 }}>
         <strong className="text-chatroom-text-primary">{role}</strong>
         {' — '}
         {timestamp}
-      </div>
+      </p>
+      <hr style={{ borderTop: '1px solid #d4d4d4', marginBottom: 20 }} />
       <div
         className={messageExportProseClassNames}
+        style={{ background: 'transparent' }}
         dangerouslySetInnerHTML={{ __html: bodyHtml }}
       />
     </div>

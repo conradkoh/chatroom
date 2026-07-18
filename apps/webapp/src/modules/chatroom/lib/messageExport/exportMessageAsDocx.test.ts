@@ -51,8 +51,12 @@ describe('exportMessageAsDocx', () => {
     );
 
     const htmlArg = vi.mocked(convertHtmlToDocx).mock.calls[0]![0] as string;
+    expect(htmlArg).not.toContain('chatroom-root');
     expect(htmlArg).not.toContain('bg-chatroom-bg-primary');
     expect(htmlArg).not.toContain('dark:prose-invert');
+    expect(htmlArg).not.toContain('border-b-2');
+    expect(htmlArg).toMatch(/<p[\s>]/i);
+    expect(htmlArg).toMatch(/<hr[\s/>]/i);
 
     expect(downloadBlobFile).toHaveBeenCalledOnce();
     expect(downloadBlobFile).toHaveBeenCalledWith('test.docx', expect.any(Blob));
