@@ -47,49 +47,6 @@ export async function getParticipantForChatroomRole(
   );
 }
 
-// fallow-ignore-next-line complexity
-export async function loadMachineAssignedTaskContext(
-  ctx: QueryCtx,
-  machineId: string,
-  userId: Id<'users'>
-): Promise<
-  | {
-      machineId: string;
-      agentConfigs: RemoteAgentConfig[];
-      chatroomIds: Set<Id<'chatroom_rooms'>>;
-      chatroomDocs: Map<string, { teamEntryPoint?: string | null; teamRoles?: string[] | null }>;
-    }
-  | undefined
-> {
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .first();
-  if (!machine || machine.userId !== userId) {
-    return undefined;
-  }
-
-  const agentConfigs = await loadRemoteAgentConfigsForMachine(ctx, machineId);
-  if (!agentConfigs) {
-    return undefined;
-  }
-
-  const chatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
-  const chatroomDocs = new Map<
-    string,
-    { teamEntryPoint?: string | null; teamRoles?: string[] | null }
-  >();
-
-  for (const chatroomId of chatroomIds) {
-    const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (chatroom) {
-      chatroomDocs.set(chatroomId, chatroom);
-    }
-  }
-
-  return { machineId, agentConfigs, chatroomIds, chatroomDocs };
-}
-
 export function toAgentConfigView(
   config: RemoteAgentConfig,
   machineId: string

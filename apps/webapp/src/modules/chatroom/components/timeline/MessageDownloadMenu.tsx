@@ -6,9 +6,10 @@ import { toast } from 'sonner';
 
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from '../../components/picker';
 import {
-  downloadTextFile,
+  saveTextFile,
   messageExportFilename,
   buildMessageMarkdownDownload,
+  exportMessageAsDocx,
 } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
@@ -18,15 +19,33 @@ interface MessageDownloadMenuProps {
 
 export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const handleMarkdown = useCallback(() => {
-    downloadTextFile(
+  const handleMarkdown = useCallback(async () => {
+    const result = await saveTextFile(
       messageExportFilename(message, 'md'),
       buildMessageMarkdownDownload(message),
-      'text/markdown'
+      'text/markdown',
+      ['.md']
     );
-    toast.success('Downloaded markdown');
+    if (result !== 'cancelled') {
+      toast.success(result === 'saved' ? 'Saved markdown' : 'Downloaded markdown');
+    }
     setOpen(false);
+  }, [message]);
+
+  const handleDocx = useCallback(async () => {
+    setBusy(true);
+    try {
+      const result = await exportMessageAsDocx(message);
+      if (result === 'cancelled') return;
+      toast.success(result === 'saved' ? 'Saved DOCX' : 'Downloaded DOCX');
+    } catch {
+      toast.error('Failed to prepare DOCX');
+    } finally {
+      setBusy(false);
+      setOpen(false);
+    }
   }, [message]);
 
   return (
@@ -47,8 +66,11 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
       }
     >
       <PickerScrollBody>
-        <PickerOptionRow selected={false} onSelect={handleMarkdown}>
+        <PickerOptionRow selected={false} onSelect={handleMarkdown} disabled={busy}>
           <span>Download as Markdown</span>
+        </PickerOptionRow>
+        <PickerOptionRow selected={false} onSelect={handleDocx} disabled={busy}>
+          <span>{busy ? 'Preparing DOCX...' : 'Download as DOCX'}</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </ResponsivePickerShell>

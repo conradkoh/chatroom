@@ -4,6 +4,9 @@
  * Key structure: scopeKey (machineId|teamRoleKey) → configKey (harness|model) → timestamps[]
  *
  * Version 2: scoped by machineId+teamRoleKey instead of bare machineId.
+ * Version 3: teamRole portion drops chatroomId prefix.
+ *   Old: m1|chatroom_room1#team_duo#role_planner
+ *   New: m1|team_duo#role_planner
  */
 
 import type { MachineConfigEntry } from '../../../types/machineConfig';
@@ -15,7 +18,7 @@ const STORAGE_KEY = 'chatroom:machine-config-usage';
 
 interface StorageData {
   scopes: Record<string, Record<string, number[]>>;
-  version: 2;
+  version: 3;
 }
 
 const listeners = new Set<() => void>();
@@ -24,6 +27,26 @@ let revision = 0;
 function emit(): void {
   revision += 1;
   for (const listener of listeners) listener();
+}
+
+function migrateV2Scopes(
+  scopes: Record<string, Record<string, number[]>>
+): Record<string, Record<string, number[]>> {
+  const result: Record<string, Record<string, number[]>> = {};
+  for (const [scopeKey, configs] of Object.entries(scopes)) {
+    const pipeIdx = scopeKey.indexOf('|');
+    if (pipeIdx === -1) continue;
+    const machineId = scopeKey.slice(0, pipeIdx);
+    const teamRolePart = scopeKey.slice(pipeIdx + 1);
+    const normalized = teamRolePart.replace(/^chatroom_[^#]+#/, '');
+    const newKey = `${machineId}|${normalized}`;
+    if (!result[newKey]) result[newKey] = {};
+    for (const [configKey, timestamps] of Object.entries(configs)) {
+      const existing = result[newKey][configKey] ?? [];
+      result[newKey][configKey] = [...existing, ...timestamps].sort((a, b) => a - b);
+    }
+  }
+  return result;
 }
 
 // fallow-ignore-next-line complexity
@@ -79,21 +102,24 @@ class MachineConfigUsageStore {
   }
 
   clear(): void {
-    this.data = { scopes: {}, version: 2 };
+    this.data = { scopes: {}, version: 3 };
     this.save();
   }
 
   // fallow-ignore-next-line complexity
   private load(): StorageData {
     try {
-      if (typeof window === 'undefined') return { scopes: {}, version: 2 };
+      if (typeof window === 'undefined') return { scopes: {}, version: 3 };
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { scopes: {}, version: 2 };
-      const parsed = JSON.parse(raw) as StorageData;
-      if (parsed.version !== 2) return { scopes: {}, version: 2 };
-      return parsed;
+      if (!raw) return { scopes: {}, version: 3 };
+      const parsed = JSON.parse(raw) as StorageData & { version?: number };
+      if (parsed.version === 3) return parsed as StorageData;
+      if (parsed.version === 2) {
+        return { scopes: migrateV2Scopes(parsed.scopes), version: 3 };
+      }
+      return { scopes: {}, version: 3 };
     } catch {
-      return { scopes: {}, version: 2 };
+      return { scopes: {}, version: 3 };
     }
   }
 

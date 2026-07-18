@@ -965,7 +965,7 @@ export default defineSchema({
   chatroom_machineConfigFavorites: defineTable({
     userId: v.id('users'),
     machineId: v.string(),
-    /** Scoped to chatroom+team+role — same format as chatroom_teamAgentConfigs.teamRoleKey */
+    /** Scoped to machine+team+role — format: team_<teamId>#role_<role> (NOT chatroom-scoped) */
     teamRoleKey: v.string(),
     /** Ordered list — index 0 = top rank */
     favorites: v.array(

@@ -6,7 +6,7 @@ export function buildHandoffNotificationContent(
   const name = chatroom.name?.trim();
   const teamName = chatroom.teamName?.trim();
   const displayName = name || teamName;
-  const title = displayName ? `Chatroom | ${displayName}` : 'Chatroom';
+  const title = displayName || 'Chatroom';
   return {
     title,
     body: 'Tasks complete',

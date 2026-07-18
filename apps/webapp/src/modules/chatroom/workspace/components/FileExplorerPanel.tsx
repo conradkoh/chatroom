@@ -57,8 +57,7 @@ async function confirmDeleteInBackground(
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ExplorerContextTarget =
-  | { kind: 'root' }
-  | { kind: 'node'; path: string; type: 'file' | 'directory' };
+  { kind: 'root' } | { kind: 'node'; path: string; type: 'file' | 'directory' };
 
 interface FileExplorerPanelProps {
   chatroomId?: string;
@@ -447,7 +446,7 @@ export const FileExplorerPanel = memo(
 
           {/* Tree content */}
           <div
-            className="flex flex-1 flex-col min-h-0 overflow-y-auto overflow-x-hidden"
+            className="flex flex-1 flex-col min-h-0 overflow-hidden"
             onContextMenu={(event) => {
               if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
               const props = buildFileMenuProps({ kind: 'root' });

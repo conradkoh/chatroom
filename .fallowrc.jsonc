@@ -80,10 +80,6 @@
       "exports": ["discoverModels", "initDaemonEffect"],
     },
     {
-      "file": "**/lib/messageExport/index.ts",
-      "exports": ["replaceMermaidFencesWithSvg"],
-    },
-    {
       "file": "**/hooks/useChatroomMessageStore.ts",
       "exports": ["trimMessagesToInitialWindow"],
     },
@@ -109,6 +105,14 @@
     {
       "file": "**/shared/overlayPortalContainer.tsx",
       "exports": ["OverlayPortalContainerProvider"],
+    },
+    {
+      "file": "**/lib/messageExport/index.ts",
+      "exports": ["replaceMermaidFencesWithSvg", "exportMessageAsDocx", "downloadBlobFile"],
+    },
+    {
+      "file": "**/WorkspaceFileExplorerVirtualizedTree.tsx",
+      "exports": ["EXPLORER_TREE_ROW_HEIGHT"],
     },
   ],
   "duplicates": {
@@ -137,6 +141,7 @@
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
       "**/tests/**",
+      "**/lib/messageExport/**",
     ],
   },
   "audit": {

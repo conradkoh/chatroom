@@ -73,13 +73,17 @@ function createDefaultDeps(): ParsePdfDeps {
 
         const chunks: Uint8Array[] = [];
         let totalBytes = 0;
+        const reader = response.body.getReader();
 
-        for await (const chunk of response.body) {
-          totalBytes += chunk.byteLength;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          totalBytes += value.byteLength;
           if (totalBytes > MAX_DOWNLOAD_BYTES) {
+            await reader.cancel();
             throw new Error('PDF exceeds maximum size of 50MB');
           }
-          chunks.push(chunk);
+          chunks.push(value);
         }
 
         return Buffer.concat(chunks);

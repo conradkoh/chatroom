@@ -6,11 +6,15 @@ export function buildTeamRoleKey(chatroomId: string, teamId: string, role: strin
   return `chatroom_${chatroomId}#team_${teamId.toLowerCase()}#role_${role.toLowerCase()}`;
 }
 
+/** Machine-scoped favorite key (shared across chatrooms on same machine). */
+export function buildMachineFavoriteScopeKey(teamId: string, role: string): string {
+  return `team_${teamId.toLowerCase()}#role_${role.toLowerCase()}`;
+}
+
 export function buildMachineConfigScopeKey(
   machineId: string,
-  chatroomId: string,
   teamId: string,
   role: string
 ): string {
-  return `${machineId}|${buildTeamRoleKey(chatroomId, teamId, role)}`;
+  return `${machineId}|${buildMachineFavoriteScopeKey(teamId, role)}`;
 }
