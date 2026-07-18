@@ -212,7 +212,7 @@ describe('renderMermaidChartToSvg — SVG post-processing', () => {
   test('adds overflow="visible" to foreignObject elements (defense-in-depth)', () => {
     expect(renderSvgSource).toContain('<foreignObject');
     expect(renderSvgSource).toContain('foreignObject');
-    expect(renderSvgSource).toMatch(/foreignObject.*overflow/);
+    expect(renderSvgSource).toMatch(/foreignObject[\s\S]*overflow/);
   });
 });
 
