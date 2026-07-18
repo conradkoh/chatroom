@@ -145,9 +145,12 @@ describe('MermaidBlock — structure', () => {
   });
 });
 
-// ─── Mermaid Configuration Tests (moved to renderMermaidChartToSvg) ─────────
+// ─── SVG Render Source (moved to renderMermaidChartToSvg) ───────────────────
 
-describe('renderMermaidChartToSvg — mermaid configuration', () => {
+const RENDER_SVG_PATH = path.join(__dirname, '../lib/mermaid/renderMermaidChartToSvg.ts');
+const renderSvgSource = fs.readFileSync(RENDER_SVG_PATH, 'utf-8');
+
+describe('renderMermaidChartToSvg — configuration', () => {
   test('htmlLabels is set at the top level (not nested under flowchart)', () => {
     const initMatch = renderSvgSource.match(/mermaid\.initialize\(\{[\s\S]*?\n\s{4}\}\);/);
     expect(initMatch).not.toBeNull();
@@ -185,11 +188,6 @@ describe('renderMermaidChartToSvg — mermaid configuration', () => {
     expect(renderSvgSource).toContain('wrappingWidth: 500');
   });
 });
-
-// ─── SVG Post-Processing Tests (moved to renderMermaidChartToSvg) ───────────
-
-const RENDER_SVG_PATH = path.join(__dirname, '../lib/mermaid/renderMermaidChartToSvg.ts');
-const renderSvgSource = fs.readFileSync(RENDER_SVG_PATH, 'utf-8');
 
 describe('renderMermaidChartToSvg — SVG post-processing', () => {
   test('removes max-width from SVG inline style', () => {

@@ -33,10 +33,7 @@ export async function renderMermaidChartToSvg(chart: string): Promise<string> {
   const id = `mermaid-export-${Math.random().toString(36).slice(2, 10)}`;
   const { svg } = await mermaid.render(id, chart.trim());
 
-  // Post-process the rendered SVG for cross-browser compatibility.
   let cleanedSvg = svg;
-
-  // Remove max-width inline style
   cleanedSvg = cleanedSvg.replace(
     /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
     (_m, open, before, after) => {
@@ -45,14 +42,12 @@ export async function renderMermaidChartToSvg(chart: string): Promise<string> {
     }
   );
 
-  // Force overflow="visible" on root SVG
   if (/(<svg[^>]*)\boverflow="[^"]*"/.test(cleanedSvg)) {
     cleanedSvg = cleanedSvg.replace(/(<svg[^>]*)\boverflow="[^"]*"/, '$1overflow="visible"');
   } else {
     cleanedSvg = cleanedSvg.replace(/(<svg\b)/, '$1 overflow="visible"');
   }
 
-  // Pad the viewBox by 8px on each side
   const VB_PAD = 8;
   cleanedSvg = cleanedSvg.replace(/(<svg[^>]*\bviewBox=")([^"]*)(")/, (_m, pre, vb, post) => {
     const parts = vb.trim().split(/\s+/).map(Number);
@@ -63,7 +58,6 @@ export async function renderMermaidChartToSvg(chart: string): Promise<string> {
     return _m;
   });
 
-  // Defense-in-depth: foreignObject overflow
   cleanedSvg = cleanedSvg.replace(/<foreignObject([^>]*)>/g, (_m, attrs) => {
     let newAttrs = attrs;
     if (/overflow=/.test(newAttrs)) {

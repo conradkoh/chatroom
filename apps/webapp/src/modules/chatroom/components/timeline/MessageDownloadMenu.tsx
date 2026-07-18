@@ -9,6 +9,7 @@ import {
   downloadTextFile,
   messageExportFilename,
   buildMessageMarkdownDownload,
+  exportMessageAsDocx,
 } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
@@ -18,6 +19,7 @@ interface MessageDownloadMenuProps {
 
 export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const handleMarkdown = useCallback(() => {
     downloadTextFile(
@@ -27,6 +29,19 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
     );
     toast.success('Downloaded markdown');
     setOpen(false);
+  }, [message]);
+
+  const handleDocx = useCallback(async () => {
+    setBusy(true);
+    try {
+      await exportMessageAsDocx(message);
+      toast.success('Downloaded DOCX');
+    } catch {
+      toast.error('Failed to prepare DOCX');
+    } finally {
+      setBusy(false);
+      setOpen(false);
+    }
   }, [message]);
 
   return (
@@ -47,8 +62,11 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
       }
     >
       <PickerScrollBody>
-        <PickerOptionRow selected={false} onSelect={handleMarkdown}>
+        <PickerOptionRow selected={false} onSelect={handleMarkdown} disabled={busy}>
           <span>Download as Markdown</span>
+        </PickerOptionRow>
+        <PickerOptionRow selected={false} onSelect={handleDocx} disabled={busy}>
+          <span>{busy ? 'Preparing DOCX...' : 'Download as DOCX'}</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </ResponsivePickerShell>

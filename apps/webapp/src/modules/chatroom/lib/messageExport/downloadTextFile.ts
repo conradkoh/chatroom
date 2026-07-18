@@ -2,6 +2,10 @@ import type { Message } from '../../types/message';
 
 export function downloadTextFile(filename: string, content: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
+  downloadBlobFile(filename, blob);
+}
+
+export function downloadBlobFile(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

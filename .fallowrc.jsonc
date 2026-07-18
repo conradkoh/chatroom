@@ -110,6 +110,10 @@
       "file": "**/shared/overlayPortalContainer.tsx",
       "exports": ["OverlayPortalContainerProvider"],
     },
+    {
+      "file": "**/lib/messageExport/index.ts",
+      "exports": ["replaceMermaidFencesWithSvg", "exportMessageAsDocx", "downloadBlobFile"],
+    },
   ],
   "duplicates": {
     "ignore": [
@@ -137,6 +141,7 @@
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
       "**/tests/**",
+      "**/lib/messageExport/**",
     ],
   },
   "audit": {
