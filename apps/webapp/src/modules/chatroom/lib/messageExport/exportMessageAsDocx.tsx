@@ -20,12 +20,23 @@ export async function exportMessageAsDocx(message: Message): Promise<void> {
   const role = message.senderRole ?? 'message';
   const timestamp = new Date(message._creationTime).toLocaleString();
 
-  const htmlFragment = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; line-height: 1.6; font-size: 14px;">
-  <div style="border-bottom: 2px solid #e5e5e5; padding-bottom: 12px; margin-bottom: 20px; font-size: 12px; color: #666;">
-    <strong style="color: #1a1a1a;">${role}</strong> &mdash; ${timestamp}
-  </div>
-  ${bodyHtml}
-</div>`;
+  const headerHtml = renderToStaticMarkup(
+    <div
+      style={{
+        borderBottom: '2px solid #e5e5e5',
+        paddingBottom: 12,
+        marginBottom: 20,
+        fontSize: 12,
+        color: '#666',
+      }}
+    >
+      <strong style={{ color: '#1a1a1a' }}>{role}</strong>
+      {' — '}
+      {timestamp}
+    </div>
+  );
+
+  const htmlFragment = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; line-height: 1.6; font-size: 14px;">${headerHtml}${bodyHtml}</div>`;
 
   const root = document.createElement('div');
   root.style.cssText = 'position:fixed;left:-9999px;top:-9999px;visibility:hidden;';
