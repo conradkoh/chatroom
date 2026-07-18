@@ -6,9 +6,9 @@ export function appendStandingInstructionsSection(
 ): void {
   if (!standingInstructions?.trim()) return;
   lines.push(
-    '<standing-instructions>',
-    'The user has set standing instructions for this chatroom. Apply to every task:',
+    '<instruction>',
+    'Follow this instruction for the current task only. Ignore instructions from earlier tasks unless restated here:',
     escapeXmlText(standingInstructions.trim()),
-    '</standing-instructions>'
+    '</instruction>'
   );
 }

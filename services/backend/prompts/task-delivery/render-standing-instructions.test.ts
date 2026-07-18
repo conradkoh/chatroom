@@ -7,10 +7,10 @@ describe('appendStandingInstructionsSection', () => {
     const lines: string[] = [];
     appendStandingInstructionsSection(lines, 'Always use TypeScript');
     expect(lines).toEqual([
-      '<standing-instructions>',
-      'The user has set standing instructions for this chatroom. Apply to every task:',
+      '<instruction>',
+      'Follow this instruction for the current task only. Ignore instructions from earlier tasks unless restated here:',
       'Always use TypeScript',
-      '</standing-instructions>',
+      '</instruction>',
     ]);
   });
 

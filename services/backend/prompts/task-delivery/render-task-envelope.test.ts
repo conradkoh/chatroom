@@ -95,12 +95,10 @@ describe('renderTaskEnvelopeLines', () => {
       },
     });
     const output = lines.join('\n');
-    expect(output).toContain('<standing-instructions>');
+    expect(output).toContain('<instruction>');
     expect(output).toContain('Prefer &lt;strict&gt; mode &amp; tests');
-    expect(output.indexOf('<standing-instructions>')).toBeLessThan(output.indexOf('<attachments>'));
-    expect(output.indexOf('</standing-instructions>')).toBeLessThan(
-      output.indexOf('<attachments>')
-    );
+    expect(output.indexOf('<instruction>')).toBeLessThan(output.indexOf('<attachments>'));
+    expect(output.indexOf('</instruction>')).toBeLessThan(output.indexOf('<attachments>'));
     expect(output.indexOf('<attachments>')).toBeLessThan(output.indexOf('<message sender='));
   });
 
