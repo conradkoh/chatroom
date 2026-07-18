@@ -212,14 +212,14 @@ describe('generateFullCliOutput — standing instructions', () => {
         content: 'Implement dark mode toggle',
       },
     ],
-  } as const;
+  };
 
   test('CLI mode places standing instructions above attachments with XML escaping', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       nativeIntegration: false,
       standingInstructions: 'Prefer <strict> mode & coverage',
-      sourceAttachments: { ...attachments },
+      sourceAttachments: attachments,
     });
     expect(output).toContain('<standing-instructions>');
     expect(output).toContain('Prefer &lt;strict&gt; mode &amp; coverage');
@@ -234,7 +234,7 @@ describe('generateFullCliOutput — standing instructions', () => {
       ...BASE_PARAMS,
       nativeIntegration: true,
       standingInstructions: 'Prefer <strict> mode & coverage',
-      sourceAttachments: { ...attachments },
+      sourceAttachments: attachments,
     });
     expect(output).toContain('<standing-instructions>');
     expect(output).toContain('Prefer &lt;strict&gt; mode &amp; coverage');
