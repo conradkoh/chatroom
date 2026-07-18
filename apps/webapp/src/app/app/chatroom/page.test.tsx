@@ -204,7 +204,7 @@ describe('Chatroom page agents settings', () => {
         'machineConfigFavorites:getMachineConfigFavorites',
         {
           machineId: 'machine-a',
-          teamRoleKey: `chatroom_${CHATROOM_ID}#team_duo#role_planner`,
+          teamRoleKey: 'team_duo#role_planner',
         }
       );
     });
