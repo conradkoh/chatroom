@@ -29,7 +29,7 @@ vi.mock('react-markdown', () => ({
 }));
 
 describe('exportMessageAsDocx', () => {
-  it('calls convertHtmlToDocx with computed style source and downloads blob', async () => {
+  it('calls convertHtmlToDocx with computed style source and no dark theme tokens', async () => {
     const message = {
       _id: 'msg-1',
       type: 'message' as const,
@@ -49,6 +49,11 @@ describe('exportMessageAsDocx', () => {
         root: expect.any(HTMLDivElement),
       })
     );
+
+    const htmlArg = vi.mocked(convertHtmlToDocx).mock.calls[0]![0] as string;
+    expect(htmlArg).not.toContain('bg-chatroom-bg-primary');
+    expect(htmlArg).not.toContain('dark:prose-invert');
+
     expect(downloadBlobFile).toHaveBeenCalledOnce();
     expect(downloadBlobFile).toHaveBeenCalledWith('test.docx', expect.any(Blob));
   });

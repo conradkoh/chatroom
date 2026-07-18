@@ -12,6 +12,43 @@ import { messageFeedProseClassNames } from '../../components/markdown-utils';
 import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
 import type { Message } from '../../types/message';
 
+/** Light :root tokens from globals.css — Word is a white-page medium. */
+const LIGHT_EXPORT_CSS_VARS: Record<string, string> = {
+  '--chatroom-bg-primary': '#f5f5f5',
+  '--chatroom-bg-secondary': 'rgba(255, 255, 255, 0.6)',
+  '--chatroom-bg-tertiary': '#ebebeb',
+  '--chatroom-bg-hover': '#e5e5e5',
+  '--chatroom-bg-surface': 'rgba(255, 255, 255, 0.6)',
+  '--chatroom-border': 'rgba(23, 23, 23, 0.1)',
+  '--chatroom-border-strong': 'rgba(23, 23, 23, 0.15)',
+  '--chatroom-text-primary': '#171717',
+  '--chatroom-text-secondary': '#525252',
+  '--chatroom-text-muted': '#737373',
+  '--chatroom-status-success': '#15803d',
+  '--chatroom-status-warning': '#b45309',
+  '--chatroom-status-error': '#b91c1c',
+  '--chatroom-status-info': '#1d4ed8',
+  '--chatroom-status-purple': '#7c3aed',
+  '--chatroom-accent': '#171717',
+  '--chatroom-accent-subtle': '#f5f5f5',
+  '--chatroom-text-on-accent': '#fafafa',
+  'color-scheme': 'light',
+};
+
+/** Same feed prose without dark:prose-invert (html.dark must not invert Word text). */
+const messageExportProseClassNames = messageFeedProseClassNames
+  .replace(/\bdark:prose-invert\b/, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+function applyLightExportTheme(el: HTMLElement): void {
+  for (const [name, value] of Object.entries(LIGHT_EXPORT_CSS_VARS)) {
+    el.style.setProperty(name, value);
+  }
+  el.style.setProperty('background', 'transparent');
+  el.style.setProperty('color', '#171717');
+}
+
 function injectMermaidDiagrams(bodyHtml: string, diagrams: Map<number, string>): string {
   let html = bodyHtml;
   for (const [index, svg] of diagrams) {
@@ -39,13 +76,16 @@ export async function exportMessageAsDocx(message: Message): Promise<void> {
   const timestamp = new Date(message._creationTime).toLocaleString();
 
   const htmlFragment = renderToStaticMarkup(
-    <div className="chatroom-root bg-chatroom-bg-primary text-chatroom-text-primary p-4 text-[13px] leading-relaxed">
+    <div className="chatroom-root p-4 text-[13px] leading-relaxed text-chatroom-text-primary">
       <div className="border-b-2 border-chatroom-border-strong pb-3 mb-5 text-xs text-chatroom-text-muted">
         <strong className="text-chatroom-text-primary">{role}</strong>
         {' — '}
         {timestamp}
       </div>
-      <div className={messageFeedProseClassNames} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      <div
+        className={messageExportProseClassNames}
+        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+      />
     </div>
   );
 
@@ -53,6 +93,7 @@ export async function exportMessageAsDocx(message: Message): Promise<void> {
   root.className = 'chatroom-root';
   root.style.cssText =
     'position:fixed;left:-9999px;top:0;width:816px;visibility:hidden;pointer-events:none;';
+  applyLightExportTheme(root);
   root.innerHTML = htmlFragment;
   document.body.appendChild(root);
 
