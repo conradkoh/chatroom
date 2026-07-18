@@ -62,6 +62,17 @@ describe('PickerSearch autoFocus', () => {
   });
 });
 
+describe('PickerSearch iOS click-to-focus', () => {
+  it('focuses input on container click', () => {
+    mockDesktop(false);
+    renderSearch();
+    const input = screen.getByRole('searchbox');
+    expect(input).not.toHaveFocus();
+    input.parentElement!.click();
+    expect(input).toHaveFocus();
+  });
+});
+
 describe('PickerSearch vaul drawer support', () => {
   it('wraps input in data-vaul-no-drag container', () => {
     renderSearch();
