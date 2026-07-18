@@ -13,19 +13,27 @@ export interface AgentPresence {
 }
 
 /**
+ * Whether an online agent should count as "working" for the chatroom list/dot.
+ *
+ * Mostly mirrors AgentPanel via `resolveAgentStatus` → `working`
+ * (e.g. task.inProgress).  Exception: `agent.awaitingHandoff` resolves to
+ * `transitioning` in the agent sidebar (yellow), but the chatroom list treats
+ * it as working (blue) so the room does not look idle/green while an agent is
+ * blocked on handoff.
+ */
+function isAgentWorkingForChatStatus(agent: AgentPresence): boolean {
+  if (agent.lastStatus === 'agent.awaitingHandoff') return true;
+  return resolveAgentStatus(agent.lastStatus, agent.lastDesiredState, true).variant === 'working';
+}
+
+/**
  * Derives sidebar chat status from chatroom lifecycle and agent presence.
  *
- * "Working" is derived from the SAME canonical signal as the agent sidebar
- * (AgentPanel / useAgentStatuses): the agent's latest event-stream type
- * (`lastStatus`) resolved through `resolveAgentStatus` to the 'working' variant
- * (task.inProgress / task.completed). This keeps the chatroom sidebar dot in
- * lock-step with the agent panel instead of relying on the divergent
- * `lastSeenAction` heartbeat heuristic.
+ * Primary working signal: agent's `lastStatus` / `lastDesiredState` via
+ * `resolveAgentStatus` (same inputs as AgentPanel).  See
+ * `isAgentWorkingForChatStatus` for the awaiting-handoff exception.
  *
  * Online alive agents blocked on get-next-task (WAITING) are 'active', not 'idle'.
- *
- * No additional data is required — `lastStatus` / `lastDesiredState` already
- * travel in the existing presence payload, so this is zero extra bandwidth.
  */
 export function deriveChatStatus(
   chatroomStatus: 'active' | 'completed',
@@ -40,12 +48,6 @@ export function deriveChatStatus(
     return 'idle';
   }
 
-  const hasWorking = onlineAgents.some(
-    (a) =>
-      resolveAgentStatus(a.lastStatus, a.lastDesiredState, true).variant === 'working' ||
-      a.lastStatus === 'agent.awaitingHandoff'
-  );
-
-  if (hasWorking) return 'working';
+  if (onlineAgents.some(isAgentWorkingForChatStatus)) return 'working';
   return 'active';
 }

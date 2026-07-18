@@ -56,7 +56,7 @@ describe('deriveChatStatus', () => {
     ).toBe('working');
   });
 
-  it('matches the agent sidebar: non-working event types stay active', () => {
+  it('non-working / non-awaiting-handoff event types stay active', () => {
     // task.acknowledged resolves to the 'ready' variant (TASK RECEIVED), not 'working'.
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe('active');
     // agent.registered / agent.requestStart are transitioning, not working.
