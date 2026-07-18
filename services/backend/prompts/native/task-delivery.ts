@@ -56,6 +56,7 @@ function appendNativeTaskSection(
     | 'originMessage'
     | 'followUpCountSinceOrigin'
     | 'originMessageCreatedAt'
+    | 'standingInstructions'
   >
 ): void {
   lines.push(
@@ -63,6 +64,7 @@ function appendNativeTaskSection(
       ...params,
       deliveryMode: 'native',
       isEntryPoint: params.isEntryPoint ?? false,
+      standingInstructions: params.standingInstructions,
     })
   );
 }
@@ -83,6 +85,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     originMessage,
     followUpCountSinceOrigin,
     originMessageCreatedAt,
+    standingInstructions,
   } = params;
 
   const lines: string[] = [];
@@ -98,6 +101,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     originMessage,
     followUpCountSinceOrigin,
     originMessageCreatedAt,
+    standingInstructions,
   });
   appendNativeTaskIntake(lines, {
     chatroomId,

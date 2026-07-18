@@ -298,6 +298,8 @@ export default defineSchema({
     currentContextId: v.optional(v.id('chatroom_contexts')),
     // @deprecated - legacy field kept for backward compatibility with existing documents
     messageCount: v.optional(v.number()),
+    standingInstructions: v.optional(v.string()),
+    standingInstructionsEnabled: v.optional(v.boolean()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])

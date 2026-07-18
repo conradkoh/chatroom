@@ -19,6 +19,7 @@ export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
   availableHandoffTargets: string[];
   isEntryPoint?: boolean;
   sourceAttachments?: PrimaryDeliveryAttachments;
+  standingInstructions?: string | null;
 }
 
 export { appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates } from '../native/delivery-handoff-templates';

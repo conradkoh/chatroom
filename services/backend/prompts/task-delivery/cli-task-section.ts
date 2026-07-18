@@ -23,6 +23,7 @@ export interface CliTaskSectionParams {
   followUpCountSinceOrigin: number;
   originMessageCreatedAt: number | null;
   sourceAttachments?: PrimaryDeliveryAttachments;
+  standingInstructions?: string | null;
 }
 
 export function appendCliTaskSection(lines: string[], params: CliTaskSectionParams): void {
@@ -31,6 +32,7 @@ export function appendCliTaskSection(lines: string[], params: CliTaskSectionPara
       ...params,
       deliveryMode: 'cli',
       intakeNote: getTokenActivityInProgressNote(),
+      standingInstructions: params.standingInstructions,
     })
   );
 }

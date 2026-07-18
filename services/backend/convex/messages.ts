@@ -12,6 +12,7 @@ import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from '
 import { getRolePriority } from './lib/hierarchy';
 import { isTimelineMessage } from './messageList';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
@@ -90,7 +91,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -107,7 +109,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
+    | { _id: string; filename: string; description?: string; mimeType?: string }[]
+    | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -1898,6 +1901,8 @@ export const getTaskDeliveryPrompt = query({
     const agentHarness = existingAgentConfig?.agentHarness;
     const nativeIntegration = isNativeHarness(agentHarness);
 
+    const standingInstructions = getActiveStandingInstructions(chatroom);
+
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
       chatroomId: args.chatroomId,
@@ -1929,6 +1934,7 @@ export const getTaskDeliveryPrompt = query({
       availableHandoffTargets: availableHandoffRoles,
       nativeIntegration,
       sourceAttachments,
+      standingInstructions,
     });
 
     return {
