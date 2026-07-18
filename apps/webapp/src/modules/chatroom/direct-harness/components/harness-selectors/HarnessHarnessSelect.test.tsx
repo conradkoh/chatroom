@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { HarnessHarnessSelect } from './HarnessHarnessSelect';
@@ -109,5 +110,22 @@ describe('HarnessHarnessSelect', () => {
     expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
     const options = screen.getAllByRole('option');
     expect(options).toHaveLength(2);
+  });
+
+  it('search input works on mobile viewport (typing filters list)', async () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    const onValueChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <HarnessHarnessSelect harnesses={HARNESSES} value="pi-sdk" onValueChange={onValueChange} />
+    );
+    openDropdown();
+
+    const searchInput = screen.getByPlaceholderText('Search harnesses…');
+    await user.click(searchInput);
+    await user.type(searchInput, 'Cursor');
+
+    expect(searchInput).toHaveValue('Cursor');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
   });
 });

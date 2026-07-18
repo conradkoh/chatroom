@@ -10,8 +10,11 @@ export function isExplorerTabCloseShortcut(event: KeyboardEvent): boolean {
 }
 
 export function isAppNavigationTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.closest('[data-app-navigation]') !== null;
+  const check = (el: EventTarget | null): boolean => {
+    if (!(el instanceof HTMLElement)) return false;
+    return el.closest('[data-app-navigation]') !== null;
+  };
+  return check(target) || check(document.activeElement);
 }
 
 export interface UseExplorerTabCloseShortcutOptions {
