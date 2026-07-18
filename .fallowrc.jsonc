@@ -102,6 +102,18 @@
       "file": "**/CommandPalette/commandPaletteRows.ts",
       "exports": ["filterCommandsForSearch"],
     },
+    {
+      "file": "**/EventStreamModal/EventStreamModalVirtualizedList.tsx",
+      "exports": ["EVENT_STREAM_ROW_HEIGHT"],
+    },
+    {
+      "file": "**/shared/overlayPortalContainer.tsx",
+      "exports": ["OverlayPortalContainerProvider"],
+    },
+    {
+      "file": "**/WorkspaceFileExplorerVirtualizedTree.tsx",
+      "exports": ["EXPLORER_TREE_ROW_HEIGHT"],
+    },
   ],
   "duplicates": {
     "ignore": [

@@ -1,15 +1,13 @@
 'use client';
 
-import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 
 import { collectExpandedDirsForFilter, type ExplorerTreeNode } from './explorerTreeFilter';
-import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
+import { WorkspaceFileExplorerVirtualizedTree } from './WorkspaceFileExplorerVirtualizedTree';
+import { isExplorerSearchMode } from '../files/explorer-tree';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import { cn } from '@/lib/utils';
 import { useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
-import { isExplorerSearchMode } from '@/modules/chatroom/workspace/files/explorer-tree';
 
 const EMPTY_LOADING_DIRS = new Set<string>();
 
@@ -34,128 +32,6 @@ interface WorkspaceFileExplorerProps {
   onNodeContextMenu?: (node: ExplorerTreeNode, event: MouseEvent) => void;
   onEmptyAreaContextMenu?: (event: MouseEvent) => void;
 }
-
-// ─── Tree Node Component ──────────────────────────────────────────────────────
-
-// fallow-ignore-next-line complexity
-const TreeNodeItem = memo(function TreeNodeItem({
-  node,
-  depth,
-  expandedPaths,
-  selectedPath,
-  onToggle,
-  onFileSelect,
-  onFileDoubleClick,
-  onNodeContextMenu,
-  nodeRefs,
-  loadingDirs,
-}: {
-  node: ExplorerTreeNode;
-  depth: number;
-  expandedPaths: Set<string>;
-  selectedPath: string | null;
-  onToggle: (path: string) => void;
-  onFileSelect?: (filePath: string) => void;
-  onFileDoubleClick?: (filePath: string) => void;
-  onNodeContextMenu?: (node: ExplorerTreeNode, event: MouseEvent) => void;
-  nodeRefs: Map<string, HTMLElement>;
-  loadingDirs: Set<string>;
-}) {
-  const isExpanded = expandedPaths.has(node.path);
-  const isDirectory = node.type === 'directory';
-  const isSelected = node.path === selectedPath;
-  const paddingLeft = 12 + depth * 16;
-
-  const refCallback = useCallback(
-    (el: HTMLButtonElement | null) => {
-      if (el) {
-        nodeRefs.set(node.path, el);
-      }
-    },
-    [node.path, nodeRefs]
-  );
-
-  const handleClick = useCallback(() => {
-    if (isDirectory) {
-      onToggle(node.path);
-    } else {
-      onFileSelect?.(node.path);
-    }
-  }, [isDirectory, node.path, onToggle, onFileSelect]);
-
-  const handleDoubleClick = useCallback(() => {
-    if (!isDirectory) {
-      onFileDoubleClick?.(node.path);
-    }
-  }, [isDirectory, node.path, onFileDoubleClick]);
-
-  return (
-    <>
-      <button
-        data-tree-node
-        ref={refCallback}
-        className={cn(
-          'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
-          isSelected
-            ? 'bg-chatroom-accent/10 text-chatroom-accent'
-            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
-          'transition-colors duration-75 cursor-pointer select-none'
-        )}
-        style={{ paddingLeft }}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onContextMenu={(event) => onNodeContextMenu?.(node, event)}
-        title={node.path}
-      >
-        {isDirectory ? (
-          <span className="w-4 h-4 flex items-center justify-center shrink-0">
-            {loadingDirs.has(node.path) ? (
-              <ChatroomLoader size="sm" />
-            ) : isExpanded ? (
-              <ChevronDown size={14} className="text-chatroom-text-muted" />
-            ) : (
-              <ChevronRight size={14} className="text-chatroom-text-muted" />
-            )}
-          </span>
-        ) : (
-          <span className="w-4 h-4 shrink-0" />
-        )}
-
-        {isDirectory ? (
-          isExpanded ? (
-            <FolderOpen size={16} className="text-chatroom-accent shrink-0" />
-          ) : (
-            <Folder size={16} className="text-chatroom-accent shrink-0" />
-          )
-        ) : (
-          <FileTypeIcon path={node.name} className="w-4 h-4 shrink-0 text-chatroom-text-muted" />
-        )}
-
-        <span className="truncate text-[13px]">{node.name}</span>
-      </button>
-
-      {isDirectory && isExpanded && node.children.length > 0 && (
-        <div>
-          {node.children.map((child) => (
-            <TreeNodeItem
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              expandedPaths={expandedPaths}
-              selectedPath={selectedPath}
-              onToggle={onToggle}
-              onFileSelect={onFileSelect}
-              onFileDoubleClick={onFileDoubleClick}
-              onNodeContextMenu={onNodeContextMenu}
-              nodeRefs={nodeRefs}
-              loadingDirs={loadingDirs}
-            />
-          ))}
-        </div>
-      )}
-    </>
-  );
-});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -249,34 +125,6 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     });
   }, [revealPath, expandedPathsStorageKey]);
 
-  const nodeRefs = useRef<Map<string, HTMLElement>>(new Map());
-  useEffect(() => {
-    nodeRefs.current = new Map();
-  }, [displayNodes]);
-
-  const scrollTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    const targetPath = revealPath || selectedPath;
-    if (!targetPath) return;
-
-    if (scrollTickRef.current) {
-      clearTimeout(scrollTickRef.current);
-    }
-
-    scrollTickRef.current = setTimeout(() => {
-      const el = nodeRefs.current.get(targetPath);
-      if (el) {
-        el.scrollIntoView({ block: 'nearest' });
-      }
-    });
-
-    return () => {
-      if (scrollTickRef.current) {
-        clearTimeout(scrollTickRef.current);
-      }
-    };
-  }, [revealPath, selectedPath]);
-
   const handleToggle = useCallback(
     (path: string) => {
       setExpandedPaths((prev) => {
@@ -332,22 +180,19 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   }
 
   return (
-    <div className="py-1" onContextMenu={handleEmptyAreaContextMenu}>
-      {displayNodes.map((node) => (
-        <TreeNodeItem
-          key={node.path}
-          node={node}
-          depth={0}
-          expandedPaths={effectiveExpandedPaths}
-          selectedPath={selectedPath}
-          onToggle={handleToggle}
-          onFileSelect={onFileSelect}
-          onFileDoubleClick={onFileDoubleClick}
-          onNodeContextMenu={onNodeContextMenu}
-          nodeRefs={nodeRefs.current}
-          loadingDirs={EMPTY_LOADING_DIRS}
-        />
-      ))}
+    <div className="flex flex-1 flex-col min-h-0 py-1" onContextMenu={handleEmptyAreaContextMenu}>
+      <WorkspaceFileExplorerVirtualizedTree
+        displayNodes={displayNodes}
+        expandedPaths={effectiveExpandedPaths}
+        selectedPath={selectedPath}
+        scrollToPath={revealPath || selectedPath}
+        loadingDirs={EMPTY_LOADING_DIRS}
+        onToggle={handleToggle}
+        onFileSelect={onFileSelect}
+        onFileDoubleClick={onFileDoubleClick}
+        onNodeContextMenu={onNodeContextMenu}
+        height="100%"
+      />
     </div>
   );
 });
