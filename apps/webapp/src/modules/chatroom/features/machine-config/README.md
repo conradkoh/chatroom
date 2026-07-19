@@ -12,8 +12,10 @@ Client-side state and hooks for machine harness/model favorites and usage-based 
 
 Server favorites API: `services/backend/convex/machineConfigFavorites.ts`
 
-Shared types: `types/machineConfig.ts` (to move here in a future refactor)
+Shared types: top-level `types/machineConfig.ts` (still to move into `features/machine-config/types/`)
 
-Ranking logic: `lib/computeRecommendedMachineConfigs.ts` (to move here in a future refactor)
+Ranking logic: top-level `lib/computeRecommendedMachineConfigs.ts` (still to move into `features/machine-config/lib/`)
 
-See [chatroom-store-conventions.md](../../../../../../docs/developer/chatroom-store-conventions.md) for the full convention.
+Machine scope keys: `buildMachineFavoriteScopeKey` / `buildMachineConfigScopeKey` live in shared `lib/teamRoleKey.ts` today; only those helpers should move here later — keep `buildTeamRoleKey` shared.
+
+See [chatroom-store-conventions.md](../../../../../../docs/developer/chatroom-store-conventions.md) for the full convention and remaining migration checklist.
