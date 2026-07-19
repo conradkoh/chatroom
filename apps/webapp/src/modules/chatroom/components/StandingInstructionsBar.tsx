@@ -7,19 +7,38 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useState, type KeyboardEvent } from 'react';
 
-import { PickerOptionRow, PickerScrollBody, ResponsivePickerShell } from './picker';
+import {
+  PickerOptionRow,
+  PickerPanelHeader,
+  PickerScrollBody,
+  ResponsivePickerShell,
+} from './picker';
+
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
+function mobileBarMinH(isDesktop: boolean): string {
+  return isDesktop ? 'min-h-9' : 'min-h-11';
+}
+
+function mobileLabelText(isDesktop: boolean): string {
+  return isDesktop ? 'text-[10px]' : 'text-xs';
+}
+
+function mobileIconSize(isDesktop: boolean): number {
+  return isDesktop ? 12 : 14;
+}
+
 const BAR_CHROME =
-  'min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
+  'px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
 
 const BAR_SHELL = `${BAR_CHROME} flex items-center gap-2`;
 
 const DISABLED_BAR_SHELL =
-  'min-h-9 px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
+  'px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
@@ -82,6 +101,8 @@ function EditingPanel(props: {
 export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   chatroomId,
 }: StandingInstructionsBarProps) {
+  const isDesktop = useIsDesktop();
+  const actionRowClassName = isDesktop ? undefined : 'min-h-11 py-3 text-sm';
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
   const storedContent = queryResult?.content ?? '';
   const enabled = queryResult?.enabled ?? false;
@@ -154,10 +175,12 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
           setDraft('');
           setEditing(true);
         }}
-        className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
+        className={`${mobileBarMinH(isDesktop)} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
       >
-        <Plus size={12} className="shrink-0 text-chatroom-status-success" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success">
+        <Plus size={mobileIconSize(isDesktop)} className="shrink-0 text-chatroom-status-success" />
+        <span
+          className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider text-chatroom-status-success`}
+        >
           Add standing instructions
         </span>
       </button>
@@ -174,14 +197,14 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       trigger={
         <button
           type="button"
-          className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
+          className={`${mobileBarMinH(isDesktop)} ${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
         >
           <BookOpen
-            size={12}
+            size={mobileIconSize(isDesktop)}
             className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
           />
           <span
-            className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+            className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
           >
             Standing instructions{isActive ? '' : ' (disabled)'}
           </span>
@@ -191,20 +214,21 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         </button>
       }
     >
+      <PickerPanelHeader title="Standing instructions" />
       <PickerScrollBody>
-        <PickerOptionRow selected={false} onSelect={startEditing}>
+        <PickerOptionRow selected={false} onSelect={startEditing} className={actionRowClassName}>
           Edit
         </PickerOptionRow>
         {isActive ? (
-          <PickerOptionRow selected={false} onSelect={handleDisable}>
+          <PickerOptionRow selected={false} onSelect={handleDisable} className={actionRowClassName}>
             Disable
           </PickerOptionRow>
         ) : (
-          <PickerOptionRow selected={false} onSelect={handleEnable}>
+          <PickerOptionRow selected={false} onSelect={handleEnable} className={actionRowClassName}>
             Enable
           </PickerOptionRow>
         )}
-        <PickerOptionRow selected={false} onSelect={handleDelete}>
+        <PickerOptionRow selected={false} onSelect={handleDelete} className={actionRowClassName}>
           <span className="text-destructive">Delete</span>
         </PickerOptionRow>
       </PickerScrollBody>

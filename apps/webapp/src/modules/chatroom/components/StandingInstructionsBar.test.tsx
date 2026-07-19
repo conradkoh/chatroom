@@ -200,6 +200,38 @@ describe('StandingInstructionsBar', () => {
     });
   });
 
+  it('includes PickerPanelHeader in the actions menu', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+
+    expect(screen.getAllByText('Standing instructions').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+  });
+
+  it('uses larger action row classes on mobile', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+    const edit = screen.getByText('Edit').closest('[role="option"]');
+    expect(edit?.className).toContain('min-h-11');
+    expect(edit?.className).toContain('text-sm');
+  });
+
+  it('keeps compact action rows on desktop', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+    const edit = screen.getByText('Edit').closest('[role="option"]');
+    expect(edit?.className).not.toContain('min-h-11');
+  });
+
   it('Ctrl+Enter in textarea confirms and saves', async () => {
     const user = userEvent.setup();
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
