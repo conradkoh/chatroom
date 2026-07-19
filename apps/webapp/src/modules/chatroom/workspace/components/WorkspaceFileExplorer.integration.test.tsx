@@ -7,7 +7,7 @@ import {
   getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
-} from '../files/workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 // Mock @tanstack/react-virtual so VirtualizedScrollList renders all items in jsdom
 vi.mock('@tanstack/react-virtual', () => ({

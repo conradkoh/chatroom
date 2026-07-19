@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
+import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
+import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
@@ -27,12 +29,22 @@ import {
   usePickerSearchState,
   filterPickerItems,
 } from './picker';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { useMachineModels } from '../../../hooks/useMachineModels';
 import { useMachineConfigFavorites } from '../features/machine-config/hooks/useMachineConfigFavorites';
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
+import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
+import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
-import { computeRecommendedMachineConfigs } from '../lib/computeRecommendedMachineConfigs';
-import { buildMachineConfigScopeKey } from '../lib/teamRoleKey';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -47,19 +59,7 @@ import {
 } from '../types/machine';
 import type { Workspace } from '../types/workspace';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
-import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
-import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { resolveDefaultWantResume } from '../utils/wantResumeDefaults';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 import { cn } from '@/lib/utils';

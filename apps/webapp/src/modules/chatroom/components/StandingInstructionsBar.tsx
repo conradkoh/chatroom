@@ -7,19 +7,53 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useState, type KeyboardEvent } from 'react';
 
-import { PickerOptionRow, PickerScrollBody, ResponsivePickerShell } from './picker';
+import {
+  PickerOptionRow,
+  PickerPanelHeader,
+  PickerScrollBody,
+  PickerSearch,
+  ResponsivePickerShell,
+  filterPickerItems,
+  getMobileDrawerContentStyle,
+  usePickerSearchState,
+} from './picker';
+import { MOBILE_DRAWER_CONTENT_CLASSNAME } from './picker/mobileDrawerLayout';
+import { useOverlayPortalContainer } from './shared/overlayPortalContainer';
+
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+
+type HistoryItem = {
+  _id: Id<'chatroom_standingInstructionHistory'>;
+  content: string;
+  useCount: number;
+  lastUsedAt: number;
+};
 
 interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
+function mobileBarMinH(isDesktop: boolean): string {
+  return isDesktop ? 'min-h-9' : 'min-h-11';
+}
+
+function mobileLabelText(isDesktop: boolean): string {
+  return isDesktop ? 'text-[10px]' : 'text-xs';
+}
+
+function mobileIconSize(isDesktop: boolean): number {
+  return isDesktop ? 12 : 14;
+}
+
 const BAR_CHROME =
-  'min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
+  'px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
 
 const BAR_SHELL = `${BAR_CHROME} flex items-center gap-2`;
 
 const DISABLED_BAR_SHELL =
-  'min-h-9 px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
+  'px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
@@ -41,13 +75,109 @@ function onStandingEditorKeyDown(
   onConfirm();
 }
 
-function EditingPanel(props: {
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onConfirm: () => void;
-  onCancel: () => void;
+function HistoryInlineList(props: {
+  items: HistoryItem[];
+  onSelect: (item: HistoryItem) => void;
+  onViewMore: () => void;
 }) {
-  const { draft, onDraftChange, onConfirm, onCancel } = props;
+  const { items, onSelect, onViewMore } = props;
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1 border-t border-chatroom-border pt-1.5">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted px-0.5">
+        From history
+      </div>
+      <ul className="flex flex-col">
+        {items.map((item) => (
+          <li key={item._id}>
+            <button
+              type="button"
+              onClick={() => onSelect(item)}
+              className="w-full text-left text-xs text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover px-1.5 py-1 truncate transition-colors cursor-pointer"
+              title={item.content}
+            >
+              {item.content}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={onViewMore}
+        className="self-start text-[10px] font-bold uppercase tracking-wider text-chatroom-accent hover:opacity-80 px-1.5 py-0.5 cursor-pointer"
+      >
+        View more
+      </button>
+    </div>
+  );
+}
+
+function HistoryFullPicker(props: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  items: HistoryItem[];
+  onSelect: (item: HistoryItem) => void;
+}) {
+  const { open, onOpenChange, items, onSelect } = props;
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(onOpenChange);
+  const filtered = filterPickerItems(items, searchTerm, (item) => item.content);
+
+  return (
+    <ResponsivePickerShell
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Standing instruction history"
+      align="start"
+      contentClassName="w-72 p-0"
+      trigger={<span className="sr-only">Standing instruction history</span>}
+    >
+      <PickerPanelHeader title="Standing instruction history" />
+      <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search history…" />
+      <PickerScrollBody>
+        {filtered.length === 0 ? (
+          <div className="px-3 py-2 text-xs text-chatroom-text-muted">No matches</div>
+        ) : (
+          filtered.map((item) => (
+            <PickerOptionRow
+              key={item._id}
+              selected={false}
+              onSelect={() => {
+                onSelect(item);
+                handleOpenChange(false);
+              }}
+            >
+              {item.content}
+            </PickerOptionRow>
+          ))
+        )}
+      </PickerScrollBody>
+    </ResponsivePickerShell>
+  );
+}
+
+type HistoryEditorProps = {
+  historyTop3?: HistoryItem[];
+  onSelectHistory?: (item: HistoryItem) => void;
+  onViewMoreHistory?: () => void;
+};
+
+function EditingPanel(
+  props: {
+    draft: string;
+    onDraftChange: (value: string) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } & HistoryEditorProps
+) {
+  const {
+    draft,
+    onDraftChange,
+    onConfirm,
+    onCancel,
+    historyTop3,
+    onSelectHistory,
+    onViewMoreHistory,
+  } = props;
   return (
     <div className={`${BAR_CHROME} flex flex-col gap-1.5`}>
       <textarea
@@ -75,13 +205,102 @@ function EditingPanel(props: {
           Cancel
         </button>
       </div>
+      {historyTop3 && onSelectHistory && onViewMoreHistory ? (
+        <HistoryInlineList
+          items={historyTop3}
+          onSelect={onSelectHistory}
+          onViewMore={onViewMoreHistory}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function MobileEditingDrawer(
+  props: {
+    open: boolean;
+    draft: string;
+    onDraftChange: (value: string) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } & HistoryEditorProps
+) {
+  const {
+    open,
+    draft,
+    onDraftChange,
+    onConfirm,
+    onCancel,
+    historyTop3,
+    onSelectHistory,
+    onViewMoreHistory,
+  } = props;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(open);
+  const portalContainer = useOverlayPortalContainer();
+
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onCancel();
+      }}
+      nested
+      repositionInputs={false}
+      handleOnly
+      container={portalContainer ?? undefined}
+    >
+      <DrawerContent
+        className={MOBILE_DRAWER_CONTENT_CLASSNAME}
+        style={getMobileDrawerContentStyle(keyboardInsetPx)}
+      >
+        <DrawerHeader className="p-0 shrink-0">
+          <DrawerTitle className="sr-only">Edit standing instructions</DrawerTitle>
+        </DrawerHeader>
+        <PickerPanelHeader title="Edit standing instructions" />
+        <div className="flex flex-col gap-3 p-3">
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={(e) => onStandingEditorKeyDown(e, onCancel, onConfirm)}
+            placeholder="Enter standing instructions…"
+            rows={5}
+            className="w-full min-h-[120px] bg-chatroom-bg-primary border border-chatroom-border px-3 py-3 text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent resize-none"
+          />
+          <div className="flex items-stretch gap-2">
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity"
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors border border-chatroom-border"
+            >
+              Cancel
+            </button>
+          </div>
+          {historyTop3 && onSelectHistory && onViewMoreHistory ? (
+            <HistoryInlineList
+              items={historyTop3}
+              onSelect={onSelectHistory}
+              onViewMore={onViewMoreHistory}
+            />
+          ) : null}
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
 export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   chatroomId,
 }: StandingInstructionsBarProps) {
+  const isDesktop = useIsDesktop();
+  const actionRowClassName = isDesktop ? undefined : 'min-h-11 py-3 text-sm';
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
   const storedContent = queryResult?.content ?? '';
   const enabled = queryResult?.enabled ?? false;
@@ -96,23 +315,31 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
   const clearMutation = useSessionMutation(api.standingInstructions.clear);
 
+  const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
+  const recordUseMutation = useSessionMutation(api.standingInstructions.recordUse);
+
   const [editing, setEditing] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [draft, setDraft] = useState(storedContent);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
 
   const handleConfirm = useCallback(async () => {
     await upsertMutation({ chatroomId, content: draft });
     setEditing(false);
+    setIsAdding(false);
   }, [chatroomId, draft, upsertMutation]);
 
   const handleCancel = useCallback(() => {
     setDraft(storedContent);
     setEditing(false);
+    setIsAdding(false);
   }, [storedContent]);
 
   const startEditing = useCallback(() => {
     setDraft(storedContent);
     setActionsOpen(false);
+    setIsAdding(false);
     setEditing(true);
   }, [storedContent]);
 
@@ -131,83 +358,148 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     await clearMutation({ chatroomId });
     setDraft('');
     setEditing(false);
+    setIsAdding(false);
   }, [chatroomId, clearMutation]);
 
-  if (editing) {
+  const handleSelectHistory = useCallback(
+    async (item: HistoryItem) => {
+      const result = await recordUseMutation({ historyId: item._id });
+      setDraft(result.content);
+      setHistoryPickerOpen(false);
+    },
+    [recordUseMutation]
+  );
+
+  const historyTop3 = history.slice(0, 3);
+
+  const historyEditorProps: HistoryEditorProps | undefined = isAdding
+    ? {
+        historyTop3,
+        onSelectHistory: (item) => {
+          void handleSelectHistory(item);
+        },
+        onViewMoreHistory: () => setHistoryPickerOpen(true),
+      }
+    : undefined;
+
+  const editorHandlers = {
+    draft,
+    onDraftChange: setDraft,
+    onConfirm: () => {
+      void handleConfirm();
+    },
+    onCancel: handleCancel,
+    ...historyEditorProps,
+  };
+
+  const historyFullPicker = isAdding ? (
+    <HistoryFullPicker
+      open={historyPickerOpen}
+      onOpenChange={setHistoryPickerOpen}
+      items={history}
+      onSelect={(item) => {
+        void handleSelectHistory(item);
+      }}
+    />
+  ) : null;
+
+  if (editing && isDesktop) {
     return (
-      <EditingPanel
-        draft={draft}
-        onDraftChange={setDraft}
-        onConfirm={() => {
-          void handleConfirm();
-        }}
-        onCancel={handleCancel}
-      />
+      <>
+        <EditingPanel {...editorHandlers} />
+        {historyFullPicker}
+      </>
     );
   }
 
+  const mobileEditor =
+    editing && !isDesktop ? <MobileEditingDrawer open={editing} {...editorHandlers} /> : null;
+
   if (!hasContent) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setDraft('');
-          setEditing(true);
-        }}
-        className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
-      >
-        <Plus size={12} className="shrink-0 text-chatroom-status-success" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success">
-          Add standing instructions
-        </span>
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            setDraft('');
+            setIsAdding(true);
+            setEditing(true);
+          }}
+          className={`${mobileBarMinH(isDesktop)} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
+        >
+          <Plus
+            size={mobileIconSize(isDesktop)}
+            className="shrink-0 text-chatroom-status-success"
+          />
+          <span
+            className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider text-chatroom-status-success`}
+          >
+            Add standing instructions
+          </span>
+        </button>
+        {mobileEditor}
+        {historyFullPicker}
+      </>
     );
   }
 
   return (
-    <ResponsivePickerShell
-      open={actionsOpen}
-      onOpenChange={setActionsOpen}
-      title="Standing instructions"
-      anchorToPointer
-      contentClassName="w-56 p-0"
-      trigger={
-        <button
-          type="button"
-          className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
-        >
-          <BookOpen
-            size={12}
-            className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
-          />
-          <span
-            className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+    <>
+      <ResponsivePickerShell
+        open={actionsOpen}
+        onOpenChange={setActionsOpen}
+        title="Standing instructions"
+        anchorToPointer
+        contentClassName="w-56 p-0"
+        trigger={
+          <button
+            type="button"
+            className={`${mobileBarMinH(isDesktop)} ${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
           >
-            Standing instructions{isActive ? '' : ' (disabled)'}
-          </span>
-          <span className="text-xs text-chatroom-text-secondary truncate flex-1">
-            {storedContent}
-          </span>
-        </button>
-      }
-    >
-      <PickerScrollBody>
-        <PickerOptionRow selected={false} onSelect={startEditing}>
-          Edit
-        </PickerOptionRow>
-        {isActive ? (
-          <PickerOptionRow selected={false} onSelect={handleDisable}>
-            Disable
+            <BookOpen
+              size={mobileIconSize(isDesktop)}
+              className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+            />
+            <span
+              className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+            >
+              Standing instructions{isActive ? '' : ' (disabled)'}
+            </span>
+            <span className="text-xs text-chatroom-text-secondary truncate flex-1">
+              {storedContent}
+            </span>
+          </button>
+        }
+      >
+        <PickerPanelHeader title="Standing instructions" />
+        <PickerScrollBody>
+          <PickerOptionRow selected={false} onSelect={startEditing} className={actionRowClassName}>
+            Edit
           </PickerOptionRow>
-        ) : (
-          <PickerOptionRow selected={false} onSelect={handleEnable}>
-            Enable
+          {isActive ? (
+            <PickerOptionRow
+              selected={false}
+              onSelect={handleDisable}
+              className={actionRowClassName}
+            >
+              Disable
+            </PickerOptionRow>
+          ) : (
+            <PickerOptionRow
+              selected={false}
+              onSelect={handleEnable}
+              className={actionRowClassName}
+            >
+              Enable
+            </PickerOptionRow>
+          )}
+          <PickerOptionRow selected={false} onSelect={handleDelete} className={actionRowClassName}>
+            <span className="text-destructive">Delete</span>
           </PickerOptionRow>
-        )}
-        <PickerOptionRow selected={false} onSelect={handleDelete}>
-          <span className="text-destructive">Delete</span>
-        </PickerOptionRow>
-      </PickerScrollBody>
-    </ResponsivePickerShell>
+        </PickerScrollBody>
+      </ResponsivePickerShell>
+      {mobileEditor}
+      {historyFullPicker}
+    </>
   );
 });

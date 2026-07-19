@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vites
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import {
+  jumpToNewMessagesBottomOffset,
   TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
@@ -33,6 +34,21 @@ beforeAll(() => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }))
+  );
+
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      callback: ResizeObserverCallback;
+      constructor(cb: ResizeObserverCallback) {
+        this.callback = cb;
+      }
+      observe(target: Element) {
+        this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
   );
 });
 
@@ -802,6 +818,48 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     expect(el.scrollTop).toBe(maxScrollTop);
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
   });
+
+  it('positions jump chip above measured footer chrome', async () => {
+    // Stub offsetHeight for the footer chrome element
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetHeight'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        if ((this as HTMLElement).getAttribute('data-testid') === 'timeline-footer-chrome')
+          return 96;
+        return originalDescriptor?.get?.call(this) ?? 0;
+      },
+    });
+
+    timelineEvents = buildEvents(25);
+    const { coordinator } = renderFeed(true);
+    await flushRaf();
+    setScrollPinned(true);
+    mockScrollToEnd.mockClear();
+
+    // Unpin so the chip appears
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 0, 2500);
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+    act(() => {
+      scrollElProps(el, 0, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+    await waitFor(() => {
+      expect(coordinator.current.isPinned).toBe(false);
+    });
+
+    const chip = screen.getByRole('button', { name: 'Jump to new messages' });
+    expect(chip).toHaveStyle({ bottom: `${jumpToNewMessagesBottomOffset(96)}px` });
+
+    // Restore
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalDescriptor!);
+  });
 });
 
 describe('ChatroomTimelineFeed load-more scroll preservation', () => {
@@ -983,8 +1041,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
   it('registers custom measureElement that caches rounded heights by data-id', () => {
     renderFeed();
     const measureElement = virtualizerOptions.at(-1)?.measureElement as
-      | ((el: HTMLElement) => number)
-      | undefined;
+      ((el: HTMLElement) => number) | undefined;
     expect(measureElement).toBeTypeOf('function');
 
     const row = document.createElement('div');
@@ -1002,8 +1059,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     // Get the estimateSize function from the virtualizer options
     const estimateSize = virtualizerOptions.at(-1)?.estimateSize as
-      | ((index: number) => number)
-      | undefined;
+      ((index: number) => number) | undefined;
     expect(estimateSize).toBeTypeOf('function');
 
     // First render: cache should return estimated size (100) for unmeasured items

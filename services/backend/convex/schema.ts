@@ -2682,6 +2682,21 @@ export default defineSchema({
   }).index('by_machine_workingDir_path', ['machineId', 'workingDir', 'filePath']),
 
   // ─── Saved Commands ──────────────────────────────────────────────────────────
+  /**
+   * Per-user history of standing-instruction prompts for reuse across chatrooms.
+   * Ranked by useCount (frequency). contentKey is the trimmed content used for dedup.
+   */
+  chatroom_standingInstructionHistory: defineTable({
+    userId: v.id('users'),
+    content: v.string(),
+    contentKey: v.string(),
+    useCount: v.number(),
+    lastUsedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_contentKey', ['userId', 'contentKey']),
+
   // Custom prompt templates that users can save and execute via the command palette.
 
   /**

@@ -8,11 +8,15 @@
 
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 import type { CommandItem } from '../components/CommandPalette/types';
+import {
+  getCommandUsageRevision,
+  getCommandUsageStore,
+  subscribeCommandUsage,
+} from '../features/run-command/stores/commandUsageStore';
 import { getCommandFrecencyKey, resolveFrecencyKeyFromLabel } from '../lib/commandFrecencyKey';
-import { getCommandUsageStore } from '../lib/commandUsageStore';
 import { computeAllFrecencyScores, createRankedFilter } from '../lib/frecencyScoring';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
@@ -26,8 +30,7 @@ import { fuzzyFilter } from '@/lib/fuzzyMatch';
 export function useCommandRanking(commands: CommandItem[]) {
   const store = useMemo(() => getCommandUsageStore(), []);
 
-  // Bump to force score recompute after trackUsage
-  const [usageVersion, setUsageVersion] = useState(0);
+  const revision = useSyncExternalStore(subscribeCommandUsage, getCommandUsageRevision, () => 0);
 
   // Build label → frecency key map once per commands change
   const labelToFrecencyKey = useMemo(() => {
@@ -40,10 +43,10 @@ export function useCommandRanking(commands: CommandItem[]) {
 
   // Compute frécency scores from all tracked usage
   const frecencyScores = useMemo(() => {
-    void usageVersion; // depend on usageVersion so trackUsage invalidates this
+    void revision;
     const usage = store.getAllUsage();
     return computeAllFrecencyScores(usage);
-  }, [store, usageVersion]);
+  }, [store, revision]);
 
   // Create the ranked filter that resolves cmdk label → frecency key
   const rankedFilter = useMemo(
@@ -58,7 +61,6 @@ export function useCommandRanking(commands: CommandItem[]) {
   const trackUsage = useCallback(
     (command: CommandItem) => {
       store.recordUsage(getCommandFrecencyKey(command));
-      setUsageVersion((v) => v + 1);
     },
     [store]
   );
@@ -69,6 +71,8 @@ export function useCommandRanking(commands: CommandItem[]) {
     [frecencyScores]
   );
 
+  const clearUsage = useCallback(() => store.clear(), [store]);
+
   return {
     /** cmdk-compatible filter function with frécency boosting */
     rankedFilter,
@@ -78,5 +82,7 @@ export function useCommandRanking(commands: CommandItem[]) {
     frecencyScores,
     /** Per-command score lookup */
     getScore,
+    /** Clear all usage data */
+    clearUsage,
   };
 }

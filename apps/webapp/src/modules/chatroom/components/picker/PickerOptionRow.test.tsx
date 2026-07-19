@@ -50,6 +50,16 @@ describe('PickerOptionRow', () => {
     expect(option.className).toContain('disabled:cursor-not-allowed');
   });
 
+  it('merges optional className onto the option button', () => {
+    render(
+      <PickerOptionRow onSelect={vi.fn()} className="min-h-11 text-sm">
+        Option A
+      </PickerOptionRow>
+    );
+    expect(screen.getByRole('option').className).toContain('min-h-11');
+    expect(screen.getByRole('option').className).toContain('text-sm');
+  });
+
   it('respects disabled state', () => {
     const onSelect = vi.fn();
     render(

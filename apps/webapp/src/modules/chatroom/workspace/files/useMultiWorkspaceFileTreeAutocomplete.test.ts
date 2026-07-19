@@ -13,7 +13,7 @@ import {
   __resetWorkspaceFileTreeStoreForTests,
   getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 import type { Workspace } from '@/modules/chatroom/types/workspace';
 
@@ -21,9 +21,7 @@ const mocks = vi.hoisted(() => ({
   manifest: null as null | undefined,
   checkpoint: null as null | undefined,
   rawV2: undefined as
-    | { scannedAt: number; data: { compression: 'gzip'; content: string } }
-    | null
-    | undefined,
+    { scannedAt: number; data: { compression: 'gzip'; content: string } } | null | undefined,
   jsonV2: undefined as string | null | undefined,
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),
 }));
