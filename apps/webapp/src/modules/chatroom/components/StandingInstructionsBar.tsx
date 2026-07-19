@@ -13,8 +13,10 @@ interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
-const BAR_SHELL =
-  'min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5 flex items-center gap-2';
+const BAR_CHROME =
+  'min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
+
+const BAR_SHELL = `${BAR_CHROME} flex items-center gap-2`;
 
 const DISABLED_BAR_SHELL =
   'min-h-9 px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
@@ -47,7 +49,7 @@ function EditingPanel(props: {
 }) {
   const { draft, onDraftChange, onConfirm, onCancel } = props;
   return (
-    <div className="min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5 flex flex-col gap-1.5">
+    <div className={`${BAR_CHROME} flex flex-col gap-1.5`}>
       <textarea
         autoFocus
         value={draft}
@@ -172,7 +174,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       trigger={
         <button
           type="button"
-          className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-bg-hover transition-colors`}
+          className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
         >
           <BookOpen
             size={12}
