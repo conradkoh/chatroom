@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 import {
@@ -8,7 +8,7 @@ import {
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
 import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
   Drawer,
@@ -57,6 +57,16 @@ export function ResponsivePickerShell({
   const isDesktop = useIsDesktop(desktopBreakpoint);
   const keyboardInsetPx = useVisualViewportKeyboardInset(isClient && !isDesktop);
   const portalContainer = useOverlayPortalContainer();
+  const [pointerAnchor, setPointerAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [triggerEl, setTriggerEl] = useState<HTMLElement | null>(null);
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) setPointerAnchor(null);
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange]
+  );
 
   if (disabled) {
     return <>{trigger}</>;
@@ -67,18 +77,76 @@ export function ResponsivePickerShell({
     return <>{trigger}</>;
   }
 
+  // ── Desktop + anchorToPointer: real pointer-anchored popover ────────────
+  if (isDesktop && anchorToPointer) {
+    const triggerNode = React.isValidElement(trigger)
+      ? React.cloneElement(trigger as React.ReactElement<React.HTMLAttributes<HTMLElement>>, {
+          onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+            const prev = (trigger.props as React.HTMLAttributes<HTMLElement>).onPointerDown;
+            if (typeof prev === 'function') prev(e);
+            setPointerAnchor({ x: e.clientX, y: e.clientY });
+          },
+        })
+      : trigger;
+
+    // Compute anchor point from pointer coords, or fall back to trigger center
+    const resolvedAnchor =
+      pointerAnchor ??
+      (triggerEl
+        ? (() => {
+            const r = triggerEl.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+          })()
+        : null);
+
+    const toggleOpen = () => {
+      if (!pointerAnchor && triggerEl) {
+        const r = triggerEl.getBoundingClientRect();
+        setPointerAnchor({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      }
+      handleOpenChange(!open);
+    };
+
+    return (
+      <>
+        <span ref={setTriggerEl} onClick={toggleOpen} style={{ display: 'contents' }}>
+          {triggerNode}
+        </span>
+        <Popover open={open} onOpenChange={handleOpenChange}>
+          {open && resolvedAnchor ? (
+            <PopoverAnchor
+              aria-hidden
+              data-testid="picker-pointer-anchor"
+              style={{
+                position: 'fixed',
+                left: resolvedAnchor.x,
+                top: resolvedAnchor.y,
+                width: 1,
+                height: 1,
+                pointerEvents: 'none',
+              }}
+            />
+          ) : null}
+          <PopoverContent
+            className={cn('p-0', contentClassName)}
+            align="center"
+            {...(side ? { side } : {})}
+          >
+            {children}
+          </PopoverContent>
+        </Popover>
+      </>
+    );
+  }
+
+  // ── Desktop (standard) ──────────────────────────────────────────────────
   if (isDesktop) {
-    // When anchorToPointer is active, use 'center' alignment. The pointer anchor
-    // would ideally be used for precise click-position anchoring, but Radix
-    // PopoverAnchor + PopoverTrigger asChild has compatibility issues in tests.
-    // Center alignment on the full-width trigger is a good-enough approximation.
-    const resolvedAlign = anchorToPointer ? 'center' : align;
     return (
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
           className={cn('p-0', contentClassName)}
-          align={resolvedAlign}
+          align={align}
           {...(side ? { side } : {})}
         >
           {children}
@@ -87,6 +155,7 @@ export function ResponsivePickerShell({
     );
   }
 
+  // ── Mobile (drawer) ─────────────────────────────────────────────────────
   return (
     <Drawer
       open={open}

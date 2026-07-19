@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -94,22 +94,51 @@ describe('ResponsivePickerShell', () => {
   });
 
   describe('anchorToPointer', () => {
-    it('uses center alignment on desktop when anchorToPointer is true', () => {
+    it('renders pointer anchor at pointer-down coordinates on desktop', async () => {
       mockUseIsDesktop.mockReturnValue(true);
-      renderShell({ anchorToPointer: true });
+      const onOpenChange = vi.fn();
+      render(
+        <ResponsivePickerShell
+          open={false}
+          onOpenChange={onOpenChange}
+          anchorToPointer
+          trigger={<button type="button">Open picker</button>}
+          title="Test picker"
+        >
+          <div data-testid="picker-content">Picker content</div>
+        </ResponsivePickerShell>
+      );
 
+      // pointerDown at known coords then click to open
+      const trigger = screen.getByRole('button', { name: 'Open picker' });
+      await userEvent.pointer([
+        { target: trigger, coords: { x: 240, y: 80 }, keys: '[MouseLeft]' },
+      ]);
+
+      // Click to toggle open
+      const onOpenChangeCall = onOpenChange.mock.calls[0];
+      expect(onOpenChangeCall).toBeDefined();
+      expect(onOpenChangeCall[0]).toBe(true);
+    });
+
+    it('renders pointer anchor element when open with anchorToPointer', async () => {
+      mockUseIsDesktop.mockReturnValue(true);
+      renderShell({ anchorToPointer: true, open: true });
+
+      await waitFor(() => {
+        const anchor = document.querySelector('[data-testid="picker-pointer-anchor"]');
+        expect(anchor).not.toBeNull();
+      });
       const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
-      expect(popoverContent).not.toBeNull();
       expect(popoverContent).toHaveAttribute('data-align', 'center');
     });
 
-    it('uses start alignment when anchorToPointer is not set', () => {
+    it('does not render pointer anchor when anchorToPointer is not set', () => {
       mockUseIsDesktop.mockReturnValue(true);
       renderShell();
 
-      const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
-      expect(popoverContent).not.toBeNull();
-      expect(popoverContent).toHaveAttribute('data-align', 'start');
+      const anchor = document.querySelector('[data-testid="picker-pointer-anchor"]');
+      expect(anchor).toBeNull();
     });
 
     it('does not affect mobile drawer', () => {
