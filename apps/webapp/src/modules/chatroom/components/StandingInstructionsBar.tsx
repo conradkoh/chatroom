@@ -73,21 +73,6 @@ function EditingPanel(props: {
   );
 }
 
-function ActiveBarTrigger(props: { content: string }) {
-  return (
-    <button
-      type="button"
-      className={`${BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-status-success/10 transition-colors`}
-    >
-      <BookOpen size={12} className="shrink-0 text-chatroom-status-success" />
-      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success shrink-0">
-        Standing instructions
-      </span>
-      <span className="text-xs text-chatroom-text-secondary truncate flex-1">{props.content}</span>
-    </button>
-  );
-}
-
 export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   chatroomId,
 }: StandingInstructionsBarProps) {
@@ -169,7 +154,20 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       title="Standing instructions"
       align="start"
       contentClassName="w-56 p-0"
-      trigger={<ActiveBarTrigger content={storedContent} />}
+      trigger={
+        <button
+          type="button"
+          className={`${BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-status-success/10 transition-colors`}
+        >
+          <BookOpen size={12} className="shrink-0 text-chatroom-status-success" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success shrink-0">
+            Standing instructions
+          </span>
+          <span className="text-xs text-chatroom-text-secondary truncate flex-1">
+            {storedContent}
+          </span>
+        </button>
+      }
     >
       <PickerScrollBody>
         <PickerOptionRow selected={false} onSelect={startEditing}>

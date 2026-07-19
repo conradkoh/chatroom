@@ -32,8 +32,14 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
+const mockUseKeyboardInset = vi.fn(() => 0);
+
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
+}));
+
+vi.mock('@/hooks/useMobileKeyboard', () => ({
+  useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
 }));
 
 const ROOM_ID = 'room1' as Id<'chatroom_rooms'>;
@@ -87,6 +93,32 @@ describe('StandingInstructionsBar', () => {
     await user.keyboard('{Escape}');
 
     expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it('clicking active bar opens popover on desktop', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(true);
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    expect(screen.getByText('Disable')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+
+  it('clicking active bar opens drawer on mobile', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(false);
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    expect(screen.getByText('Disable')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
   });
 
   it('Ctrl+Enter in textarea confirms and saves', async () => {
