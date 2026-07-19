@@ -3,7 +3,6 @@
 import type React from 'react';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
-import { FilteredUserMessagesView } from './FilteredUserMessagesView';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   isFilteredMessageViewMode,
@@ -40,21 +39,15 @@ export function ChatroomMessagesPanel({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      {filterRole === null ? (
-        <ChatroomTimelineFeed
-          chatroomId={chatroomId}
-          coordinator={coordinator}
-          onRegisterOpenEventStream={onRegisterOpenEventStream}
-          onRegisterMessageStoreActions={onRegisterMessageStoreActions}
-          machines={machines}
-        />
-      ) : (
-        <FilteredUserMessagesView
-          chatroomId={chatroomId}
-          senderRole={filterRole}
-          machines={machines}
-        />
-      )}
+      <ChatroomTimelineFeed
+        key={filterRole ?? 'all'}
+        chatroomId={chatroomId}
+        coordinator={coordinator}
+        onRegisterOpenEventStream={onRegisterOpenEventStream}
+        onRegisterMessageStoreActions={onRegisterMessageStoreActions}
+        machines={machines}
+        senderRoleFilter={filterRole}
+      />
 
       {footer ? <div className="shrink-0">{footer}</div> : null}
     </div>

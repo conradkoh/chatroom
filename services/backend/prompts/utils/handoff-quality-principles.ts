@@ -15,6 +15,11 @@ const HANDOFF_QUALITY_PRINCIPLES = [
       'a small change in requirements should result in a small change in code in a small number of files and folders.',
   },
   {
+    name: 'Reducing Optionality',
+    description:
+      'code contains the minimum number of code paths to support the functionality required presently.',
+  },
+  {
     name: 'Static Evaluability and Provability',
     description:
       "the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.",

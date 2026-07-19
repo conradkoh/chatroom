@@ -56,6 +56,7 @@ export interface ChatroomTimelineFeedProps {
     removeMessagesForTask: (taskId: string) => void;
   }) => void;
   machines?: Map<string, MachineNameEntry>;
+  senderRoleFilter?: string | null;
 }
 
 export function ChatroomTimelineFeed({
@@ -64,6 +65,7 @@ export function ChatroomTimelineFeed({
   onRegisterOpenEventStream,
   onRegisterMessageStoreActions,
   machines,
+  senderRoleFilter,
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
@@ -85,7 +87,7 @@ export function ChatroomTimelineFeed({
     setIsEventStreamOpen,
     latestEvent,
     eventsPaginated,
-  } = useChatroomTimelineFeedData(chatroomId);
+  } = useChatroomTimelineFeedData(chatroomId, senderRoleFilter ?? null);
 
   const isPinned = useSyncExternalStore(
     (onStoreChange) => coordinator.current.subscribe(onStoreChange),
