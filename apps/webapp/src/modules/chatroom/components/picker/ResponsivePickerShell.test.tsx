@@ -93,6 +93,34 @@ describe('ResponsivePickerShell', () => {
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
   });
 
+  describe('anchorToPointer', () => {
+    it('uses center alignment on desktop when anchorToPointer is true', () => {
+      mockUseIsDesktop.mockReturnValue(true);
+      renderShell({ anchorToPointer: true });
+
+      const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+      expect(popoverContent).not.toBeNull();
+      expect(popoverContent).toHaveAttribute('data-align', 'center');
+    });
+
+    it('uses start alignment when anchorToPointer is not set', () => {
+      mockUseIsDesktop.mockReturnValue(true);
+      renderShell();
+
+      const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+      expect(popoverContent).not.toBeNull();
+      expect(popoverContent).toHaveAttribute('data-align', 'start');
+    });
+
+    it('does not affect mobile drawer', () => {
+      mockUseIsDesktop.mockReturnValue(false);
+      renderShell({ anchorToPointer: true });
+
+      const drawerContent = document.querySelector('[data-slot="drawer-content"]');
+      expect(drawerContent).not.toBeNull();
+    });
+  });
+
   it('passes contentClassName to popover content', () => {
     mockUseIsDesktop.mockReturnValue(true);
     renderShell({ contentClassName: 'w-72' });

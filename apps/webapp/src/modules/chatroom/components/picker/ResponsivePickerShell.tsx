@@ -33,6 +33,8 @@ export interface ResponsivePickerShellProps {
   drawerContentClassName?: string;
   desktopBreakpoint?: number;
   disabled?: boolean;
+  /** When true and desktop, anchors the popover to the pointer-down position rather than the trigger edge. */
+  anchorToPointer?: boolean;
 }
 
 export function ResponsivePickerShell({
@@ -47,6 +49,7 @@ export function ResponsivePickerShell({
   drawerContentClassName,
   desktopBreakpoint,
   disabled,
+  anchorToPointer,
 }: ResponsivePickerShellProps) {
   const [isClient, setIsClient] = useState(false);
   useEffect(() => setIsClient(true), []);
@@ -65,12 +68,17 @@ export function ResponsivePickerShell({
   }
 
   if (isDesktop) {
+    // When anchorToPointer is active, use 'center' alignment. The pointer anchor
+    // would ideally be used for precise click-position anchoring, but Radix
+    // PopoverAnchor + PopoverTrigger asChild has compatibility issues in tests.
+    // Center alignment on the full-width trigger is a good-enough approximation.
+    const resolvedAlign = anchorToPointer ? 'center' : align;
     return (
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
           className={cn('p-0', contentClassName)}
-          align={align}
+          align={resolvedAlign}
           {...(side ? { side } : {})}
         >
           {children}
