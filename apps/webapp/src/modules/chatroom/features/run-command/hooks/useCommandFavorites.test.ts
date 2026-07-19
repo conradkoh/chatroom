@@ -1,73 +1,69 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-// Mock the commandFavoritesStore
-const mockStore = {
-  getAll: vi.fn(() => new Set<string>()),
-  toggle: vi.fn(),
-};
-
-vi.mock('../../../lib/commandFavoritesStore', () => ({
-  getCommandFavoritesStore: () => mockStore,
-}));
+import { beforeEach, describe, expect, test } from 'vitest';
 
 import { useCommandFavorites } from './useCommandFavorites';
+import { getCommandFavoritesStore } from '../stores/commandFavoritesStore';
 
 describe('useCommandFavorites', () => {
   beforeEach(() => {
-    mockStore.getAll.mockReturnValue(new Set<string>());
-    mockStore.toggle.mockReset();
+    getCommandFavoritesStore().clear();
   });
 
-  it('returns empty favorites by default', () => {
+  test('returns empty set initially', () => {
     const { result } = renderHook(() => useCommandFavorites());
     expect(result.current.favorites.size).toBe(0);
+    expect(result.current.revision).toBe(1);
   });
 
-  it('isFavorite returns false for unknown command', () => {
+  test('toggle adds a command and updates revision', () => {
     const { result } = renderHook(() => useCommandFavorites());
-    expect(result.current.isFavorite('some-command')).toBe(false);
-  });
-
-  it('toggle calls store.toggle and bumps version', () => {
-    mockStore.getAll
-      .mockReturnValueOnce(new Set<string>())
-      .mockReturnValue(new Set(['my-command']));
-
-    const { result } = renderHook(() => useCommandFavorites());
-    expect(result.current.favorites.size).toBe(0);
 
     act(() => {
-      result.current.toggle('my-command');
+      result.current.toggle('dev');
     });
 
-    expect(mockStore.toggle).toHaveBeenCalledWith('my-command');
-    expect(result.current.favorites.has('my-command')).toBe(true);
+    expect(result.current.favorites.has('dev')).toBe(true);
+    expect(result.current.revision).toBeGreaterThan(0);
   });
 
-  it('isFavorite reflects updated favorites after toggle', () => {
-    mockStore.getAll
-      .mockReturnValueOnce(new Set<string>())
-      .mockReturnValue(new Set(['cmd-a']));
-
+  test('toggle removes a command on second call', () => {
     const { result } = renderHook(() => useCommandFavorites());
-    expect(result.current.isFavorite('cmd-a')).toBe(false);
 
     act(() => {
-      result.current.toggle('cmd-a');
+      result.current.toggle('dev');
     });
+    expect(result.current.favorites.has('dev')).toBe(true);
 
-    expect(result.current.isFavorite('cmd-a')).toBe(true);
+    act(() => {
+      result.current.toggle('dev');
+    });
+    expect(result.current.favorites.has('dev')).toBe(false);
   });
 
-  it('exposes version that increments on toggle', () => {
+  test('isFavorite returns correct membership', () => {
     const { result } = renderHook(() => useCommandFavorites());
-    const initialVersion = result.current.version;
+
+    expect(result.current.isFavorite('build')).toBe(false);
 
     act(() => {
-      result.current.toggle('cmd-b');
+      result.current.toggle('build');
     });
 
-    expect(result.current.version).toBe(initialVersion + 1);
+    expect(result.current.isFavorite('build')).toBe(true);
+  });
+
+  test('favorites set is a new copy each time (immutable)', () => {
+    const { result } = renderHook(() => useCommandFavorites());
+
+    act(() => {
+      result.current.toggle('test');
+    });
+
+    const firstSnapshot = result.current.favorites;
+    act(() => {
+      result.current.toggle('lint');
+    });
+
+    expect(firstSnapshot).not.toBe(result.current.favorites);
   });
 });

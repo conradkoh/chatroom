@@ -4,7 +4,7 @@ import {
   __resetWorkspaceFileTreeRefreshCoordinatorForTests,
   requestWorkspaceFileTreeRefresh,
 } from './workspaceFileTreeRefreshCoordinator';
-import { toWorkspaceFileTreeKey } from './workspaceFileTreeStore';
+import { toWorkspaceFileTreeKey } from '../stores/workspaceFileTreeStore';
 
 const MACHINE_ID = 'machine-1';
 const WORKING_DIR = '/repo';

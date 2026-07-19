@@ -6,7 +6,7 @@ import {
   __resetWorkspaceFileTreeStoreForTests,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 const mocks = vi.hoisted(() => ({
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),

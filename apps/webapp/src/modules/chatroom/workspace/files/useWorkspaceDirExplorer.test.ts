@@ -7,7 +7,7 @@ import {
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
   getWorkspaceFileTreeEntries,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 const MACHINE_ID = 'machine-1';
 const WORKING_DIR = '/workspace';

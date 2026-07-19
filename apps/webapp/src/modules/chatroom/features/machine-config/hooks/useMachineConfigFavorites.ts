@@ -5,9 +5,12 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { useCallback, useMemo } from 'react';
 
 import { useMachineConfigUsage } from './useMachineConfigUsage';
-import { buildMachineFavoriteScopeKey, buildMachineConfigScopeKey } from '../../../lib/teamRoleKey';
-import type { MachineConfigEntry } from '../../../types/machineConfig';
-import { entriesEqual } from '../../../types/machineConfig';
+import {
+  buildMachineFavoriteScopeKey,
+  buildMachineConfigScopeKey,
+} from '../lib/machineConfigScopeKey';
+import type { MachineConfigEntry } from '../types/machineConfig';
+import { entriesEqual } from '../types/machineConfig';
 
 export interface MachineConfigFavoriteScope {
   machineId: string;

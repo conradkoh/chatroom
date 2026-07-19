@@ -1,18 +1,8 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  buildTeamRoleKey,
-  buildMachineConfigScopeKey,
-  buildMachineFavoriteScopeKey,
-} from './teamRoleKey';
+import { buildMachineConfigScopeKey, buildMachineFavoriteScopeKey } from './machineConfigScopeKey';
 
-describe('teamRoleKey', () => {
-  test('buildTeamRoleKey lowercases team and role', () => {
-    expect(buildTeamRoleKey('room1', 'Duo', 'Planner')).toBe(
-      'chatroom_room1#team_duo#role_planner'
-    );
-  });
-
+describe('machineConfigScopeKey', () => {
   test('buildMachineFavoriteScopeKey lowercases team and role', () => {
     expect(buildMachineFavoriteScopeKey('Duo', 'Planner')).toBe('team_duo#role_planner');
   });

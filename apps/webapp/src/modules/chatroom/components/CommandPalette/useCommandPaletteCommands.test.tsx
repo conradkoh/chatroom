@@ -5,9 +5,19 @@ import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 
-vi.mock('../../lib/commandFavoritesStore', () => ({
-  getCommandFavoritesStore: () => ({
-    getAll: () => new Set(['dev']),
+vi.mock('../../features/run-command/hooks/useCommandFavorites', () => ({
+  useCommandFavorites: () => ({
+    favorites: new Set(['dev']),
+    toggle: vi.fn(),
+    isFavorite: vi.fn(),
+    revision: 0,
+  }),
+}));
+
+vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
+  useCommandUsage: () => ({
+    clearUsage: vi.fn(),
+    revision: 0,
   }),
 }));
 

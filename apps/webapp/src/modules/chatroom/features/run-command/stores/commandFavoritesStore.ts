@@ -4,7 +4,15 @@
 
 const STORAGE_KEY = 'chatroom:command-favorites';
 
-export class CommandFavoritesStore {
+const listeners = new Set<() => void>();
+let revision = 0;
+
+function emit(): void {
+  revision += 1;
+  for (const listener of listeners) listener();
+}
+
+class CommandFavoritesStore {
   private favorites: Set<string>;
 
   constructor() {
@@ -29,6 +37,11 @@ export class CommandFavoritesStore {
     return new Set(this.favorites);
   }
 
+  clear(): void {
+    this.favorites = new Set();
+    this.save();
+  }
+
   private load(): Set<string> {
     try {
       if (typeof window === 'undefined') return new Set();
@@ -45,7 +58,7 @@ export class CommandFavoritesStore {
     try {
       if (typeof window === 'undefined') return;
       localStorage.setItem(STORAGE_KEY, JSON.stringify([...this.favorites]));
-      window.dispatchEvent(new CustomEvent('chatroom:favorites-changed'));
+      emit();
     } catch {
       // silently fail
     }
@@ -59,4 +72,13 @@ export function getCommandFavoritesStore(): CommandFavoritesStore {
     instance = new CommandFavoritesStore();
   }
   return instance;
+}
+
+export function subscribeCommandFavorites(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function getCommandFavoritesRevision(): number {
+  return revision;
 }

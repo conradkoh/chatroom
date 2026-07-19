@@ -2,12 +2,12 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
-import type { MachineConfigEntry } from '../../../types/machineConfig';
 import {
   getMachineConfigUsageRevision,
   getMachineConfigUsageStore,
   subscribeMachineConfigUsage,
 } from '../stores/machineConfigUsageStore';
+import type { MachineConfigEntry } from '../types/machineConfig';
 
 /**
  * React hook for machine-config usage (device-local frécency).
