@@ -7,6 +7,7 @@ import {
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
@@ -16,7 +17,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';

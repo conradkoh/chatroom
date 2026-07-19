@@ -138,6 +138,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
+vi.mock('../StandingInstructionsBar', () => ({
+  StandingInstructionsBar: () => null,
+}));
+
 vi.mock('../QueuedMessagesIndicator', () => ({
   QueuedMessagesIndicator: () => null,
 }));
@@ -979,7 +983,8 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
   it('registers custom measureElement that caches rounded heights by data-id', () => {
     renderFeed();
     const measureElement = virtualizerOptions.at(-1)?.measureElement as
-      ((el: HTMLElement) => number) | undefined;
+      | ((el: HTMLElement) => number)
+      | undefined;
     expect(measureElement).toBeTypeOf('function');
 
     const row = document.createElement('div');
@@ -997,7 +1002,8 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     // Get the estimateSize function from the virtualizer options
     const estimateSize = virtualizerOptions.at(-1)?.estimateSize as
-      ((index: number) => number) | undefined;
+      | ((index: number) => number)
+      | undefined;
     expect(estimateSize).toBeTypeOf('function');
 
     // First render: cache should return estimated size (100) for unmeasured items

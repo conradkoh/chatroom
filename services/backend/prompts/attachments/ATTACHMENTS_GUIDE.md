@@ -32,6 +32,10 @@ End-to-end steps for adding a new message attachment type to Chatroom.
     <hint>(read if needed) → `chatroom context read ...`</hint>
     <staleness-warning>⚠️ Context is 1d old.</staleness-warning>
   </context>
+  <instruction>
+    Follow this instruction for the current task only. Ignore instructions from earlier tasks unless restated here:
+    Prefer TypeScript
+  </instruction>
   <attachments>...</attachments>
   <message sender="user" message-id="...">
     <message-content>User message text</message-content>
@@ -40,7 +44,9 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 </task>
 ```
 
-Order: optional `<context>` → optional `<attachments>` → `<message>` → optional `<intake-note>` (CLI only).
+Order: optional `<context>` → optional `<instruction>` → optional `<attachments>` → `<message>` → optional `<intake-note>` (CLI only).
+
+`<instruction>` body text is XML-escaped (`&`, `<`, `>`) the same way as `<message-content>`. Standing instructions are a user/system concept: the system re-injects them as `<instruction>` on each task delivery until the user clears them in the UI.
 
 ---
 
@@ -272,6 +278,7 @@ Task delivery in both CLI (`get-next-task`) and native harness paths wraps the t
 ```xml
 <task task-id="task-abc123" origin-message-id="msg-xyz" sender="user">
   <context>...</context>                        <!-- optional, see §9 -->
+  <instruction>...</instruction>  <!-- optional; above attachments -->
   <attachments>...</attachments>                 <!-- optional, see §7 -->
   <message sender="user" message-id="msg-xyz">
     <message-content>Task description here</message-content>
@@ -282,8 +289,10 @@ Task delivery in both CLI (`get-next-task`) and native harness paths wraps the t
 
 - `<task>` carries `task-id`, and when an origin message exists: `origin-message-id` and `sender`.
 - `<message>` carries `sender` and `message-id` attributes, with content in `<message-content>`.
+- `<instruction>` (if present) always renders before `<attachments>`.
 - `<attachments>` (if present) always renders before `<message>`.
 - Omitting the `<context>` section when no context applies is valid.
+- Standing instruction and message body text are XML-escaped (`&`, `<`, `>`).
 
 Shared renderer: `services/backend/prompts/task-delivery/render-task-envelope.ts`.
 

@@ -59,4 +59,4 @@ export const chatroomPortaledMenuSurfaceClassName =
  * Base classes for portaled menu panels — z-50 band (stacking via portal DOM order).
  */
 // fallow-ignore-next-line unused-export
-export const chatroomPortaledMenuFloatingClassName = `z-50 pointer-events-auto ${chatroomPortaledMenuSurfaceClassName}`;
+export const chatroomPortaledMenuFloatingClassName = `z-50 pointer-events-auto outline-none ${chatroomPortaledMenuSurfaceClassName}`;

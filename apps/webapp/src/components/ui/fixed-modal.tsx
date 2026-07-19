@@ -10,8 +10,8 @@ import {
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '@/modules/chatroom/components/shared/overlayDismissStack';
-import { OverlayPortalContainerProvider } from '@/modules/chatroom/components/shared/overlayPortalContainer';
 import { Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
+import { OverlayPortalContainerProvider } from '@/modules/chatroom/components/shared/overlayPortalContainer';
 
 // Reference-counted body scroll lock for nested/stacked modals.
 let scrollLockCount = 0;

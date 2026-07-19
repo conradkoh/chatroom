@@ -5,12 +5,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { FilterPickerSection, FlatPickerSection } from './HarnessPickerSections';
 import { KeyboardInsetSlider } from './KeyboardInsetSlider';
 import { NestedFixedModalPickerSection } from './NestedFixedModalPickerSection';
+import { StandingInstructionsBarSection } from './StandingInstructionsBarSection';
 import { useHarnessDrawerMetrics } from './useHarnessDrawerMetrics';
 
 const MODELS = Array.from(
   { length: 24 },
   (_, i) => `provider/model-${String(i + 1).padStart(2, '0')}`
 );
+
+function activeElementIdPart(el: HTMLElement): string {
+  return el.id ? `#${el.id}` : '';
+}
+
+function activeElementPlaceholderPart(el: HTMLElement): string {
+  if (!(el instanceof HTMLInputElement) || !el.placeholder) return '';
+  return `[placeholder="${el.placeholder}"]`;
+}
+
+function describeActiveElement(el: Element | null): string {
+  if (!(el instanceof HTMLElement) || el === document.body) return '(none)';
+  return `${el.tagName.toLowerCase()}${activeElementIdPart(el)}${activeElementPlaceholderPart(el)}`;
+}
 
 export function MobilePickerHarness() {
   const [flatOpen, setFlatOpen] = useState(false);
@@ -20,19 +35,7 @@ export function MobilePickerHarness() {
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [activeElementDesc, setActiveElementDesc] = useState('(none)');
   useEffect(() => {
-    const update = () => {
-      const el = document.activeElement;
-      if (!el || el === document.body) {
-        setActiveElementDesc('(none)');
-        return;
-      }
-      const tag = el.tagName.toLowerCase();
-      const id = el.id ? `#${el.id}` : '';
-      const placeholder = (el as HTMLInputElement).placeholder
-        ? `[placeholder="${(el as HTMLInputElement).placeholder}"]`
-        : '';
-      setActiveElementDesc(`${tag}${id}${placeholder}`);
-    };
+    const update = () => setActiveElementDesc(describeActiveElement(document.activeElement));
     document.addEventListener('focusin', update);
     update();
     return () => document.removeEventListener('focusin', update);
@@ -64,6 +67,8 @@ export function MobilePickerHarness() {
       <KeyboardInsetSlider value={keyboardInset} onChange={setKeyboardInset} />
 
       <NestedFixedModalPickerSection />
+
+      <StandingInstructionsBarSection />
 
       <FlatPickerSection
         open={flatOpen}

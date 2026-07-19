@@ -1,8 +1,7 @@
 import { Migrations } from '@convex-dev/migrations';
 
 import { components, internal } from './_generated/api';
-import type { DataModel } from './_generated/dataModel';
-import type { Doc } from './_generated/dataModel';
+import type { DataModel, Doc } from './_generated/dataModel';
 import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,

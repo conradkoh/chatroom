@@ -22,6 +22,7 @@ export function PickerOptionRow({ children, selected, onSelect, disabled }: Pick
       className={cn(
         'w-full px-3 py-2 text-xs text-left flex items-center justify-between gap-2',
         'cursor-pointer hover:bg-chatroom-bg-hover transition-colors',
+        'outline-none focus-visible:outline-none focus-visible:bg-chatroom-bg-hover',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         selected && 'bg-chatroom-bg-hover'
       )}

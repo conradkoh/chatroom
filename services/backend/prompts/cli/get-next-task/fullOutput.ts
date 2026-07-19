@@ -75,6 +75,8 @@ export interface FullCliOutputParams {
 
   /** Attachments from the task SOURCE message (primary delivery kinds only). */
   sourceAttachments?: PrimaryDeliveryAttachments;
+  /** Standing instructions for this chatroom (null = none active). */
+  standingInstructions?: string | null;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     currentContext,
     followUpCountSinceOrigin,
     originMessageCreatedAt,
+    standingInstructions,
   } = params;
 
   return generateNativeTaskDeliveryOutput({
@@ -110,6 +113,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     originMessage: originMessage ? { senderRole: originMessage.senderRole } : null,
     followUpCountSinceOrigin,
     originMessageCreatedAt,
+    standingInstructions,
   });
 }
 
@@ -178,6 +182,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     availableHandoffTargets,
     nativeIntegration = false,
     sourceAttachments,
+    standingInstructions,
   } = params;
 
   if (nativeIntegration) {
@@ -197,6 +202,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     followUpCountSinceOrigin,
     originMessageCreatedAt,
     sourceAttachments,
+    standingInstructions,
   });
 
   appendCliSharedHandoffSections(lines, {

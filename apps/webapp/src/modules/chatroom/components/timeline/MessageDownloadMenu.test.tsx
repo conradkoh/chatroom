@@ -12,9 +12,10 @@ vi.mock('@/hooks/useIsDesktop', () => ({
 }));
 
 vi.mock('../../lib/messageExport', () => ({
-  downloadTextFile: vi.fn(),
+  saveTextFile: vi.fn().mockResolvedValue('saved'),
   messageExportFilename: (_message: Message, ext: string) => `test-${ext}`,
   buildMessageMarkdownDownload: (message: Message) => `# ${message.content}`,
+  exportMessageAsDocx: vi.fn().mockResolvedValue('saved'),
 }));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
@@ -42,11 +43,12 @@ describe('MessageDownloadMenu', () => {
     expect(screen.getByTitle('Download message')).toBeInTheDocument();
   });
 
-  it('shows only markdown download option', async () => {
+  it('shows markdown and docx options', async () => {
     const user = userEvent.setup();
     render(<MessageDownloadMenu message={makeMessage()} />);
     await user.click(screen.getByTitle('Download message'));
     expect(screen.getByText('Download as Markdown')).toBeInTheDocument();
+    expect(screen.getByText('Download as DOCX')).toBeInTheDocument();
     expect(screen.queryByText(/PDF/i)).not.toBeInTheDocument();
   });
 });

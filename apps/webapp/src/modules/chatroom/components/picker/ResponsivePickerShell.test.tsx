@@ -2,10 +2,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
 import { PickerScrollBody } from './PickerScrollBody';
 import { PickerSearch } from './PickerSearch';
 import { ResponsivePickerShell } from './ResponsivePickerShell';
+import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
 
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn();

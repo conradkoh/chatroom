@@ -3,6 +3,7 @@
 import { Activity, ArrowLeft } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { EventStreamModalVirtualizedList } from './EventStreamModal/EventStreamModalVirtualizedList';
 import {
   EventStreamMachineProvider,
   type MachineNameEntry,
@@ -133,17 +134,6 @@ export const EventStreamModal = memo(function EventStreamModal({
     setShowMobileDetail(true);
   }, []);
 
-  // Render event row using the exhaustive registry, with placeholder fallback for unknown types
-  const renderEventRow = (event: EventStreamEvent) => {
-    const isSelected = selectedEvent?._id === event._id;
-    const definition = resolveEventTypeDefinition(event);
-    return (
-      <div key={event._id} onClick={() => handleSelectEvent(event)} className="cursor-pointer">
-        {definition.cellRenderer(event as never, isSelected)}
-      </div>
-    );
-  };
-
   // Render event details using the exhaustive registry, with placeholder fallback
   const renderEventDetails = () => {
     if (!selectedEvent) {
@@ -180,7 +170,7 @@ export const EventStreamModal = memo(function EventStreamModal({
                 </span>
               </div>
               {/* Event list */}
-              <div ref={eventListRef} className="flex-1 overflow-y-auto">
+              <div className="flex-1 min-h-0 flex flex-col">
                 {isLoading ? (
                   <div className="flex flex-col gap-2 p-4">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -194,11 +184,17 @@ export const EventStreamModal = memo(function EventStreamModal({
                     ))}
                   </div>
                 ) : events.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-32 text-chatroom-text-muted">
+                  <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
                     <span className="text-xs">No events yet</span>
                   </div>
                 ) : (
-                  events.map(renderEventRow)
+                  <EventStreamModalVirtualizedList
+                    events={events}
+                    selectedEventId={selectedEvent?._id ?? null}
+                    onSelectEvent={handleSelectEvent}
+                    listRef={eventListRef}
+                    height="100%"
+                  />
                 )}
               </div>
               {/* Load more button */}
