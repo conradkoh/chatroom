@@ -63,6 +63,14 @@ describe('StandingInstructionsBar', () => {
     expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
   });
 
+  it('shows disabled bar with label suffix and content', () => {
+    mockQueryResult = { content: 'Always use TypeScript', enabled: false };
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    expect(screen.getByText('Standing instructions (disabled)')).toBeInTheDocument();
+    expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
+    expect(screen.queryByText('Add standing instructions')).not.toBeInTheDocument();
+  });
+
   it('opens edit mode on add button click', async () => {
     const user = userEvent.setup();
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
@@ -95,7 +103,7 @@ describe('StandingInstructionsBar', () => {
     expect(mockUpsert).not.toHaveBeenCalled();
   });
 
-  describe('menu open and actions', () => {
+  describe('menu open and actions — active state', () => {
     beforeEach(() => {
       mockQueryResult = { content: 'Always use TypeScript', enabled: true };
     });
@@ -108,7 +116,7 @@ describe('StandingInstructionsBar', () => {
       expect(screen.queryByText('Delete')).not.toBeInTheDocument();
     });
 
-    it('opens popover on desktop with correct slot', async () => {
+    it('opens popover on desktop with correct slot and Disable present', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
@@ -116,9 +124,8 @@ describe('StandingInstructionsBar', () => {
 
       expect(document.querySelector('[data-slot="chatroom-popover-content"]')).not.toBeNull();
       expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
-      expect(screen.getByText('Edit')).toBeInTheDocument();
       expect(screen.getByText('Disable')).toBeInTheDocument();
-      expect(screen.getByText('Delete')).toBeInTheDocument();
+      expect(screen.queryByText('Enable')).not.toBeInTheDocument();
     });
 
     it('opens drawer on mobile with correct slot', async () => {
@@ -129,12 +136,10 @@ describe('StandingInstructionsBar', () => {
 
       expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
       expect(document.querySelector('[data-slot="chatroom-popover-content"]')).toBeNull();
-      expect(screen.getByText('Edit')).toBeInTheDocument();
       expect(screen.getByText('Disable')).toBeInTheDocument();
-      expect(screen.getByText('Delete')).toBeInTheDocument();
     });
 
-    it('clicking Disable from menu calls setEnabled(false)', async () => {
+    it('clicking Disable calls setEnabled(false)', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
@@ -144,7 +149,7 @@ describe('StandingInstructionsBar', () => {
       expect(mockSetEnabled).toHaveBeenCalledWith({ chatroomId: ROOM_ID, enabled: false });
     });
 
-    it('clicking Delete from menu calls clear()', async () => {
+    it('clicking Delete calls clear()', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
@@ -154,7 +159,7 @@ describe('StandingInstructionsBar', () => {
       expect(mockClear).toHaveBeenCalledWith({ chatroomId: ROOM_ID });
     });
 
-    it('clicking Edit from menu opens editing panel', async () => {
+    it('clicking Edit opens editing panel', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
@@ -164,6 +169,34 @@ describe('StandingInstructionsBar', () => {
       expect(screen.getByPlaceholderText('Enter standing instructions…')).toBeInTheDocument();
       expect(screen.getByText('Confirm')).toBeInTheDocument();
       expect(screen.getByText('Cancel')).toBeInTheDocument();
+    });
+  });
+
+  describe('menu open and actions — disabled with content', () => {
+    beforeEach(() => {
+      mockQueryResult = { content: 'Always use TypeScript', enabled: false };
+    });
+
+    it('shows Enable instead of Disable in menu', async () => {
+      const user = userEvent.setup();
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Standing instructions (disabled)'));
+
+      expect(screen.getByText('Enable')).toBeInTheDocument();
+      expect(screen.queryByText('Disable')).not.toBeInTheDocument();
+      expect(screen.getByText('Edit')).toBeInTheDocument();
+      expect(screen.getByText('Delete')).toBeInTheDocument();
+    });
+
+    it('clicking Enable calls setEnabled(true)', async () => {
+      const user = userEvent.setup();
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Standing instructions (disabled)'));
+      await user.click(screen.getByText('Enable'));
+
+      expect(mockSetEnabled).toHaveBeenCalledWith({ chatroomId: ROOM_ID, enabled: true });
     });
   });
 

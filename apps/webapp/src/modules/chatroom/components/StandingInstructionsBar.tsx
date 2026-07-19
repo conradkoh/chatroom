@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { getActiveStandingInstructions } from '@workspace/backend/src/domain/entities/standing-instructions';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useState, type KeyboardEvent } from 'react';
@@ -14,6 +15,9 @@ interface StandingInstructionsBarProps {
 
 const BAR_SHELL =
   'min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5 flex items-center gap-2';
+
+const DISABLED_BAR_SHELL =
+  'min-h-9 px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
@@ -78,7 +82,13 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 }: StandingInstructionsBarProps) {
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
   const storedContent = queryResult?.content ?? '';
-  const isActive = (queryResult?.enabled ?? false) && storedContent.trim().length > 0;
+  const enabled = queryResult?.enabled ?? false;
+  const isActive =
+    getActiveStandingInstructions({
+      standingInstructions: storedContent,
+      standingInstructionsEnabled: enabled,
+    }) !== null;
+  const hasContent = storedContent.trim().length > 0;
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
@@ -109,6 +119,11 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     await setEnabledMutation({ chatroomId, enabled: false });
   }, [chatroomId, setEnabledMutation]);
 
+  const handleEnable = useCallback(async () => {
+    setActionsOpen(false);
+    await setEnabledMutation({ chatroomId, enabled: true });
+  }, [chatroomId, setEnabledMutation]);
+
   const handleDelete = useCallback(async () => {
     setActionsOpen(false);
     await clearMutation({ chatroomId });
@@ -129,7 +144,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     );
   }
 
-  if (!isActive) {
+  if (!hasContent) {
     return (
       <button
         type="button"
@@ -157,11 +172,16 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       trigger={
         <button
           type="button"
-          className={`${BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-status-success/10 transition-colors`}
+          className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-bg-hover transition-colors`}
         >
-          <BookOpen size={12} className="shrink-0 text-chatroom-status-success" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success shrink-0">
-            Standing instructions
+          <BookOpen
+            size={12}
+            className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+          />
+          <span
+            className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+          >
+            Standing instructions{isActive ? '' : ' (disabled)'}
           </span>
           <span className="text-xs text-chatroom-text-secondary truncate flex-1">
             {storedContent}
@@ -173,9 +193,15 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         <PickerOptionRow selected={false} onSelect={startEditing}>
           Edit
         </PickerOptionRow>
-        <PickerOptionRow selected={false} onSelect={handleDisable}>
-          Disable
-        </PickerOptionRow>
+        {isActive ? (
+          <PickerOptionRow selected={false} onSelect={handleDisable}>
+            Disable
+          </PickerOptionRow>
+        ) : (
+          <PickerOptionRow selected={false} onSelect={handleEnable}>
+            Enable
+          </PickerOptionRow>
+        )}
         <PickerOptionRow selected={false} onSelect={handleDelete}>
           <span className="text-destructive">Delete</span>
         </PickerOptionRow>

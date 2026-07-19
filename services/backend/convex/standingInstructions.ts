@@ -51,8 +51,16 @@ export const setEnabled = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!args.enabled) {
+      await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+        standingInstructionsEnabled: false,
+      });
+      return;
+    }
+    const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!room?.standingInstructions?.trim()) return;
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      standingInstructionsEnabled: args.enabled,
+      standingInstructionsEnabled: true,
     });
   },
 });
