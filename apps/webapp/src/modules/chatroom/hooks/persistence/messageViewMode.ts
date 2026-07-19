@@ -31,6 +31,16 @@ export function isValidMessageViewMode(v: unknown): v is MessageViewMode {
   return typeof v === 'string' && isRoleMessageViewMode(v);
 }
 
+/** Whether a timeline message belongs in a role-filtered view (matches former listMessagesBySenderRolePaginated semantics). */
+export function messageMatchesSenderRoleFilter(
+  message: { senderRole: string; type: string },
+  senderRole: string
+): boolean {
+  if (message.senderRole.toLowerCase() !== senderRole.toLowerCase()) return false;
+  if (senderRole.toLowerCase() === 'user') return message.type === 'message';
+  return message.type === 'message' || message.type === 'handoff';
+}
+
 export function formatMessageViewRoleLabel(role: string): string {
   if (!role) return role;
   return role.charAt(0).toUpperCase() + role.slice(1);

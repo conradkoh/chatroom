@@ -5,12 +5,12 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useEffect } from 'react';
 
 import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
-import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
+import { useWorkspaceFileTreeStoreRevision } from '../hooks/useWorkspaceFileTreeStoreRevision';
 import {
   applyWorkspaceFileTreeDeltas,
   clearWorkspaceFileTree,
   type WorkspaceFileTreeDeltaBatch,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 

@@ -67,12 +67,8 @@ export function getTimelineItemKey(index: number, events: TimelineEvent[]): stri
   return events[index]?.id ?? String(index);
 }
 
-/** Row height estimate for filtered role message list (team/user tabs). */
-export const FILTERED_MESSAGE_ESTIMATE_SIZE = 120;
-export const FILTERED_MESSAGE_OVERSCAN = 5;
-
 /** Gap between the jump-to-new-messages chip and the timeline footer chrome. */
-const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
+export const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
 
 /** Bottom CSS px offset so the chip sits above the measured footer chrome. */
 export function jumpToNewMessagesBottomOffset(

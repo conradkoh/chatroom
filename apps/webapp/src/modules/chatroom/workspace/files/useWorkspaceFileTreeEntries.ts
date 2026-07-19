@@ -1,22 +1,22 @@
 'use client';
 // fallow-ignore-file code-duplication complexity
 
+import type { FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
 import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
-import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
+import { useWorkspaceFileTreeStoreRevision } from '../hooks/useWorkspaceFileTreeStoreRevision';
 import {
   getWorkspaceFileTreeEntries,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
-import type { FileTreeEntry } from '@workspace/backend/src/domain/entities/workspace-files';
 
 const EMPTY_ENTRIES: FileEntry[] = [];
 

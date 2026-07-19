@@ -1,4 +1,4 @@
-import { computeFrecencyScore } from './frecencyScoring';
+import { computeFrecencyScore } from '../../../lib/frecencyScoring';
 import type { MachineConfigEntry } from '../types/machineConfig';
 import { buildMachineConfigKey, entriesEqual } from '../types/machineConfig';
 

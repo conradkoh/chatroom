@@ -2,6 +2,8 @@
 
 Client-side state and hooks for agentic search harness+model preferences.
 
+Second adopter of the [chatroom store conventions](../../../../../../docs/developer/chatroom-store-conventions.md) (after machine-config).
+
 | Path                                   | Role                                 |
 | -------------------------------------- | ------------------------------------ |
 | `types/searchConfig.ts`                | SearchConfigEntry type               |
