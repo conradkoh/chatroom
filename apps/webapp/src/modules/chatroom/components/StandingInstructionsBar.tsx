@@ -13,7 +13,7 @@ interface StandingInstructionsBarProps {
 }
 
 const BAR_SHELL =
-  'min-h-9 px-3 py-1.5 border-b border-chatroom-status-info/15 bg-chatroom-status-info/5 flex items-center gap-2';
+  'min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5 flex items-center gap-2';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
@@ -43,7 +43,7 @@ function EditingPanel(props: {
 }) {
   const { draft, onDraftChange, onConfirm, onCancel } = props;
   return (
-    <div className="min-h-9 px-3 py-1.5 border-b border-chatroom-status-info/15 bg-chatroom-status-info/5 flex flex-col gap-1.5">
+    <div className="min-h-9 px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5 flex flex-col gap-1.5">
       <textarea
         autoFocus
         value={draft}
@@ -77,10 +77,10 @@ function ActiveBarTrigger(props: { content: string }) {
   return (
     <button
       type="button"
-      className={`${BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-status-info/10 transition-colors`}
+      className={`${BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-status-success/10 transition-colors`}
     >
-      <BookOpen size={12} className="shrink-0 text-chatroom-status-info" />
-      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info shrink-0">
+      <BookOpen size={12} className="shrink-0 text-chatroom-status-success" />
+      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success shrink-0">
         Standing instructions
       </span>
       <span className="text-xs text-chatroom-text-secondary truncate flex-1">{props.content}</span>
@@ -152,10 +152,10 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
           setDraft('');
           setEditing(true);
         }}
-        className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-info/10 transition-colors cursor-pointer`}
+        className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
       >
-        <Plus size={12} className="shrink-0 text-chatroom-status-info" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info">
+        <Plus size={12} className="shrink-0 text-chatroom-status-success" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success">
           Add standing instructions
         </span>
       </button>
