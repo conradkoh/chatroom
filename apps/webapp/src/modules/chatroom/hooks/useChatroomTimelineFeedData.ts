@@ -13,11 +13,15 @@ import { usePaginatedQuery } from 'convex/react';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { useMemo, useState } from 'react';
 
+import { messageMatchesSenderRoleFilter } from './persistence/messageViewMode';
 import { useChatroomTimeline } from './useChatroomTimeline';
 import { useHandoffNotification } from './useHandoffNotification';
 import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
 
-export function useChatroomTimelineFeedData(chatroomId: string) {
+export function useChatroomTimelineFeedData(
+  chatroomId: string,
+  senderRoleFilter: string | null = null
+) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const {
     events,
@@ -31,6 +35,11 @@ export function useChatroomTimelineFeedData(chatroomId: string) {
 
   const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
   useHandoffNotification(messagesForNotify, chatroomId);
+
+  const visibleEvents = useMemo(() => {
+    if (!senderRoleFilter) return events;
+    return events.filter((e) => messageMatchesSenderRoleFilter(e.message, senderRoleFilter));
+  }, [events, senderRoleFilter]);
 
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
@@ -52,7 +61,7 @@ export function useChatroomTimelineFeedData(chatroomId: string) {
     (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
   return {
-    events,
+    events: visibleEvents,
     isLoading,
     hasMoreOlder,
     isLoadingOlder,
