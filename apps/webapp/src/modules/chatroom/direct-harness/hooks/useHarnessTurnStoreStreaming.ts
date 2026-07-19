@@ -9,7 +9,7 @@ import type {
   HarnessTurnStoreQueries,
   StreamingOverlay,
   StreamingTurnCandidate,
-} from './harnessTurnStoreTypes';
+} from '../stores/harnessTurnStoreTypes';
 
 function accumulateStreamingOverlay(params: {
   streamingTurn: StreamingTurnCandidate | undefined;

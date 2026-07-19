@@ -18,16 +18,16 @@ import {
 } from './fileTreeUtils';
 import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
-import { useWorkspaceFileTreeStoreRevision } from './useWorkspaceFileTreeStoreRevision';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
+import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
+import { useWorkspaceFileTreeStoreRevision } from '../hooks/useWorkspaceFileTreeStoreRevision';
 import {
   getWorkspaceFileTreeEntries,
   getWorkspaceFileTreeScannedAt,
   subscribeWorkspaceFileTree,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
-} from './workspaceFileTreeStore';
-import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
+} from '../stores/workspaceFileTreeStore';
 import { decompressGzip } from '../utils/decompressGzip';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';

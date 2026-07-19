@@ -1,37 +1,37 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { getCommandFavoritesStore } from '../../../lib/commandFavoritesStore';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+
+import {
+  getCommandFavoritesRevision,
+  getCommandFavoritesStore,
+  subscribeCommandFavorites,
+} from '../stores/commandFavoritesStore';
 
 /**
  * React hook wrapping the CommandFavoritesStore singleton.
  *
  * - `favorites`: a Set<string> of favorited command names (re-computed on toggle).
- * - `toggle(name)`: adds or removes a command from favorites, bumps version.
+ * - `toggle(name)`: adds or removes a command from favorites, bumps revision.
  * - `isFavorite(name)`: fast O(1) membership check.
  */
 export function useCommandFavorites() {
-  const [version, setVersion] = useState(0);
   const store = useMemo(() => getCommandFavoritesStore(), []);
 
-  const favorites = useMemo(
-    () => store.getAll(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [store, version]
+  const revision = useSyncExternalStore(
+    subscribeCommandFavorites,
+    getCommandFavoritesRevision,
+    () => 0
   );
 
-  const toggle = useCallback(
-    (commandName: string) => {
-      store.toggle(commandName);
-      setVersion((v) => v + 1);
-    },
-    [store]
-  );
+  const favorites = useMemo(() => {
+    void revision;
+    return store.getAll();
+  }, [store, revision]);
 
-  const isFavorite = useCallback(
-    (commandName: string) => favorites.has(commandName),
-    [favorites]
-  );
+  const toggle = useCallback((commandName: string) => store.toggle(commandName), [store]);
 
-  return { favorites, toggle, isFavorite, version };
+  const isFavorite = useCallback((commandName: string) => favorites.has(commandName), [favorites]);
+
+  return { favorites, toggle, isFavorite, revision };
 }

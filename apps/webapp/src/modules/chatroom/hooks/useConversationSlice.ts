@@ -6,7 +6,7 @@ import { usePaginatedQuery, type PaginatedQueryReference } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
-import { toMessage } from './useChatroomMessageStore';
+import { toMessage } from './chatroomMessageStore';
 import { mapMessageToTimelineEvent } from '../timeline/mapMessageToTimelineEvent';
 
 const PAGE_SIZE = 30;

@@ -2,13 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileExplorerPanel } from './FileExplorerPanel';
+import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import {
   __resetWorkspaceFileTreeStoreForTests,
   getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
-} from '../files/workspaceFileTreeStore';
-import type { UseFileTabsReturn } from '../hooks/useFileTabs';
+} from '../stores/workspaceFileTreeStore';
 
 // Mock @tanstack/react-virtual so VirtualizedScrollList renders all items in jsdom
 vi.mock('@tanstack/react-virtual', () => ({

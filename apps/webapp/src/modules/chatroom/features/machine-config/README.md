@@ -4,18 +4,17 @@ Client-side state and hooks for machine harness/model favorites and usage-based 
 
 ## Layout
 
-| Path                                 | Role                                          |
-| ------------------------------------ | --------------------------------------------- |
-| `stores/machineConfigUsageStore.ts`  | Device-local frécency (localStorage)          |
-| `hooks/useMachineConfigUsage.ts`     | React binding for usage store                 |
-| `hooks/useMachineConfigFavorites.ts` | Convex-backed favorites + composes usage hook |
+| Path                                      | Role                                          |
+| ----------------------------------------- | --------------------------------------------- |
+| `stores/machineConfigUsageStore.ts`       | Device-local frécency (localStorage)          |
+| `hooks/useMachineConfigUsage.ts`          | React binding for usage store                 |
+| `hooks/useMachineConfigFavorites.ts`      | Convex-backed favorites + composes usage hook |
+| `types/machineConfig.ts`                  | MachineConfigEntry type + helpers             |
+| `lib/computeRecommendedMachineConfigs.ts` | Ranking logic for config recommendations      |
+| `lib/machineConfigScopeKey.ts`            | Machine-scoped scope key helpers              |
 
 Server favorites API: `services/backend/convex/machineConfigFavorites.ts`
 
-Shared types: top-level `types/machineConfig.ts` (still to move into `features/machine-config/types/`)
-
-Ranking logic: top-level `lib/computeRecommendedMachineConfigs.ts` (still to move into `features/machine-config/lib/`)
-
-Machine scope keys: `buildMachineFavoriteScopeKey` / `buildMachineConfigScopeKey` live in shared `lib/teamRoleKey.ts` today; only those helpers should move here later — keep `buildTeamRoleKey` shared.
+Shared types: `types/machine.ts` (AgentHarness stays shared).
 
 See [chatroom-store-conventions.md](../../../../../../docs/developer/chatroom-store-conventions.md) for the full convention and remaining migration checklist.

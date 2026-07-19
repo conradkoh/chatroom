@@ -25,7 +25,7 @@ apps/webapp/src/modules/chatroom/
         compute<Thing>.ts
       types/                     # Domain types once moved out of top-level types/
       README.md                  # Domain-specific notes (optional)
-  lib/                           # Shared primitives (frecencyScoring, teamRoleKey)
+  lib/                           # Shared primitives (frecencyScoring, …)
   types/                         # Shared types until moved into a feature
   workspace/                     # Workspace UI domain (file tree store still here — see migration)
 ```
@@ -79,28 +79,27 @@ apps/webapp/src/modules/chatroom/
 
 ### Done
 
-| Item                                               | Notes                                                                                                                                                                |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Machine-config usage store + usage/favorites hooks | Under `features/machine-config/`. Legacy re-export shims (`lib/machineConfigUsageStore.ts`, top-level `hooks/useMachineConfigFavorites.ts`) are **already removed**. |
-| Search-config feature                              | Under `features/search-config/` with `stores/` + `hooks/` + `types/` — follows this layout. Not listed in older migration checklists.                                |
+| Item                                               | Notes                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Machine-config usage store + usage/favorites hooks | Under `features/machine-config/`. Legacy re-export shims (`lib/machineConfigUsageStore.ts`, top-level `hooks/useMachineConfigFavorites.ts`) are **already removed**.                                                                                                                 |
+| Search-config feature                              | Under `features/search-config/` with `stores/` + `hooks/` + `types/` — follows this layout. Not listed in older migration checklists.                                                                                                                                                |
+| Command usage store                                | Moved to `features/run-command/stores/commandUsageStore.ts`. Subscribe + revision added. `useCommandRanking.ts` uses `useSyncExternalStore`. Reset Command Stats goes through `useCommandUsage()` hook — no store getters in palette components.                                     |
+| Command favorites store                            | Moved to `features/run-command/stores/commandFavoritesStore.ts`. Subscribe + revision added; `useCommandFavorites.ts` uses `useSyncExternalStore`; CustomEvent `chatroom:favorites-changed` removed.                                                                                 |
+| Machine-config types + helpers                     | `types/machineConfig.ts` → `features/machine-config/types/`; `lib/computeRecommendedMachineConfigs.ts` → `features/machine-config/lib/`.                                                                                                                                             |
+| Machine scope key helpers                          | `buildMachineFavoriteScopeKey` / `buildMachineConfigScopeKey` moved to `features/machine-config/lib/machineConfigScopeKey.ts`. Webapp no longer needed `buildTeamRoleKey` (backend owns `services/backend/convex/utils/teamRoleKey.ts`); removed unused webapp `lib/teamRoleKey.ts`. |
+| Workspace file tree store                          | Moved to `workspace/stores/workspaceFileTreeStore.ts`. `useClearWorkspaceFileTree` hook introduced for UI purge. AgentSettingsModal uses the hook — no store imports in components. Already had subscribe + useSyncExternalStore.                                                    |
+| Reducer-in-hook stores (message + harness)         | Message reducer extracted to `hooks/chatroomMessageStore.ts` (no React/Convex imports). Harness reducer/types moved to `direct-harness/stores/`. Hooks use `useReducer` from the pure module.                                                                                        |
+| Legend State for message/harness delta stores      | **Evaluated — deferred.** Pure reducer extract lands first. Full `@legendapp/state` migration remains a follow-up (see legend-state-signals.md) because dual Convex subscriptions + load-older/trim make a one-shot rewrite high-risk.                                               |
 
 ### Remaining
 
-| Priority | Item                                  | Current location                                                                     | Target / action                                                                                                                                                                                                                                                                              |
-| -------- | ------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1        | Command usage store                   | `lib/commandUsageStore.ts`                                                           | Move to `features/run-command/stores/`. Add `subscribe` + revision; replace version-bump in `hooks/useCommandRanking.ts`.                                                                                                                                                                    |
-| 1        | Command favorites store               | `lib/commandFavoritesStore.ts` + `features/run-command/hooks/useCommandFavorites.ts` | Move store under `features/run-command/stores/`. Replace version-bump with `useSyncExternalStore`. Stop direct `getCommandFavoritesStore()` / `getCommandUsageStore()` from `components/CommandPalette/useCommandPaletteCommands.tsx`.                                                       |
-| 2        | Machine-config types + ranking helper | `types/machineConfig.ts`, `lib/computeRecommendedMachineConfigs.ts`                  | Move into `features/machine-config/types/` and `features/machine-config/lib/`.                                                                                                                                                                                                               |
-| 2        | Machine scope key helpers             | `lib/teamRoleKey.ts` (`buildMachineFavoriteScopeKey`, `buildMachineConfigScopeKey`)  | Prefer moving **only** the machine-scoped helpers into `features/machine-config/lib/`. Keep `buildTeamRoleKey` (and any shared key helpers) in `lib/teamRoleKey.ts` for parity with `services/backend/convex/utils/teamRoleKey.ts` — do **not** relocate the whole file into machine-config. |
-| 3        | Workspace file tree store             | `workspace/files/workspaceFileTreeStore.ts`                                          | Already has `subscribe` + `useWorkspaceFileTreeStoreRevision` (`useSyncExternalStore`). Relocate to `workspace/stores/` (or `features/workspace/stores/`) with consistent naming; stop direct store imports from UI such as `components/AgentSettingsModal.tsx`.                             |
-| 4        | Reducer-in-hook stores                | `hooks/useChatroomMessageStore.ts`, `direct-harness/hooks/useHarnessTurnStore*.ts`   | Extract reducers into `*Store.ts` modules. Evaluate Legend State per [legend-state-signals.md](./legend-state-signals.md). Note: harness turn store is already split across Core/Streaming hooks — extract shared state next, do not invent a parallel API.                                  |
-| Decision | Command favorites persistence         | localStorage today                                                                   | Decide whether to migrate to Convex (like machine-config / search-config favorites) before or after the store move. Keep local until decided.                                                                                                                                                |
+| Decision | Command favorites persistence | localStorage today | Decide whether to migrate to Convex (like machine-config / search-config favorites) before or after the store move. Keep local until decided. |
 
 ### Explicitly out of date (do not re-do)
 
 - Removing machine-config re-export shims — already done; import from `features/machine-config/` only.
 - Treating `search-config` as not yet adopting the convention — it already does.
-- Moving all of `lib/teamRoleKey.ts` into machine-config — would break the shared / backend-parity story.
+- Moving all of `lib/teamRoleKey.ts` into machine-config — superseded; webapp file removed after machine helpers moved; backend retains `buildTeamRoleKey`.
 
 ## Related docs
 

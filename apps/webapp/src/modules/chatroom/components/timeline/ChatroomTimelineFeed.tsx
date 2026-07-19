@@ -21,8 +21,8 @@ import type {
 import { useChatroomTimelineFeedData } from '../../hooks/useChatroomTimelineFeedData';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 import { EventStreamModal } from '../EventStreamModal';
-import { StandingInstructionsBar } from '../StandingInstructionsBar';
 import { QueuedMessagesIndicator } from '../QueuedMessagesIndicator';
+import { StandingInstructionsBar } from '../StandingInstructionsBar';
 import { TimelineEventCountMenu } from './TimelineEventCountMenu';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
@@ -37,7 +37,7 @@ import {
   TIMELINE_PADDING_END,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
-import { MESSAGE_STORE_LIMIT } from '../../hooks/useChatroomMessageStore';
+import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 

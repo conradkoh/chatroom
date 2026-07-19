@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineEventCountMenu } from './TimelineEventCountMenu';
-import { MESSAGE_STORE_LIMIT } from '../../hooks/useChatroomMessageStore';
+import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
 
 const mockUseIsDesktop = vi.fn(() => true);
 

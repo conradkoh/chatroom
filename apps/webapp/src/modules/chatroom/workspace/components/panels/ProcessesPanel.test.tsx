@@ -4,10 +4,16 @@
  * Tests: renders header, sidebar items, detail panel switching, clear-stuck button.
  */
 
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CommandRun, RunnableCommand, OutputChunk } from '../../../features/run-command/types/run';
+
+import { ProcessesPanel } from './ProcessesPanel';
+import type {
+  CommandRun,
+  RunnableCommand,
+  OutputChunk,
+} from '../../../features/run-command/types/run';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -50,10 +56,12 @@ vi.mock('@/components/ui/alert-dialog', () => ({
 }));
 
 // Stub commandFavoritesStore
-vi.mock('../../../lib/commandFavoritesStore', () => ({
-  getCommandFavoritesStore: () => ({
-    getAll: () => new Set<string>(),
+vi.mock('../../../features/run-command/hooks/useCommandFavorites', () => ({
+  useCommandFavorites: () => ({
+    favorites: new Set<string>(),
     toggle: vi.fn(),
+    isFavorite: vi.fn(),
+    revision: 0,
   }),
 }));
 
@@ -63,8 +71,6 @@ vi.mock('../../../features/run-command/components/TerminalView', () => ({
     <div data-testid="terminal-view" />
   )),
 }));
-
-import { ProcessesPanel } from './ProcessesPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

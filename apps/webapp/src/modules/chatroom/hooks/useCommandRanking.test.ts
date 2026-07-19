@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test } from 'vitest';
 
 import { useCommandRanking } from './useCommandRanking';
 import type { CommandItem } from '../components/CommandPalette/types';
-import { getCommandUsageStore } from '../lib/commandUsageStore';
+import { getCommandUsageStore } from '../features/run-command/stores/commandUsageStore';
 
 function makeCmd(id: string, label: string, category = 'Test'): CommandItem {
   return { id, label, category, action: () => undefined };
