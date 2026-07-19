@@ -30,6 +30,7 @@ import { logLoadOlder } from './timelineLoadOlderDebug';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
+  jumpToNewMessagesBottomOffset,
   shouldTriggerLoadOlder,
   TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_ESTIMATE_SIZE,
@@ -74,6 +75,34 @@ export function ChatroomTimelineFeed({
   const tailMeasureRef = useRef<{ id: string; size: number } | null>(null);
   const prevEventCountRef = useRef(0);
   const prevIsLoadingOlderRef = useRef(false);
+  const [footerChromeHeight, setFooterChromeHeight] = useState(0);
+  const footerResizeObserverRef = useRef<ResizeObserver | null>(null);
+  const footerChromeRef = useRef<HTMLDivElement | null>(null);
+
+  const footerChromeRefCallback = useCallback((node: HTMLDivElement | null) => {
+    footerChromeRef.current = node;
+    footerResizeObserverRef.current?.disconnect();
+    footerResizeObserverRef.current = null;
+    if (!node) {
+      setFooterChromeHeight(0);
+      return;
+    }
+    const measure = () => {
+      const next = node.offsetHeight;
+      setFooterChromeHeight((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    footerResizeObserverRef.current = ro;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      footerResizeObserverRef.current?.disconnect();
+      footerResizeObserverRef.current = null;
+    };
+  }, []);
 
   const {
     events,
@@ -360,20 +389,8 @@ export function ChatroomTimelineFeed({
     virtualizedContentHeight,
   ]);
 
-  const footer = (
-    <>
-      <EventStreamModal
-        isOpen={isEventStreamOpen}
-        onClose={() => setIsEventStreamOpen(false)}
-        events={(eventsPaginated.results as EventStreamEvent[] | undefined) ?? []}
-        isLoading={
-          isEventStreamOpen &&
-          (eventsPaginated.results === undefined || eventsPaginated.status === 'LoadingFirstPage')
-        }
-        onLoadMore={() => eventsPaginated.loadMore(20)}
-        hasMore={eventsPaginated.status === 'CanLoadMore'}
-        machines={machines}
-      />
+  const footerChrome = (
+    <div ref={footerChromeRefCallback} data-testid="timeline-footer-chrome">
       <StandingInstructionsBar chatroomId={chatroomId as Id<'chatroom_rooms'>} />
       <QueuedMessagesIndicator chatroomId={chatroomId as Id<'chatroom_rooms'>} />
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
@@ -388,6 +405,24 @@ export function ChatroomTimelineFeed({
           onPurge={handlePurgeLoadedHistory}
         />
       </div>
+    </div>
+  );
+
+  const footer = (
+    <>
+      <EventStreamModal
+        isOpen={isEventStreamOpen}
+        onClose={() => setIsEventStreamOpen(false)}
+        events={(eventsPaginated.results as EventStreamEvent[] | undefined) ?? []}
+        isLoading={
+          isEventStreamOpen &&
+          (eventsPaginated.results === undefined || eventsPaginated.status === 'LoadingFirstPage')
+        }
+        onLoadMore={() => eventsPaginated.loadMore(20)}
+        hasMore={eventsPaginated.status === 'CanLoadMore'}
+        machines={machines}
+      />
+      {footerChrome}
     </>
   );
 
@@ -488,7 +523,8 @@ export function ChatroomTimelineFeed({
         <button
           type="button"
           onClick={() => coordinator.current.jumpToEnd()}
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          style={{ bottom: jumpToNewMessagesBottomOffset(footerChromeHeight) }}
+          className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >
           <ChevronDown size={16} />

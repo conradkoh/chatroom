@@ -66,3 +66,14 @@ export const TIMELINE_PADDING_END = 16;
 export function getTimelineItemKey(index: number, events: TimelineEvent[]): string {
   return events[index]?.id ?? String(index);
 }
+
+/** Gap between the jump-to-new-messages chip and the timeline footer chrome. */
+export const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
+
+/** Bottom CSS px offset so the chip sits above the measured footer chrome. */
+export function jumpToNewMessagesBottomOffset(
+  footerChromeHeightPx: number,
+  gapPx: number = JUMP_TO_NEW_MESSAGES_GAP_PX
+): number {
+  return Math.max(0, footerChromeHeightPx) + gapPx;
+}

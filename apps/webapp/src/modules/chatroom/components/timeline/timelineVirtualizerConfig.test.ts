@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+  jumpToNewMessagesBottomOffset,
   shouldTriggerLoadOlder,
   TIMELINE_LOAD_OLDER_SENTINEL_INDEX,
   TIMELINE_LOAD_OLDER_TOP_SCROLL_FRACTION,
@@ -58,6 +59,24 @@ describe('shouldTriggerLoadOlder', () => {
         topChromeHeight: 32,
       })
     ).toBe(false);
+  });
+
+  describe('jumpToNewMessagesBottomOffset', () => {
+    it('returns gap only when footer height is zero', () => {
+      expect(jumpToNewMessagesBottomOffset(0)).toBe(8);
+    });
+
+    it('returns footer height plus gap', () => {
+      expect(jumpToNewMessagesBottomOffset(96)).toBe(104);
+    });
+
+    it('clamps negative height to zero before adding gap', () => {
+      expect(jumpToNewMessagesBottomOffset(-10)).toBe(8);
+    });
+
+    it('accepts custom gap', () => {
+      expect(jumpToNewMessagesBottomOffset(96, 16)).toBe(112);
+    });
   });
 
   it('does not trigger when sentinel index is visible but scroll is below the top fraction', () => {
