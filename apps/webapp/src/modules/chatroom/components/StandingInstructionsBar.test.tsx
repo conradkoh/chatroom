@@ -50,13 +50,11 @@ describe('StandingInstructionsBar', () => {
     expect(screen.getByText('Add standing instructions')).toBeInTheDocument();
   });
 
-  it('shows preview with inline actions on desktop', () => {
+  it('shows active bar with label and content', () => {
     mockQueryResult = { content: 'Always use TypeScript', enabled: true };
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     expect(screen.getByText('Standing instructions')).toBeInTheDocument();
     expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
-    expect(screen.getByText('Edit')).toBeInTheDocument();
-    expect(screen.getByText('Disable')).toBeInTheDocument();
   });
 
   it('opens edit mode on add button click', async () => {
@@ -70,9 +68,8 @@ describe('StandingInstructionsBar', () => {
 
   it('Confirm button uses text-chatroom-text-on-accent not text-white', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'test', enabled: true };
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
-    await user.click(screen.getByText('Edit'));
+    await user.click(screen.getByText('Add standing instructions'));
 
     const confirmBtn = screen.getByText('Confirm');
     expect(confirmBtn.className).toContain('text-chatroom-text-on-accent');
@@ -81,10 +78,8 @@ describe('StandingInstructionsBar', () => {
 
   it('Escape in textarea cancels edit without saving', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'original', enabled: true };
-
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
-    await user.click(screen.getByText('Edit'));
+    await user.click(screen.getByText('Add standing instructions'));
 
     const textarea = screen.getByPlaceholderText('Enter standing instructions…');
     await user.clear(textarea);
@@ -92,16 +87,12 @@ describe('StandingInstructionsBar', () => {
     await user.keyboard('{Escape}');
 
     expect(mockUpsert).not.toHaveBeenCalled();
-    expect(screen.getByText('Standing instructions')).toBeInTheDocument();
-    expect(screen.getByText('original')).toBeInTheDocument();
   });
 
   it('Ctrl+Enter in textarea confirms and saves', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'original', enabled: true };
-
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
-    await user.click(screen.getByText('Edit'));
+    await user.click(screen.getByText('Add standing instructions'));
 
     const textarea = screen.getByPlaceholderText('Enter standing instructions…');
     await user.clear(textarea);
@@ -113,27 +104,5 @@ describe('StandingInstructionsBar', () => {
       chatroomId: ROOM_ID,
       content: 'updated instruction',
     });
-  });
-
-  it('shows mobile drawer with actions when not desktop', async () => {
-    const user = userEvent.setup();
-    mockUseIsDesktop.mockReturnValue(false);
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
-
-    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
-    expect(screen.queryByText('Edit')).not.toBeInTheDocument();
-
-    await user.click(screen.getByText('Standing instructions'));
-    expect(screen.getByText('Edit')).toBeInTheDocument();
-    expect(screen.getByText('Disable')).toBeInTheDocument();
-    expect(screen.getByText('Delete')).toBeInTheDocument();
-  });
-
-  it('shows inline Edit on desktop and no mobile drawer', () => {
-    mockUseIsDesktop.mockReturnValue(true);
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
-
-    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
-    expect(screen.getByText('Edit')).toBeInTheDocument();
   });
 });

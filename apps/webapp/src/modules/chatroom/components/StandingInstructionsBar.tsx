@@ -3,13 +3,10 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { BookOpen, Plus, X } from 'lucide-react';
+import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useState, type KeyboardEvent } from 'react';
 
-import { MOBILE_DRAWER_CONTENT_CLASSNAME } from './picker/mobileDrawerLayout';
-
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { PickerOptionRow, PickerScrollBody, ResponsivePickerShell } from './picker';
 
 interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -17,9 +14,6 @@ interface StandingInstructionsBarProps {
 
 const BAR_SHELL =
   'min-h-9 px-3 py-1.5 border-b border-chatroom-status-info/15 bg-chatroom-status-info/5 flex items-center gap-2';
-
-const ACTION_ROW =
-  'w-full min-h-12 px-4 py-3 text-left text-sm font-medium text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
@@ -79,92 +73,17 @@ function EditingPanel(props: {
   );
 }
 
-function ActionsDrawer(props: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onEdit: () => void;
-  onDisable: () => void;
-  onDelete: () => void;
-}) {
-  const { open, onOpenChange, onEdit, onDisable, onDelete } = props;
-  return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className={MOBILE_DRAWER_CONTENT_CLASSNAME}>
-        <DrawerHeader>
-          <DrawerTitle>Standing instructions</DrawerTitle>
-        </DrawerHeader>
-        <div className="flex flex-col p-2 gap-1">
-          <button type="button" onClick={onEdit} className={ACTION_ROW}>
-            Edit
-          </button>
-          <button type="button" onClick={onDisable} className={ACTION_ROW}>
-            Disable
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className={`${ACTION_ROW} text-destructive hover:text-destructive/80`}
-          >
-            Delete
-          </button>
-        </div>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-
-function ActiveDesktopBar(props: {
-  content: string;
-  onEdit: () => void;
-  onDisable: () => void;
-  onDelete: () => void;
-}) {
-  const { content, onEdit, onDisable, onDelete } = props;
-  return (
-    <div className={BAR_SHELL}>
-      <BookOpen size={12} className="shrink-0 text-chatroom-status-info" />
-      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info shrink-0">
-        Standing instructions
-      </span>
-      <span className="text-xs text-chatroom-text-secondary truncate flex-1">{content}</span>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info hover:text-chatroom-status-info/70 transition-colors shrink-0"
-      >
-        Edit
-      </button>
-      <button
-        type="button"
-        onClick={onDisable}
-        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors shrink-0"
-      >
-        Disable
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-destructive transition-colors shrink-0"
-      >
-        <X size={10} />
-      </button>
-    </div>
-  );
-}
-
-function ActiveMobileBar(props: { content: string; onOpenActions: () => void }) {
-  const { content, onOpenActions } = props;
+function ActiveBarTrigger(props: { content: string }) {
   return (
     <button
       type="button"
-      onClick={onOpenActions}
       className={`${BAR_SHELL} w-full text-left cursor-pointer hover:bg-chatroom-status-info/10 transition-colors`}
     >
       <BookOpen size={12} className="shrink-0 text-chatroom-status-info" />
       <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info shrink-0">
         Standing instructions
       </span>
-      <span className="text-xs text-chatroom-text-secondary truncate flex-1">{content}</span>
+      <span className="text-xs text-chatroom-text-secondary truncate flex-1">{props.content}</span>
     </button>
   );
 }
@@ -183,7 +102,6 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(storedContent);
   const [actionsOpen, setActionsOpen] = useState(false);
-  const isDesktop = useIsDesktop();
 
   const handleConfirm = useCallback(async () => {
     await upsertMutation({ chatroomId, content: draft });
@@ -244,27 +162,26 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     );
   }
 
-  if (isDesktop) {
-    return (
-      <ActiveDesktopBar
-        content={storedContent}
-        onEdit={startEditing}
-        onDisable={handleDisable}
-        onDelete={handleDelete}
-      />
-    );
-  }
-
   return (
-    <>
-      <ActiveMobileBar content={storedContent} onOpenActions={() => setActionsOpen(true)} />
-      <ActionsDrawer
-        open={actionsOpen}
-        onOpenChange={setActionsOpen}
-        onEdit={startEditing}
-        onDisable={handleDisable}
-        onDelete={handleDelete}
-      />
-    </>
+    <ResponsivePickerShell
+      open={actionsOpen}
+      onOpenChange={setActionsOpen}
+      title="Standing instructions"
+      align="start"
+      contentClassName="w-56 p-0"
+      trigger={<ActiveBarTrigger content={storedContent} />}
+    >
+      <PickerScrollBody>
+        <PickerOptionRow selected={false} onSelect={startEditing}>
+          Edit
+        </PickerOptionRow>
+        <PickerOptionRow selected={false} onSelect={handleDisable}>
+          Disable
+        </PickerOptionRow>
+        <PickerOptionRow selected={false} onSelect={handleDelete}>
+          <span className="text-destructive">Delete</span>
+        </PickerOptionRow>
+      </PickerScrollBody>
+    </ResponsivePickerShell>
   );
 });
