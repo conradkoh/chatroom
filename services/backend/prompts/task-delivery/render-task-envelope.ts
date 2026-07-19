@@ -7,6 +7,7 @@ import { appendTaskDeliveryContextSection } from './context-staleness.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
 import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
+import { appendStandingInstructionsSection } from './render-standing-instructions.js';
 
 export interface TaskEnvelopeParams {
   task: { _id: string; content: string };
@@ -23,6 +24,7 @@ export interface TaskEnvelopeParams {
   deliveryMode: 'cli' | 'native';
   /** CLI-only: token activity note rendered inside <task> */
   intakeNote?: string;
+  standingInstructions?: string | null;
 }
 
 function taskOpenTag(params: Pick<TaskEnvelopeParams, 'task' | 'message'>): string {
@@ -67,6 +69,8 @@ export function renderTaskEnvelopeLines(params: TaskEnvelopeParams): string[] {
     followUpCountSinceOrigin: params.followUpCountSinceOrigin ?? 0,
     originMessageCreatedAt: params.originMessageCreatedAt ?? null,
   });
+
+  appendStandingInstructionsSection(lines, params.standingInstructions);
 
   lines.push(
     ...renderDeliveryAttachmentsBlock(params.sourceAttachments ?? {}, {

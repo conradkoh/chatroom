@@ -111,6 +111,13 @@ test('nested FixedModal picker search focuses after tap', async ({ page }) => {
   await expect(search).toHaveValue('Claude');
 });
 
+test('standing instructions bar opens drawer on mobile', async ({ page }) => {
+  await page.getByTestId('open-standing-instructions-bar').click();
+  await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
+  await expect(page.locator('[data-slot="chatroom-popover-content"]')).toHaveCount(0);
+  await expect(page.getByRole('option', { name: 'Edit' })).toBeVisible();
+});
+
 test('filter panel picker uses scroll body inside drawer', async ({ page }) => {
   await page.getByTestId('open-filter-picker').click();
   await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
