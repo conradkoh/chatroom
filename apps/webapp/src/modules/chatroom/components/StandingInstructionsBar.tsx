@@ -449,7 +449,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         open={actionsOpen}
         onOpenChange={setActionsOpen}
         title="Standing instructions"
-        align="start"
+        anchorToPointer
         contentClassName="w-56 p-0"
         trigger={
           <button

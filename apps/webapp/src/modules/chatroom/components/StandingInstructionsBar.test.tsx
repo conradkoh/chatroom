@@ -141,6 +141,8 @@ describe('StandingInstructionsBar', () => {
       expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
       expect(screen.getByText('Disable')).toBeInTheDocument();
       expect(screen.queryByText('Enable')).not.toBeInTheDocument();
+      // anchorToPointer renders the pointer anchor on desktop
+      expect(document.querySelector('[data-testid="picker-pointer-anchor"]')).toBeInTheDocument();
     });
 
     it('opens drawer on mobile with correct slot', async () => {
