@@ -11,8 +11,11 @@ import {
   PickerOptionRow,
   PickerPanelHeader,
   PickerScrollBody,
+  PickerSearch,
   ResponsivePickerShell,
+  filterPickerItems,
   getMobileDrawerContentStyle,
+  usePickerSearchState,
 } from './picker';
 import { MOBILE_DRAWER_CONTENT_CLASSNAME } from './picker/mobileDrawerLayout';
 import { useOverlayPortalContainer } from './shared/overlayPortalContainer';
@@ -20,6 +23,13 @@ import { useOverlayPortalContainer } from './shared/overlayPortalContainer';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+
+type HistoryItem = {
+  _id: Id<'chatroom_standingInstructionHistory'>;
+  content: string;
+  useCount: number;
+  lastUsedAt: number;
+};
 
 interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -65,13 +75,109 @@ function onStandingEditorKeyDown(
   onConfirm();
 }
 
-function EditingPanel(props: {
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onConfirm: () => void;
-  onCancel: () => void;
+function HistoryInlineList(props: {
+  items: HistoryItem[];
+  onSelect: (item: HistoryItem) => void;
+  onViewMore: () => void;
 }) {
-  const { draft, onDraftChange, onConfirm, onCancel } = props;
+  const { items, onSelect, onViewMore } = props;
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1 border-t border-chatroom-border pt-1.5">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted px-0.5">
+        From history
+      </div>
+      <ul className="flex flex-col">
+        {items.map((item) => (
+          <li key={item._id}>
+            <button
+              type="button"
+              onClick={() => onSelect(item)}
+              className="w-full text-left text-xs text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover px-1.5 py-1 truncate transition-colors cursor-pointer"
+              title={item.content}
+            >
+              {item.content}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={onViewMore}
+        className="self-start text-[10px] font-bold uppercase tracking-wider text-chatroom-accent hover:opacity-80 px-1.5 py-0.5 cursor-pointer"
+      >
+        View more
+      </button>
+    </div>
+  );
+}
+
+function HistoryFullPicker(props: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  items: HistoryItem[];
+  onSelect: (item: HistoryItem) => void;
+}) {
+  const { open, onOpenChange, items, onSelect } = props;
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(onOpenChange);
+  const filtered = filterPickerItems(items, searchTerm, (item) => item.content);
+
+  return (
+    <ResponsivePickerShell
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Standing instruction history"
+      align="start"
+      contentClassName="w-72 p-0"
+      trigger={<span className="sr-only">Standing instruction history</span>}
+    >
+      <PickerPanelHeader title="Standing instruction history" />
+      <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search history…" />
+      <PickerScrollBody>
+        {filtered.length === 0 ? (
+          <div className="px-3 py-2 text-xs text-chatroom-text-muted">No matches</div>
+        ) : (
+          filtered.map((item) => (
+            <PickerOptionRow
+              key={item._id}
+              selected={false}
+              onSelect={() => {
+                onSelect(item);
+                handleOpenChange(false);
+              }}
+            >
+              {item.content}
+            </PickerOptionRow>
+          ))
+        )}
+      </PickerScrollBody>
+    </ResponsivePickerShell>
+  );
+}
+
+type HistoryEditorProps = {
+  historyTop3?: HistoryItem[];
+  onSelectHistory?: (item: HistoryItem) => void;
+  onViewMoreHistory?: () => void;
+};
+
+function EditingPanel(
+  props: {
+    draft: string;
+    onDraftChange: (value: string) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } & HistoryEditorProps
+) {
+  const {
+    draft,
+    onDraftChange,
+    onConfirm,
+    onCancel,
+    historyTop3,
+    onSelectHistory,
+    onViewMoreHistory,
+  } = props;
   return (
     <div className={`${BAR_CHROME} flex flex-col gap-1.5`}>
       <textarea
@@ -99,18 +205,36 @@ function EditingPanel(props: {
           Cancel
         </button>
       </div>
+      {historyTop3 && onSelectHistory && onViewMoreHistory ? (
+        <HistoryInlineList
+          items={historyTop3}
+          onSelect={onSelectHistory}
+          onViewMore={onViewMoreHistory}
+        />
+      ) : null}
     </div>
   );
 }
 
-function MobileEditingDrawer(props: {
-  open: boolean;
-  draft: string;
-  onDraftChange: (value: string) => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const { open, draft, onDraftChange, onConfirm, onCancel } = props;
+function MobileEditingDrawer(
+  props: {
+    open: boolean;
+    draft: string;
+    onDraftChange: (value: string) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } & HistoryEditorProps
+) {
+  const {
+    open,
+    draft,
+    onDraftChange,
+    onConfirm,
+    onCancel,
+    historyTop3,
+    onSelectHistory,
+    onViewMoreHistory,
+  } = props;
   const keyboardInsetPx = useVisualViewportKeyboardInset(open);
   const portalContainer = useOverlayPortalContainer();
 
@@ -159,6 +283,13 @@ function MobileEditingDrawer(props: {
               Cancel
             </button>
           </div>
+          {historyTop3 && onSelectHistory && onViewMoreHistory ? (
+            <HistoryInlineList
+              items={historyTop3}
+              onSelect={onSelectHistory}
+              onViewMore={onViewMoreHistory}
+            />
+          ) : null}
         </div>
       </DrawerContent>
     </Drawer>
@@ -184,23 +315,31 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
   const clearMutation = useSessionMutation(api.standingInstructions.clear);
 
+  const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
+  const recordUseMutation = useSessionMutation(api.standingInstructions.recordUse);
+
   const [editing, setEditing] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [draft, setDraft] = useState(storedContent);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
 
   const handleConfirm = useCallback(async () => {
     await upsertMutation({ chatroomId, content: draft });
     setEditing(false);
+    setIsAdding(false);
   }, [chatroomId, draft, upsertMutation]);
 
   const handleCancel = useCallback(() => {
     setDraft(storedContent);
     setEditing(false);
+    setIsAdding(false);
   }, [storedContent]);
 
   const startEditing = useCallback(() => {
     setDraft(storedContent);
     setActionsOpen(false);
+    setIsAdding(false);
     setEditing(true);
   }, [storedContent]);
 
@@ -219,7 +358,29 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     await clearMutation({ chatroomId });
     setDraft('');
     setEditing(false);
+    setIsAdding(false);
   }, [chatroomId, clearMutation]);
+
+  const handleSelectHistory = useCallback(
+    async (item: HistoryItem) => {
+      const result = await recordUseMutation({ historyId: item._id });
+      setDraft(result.content);
+      setHistoryPickerOpen(false);
+    },
+    [recordUseMutation]
+  );
+
+  const historyTop3 = history.slice(0, 3);
+
+  const historyEditorProps: HistoryEditorProps | undefined = isAdding
+    ? {
+        historyTop3,
+        onSelectHistory: (item) => {
+          void handleSelectHistory(item);
+        },
+        onViewMoreHistory: () => setHistoryPickerOpen(true),
+      }
+    : undefined;
 
   const editorHandlers = {
     draft,
@@ -228,10 +389,27 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       void handleConfirm();
     },
     onCancel: handleCancel,
+    ...historyEditorProps,
   };
 
+  const historyFullPicker = isAdding ? (
+    <HistoryFullPicker
+      open={historyPickerOpen}
+      onOpenChange={setHistoryPickerOpen}
+      items={history}
+      onSelect={(item) => {
+        void handleSelectHistory(item);
+      }}
+    />
+  ) : null;
+
   if (editing && isDesktop) {
-    return <EditingPanel {...editorHandlers} />;
+    return (
+      <>
+        <EditingPanel {...editorHandlers} />
+        {historyFullPicker}
+      </>
+    );
   }
 
   const mobileEditor =
@@ -244,6 +422,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
           type="button"
           onClick={() => {
             setDraft('');
+            setIsAdding(true);
             setEditing(true);
           }}
           className={`${mobileBarMinH(isDesktop)} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
@@ -259,6 +438,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
           </span>
         </button>
         {mobileEditor}
+        {historyFullPicker}
       </>
     );
   }
@@ -319,6 +499,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         </PickerScrollBody>
       </ResponsivePickerShell>
       {mobileEditor}
+      {historyFullPicker}
     </>
   );
 });

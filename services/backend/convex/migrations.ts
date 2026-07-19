@@ -465,6 +465,46 @@ export const migrateMachineConfigFavoritesToMachineScope = migrations.define({
   },
 });
 
+/**
+ * Migration: Seed per-user standing-instruction history from existing room instructions.
+ * For each room with non-empty standingInstructions, upsert into
+ * chatroom_standingInstructionHistory for room.ownerId.
+ *
+ * On first run: inserts distinct (ownerId, content) pairs with useCount=1.
+ * Re-runs skip existing (ownerId, contentKey) pairs without bumping useCount.
+ * This means if multiple rooms share the same text for one owner, it's recorded
+ * once with useCount=1. Live use via upsert/recordUse increments after seeding.
+ *
+ * Usage: npx convex run migrations:run '{"fn":"migrations:seedStandingInstructionHistory"}'
+ * Idempotent: re-run skips pairs that already exist.
+ */
+export const seedStandingInstructionHistory = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => {
+    const content = (room.standingInstructions ?? '').trim();
+    if (!content) return;
+    if (content.length > 10_000) return;
+    if (!room.ownerId) return;
+    const contentKey = content;
+    const existing = await ctx.db
+      .query('chatroom_standingInstructionHistory')
+      .withIndex('by_userId_contentKey', (q) =>
+        q.eq('userId', room.ownerId).eq('contentKey', contentKey)
+      )
+      .first();
+    if (existing) return;
+    const now = Date.now();
+    await ctx.db.insert('chatroom_standingInstructionHistory', {
+      userId: room.ownerId,
+      content,
+      contentKey,
+      useCount: 1,
+      lastUsedAt: room.lastActivityAt ?? now,
+      createdAt: now,
+    });
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -502,4 +542,6 @@ export const runAll = migrations.runner([
   internal.migrations.setDuoBuilderWantResumeFalse,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
+  // Standing Instructions History
+  internal.migrations.seedStandingInstructionHistory,
 ]);
