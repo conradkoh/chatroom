@@ -25,13 +25,13 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { toast } from 'sonner';
 
 import type { CommandItem, SettingsTab } from './types';
-import { getCommandFavoritesStore } from '../../lib/commandFavoritesStore';
-import { getCommandUsageStore } from '../../lib/commandUsageStore';
+import { useCommandFavorites } from '../../features/run-command/hooks/useCommandFavorites';
+import { useCommandUsage } from '../../features/run-command/hooks/useCommandUsage';
 import type { SavedCommand, SavedCommandScope } from '../../types/savedCommand';
 import {
   formatSavedCommandPaletteLabel,
@@ -158,13 +158,8 @@ export function useCommandPaletteCommands({
   onSwitchToPullRequests,
   onOpenAgenticSearch,
 }: UseCommandPaletteCommandsProps): CommandItem[] {
-  // Track favorites changes from Process Manager via custom event
-  const [favoritesVersion, setFavoritesVersion] = useState(0);
-  useEffect(() => {
-    const handler = () => setFavoritesVersion((v) => v + 1);
-    window.addEventListener('chatroom:favorites-changed', handler);
-    return () => window.removeEventListener('chatroom:favorites-changed', handler);
-  }, []);
+  const { favorites } = useCommandFavorites();
+  const { clearUsage } = useCommandUsage();
 
   return useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [];
@@ -212,9 +207,6 @@ export function useCommandPaletteCommands({
 
     // ─── Favorites (favourited commands from process manager) ────────
     if (runnableCommands) {
-      const favoritesStore = getCommandFavoritesStore();
-      const favorites = favoritesStore.getAll();
-
       for (const cmd of runnableCommands) {
         if (favorites.has(cmd.name)) {
           commands.push({
@@ -376,7 +368,7 @@ export function useCommandPaletteCommands({
         category: 'Preferences',
         keywords: ['reset', 'clear', 'stats', 'usage', 'frecency'],
         action: () => {
-          getCommandUsageStore().clear();
+          clearUsage();
           toast.success('Command stats cleared');
         },
       });
@@ -578,7 +570,7 @@ export function useCommandPaletteCommands({
     onShowExplorer,
     onShowMessages,
     onToggleChatSplitPanel,
-    favoritesVersion,
+    favorites,
     workspaceCommands,
     onStartAllRemoteAgents,
     onStopAllRemoteAgents,

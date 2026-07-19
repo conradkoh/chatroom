@@ -4,16 +4,19 @@ import { useConvex } from 'convex/react';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { useReducer, useEffect, useCallback, useRef, useState } from 'react';
 
-import { harnessTurnStoreInitialState, harnessTurnStoreReducer } from './harnessTurnStoreReducer';
+import { useHarnessTurnStoreStreaming } from './useHarnessTurnStoreStreaming';
+import {
+  harnessTurnStoreInitialState,
+  harnessTurnStoreReducer,
+} from '../stores/harnessTurnStoreReducer';
 import type {
   HarnessTurnStoreConfig,
   HarnessLatestTurnsPage,
   HarnessOlderTurnsPage,
   HarnessTurnsSincePage,
-} from './harnessTurnStoreTypes';
-import { useHarnessTurnStoreStreaming } from './useHarnessTurnStoreStreaming';
+} from '../stores/harnessTurnStoreTypes';
 
-export type { HarnessTurnStoreConfig } from './harnessTurnStoreTypes';
+export type { HarnessTurnStoreConfig } from '../stores/harnessTurnStoreTypes';
 
 export function useHarnessTurnStoreCore<TScopeId extends string>(
   config: HarnessTurnStoreConfig<TScopeId>

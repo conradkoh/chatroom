@@ -9,8 +9,8 @@
  *   New: m1|team_duo#role_planner
  */
 
-import type { MachineConfigEntry } from '../../../types/machineConfig';
-import { buildMachineConfigKey } from '../../../types/machineConfig';
+import type { MachineConfigEntry } from '../types/machineConfig';
+import { buildMachineConfigKey } from '../types/machineConfig';
 
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_TIMESTAMPS_PER_CONFIG = 100;
@@ -29,6 +29,7 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
+// fallow-ignore-next-line complexity
 function migrateV2Scopes(
   scopes: Record<string, Record<string, number[]>>
 ): Record<string, Record<string, number[]>> {

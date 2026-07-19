@@ -7,7 +7,7 @@ import {
   MESSAGE_STORE_LIMIT,
   removeMessagesForTaskId,
   trimMessagesToInitialWindow,
-} from './useChatroomMessageStore';
+} from './chatroomMessageStore';
 import type { Message } from '../types/message';
 
 describe('hasMoreOlderAfterPage', () => {

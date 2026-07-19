@@ -11,12 +11,12 @@ const mockClear = vi.fn();
 const mockRecordUse = vi.fn();
 const mockUseIsDesktop = vi.fn(() => true);
 let mockQueryResult: { content: string; enabled: boolean } = { content: '', enabled: false };
-let mockHistory: Array<{
+let mockHistory: {
   _id: string;
   content: string;
   useCount: number;
   lastUsedAt: number;
-}> = [];
+}[] = [];
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (queryName: unknown) => {
@@ -292,6 +292,78 @@ describe('StandingInstructionsBar', () => {
 
       expect(screen.queryByText('From history')).not.toBeInTheDocument();
     });
+  });
+
+  it('includes PickerPanelHeader in the actions menu', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+
+    expect(screen.getAllByText('Standing instructions').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+  });
+
+  it('uses larger action row classes on mobile', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+    const edit = screen.getByText('Edit').closest('[role="option"]');
+    expect(edit?.className).toContain('min-h-11');
+    expect(edit?.className).toContain('text-sm');
+  });
+
+  it('keeps compact action rows on desktop', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+    const edit = screen.getByText('Edit').closest('[role="option"]');
+    expect(edit?.className).not.toContain('min-h-11');
+  });
+
+  it('opens edit drawer on mobile when Add is clicked', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Add standing instructions'));
+
+    expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
+    expect(screen.getByPlaceholderText('Enter standing instructions…')).toBeInTheDocument();
+    expect(screen.getAllByText('Edit standing instructions').length).toBeGreaterThanOrEqual(1);
+
+    const confirmBtn = screen.getByText('Confirm');
+    expect(confirmBtn.className).toContain('min-h-11');
+    expect(confirmBtn.className).toContain('text-chatroom-text-on-accent');
+    expect(screen.getByText('Add standing instructions')).toBeInTheDocument();
+  });
+
+  it('opens edit drawer on mobile when Edit is chosen from actions', async () => {
+    const user = userEvent.setup();
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Standing instructions'));
+    await user.click(screen.getByText('Edit'));
+
+    expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
+    expect(screen.getByPlaceholderText('Enter standing instructions…')).toBeInTheDocument();
+    expect(screen.getByText('Confirm').className).toContain('min-h-11');
+  });
+
+  it('keeps inline EditingPanel on desktop Add (no edit drawer)', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Add standing instructions'));
+
+    expect(screen.getByPlaceholderText('Enter standing instructions…')).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
+    expect(screen.queryByText('Edit standing instructions')).not.toBeInTheDocument();
   });
 
   it('Ctrl+Enter in textarea confirms and saves', async () => {

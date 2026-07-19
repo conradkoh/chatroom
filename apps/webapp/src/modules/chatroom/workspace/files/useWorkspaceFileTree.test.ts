@@ -6,7 +6,7 @@ import {
   __resetWorkspaceFileTreeStoreForTests,
   getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';
 
 const mocks = vi.hoisted(() => ({
   manifest: null as
@@ -31,9 +31,7 @@ const mocks = vi.hoisted(() => ({
     | null
     | undefined,
   rawV2: undefined as
-    | { scannedAt: number; data: { compression: 'gzip'; content: string } }
-    | null
-    | undefined,
+    { scannedAt: number; data: { compression: 'gzip'; content: string } } | null | undefined,
   checkpoint: null as
     | {
         revision: number;

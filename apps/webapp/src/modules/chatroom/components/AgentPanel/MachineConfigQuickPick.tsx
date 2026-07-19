@@ -3,9 +3,9 @@
 import { ArrowUp, ArrowDown, Star, X, Plus } from 'lucide-react';
 import { memo } from 'react';
 
+import type { MachineConfigEntry } from '../../features/machine-config/types/machineConfig';
 import { getModelDisplayLabel, getHarnessDisplayName } from '../../types/machine';
 import type { AgentHarness } from '../../types/machine';
-import type { MachineConfigEntry } from '../../types/machineConfig';
 
 interface MachineConfigQuickPickProps {
   favorites: MachineConfigEntry[];

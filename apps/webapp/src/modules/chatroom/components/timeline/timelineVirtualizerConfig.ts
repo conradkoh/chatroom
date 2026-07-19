@@ -66,7 +66,3 @@ export const TIMELINE_PADDING_END = 16;
 export function getTimelineItemKey(index: number, events: TimelineEvent[]): string {
   return events[index]?.id ?? String(index);
 }
-
-/** Row height estimate for filtered role message list (team/user tabs). */
-export const FILTERED_MESSAGE_ESTIMATE_SIZE = 120;
-export const FILTERED_MESSAGE_OVERSCAN = 5;

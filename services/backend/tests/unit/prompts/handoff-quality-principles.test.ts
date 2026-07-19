@@ -9,20 +9,21 @@ import {
 const PRINCIPLE_NAMES = [
   'Semantic Consistency',
   'Organization & Maintainability',
+  'Reducing Optionality',
   'Static Evaluability and Provability',
   'No Revisit',
   'Leave It Better',
 ];
 
 describe('handoff-quality-principles', () => {
-  test('getHandoffQualityPrinciplesCommentBlock includes exactly 5 principles', () => {
+  test('getHandoffQualityPrinciplesCommentBlock includes exactly 6 principles', () => {
     const block = getHandoffQualityPrinciplesCommentBlock();
     for (const name of PRINCIPLE_NAMES) {
       expect(block).toContain(name);
     }
     // Count principle bullet lines (not `-->` closing comment)
     const bulletLines = block.split('\n').filter((line) => line.startsWith('- '));
-    expect(bulletLines).toHaveLength(5);
+    expect(bulletLines).toHaveLength(6);
   });
 
   test('getHandoffQualityPrinciplesCommentBlock is an HTML comment', () => {

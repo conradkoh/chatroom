@@ -2,7 +2,10 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 
-import { getWorkspaceFileTreeRevision, subscribeWorkspaceFileTree } from './workspaceFileTreeStore';
+import {
+  getWorkspaceFileTreeRevision,
+  subscribeWorkspaceFileTree,
+} from '../stores/workspaceFileTreeStore';
 
 export function useWorkspaceFileTreeStoreRevision(workspaceKey: string): number | null {
   return useSyncExternalStore(

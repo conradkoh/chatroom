@@ -13,7 +13,7 @@ import {
 } from './multiWorkspaceSlots';
 import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
-import { toWorkspaceFileTreeKey } from './workspaceFileTreeStore';
+import { toWorkspaceFileTreeKey } from '../stores/workspaceFileTreeStore';
 
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import type { Workspace } from '@/modules/chatroom/types/workspace';

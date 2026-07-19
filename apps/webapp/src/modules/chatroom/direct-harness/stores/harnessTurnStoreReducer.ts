@@ -46,6 +46,7 @@ function mergeByIdAndAppend(
   return result;
 }
 
+// fallow-ignore-next-line complexity
 function applyInitialize(
   state: HarnessTurnStoreState,
   action: Extract<HarnessTurnStoreAction, { type: 'INITIALIZE' }>
@@ -98,6 +99,7 @@ function applyRequestOlder(state: HarnessTurnStoreState): HarnessTurnStoreState 
   return { ...state, isLoadingOlder: true, olderQuerySeq: state.oldestTurnSeq };
 }
 
+// fallow-ignore-next-line complexity
 export function harnessTurnStoreReducer(
   state: HarnessTurnStoreState,
   action: HarnessTurnStoreAction
