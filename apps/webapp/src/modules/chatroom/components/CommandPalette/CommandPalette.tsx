@@ -217,6 +217,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                     rows={rows}
                     onSelect={handleSelect}
                     renderCommandItemContent={renderCommandItemContent}
+                    scrollResetKey={searchValue}
                   />
                 </CommandList>
               </Command>

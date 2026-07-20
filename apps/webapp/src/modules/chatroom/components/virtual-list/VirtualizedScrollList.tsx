@@ -15,6 +15,8 @@ export interface VirtualizedScrollListProps<T> {
   overscan?: number;
   listRef?: React.Ref<HTMLDivElement>;
   scrollToItemKey?: string;
+  /** When this value changes, scroll the list back to the top. */
+  scrollResetKey?: string;
 }
 
 export function VirtualizedScrollList<T>({
@@ -27,6 +29,7 @@ export function VirtualizedScrollList<T>({
   overscan = 8,
   listRef,
   scrollToItemKey,
+  scrollResetKey,
 }: VirtualizedScrollListProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
   const prevScrollKeyRef = useRef<string | undefined>(undefined);
@@ -49,6 +52,14 @@ export function VirtualizedScrollList<T>({
     prevScrollKeyRef.current = scrollToItemKey;
     scrollToIndexRef.current(index, { align: 'auto' });
   }, [scrollToItemKey, items, getItemKey]);
+
+  useEffect(() => {
+    if (scrollResetKey === undefined) return;
+    const el = parentRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+    scrollToIndexRef.current(0, { align: 'start' });
+  }, [scrollResetKey]);
 
   const setRef = (el: HTMLDivElement | null) => {
     (parentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
