@@ -32,6 +32,10 @@ import {
 } from './messageInputAutosize';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 
+import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface MessageInputProps {
@@ -152,6 +156,9 @@ export function MessageInput({
   const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
+  const isDesktop = useIsDesktop(640);
+  const mobile = !isDesktop;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
 
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -201,14 +208,16 @@ export function MessageInput({
 
   // Restore draft on mount (once per chatroomId) and auto-focus
   useEffect(() => {
+    if (isTouchDevice === undefined) return;
+
     const saved = parseDraft(localStorage.getItem(draftKey));
     if (saved) setMessage(saved);
     // Auto-focus when switching chatrooms (non-touch devices only)
-    if (!isTouchDevice) {
+    if (isTouchDevice === false) {
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatroomId]);
+  }, [chatroomId, isTouchDevice]);
 
   // Debounced save: write 500ms after the last keystroke, clear when empty
   useEffect(() => {
@@ -398,7 +407,11 @@ export function MessageInput({
   const canSend = message.trim().length > 0 && !sending;
 
   return (
-    <div ref={formContainerRef} className="relative bg-chatroom-bg-surface backdrop-blur-xl">
+    <div
+      ref={formContainerRef}
+      className="relative bg-chatroom-bg-surface backdrop-blur-xl"
+      style={getMobileStickyFooterOffsetStyle(keyboardInsetPx)}
+    >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
         results={fileAutocomplete.autocompleteState.results}

@@ -54,6 +54,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
@@ -93,7 +94,7 @@ export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
 export function shouldSuppressWorkspaceBottomBarSafeArea(
   keyboardInsetPx: number,
   editableFocused: boolean,
-  insetSettled: boolean = true
+  insetSettled = true
 ): boolean {
   if (editableFocused) return true;
   if (!insetSettled) return false;
@@ -1011,7 +1012,10 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
     <div
       data-testid="workspace-bottom-bar"
       className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface select-none"
-      style={{ paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea) }}
+      style={{
+        paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea),
+        ...getMobileStickyFooterOffsetStyle(keyboardInsetPx),
+      }}
     >
       <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
     </div>

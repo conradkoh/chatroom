@@ -10,7 +10,6 @@ import {
   MessageSquare,
   MessageSquareOff,
   Settings2,
-  Square,
   XCircle,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -61,7 +60,6 @@ import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
-import { useAgentStatuses, type AggregateStatus } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -77,6 +75,7 @@ import {
   runAgentStartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
+import { deriveChatStatus, type AgentPresence, type ChatStatus } from './utils/deriveChatStatus';
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
@@ -202,7 +201,7 @@ function ChatroomHeaderBackButton({ onBack }: { onBack?: () => void }) {
   return (
     <button
       type="button"
-      className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+      className="bg-transparent text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary outline-none focus:outline-none focus-visible:outline-none"
       onClick={onBack}
       title="Back to chatroom list"
       aria-label="Back to chatroom list"
@@ -215,7 +214,7 @@ function ChatroomHeaderBackButton({ onBack }: { onBack?: () => void }) {
 interface ChatroomHeaderCenterProps {
   displayName: string;
   chatroomId: string;
-  aggregateStatus: AggregateStatus;
+  chatStatus: ChatStatus;
   isDesktop: boolean;
   onOpenSettings: () => void;
   onSwitchChatrooms: () => void;
@@ -227,21 +226,12 @@ interface ChatroomHeaderCenterProps {
 }
 
 function ChatroomHeaderCenter(props: ChatroomHeaderCenterProps) {
-  const statusClass =
-    props.aggregateStatus === 'working'
-      ? 'text-chatroom-status-info fill-chatroom-status-info'
-      : props.aggregateStatus === 'ready'
-        ? 'text-chatroom-status-success fill-chatroom-status-success'
-        : 'text-chatroom-text-muted fill-chatroom-text-muted';
-
   return (
     <div className="flex items-center gap-2 min-w-0 max-w-full">
-      {props.aggregateStatus !== 'none' && (
-        <Square size={8} className={`shrink-0 ${statusClass}`} aria-hidden />
-      )}
       <ChatroomTitleEditor
         displayName={props.displayName}
         chatroomId={props.chatroomId}
+        chatStatus={props.chatStatus}
         isDesktop={props.isDesktop}
         onOpenSettings={props.onOpenSettings}
         onSwitchChatrooms={props.onSwitchChatrooms}
@@ -961,8 +951,18 @@ export function ChatroomDashboard({
     [teamRoles, participants]
   );
 
-  // Use hook to get aggregate status (event stream + lifecycle)
-  const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
+  const chatStatus = useMemo((): ChatStatus => {
+    if (!chatroom) return 'idle';
+    const agents: AgentPresence[] = participants.map((participant) => ({
+      lastSeenAction: participant.lastSeenAction ?? null,
+      lastStatus: participant.lastStatus ?? null,
+      lastDesiredState: participant.lastDesiredState ?? null,
+      isAlive: participant.isAlive ?? false,
+    }));
+    const roomStatus: 'active' | 'completed' =
+      chatroom.status === 'completed' ? 'completed' : 'active';
+    return deriveChatStatus(roomStatus, agents);
+  }, [chatroom, participants]);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -1570,7 +1570,7 @@ export function ChatroomDashboard({
           <ChatroomHeaderCenter
             displayName={displayName}
             chatroomId={chatroomId}
-            aggregateStatus={aggregateStatus}
+            chatStatus={chatStatus}
             isDesktop={isSmallScreen === false}
             onOpenSettings={handleOpenSettings}
             onSwitchChatrooms={handleOpenChatroomSwitcher}
@@ -1586,7 +1586,7 @@ export function ChatroomDashboard({
             {/* Setup Button - shown when setup modal is dismissed but still in setup mode */}
             {isSetupMode && !setupModalOpen && (
               <button
-                className="bg-chatroom-status-warning/15 border-2 border-chatroom-status-warning/30 text-chatroom-status-warning w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-status-warning/25 hover:border-chatroom-status-warning/50"
+                className="bg-chatroom-status-warning/15 border-2 border-chatroom-status-warning/30 text-chatroom-status-warning w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-status-warning/25 hover:border-chatroom-status-warning/50 outline-none focus:outline-none focus-visible:outline-none"
                 onClick={handleOpenSetup}
                 title="Open setup"
               >
@@ -1610,7 +1610,7 @@ export function ChatroomDashboard({
     onBack,
     listingSidebarVisible,
     sidebarVisible,
-    aggregateStatus,
+    chatStatus,
     focusModeActive,
     setHeaderContent,
     clearHeaderContent,

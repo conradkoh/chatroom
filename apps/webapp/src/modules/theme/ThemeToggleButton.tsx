@@ -6,7 +6,7 @@ import { oppositeThemeAppearance, resolveThemeAppearance } from './theme-utils';
 import { useTheme } from './ThemeProvider';
 
 const headerIconButtonClassName =
-  'bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary';
+  'bg-transparent text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary outline-none focus:outline-none focus-visible:outline-none';
 
 export function ThemeToggleButton() {
   const { theme, setTheme, isThemeReady } = useTheme();

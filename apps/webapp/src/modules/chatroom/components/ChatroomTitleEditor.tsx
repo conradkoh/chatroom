@@ -28,6 +28,11 @@ import {
 } from '@/components/inline-editable-title/inline-editable-title-styles';
 import { InlineEditableTitleEditing } from '@/components/inline-editable-title/InlineEditableTitleEditing';
 import { cn } from '@/lib/utils';
+import {
+  getChatStatusDescription,
+  getChatStatusIndicatorClasses,
+} from '@/modules/chatroom/utils/chatStatusDisplay';
+import type { ChatStatus } from '@/modules/chatroom/utils/deriveChatStatus';
 
 const chatroomTitleDisplayClassName = cn(inlineEditableTitleDisplayClassName, 'text-sm');
 const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-sm');
@@ -35,6 +40,7 @@ const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-
 export interface ChatroomTitleEditorProps {
   displayName: string;
   chatroomId: string;
+  chatStatus: ChatStatus;
   isDesktop?: boolean;
   onOpenSettings?: () => void;
   onSwitchChatrooms?: () => void;
@@ -48,6 +54,7 @@ export interface ChatroomTitleEditorProps {
 export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   displayName,
   chatroomId,
+  chatStatus,
   isDesktop = false,
   onOpenSettings,
   onSwitchChatrooms,
@@ -106,10 +113,15 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1 min-w-0 cursor-pointer bg-transparent border-0 p-0 hover:text-chatroom-text-secondary transition-colors duration-100 text-chatroom-text-primary"
+          className="flex items-center gap-1.5 min-w-0 cursor-pointer bg-transparent border-0 p-0 hover:text-chatroom-text-secondary transition-colors duration-100 text-chatroom-text-primary outline-none focus:outline-none focus-visible:outline-none"
           title={displayName}
           aria-label={`Chatroom: ${displayName}. Open menu`}
         >
+          <span
+            className={getChatStatusIndicatorClasses(chatStatus)}
+            title={getChatStatusDescription(chatStatus)}
+            aria-label={getChatStatusDescription(chatStatus)}
+          />
           <span className={chatroomTitleDisplayClassName}>{displayName}</span>
           <ChevronDown size={14} className="shrink-0 text-chatroom-text-muted" aria-hidden />
         </button>
