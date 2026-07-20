@@ -1,6 +1,15 @@
 'use client';
 
-import { ArrowLeft, ChevronDown, Pencil, Settings } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  ChevronDown,
+  Maximize2,
+  Minimize2,
+  PanelRightOpen,
+  Pencil,
+  Settings,
+  User,
+} from 'lucide-react';
 import { memo } from 'react';
 
 import {
@@ -23,18 +32,30 @@ import { cn } from '@/lib/utils';
 const chatroomTitleDisplayClassName = cn(inlineEditableTitleDisplayClassName, 'text-sm');
 const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-sm');
 
-interface ChatroomTitleEditorProps {
+export interface ChatroomTitleEditorProps {
   displayName: string;
   chatroomId: string;
-  onBack?: () => void;
+  isDesktop?: boolean;
   onOpenSettings?: () => void;
+  onSwitchChatrooms?: () => void;
+  onOpenProfile?: () => void;
+  focusModeActive?: boolean;
+  onEnableFocusMode?: () => void;
+  onDisableFocusMode?: () => void;
+  onShowAgentsSidebar?: () => void;
 }
 
 export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   displayName,
   chatroomId,
-  onBack,
+  isDesktop = false,
   onOpenSettings,
+  onSwitchChatrooms,
+  onOpenProfile,
+  focusModeActive = false,
+  onEnableFocusMode,
+  onDisableFocusMode,
+  onShowAgentsSidebar,
 }: ChatroomTitleEditorProps) {
   const {
     isEditing,
@@ -70,6 +91,16 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
     );
   }
 
+  const showFocusModeItem =
+    isDesktop && (focusModeActive ? !!onDisableFocusMode : !!onEnableFocusMode);
+  const showAgentsItem = !isDesktop && !!onShowAgentsSidebar;
+  const showNavSection = !!(
+    onSwitchChatrooms ||
+    onOpenProfile ||
+    showFocusModeItem ||
+    showAgentsItem
+  );
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -100,14 +131,47 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
             Settings
           </DropdownMenuItem>
         )}
-        {onBack && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onBack} className="flex items-center gap-2 cursor-pointer">
-              <ArrowLeft size={14} />
-              Back to chatroom list
-            </DropdownMenuItem>
-          </>
+
+        {showNavSection && <DropdownMenuSeparator />}
+
+        {onSwitchChatrooms && (
+          <DropdownMenuItem
+            onClick={onSwitchChatrooms}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <ArrowRightLeft size={14} />
+            Switch Chatrooms
+          </DropdownMenuItem>
+        )}
+
+        {showFocusModeItem && (
+          <DropdownMenuItem
+            onClick={focusModeActive ? onDisableFocusMode : onEnableFocusMode}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            {focusModeActive ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+            {focusModeActive ? 'Disable Focus Mode' : 'Enable Focus Mode'}
+          </DropdownMenuItem>
+        )}
+
+        {showAgentsItem && (
+          <DropdownMenuItem
+            onClick={onShowAgentsSidebar}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <PanelRightOpen size={14} />
+            Show Agent Sidebar
+          </DropdownMenuItem>
+        )}
+
+        {onOpenProfile && (
+          <DropdownMenuItem
+            onClick={onOpenProfile}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <User size={14} />
+            User Profile
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

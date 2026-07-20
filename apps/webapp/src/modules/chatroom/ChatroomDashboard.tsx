@@ -223,14 +223,12 @@ function ChatroomHeaderLeft({
 }
 
 interface ChatroomHeaderCenterProps {
-  onBack?: () => void;
   onOpenSettings: () => void;
   displayName: string;
   chatroomId: string;
 }
 
 function ChatroomHeaderCenter({
-  onBack,
   onOpenSettings,
   displayName,
   chatroomId,
@@ -239,7 +237,6 @@ function ChatroomHeaderCenter({
     <ChatroomTitleEditor
       displayName={displayName}
       chatroomId={chatroomId}
-      onBack={onBack}
       onOpenSettings={onOpenSettings}
     />
   );
@@ -1536,7 +1533,6 @@ export function ChatroomDashboard({
         ),
         center: (
           <ChatroomHeaderCenter
-            onBack={onBack}
             onOpenSettings={handleOpenSettings}
             displayName={displayName}
             chatroomId={chatroomId}
