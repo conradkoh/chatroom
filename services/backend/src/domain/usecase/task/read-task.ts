@@ -23,6 +23,7 @@
  */
 
 import { transitionTask } from './transition-task';
+import { fetchTaskSourceAttachments } from './fetch-task-source-attachments';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
@@ -49,7 +50,7 @@ export interface ReadTaskResult {
     elapsedHours: number;
   };
   attachedBacklogItems?: {
-    _id: string;
+    id: string;
     content: string;
     status: string;
   }[];
@@ -67,6 +68,7 @@ export interface ReadTaskResult {
     _id: string;
     content: string;
     senderRole: string;
+    _creationTime: number;
   }[];
 }
 
@@ -158,20 +160,13 @@ async function buildReadTaskResult(
   taskId: Id<'chatroom_tasks'>
 ): Promise<ReadTaskResult> {
   const context = await fetchCurrentContext(ctx, chatroomId);
-  const attachedBacklogItems = await fetchAttachedBacklogItems(ctx, task);
-  const attachedSnippets = await fetchAttachedSnippets(ctx, task);
-  const attachedTasks = await fetchAttachedTasks(ctx, task);
-  const attachedMessages = await fetchAttachedMessages(ctx, task);
-
+  const attachments = await fetchTaskSourceAttachments(ctx, task);
   return {
     taskId,
     content: task.content,
     status: 'in_progress',
     ...(context && { context }),
-    ...(attachedBacklogItems.length > 0 && { attachedBacklogItems }),
-    ...(attachedSnippets.length > 0 && { attachedSnippets }),
-    ...(attachedTasks.length > 0 && { attachedTasks }),
-    ...(attachedMessages.length > 0 && { attachedMessages }),
+    ...attachments,
   };
 }
 
@@ -211,89 +206,4 @@ async function fetchCurrentContext(
     triggerMessageSenderRole,
     elapsedHours: snapshot.elapsedHours,
   };
-}
-
-/**
- * Fetches attached backlog items from the task's source message.
- *
- * When a user sends a message with attached backlog items, the message stores
- * the IDs in `attachedBacklogItemIds`. The task created from that message links
- * back via `sourceMessageId`. This function follows that chain to return the
- * backlog items for inclusion in the task read result.
- */
-async function fetchAttachedBacklogItems(
-  ctx: MutationCtx,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
-): Promise<ReadTaskResult['attachedBacklogItems'] & object> {
-  if (!task.sourceMessageId) {
-    return [];
-  }
-
-  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-  if (!sourceMessage?.attachedBacklogItemIds || sourceMessage.attachedBacklogItemIds.length === 0) {
-    return [];
-  }
-
-  const items: { _id: string; content: string; status: string }[] = [];
-  for (const itemId of sourceMessage.attachedBacklogItemIds) {
-    const item = await ctx.db.get('chatroom_backlog', itemId);
-    if (item) {
-      items.push({
-        _id: item._id,
-        content: item.content,
-        status: item.status,
-      });
-    }
-  }
-
-  return items;
-}
-
-async function fetchAttachedSnippets(
-  ctx: MutationCtx,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
-): Promise<NonNullable<ReadTaskResult['attachedSnippets']>> {
-  if (!task.sourceMessageId) {
-    return [];
-  }
-
-  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-  return sourceMessage?.attachedSnippets ?? [];
-}
-
-// fallow-ignore-next-line complexity
-async function fetchAttachedTasks(
-  ctx: MutationCtx,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
-): Promise<NonNullable<ReadTaskResult['attachedTasks']>> {
-  if (!task.sourceMessageId) return [];
-  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-  if (!sourceMessage?.attachedTaskIds || sourceMessage.attachedTaskIds.length === 0) return [];
-  const items: { _id: string; content: string; status: string }[] = [];
-  for (const taskId of sourceMessage.attachedTaskIds) {
-    const attached = await ctx.db.get('chatroom_tasks', taskId);
-    if (attached) {
-      items.push({ _id: attached._id, content: attached.content, status: attached.status });
-    }
-  }
-  return items;
-}
-
-// fallow-ignore-next-line complexity
-async function fetchAttachedMessages(
-  ctx: MutationCtx,
-  task: { sourceMessageId?: Id<'chatroom_messages'> }
-): Promise<NonNullable<ReadTaskResult['attachedMessages']>> {
-  if (!task.sourceMessageId) return [];
-  const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-  if (!sourceMessage?.attachedMessageIds || sourceMessage.attachedMessageIds.length === 0)
-    return [];
-  const items: { _id: string; content: string; senderRole: string }[] = [];
-  for (const messageId of sourceMessage.attachedMessageIds) {
-    const attached = await ctx.db.get('chatroom_messages', messageId);
-    if (attached) {
-      items.push({ _id: attached._id, content: attached.content, senderRole: attached.senderRole });
-    }
-  }
-  return items;
 }

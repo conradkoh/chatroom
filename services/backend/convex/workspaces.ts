@@ -10,15 +10,15 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getSession, requireSession } from './auth/session';
+import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
-import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
-import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
-import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
-import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { WORKSPACE_RECENCY_WINDOW_MS } from '../config/reliability';
+import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
+import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
+import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 
@@ -244,10 +244,6 @@ export const getWorkspaceGitState = query({
           ...pr,
           prNumber: pr.prNumber ?? pr.number ?? 0,
         })),
-        allPullRequests: (row.allPullRequests ?? []).map((pr) => ({
-          ...pr,
-          prNumber: pr.prNumber ?? pr.number ?? 0,
-        })),
         remotes: row.remotes ?? [],
         commitsAhead: row.commitsAhead ?? 0,
         commitsBehind: row.commitsBehind ?? 0,
@@ -412,7 +408,10 @@ export const resetProcessingRequests = mutation({
 
     const now = Date.now();
     for (const row of rows) {
-      await ctx.db.patch(row._id, { status: 'pending', updatedAt: now });
+      await ctx.db.patch('chatroom_workspaceDiffRequests', row._id, {
+        status: 'pending',
+        updatedAt: now,
+      });
     }
 
     return rows.length;

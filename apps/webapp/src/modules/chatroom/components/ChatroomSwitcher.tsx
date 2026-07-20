@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
+import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { cn } from '@/lib/utils';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
@@ -109,6 +110,7 @@ export function ChatroomSwitcher() {
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
+  const listRef = useCommandListScrollReset(searchValue);
   const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
 
   // Reset search when closing
@@ -150,25 +152,27 @@ export function ChatroomSwitcher() {
               value={searchValue}
               onValueChange={setSearchValue}
             />
-            <CommandList className="min-h-[244px] h-[244px]">
-              <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                No chatrooms found.
-              </CommandEmpty>
-              {switcherChatrooms && switcherChatrooms.length > 0 && (
-                <CommandGroup
-                  heading="Chatrooms"
-                  className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
-                >
-                  {switcherChatrooms.map((chatroom) => (
-                    <ChatroomSwitcherItem
-                      key={chatroom._id}
-                      chatroom={chatroom}
-                      onSelect={handleSelect}
-                    />
-                  ))}
-                </CommandGroup>
-              )}
-            </CommandList>
+            <div ref={listRef} className="overflow-y-auto min-h-[244px] h-[244px]">
+              <CommandList className="min-h-full">
+                <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+                  No chatrooms found.
+                </CommandEmpty>
+                {switcherChatrooms && switcherChatrooms.length > 0 && (
+                  <CommandGroup
+                    heading="Chatrooms"
+                    className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
+                  >
+                    {switcherChatrooms.map((chatroom) => (
+                      <ChatroomSwitcherItem
+                        key={chatroom._id}
+                        chatroom={chatroom}
+                        onSelect={handleSelect}
+                      />
+                    ))}
+                  </CommandGroup>
+                )}
+              </CommandList>
+            </div>
           </Command>
         </DialogPrimitive.Content>
       </DialogPortal>
