@@ -455,7 +455,6 @@ export function StandingInstructionsReleaseHarness() {
     setDraft('');
   };
 
-  const barMinH = isDesktop ? 'min-h-9' : 'min-h-11';
   const labelText = isDesktop ? 'text-[10px]' : 'text-xs';
   const iconSize = isDesktop ? 12 : 14;
   const historyTop3 = FAKE_HISTORY.slice(0, 3);
@@ -525,7 +524,7 @@ export function StandingInstructionsReleaseHarness() {
             <button
               type="button"
               data-testid="standing-instructions-harness-active-bar"
-              className={`${barMinH} ${BAR_SHELL} w-full text-left`}
+              className={`${BAR_SHELL} w-full text-left`}
             >
               <BookOpen size={iconSize} className="shrink-0 text-chatroom-status-success" />
               <span
@@ -591,7 +590,7 @@ export function StandingInstructionsReleaseHarness() {
           <button
             type="button"
             data-testid="standing-instructions-harness-add"
-            className={`${barMinH} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
+            className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
             onClick={() => {
               setDraft('');
               setAddSelection(null);
@@ -620,7 +619,7 @@ export function StandingInstructionsReleaseHarness() {
           <button
             type="button"
             data-testid="standing-instructions-harness-edit"
-            className={`${barMinH} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
+            className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
             onClick={() => {
               setDraft('Always use TypeScript');
               setIsAdding(false);

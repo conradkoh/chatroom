@@ -35,10 +35,6 @@ interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
-function mobileBarMinH(_isDesktop: boolean): string {
-  return 'min-h-9';
-}
-
 function mobileLabelText(isDesktop: boolean): string {
   return isDesktop ? 'text-[10px]' : 'text-xs';
 }
@@ -598,7 +594,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
             setIsAdding(true);
             setEditing(true);
           }}
-          className={`${mobileBarMinH(isDesktop)} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
+          className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
         >
           <Plus
             size={mobileIconSize(isDesktop)}
@@ -628,7 +624,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         trigger={
           <button
             type="button"
-            className={`${mobileBarMinH(isDesktop)} ${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
+            className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
           >
             <BookOpen
               size={mobileIconSize(isDesktop)}
