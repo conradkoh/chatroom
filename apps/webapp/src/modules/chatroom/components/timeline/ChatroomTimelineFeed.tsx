@@ -69,6 +69,7 @@ export function ChatroomTimelineFeed({
   senderRoleFilter,
 }: ChatroomTimelineFeedProps) {
   const scrollParentRef = useRef<HTMLDivElement>(null);
+  const boundCoordinatorRef = useRef<TimelineScrollCoordinator | null>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
   const [topChromeHeight, setTopChromeHeight] = useState(0);
   const measurementCacheRef = useRef<Map<string, number>>(new Map());
@@ -221,9 +222,11 @@ export function ChatroomTimelineFeed({
     (node: HTMLDivElement | null) => {
       scrollParentRef.current = node;
       if (node) {
-        coordinator.current.attach(node);
-      } else {
-        coordinator.current.detach();
+        boundCoordinatorRef.current = coordinator.current;
+        boundCoordinatorRef.current.attach(node);
+      } else if (boundCoordinatorRef.current) {
+        boundCoordinatorRef.current.detach();
+        boundCoordinatorRef.current = null;
       }
     },
     [coordinator]

@@ -17,7 +17,11 @@ describe('TimelineScrollCoordinator', () => {
     el = document.createElement('div');
     Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true });
     Object.defineProperty(el, 'scrollHeight', { value: 1000, writable: true, configurable: true });
-    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop(),
+      writable: true,
+      configurable: true,
+    });
     coordinator.attach(el);
     coordinator.setVirtualizer({ scrollToEnd });
     scrollToEnd.mockClear();
@@ -32,7 +36,11 @@ describe('TimelineScrollCoordinator', () => {
     el.dispatchEvent(new Event('scroll'));
     expect(coordinator.isPinned).toBe(false);
 
-    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop(),
+      writable: true,
+      configurable: true,
+    });
     el.dispatchEvent(new Event('wheel'));
     el.dispatchEvent(new Event('scroll'));
 
@@ -40,7 +48,11 @@ describe('TimelineScrollCoordinator', () => {
   });
 
   it('shouldFollowTail only when pinned and flush at the tail', () => {
-    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop(),
+      writable: true,
+      configurable: true,
+    });
     el.dispatchEvent(new Event('scroll'));
     expect(coordinator.shouldFollowTail()).toBe(true);
 
@@ -50,7 +62,11 @@ describe('TimelineScrollCoordinator', () => {
 
     const unpinned = new TimelineScrollCoordinator(false);
     unpinned.attach(el);
-    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop(),
+      writable: true,
+      configurable: true,
+    });
     expect(unpinned.shouldFollowTail()).toBe(false);
     unpinned.detach();
   });
@@ -384,7 +400,11 @@ describe('TimelineScrollCoordinator', () => {
   });
 
   it('re-snaps during initial tail settle when content height grows', async () => {
-    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop(),
+      writable: true,
+      configurable: true,
+    });
 
     coordinator.commitTimelineLayout({
       scrollEl: el,
@@ -460,7 +480,11 @@ describe('TimelineScrollCoordinator', () => {
   });
 
   it('notifyTailRowResized re-snaps when pinned at bottom and tail row grows', async () => {
-    Object.defineProperty(el, 'scrollTop', { value: maxScrollTop(), writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollTop', {
+      value: maxScrollTop(),
+      writable: true,
+      configurable: true,
+    });
 
     coordinator.commitTimelineLayout({
       scrollEl: el,
@@ -623,5 +647,35 @@ describe('TimelineScrollCoordinator', () => {
     coordinator.resetForChatroom();
 
     expect(coordinator.isPrependScrollPreservationActive()).toBe(false);
+  });
+
+  it('captures scroll snapshot on detach and restores on remount', () => {
+    Object.defineProperty(el, 'scrollTop', { value: 120, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+    expect(coordinator.isPinned).toBe(false);
+
+    coordinator.detach();
+    expect(coordinator.hasScrollSnapshot()).toBe(true);
+
+    coordinator.attach(el);
+    coordinator.setVirtualizer({ scrollToEnd });
+    coordinator.commitTimelineLayout({
+      scrollEl: el,
+      eventCount: 5,
+      tailKey: 'evt-4',
+      isLoadingOlder: false,
+    });
+
+    expect(coordinator.isPinned).toBe(false);
+    expect(el.scrollTop).toBe(120);
+  });
+
+  it('resetForChatroom clears saved scroll snapshot', () => {
+    Object.defineProperty(el, 'scrollTop', { value: 80, writable: true, configurable: true });
+    coordinator.detach();
+    expect(coordinator.hasScrollSnapshot()).toBe(true);
+
+    coordinator.resetForChatroom();
+    expect(coordinator.hasScrollSnapshot()).toBe(false);
   });
 });
