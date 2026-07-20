@@ -26,6 +26,7 @@ describe('ChatroomTitleEditor menu', () => {
   const base = {
     displayName: 'Demo Room',
     chatroomId: 'room1',
+    chatStatus: 'active' as const,
     onOpenSettings: vi.fn(),
     onSwitchChatrooms: vi.fn(),
     onOpenProfile: vi.fn(),
@@ -103,5 +104,11 @@ describe('ChatroomTitleEditor menu', () => {
     render(<ChatroomTitleEditor {...base} isDesktop />);
     await openMenu();
     expect(screen.queryByText('Back to chatroom list')).not.toBeInTheDocument();
+  });
+
+  it('renders chat status indicator left of title', () => {
+    render(<ChatroomTitleEditor {...base} chatStatus="working" isDesktop />);
+    expect(screen.getByLabelText('Agents are working on tasks')).toBeInTheDocument();
+    expect(screen.getByText('Demo Room')).toBeInTheDocument();
   });
 });
