@@ -189,8 +189,8 @@ interface ChatroomDashboardProps {
   onBack?: () => void;
   /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
   refreshObservedChatroom: () => void;
-  listingSidebarVisible?: boolean;
-  onSetListingSidebarVisible?: (visible: boolean) => void;
+  focusModeEnabled?: boolean;
+  onSetFocusModeEnabled?: (enabled: boolean) => void;
 }
 
 /** Edit target for the saved command modal */
@@ -500,8 +500,8 @@ export function ChatroomDashboard({
   chatroomId,
   onBack,
   refreshObservedChatroom,
-  listingSidebarVisible = true,
-  onSetListingSidebarVisible,
+  focusModeEnabled = false,
+  onSetFocusModeEnabled,
 }: ChatroomDashboardProps) {
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
@@ -755,24 +755,20 @@ export function ChatroomDashboard({
     setSidebarVisible(!sidebarVisible);
   }, [sidebarVisible, setSidebarVisible]);
 
-  const focusSnapshotRef = useRef<{ listing: boolean; agents: boolean } | null>(null);
-  const focusModeActive = isFocusModeActive(listingSidebarVisible, sidebarVisible);
+  const agentsFocusSnapshotRef = useRef<boolean | null>(null);
+  const focusModeActive = isFocusModeActive(focusModeEnabled);
 
   const handleEnableFocusMode = useCallback(() => {
-    focusSnapshotRef.current = {
-      listing: listingSidebarVisible,
-      agents: sidebarVisible,
-    };
-    onSetListingSidebarVisible?.(false);
+    agentsFocusSnapshotRef.current = sidebarVisible;
+    onSetFocusModeEnabled?.(true);
     setSidebarVisible(false);
-  }, [listingSidebarVisible, sidebarVisible, onSetListingSidebarVisible, setSidebarVisible]);
+  }, [sidebarVisible, onSetFocusModeEnabled, setSidebarVisible]);
 
   const handleDisableFocusMode = useCallback(() => {
-    const snap = focusSnapshotRef.current;
-    onSetListingSidebarVisible?.(snap?.listing ?? true);
-    setSidebarVisible(snap?.agents ?? (isSmallScreen ? false : true));
-    focusSnapshotRef.current = null;
-  }, [onSetListingSidebarVisible, setSidebarVisible, isSmallScreen]);
+    onSetFocusModeEnabled?.(false);
+    setSidebarVisible(agentsFocusSnapshotRef.current ?? (isSmallScreen ? false : true));
+    agentsFocusSnapshotRef.current = null;
+  }, [onSetFocusModeEnabled, setSidebarVisible, isSmallScreen]);
 
   const handleShowAgentsSidebar = useCallback(() => {
     setSidebarVisible(true);
@@ -1607,7 +1603,7 @@ export function ChatroomDashboard({
     chatroomId,
     isSetupMode,
     onBack,
-    listingSidebarVisible,
+    focusModeEnabled,
     sidebarVisible,
     chatStatus,
     focusModeActive,

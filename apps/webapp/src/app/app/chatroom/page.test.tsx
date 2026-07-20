@@ -14,10 +14,6 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(`id=${CHATROOM_ID}`),
 }));
 
-vi.mock('@/modules/chatroom/hooks/persistence/useChatroomListingSidebarVisible', () => ({
-  useChatroomListingSidebarVisible: () => [false, vi.fn()],
-}));
-
 vi.mock('@/modules/chatroom/hooks/useObserveChatroom', () => ({
   useObserveChatroom: () => ({ refresh: vi.fn() }),
 }));
