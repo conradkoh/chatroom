@@ -120,7 +120,7 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   };
 
   return (
-    <div className="flex items-center gap-3 min-w-0">
+    <div className="flex items-center min-w-0">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
