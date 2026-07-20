@@ -352,4 +352,59 @@ describe('useFileTabs agentic query tabs', () => {
     ]);
     expect(result.current.activeTabKey).toBe('agentic-query:query-b');
   });
+
+  it('ignores openAgenticQueryTab when queryId is empty', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.openAgenticQueryTab('', 'search', 'Agentic Search');
+    });
+
+    expect(result.current.tabs).toEqual([]);
+    expect(result.current.activeTabKey).toBeNull();
+  });
+
+  it('drops invalid agentic-query tabs and dedupes duplicate keys from localStorage', () => {
+    localStorage.setItem(
+      storageKey(CHATROOM_A),
+      JSON.stringify({
+        tabs: [
+          {
+            kind: 'agentic-query',
+            queryId: 'query-1',
+            name: 'Agentic Search',
+            mode: 'search',
+            isPinned: true,
+          },
+          {
+            kind: 'agentic-query',
+            name: 'Broken',
+            mode: 'search',
+            isPinned: true,
+          },
+          {
+            kind: 'agentic-query',
+            queryId: 'query-1',
+            name: 'Duplicate',
+            mode: 'search',
+            isPinned: true,
+          },
+        ],
+        activeTabKey: 'agentic-query:undefined',
+      })
+    );
+
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    expect(result.current.tabs).toEqual([
+      {
+        kind: 'agentic-query',
+        queryId: 'query-1',
+        name: 'Duplicate',
+        mode: 'search',
+        isPinned: true,
+      },
+    ]);
+    expect(result.current.activeTabKey).toBe('agentic-query:query-1');
+  });
 });
