@@ -151,6 +151,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listLatestEvents: 'listLatestEvents',
       listLatestEventsPaginated: 'listLatestEventsPaginated',
     },
+    messages: {
+      listMessagesBySenderRolePaginated: 'listMessagesBySenderRolePaginated',
+    },
   },
 }));
 
