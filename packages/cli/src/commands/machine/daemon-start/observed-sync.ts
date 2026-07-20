@@ -7,14 +7,14 @@
  * - no-longer-observed → clearInterval + cleanup
  * - still observed → no-op
  *
- * TTL reconcile: a periodic local timer re-runs handleObservedChange so stale observations
+ * TTL reconcile: a slow fallback timer re-runs handleObservedChange so stale observations
  * (whose TTL expired while the browser tab was closed) are cleaned up even if Convex does
  * not re-deliver the onUpdate callback solely due to Date.now() crossing the TTL boundary.
  */
 
 import {
   OBSERVED_SAFETY_POLL_MS,
-  OBSERVATION_TTL_MS,
+  OBSERVED_SYNC_RECONCILE_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
@@ -76,7 +76,7 @@ export const startObservedSyncSubscriptionEffect = (
       }
     );
 
-    const reconcileIntervalMs = Math.max(OBSERVATION_TTL_MS / 2, OBSERVED_SAFETY_POLL_MS);
+    const reconcileIntervalMs = OBSERVED_SYNC_RECONCILE_MS;
     const reconcileTimer = setInterval(() => {
       if (stopped || reconcileInFlight) return;
       reconcileInFlight = true;

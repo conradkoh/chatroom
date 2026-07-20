@@ -21,6 +21,7 @@ import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { getFileName, getParentDir } from '@/lib/pathUtils';
 import { cn } from '@/lib/utils';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
+import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
 
 interface FileSelectorModalProps {
   open: boolean;
@@ -44,6 +45,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
   const [search, setSearch] = useState('');
   const searchRef = useRef(search);
   searchRef.current = search;
+  const listRef = useCommandListScrollReset(search);
   const onEscapeKeyDown = useEscapeToClear(searchRef, () => setSearch(''));
 
   const handleOpenChange = useCallback(
@@ -95,107 +97,109 @@ export const FileSelectorModal = memo(function FileSelectorModal({
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent rounded-none border-none h-10 text-sm"
             />
             {/* u10: Fixed height container to prevent input box position shift */}
-            <CommandList className="max-h-[50vh] h-[196px] overflow-y-auto">
-              {!hasWorkspace ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
-                    NO WORKSPACE CONNECTED
-                  </span>
-                  <span className="text-[10px] text-chatroom-text-muted">
-                    Start a daemon to browse files
-                  </span>
-                </div>
-              ) : isLoading ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-                    LOADING FILE TREE...
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4 py-6">
-                    NO FILES FOUND
-                  </CommandEmpty>
-                  <CommandGroup>
-                    {/* Recent files section (only when not searching) */}
-                    {recentFiles.length > 0 && !search && (
-                      <>
-                        <div
-                          className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted"
-                          cmdk-group-heading=""
-                        >
-                          recently opened
-                        </div>
-                        {recentFiles.map((path) => (
+            <div ref={listRef} className="overflow-y-auto max-h-[50vh] h-[196px]">
+              <CommandList className="min-h-full">
+                {!hasWorkspace ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
+                      NO WORKSPACE CONNECTED
+                    </span>
+                    <span className="text-[10px] text-chatroom-text-muted">
+                      Start a daemon to browse files
+                    </span>
+                  </div>
+                ) : isLoading ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+                      LOADING FILE TREE...
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4 py-6">
+                      NO FILES FOUND
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {/* Recent files section (only when not searching) */}
+                      {recentFiles.length > 0 && !search && (
+                        <>
+                          <div
+                            className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted"
+                            cmdk-group-heading=""
+                          >
+                            recently opened
+                          </div>
+                          {recentFiles.map((path) => (
+                            <CommandItem
+                              key={`recent:${path}`}
+                              value={`recent:${path}`}
+                              keywords={[getFileName(path)]}
+                              onSelect={() => handleSelect(path)}
+                              // u05: Compact 28px height, u07: Full-width solid bg highlight
+                              className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
+                            >
+                              <FileTypeIcon
+                                path={path}
+                                className="h-4 w-4 shrink-0 text-chatroom-text-muted"
+                              />
+                              {/* u06: File name bold, directory lighter, same row */}
+                              <span className="text-sm font-medium truncate flex-1">
+                                {getFileName(path)}
+                              </span>
+                              {getParentDir(path) && (
+                                <span className="text-sm text-chatroom-text-muted truncate max-w-[50%]">
+                                  {getParentDir(path)}
+                                </span>
+                              )}
+                            </CommandItem>
+                          ))}
+                          <div
+                            className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted"
+                            cmdk-group-heading=""
+                          >
+                            files
+                          </div>
+                        </>
+                      )}
+                      {/* Full file list (excluding recent files to avoid duplicates) */}
+                      {(() => {
+                        const recentSet = new Set(recentFiles);
+                        const displayFiles =
+                          !search && recentFiles.length > 0
+                            ? files.filter((f) => !recentSet.has(f.path))
+                            : files;
+                        return displayFiles.map((file) => (
                           <CommandItem
-                            key={`recent:${path}`}
-                            value={`recent:${path}`}
-                            keywords={[getFileName(path)]}
-                            onSelect={() => handleSelect(path)}
-                            // u05: Compact 28px height, u07: Full-width solid bg highlight
+                            key={file.path}
+                            value={file.path}
+                            keywords={[getFileName(file.path)]}
+                            onSelect={() => handleSelect(file.path)}
+                            // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
                             className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
                           >
                             <FileTypeIcon
-                              path={path}
+                              path={file.path}
                               className="h-4 w-4 shrink-0 text-chatroom-text-muted"
                             />
-                            {/* u06: File name bold, directory lighter, same row */}
+                            {/* u06: File name bold, directory lighter */}
                             <span className="text-sm font-medium truncate flex-1">
-                              {getFileName(path)}
+                              {getFileName(file.path)}
                             </span>
-                            {getParentDir(path) && (
+                            {/* u08: No file size in search list */}
+                            {getParentDir(file.path) && (
                               <span className="text-sm text-chatroom-text-muted truncate max-w-[50%]">
-                                {getParentDir(path)}
+                                {getParentDir(file.path)}
                               </span>
                             )}
                           </CommandItem>
-                        ))}
-                        <div
-                          className="px-2 py-1.5 text-sm font-medium text-chatroom-text-muted"
-                          cmdk-group-heading=""
-                        >
-                          files
-                        </div>
-                      </>
-                    )}
-                    {/* Full file list (excluding recent files to avoid duplicates) */}
-                    {(() => {
-                      const recentSet = new Set(recentFiles);
-                      const displayFiles =
-                        !search && recentFiles.length > 0
-                          ? files.filter((f) => !recentSet.has(f.path))
-                          : files;
-                      return displayFiles.map((file) => (
-                        <CommandItem
-                          key={file.path}
-                          value={file.path}
-                          keywords={[getFileName(file.path)]}
-                          onSelect={() => handleSelect(file.path)}
-                          // u05: Compact 28px height, u07: Full-width solid bg highlight (no left border)
-                          className="flex flex-row items-center gap-2 rounded-none cursor-pointer px-3 py-1 min-h-[28px] text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover"
-                        >
-                          <FileTypeIcon
-                            path={file.path}
-                            className="h-4 w-4 shrink-0 text-chatroom-text-muted"
-                          />
-                          {/* u06: File name bold, directory lighter */}
-                          <span className="text-sm font-medium truncate flex-1">
-                            {getFileName(file.path)}
-                          </span>
-                          {/* u08: No file size in search list */}
-                          {getParentDir(file.path) && (
-                            <span className="text-sm text-chatroom-text-muted truncate max-w-[50%]">
-                              {getParentDir(file.path)}
-                            </span>
-                          )}
-                        </CommandItem>
-                      ));
-                    })()}
-                  </CommandGroup>
-                </>
-              )}
-            </CommandList>
+                        ));
+                      })()}
+                    </CommandGroup>
+                  </>
+                )}
+              </CommandList>
+            </div>
           </Command>
         </DialogPrimitive.Content>
       </DialogPortal>

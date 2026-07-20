@@ -4,10 +4,9 @@ import { useCallback, useMemo } from 'react';
 
 import { flattenVisibleExplorerNodes, type ExplorerFlatRow } from './explorerTreeFlatten';
 import { ExplorerTreeRow } from './ExplorerTreeRow';
+import { EXPLORER_TREE_ROW_HEIGHT } from './explorerTreeRowHeight';
 import { VirtualizedScrollList } from '../../components/virtual-list';
 import type { ExplorerTreeNode } from '../files/explorer-tree';
-
-export const EXPLORER_TREE_ROW_HEIGHT = 28;
 
 interface WorkspaceFileExplorerVirtualizedTreeProps {
   displayNodes: ExplorerTreeNode[];

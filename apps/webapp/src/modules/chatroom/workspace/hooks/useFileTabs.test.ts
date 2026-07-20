@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { EditorTab } from './useFileTabs';
+import type { EditorTab, RightPaneTab } from './useFileTabs';
 import { editorTabKey, useFileTabs } from './useFileTabs';
 
 const CHATROOM_A = 'cr-a';
@@ -406,5 +406,121 @@ describe('useFileTabs agentic query tabs', () => {
       },
     ]);
     expect(result.current.activeTabKey).toBe('agentic-query:query-1');
+  });
+});
+
+describe('useFileTabs navigateActivePreview', () => {
+  function writeRightPreviewTab(chatroomId: string, filePath: string): void {
+    localStorage.setItem(
+      storageKey(chatroomId),
+      JSON.stringify({
+        tabs: [],
+        activeTabKey: null,
+        expandedTabPath: null,
+        rightTabs: [
+          {
+            key: `${filePath}::preview`,
+            filePath,
+            name: `${filePath.split('/').pop()} (Preview)`,
+            viewType: 'preview',
+          },
+        ],
+        activeRightTabKey: `${filePath}::preview`,
+      })
+    );
+  }
+
+  function writeRightPreviewTabs(
+    chatroomId: string,
+    tabs: { filePath: string; active: boolean }[]
+  ): void {
+    const rightTabs: RightPaneTab[] = tabs.map((t) => ({
+      key: `${t.filePath}::preview`,
+      filePath: t.filePath,
+      name: `${t.filePath.split('/').pop()} (Preview)`,
+      viewType: 'preview' as const,
+    }));
+    const activeKey = tabs.find((t) => t.active)?.filePath ?? tabs[0].filePath;
+    localStorage.setItem(
+      storageKey(chatroomId),
+      JSON.stringify({
+        tabs: [],
+        activeTabKey: null,
+        expandedTabPath: null,
+        rightTabs,
+        activeRightTabKey: `${activeKey}::preview`,
+      })
+    );
+  }
+
+  it('updates existing preview tab to new file', () => {
+    writeRightPreviewTab(CHATROOM_A, 'a.md');
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    expect(result.current.rightTabs).toHaveLength(1);
+    expect(result.current.rightTabs[0].filePath).toBe('a.md');
+
+    act(() => {
+      result.current.navigateActivePreview('b.md');
+    });
+
+    expect(result.current.rightTabs).toHaveLength(1);
+    expect(result.current.rightTabs[0].filePath).toBe('b.md');
+    expect(result.current.rightTabs[0].key).toBe('b.md::preview');
+    expect(result.current.activeRightTabKey).toBe('b.md::preview');
+  });
+
+  it('is no-op when no preview tabs exist', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    expect(result.current.rightTabs).toHaveLength(0);
+
+    act(() => {
+      result.current.navigateActivePreview('b.md');
+    });
+
+    expect(result.current.rightTabs).toHaveLength(0);
+    expect(result.current.activeRightTabKey).toBeNull();
+  });
+
+  it('replaces active preview tab when multiple preview tabs exist', () => {
+    writeRightPreviewTabs(CHATROOM_A, [
+      { filePath: 'a.md', active: false },
+      { filePath: 'b.md', active: true },
+    ]);
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    expect(result.current.rightTabs).toHaveLength(2);
+    expect(result.current.activeRightTabKey).toBe('b.md::preview');
+
+    act(() => {
+      result.current.navigateActivePreview('c.md');
+    });
+
+    // Still 2 tabs, but the active one (b) is now c
+    expect(result.current.rightTabs).toHaveLength(2);
+    const cTab = result.current.rightTabs.find((t) => t.filePath === 'c.md');
+    expect(cTab).toBeDefined();
+    expect(result.current.activeRightTabKey).toBe('c.md::preview');
+    // a.md tab unchanged
+    expect(result.current.rightTabs.find((t) => t.filePath === 'a.md')).toBeDefined();
+  });
+
+  it('activates existing tab if new file already has one', () => {
+    writeRightPreviewTabs(CHATROOM_A, [
+      { filePath: 'a.md', active: true },
+      { filePath: 'b.md', active: false },
+    ]);
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    expect(result.current.activeRightTabKey).toBe('a.md::preview');
+
+    act(() => {
+      result.current.navigateActivePreview('b.md');
+    });
+
+    // Tabs unchanged, just re-activated
+    expect(result.current.rightTabs).toHaveLength(2);
+    expect(result.current.activeRightTabKey).toBe('b.md::preview');
   });
 });

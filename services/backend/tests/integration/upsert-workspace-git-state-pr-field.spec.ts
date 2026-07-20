@@ -12,7 +12,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
 
@@ -106,7 +105,7 @@ describe('upsertWorkspaceGitState — PR number field', () => {
     expect(stored?.allPullRequests?.[0]?.prNumber).toBe(8);
   });
 
-  test('getWorkspaceGitState normalizes legacy `number`-only allPullRequests rows on read', async () => {
+  test('getWorkspaceGitState omits allPullRequests (use getAllPullRequests on demand)', async () => {
     const { sessionId } = await createTestSession('upsert-pr-field-allprs-legacy');
     const machineId = 'upsert-pr-allprs-legacy';
     await registerMachineWithDaemon(sessionId, machineId);
@@ -146,8 +145,6 @@ describe('upsertWorkspaceGitState — PR number field', () => {
 
     expect(result.status).toBe('available');
     if (result.status !== 'available') throw new Error('expected available');
-    expect(result.allPullRequests).toHaveLength(1);
-    expect(result.allPullRequests[0].prNumber).toBe(55);
-    expect(result.allPullRequests[0].title).toBe('legacy all pr');
+    expect('allPullRequests' in result).toBe(false);
   });
 });

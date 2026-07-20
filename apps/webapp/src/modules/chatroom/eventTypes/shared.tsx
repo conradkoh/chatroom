@@ -9,6 +9,8 @@ import { useEventStreamMachine } from '../context/EventStreamMachineContext';
 import { getMachineDisplayName } from '../types/machine';
 import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 
+export const EVENT_STREAM_ROW_HEIGHT = 52;
+
 // ─── Machine Detail Row ──────────────────────────────────────────────────────
 
 export function MachineDetailRow({ machineId }: { machineId: string }): React.ReactNode {
@@ -60,13 +62,14 @@ export const EventRow = memo(function EventRow({
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 border-b border-chatroom-border last:border-b-0 transition-colors ${
+      className={`flex items-center gap-2 px-4 border-b border-chatroom-border last:border-b-0 transition-colors box-border overflow-hidden ${
         onClick ? 'cursor-pointer' : ''
       } ${
         isSelected
           ? 'bg-chatroom-accent/10 border-l-2 border-l-chatroom-accent'
           : 'hover:bg-chatroom-bg-hover'
       }`}
+      style={{ height: EVENT_STREAM_ROW_HEIGHT }}
     >
       {/* Type badge */}
       <span
@@ -219,13 +222,14 @@ export const PlaceholderEventRow = memo(function PlaceholderEventRow({
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 border-b border-chatroom-border last:border-b-0 transition-colors ${
+      className={`flex items-center gap-2 px-4 border-b border-chatroom-border last:border-b-0 transition-colors box-border overflow-hidden ${
         onClick ? 'cursor-pointer' : ''
       } ${
         isSelected
           ? 'bg-chatroom-accent/10 border-l-2 border-l-chatroom-accent'
           : 'hover:bg-chatroom-bg-hover'
       }`}
+      style={{ height: EVENT_STREAM_ROW_HEIGHT }}
     >
       {/* Type badge */}
       <span

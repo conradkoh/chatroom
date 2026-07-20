@@ -79,8 +79,6 @@ export type WorkspaceGitState =
       diffStat: DiffStat;
       /** Open pull requests for the current branch. Empty if none or gh unavailable. */
       openPullRequests: GitPullRequest[];
-      /** All pull requests (open, closed, merged) for the repository. Up to 20 most recent. */
-      allPullRequests?: GitPullRequest[];
       /** Configured git remotes (e.g. origin, upstream). */
       remotes: GitRemote[];
       /** Number of commits ahead of the upstream tracking branch (unpushed). 0 if no upstream. */

@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { memo, useCallback, type MouseEvent, type Ref } from 'react';
 
+import { EXPLORER_TREE_ROW_HEIGHT } from './explorerTreeRowHeight';
 import { FileTypeIcon } from '../../components/FileSelector/fileIcons';
 import type { ExplorerTreeNode } from '../files/explorer-tree';
 
@@ -57,13 +58,13 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       data-tree-node
       ref={rowRef}
       className={cn(
-        'w-full flex items-center gap-1.5 py-[3px] pr-2 text-left text-sm',
+        'w-full flex items-center gap-1.5 pr-2 text-left text-sm box-border overflow-hidden',
         isSelected
           ? 'bg-chatroom-accent/10 text-chatroom-accent'
           : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
         'transition-colors duration-75 cursor-pointer select-none'
       )}
-      style={{ paddingLeft }}
+      style={{ paddingLeft, height: EXPLORER_TREE_ROW_HEIGHT }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onContextMenu={(event) => onNodeContextMenu?.(node, event)}
