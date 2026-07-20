@@ -15,6 +15,7 @@ import {
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from './types.js';
+import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
@@ -98,6 +99,18 @@ beforeEach(() => {
 });
 
 describe('pushSingleWorkspaceGitSummaryForObservedEffect', () => {
+  it('does not fetch allPullRequests on full push (on-demand only)', async () => {
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
+
+    await runGitHeartbeatEffect(
+      pushSingleWorkspaceGitSummaryForObservedEffect(WORKING_DIR, 'refresh'),
+      { backend: deps.backend, machineId: MACHINE_ID }
+    );
+
+    expect(gitReader.getAllPRs).not.toHaveBeenCalled();
+  });
+
   it('uses full push when reason is refresh even within the full-push window', async () => {
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);

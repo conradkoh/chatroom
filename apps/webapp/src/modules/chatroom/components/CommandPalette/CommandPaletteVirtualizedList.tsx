@@ -17,6 +17,7 @@ interface CommandPaletteVirtualizedListProps {
   rows: CommandPaletteRow[];
   onSelect: (cmd: CommandItem) => void;
   renderCommandItemContent: (command: CommandItem) => React.ReactNode;
+  scrollResetKey?: string;
 }
 
 const LIST_HEIGHT = 244;
@@ -25,6 +26,7 @@ export function CommandPaletteVirtualizedList({
   rows,
   onSelect,
   renderCommandItemContent,
+  scrollResetKey,
 }: CommandPaletteVirtualizedListProps) {
   const estimateSize = useCallback((_index: number, row: CommandPaletteRow) => {
     if (row.type === 'heading') return COMMAND_PALETTE_HEADING_ROW_HEIGHT;
@@ -67,16 +69,6 @@ export function CommandPaletteVirtualizedList({
     [onSelect, renderCommandItemContent]
   );
 
-  if (rows.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[244px]">
-        <span className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider">
-          No commands found.
-        </span>
-      </div>
-    );
-  }
-
   return (
     <VirtualizedScrollList
       items={rows}
@@ -84,6 +76,7 @@ export function CommandPaletteVirtualizedList({
       estimateSize={estimateSize}
       getItemKey={getItemKey}
       renderItem={renderItem}
+      scrollResetKey={scrollResetKey}
     />
   );
 }

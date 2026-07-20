@@ -3,6 +3,7 @@
 import React from 'react';
 import Markdown from 'react-markdown';
 
+import { MessageAttachmentChips } from '../../attachments';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { compactMarkdownComponents } from '../markdown-utils';
 import type { Task } from './types';
@@ -52,13 +53,20 @@ export interface CurrentTasksModalItemProps {
   onClick: () => void;
 }
 
+// fallow-ignore-next-line complexity
 export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemProps) {
   const badge = getStatusBadge(task.status);
   const relativeTime = task.updatedAt ? formatRelativeTime(task.updatedAt) : '';
 
+  const taskHasAttachments =
+    (task.attachedTasks?.length ?? 0) > 0 ||
+    (task.attachedBacklogItems?.length ?? 0) > 0 ||
+    (task.attachedMessages?.length ?? 0) > 0 ||
+    (task.attachedSnippets?.length ?? 0) > 0;
+
   return (
     <div
-      className="flex items-start gap-3 p-3 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group border-b border-chatroom-border last:border-b-0"
+      className="p-3 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group border-b border-chatroom-border last:border-b-0"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -69,29 +77,50 @@ export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemPr
         }
       }}
     >
-      {/* Status Badge */}
-      <span
-        className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
-      >
-        {badge.label}
-      </span>
+      <div className="flex items-start gap-3">
+        {/* Status Badge */}
+        <span
+          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
+        >
+          {badge.label}
+        </span>
 
-      {/* Content - with markdown */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-          {task.content}
-        </Markdown>
+        {/* Content - with markdown */}
+        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
+          <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
+            {task.content}
+          </Markdown>
+        </div>
+
+        {/* Assigned To */}
+        {task.assignedTo && (
+          <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">
+            → {task.assignedTo}
+          </span>
+        )}
+
+        {/* Relative Time */}
+        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
       </div>
 
-      {/* Assigned To */}
-      {task.assignedTo && (
-        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">
-          → {task.assignedTo}
-        </span>
+      {/* Attachment chips */}
+      {taskHasAttachments && (
+        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <MessageAttachmentChips
+            message={{
+              _id: task._id,
+              type: 'task',
+              senderRole: 'user',
+              content: task.content,
+              _creationTime: task.createdAt,
+              attachedTasks: task.attachedTasks,
+              attachedBacklogItems: task.attachedBacklogItems,
+              attachedMessages: task.attachedMessages,
+              attachedSnippets: task.attachedSnippets,
+            }}
+          />
+        </div>
       )}
-
-      {/* Relative Time */}
-      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
     </div>
   );
 }

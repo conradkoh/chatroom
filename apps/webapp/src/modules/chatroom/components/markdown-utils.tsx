@@ -4,6 +4,8 @@ import { Check, Copy } from 'lucide-react';
 import React, { useState, useCallback, lazy, Suspense } from 'react';
 
 import { useWorkspaceFileLink } from '../context/WorkspaceFileLinkContext';
+import { fenceLangToSyntheticPath } from '../workspace/file-renderers/language-detection';
+import { SyntaxHighlighter } from '../workspace/file-renderers/SyntaxHighlighter';
 import { parseFileLocation } from '../workspace/utils/fileLocation';
 import { isWorkspaceFileLink, looksLikeWorkspacePath } from '../workspace/utils/workspaceFileLink';
 
@@ -282,6 +284,9 @@ export function CodeBlock({
   // Extract text content for copying
   const textContent = extractTextContent(children);
 
+  // Map fence language to synthetic path for Shiki highlighting
+  const syntheticPath = language ? fenceLangToSyntheticPath(language) : null;
+
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(textContent);
@@ -318,11 +323,17 @@ export function CodeBlock({
         </button>
       </div>
       {/* Code content */}
-      <pre className="bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-auto">
-        <code className={`${className || ''} text-xs text-chatroom-text-primary font-mono`}>
-          {children}
-        </code>
-      </pre>
+      {syntheticPath ? (
+        <div className="bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-auto">
+          <SyntaxHighlighter code={textContent} path={syntheticPath} className="text-xs" />
+        </div>
+      ) : (
+        <pre className="bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-auto">
+          <code className={`${className || ''} text-xs text-chatroom-text-primary font-mono`}>
+            {children}
+          </code>
+        </pre>
+      )}
     </div>
   );
 }
@@ -405,15 +416,7 @@ export const modalMarkdownComponents = {
           </Suspense>
         );
       }
-      return (
-        <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] overflow-x-hidden text-sm text-chatroom-text-primary">
-          <code
-            className={`${codeProps.className || ''} break-words whitespace-pre-wrap [overflow-wrap:anywhere]`}
-          >
-            {codeProps.children}
-          </code>
-        </pre>
-      );
+      return <CodeBlock className={codeProps.className}>{codeProps.children}</CodeBlock>;
     }
     return (
       <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] overflow-x-hidden text-sm text-chatroom-text-primary">

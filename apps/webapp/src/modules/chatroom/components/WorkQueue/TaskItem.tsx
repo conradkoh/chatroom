@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 
+import { MessageAttachmentChips } from '../../attachments';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, compactProseClassNames } from '../markdown-utils';
 import type { Task } from './types';
@@ -13,10 +14,17 @@ export interface TaskItemProps {
   onClick?: () => void;
 }
 
+// fallow-ignore-next-line complexity
 export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
 
   const isClickable = !!onClick;
+
+  const taskHasAttachments =
+    (task.attachedTasks?.length ?? 0) > 0 ||
+    (task.attachedBacklogItems?.length ?? 0) > 0 ||
+    (task.attachedMessages?.length ?? 0) > 0 ||
+    (task.attachedSnippets?.length ?? 0) > 0;
 
   return (
     <div
@@ -53,6 +61,25 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
           {task.content}
         </Markdown>
       </div>
+
+      {/* Attachment chips */}
+      {taskHasAttachments ? (
+        <div className="mb-2" onClick={(e) => e.stopPropagation()}>
+          <MessageAttachmentChips
+            message={{
+              _id: task._id,
+              type: 'task',
+              senderRole: 'user',
+              content: task.content,
+              _creationTime: task.createdAt,
+              attachedTasks: task.attachedTasks,
+              attachedBacklogItems: task.attachedBacklogItems,
+              attachedMessages: task.attachedMessages,
+              attachedSnippets: task.attachedSnippets,
+            }}
+          />
+        </div>
+      ) : null}
 
       {/* Actions for editable tasks */}
       {!isProtected && (

@@ -29,6 +29,7 @@ export { resolveEventTypeDefinition } from './resolveEventTypeDefinition';
 // Re-export shared components
 export {
   DetailRow,
+  EVENT_STREAM_ROW_HEIGHT,
   EventDetails,
   EventRow,
   PlaceholderEventDetails,
