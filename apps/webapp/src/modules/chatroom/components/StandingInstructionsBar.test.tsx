@@ -373,8 +373,9 @@ describe('StandingInstructionsBar', () => {
     expect(list?.querySelectorAll('[role="option"]')).toHaveLength(1);
 
     const createNewBtn = screen.getByTestId('standing-instructions-create-new');
-    expect(createNewBtn.className).toContain('border-0');
-    expect(createNewBtn.className).toContain('px-3');
+    expect(createNewBtn.className).toContain('justify-center');
+    expect(createNewBtn.className).toContain('bg-chatroom-status-success/5');
+    expect(createNewBtn.className).toContain('min-h-11');
     expect(screen.queryByRole('option', { name: 'Create new' })).toBeNull();
   });
 

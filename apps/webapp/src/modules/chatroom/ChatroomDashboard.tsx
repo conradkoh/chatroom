@@ -52,7 +52,6 @@ import { useCommandDialog } from './context/CommandDialogContext';
 import { PendingFileHighlightProvider } from './context/PendingFileHighlightContext';
 import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
-import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
 import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
@@ -60,6 +59,7 @@ import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
+import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -596,9 +596,11 @@ export function ChatroomDashboard({
 
   // Sidebar visibility state - persisted per chatroom; forced hidden on small screens
   const isSmallScreen = useIsSmallScreen();
-  const [sidebarVisible, setSidebarVisible] = useAgentSidebarVisible(
-    chatroomId as Id<'chatroom_rooms'>
-  );
+  const {
+    visible: sidebarVisible,
+    setVisible: setSidebarVisible,
+    restoreDesktopDefault,
+  } = useAgentSidebarOpen(isSmallScreen);
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
@@ -771,9 +773,13 @@ export function ChatroomDashboard({
   const handleDisableFocusMode = useCallback(() => {
     const snap = focusSnapshotRef.current;
     onSetListingSidebarVisible?.(snap?.listing ?? true);
-    setSidebarVisible(snap?.agents ?? true);
+    if (isSmallScreen) {
+      setSidebarVisible(snap?.agents ?? false);
+    } else {
+      restoreDesktopDefault();
+    }
     focusSnapshotRef.current = null;
-  }, [onSetListingSidebarVisible, setSidebarVisible]);
+  }, [onSetListingSidebarVisible, setSidebarVisible, restoreDesktopDefault, isSmallScreen]);
 
   const handleShowAgentsSidebar = useCallback(() => {
     setSidebarVisible(true);

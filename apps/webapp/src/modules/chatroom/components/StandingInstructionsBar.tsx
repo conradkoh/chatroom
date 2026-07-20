@@ -106,18 +106,22 @@ function HistorySelectionList(props: {
 function CreateNewButton(props: { selected: boolean; onSelect: () => void; mobile?: boolean }) {
   const { selected, onSelect, mobile } = props;
 
+  const baseClasses =
+    'w-full flex items-center justify-center gap-2 font-bold uppercase tracking-wider border-0 transition-colors cursor-pointer';
+  const sizeClasses = mobile ? 'min-h-11 px-3 py-2 text-sm' : 'px-4 py-2 text-xs';
+  const stateClasses = selected
+    ? 'bg-chatroom-status-success/10 text-chatroom-accent'
+    : 'bg-chatroom-status-success/5 text-chatroom-text-primary hover:bg-chatroom-status-success/10';
+
   return (
     <button
       type="button"
       onClick={onSelect}
       data-testid="standing-instructions-create-new"
-      className={
-        mobile
-          ? `min-h-11 w-full text-left text-sm font-bold uppercase tracking-wider px-3 border-0 bg-transparent hover:bg-chatroom-bg-hover transition-colors cursor-pointer ${selected ? 'text-chatroom-accent bg-chatroom-bg-hover' : 'text-chatroom-text-primary'}`
-          : `w-full text-left text-xs font-bold uppercase tracking-wider border-0 bg-transparent hover:bg-chatroom-bg-hover transition-colors cursor-pointer ${selected ? 'text-chatroom-accent' : 'text-chatroom-text-primary'}`
-      }
+      className={`${baseClasses} ${sizeClasses} ${stateClasses}`}
     >
-      Create new
+      <Plus size={mobile ? 14 : 12} className="shrink-0" aria-hidden="true" />
+      <span>Create new</span>
     </button>
   );
 }
