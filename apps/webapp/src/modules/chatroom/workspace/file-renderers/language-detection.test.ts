@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { detectLanguage } from './language-detection';
+
+import { detectLanguage, fenceLangToSyntheticPath } from './language-detection';
 
 describe('detectLanguage', () => {
   it('detects TypeScript (.ts)', () => {
@@ -95,5 +96,49 @@ describe('detectLanguage', () => {
   it('handles paths with multiple dots', () => {
     expect(detectLanguage('test.spec.ts')).toEqual({ lang: 'ts', isEager: true });
     expect(detectLanguage('file.backup.js')).toEqual({ lang: 'js', isEager: true });
+  });
+});
+
+describe('fenceLangToSyntheticPath', () => {
+  it('maps "go" to snippet.go', () => {
+    expect(fenceLangToSyntheticPath('go')).toBe('snippet.go');
+  });
+
+  it('maps "typescript" to snippet.ts', () => {
+    expect(fenceLangToSyntheticPath('typescript')).toBe('snippet.ts');
+  });
+
+  it('maps "python" to snippet.py', () => {
+    expect(fenceLangToSyntheticPath('python')).toBe('snippet.py');
+  });
+
+  it('maps "bash" to snippet.sh', () => {
+    expect(fenceLangToSyntheticPath('bash')).toBe('snippet.sh');
+  });
+
+  it('maps "yaml" to snippet.yaml', () => {
+    expect(fenceLangToSyntheticPath('yaml')).toBe('snippet.yaml');
+  });
+
+  it('returns null for unknown fence language', () => {
+    expect(fenceLangToSyntheticPath('unknown')).toBeNull();
+  });
+
+  it('trims and lowercases the input', () => {
+    expect(fenceLangToSyntheticPath('  TypeScript  ')).toBe('snippet.ts');
+    expect(fenceLangToSyntheticPath('Go')).toBe('snippet.go');
+  });
+
+  it('falls back to raw extension if mapped in EXTENSION_TO_LANG', () => {
+    expect(fenceLangToSyntheticPath('.go')).toBe('snippet.go');
+  });
+
+  it('maps common aliases correctly', () => {
+    expect(fenceLangToSyntheticPath('js')).toBe('snippet.js');
+    expect(fenceLangToSyntheticPath('rust')).toBe('snippet.rs');
+    expect(fenceLangToSyntheticPath('shell')).toBe('snippet.sh');
+    expect(fenceLangToSyntheticPath('golang')).toBe('snippet.go');
+    expect(fenceLangToSyntheticPath('css')).toBe('snippet.css');
+    expect(fenceLangToSyntheticPath('html')).toBe('snippet.html');
   });
 });

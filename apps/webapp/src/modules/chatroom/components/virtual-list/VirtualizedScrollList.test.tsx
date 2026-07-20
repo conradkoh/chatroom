@@ -65,4 +65,33 @@ describe('VirtualizedScrollList', () => {
     const scrollContainer = container.querySelector('.overflow-y-auto');
     expect(scrollContainer).toBeInTheDocument();
   });
+
+  it('resets scrollTop when scrollResetKey changes', () => {
+    const items = [{ id: 'a' }, { id: 'b' }];
+    const { container, rerender } = render(
+      <VirtualizedScrollList
+        items={items}
+        height={200}
+        estimateSize={() => 50}
+        getItemKey={(_, item) => item.id}
+        renderItem={(item) => <div>{item.id}</div>}
+        scrollResetKey="initial"
+      />
+    );
+    const scrollContainer = container.querySelector('.overflow-y-auto') as HTMLDivElement;
+    Object.defineProperty(scrollContainer, 'scrollTop', { value: 100, writable: true });
+    expect(scrollContainer.scrollTop).toBe(100);
+
+    rerender(
+      <VirtualizedScrollList
+        items={items}
+        height={200}
+        estimateSize={() => 50}
+        getItemKey={(_, item) => item.id}
+        renderItem={(item) => <div>{item.id}</div>}
+        scrollResetKey="changed"
+      />
+    );
+    expect(scrollContainer.scrollTop).toBe(0);
+  });
 });

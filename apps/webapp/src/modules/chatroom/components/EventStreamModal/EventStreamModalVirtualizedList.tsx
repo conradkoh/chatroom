@@ -2,11 +2,9 @@
 
 import { useCallback } from 'react';
 
-import { resolveEventTypeDefinition } from '../../eventTypes';
+import { EVENT_STREAM_ROW_HEIGHT, resolveEventTypeDefinition } from '../../eventTypes';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 import { VirtualizedScrollList } from '../virtual-list';
-
-export const EVENT_STREAM_ROW_HEIGHT = 52;
 
 interface EventStreamModalVirtualizedListProps {
   events: EventStreamEvent[];

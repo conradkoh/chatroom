@@ -26,14 +26,7 @@ const EXTENSION_TO_LANG: Record<string, string> = {
   '.sql': 'sql',
 };
 
-const EAGER_LANGS = new Set([
-  'ts',
-  'tsx',
-  'js',
-  'jsx',
-  'json',
-  'md',
-]);
+const EAGER_LANGS = new Set(['ts', 'tsx', 'js', 'jsx', 'json', 'md']);
 
 export const MAX_FILE_SIZE = 500_000;
 
@@ -46,4 +39,42 @@ export function detectLanguage(path: string): DetectedLanguage {
   const lang = EXTENSION_TO_LANG[ext];
   if (!lang) return null;
   return { lang, isEager: EAGER_LANGS.has(lang) };
+}
+
+const FENCE_LANG_ALIASES: Record<string, string> = {
+  ts: '.ts',
+  typescript: '.ts',
+  js: '.js',
+  javascript: '.js',
+  jsx: '.jsx',
+  tsx: '.tsx',
+  json: '.json',
+  md: '.md',
+  markdown: '.md',
+  py: '.py',
+  python: '.py',
+  go: '.go',
+  golang: '.go',
+  rs: '.rs',
+  rust: '.rs',
+  sh: '.sh',
+  bash: '.sh',
+  shell: '.sh',
+  zsh: '.sh',
+  yaml: '.yaml',
+  yml: '.yaml',
+  toml: '.toml',
+  sql: '.sql',
+  css: '.css',
+  scss: '.scss',
+  html: '.html',
+  xml: '.xml',
+};
+
+export function fenceLangToSyntheticPath(fenceLang: string): string | null {
+  const key = fenceLang.trim().toLowerCase();
+  const ext = FENCE_LANG_ALIASES[key];
+  if (ext) return `snippet${ext}`;
+  const tryExt = key.startsWith('.') ? key : `.${key}`;
+  return EXTENSION_TO_LANG[tryExt] ? `snippet${tryExt}` : null;
 }

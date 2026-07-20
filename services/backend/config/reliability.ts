@@ -61,7 +61,8 @@ export const OBSERVATION_TTL_MS = 60_000;
 
 /** How often the daemon performs a full (non-slim) git state push per workspace.
  *  Slim pushes run every safety poll; this ensures non-slim fields (diffStat,
- *  commitsAhead, remotes, allPullRequests, recentCommits) refresh at least this often.
+ *  commitsAhead, remotes, recentCommits) refresh at least this often.
+ *  allPullRequests are fetched on demand via requestAllPullRequests.
  *  Set to 5 minutes. */
 export const OBSERVED_FULL_PUSH_INTERVAL_MS = 5 * 60_000;
 
@@ -69,6 +70,13 @@ export const OBSERVED_FULL_PUSH_INTERVAL_MS = 5 * 60_000;
  *  Daemon additionally polls observed chatrooms periodically as a safety net
  *  in case frontend heartbeat stops unexpectedly. Set to 30s. */
 export const OBSERVED_SAFETY_POLL_MS = 30_000;
+
+/**
+ * Slow reconcile interval for the observed-sync subscription (ms).
+ * Convex `onUpdate` handles reactive invalidation; this timer is a fallback for
+ * TTL drift when observation rows expire without a reactive callback. Set to 15 min.
+ */
+export const OBSERVED_SYNC_RECONCILE_MS = 15 * 60_000;
 
 /** How often frontend sends a heartbeat while chatroom view is visible (ms).
  *  Frontend sends this heartbeat to keep chatrooms marked as observed.

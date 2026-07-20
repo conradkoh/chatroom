@@ -114,14 +114,6 @@ const GIT_STATE_FIELDS: GitStateFieldDef<unknown, unknown, Record<string, unknow
     toMutationPartial: (raw) => ({ remotes: raw as GitRemoteEntry[] }),
     defaultValue: [] as GitRemoteEntry[],
   },
-  {
-    key: 'allPullRequests',
-    includeInSlim: false,
-    collect: (wd) => gitReader.getAllPRs(wd),
-    toHashable: (raw) => (raw as GitPullRequest[]).map((pr) => `${pr.prNumber}:${pr.state}`),
-    toMutationPartial: (raw) => ({ allPullRequests: raw as GitPullRequest[] }),
-    defaultValue: [] as GitPullRequest[],
-  },
 ];
 
 function makeBranchDependentFields(
