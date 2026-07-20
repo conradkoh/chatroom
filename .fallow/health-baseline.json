@@ -59,6 +59,22 @@
         "count": 2
       }
     },
+    "apps/webapp/src/app/dev/mobile-picker-harness/StandingInstructionsBarSection.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/app/dev/standing-instructions-release-harness/StandingInstructionsReleaseHarness.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
     "apps/webapp/src/app/login/[loginRequestId]/page.tsx": {
       "complexity_critical": {
         "count": 1
@@ -236,7 +252,7 @@
         "count": 1
       },
       "crap_critical": {
-        "count": 2
+        "count": 1
       },
       "crap_high": {
         "count": 2
@@ -342,6 +358,11 @@
         "count": 1
       },
       "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/ChatroomTitleEditor.tsx": {
+      "crap_critical": {
         "count": 1
       }
     },
@@ -538,7 +559,13 @@
       }
     },
     "apps/webapp/src/modules/chatroom/components/StandingInstructionsBar.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
       "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -631,7 +658,10 @@
       }
     },
     "apps/webapp/src/modules/chatroom/components/picker/ResponsivePickerShell.tsx": {
-      "crap_high": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
         "count": 1
       }
     },
@@ -777,11 +807,6 @@
         "count": 1
       }
     },
-    "apps/webapp/src/modules/chatroom/direct-harness/stores/harnessTurnStoreReducer.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "apps/webapp/src/modules/chatroom/eventTypes/agentEvents.tsx": {
       "crap_critical": {
         "count": 1
@@ -836,11 +861,6 @@
     },
     "apps/webapp/src/modules/chatroom/features/run-command/hooks/useProcessesPanelState.ts": {
       "crap_high": {
-        "count": 2
-      }
-    },
-    "apps/webapp/src/modules/chatroom/features/run-command/stores/commandUsageStore.ts": {
-      "crap_moderate": {
         "count": 2
       }
     },
@@ -992,6 +1012,11 @@
       }
     },
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/lib/messageExport/downloadTextFile.ts": {
       "crap_moderate": {
         "count": 2
       }
@@ -1330,6 +1355,11 @@
       },
       "crap_moderate": {
         "count": 2
+      }
+    },
+    "apps/webapp/src/modules/theme/theme-utils.ts": {
+      "crap_moderate": {
+        "count": 1
       }
     },
     "packages/cli/src/commands/agentic-query/complete.ts": {
@@ -2119,7 +2149,7 @@
     },
     "services/backend/convex/migrations.ts": {
       "crap_high": {
-        "count": 1
+        "count": 2
       },
       "crap_moderate": {
         "count": 2
@@ -2401,8 +2431,8 @@
     "apps/webapp/src/modules/chatroom/components/FileSelector/FileCopyActionsMenu.tsx:dead code",
     "apps/webapp/src/modules/chatroom/workspace/files/explorer-tree.ts:dead code",
     "services/backend/prompts/base/webapp/utils/env.ts:dead code",
-    "apps/webapp/src/modules/chatroom/hooks/persistence/messageViewMode.ts:high impact",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
+    "apps/webapp/src/modules/chatroom/hooks/persistence/messageViewMode.ts:high impact",
     "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
@@ -2427,8 +2457,8 @@
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
     "apps/webapp/src/lib/pathUtils.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
-    "services/backend/convex/machines.ts:complexity",
     "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
+    "services/backend/convex/machines.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "packages/cli/src/domain/agent-lifecycle/policies/terminal-provider-error.ts:untested risk",
     "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
