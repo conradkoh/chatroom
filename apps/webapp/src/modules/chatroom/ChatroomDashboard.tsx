@@ -28,7 +28,10 @@ import {
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { teamConfigToUpdateArgs } from './components/AgentPanel/TeamSelectorDropdown';
-import { ChatroomTitleEditor } from './components/ChatroomTitleEditor';
+import {
+  ChatroomTitleEditor,
+  type ChatroomTitleEditorProps,
+} from './components/ChatroomTitleEditor';
 import { ThemeToggleButton } from '../theme/ThemeToggleButton';
 import {
   CommandPalette,
@@ -211,36 +214,10 @@ function ChatroomHeaderBackButton({ onBack }: { onBack?: () => void }) {
   );
 }
 
-interface ChatroomHeaderCenterProps {
-  displayName: string;
-  chatroomId: string;
-  chatStatus: ChatStatus;
-  isDesktop: boolean;
-  onOpenSettings: () => void;
-  onSwitchChatrooms: () => void;
-  onOpenProfile: () => void;
-  focusModeActive: boolean;
-  onEnableFocusMode: () => void;
-  onDisableFocusMode: () => void;
-  onShowAgentsSidebar: () => void;
-}
-
-function ChatroomHeaderCenter(props: ChatroomHeaderCenterProps) {
+function ChatroomHeaderCenter(props: ChatroomTitleEditorProps) {
   return (
     <div className="flex items-center gap-2 min-w-0 max-w-full">
-      <ChatroomTitleEditor
-        displayName={props.displayName}
-        chatroomId={props.chatroomId}
-        chatStatus={props.chatStatus}
-        isDesktop={props.isDesktop}
-        onOpenSettings={props.onOpenSettings}
-        onSwitchChatrooms={props.onSwitchChatrooms}
-        onOpenProfile={props.onOpenProfile}
-        focusModeActive={props.focusModeActive}
-        onEnableFocusMode={props.onEnableFocusMode}
-        onDisableFocusMode={props.onDisableFocusMode}
-        onShowAgentsSidebar={props.onShowAgentsSidebar}
-      />
+      <ChatroomTitleEditor {...props} />
     </div>
   );
 }

@@ -111,4 +111,49 @@ describe('ChatroomTitleEditor menu', () => {
     expect(screen.getByLabelText('Agents are working on tasks')).toBeInTheDocument();
     expect(screen.getByText('Demo Room')).toBeInTheDocument();
   });
+
+  it('desktop: focus mode toggle enables focus mode without opening menu', async () => {
+    const onEnableFocusMode = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChatroomTitleEditor
+        {...base}
+        isDesktop
+        focusModeActive={false}
+        onEnableFocusMode={onEnableFocusMode}
+        onDisableFocusMode={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Enable focus mode' }));
+    expect(onEnableFocusMode).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Edit Name')).not.toBeInTheDocument();
+  });
+
+  it('desktop: focus mode toggle disables focus mode when active', async () => {
+    const onDisableFocusMode = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChatroomTitleEditor
+        {...base}
+        isDesktop
+        focusModeActive
+        onEnableFocusMode={vi.fn()}
+        onDisableFocusMode={onDisableFocusMode}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Disable focus mode' }));
+    expect(onDisableFocusMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('mobile: hides focus mode toggle', () => {
+    render(
+      <ChatroomTitleEditor
+        {...base}
+        isDesktop={false}
+        onEnableFocusMode={vi.fn()}
+        onDisableFocusMode={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /focus mode/i })).not.toBeInTheDocument();
+  });
 });
