@@ -28,7 +28,10 @@ import {
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { teamConfigToUpdateArgs } from './components/AgentPanel/TeamSelectorDropdown';
-import { ChatroomTitleEditor } from './components/ChatroomTitleEditor';
+import {
+  ChatroomTitleEditor,
+  type ChatroomTitleEditorProps,
+} from './components/ChatroomTitleEditor';
 import { ThemeToggleButton } from '../theme/ThemeToggleButton';
 import {
   CommandPalette,
@@ -189,8 +192,8 @@ interface ChatroomDashboardProps {
   onBack?: () => void;
   /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
   refreshObservedChatroom: () => void;
-  listingSidebarVisible?: boolean;
-  onSetListingSidebarVisible?: (visible: boolean) => void;
+  focusModeEnabled?: boolean;
+  onSetFocusModeEnabled?: (enabled: boolean) => void;
 }
 
 /** Edit target for the saved command modal */
@@ -211,36 +214,10 @@ function ChatroomHeaderBackButton({ onBack }: { onBack?: () => void }) {
   );
 }
 
-interface ChatroomHeaderCenterProps {
-  displayName: string;
-  chatroomId: string;
-  chatStatus: ChatStatus;
-  isDesktop: boolean;
-  onOpenSettings: () => void;
-  onSwitchChatrooms: () => void;
-  onOpenProfile: () => void;
-  focusModeActive: boolean;
-  onEnableFocusMode: () => void;
-  onDisableFocusMode: () => void;
-  onShowAgentsSidebar: () => void;
-}
-
-function ChatroomHeaderCenter(props: ChatroomHeaderCenterProps) {
+function ChatroomHeaderCenter(props: ChatroomTitleEditorProps) {
   return (
     <div className="flex items-center gap-2 min-w-0 max-w-full">
-      <ChatroomTitleEditor
-        displayName={props.displayName}
-        chatroomId={props.chatroomId}
-        chatStatus={props.chatStatus}
-        isDesktop={props.isDesktop}
-        onOpenSettings={props.onOpenSettings}
-        onSwitchChatrooms={props.onSwitchChatrooms}
-        onOpenProfile={props.onOpenProfile}
-        focusModeActive={props.focusModeActive}
-        onEnableFocusMode={props.onEnableFocusMode}
-        onDisableFocusMode={props.onDisableFocusMode}
-        onShowAgentsSidebar={props.onShowAgentsSidebar}
-      />
+      <ChatroomTitleEditor {...props} />
     </div>
   );
 }
@@ -500,8 +477,8 @@ export function ChatroomDashboard({
   chatroomId,
   onBack,
   refreshObservedChatroom,
-  listingSidebarVisible = true,
-  onSetListingSidebarVisible,
+  focusModeEnabled = false,
+  onSetFocusModeEnabled,
 }: ChatroomDashboardProps) {
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
@@ -593,11 +570,8 @@ export function ChatroomDashboard({
 
   // Sidebar visibility state - persisted per chatroom; forced hidden on small screens
   const isSmallScreen = useIsSmallScreen();
-  const {
-    visible: sidebarVisible,
-    setVisible: setSidebarVisible,
-    restoreDesktopDefault,
-  } = useAgentSidebarOpen(isSmallScreen);
+  const { visible: sidebarVisible, setVisible: setSidebarVisible } =
+    useAgentSidebarOpen(isSmallScreen);
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
@@ -758,28 +732,20 @@ export function ChatroomDashboard({
     setSidebarVisible(!sidebarVisible);
   }, [sidebarVisible, setSidebarVisible]);
 
-  const focusSnapshotRef = useRef<{ listing: boolean; agents: boolean } | null>(null);
-  const focusModeActive = isFocusModeActive(listingSidebarVisible, sidebarVisible);
+  const agentsFocusSnapshotRef = useRef<boolean | null>(null);
+  const focusModeActive = isFocusModeActive(focusModeEnabled);
 
   const handleEnableFocusMode = useCallback(() => {
-    focusSnapshotRef.current = {
-      listing: listingSidebarVisible,
-      agents: sidebarVisible,
-    };
-    onSetListingSidebarVisible?.(false);
+    agentsFocusSnapshotRef.current = sidebarVisible;
+    onSetFocusModeEnabled?.(true);
     setSidebarVisible(false);
-  }, [listingSidebarVisible, sidebarVisible, onSetListingSidebarVisible, setSidebarVisible]);
+  }, [sidebarVisible, onSetFocusModeEnabled, setSidebarVisible]);
 
   const handleDisableFocusMode = useCallback(() => {
-    const snap = focusSnapshotRef.current;
-    onSetListingSidebarVisible?.(snap?.listing ?? true);
-    if (isSmallScreen) {
-      setSidebarVisible(snap?.agents ?? false);
-    } else {
-      restoreDesktopDefault();
-    }
-    focusSnapshotRef.current = null;
-  }, [onSetListingSidebarVisible, setSidebarVisible, restoreDesktopDefault, isSmallScreen]);
+    onSetFocusModeEnabled?.(false);
+    setSidebarVisible(agentsFocusSnapshotRef.current ?? (isSmallScreen ? false : true));
+    agentsFocusSnapshotRef.current = null;
+  }, [onSetFocusModeEnabled, setSidebarVisible, isSmallScreen]);
 
   const handleShowAgentsSidebar = useCallback(() => {
     setSidebarVisible(true);
@@ -1614,7 +1580,7 @@ export function ChatroomDashboard({
     chatroomId,
     isSetupMode,
     onBack,
-    listingSidebarVisible,
+    focusModeEnabled,
     sidebarVisible,
     chatStatus,
     focusModeActive,

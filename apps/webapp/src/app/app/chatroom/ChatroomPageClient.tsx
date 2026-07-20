@@ -1,12 +1,13 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
-import { useChatroomListingSidebarVisible } from '@/modules/chatroom/hooks/persistence/useChatroomListingSidebarVisible';
 import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
+import { isListingSidebarVisible } from '@/modules/chatroom/utils/focusMode';
 
 /**
  * Client body for /app/chatroom. Kept separate from page.tsx so the route can
@@ -22,7 +23,8 @@ export function ChatroomPageClient() {
   };
 
   const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
-  const [listingSidebarVisible, setListingSidebarVisible] = useChatroomListingSidebarVisible();
+  const [focusModeEnabled, setFocusModeEnabled] = useState(false);
+  const listingSidebarVisible = isListingSidebarVisible(focusModeEnabled);
 
   if (!chatroomId) {
     return (
@@ -92,8 +94,8 @@ export function ChatroomPageClient() {
           chatroomId={chatroomId}
           onBack={handleBack}
           refreshObservedChatroom={refreshObservedChatroom}
-          listingSidebarVisible={listingSidebarVisible}
-          onSetListingSidebarVisible={setListingSidebarVisible}
+          focusModeEnabled={focusModeEnabled}
+          onSetFocusModeEnabled={setFocusModeEnabled}
         />
       </div>
     </div>
