@@ -31,7 +31,8 @@ export function isValidMessageViewMode(v: unknown): v is MessageViewMode {
   return typeof v === 'string' && isRoleMessageViewMode(v);
 }
 
-/** Whether a timeline message belongs in a role-filtered view (matches former listMessagesBySenderRolePaginated semantics). */
+/** Whether a timeline message belongs in a role-filtered view (matches listMessagesBySenderRolePaginated semantics). */
+// fallow-ignore-next-line unused-export
 export function messageMatchesSenderRoleFilter(
   message: { senderRole: string; type: string },
   senderRole: string
