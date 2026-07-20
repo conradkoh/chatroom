@@ -252,9 +252,10 @@ describe('StandingInstructionsBar', () => {
       expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
       expect(screen.getByText('Write unit tests first')).toBeInTheDocument();
       expect(screen.getByText('Use async/await patterns')).toBeInTheDocument();
-      expect(screen.getByText('Create new')).toBeInTheDocument();
+      expect(screen.getByTestId('standing-instructions-create-new')).toBeInTheDocument();
       expect(screen.getByText('View more')).toBeInTheDocument();
       expect(screen.queryByText('From history')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('option')).toHaveLength(3);
     });
 
     it('selecting history then Confirm calls recordUse and upsert', async () => {
@@ -355,6 +356,7 @@ describe('StandingInstructionsBar', () => {
   it('aligns mobile add drawer list with header (no extra horizontal padding)', async () => {
     const user = userEvent.setup();
     mockUseIsDesktop.mockReturnValue(false);
+    mockHistory = [{ _id: 'h1', content: 'Always use TypeScript', useCount: 10, lastUsedAt: 5000 }];
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Add standing instructions'));
 
@@ -368,9 +370,30 @@ describe('StandingInstructionsBar', () => {
 
     const list = body.querySelector('ul');
     expect(list?.className).toContain('w-full');
+    expect(list?.querySelectorAll('[role="option"]')).toHaveLength(1);
 
-    const firstRow = screen.getByRole('option', { name: 'Create new' });
-    expect(firstRow.className).toContain('px-3');
+    const createNewBtn = screen.getByTestId('standing-instructions-create-new');
+    expect(createNewBtn.className).toContain('border-0');
+    expect(createNewBtn.className).toContain('px-3');
+    expect(screen.queryByRole('option', { name: 'Create new' })).toBeNull();
+  });
+
+  it('places Create new button below list and above Confirm on add flow', async () => {
+    const user = userEvent.setup();
+    mockHistory = [{ _id: 'h1', content: 'Always use TypeScript', useCount: 10, lastUsedAt: 5000 }];
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Add standing instructions'));
+
+    const createNew = screen.getByTestId('standing-instructions-create-new');
+    const confirm = screen.getByText('Confirm');
+    const historyRow = screen.getByRole('option', { name: 'Always use TypeScript' });
+
+    expect(
+      historyRow.compareDocumentPosition(createNew) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      createNew.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('opens edit drawer on mobile when Edit is chosen from actions', async () => {
@@ -412,7 +435,7 @@ describe('StandingInstructionsBar', () => {
     const user = userEvent.setup();
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Add standing instructions'));
-    await user.click(screen.getByText('Create new'));
+    await user.click(screen.getByTestId('standing-instructions-create-new'));
 
     const textarea = screen.getByPlaceholderText('Enter standing instructions…');
     await user.type(textarea, 'updated instruction');

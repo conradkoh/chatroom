@@ -81,9 +81,10 @@ function HistorySelectionList(props: {
   items: HistoryItem[];
   selection: AddSelection;
   onSelectHistory: (item: HistoryItem) => void;
-  onSelectCreateNew: () => void;
 }) {
-  const { items, selection, onSelectHistory, onSelectCreateNew } = props;
+  const { items, selection, onSelectHistory } = props;
+
+  if (items.length === 0) return null;
 
   return (
     <ul className="flex w-full flex-col border border-chatroom-border divide-y divide-chatroom-border">
@@ -98,16 +99,26 @@ function HistorySelectionList(props: {
           </PickerOptionRow>
         </li>
       ))}
-      <li>
-        <PickerOptionRow
-          selected={selection === 'create-new'}
-          onSelect={onSelectCreateNew}
-          className="rounded-none"
-        >
-          Create new
-        </PickerOptionRow>
-      </li>
     </ul>
+  );
+}
+
+function CreateNewButton(props: { selected: boolean; onSelect: () => void; mobile?: boolean }) {
+  const { selected, onSelect, mobile } = props;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      data-testid="standing-instructions-create-new"
+      className={
+        mobile
+          ? `min-h-11 w-full text-left text-sm font-bold uppercase tracking-wider px-3 border-0 bg-transparent hover:bg-chatroom-bg-hover transition-colors cursor-pointer ${selected ? 'text-chatroom-accent bg-chatroom-bg-hover' : 'text-chatroom-text-primary'}`
+          : `w-full text-left text-xs font-bold uppercase tracking-wider border-0 bg-transparent hover:bg-chatroom-bg-hover transition-colors cursor-pointer ${selected ? 'text-chatroom-accent' : 'text-chatroom-text-primary'}`
+      }
+    >
+      Create new
+    </button>
   );
 }
 
@@ -164,8 +175,8 @@ function AddingPanel(props: {
         items={historyTop3}
         selection={selection}
         onSelectHistory={onSelectHistory}
-        onSelectCreateNew={onSelectCreateNew}
       />
+      <CreateNewButton selected={selection === 'create-new'} onSelect={onSelectCreateNew} />
       {selection === 'create-new' ? (
         <textarea
           autoFocus
@@ -262,7 +273,11 @@ function MobileAddingDrawer(props: {
             items={historyTop3}
             selection={selection}
             onSelectHistory={onSelectHistory}
-            onSelectCreateNew={onSelectCreateNew}
+          />
+          <CreateNewButton
+            selected={selection === 'create-new'}
+            onSelect={onSelectCreateNew}
+            mobile
           />
           {selection === 'create-new' ? (
             <textarea
