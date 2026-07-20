@@ -38,6 +38,7 @@ import {
   TIMELINE_PADDING_END,
   TIMELINE_SCROLL_END_THRESHOLD,
 } from './timelineVirtualizerConfig';
+import { SelectableUserMessageRow, UserTabConversationShell } from './userTabConversationSlice';
 import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
@@ -68,6 +69,8 @@ export function ChatroomTimelineFeed({
   machines,
   senderRoleFilter,
 }: ChatroomTimelineFeedProps) {
+  const isUserFilteredView = senderRoleFilter?.toLowerCase() === 'user';
+  const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const boundCoordinatorRef = useRef<TimelineScrollCoordinator | null>(null);
   const topChromeRef = useRef<HTMLDivElement>(null);
@@ -459,7 +462,23 @@ export function ChatroomTimelineFeed({
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  return (
+  const renderEventRow = (event: (typeof events)[number]) => {
+    if (!isUserFilteredView) {
+      return <TimelineEventRow event={event} chatroomId={chatroomId} machines={machines} />;
+    }
+
+    return (
+      <SelectableUserMessageRow
+        event={event}
+        chatroomId={chatroomId}
+        machines={machines}
+        selectedAnchorId={selectedAnchorId}
+        onSelect={setSelectedAnchorId}
+      />
+    );
+  };
+
+  const timelineBody = (
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div
         ref={scrollRefCallback}
@@ -515,7 +534,7 @@ export function ChatroomTimelineFeed({
                   contain: 'layout style',
                 }}
               >
-                <TimelineEventRow event={event} chatroomId={chatroomId} machines={machines} />
+                {renderEventRow(event)}
               </div>
             );
           })}
@@ -537,5 +556,19 @@ export function ChatroomTimelineFeed({
 
       {footer}
     </div>
+  );
+
+  if (!isUserFilteredView) {
+    return timelineBody;
+  }
+
+  return (
+    <UserTabConversationShell
+      timelineBody={timelineBody}
+      chatroomId={chatroomId}
+      machines={machines}
+      selectedAnchorId={selectedAnchorId}
+      onClose={() => setSelectedAnchorId(null)}
+    />
   );
 }
