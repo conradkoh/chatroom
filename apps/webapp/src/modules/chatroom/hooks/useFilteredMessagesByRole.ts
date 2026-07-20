@@ -6,7 +6,7 @@ import { usePaginatedQuery } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
-import { toMessage } from './useChatroomMessageStore';
+import { toMessage } from './chatroomMessageStore';
 import type { Message } from '../types/message';
 
 const PAGE_SIZE = 20;

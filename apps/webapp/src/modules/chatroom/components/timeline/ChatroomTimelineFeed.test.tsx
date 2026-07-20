@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vites
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import {
+  jumpToNewMessagesBottomOffset,
   TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
@@ -33,6 +34,21 @@ beforeAll(() => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }))
+  );
+
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      callback: ResizeObserverCallback;
+      constructor(cb: ResizeObserverCallback) {
+        this.callback = cb;
+      }
+      observe(target: Element) {
+        this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
   );
 });
 
@@ -135,6 +151,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listLatestEvents: 'listLatestEvents',
       listLatestEventsPaginated: 'listLatestEventsPaginated',
     },
+    messages: {
+      listMessagesBySenderRolePaginated: 'listMessagesBySenderRolePaginated',
+      listConversationSlicePaginated: 'listConversationSlicePaginated',
+    },
   },
 }));
 
@@ -183,6 +203,18 @@ const baseEvents: TimelineEvent[] = [
 
 let timelineEvents = [...baseEvents];
 let timelineIsLoadingOlder = false;
+
+vi.mock('../../hooks/useFilteredMessagesByRole', () => ({
+  useFilteredMessagesByRole: () => ({
+    messages: timelineEvents
+      .filter((event) => event.kind === 'user_message')
+      .map((event) => event.message),
+    isLoading: false,
+    isLoadingMore: false,
+    canLoadMore: mockHasMoreOlder,
+    loadMore: loadOlderEvents,
+  }),
+}));
 
 vi.mock('../../hooks/useChatroomTimeline', () => ({
   useChatroomTimeline: () => ({
@@ -802,6 +834,48 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     expect(el.scrollTop).toBe(maxScrollTop);
     expect(screen.queryByRole('button', { name: 'Jump to new messages' })).toBeNull();
   });
+
+  it('positions jump chip above measured footer chrome', async () => {
+    // Stub offsetHeight for the footer chrome element
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetHeight'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        if ((this as HTMLElement).getAttribute('data-testid') === 'timeline-footer-chrome')
+          return 96;
+        return originalDescriptor?.get?.call(this) ?? 0;
+      },
+    });
+
+    timelineEvents = buildEvents(25);
+    const { coordinator } = renderFeed(true);
+    await flushRaf();
+    setScrollPinned(true);
+    mockScrollToEnd.mockClear();
+
+    // Unpin so the chip appears
+    const el = screen.getByTestId('chatroom-timeline-scroll');
+    scrollElProps(el, 0, 2500);
+    await waitFor(() => {
+      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+    });
+    act(() => {
+      scrollElProps(el, 0, 2500);
+      el.dispatchEvent(new Event('scroll'));
+    });
+    await waitFor(() => {
+      expect(coordinator.current.isPinned).toBe(false);
+    });
+
+    const chip = screen.getByRole('button', { name: 'Jump to new messages' });
+    expect(chip).toHaveStyle({ bottom: `${jumpToNewMessagesBottomOffset(96)}px` });
+
+    // Restore
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalDescriptor!);
+  });
 });
 
 describe('ChatroomTimelineFeed load-more scroll preservation', () => {
@@ -983,8 +1057,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
   it('registers custom measureElement that caches rounded heights by data-id', () => {
     renderFeed();
     const measureElement = virtualizerOptions.at(-1)?.measureElement as
-      | ((el: HTMLElement) => number)
-      | undefined;
+      ((el: HTMLElement) => number) | undefined;
     expect(measureElement).toBeTypeOf('function');
 
     const row = document.createElement('div');
@@ -1002,8 +1075,7 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     // Get the estimateSize function from the virtualizer options
     const estimateSize = virtualizerOptions.at(-1)?.estimateSize as
-      | ((index: number) => number)
-      | undefined;
+      ((index: number) => number) | undefined;
     expect(estimateSize).toBeTypeOf('function');
 
     // First render: cache should return estimated size (100) for unmeasured items
@@ -1043,5 +1115,38 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     const options = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     expect(options.estimateSize).toBeDefined();
     expect(typeof options.estimateSize).toBe('function');
+  });
+});
+
+describe('ChatroomTimelineFeed conversation slice', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    timelineEvents = buildEvents(2);
+    mockHasMoreOlder = false;
+    timelineIsLoadingOlder = false;
+    mockFirstVisibleIndex = 0;
+  });
+
+  it('opens conversation slice panel when a user message is clicked on the User tab', async () => {
+    const user = userEvent.setup();
+    render(
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={createCoordinatorRef()}
+        senderRoleFilter="user"
+      />
+    );
+    await flushRaf();
+
+    await user.click(screen.getByTestId('conversation-anchor-evt-1'));
+    expect(screen.getAllByTestId('conversation-slice-panel').length).toBeGreaterThan(0);
+  });
+
+  it('does not make rows selectable on the All tab', async () => {
+    render(<TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef()} />);
+    await flushRaf();
+
+    expect(screen.queryByTestId('conversation-anchor-evt-0')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('conversation-slice-panel')).not.toBeInTheDocument();
   });
 });

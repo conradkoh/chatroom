@@ -20,3 +20,18 @@ export function readStoredTheme(): Theme {
 
   return normalizeTheme(window.__theme?.value ?? localStorage.getItem('theme'));
 }
+
+export type ThemeAppearance = 'light' | 'dark';
+
+export function resolveThemeAppearance(theme: Theme | null | undefined): ThemeAppearance {
+  if (theme === 'dark') return 'dark';
+  if (theme === 'light') return 'light';
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+export function oppositeThemeAppearance(appearance: ThemeAppearance): ThemeAppearance {
+  return appearance === 'dark' ? 'light' : 'dark';
+}

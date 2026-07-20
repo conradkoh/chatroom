@@ -32,11 +32,8 @@ import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import {
-  clearWorkspaceFileTree,
-  toWorkspaceFileTreeKey,
-} from '../workspace/files/workspaceFileTreeStore';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import { useClearWorkspaceFileTree } from '../workspace/hooks/useClearWorkspaceFileTree';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
@@ -601,6 +598,8 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   const [purgingCategory, setPurgingCategory] = useState<string | null>(null);
   const [purgedCategories, setPurgedCategories] = useState<Set<string>>(new Set());
 
+  const clearWorkspaceFileTreeCache = useClearWorkspaceFileTree();
+
   const handlePurgeCategory = useCallback(
     async (
       category: string,
@@ -617,7 +616,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
         });
 
         if (category === 'fileTree') {
-          clearWorkspaceFileTree(toWorkspaceFileTreeKey(machineId, normalizedWorkingDir));
+          clearWorkspaceFileTreeCache(machineId, normalizedWorkingDir);
           await requestFileTreeMutation({
             machineId,
             workingDir: normalizedWorkingDir,
@@ -632,7 +631,7 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
         setPurgingCategory(null);
       }
     },
-    [purgeDialogWs, requestFileTreeMutation]
+    [purgeDialogWs, requestFileTreeMutation, clearWorkspaceFileTreeCache]
   );
 
   if (isLoading) {

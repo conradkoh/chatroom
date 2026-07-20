@@ -1,4 +1,4 @@
-import type { AgentHarness } from './machine';
+import type { AgentHarness } from '../../../types/machine';
 
 export interface MachineConfigEntry {
   agentHarness: AgentHarness;

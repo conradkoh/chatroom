@@ -5,15 +5,11 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
+  ArrowLeft,
   Files,
   MessageSquare,
   MessageSquareOff,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
   Settings2,
-  Square,
   XCircle,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -33,6 +29,7 @@ import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
 import { teamConfigToUpdateArgs } from './components/AgentPanel/TeamSelectorDropdown';
 import { ChatroomTitleEditor } from './components/ChatroomTitleEditor';
+import { ThemeToggleButton } from '../theme/ThemeToggleButton';
 import {
   CommandPalette,
   useCommandPaletteCommands,
@@ -55,7 +52,6 @@ import { useCommandDialog } from './context/CommandDialogContext';
 import { PendingFileHighlightProvider } from './context/PendingFileHighlightContext';
 import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
-import { useAgentSidebarVisible } from './hooks/persistence/useAgentSidebarVisible';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
 import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
@@ -63,7 +59,7 @@ import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
-import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -79,6 +75,8 @@ import {
   runAgentStartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
+import { deriveChatStatus, type AgentPresence, type ChatStatus } from './utils/deriveChatStatus';
+import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
@@ -192,56 +190,58 @@ interface ChatroomDashboardProps {
   /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
   refreshObservedChatroom: () => void;
   listingSidebarVisible?: boolean;
-  onToggleListingSidebar?: () => void;
+  onSetListingSidebarVisible?: (visible: boolean) => void;
 }
 
 /** Edit target for the saved command modal */
 type SavedCommandEditTarget = SavedCommand;
 
-interface ChatroomHeaderLeftProps {
-  listingSidebarVisible: boolean;
-  onToggleListingSidebar?: () => void;
-}
-
-function ChatroomHeaderLeft({
-  listingSidebarVisible,
-  onToggleListingSidebar,
-}: ChatroomHeaderLeftProps) {
-  if (!onToggleListingSidebar) return null;
-
+function ChatroomHeaderBackButton({ onBack }: { onBack?: () => void }) {
+  if (!onBack) return null;
   return (
     <button
       type="button"
-      className="hidden lg:flex bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-      onClick={onToggleListingSidebar}
-      title={listingSidebarVisible ? 'Hide chatrooms sidebar' : 'Show chatrooms sidebar'}
-      aria-label={listingSidebarVisible ? 'Hide chatrooms sidebar' : 'Show chatrooms sidebar'}
+      className="bg-transparent text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary outline-none focus:outline-none focus-visible:outline-none"
+      onClick={onBack}
+      title="Back to chatroom list"
+      aria-label="Back to chatroom list"
     >
-      {listingSidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+      <ArrowLeft size={16} />
     </button>
   );
 }
 
 interface ChatroomHeaderCenterProps {
-  onBack?: () => void;
-  onOpenSettings: () => void;
   displayName: string;
   chatroomId: string;
+  chatStatus: ChatStatus;
+  isDesktop: boolean;
+  onOpenSettings: () => void;
+  onSwitchChatrooms: () => void;
+  onOpenProfile: () => void;
+  focusModeActive: boolean;
+  onEnableFocusMode: () => void;
+  onDisableFocusMode: () => void;
+  onShowAgentsSidebar: () => void;
 }
 
-function ChatroomHeaderCenter({
-  onBack,
-  onOpenSettings,
-  displayName,
-  chatroomId,
-}: ChatroomHeaderCenterProps) {
+function ChatroomHeaderCenter(props: ChatroomHeaderCenterProps) {
   return (
-    <ChatroomTitleEditor
-      displayName={displayName}
-      chatroomId={chatroomId}
-      onBack={onBack}
-      onOpenSettings={onOpenSettings}
-    />
+    <div className="flex items-center gap-2 min-w-0 max-w-full">
+      <ChatroomTitleEditor
+        displayName={props.displayName}
+        chatroomId={props.chatroomId}
+        chatStatus={props.chatStatus}
+        isDesktop={props.isDesktop}
+        onOpenSettings={props.onOpenSettings}
+        onSwitchChatrooms={props.onSwitchChatrooms}
+        onOpenProfile={props.onOpenProfile}
+        focusModeActive={props.focusModeActive}
+        onEnableFocusMode={props.onEnableFocusMode}
+        onDisableFocusMode={props.onDisableFocusMode}
+        onShowAgentsSidebar={props.onShowAgentsSidebar}
+      />
+    </div>
   );
 }
 
@@ -508,13 +508,10 @@ export function ChatroomDashboard({
   onBack,
   refreshObservedChatroom,
   listingSidebarVisible = true,
-  onToggleListingSidebar,
+  onSetListingSidebarVisible,
 }: ChatroomDashboardProps) {
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
-
-  // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const { coordinator: timelineScrollCoordinator, beginResize, endResize } = useTimelineScroll();
 
   // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
   const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
@@ -535,6 +532,13 @@ export function ChatroomDashboard({
   } = chatroomLifecycle;
 
   const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
+
+  // ─── Scroll controller (shared between timeline feed and SendForm) ───
+  const {
+    coordinator: timelineScrollCoordinator,
+    beginResize,
+    endResize,
+  } = useTimelineScroll(messageViewMode, chatroomId);
 
   const [explorerSplitSizes, setExplorerSplitSizes] = useExplorerSplitPanelSizes(
     chatroomId as Id<'chatroom_rooms'>
@@ -596,9 +600,11 @@ export function ChatroomDashboard({
 
   // Sidebar visibility state - persisted per chatroom; forced hidden on small screens
   const isSmallScreen = useIsSmallScreen();
-  const [sidebarVisible, setSidebarVisible] = useAgentSidebarVisible(
-    chatroomId as Id<'chatroom_rooms'>
-  );
+  const {
+    visible: sidebarVisible,
+    setVisible: setSidebarVisible,
+    restoreDesktopDefault,
+  } = useAgentSidebarOpen(isSmallScreen);
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
@@ -755,6 +761,37 @@ export function ChatroomDashboard({
   const toggleSidebar = useCallback(() => {
     setSidebarVisible(!sidebarVisible);
   }, [sidebarVisible, setSidebarVisible]);
+
+  const focusSnapshotRef = useRef<{ listing: boolean; agents: boolean } | null>(null);
+  const focusModeActive = isFocusModeActive(listingSidebarVisible, sidebarVisible);
+
+  const handleEnableFocusMode = useCallback(() => {
+    focusSnapshotRef.current = {
+      listing: listingSidebarVisible,
+      agents: sidebarVisible,
+    };
+    onSetListingSidebarVisible?.(false);
+    setSidebarVisible(false);
+  }, [listingSidebarVisible, sidebarVisible, onSetListingSidebarVisible, setSidebarVisible]);
+
+  const handleDisableFocusMode = useCallback(() => {
+    const snap = focusSnapshotRef.current;
+    onSetListingSidebarVisible?.(snap?.listing ?? true);
+    if (isSmallScreen) {
+      setSidebarVisible(snap?.agents ?? false);
+    } else {
+      restoreDesktopDefault();
+    }
+    focusSnapshotRef.current = null;
+  }, [onSetListingSidebarVisible, setSidebarVisible, restoreDesktopDefault, isSmallScreen]);
+
+  const handleShowAgentsSidebar = useCallback(() => {
+    setSidebarVisible(true);
+  }, [setSidebarVisible]);
+
+  const handleOpenProfile = useCallback(() => {
+    router.push('/app/profile');
+  }, [router]);
 
   // Header portal integration
   const { setContent: setHeaderContent, clearContent: clearHeaderContent } = useSetHeaderPortal();
@@ -924,8 +961,18 @@ export function ChatroomDashboard({
     [teamRoles, participants]
   );
 
-  // Use hook to get aggregate status (event stream + lifecycle)
-  const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
+  const chatStatus = useMemo((): ChatStatus => {
+    if (!chatroom) return 'idle';
+    const agents: AgentPresence[] = participants.map((participant) => ({
+      lastSeenAction: participant.lastSeenAction ?? null,
+      lastStatus: participant.lastStatus ?? null,
+      lastDesiredState: participant.lastDesiredState ?? null,
+      isAlive: participant.isAlive ?? false,
+    }));
+    const roomStatus: 'active' | 'completed' =
+      chatroom.status === 'completed' ? 'completed' : 'active';
+    return deriveChatStatus(roomStatus, agents);
+  }, [chatroom, participants]);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -1528,18 +1575,20 @@ export function ChatroomDashboard({
         // Hide app title and user menu for immersive chatroom experience
         hideAppTitle: true,
         hideUserMenu: true,
-        left: (
-          <ChatroomHeaderLeft
-            listingSidebarVisible={listingSidebarVisible}
-            onToggleListingSidebar={onToggleListingSidebar}
-          />
-        ),
+        left: <ChatroomHeaderBackButton onBack={onBack} />,
         center: (
           <ChatroomHeaderCenter
-            onBack={onBack}
-            onOpenSettings={handleOpenSettings}
             displayName={displayName}
             chatroomId={chatroomId}
+            chatStatus={chatStatus}
+            isDesktop={isSmallScreen === false}
+            onOpenSettings={handleOpenSettings}
+            onSwitchChatrooms={handleOpenChatroomSwitcher}
+            onOpenProfile={handleOpenProfile}
+            focusModeActive={focusModeActive}
+            onEnableFocusMode={handleEnableFocusMode}
+            onDisableFocusMode={handleDisableFocusMode}
+            onShowAgentsSidebar={handleShowAgentsSidebar}
           />
         ),
         right: (
@@ -1547,34 +1596,14 @@ export function ChatroomDashboard({
             {/* Setup Button - shown when setup modal is dismissed but still in setup mode */}
             {isSetupMode && !setupModalOpen && (
               <button
-                className="bg-chatroom-status-warning/15 border-2 border-chatroom-status-warning/30 text-chatroom-status-warning w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-status-warning/25 hover:border-chatroom-status-warning/50"
+                className="bg-chatroom-status-warning/15 border-2 border-chatroom-status-warning/30 text-chatroom-status-warning w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-status-warning/25 hover:border-chatroom-status-warning/50 outline-none focus:outline-none focus-visible:outline-none"
                 onClick={handleOpenSetup}
                 title="Open setup"
               >
                 <Settings2 size={16} />
               </button>
             )}
-            {/* Sidebar Toggle Button with Status Indicator */}
-            <button
-              className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
-              onClick={toggleSidebar}
-              title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
-            >
-              {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-              {/* Aggregate status indicator - shown when sidebar is hidden */}
-              {!sidebarVisible && aggregateStatus !== 'none' && (
-                <Square
-                  size={8}
-                  className={`absolute -top-1 -right-1 ${
-                    aggregateStatus === 'working'
-                      ? 'text-chatroom-status-info fill-chatroom-status-info'
-                      : aggregateStatus === 'ready'
-                        ? 'text-chatroom-status-success fill-chatroom-status-success'
-                        : 'text-chatroom-text-muted fill-chatroom-text-muted'
-                  }`}
-                />
-              )}
-            </button>
+            <ThemeToggleButton />
           </div>
         ),
       });
@@ -1590,16 +1619,21 @@ export function ChatroomDashboard({
     isSetupMode,
     onBack,
     listingSidebarVisible,
-    onToggleListingSidebar,
     sidebarVisible,
-    aggregateStatus,
-    toggleSidebar,
+    chatStatus,
+    focusModeActive,
     setHeaderContent,
     clearHeaderContent,
     displayName,
     setupModalOpen,
     handleOpenSetup,
     handleOpenSettings,
+    handleOpenChatroomSwitcher,
+    handleOpenProfile,
+    handleEnableFocusMode,
+    handleDisableFocusMode,
+    handleShowAgentsSidebar,
+    isSmallScreen,
     activeWorkspace,
   ]);
 

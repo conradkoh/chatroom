@@ -31,7 +31,15 @@ interface StorageData {
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 
-export class CommandUsageStore {
+const listeners = new Set<() => void>();
+let revision = 0;
+
+function emit(): void {
+  revision += 1;
+  for (const listener of listeners) listener();
+}
+
+class CommandUsageStore {
   private data: StorageData;
 
   constructor() {
@@ -93,6 +101,7 @@ export class CommandUsageStore {
 
   // ─── Private ────────────────────────────────────────────────────────
 
+  // fallow-ignore-next-line complexity
   private load(): StorageData {
     try {
       if (typeof window === 'undefined') return { commands: {}, version: 1 };
@@ -110,6 +119,7 @@ export class CommandUsageStore {
     try {
       if (typeof window === 'undefined') return;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+      emit();
     } catch {
       // localStorage full or unavailable — silently fail
     }
@@ -119,6 +129,7 @@ export class CommandUsageStore {
    * Remove timestamps older than MAX_AGE_MS across all commands.
    * Delete commands with no remaining timestamps.
    */
+  // fallow-ignore-next-line complexity
   private pruneExpired(): void {
     const cutoff = Date.now() - MAX_AGE_MS;
     let changed = false;
@@ -173,4 +184,13 @@ export function getCommandUsageStore(): CommandUsageStore {
     instance = new CommandUsageStore();
   }
   return instance;
+}
+
+export function subscribeCommandUsage(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function getCommandUsageRevision(): number {
+  return revision;
 }

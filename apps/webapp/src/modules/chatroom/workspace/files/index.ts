@@ -24,4 +24,4 @@ export {
   subscribeWorkspaceFileTree,
   // fallow-ignore-next-line unused-export
   toWorkspaceFileTreeKey,
-} from './workspaceFileTreeStore';
+} from '../stores/workspaceFileTreeStore';

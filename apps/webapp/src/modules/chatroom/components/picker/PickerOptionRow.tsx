@@ -9,9 +9,16 @@ export interface PickerOptionRowProps {
   selected?: boolean;
   onSelect: () => void;
   disabled?: boolean;
+  className?: string;
 }
 
-export function PickerOptionRow({ children, selected, onSelect, disabled }: PickerOptionRowProps) {
+export function PickerOptionRow({
+  children,
+  selected,
+  onSelect,
+  disabled,
+  className,
+}: PickerOptionRowProps) {
   return (
     <button
       type="button"
@@ -24,7 +31,8 @@ export function PickerOptionRow({ children, selected, onSelect, disabled }: Pick
         'cursor-pointer hover:bg-chatroom-bg-hover transition-colors',
         'outline-none focus-visible:outline-none focus-visible:bg-chatroom-bg-hover',
         'disabled:opacity-50 disabled:cursor-not-allowed',
-        selected && 'bg-chatroom-bg-hover'
+        selected && 'bg-chatroom-bg-hover',
+        className
       )}
     >
       <span className="truncate">{children}</span>

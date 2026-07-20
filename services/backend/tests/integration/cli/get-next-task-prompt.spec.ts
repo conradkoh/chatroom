@@ -470,6 +470,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <!-- Demonstrate adherence to:
       - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
       - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
+      - Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently.
       - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
       - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
       - Leave It Better: leave the code in a slightly better state than before when touching files.

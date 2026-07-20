@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
-import { MESSAGE_STORE_LIMIT } from '../../hooks/useChatroomMessageStore';
+import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 

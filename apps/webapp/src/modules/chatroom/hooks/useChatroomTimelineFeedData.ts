@@ -3,8 +3,9 @@
 /**
  * useChatroomTimelineFeedData — data layer for ChatroomTimelineFeed.
  *
- * Owns timeline message fetch (via useChatroomTimeline), handoff notifications,
- * and event-stream Convex queries. The feed component handles virtualizer/scroll only.
+ * Owns timeline message fetch (via useChatroomTimeline or useFilteredMessagesByRole),
+ * handoff notifications, and event-stream Convex queries. The feed component handles
+ * virtualizer/scroll only.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -13,23 +14,66 @@ import { usePaginatedQuery } from 'convex/react';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { useMemo, useState } from 'react';
 
-import { useChatroomTimeline } from './useChatroomTimeline';
+import { useChatroomTimeline, type UseChatroomTimelineResult } from './useChatroomTimeline';
+import { useFilteredMessagesByRole } from './useFilteredMessagesByRole';
 import { useHandoffNotification } from './useHandoffNotification';
+import { mapMessageToTimelineEvent } from '../timeline/mapMessageToTimelineEvent';
+import type { TimelineEvent } from '../timeline/types';
 import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
 
-export function useChatroomTimelineFeedData(chatroomId: string) {
-  const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
-  const {
-    events,
-    isLoading,
-    hasMoreOlder,
-    isLoadingOlder,
-    loadOlderEvents,
-    removeMessagesForTask,
-    purgeToInitialWindow,
-  } = useChatroomTimeline(chatroomId);
+const noop = () => {};
 
-  const messagesForNotify = useMemo(() => events.map((e) => e.message), [events]);
+type TimelineFeedSource = Pick<
+  UseChatroomTimelineResult,
+  | 'events'
+  | 'isLoading'
+  | 'hasMoreOlder'
+  | 'isLoadingOlder'
+  | 'loadOlderEvents'
+  | 'removeMessagesForTask'
+  | 'purgeToInitialWindow'
+>;
+
+function useRoleFilteredTimelineSource(
+  chatroomId: string,
+  senderRole: string,
+  enabled: boolean
+): TimelineFeedSource {
+  const filteredTimeline = useFilteredMessagesByRole(chatroomId, senderRole, enabled);
+
+  const events: TimelineEvent[] = useMemo(() => {
+    if (!enabled) return [];
+    // Role query returns newest-first; timeline feed expects chronological order.
+    return [...filteredTimeline.messages].reverse().map(mapMessageToTimelineEvent);
+  }, [enabled, filteredTimeline.messages]);
+
+  return {
+    events,
+    isLoading: filteredTimeline.isLoading,
+    hasMoreOlder: filteredTimeline.canLoadMore,
+    isLoadingOlder: filteredTimeline.isLoadingMore,
+    loadOlderEvents: filteredTimeline.loadMore,
+    removeMessagesForTask: noop,
+    purgeToInitialWindow: noop,
+  };
+}
+
+export function useChatroomTimelineFeedData(
+  chatroomId: string,
+  senderRoleFilter: string | null = null
+) {
+  const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
+  const isFiltered = senderRoleFilter !== null;
+
+  const mainTimeline = useChatroomTimeline(chatroomId);
+  const filteredTimeline = useRoleFilteredTimelineSource(
+    chatroomId,
+    senderRoleFilter ?? '',
+    isFiltered
+  );
+  const timeline = isFiltered ? filteredTimeline : mainTimeline;
+
+  const messagesForNotify = useMemo(() => timeline.events.map((e) => e.message), [timeline.events]);
   useHandoffNotification(messagesForNotify, chatroomId);
 
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
@@ -52,13 +96,13 @@ export function useChatroomTimelineFeedData(chatroomId: string) {
     (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
   return {
-    events,
-    isLoading,
-    hasMoreOlder,
-    isLoadingOlder,
-    loadOlderEvents,
-    removeMessagesForTask,
-    purgeToInitialWindow,
+    events: timeline.events,
+    isLoading: timeline.isLoading,
+    hasMoreOlder: timeline.hasMoreOlder,
+    isLoadingOlder: timeline.isLoadingOlder,
+    loadOlderEvents: timeline.loadOlderEvents,
+    removeMessagesForTask: timeline.removeMessagesForTask,
+    purgeToInitialWindow: timeline.purgeToInitialWindow,
     isEventStreamOpen,
     setIsEventStreamOpen,
     latestEvent,
