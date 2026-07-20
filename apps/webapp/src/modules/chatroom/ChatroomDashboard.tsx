@@ -305,12 +305,6 @@ const ExplorerContent = memo(function ExplorerContent({
     activeFilePath
   );
 
-  const handleTogglePreviewExpanded = useCallback(() => {
-    if (activeFilePath) {
-      fileTabs.togglePreviewExpanded(activeFilePath);
-    }
-  }, [activeFilePath, fileTabs]);
-
   const activeAgenticQueryId = activeTab?.kind === 'agentic-query' ? activeTab.queryId : null;
 
   const handleAgenticMetaChange = useCallback(
@@ -432,7 +426,6 @@ const ExplorerContent = memo(function ExplorerContent({
                       machineId={mw}
                       workingDir={wd}
                       filePath={activeRight.filePath}
-                      onDoubleClick={handleTogglePreviewExpanded}
                     />
                   );
                 }
