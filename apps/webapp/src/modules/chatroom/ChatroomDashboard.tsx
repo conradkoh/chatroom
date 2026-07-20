@@ -513,9 +513,6 @@ export function ChatroomDashboard({
   const { teams, defaultTeamId } = useTeamConfigs();
   const router = useRouter();
 
-  // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const { coordinator: timelineScrollCoordinator, beginResize, endResize } = useTimelineScroll();
-
   // ─── Centralised per-chatroom lifecycle (persistence + ephemeral state) ───
   const chatroomLifecycle = useChatroomLifecycle(chatroomId as Id<'chatroom_rooms'>);
   const {
@@ -535,6 +532,13 @@ export function ChatroomDashboard({
   } = chatroomLifecycle;
 
   const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
+
+  // ─── Scroll controller (shared between timeline feed and SendForm) ───
+  const {
+    coordinator: timelineScrollCoordinator,
+    beginResize,
+    endResize,
+  } = useTimelineScroll(messageViewMode, chatroomId);
 
   const [explorerSplitSizes, setExplorerSplitSizes] = useExplorerSplitPanelSizes(
     chatroomId as Id<'chatroom_rooms'>

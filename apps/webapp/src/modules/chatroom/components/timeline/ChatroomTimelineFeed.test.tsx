@@ -151,6 +151,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listLatestEvents: 'listLatestEvents',
       listLatestEventsPaginated: 'listLatestEventsPaginated',
     },
+    messages: {
+      listMessagesBySenderRolePaginated: 'listMessagesBySenderRolePaginated',
+      listConversationSlicePaginated: 'listConversationSlicePaginated',
+    },
   },
 }));
 
@@ -199,6 +203,18 @@ const baseEvents: TimelineEvent[] = [
 
 let timelineEvents = [...baseEvents];
 let timelineIsLoadingOlder = false;
+
+vi.mock('../../hooks/useFilteredMessagesByRole', () => ({
+  useFilteredMessagesByRole: () => ({
+    messages: timelineEvents
+      .filter((event) => event.kind === 'user_message')
+      .map((event) => event.message),
+    isLoading: false,
+    isLoadingMore: false,
+    canLoadMore: mockHasMoreOlder,
+    loadMore: loadOlderEvents,
+  }),
+}));
 
 vi.mock('../../hooks/useChatroomTimeline', () => ({
   useChatroomTimeline: () => ({
@@ -1099,5 +1115,38 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     const options = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     expect(options.estimateSize).toBeDefined();
     expect(typeof options.estimateSize).toBe('function');
+  });
+});
+
+describe('ChatroomTimelineFeed conversation slice', () => {
+  beforeEach(() => {
+    virtualizerOptions.length = 0;
+    timelineEvents = buildEvents(2);
+    mockHasMoreOlder = false;
+    timelineIsLoadingOlder = false;
+    mockFirstVisibleIndex = 0;
+  });
+
+  it('opens conversation slice panel when a user message is clicked on the User tab', async () => {
+    const user = userEvent.setup();
+    render(
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={createCoordinatorRef()}
+        senderRoleFilter="user"
+      />
+    );
+    await flushRaf();
+
+    await user.click(screen.getByTestId('conversation-anchor-evt-1'));
+    expect(screen.getAllByTestId('conversation-slice-panel').length).toBeGreaterThan(0);
+  });
+
+  it('does not make rows selectable on the All tab', async () => {
+    render(<TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef()} />);
+    await flushRaf();
+
+    expect(screen.queryByTestId('conversation-anchor-evt-0')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('conversation-slice-panel')).not.toBeInTheDocument();
   });
 });

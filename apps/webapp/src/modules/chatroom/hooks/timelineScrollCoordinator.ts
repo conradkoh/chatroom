@@ -76,6 +76,11 @@ type TailSettleState = {
   onSettled?: () => void;
 };
 
+type ScrollSnapshot = {
+  scrollTop: number;
+  pinned: boolean;
+};
+
 export class TimelineScrollCoordinator {
   private pinned = true;
   private readonly pinListeners = new Set<PinListener>();
@@ -108,6 +113,7 @@ export class TimelineScrollCoordinator {
   private pendingPrependPreserve = false;
   private prependAnchor: PrependScrollAnchor | null = null;
   private prependSettleRafId: number | null = null;
+  private scrollSnapshot: ScrollSnapshot | null = null;
 
   constructor(initialPinned = true) {
     this.pinned = initialPinned;
@@ -191,6 +197,12 @@ export class TimelineScrollCoordinator {
     this.loadOlderIntent = 'preserve_position';
     this.pendingPrependPreserve = false;
     this.prependAnchor = null;
+    this.scrollSnapshot = null;
+  }
+
+  // fallow-ignore-next-line unused-class-member
+  hasScrollSnapshot(): boolean {
+    return this.scrollSnapshot !== null;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -243,6 +255,7 @@ export class TimelineScrollCoordinator {
 
     this.intentQueue.length = 0;
     this.tailSettle = null;
+    this.captureScrollSnapshot();
     this.el = null;
     this.virtualizer = null;
   }
@@ -327,6 +340,9 @@ export class TimelineScrollCoordinator {
 
     if (eventCount > 0 && !this.hasInitialScroll) {
       this.hasInitialScroll = true;
+      if (this.tryRestoreScrollSnapshot()) {
+        return;
+      }
       if (this.pinned) {
         this.enqueue({ type: 'tail_settle' });
         this.schedulePinnedTailGuard();
@@ -443,7 +459,7 @@ export class TimelineScrollCoordinator {
     const blockTail = this.isTailBlockedByPrepend();
 
     // Drain prepend / chrome intents before tail work.
-    for (let i = 0; i < this.intentQueue.length; ) {
+    for (let i = 0; i < this.intentQueue.length;) {
       const intent = this.intentQueue[i];
       if (intent.type === 'preserve_prepend') {
         this.intentQueue.splice(i, 1);
@@ -640,6 +656,28 @@ export class TimelineScrollCoordinator {
   }
 
   // ─── Private ─────────────────────────────────────────────────────────────
+
+  private captureScrollSnapshot(): void {
+    if (!this.el) return;
+    this.scrollSnapshot = {
+      scrollTop: this.el.scrollTop,
+      pinned: this.pinned,
+    };
+  }
+
+  /** Restore saved scroll position after remounting a view tab. Returns true when restored. */
+  private tryRestoreScrollSnapshot(): boolean {
+    if (!this.el || !this.scrollSnapshot) return false;
+
+    const { scrollTop, pinned } = this.scrollSnapshot;
+    this.setPinned(pinned);
+    this.runProgrammaticScroll(() => {
+      if (!this.el) return;
+      this.el.scrollTop = scrollTop;
+      this.syncVirtualizerScrollFromDom();
+    });
+    return true;
+  }
 
   private setPinned(pinned: boolean): void {
     if (this.pinned === pinned) return;
