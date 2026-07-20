@@ -43,12 +43,13 @@ function mobileIconSize(isDesktop: boolean): number {
   return isDesktop ? 12 : 14;
 }
 
-const BAR_CHROME = 'px-3 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
+const BAR_CHROME =
+  'px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
 
 const BAR_SHELL = `${BAR_CHROME} flex items-center gap-2`;
 
 const DISABLED_BAR_SHELL =
-  'px-3 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
+  'px-3 py-1.5 border-b border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;

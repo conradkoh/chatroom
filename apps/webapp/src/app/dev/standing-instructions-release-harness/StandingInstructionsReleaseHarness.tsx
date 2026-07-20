@@ -26,7 +26,8 @@ type HistoryItem = {
   lastUsedAt: number;
 };
 
-const BAR_CHROME = 'px-3 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
+const BAR_CHROME =
+  'px-3 py-1.5 border-b border-chatroom-status-success/15 bg-chatroom-status-success/5';
 const BAR_SHELL = `${BAR_CHROME} flex items-center gap-2`;
 
 function onStandingEditorKeyDown(
