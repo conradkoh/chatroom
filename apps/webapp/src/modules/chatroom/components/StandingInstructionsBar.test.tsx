@@ -352,6 +352,27 @@ describe('StandingInstructionsBar', () => {
     expect(confirmBtn.className).toContain('text-chatroom-text-on-accent');
   });
 
+  it('aligns mobile add drawer list with header (no extra horizontal padding)', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(false);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Add standing instructions'));
+
+    const body = screen.getByTestId('standing-instructions-mobile-add-body');
+    expect(body.className).toContain('py-3');
+    expect(body.className).not.toMatch(/\bpx-3\b/);
+    expect(body.className).not.toMatch(/\bp-3\b/);
+
+    const header = screen.getByText('Standing Instructions').closest('div');
+    expect(header?.className).toContain('px-3');
+
+    const list = body.querySelector('ul');
+    expect(list?.className).toContain('w-full');
+
+    const firstRow = screen.getByRole('option', { name: 'Create new' });
+    expect(firstRow.className).toContain('px-3');
+  });
+
   it('opens edit drawer on mobile when Edit is chosen from actions', async () => {
     const user = userEvent.setup();
     mockQueryResult = { content: 'Always use TypeScript', enabled: true };

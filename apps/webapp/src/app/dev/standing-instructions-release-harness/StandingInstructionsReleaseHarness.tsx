@@ -68,7 +68,7 @@ function HistorySelectionList(props: {
 }) {
   const { items, selection, onSelectHistory, onSelectCreateNew } = props;
   return (
-    <ul className="flex flex-col border border-chatroom-border divide-y divide-chatroom-border">
+    <ul className="flex w-full flex-col border border-chatroom-border divide-y divide-chatroom-border">
       {items.map((item) => (
         <li key={item._id}>
           <PickerOptionRow
@@ -377,7 +377,7 @@ function MobileAddingDrawer(props: {
             View more
           </button>
         </PickerPanelHeader>
-        <div className="flex flex-col gap-3 p-3">
+        <div className="flex flex-col gap-3 py-3">
           <HistorySelectionList
             items={historyTop3}
             selection={selection}
