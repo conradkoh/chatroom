@@ -94,6 +94,14 @@ describe('ResponsivePickerShell', () => {
   });
 
   describe('anchorToPointer', () => {
+    it('uses a full-width trigger wrap instead of display:contents', () => {
+      mockUseIsDesktop.mockReturnValue(true);
+      renderShell({ anchorToPointer: true, open: false });
+      const wrap = document.querySelector('[data-testid="picker-pointer-trigger-wrap"]');
+      expect(wrap).not.toBeNull();
+      expect(wrap).toHaveClass('w-full');
+    });
+
     it('renders pointer anchor at pointer-down coordinates on desktop', async () => {
       mockUseIsDesktop.mockReturnValue(true);
       const onOpenChange = vi.fn();

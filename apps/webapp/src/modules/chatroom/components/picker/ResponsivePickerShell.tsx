@@ -109,9 +109,14 @@ export function ResponsivePickerShell({
 
     return (
       <>
-        <span ref={setTriggerEl} onClick={toggleOpen} style={{ display: 'contents' }}>
+        <div
+          ref={setTriggerEl}
+          onClick={toggleOpen}
+          className="w-full"
+          data-testid="picker-pointer-trigger-wrap"
+        >
           {triggerNode}
-        </span>
+        </div>
         <Popover open={open} onOpenChange={handleOpenChange}>
           {open && resolvedAnchor ? (
             <PopoverAnchor
