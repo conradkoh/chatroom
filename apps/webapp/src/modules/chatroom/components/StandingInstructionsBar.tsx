@@ -35,8 +35,8 @@ interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
-function mobileBarMinH(isDesktop: boolean): string {
-  return isDesktop ? 'min-h-9' : 'min-h-11';
+function mobileBarMinH(_isDesktop: boolean): string {
+  return 'min-h-9';
 }
 
 function mobileLabelText(isDesktop: boolean): string {
