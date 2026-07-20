@@ -141,6 +141,7 @@ const fileTabs = {
   openRight: vi.fn(),
   closeRight: vi.fn(),
   setActiveRightTab: vi.fn(),
+  navigateActivePreview: vi.fn(),
 } satisfies UseFileTabsReturn;
 
 const defaultProps = {

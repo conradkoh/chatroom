@@ -241,6 +241,7 @@ export interface UseFileTabsReturn {
   openRight: (filePath: string, viewType: RightPaneViewType) => void;
   closeRight: (key: string) => void;
   setActiveRightTab: (key: string) => void;
+  navigateActivePreview: (filePath: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -528,6 +529,38 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setActiveRightTabKey(key);
   }, []);
 
+  const navigateActivePreview = useCallback(
+    (filePath: string) => {
+      setRightTabs((prev) => {
+        const previewTabs = prev.filter((t) => t.viewType === 'preview');
+        if (previewTabs.length === 0) return prev;
+
+        const newKey = rightTabKey(filePath, 'preview');
+
+        const existing = prev.find((t) => t.key === newKey);
+        if (existing) {
+          setActiveRightTabKey(newKey);
+          return prev;
+        }
+
+        const target = previewTabs.find((t) => t.key === activeRightTabKey) ?? previewTabs[0];
+
+        setActiveRightTabKey(newKey);
+        return prev.map((t) =>
+          t.key === target.key
+            ? {
+                key: newKey,
+                filePath,
+                name: rightTabName(filePath, 'preview'),
+                viewType: 'preview' as const,
+              }
+            : t
+        );
+      });
+    },
+    [activeRightTabKey]
+  );
+
   const computedActiveTabPath = activeFilePath(tabs, activeTabKey);
 
   return {
@@ -551,5 +584,6 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     openRight,
     closeRight,
     setActiveRightTab: setActiveRight,
+    navigateActivePreview,
   };
 }
