@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { memo } from 'react';
 
+import { ChatroomFocusModeToggle } from './ChatroomFocusModeToggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +52,7 @@ export interface ChatroomTitleEditorProps {
   onShowAgentsSidebar?: () => void;
 }
 
+// fallow-ignore-next-line complexity
 export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   displayName,
   chatroomId,
@@ -108,84 +110,101 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
     showAgentsItem
   );
 
+  const showFocusModeToggle = showFocusModeItem;
+  const handleToggleFocusMode = () => {
+    if (focusModeActive) {
+      onDisableFocusMode?.();
+      return;
+    }
+    onEnableFocusMode?.();
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 min-w-0 cursor-pointer bg-transparent border-0 p-0 hover:text-chatroom-text-secondary transition-colors duration-100 text-chatroom-text-primary outline-none focus:outline-none focus-visible:outline-none"
-          title={displayName}
-          aria-label={`Chatroom: ${displayName}. Open menu`}
-        >
-          <span
-            className={getChatStatusIndicatorClasses(chatStatus)}
-            title={getChatStatusDescription(chatStatus)}
-            aria-label={getChatStatusDescription(chatStatus)}
-          />
-          <span className={chatroomTitleDisplayClassName}>{displayName}</span>
-          <ChevronDown size={14} className="shrink-0 text-chatroom-text-muted" aria-hidden />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="min-w-[160px]">
-        <DropdownMenuItem
-          onClick={handleStartEdit}
-          className="flex items-center gap-2 cursor-pointer"
-        >
-          <Pencil size={14} />
-          Edit Name
-        </DropdownMenuItem>
-        {onOpenSettings && (
+    <div className="flex items-center min-w-0">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 min-w-0 cursor-pointer bg-transparent border-0 p-0 hover:text-chatroom-text-secondary transition-colors duration-100 text-chatroom-text-primary outline-none focus:outline-none focus-visible:outline-none"
+            title={displayName}
+            aria-label={`Chatroom: ${displayName}. Open menu`}
+          >
+            <span
+              className={getChatStatusIndicatorClasses(chatStatus)}
+              title={getChatStatusDescription(chatStatus)}
+              aria-label={getChatStatusDescription(chatStatus)}
+            />
+            <span className={chatroomTitleDisplayClassName}>{displayName}</span>
+            <ChevronDown size={14} className="shrink-0 text-chatroom-text-muted" aria-hidden />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="min-w-[160px]">
           <DropdownMenuItem
-            onClick={onOpenSettings}
+            onClick={handleStartEdit}
             className="flex items-center gap-2 cursor-pointer"
           >
-            <Settings size={14} />
-            Settings
+            <Pencil size={14} />
+            Edit Name
           </DropdownMenuItem>
-        )}
+          {onOpenSettings && (
+            <DropdownMenuItem
+              onClick={onOpenSettings}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Settings size={14} />
+              Settings
+            </DropdownMenuItem>
+          )}
 
-        {showNavSection && <DropdownMenuSeparator />}
+          {showNavSection && <DropdownMenuSeparator />}
 
-        {onSwitchChatrooms && (
-          <DropdownMenuItem
-            onClick={onSwitchChatrooms}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <ArrowRightLeft size={14} />
-            Switch Chatrooms
-          </DropdownMenuItem>
-        )}
+          {onSwitchChatrooms && (
+            <DropdownMenuItem
+              onClick={onSwitchChatrooms}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <ArrowRightLeft size={14} />
+              Switch Chatrooms
+            </DropdownMenuItem>
+          )}
 
-        {showFocusModeItem && (
-          <DropdownMenuItem
-            onClick={focusModeActive ? onDisableFocusMode : onEnableFocusMode}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            {focusModeActive ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
-            {focusModeActive ? 'Disable Focus Mode' : 'Enable Focus Mode'}
-          </DropdownMenuItem>
-        )}
+          {showFocusModeItem && (
+            <DropdownMenuItem
+              onClick={focusModeActive ? onDisableFocusMode : onEnableFocusMode}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              {focusModeActive ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+              {focusModeActive ? 'Disable Focus Mode' : 'Enable Focus Mode'}
+            </DropdownMenuItem>
+          )}
 
-        {showAgentsItem && (
-          <DropdownMenuItem
-            onClick={onShowAgentsSidebar}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <PanelRightOpen size={14} />
-            Show Agent Sidebar
-          </DropdownMenuItem>
-        )}
+          {showAgentsItem && (
+            <DropdownMenuItem
+              onClick={onShowAgentsSidebar}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <PanelRightOpen size={14} />
+              Show Agent Sidebar
+            </DropdownMenuItem>
+          )}
 
-        {onOpenProfile && (
-          <DropdownMenuItem
-            onClick={onOpenProfile}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <User size={14} />
-            User Profile
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {onOpenProfile && (
+            <DropdownMenuItem
+              onClick={onOpenProfile}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <User size={14} />
+              User Profile
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {showFocusModeToggle && (
+        <ChatroomFocusModeToggle
+          focusModeActive={focusModeActive}
+          onToggle={handleToggleFocusMode}
+        />
+      )}
+    </div>
   );
 });
