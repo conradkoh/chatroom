@@ -682,8 +682,11 @@ export function ChatroomDashboard({
   const handleFileSelect = useCallback(
     (filePath: string) => {
       fileTabs.openPreview(filePath);
+      if (isMarkdownFile(filePath) && fileTabs.rightTabs.some((t) => t.viewType === 'preview')) {
+        fileTabs.navigateActivePreview(filePath);
+      }
     },
-    [fileTabs.openPreview]
+    [fileTabs.openPreview, fileTabs.navigateActivePreview, fileTabs.rightTabs]
   );
 
   const handleFileDoubleClick = useCallback(
