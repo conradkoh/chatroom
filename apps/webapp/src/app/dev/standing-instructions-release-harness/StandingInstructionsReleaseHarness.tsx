@@ -3,6 +3,9 @@
 import { BookOpen, Plus } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
 
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import {
   PickerOptionRow,
   PickerPanelHeader,
@@ -15,9 +18,6 @@ import {
 } from '@/modules/chatroom/components/picker';
 import { MOBILE_DRAWER_CONTENT_CLASSNAME } from '@/modules/chatroom/components/picker/mobileDrawerLayout';
 import { useOverlayPortalContainer } from '@/modules/chatroom/components/shared/overlayPortalContainer';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 type HistoryItem = {
   _id: string;
@@ -82,7 +82,7 @@ function HistoryInlineList(props: {
       <button
         type="button"
         onClick={onViewMore}
-        data-testid="si-harness-view-more"
+        data-testid="standing-instructions-harness-view-more"
         className="self-start text-[10px] font-bold uppercase tracking-wider text-chatroom-accent hover:opacity-80 px-1.5 py-0.5 cursor-pointer"
       >
         View more
@@ -271,7 +271,7 @@ function MobileEditingDrawer(props: {
   );
 }
 
-export function SiReleaseHarness() {
+export function StandingInstructionsReleaseHarness() {
   const isDesktop = useIsDesktop();
   const actionRowClassName = isDesktop ? undefined : 'min-h-11 py-3 text-sm';
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -336,8 +336,13 @@ export function SiReleaseHarness() {
   ) : null;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-2xl mx-auto" data-testid="si-harness-root">
-      <h1 className="text-sm font-bold uppercase tracking-wider">SI Release Harness</h1>
+    <div
+      className="flex flex-col gap-6 p-6 max-w-2xl mx-auto"
+      data-testid="standing-instructions-harness-root"
+    >
+      <h1 className="text-sm font-bold uppercase tracking-wider">
+        Standing Instructions Release Harness
+      </h1>
       <p className="text-[10px] text-chatroom-text-muted">
         Temporary no-auth harness for verifying standing-instructions UX. No Convex backend.
       </p>
@@ -349,7 +354,7 @@ export function SiReleaseHarness() {
       </div>
 
       {/* Section A — click-anchor bar */}
-      <section data-testid="si-harness-active-bar-section">
+      <section data-testid="standing-instructions-harness-active-bar-section">
         <h2 className="text-[10px] font-bold uppercase tracking-wider mb-2">
           Active bar (anchorToPointer)
         </h2>
@@ -362,7 +367,7 @@ export function SiReleaseHarness() {
           trigger={
             <button
               type="button"
-              data-testid="si-harness-active-bar"
+              data-testid="standing-instructions-harness-active-bar"
               className={`${barMinH} ${BAR_SHELL} w-full text-left`}
             >
               <BookOpen size={iconSize} className="shrink-0 text-chatroom-status-success" />
@@ -411,7 +416,7 @@ export function SiReleaseHarness() {
       </section>
 
       {/* Section B — Add with history */}
-      <section data-testid="si-harness-add-section">
+      <section data-testid="standing-instructions-harness-add-section">
         <h2 className="text-[10px] font-bold uppercase tracking-wider mb-2">Add with history</h2>
         {editing && isDesktop && isAdding ? (
           <>
@@ -428,7 +433,7 @@ export function SiReleaseHarness() {
         {!editing ? (
           <button
             type="button"
-            data-testid="si-harness-add"
+            data-testid="standing-instructions-harness-add"
             className={`${barMinH} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
             onClick={() => {
               setDraft('');
@@ -447,7 +452,7 @@ export function SiReleaseHarness() {
       </section>
 
       {/* Section C — Edit without history */}
-      <section data-testid="si-harness-edit-section">
+      <section data-testid="standing-instructions-harness-edit-section">
         <h2 className="text-[10px] font-bold uppercase tracking-wider mb-2">Edit (no history)</h2>
         {editing && isDesktop && !isAdding ? <EditingPanel {...editorHandlers} /> : null}
         {editing && !isDesktop && !isAdding ? (
@@ -456,7 +461,7 @@ export function SiReleaseHarness() {
         {!editing ? (
           <button
             type="button"
-            data-testid="si-harness-edit"
+            data-testid="standing-instructions-harness-edit"
             className={`${barMinH} ${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
             onClick={() => {
               setDraft('Always use TypeScript');

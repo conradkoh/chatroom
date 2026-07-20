@@ -1,12 +1,14 @@
 import { expect, test, devices } from '@playwright/test';
 
-const HARNESS_PATH = '/dev/si-release-harness';
+const HARNESS_PATH = '/dev/standing-instructions-release-harness';
 
 test.use({ ...devices['Desktop Chrome'] });
 
-test('click near right of SI bar anchors popover near click X', async ({ page }) => {
+test('click near right of standing instructions bar anchors popover near click X', async ({
+  page,
+}) => {
   await page.goto(HARNESS_PATH);
-  const bar = page.getByTestId('si-harness-active-bar');
+  const bar = page.getByTestId('standing-instructions-harness-active-bar');
   await expect(bar).toBeVisible();
   const box = await bar.boundingBox();
   expect(box).toBeTruthy();
@@ -24,15 +26,15 @@ test('click near right of SI bar anchors popover near click X', async ({ page })
 
 test('Add → View more opens history picker', async ({ page }) => {
   await page.goto(HARNESS_PATH);
-  await page.getByTestId('si-harness-add').click();
+  await page.getByTestId('standing-instructions-harness-add').click();
   await expect(page.getByText('From history')).toBeVisible();
-  await page.getByTestId('si-harness-view-more').click();
+  await page.getByTestId('standing-instructions-harness-view-more').click();
   await expect(page.getByPlaceholder('Search history…')).toBeVisible();
 });
 
 test('Edit mode has no history list', async ({ page }) => {
   await page.goto(HARNESS_PATH);
-  await page.getByTestId('si-harness-edit').click();
+  await page.getByTestId('standing-instructions-harness-edit').click();
   await expect(page.getByPlaceholder('Enter standing instructions…')).toBeVisible();
   await expect(page.getByText('From history')).toHaveCount(0);
 });
