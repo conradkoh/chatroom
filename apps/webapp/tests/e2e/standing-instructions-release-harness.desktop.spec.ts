@@ -27,7 +27,8 @@ test('click near right of standing instructions bar anchors popover near click X
 test('Add → View more opens history picker', async ({ page }) => {
   await page.goto(HARNESS_PATH);
   await page.getByTestId('standing-instructions-harness-add').click();
-  await expect(page.getByText('From history')).toBeVisible();
+  await expect(page.getByText('Standing Instructions')).toBeVisible();
+  await expect(page.getByText('Create new')).toBeVisible();
   await page.getByTestId('standing-instructions-harness-view-more').click();
   await expect(page.getByPlaceholder('Search history…')).toBeVisible();
 });
@@ -36,5 +37,5 @@ test('Edit mode has no history list', async ({ page }) => {
   await page.goto(HARNESS_PATH);
   await page.getByTestId('standing-instructions-harness-edit').click();
   await expect(page.getByPlaceholder('Enter standing instructions…')).toBeVisible();
-  await expect(page.getByText('From history')).toHaveCount(0);
+  await expect(page.getByText('Create new')).toHaveCount(0);
 });
