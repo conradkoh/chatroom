@@ -75,7 +75,7 @@ function parseEditorTabs(raw: unknown): EditorTab[] {
     const t = item as Record<string, unknown>;
     if (t.kind === 'agentic-query') {
       return (
-        typeof t.queryId === 'string' &&
+        isValidAgenticQueryId(t.queryId) &&
         typeof t.name === 'string' &&
         (t.mode === 'search' || t.mode === 'ask') &&
         typeof t.isPinned === 'boolean'
@@ -104,6 +104,32 @@ function parseRightTabs(raw: unknown): RightPaneTab[] {
   });
 }
 
+function isValidAgenticQueryId(queryId: unknown): queryId is string {
+  return typeof queryId === 'string' && queryId.length > 0;
+}
+
+function isValidEditorTab(tab: EditorTab): boolean {
+  if (tab.kind === 'agentic-query') {
+    return isValidAgenticQueryId(tab.queryId);
+  }
+  return typeof tab.filePath === 'string' && tab.filePath.length > 0;
+}
+
+function dedupeTabsByKey(tabs: EditorTab[]): EditorTab[] {
+  const seen = new Set<string>();
+  const deduped: EditorTab[] = [];
+
+  for (let i = tabs.length - 1; i >= 0; i--) {
+    const tab = tabs[i];
+    const key = editorTabKey(tab);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.unshift(tab);
+  }
+
+  return deduped;
+}
+
 function normalizeTab(t: EditorTab): EditorTab {
   if (t.kind === 'file') {
     return { ...t, name: t.name || getFileName(t.filePath) };
@@ -120,11 +146,12 @@ function expandStateFromSaved(saved: FileTabsPersistedState): ExpandState | null
 }
 
 function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersistedState {
-  const tabKeys = new Set(state.tabs.map(editorTabKey));
+  const tabs = dedupeTabsByKey(state.tabs.filter(isValidEditorTab));
+  const tabKeys = new Set(tabs.map(editorTabKey));
   let { activeTabKey, expandedTabPath, expandedPane, activeRightTabKey } = state;
 
   if (activeTabKey !== null && !tabKeys.has(activeTabKey)) {
-    activeTabKey = state.tabs.length > 0 ? editorTabKey(state.tabs[0]) : null;
+    activeTabKey = tabs.length > 0 ? editorTabKey(tabs[0]) : null;
   }
   if (expandedTabPath !== null && !tabKeys.has(expandedTabPath)) {
     expandedTabPath = null;
@@ -139,7 +166,7 @@ function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersiste
     activeRightTabKey = state.rightTabs.length > 0 ? state.rightTabs[0].key : null;
   }
 
-  return { ...state, activeTabKey, expandedTabPath, expandedPane, activeRightTabKey };
+  return { ...state, tabs, activeTabKey, expandedTabPath, expandedPane, activeRightTabKey };
 }
 
 function readSavedState(storageKey: string): FileTabsPersistedState {
@@ -234,6 +261,14 @@ function rightTabName(filePath: string, viewType: RightPaneViewType): string {
   return viewType === 'preview' ? `${name} (Preview)` : `${name} (Table)`;
 }
 
+function findFileTab(
+  tabs: EditorTab[],
+  filePath: string
+): Extract<EditorTab, { kind: 'file' }> | undefined {
+  const tab = tabs.find((t) => t.kind === 'file' && t.filePath === filePath);
+  return tab?.kind === 'file' ? tab : undefined;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
@@ -293,10 +328,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
   const openPreview = useCallback((filePath: string) => {
     setTabs((prev) => {
-      const existing = prev.find((t) => t.kind === 'file' && t.filePath === filePath) as
-        | EditorTab
-        | undefined;
-      if (existing) return prev;
+      if (findFileTab(prev, filePath)) return prev;
       const withoutPreview = prev.filter((t) => t.isPinned);
       return [
         ...withoutPreview,
@@ -308,9 +340,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
   const pinTab = useCallback((filePath: string) => {
     setTabs((prev) => {
-      const existing = prev.find((t) => t.kind === 'file' && t.filePath === filePath) as
-        | EditorTab
-        | undefined;
+      const existing = findFileTab(prev, filePath);
       if (existing) {
         return prev.map((t) =>
           t.kind === 'file' && t.filePath === filePath ? { ...t, isPinned: true } : t
@@ -425,6 +455,8 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
   const openAgenticQueryTab = useCallback(
     (queryId: string, mode: AgenticQueryMode, name?: string) => {
+      if (!isValidAgenticQueryId(queryId)) return;
+
       const key = `agentic-query:${queryId}`;
       setTabs((prev) => {
         const existing = prev.find(
