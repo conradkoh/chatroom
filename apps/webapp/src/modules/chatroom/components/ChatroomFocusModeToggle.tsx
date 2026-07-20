@@ -15,7 +15,7 @@ export const ChatroomFocusModeToggle = memo(function ChatroomFocusModeToggle({
   return (
     <button
       type="button"
-      className="shrink-0 ml-0.5 bg-transparent border-0 p-0 cursor-pointer text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors duration-100 outline-none focus:outline-none focus-visible:outline-none"
+      className="shrink-0 bg-transparent border-0 p-0 cursor-pointer text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors duration-100 outline-none focus:outline-none focus-visible:outline-none"
       onClick={onToggle}
       title={focusModeActive ? 'Disable focus mode' : 'Enable focus mode'}
       aria-label={focusModeActive ? 'Disable focus mode' : 'Enable focus mode'}
