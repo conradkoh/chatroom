@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback } from 'react';
 
 import { cn } from '@/lib/utils';
 import { ChatroomDashboard } from '@/modules/chatroom';
@@ -24,10 +23,6 @@ export function ChatroomPageClient() {
 
   const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
   const [listingSidebarVisible, setListingSidebarVisible] = useChatroomListingSidebarVisible();
-
-  const toggleListingSidebar = useCallback(() => {
-    setListingSidebarVisible(!listingSidebarVisible);
-  }, [listingSidebarVisible, setListingSidebarVisible]);
 
   if (!chatroomId) {
     return (
@@ -98,7 +93,7 @@ export function ChatroomPageClient() {
           onBack={handleBack}
           refreshObservedChatroom={refreshObservedChatroom}
           listingSidebarVisible={listingSidebarVisible}
-          onToggleListingSidebar={toggleListingSidebar}
+          onSetListingSidebarVisible={setListingSidebarVisible}
         />
       </div>
     </div>
