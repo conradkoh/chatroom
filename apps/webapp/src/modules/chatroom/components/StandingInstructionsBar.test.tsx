@@ -376,6 +376,17 @@ describe('StandingInstructionsBar', () => {
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
   });
 
+  it('applies vertical padding to desktop AddingPanel chrome', async () => {
+    const user = userEvent.setup();
+    mockUseIsDesktop.mockReturnValue(true);
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Add standing instructions'));
+
+    const panel = screen.getByTestId('standing-instructions-adding-panel');
+    expect(panel.className).toContain('py-1.5');
+    expect(panel.className).toContain('px-3');
+  });
+
   it('Create new reveals textarea and Ctrl+Enter confirms', async () => {
     const user = userEvent.setup();
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
