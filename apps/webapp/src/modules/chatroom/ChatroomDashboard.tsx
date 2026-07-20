@@ -61,7 +61,7 @@ import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
-import { useAgentStatuses } from './hooks/useAgentStatuses';
+import { useAgentStatuses, type AggregateStatus } from './hooks/useAgentStatuses';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -71,13 +71,13 @@ import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
-import { isFocusModeActive } from './utils/focusMode';
 import {
   ensureAgentRolesConfigured,
   getFailedAgentRoles,
   runAgentStartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
+import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
@@ -215,7 +215,7 @@ function ChatroomHeaderBackButton({ onBack }: { onBack?: () => void }) {
 interface ChatroomHeaderCenterProps {
   displayName: string;
   chatroomId: string;
-  aggregateStatus: string;
+  aggregateStatus: AggregateStatus;
   isDesktop: boolean;
   onOpenSettings: () => void;
   onSwitchChatrooms: () => void;
