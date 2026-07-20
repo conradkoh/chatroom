@@ -208,17 +208,17 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                   onValueChange={setSearchValue}
                 />
                 <CommandList className="min-h-[244px] h-[244px] p-0 overflow-hidden">
-                  {rows.length === 0 && (
-                    <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                      No commands found.
-                    </CommandEmpty>
+                  <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+                    No commands found.
+                  </CommandEmpty>
+                  {rows.length > 0 && (
+                    <CommandPaletteVirtualizedList
+                      rows={rows}
+                      onSelect={handleSelect}
+                      renderCommandItemContent={renderCommandItemContent}
+                      scrollResetKey={searchValue}
+                    />
                   )}
-                  <CommandPaletteVirtualizedList
-                    rows={rows}
-                    onSelect={handleSelect}
-                    renderCommandItemContent={renderCommandItemContent}
-                    scrollResetKey={searchValue}
-                  />
                 </CommandList>
               </Command>
             </div>

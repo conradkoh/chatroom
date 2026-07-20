@@ -69,16 +69,6 @@ export function CommandPaletteVirtualizedList({
     [onSelect, renderCommandItemContent]
   );
 
-  if (rows.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[244px]">
-        <span className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider">
-          No commands found.
-        </span>
-      </div>
-    );
-  }
-
   return (
     <VirtualizedScrollList
       items={rows}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -36,6 +36,9 @@ export function VirtualizedScrollList<T>({
   const scrollToIndexRef = useRef<
     (index: number, opts?: { align?: 'auto' | 'start' | 'center' | 'end' }) => void
   >(() => {});
+  const scrollToOffsetRef = useRef<
+    (offset: number, opts?: { align?: 'auto' | 'start' | 'center' | 'end' }) => void
+  >(() => {});
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
@@ -44,6 +47,7 @@ export function VirtualizedScrollList<T>({
     overscan,
   });
   scrollToIndexRef.current = virtualizer.scrollToIndex;
+  scrollToOffsetRef.current = virtualizer.scrollToOffset;
 
   useEffect(() => {
     if (!scrollToItemKey || scrollToItemKey === prevScrollKeyRef.current) return;
@@ -53,13 +57,20 @@ export function VirtualizedScrollList<T>({
     scrollToIndexRef.current(index, { align: 'auto' });
   }, [scrollToItemKey, items, getItemKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scrollResetKey === undefined) return;
     const el = parentRef.current;
     if (!el) return;
-    el.scrollTop = 0;
-    scrollToIndexRef.current(0, { align: 'start' });
-  }, [scrollResetKey]);
+
+    const resetScroll = () => {
+      el.scrollTop = 0;
+      scrollToOffsetRef.current(0, { align: 'start' });
+    };
+
+    resetScroll();
+    const raf = requestAnimationFrame(resetScroll);
+    return () => cancelAnimationFrame(raf);
+  }, [scrollResetKey, items.length]);
 
   const setRef = (el: HTMLDivElement | null) => {
     (parentRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
