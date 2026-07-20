@@ -600,11 +600,8 @@ export function ChatroomDashboard({
 
   // Sidebar visibility state - persisted per chatroom; forced hidden on small screens
   const isSmallScreen = useIsSmallScreen();
-  const {
-    visible: sidebarVisible,
-    setVisible: setSidebarVisible,
-    restoreDesktopDefault,
-  } = useAgentSidebarOpen(isSmallScreen);
+  const { visible: sidebarVisible, setVisible: setSidebarVisible } =
+    useAgentSidebarOpen(isSmallScreen);
 
   // Explorer sidebar sub-state: visible (sidebar+preview) or hidden (preview-only)
   const [explorerSidebarVisible, setExplorerSidebarVisible] = useExplorerSidebarVisible(
@@ -777,13 +774,9 @@ export function ChatroomDashboard({
   const handleDisableFocusMode = useCallback(() => {
     const snap = focusSnapshotRef.current;
     onSetListingSidebarVisible?.(snap?.listing ?? true);
-    if (isSmallScreen) {
-      setSidebarVisible(snap?.agents ?? false);
-    } else {
-      restoreDesktopDefault();
-    }
+    setSidebarVisible(snap?.agents ?? (isSmallScreen ? false : true));
     focusSnapshotRef.current = null;
-  }, [onSetListingSidebarVisible, setSidebarVisible, restoreDesktopDefault, isSmallScreen]);
+  }, [onSetListingSidebarVisible, setSidebarVisible, isSmallScreen]);
 
   const handleShowAgentsSidebar = useCallback(() => {
     setSidebarVisible(true);
