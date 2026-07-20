@@ -22,6 +22,7 @@ import {
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
+import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
   countActiveTasksFromSource,
@@ -547,7 +548,17 @@ export const listTasks = query({
 
     // Apply limit (capped at MAX_TASK_LIST_LIMIT)
     const limit = args.limit ? Math.min(args.limit, MAX_TASK_LIST_LIMIT) : MAX_TASK_LIST_LIMIT;
-    return tasks.slice(0, limit);
+    const limited = tasks.slice(0, limit);
+
+    // Enrich tasks with source message attachments where available
+    return Promise.all(
+      limited.map(async (task) => {
+        if (!task.sourceMessageId) return task;
+        const attachments = await fetchTaskSourceAttachments(ctx, task);
+        if (Object.keys(attachments).length === 0) return task;
+        return { ...task, ...attachments };
+      })
+    );
   },
 });
 

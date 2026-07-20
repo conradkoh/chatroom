@@ -1216,7 +1216,7 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(result.attachedBacklogItems).toHaveLength(1);
     expect(result.attachedBacklogItems![0].content).toBe('Add dead code elimination pillar');
     expect(result.attachedBacklogItems![0].status).toBe('backlog');
-    expect(result.attachedBacklogItems![0]._id).toBe(backlogItemId);
+    expect(result.attachedBacklogItems![0].id).toBe(backlogItemId);
   });
 
   test('readTask mutation returns attached snippets from source message', async () => {

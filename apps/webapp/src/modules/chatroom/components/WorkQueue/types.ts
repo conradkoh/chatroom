@@ -23,6 +23,11 @@ export interface Task {
   complexity?: 'low' | 'medium' | 'high';
   value?: 'low' | 'medium' | 'high';
   priority?: number;
+  // Source message attachments
+  attachedTasks?: { _id: string; content: string; status: string }[];
+  attachedBacklogItems?: { id: string; content: string; status: string }[];
+  attachedMessages?: { _id: string; content: string; senderRole: string; _creationTime: number }[];
+  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
 }
 
 export interface TaskCounts {
