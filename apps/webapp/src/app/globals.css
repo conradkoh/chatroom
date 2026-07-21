@@ -542,3 +542,45 @@ input,
     opacity: calc((var(--chatroom-loader-opacity-dim) + var(--chatroom-loader-opacity-bright)) / 2);
   }
 }
+
+/* Sonner toast close button: inline on the right, theme-aware in dark mode */
+[data-sonner-toast][data-styled='true'] [data-close-button] {
+  position: static;
+  transform: none;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+[data-sonner-toast][data-styled='true'] [data-close-button]:hover {
+  background: transparent;
+  color: var(--foreground);
+}
+
+[data-sonner-toaster][data-sonner-theme='dark'] [data-sonner-toast] [data-close-button] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-foreground);
+}
+
+[data-sonner-toaster][data-sonner-theme='dark'] [data-sonner-toast] [data-close-button]:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--foreground);
+}
+
+[data-rich-colors='true'][data-sonner-toast] [data-close-button] {
+  background: transparent;
+  border-color: transparent;
+  color: currentColor;
+  opacity: 0.7;
+}
+
+[data-rich-colors='true'][data-sonner-toast] [data-close-button]:hover {
+  background: transparent;
+  border-color: transparent;
+  opacity: 1;
+}
