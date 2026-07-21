@@ -14,6 +14,47 @@ export interface FileLocation {
   endLine?: number;
   highlightText?: string;
 }
+
+function dirname(filePath: string): string {
+  const idx = filePath.lastIndexOf('/');
+  return idx === -1 ? '' : filePath.slice(0, idx);
+}
+
+// fallow-ignore-next-line complexity
+function posixNormalizePath(path: string): string | null {
+  const stack: string[] = [];
+  for (const part of path.split('/')) {
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      if (stack.length === 0) return null;
+      stack.pop();
+      continue;
+    }
+    stack.push(part);
+  }
+  return stack.join('/');
+}
+
+function isRelativeWorkspaceHref(pathPart: string): boolean {
+  return (
+    pathPart.startsWith('./') ||
+    pathPart.startsWith('../') ||
+    (!pathPart.includes('/') && !pathPart.startsWith('workspace:'))
+  );
+}
+
+function extractHrefPathPart(href: string): string {
+  const trimmed = href.trim();
+  if (trimmed.startsWith(WORKSPACE_HREF_PREFIX)) {
+    const rest = trimmed.slice(WORKSPACE_HREF_PREFIX.length);
+    const hashIdx = rest.indexOf('#');
+    return hashIdx >= 0 ? rest.slice(0, hashIdx) : rest;
+  }
+  const hashIdx = trimmed.indexOf('#');
+  const withoutFragment = hashIdx >= 0 ? trimmed.slice(0, hashIdx) : trimmed;
+  return stripLineSuffix(withoutFragment).path;
+}
+
 function stripLineSuffix(text: string): {
   path: string;
   startLine?: number;
@@ -92,6 +133,43 @@ function parseWorkspaceHref(href: string): FileLocation | null {
   const loc: FileLocation = { filePath };
   if (fragment) {
     return applyLineFragment(loc, fragment);
+  }
+  return loc;
+}
+
+/**
+ * Resolve a markdown href against the file being previewed.
+ * Absolute repo-relative paths pass through; relative paths join to the base file's directory.
+ */
+// fallow-ignore-next-line complexity
+export function resolveFileLocationFromBase(
+  baseFilePath: string,
+  href: string
+): FileLocation | null {
+  const trimmed = href.trim();
+  if (!trimmed) return null;
+
+  const pathPart = extractHrefPathPart(trimmed);
+  if (!isRelativeWorkspaceHref(pathPart)) {
+    return parseFileLocation(trimmed);
+  }
+
+  const relativePath = normalizePath(pathPart);
+  const baseDir = dirname(baseFilePath);
+  const combined = baseDir ? `${baseDir}/${relativePath}` : relativePath;
+  const filePath = posixNormalizePath(combined);
+  if (!filePath) return null;
+
+  const hashIdx = trimmed.indexOf('#');
+  if (hashIdx >= 0) {
+    return applyLineFragment({ filePath }, trimmed.slice(hashIdx + 1));
+  }
+
+  const { startLine, endLine } = stripLineSuffix(trimmed);
+  const loc: FileLocation = { filePath };
+  if (startLine !== undefined) {
+    loc.startLine = startLine;
+    loc.endLine = endLine;
   }
   return loc;
 }

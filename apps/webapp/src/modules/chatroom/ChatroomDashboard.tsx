@@ -1021,12 +1021,21 @@ export function ChatroomDashboard({
       const target = resolveWorkspaceFileLinkOpenTarget(activeView, explorerSplitViewEnabled);
       if (target === 'explorer') {
         openFileLocationInExplorer(location);
+        if (isMarkdownFile(location.filePath)) {
+          if (fileTabs.rightTabs.some((t) => t.viewType === 'preview')) {
+            fileTabs.navigateActivePreview(location.filePath);
+          } else {
+            fileTabs.openRight(location.filePath, 'preview');
+          }
+        } else {
+          fileTabs.openPreview(location.filePath);
+        }
       } else {
         setPendingFileHighlight(pendingHighlightForLocation(location));
         fileSelector.selectFile(location.filePath);
       }
     },
-    [activeView, explorerSplitViewEnabled, openFileLocationInExplorer, fileSelector]
+    [activeView, explorerSplitViewEnabled, openFileLocationInExplorer, fileSelector, fileTabs]
   );
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
