@@ -117,7 +117,7 @@ async function resolveWritePayload(
   session: DaemonSessionServiceShape,
   request: PendingFileWriteRequest
 ): Promise<{ ok: true; content: Buffer } | { ok: false; errorMessage: string }> {
-  if (request.data) {
+  if (request.data?.content) {
     return decodeWritePayload(request);
   }
   return fetchStoragePayload(session, request);
@@ -305,6 +305,9 @@ async function fulfillOneFileWriteRequest(
         status: 'error',
         errorMessage: payload.errorMessage,
       });
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${payload.errorMessage}`
+      );
       return;
     }
 

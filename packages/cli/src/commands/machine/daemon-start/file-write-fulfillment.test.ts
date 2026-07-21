@@ -150,6 +150,57 @@ describe('fulfillFileWriteRequestsEffect', () => {
     }
   });
 
+  it('create prefers storage fetch when stale inline data lacks content', async () => {
+    const uploadBytes = Buffer.from('from storage');
+    const storageRequest = {
+      _id: 'req-storage-stale',
+      workingDir,
+      filePath: 'uploads/stale.pdf',
+      operation: 'create' as const,
+      data: { compression: 'gzip' as const, content: '' },
+      storageId: 'storage-123',
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () =>
+        uploadBytes.buffer.slice(
+          uploadBytes.byteOffset,
+          uploadBytes.byteOffset + uploadBytes.byteLength
+        ),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: vi.fn().mockResolvedValue(undefined),
+        query: vi.fn().mockImplementation((apiRef: string) => {
+          if (apiRef === 'mock-getWriteRequestStorageUrl') {
+            return Promise.resolve('https://storage.example/stale');
+          }
+          return Promise.resolve([storageRequest]);
+        }),
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+      );
+
+      const content = await readFile(join(workingDir, 'uploads/stale.pdf'));
+      expect(content.equals(uploadBytes)).toBe(true);
+      expect(fetchMock).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('update overwrites an existing file', async () => {
     const filePath = 'existing.md';
     await writeFile(join(workingDir, filePath), 'old');

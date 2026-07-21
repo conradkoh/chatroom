@@ -1516,16 +1516,47 @@ export const requestFileWrite = mutation({
     };
 
     if (existingRequest) {
-      await ctx.db.patch('chatroom_workspaceFileWriteRequests', existingRequest._id, requestPatch);
+      if (args.storageId && (args.operation === 'create' || args.operation === 'update')) {
+        await ctx.db.replace('chatroom_workspaceFileWriteRequests', existingRequest._id, {
+          machineId: args.machineId,
+          workingDir: args.workingDir,
+          filePath: args.filePath,
+          operation: args.operation,
+          status: 'pending',
+          requestedAt: now,
+          updatedAt: now,
+          storageId: args.storageId,
+        });
+      } else {
+        await ctx.db.patch(
+          'chatroom_workspaceFileWriteRequests',
+          existingRequest._id,
+          requestPatch
+        );
+      }
       return { status: 'requested' as const, requestId: existingRequest._id };
     }
 
-    const requestId = await ctx.db.insert('chatroom_workspaceFileWriteRequests', {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      filePath: args.filePath,
-      ...requestPatch,
-    });
+    const insertPayload =
+      args.storageId && (args.operation === 'create' || args.operation === 'update')
+        ? {
+            machineId: args.machineId,
+            workingDir: args.workingDir,
+            filePath: args.filePath,
+            operation: args.operation,
+            status: 'pending' as const,
+            requestedAt: now,
+            updatedAt: now,
+            storageId: args.storageId,
+          }
+        : {
+            machineId: args.machineId,
+            workingDir: args.workingDir,
+            filePath: args.filePath,
+            ...requestPatch,
+          };
+
+    const requestId = await ctx.db.insert('chatroom_workspaceFileWriteRequests', insertPayload);
 
     return { status: 'requested' as const, requestId };
   },
@@ -1597,7 +1628,7 @@ export const getPendingFileWriteRequests = query({
       workingDir: r.workingDir,
       filePath: r.filePath,
       operation: r.operation,
-      data: r.data,
+      data: r.storageId ? undefined : r.data,
       storageId: r.storageId,
       targetFilePath: r.targetFilePath,
     }));
