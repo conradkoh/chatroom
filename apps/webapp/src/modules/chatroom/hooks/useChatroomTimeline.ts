@@ -22,7 +22,7 @@ export interface UseChatroomTimelineResult {
   purgeToInitialWindow: () => void;
 }
 
-export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResult {
+export function useChatroomTimeline(chatroomId: string, enabled = true): UseChatroomTimelineResult {
   const {
     messages,
     isLoading,
@@ -31,9 +31,12 @@ export function useChatroomTimeline(chatroomId: string): UseChatroomTimelineResu
     loadOlderMessages,
     removeMessagesForTask,
     purgeToInitialWindow,
-  } = useChatroomMessageStore(chatroomId);
+  } = useChatroomMessageStore(chatroomId, enabled);
 
-  const events = useMemo(() => messages.map(mapMessageToTimelineEvent), [messages]);
+  const events = useMemo(
+    () => (enabled ? messages.map(mapMessageToTimelineEvent) : []),
+    [enabled, messages]
+  );
 
   return {
     events,
