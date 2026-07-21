@@ -32,6 +32,7 @@ describe('MessageViewToggle', () => {
     const toggle = screen.getByTestId('message-view-toggle');
     expect(toggle.className).toMatch(/\bh-6\b/);
     expect(toggle.className).toContain('shrink-0');
+    expect(toggle.className).toContain('overflow-y-hidden');
     expect(toggle.className).not.toMatch(/\bh-7\b/);
 
     const allTab = screen.getByRole('tab', { name: 'All' });
@@ -39,6 +40,7 @@ describe('MessageViewToggle', () => {
     expect(allTab.className).toContain('items-center');
     expect(allTab.className).toContain('justify-center');
     expect(allTab.className).toContain('leading-none');
+    expect(allTab.className).toContain('ring-inset');
     expect(allTab.className).not.toContain('h-full');
   });
 });
