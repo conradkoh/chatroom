@@ -6,6 +6,7 @@ import Markdown from 'react-markdown';
 import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
 import {
   fullMarkdownComponents,
+  MarkdownWorkspaceLinkScope,
   markdownLinkClassNames,
   proseClassNames,
 } from '../../components/markdown-utils';
@@ -39,16 +40,18 @@ function BaseAwareMarkdownLink({
     return <span>{children}</span>;
   }
   return (
-    <button
-      type="button"
-      className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] text-left`}
-      onClick={() => {
-        const location = resolveFileLocationFromBase(baseFilePath, href);
-        if (location) onOpenFile(location);
-      }}
-    >
-      {children}
-    </button>
+    <MarkdownWorkspaceLinkScope>
+      <button
+        type="button"
+        className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] text-left`}
+        onClick={() => {
+          const location = resolveFileLocationFromBase(baseFilePath, href);
+          if (location) onOpenFile(location);
+        }}
+      >
+        {children}
+      </button>
+    </MarkdownWorkspaceLinkScope>
   );
 }
 
