@@ -4,6 +4,7 @@
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { useChatroomTimeline } from './useChatroomTimeline';
 import type { Message } from '../types/message';
 
 const mockUseChatroomMessageStore = vi.fn();
@@ -11,8 +12,6 @@ const mockUseChatroomMessageStore = vi.fn();
 vi.mock('./useChatroomMessageStore', () => ({
   useChatroomMessageStore: (...args: unknown[]) => mockUseChatroomMessageStore(...args),
 }));
-
-import { useChatroomTimeline } from './useChatroomTimeline';
 
 function makeMessage(id: string, creationTime: number, overrides: Partial<Message> = {}): Message {
   return {
@@ -49,7 +48,7 @@ describe('useChatroomTimeline', () => {
 
     const { result } = renderHook(() => useChatroomTimeline('room-1'));
 
-    expect(mockUseChatroomMessageStore).toHaveBeenCalledWith('room-1');
+    expect(mockUseChatroomMessageStore).toHaveBeenCalledWith('room-1', true);
     expect(result.current.isLoading).toBe(true);
     expect(result.current.hasMoreOlder).toBe(true);
     expect(result.current.isLoadingOlder).toBe(true);
@@ -77,5 +76,12 @@ describe('useChatroomTimeline', () => {
       'team_message',
     ]);
     expect(result.current.events.map((e) => e.id)).toEqual(['ctx-1', 'user-1', 'team-1']);
+  });
+
+  it('disables the message store when enabled is false', () => {
+    const { result } = renderHook(() => useChatroomTimeline('room-1', false));
+
+    expect(mockUseChatroomMessageStore).toHaveBeenCalledWith('room-1', false);
+    expect(result.current.events).toEqual([]);
   });
 });
