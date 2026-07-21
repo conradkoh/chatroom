@@ -28,6 +28,7 @@
     "code-quality:fix": "fallow fix --dry-run",
     "e2e": "turbo run e2e",
     "prepare": "husky",
+    "local": "pnpm --filter @workspace/local-dev start",
     "dev:convex": "cd services/backend && npx convex run --internal dev:cleanup"
   },
   "keywords": [],

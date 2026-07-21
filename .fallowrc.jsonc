@@ -115,6 +115,14 @@
       "exports": ["buildTeamRoleKey"],
     },
     {
+      "file": "**/local-dev/src/client/App.tsx",
+      "exports": ["App"],
+    },
+    {
+      "file": "**/local-dev/src/client/use-websocket.ts",
+      "exports": ["useWebSocket"],
+    },
+    {
       "file": "**/WorkspaceFileExplorerVirtualizedTree.tsx",
       "exports": ["EXPLORER_TREE_ROW_HEIGHT"],
     },
