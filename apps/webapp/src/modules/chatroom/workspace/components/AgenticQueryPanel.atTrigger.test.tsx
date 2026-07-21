@@ -71,6 +71,10 @@ vi.mock('./AgenticQueryHarnessSync', () => ({
   AgenticQueryHarnessSync: () => null,
 }));
 
+vi.mock('../../direct-harness/hooks/useRefreshCapabilities', () => ({
+  useRefreshCapabilities: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
   useAgenticQueryRunTurnStore: () => ({
     turns: [],
