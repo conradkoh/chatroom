@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseFileLocation, serializeFileLocationHref, type FileLocation } from './fileLocation';
+import {
+  parseFileLocation,
+  resolveFileLocationFromBase,
+  serializeFileLocationHref,
+  type FileLocation,
+} from './fileLocation';
 
 describe('fileLocation', () => {
   describe('serializeFileLocationHref', () => {
@@ -93,6 +98,37 @@ describe('fileLocation', () => {
       expect(parseFileLocation('')).toBeNull();
       expect(parseFileLocation('   ')).toBeNull();
       expect(parseFileLocation('not-a-path')).toBeNull();
+    });
+  });
+
+  describe('resolveFileLocationFromBase', () => {
+    it('resolves same-directory relative links', () => {
+      expect(resolveFileLocationFromBase('docs/README.md', './guide.md')).toEqual({
+        filePath: 'docs/guide.md',
+      });
+      expect(resolveFileLocationFromBase('docs/README.md', 'guide.md')).toEqual({
+        filePath: 'docs/guide.md',
+      });
+    });
+
+    it('resolves parent-directory relative links', () => {
+      expect(resolveFileLocationFromBase('docs/README.md', '../other/file.md')).toEqual({
+        filePath: 'other/file.md',
+      });
+    });
+
+    it('passes through absolute repo-relative paths', () => {
+      expect(resolveFileLocationFromBase('docs/README.md', 'apps/webapp/src/foo.ts')).toEqual({
+        filePath: 'apps/webapp/src/foo.ts',
+      });
+    });
+
+    it('preserves line fragments on resolved paths', () => {
+      expect(resolveFileLocationFromBase('docs/README.md', './guide.md#L10')).toEqual({
+        filePath: 'docs/guide.md',
+        startLine: 10,
+        endLine: 10,
+      });
     });
   });
 
