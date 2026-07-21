@@ -659,7 +659,7 @@ function ModelPickerMeta({
   showChevron = false,
 }: {
   isSelectedModelHidden: boolean;
-  machineModelFilter: { hiddenModels: string[]; hiddenProviders: string[] } | null;
+  machineModelFilter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined;
   showChevron?: boolean;
 }) {
   return (
