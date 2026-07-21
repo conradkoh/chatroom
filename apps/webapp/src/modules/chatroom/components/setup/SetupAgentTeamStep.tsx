@@ -7,6 +7,8 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
+import { getFailedAgentRoles } from '../../utils/agentBulkStart';
+import { startAgentsBatch } from '../../utils/agentStart';
 import { countJoinedRoles } from '../../utils/countJoinedRoles';
 import { InlineAgentCard } from '../AgentPanel/InlineAgentCard';
 
@@ -88,6 +90,11 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     []
   );
 
+  const agentRoleViewMap = useMemo(
+    () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
+    [agentRoleViews]
+  );
+
   const handleStartAll = useCallback(async () => {
     const missing = teamRoles.filter((role) => !roleConfigs.has(role.toLowerCase()));
     if (missing.length > 0) {
@@ -99,37 +106,31 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     setStartError(null);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
 
-    const results = await Promise.allSettled(
-      teamRoles.map((role) => {
+    const results = await startAgentsBatch(
+      teamRoles,
+      (role) => {
         const config = roleConfigs.get(role.toLowerCase());
-        if (!config) return Promise.resolve(null);
-        return sendCommand({
+        if (!config) return null;
+        const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
+        return {
           machineId,
-          type: 'start-agent',
-          payload: {
-            chatroomId: chatroomIdTyped,
-            role,
-            model: config.model,
-            agentHarness: config.harness,
-            workingDir,
-          },
-        });
-      })
+          chatroomId: chatroomIdTyped,
+          role,
+          model: config.model,
+          agentHarness: config.harness,
+          workingDir,
+          wantResume: agentRoleView?.wantResume,
+        };
+      },
+      sendCommand
     );
 
     setIsStartingAll(false);
-    const failed = results
-      .map((r, i) => (r.status === 'rejected' ? teamRoles[i] : null))
-      .filter(Boolean) as string[];
+    const failed = getFailedAgentRoles(results, teamRoles);
     if (failed.length > 0) {
       setStartError(`Failed to start: ${failed.join(', ')}`);
     }
-  }, [teamRoles, roleConfigs, sendCommand, machineId, workingDir, chatroomId]);
-
-  const agentRoleViewMap = useMemo(
-    () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
-    [agentRoleViews]
-  );
+  }, [teamRoles, roleConfigs, agentRoleViewMap, sendCommand, machineId, workingDir, chatroomId]);
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">

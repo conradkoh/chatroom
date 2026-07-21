@@ -1,41 +1,30 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import type { AgentConfig } from '../types/machine';
-
-type StartAgentCommand = (command: {
-  machineId: string;
-  type: 'start-agent';
-  payload: {
-    chatroomId: Id<'chatroom_rooms'>;
-    role: string;
-    model: string;
-    agentHarness: string;
-    workingDir: string;
-  };
-}) => Promise<unknown>;
+import { startAgentsBatch } from './agentStart';
+import type { AgentConfig, SendCommandFn } from '../types/machine';
 
 export async function startAgentsForRoles(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
   chatroomId: Id<'chatroom_rooms'>,
-  sendCommand: StartAgentCommand
+  sendCommand: SendCommandFn
 ): Promise<PromiseSettledResult<unknown>[]> {
-  return Promise.allSettled(
-    agentRoles.map((role) => {
+  return startAgentsBatch(
+    agentRoles,
+    (role) => {
       const config = roleConfigMap.get(role.toLowerCase());
       if (!config) return null;
-      return sendCommand({
+      return {
         machineId: config.machineId,
-        type: 'start-agent',
-        payload: {
-          chatroomId,
-          role,
-          model: config.model ?? '',
-          agentHarness: config.agentType,
-          workingDir: config.workingDir,
-        },
-      });
-    })
+        chatroomId,
+        role,
+        model: config.model ?? '',
+        agentHarness: config.agentType,
+        workingDir: config.workingDir,
+        wantResume: config.wantResume,
+      };
+    },
+    sendCommand
   );
 }
 
@@ -71,7 +60,7 @@ export async function runAgentStartBatch(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
   chatroomId: Id<'chatroom_rooms'>,
-  sendCommand: StartAgentCommand,
+  sendCommand: SendCommandFn,
   onComplete: (failed: string[]) => void
 ): Promise<void> {
   const results = await startAgentsForRoles(agentRoles, roleConfigMap, chatroomId, sendCommand);
