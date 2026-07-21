@@ -117,10 +117,10 @@ async function resolveWritePayload(
   session: DaemonSessionServiceShape,
   request: PendingFileWriteRequest
 ): Promise<{ ok: true; content: Buffer } | { ok: false; errorMessage: string }> {
-  if (request.storageId) {
-    return fetchStoragePayload(session, request);
+  if (request.data) {
+    return decodeWritePayload(request);
   }
-  return decodeWritePayload(request);
+  return fetchStoragePayload(session, request);
 }
 
 // fallow-ignore-next-line complexity
