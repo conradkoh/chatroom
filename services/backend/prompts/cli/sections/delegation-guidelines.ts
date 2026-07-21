@@ -2,8 +2,8 @@
  * Delegation guidelines section for the planner role.
  *
  * When a builder is available, guidance focuses on delegation discipline.
- * When the planner is implementing themselves, guidance focuses on
- * incremental self-implementation (the planner's implementer metarole).
+ * When the planner works solo, guidance focuses on incremental
+ * self-implementation.
  *
  * Delegation is template-driven by default: the planner hands a focused
  * slice to the builder using the Delegation Brief.
@@ -39,14 +39,15 @@ function getBuilderDelegationGuidelines(
 ): string {
   return `**Delegation Guidelines:**
 
-Break complex features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+
+**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is. Never implement code yourself.
 
 **Decision flow:**
 \`\`\`mermaid
 flowchart TD
-    A[Receive task] --> B{Can handle alone?}
-    B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
-    B -->|No: needs builder| D[Write a Delegation Brief]
+    A[Receive task] --> B{Code changes needed?}
+    B -->|Yes — any size| D[Write a Delegation Brief]
     D --> E[Hand off ONE slice to builder]
     E --> F[Review output]
     F -->|Not acceptable| G[Hand back with feedback]
@@ -54,6 +55,7 @@ flowchart TD
     F -->|Acceptable| H{More slices?}
     H -->|Yes| E
     H -->|No| I[Deliver to user]
+    B -->|No: question or clarification only| C[Answer directly → deliver to user]
 \`\`\`
 
 **Default: delegate with a Delegation Brief.** ${delegationBriefRef}
