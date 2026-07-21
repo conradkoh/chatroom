@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Copy } from 'lucide-react';
-import React, { useState, useCallback, lazy, Suspense } from 'react';
+import React, { createContext, useContext, useState, useCallback, lazy, Suspense } from 'react';
 
 import { useWorkspaceFileLink } from '../context/WorkspaceFileLinkContext';
 import { fenceLangToSyntheticPath } from '../workspace/file-renderers/language-detection';
@@ -128,6 +128,21 @@ export const contextSummaryProseClassNames =
 // Markdown Components
 // ============================================================================
 
+const InsideMarkdownWorkspaceLinkContext = createContext(false);
+
+/** Marks descendants so inline code does not render another workspace link button. */
+export function MarkdownWorkspaceLinkScope({ children }: { children: React.ReactNode }) {
+  return (
+    <InsideMarkdownWorkspaceLinkContext.Provider value={true}>
+      {children}
+    </InsideMarkdownWorkspaceLinkContext.Provider>
+  );
+}
+
+function useInsideMarkdownWorkspaceLink(): boolean {
+  return useContext(InsideMarkdownWorkspaceLinkContext);
+}
+
 /**
  * Opens workspace file paths in the explorer when a provider is present.
  */
@@ -137,16 +152,18 @@ function WorkspaceFileLinkButton({ href, children }: { href: string; children: R
     return <span>{children}</span>;
   }
   return (
-    <button
-      type="button"
-      className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] text-left`}
-      onClick={() => {
-        const location = parseFileLocation(href);
-        if (location) onOpenFile(location);
-      }}
-    >
-      {children}
-    </button>
+    <MarkdownWorkspaceLinkScope>
+      <button
+        type="button"
+        className={`${markdownLinkClassNames} cursor-pointer bg-transparent border-0 p-0 text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] text-left`}
+        onClick={() => {
+          const location = parseFileLocation(href);
+          if (location) onOpenFile(location);
+        }}
+      >
+        {children}
+      </button>
+    </MarkdownWorkspaceLinkScope>
   );
 }
 
@@ -193,11 +210,12 @@ function InlineCodeOrWorkspaceLink({
   children?: React.ReactNode;
   className?: string;
 }) {
+  const insideWorkspaceLink = useInsideMarkdownWorkspaceLink();
   if (className?.startsWith('language-')) {
     return <code className={className}>{children}</code>;
   }
   const text = typeof children === 'string' ? children : null;
-  if (text && looksLikeWorkspacePath(text)) {
+  if (text && looksLikeWorkspacePath(text) && !insideWorkspaceLink) {
     return <WorkspaceFileLinkButton href={text}>{text}</WorkspaceFileLinkButton>;
   }
   return <PlainInlineCode className={className}>{children}</PlainInlineCode>;
