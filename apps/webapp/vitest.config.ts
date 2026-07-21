@@ -10,6 +10,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
     css: true,
+    maxWorkers: 4,
     exclude: ['tests/e2e/**', 'node_modules/**'],
   },
   resolve: {

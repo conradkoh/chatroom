@@ -6,7 +6,7 @@
     "dev": "dotenv -e .env.local -- next dev",
     "dev:clean": "rm -rf .next && dotenv -e .env.local -- env TURBOPACK_FS_CACHE=0 next dev",
     "build": "next build --turbopack",
-    "start": "next start --turbopack",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest",
