@@ -22,7 +22,7 @@ const MermaidBlock = lazy(() =>
  * Shared interactive link styling for markdown HTTP links and workspace file buttons.
  * Applied at the component layer — not via prose-a modifiers — so hover targets the link itself.
  */
-const markdownLinkClassNames =
+export const markdownLinkClassNames =
   'text-chatroom-status-info no-underline hover:text-chatroom-accent transition-colors';
 
 /**
