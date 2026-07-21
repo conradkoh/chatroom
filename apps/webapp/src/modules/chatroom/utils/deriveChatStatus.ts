@@ -1,6 +1,6 @@
 import { resolveAgentStatus } from './agentStatusLabel';
 
-export type ChatStatus = 'working' | 'active' | 'idle' | 'completed';
+export type ChatStatus = 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
 
 export interface AgentPresence {
   /** Latest heartbeat action (presence metadata; online detection uses isAlive). */
@@ -26,6 +26,12 @@ function isAgentWorkingForChatStatus(agent: AgentPresence): boolean {
   return resolveAgentStatus(agent.lastStatus, agent.lastDesiredState, true).variant === 'working';
 }
 
+/** True when every online agent is genuinely WAITING (green-at-rest signal). */
+function isAgentWaitingForChatStatus(agent: AgentPresence): boolean {
+  const status = resolveAgentStatus(agent.lastStatus, agent.lastDesiredState, true);
+  return status.variant === 'ready' && status.label === 'WAITING';
+}
+
 /**
  * Derives sidebar chat status from chatroom lifecycle and agent presence.
  *
@@ -33,7 +39,9 @@ function isAgentWorkingForChatStatus(agent: AgentPresence): boolean {
  * `resolveAgentStatus` (same inputs as AgentPanel).  See
  * `isAgentWorkingForChatStatus` for the awaiting-handoff exception.
  *
- * Online alive agents blocked on get-next-task (WAITING) are 'active', not 'idle'.
+ * Green `active` is reserved for all-online agents in WAITING. Online agents in
+ * transitional states (registered, starting, task received, etc.) use yellow
+ * `transitioning` so they do not look idle.
  */
 export function deriveChatStatus(
   chatroomStatus: 'active' | 'completed',
@@ -49,5 +57,6 @@ export function deriveChatStatus(
   }
 
   if (onlineAgents.some(isAgentWorkingForChatStatus)) return 'working';
-  return 'active';
+  if (onlineAgents.every(isAgentWaitingForChatStatus)) return 'active';
+  return 'transitioning';
 }
