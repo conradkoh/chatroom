@@ -38,7 +38,7 @@ export function getPlannerPlusBuilderOperatingModel(nativeIntegration?: boolean)
   const footer = getOperatingModelLoopFooter(nativeIntegration);
   const delegationNote = nativeIntegration
     ? getNativePlannerDelegationWaitNote()
-    : 'Other agents may be offline when you delegate — hand off and wait for work to return, or implement yourself if blocked.';
+    : 'After delegating to the builder, hand off and wait for work to return.';
   return `**Operating model: Planner + Builder**
 
 ${delegationNote}
@@ -49,7 +49,7 @@ ${getTaskIntakeNodes(nativeIntegration)}
     E --> F[Delegate ONE phase to builder]
     F --> G[Builder completes phase]
     G --> H[Builder hands off to planner]
-    H --> I[Review work yourself]
+    H --> I[Review builder output]
     I --> J{phase acceptable?}
     J -->|no| K[Hand back to builder with feedback]
     K --> F
