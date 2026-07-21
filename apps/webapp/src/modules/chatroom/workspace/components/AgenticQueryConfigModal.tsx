@@ -65,7 +65,10 @@ export function AgenticQueryConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
-      <DialogContent data-testid="agentic-query-config-modal" className="sm:max-w-lg">
+      <DialogContent
+        data-testid="agentic-query-config-modal"
+        className="sm:max-w-2xl overflow-hidden"
+      >
         <DialogHeader>
           <DialogTitle>Search configuration</DialogTitle>
         </DialogHeader>
