@@ -95,7 +95,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Report Template (Planner → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+      **Report Template (Planner → User)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
 
       \`\`\`markdown
       ## Summary
@@ -110,7 +110,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
       - <step 1: concrete artifact or outcome>
       - <step 2: concrete artifact or outcome>
-      <List the planned slices/steps the planner defined (or would have defined) before delegating. Each step should name a verifiable deliverable — not vague layers like "backend work". Write \`Not Applicable\` only for trivial single-step tasks.>
+      <Omit for trivial single-step tasks.>
 
       ## What changed
       <high-level view of what changed since the user's message before the detailed proofs below>
@@ -135,24 +135,24 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Backlog Tasks Implemented
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
-      <List every backlog item this work implemented. Write \`Not Applicable\` if no backlog items were in scope.>
+      <Omit if no backlog items were in scope.>
 
       ## Backlog Pending User Review Confirmation
       - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
-      - PR URL(s): <link to PR(s), or \`Not Applicable\` if no PR was raised>
-      - If no backlog items apply, write \`Not Applicable\` for the checkbox and explain in one line
+      - PR URL(s): <link to PR(s)>
+      <Omit this section if no backlog items apply.>
 
       ## Key Technical Decisions
-      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
+      - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
-      - <what was weighed against what, and why you chose this path, or "Not Applicable">
+      - <what was weighed against what, and why you chose this path>
 
       ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
+      - <issues noticed but intentionally left out of scope of this change>
 
       ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
+      <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
 
       \`\`\`mermaid
       flowchart TD
@@ -163,12 +163,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Unresolved Decisions
-      <!-- Decisions that need user input before work can proceed. -->
-      - <decision or question — options considered, recommendation if any, or "Not Applicable">
-      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to. Write \`Not Applicable\` only when there are truly no open decisions.>
+      <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
+      - <decision or question — options considered, recommendation if any>
+      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
+      <anything the user should know, follow-ups, or open questions>
       \`\`\`"
     `);
   });
@@ -196,7 +196,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section below. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+      **Handoff Template (Builder → Planner)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
 
       \`\`\`markdown
       ## Summary
@@ -229,10 +229,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
+      <anything needing planner decision. Omit if none.>
 
       ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
+      <specific areas for planner to check. Omit if none.>
       \`\`\`"
     `);
   });
@@ -261,7 +261,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
       **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
@@ -302,7 +302,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       (Add one ### block per file. If this slice touches only one file, still use the ### header.)
 
       ## Shared contracts (planner-owned)
-      Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+      Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
 
       ### Interfaces & types
       \`\`\`typescript
@@ -319,13 +319,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
-      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
-      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder, or "Not Applicable">
+      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
 
       ## Out of scope
-      - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
+      - <files or areas the builder must NOT touch in this slice>
 
       ## Session Augmentation
       Valid values: \`none\` | \`compact\` | \`new_session\`
@@ -364,7 +364,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+      **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
       **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
@@ -405,7 +405,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       (Add one ### block per file. If this slice touches only one file, still use the ### header.)
 
       ## Shared contracts (planner-owned)
-      Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+      Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
 
       ### Interfaces & types
       \`\`\`typescript
@@ -422,13 +422,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
-      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+      - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
-      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder, or "Not Applicable">
+      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
 
       ## Out of scope
-      - <files or areas the builder must NOT touch in this slice, or "Not Applicable">
+      - <files or areas the builder must NOT touch in this slice>
 
       ## Session Augmentation
       Valid values: \`none\` | \`compact\` | \`new_session\`
@@ -466,7 +466,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Report Template (Solo → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+      **Report Template (Solo → User)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
 
       \`\`\`markdown
       ## Summary
@@ -481,7 +481,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
       - <step 1: concrete artifact or outcome>
       - <step 2: concrete artifact or outcome>
-      <List the planned steps you defined before implementing. Each step should name a verifiable deliverable — not vague layers like "backend work". Write \`Not Applicable\` only for trivial single-step tasks.>
+      <Omit for trivial single-step tasks.>
 
       ## What changed
       <high-level view of what changed since the user's message before the detailed proofs below>
@@ -506,24 +506,24 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Backlog Tasks Implemented
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
-      <List every backlog item this work implemented. Write \`Not Applicable\` if no backlog items were in scope.>
+      <Omit if no backlog items were in scope.>
 
       ## Backlog Pending User Review Confirmation
       - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
-      - PR URL(s): <link to PR(s), or \`Not Applicable\` if no PR was raised>
-      - If no backlog items apply, write \`Not Applicable\` for the checkbox and explain in one line
+      - PR URL(s): <link to PR(s)>
+      <Omit this section if no backlog items apply.>
 
       ## Key Technical Decisions
-      - <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
+      - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
-      - <what was weighed against what, and why you chose this path, or "Not Applicable">
+      - <what was weighed against what, and why you chose this path>
 
       ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
+      - <issues noticed but intentionally left out of scope of this change>
 
       ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
+      <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
 
       \`\`\`mermaid
       flowchart TD
@@ -534,12 +534,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Unresolved Decisions
-      <!-- Decisions that need user input before work can proceed. -->
-      - <decision or question — options considered, recommendation if any, or "Not Applicable">
-      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to. Write \`Not Applicable\` only when there are truly no open decisions.>
+      <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
+      - <decision or question — options considered, recommendation if any>
+      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions, or "Not Applicable">
+      <anything the user should know, follow-ups, or open questions>
       \`\`\`"
     `);
   });
@@ -587,10 +587,10 @@ describe('handoff-templates > invariants', () => {
   ];
 
   for (const [label, template] of deliveredTemplates) {
-    test(`${label} has no optional fields — instructs Not Applicable instead`, () => {
+    test(`${label} instructs omitting inapplicable sections`, () => {
       expect(template).toBeTruthy();
-      expect(template).toContain('Not Applicable');
-      expect(template).not.toMatch(/—\s*optional/i);
+      expect(template).toMatch(/Omit (sections|fields) that do not apply/);
+      expect(template).not.toMatch(/do not delete the section/i);
     });
 
     test(`${label} is markdown (fenced code block)`, () => {
