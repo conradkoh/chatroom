@@ -34,29 +34,35 @@ export function AgenticQueryHarnessControls({
 }: AgenticQueryHarnessControlsProps) {
   return (
     <div
-      className="flex items-center gap-2 min-w-0"
+      className="flex flex-col gap-2 min-w-0"
       data-testid="agentic-query-harness-controls"
       aria-disabled={disabled}
     >
-      <div className="w-40 shrink-0">
-        <HarnessHarnessSelect
-          harnesses={harnesses}
-          value={harnessName}
-          onValueChange={onHarnessChange}
-          disabled={disabled}
-        />
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-40 shrink-0">
+          <HarnessHarnessSelect
+            harnesses={harnesses}
+            value={harnessName}
+            onValueChange={onHarnessChange}
+            disabled={disabled}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <HarnessModelSelect
+            providers={providers}
+            value={selectedModel}
+            onValueChange={onModelChange}
+            isHidden={isModelHidden}
+            disabled={disabled}
+          />
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <HarnessModelSelect
-          providers={providers}
-          value={selectedModel}
-          onValueChange={onModelChange}
-          isHidden={isModelHidden}
-          disabled={disabled}
-        />
-      </div>
-      {refreshButton ? <div className="shrink-0">{refreshButton}</div> : null}
-      {filterButton ? <div className="shrink-0">{filterButton}</div> : null}
+      {refreshButton || filterButton ? (
+        <div className="flex items-center justify-end gap-2 shrink-0">
+          {refreshButton}
+          {filterButton}
+        </div>
+      ) : null}
     </div>
   );
 }

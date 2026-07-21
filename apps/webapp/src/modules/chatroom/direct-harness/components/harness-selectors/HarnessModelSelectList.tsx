@@ -1,6 +1,5 @@
 'use client';
 
-import { Check } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { getVisibleModels, modelKey } from './harness-model-select-utils';
@@ -65,8 +64,7 @@ export function HarnessModelSelectList({
                   onClose();
                 }}
               >
-                <span className="truncate">{model.name}</span>
-                {isSelected && <Check size={12} className="ml-2 shrink-0 text-primary" />}
+                {model.name}
               </PickerOptionRow>
             );
           })}
