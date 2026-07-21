@@ -45,6 +45,24 @@ vi.mock('./RenameDialog', () => ({
   RenameDialog: () => null,
 }));
 
+vi.mock('./UploadFileDialog', () => ({
+  UploadFileDialog: () => null,
+}));
+
+vi.mock('../hooks/useExplorerFileDrop', () => ({
+  useExplorerFileDrop: () => ({
+    dropHighlightPath: null,
+    uploadDialogOpen: false,
+    pendingUpload: null,
+    remainingCount: 0,
+    handleDragOver: vi.fn(),
+    handleDragLeave: vi.fn(),
+    handleDrop: vi.fn(),
+    handleUploadDialogOpenChange: vi.fn(),
+    handleUploadContinue: vi.fn(),
+  }),
+}));
+
 vi.mock('../hooks/useExplorerNewFileOps', () => ({
   useExplorerNewFileOps: () => ({
     onFileCreated: vi.fn(),

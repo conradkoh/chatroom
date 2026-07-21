@@ -270,4 +270,39 @@ describe('workspace file write requests', () => {
       })
     ).rejects.toThrow(/must not include/i);
   });
+
+  test('requestFileWrite rejects blocked upload target paths on create', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-blocked-path',
+      'machine-wfw-blocked-path'
+    );
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: '.env',
+        operation: 'create',
+        data: gzipContent('secret'),
+      })
+    ).rejects.toThrow(/blocked/i);
+  });
+
+  test('requestFileWrite rejects create without data or storageId', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-missing-payload',
+      'machine-wfw-missing-payload'
+    );
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: 'docs/readme.md',
+        operation: 'create',
+      })
+    ).rejects.toThrow(/exactly one of data or storageId/i);
+  });
 });

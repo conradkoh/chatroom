@@ -29,6 +29,7 @@ interface WorkspaceFileExplorerProps {
   selectedPath: string | null;
   /** Optional filename filter (VSCode-style explorer search) */
   filterQuery?: string;
+  dropHighlightPath?: string | null;
   onNodeContextMenu?: (node: ExplorerTreeNode, event: MouseEvent) => void;
   onEmptyAreaContextMenu?: (event: MouseEvent) => void;
 }
@@ -67,6 +68,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   revealPath,
   selectedPath,
   filterQuery = '',
+  dropHighlightPath = null,
   onNodeContextMenu,
   onEmptyAreaContextMenu,
 }: WorkspaceFileExplorerProps) {
@@ -185,6 +187,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
         displayNodes={displayNodes}
         expandedPaths={effectiveExpandedPaths}
         selectedPath={selectedPath}
+        dropHighlightPath={dropHighlightPath}
         scrollToPath={revealPath || selectedPath}
         loadingDirs={EMPTY_LOADING_DIRS}
         onToggle={handleToggle}

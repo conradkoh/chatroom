@@ -15,6 +15,7 @@ export interface ExplorerTreeRowProps {
   depth: number;
   isExpanded: boolean;
   isSelected: boolean;
+  isDropHighlighted?: boolean;
   isLoading: boolean;
   onToggle: (path: string) => void;
   onFileSelect?: (filePath: string) => void;
@@ -29,6 +30,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   depth,
   isExpanded,
   isSelected,
+  isDropHighlighted = false,
   isLoading,
   onToggle,
   onFileSelect,
@@ -56,12 +58,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   return (
     <button
       data-tree-node
+      data-path={node.path}
+      data-node-type={node.type}
       ref={rowRef}
       className={cn(
         'w-full flex items-center gap-1.5 pr-2 text-left text-sm box-border overflow-hidden',
-        isSelected
-          ? 'bg-chatroom-accent/10 text-chatroom-accent'
-          : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
+        isDropHighlighted
+          ? 'bg-chatroom-accent/20 text-chatroom-accent'
+          : isSelected
+            ? 'bg-chatroom-accent/10 text-chatroom-accent'
+            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary',
         'transition-colors duration-75 cursor-pointer select-none'
       )}
       style={{ paddingLeft, height: EXPLORER_TREE_ROW_HEIGHT }}

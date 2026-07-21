@@ -20,6 +20,7 @@ vi.mock('../../../api.js', () => ({
     workspaceFiles: {
       getPendingFileWriteRequests: 'mock-getPendingFileWriteRequests',
       completeFileWriteRequest: 'mock-completeFileWriteRequest',
+      getWriteRequestStorageUrl: 'mock-getWriteRequestStorageUrl',
     },
   },
 }));

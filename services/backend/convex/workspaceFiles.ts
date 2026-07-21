@@ -18,6 +18,8 @@ import {
   validateFilePath,
 } from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
+import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
+import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -1365,6 +1367,29 @@ export const getFileContentV2 = query({
 // fallow-ignore-next-line code-duplication
 
 /**
+ * Returns a short-lived upload URL for workspace file uploads (transient Convex storage).
+ */
+export const generateWorkspaceFileUploadUrl = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
+
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    return { uploadUrl };
+  },
+});
+
+/**
  * Requests a file create, update, or delete on the daemon's local filesystem.
  * Returns an existing pending request for the same path, or creates a new one.
  */
@@ -1387,6 +1412,7 @@ export const requestFileWrite = mutation({
         content: v.string(),
       })
     ),
+    storageId: v.optional(v.id('_storage')),
     targetFilePath: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -1403,6 +1429,9 @@ export const requestFileWrite = mutation({
       if (args.data !== undefined) {
         throw new Error('Mkdir requests must not include file data');
       }
+      if (args.storageId !== undefined) {
+        throw new Error('Mkdir requests must not include storageId');
+      }
       if (args.targetFilePath !== undefined) {
         throw new Error('Mkdir requests must not include targetFilePath');
       }
@@ -1413,6 +1442,9 @@ export const requestFileWrite = mutation({
       if (args.data !== undefined) {
         throw new Error('Rename requests must not include file data');
       }
+      if (args.storageId !== undefined) {
+        throw new Error('Rename requests must not include storageId');
+      }
       validateFilePath(args.targetFilePath);
       if (args.targetFilePath === args.filePath) {
         throw new Error('Rename target must differ from source path');
@@ -1421,12 +1453,35 @@ export const requestFileWrite = mutation({
       if (args.data !== undefined) {
         throw new Error('Delete requests must not include file data');
       }
-    } else {
-      if (!args.data) {
-        throw new Error('File data is required for create and update');
+      if (args.storageId !== undefined) {
+        throw new Error('Delete requests must not include storageId');
       }
-      if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
-        throw new Error('File content too large');
+    } else {
+      const hasData = args.data !== undefined;
+      const hasStorage = args.storageId !== undefined;
+      if (hasData === hasStorage) {
+        throw new Error('Create and update require exactly one of data or storageId');
+      }
+
+      if (args.operation === 'create') {
+        const blockedReason = getBlockedUploadTargetReason(args.filePath);
+        if (blockedReason) {
+          throw new Error(blockedReason);
+        }
+      }
+
+      if (args.storageId) {
+        const metadata = await ctx.storage.getMetadata(args.storageId);
+        if (!metadata) {
+          throw new Error('Upload not found');
+        }
+        if (metadata.size > MAX_WORKSPACE_UPLOAD_BYTES) {
+          throw new Error('File content too large');
+        }
+      } else if (args.data) {
+        if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
+          throw new Error('File content too large');
+        }
       }
     }
 
@@ -1452,10 +1507,12 @@ export const requestFileWrite = mutation({
       requestedAt: now,
       updatedAt: now,
       ...(args.operation === 'rename'
-        ? { data: undefined, targetFilePath: args.targetFilePath }
+        ? { data: undefined, storageId: undefined, targetFilePath: args.targetFilePath }
         : args.operation === 'delete' || args.operation === 'mkdir'
-          ? { data: undefined, targetFilePath: undefined }
-          : { data: args.data, targetFilePath: undefined }),
+          ? { data: undefined, storageId: undefined, targetFilePath: undefined }
+          : args.storageId
+            ? { data: undefined, storageId: args.storageId, targetFilePath: undefined }
+            : { data: args.data, storageId: undefined, targetFilePath: undefined }),
     };
 
     if (existingRequest) {
@@ -1541,8 +1598,39 @@ export const getPendingFileWriteRequests = query({
       filePath: r.filePath,
       operation: r.operation,
       data: r.data,
+      storageId: r.storageId,
       targetFilePath: r.targetFilePath,
     }));
+  },
+});
+
+/**
+ * Returns a signed URL for the storage blob attached to a pending write request.
+ * Daemon uses this to download upload payloads.
+ */
+export const getWriteRequestStorageUrl = query({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_workspaceFileWriteRequests'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return null;
+    }
+
+    const request = await ctx.db.get('chatroom_workspaceFileWriteRequests', args.requestId);
+    if (!request?.storageId) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, request.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    return await ctx.storage.getUrl(request.storageId);
   },
 });
 
@@ -1576,6 +1664,10 @@ export const completeFileWriteRequest = mutation({
       errorMessage: args.errorMessage,
       updatedAt: now,
     });
+
+    if (request.storageId) {
+      await ctx.storage.delete(request.storageId);
+    }
 
     if (args.status === 'done') {
       const cached = await ctx.db
