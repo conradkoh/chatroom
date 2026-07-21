@@ -23,4 +23,10 @@ describe('RemoteAgentAdvancedSettings', () => {
 
     expect(screen.queryByText('Reconnect to last session')).not.toBeInTheDocument();
   });
+
+  it('hides reconnect toggle for duo builder', () => {
+    render(<RemoteAgentAdvancedSettings {...baseProps} role="builder" teamId="duo" disabled />);
+
+    expect(screen.queryByText('Reconnect to last session')).not.toBeInTheDocument();
+  });
 });
