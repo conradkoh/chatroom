@@ -28,9 +28,6 @@
     "code-quality:fix": "fallow fix --dry-run",
     "e2e": "turbo run e2e",
     "prepare": "husky",
-    "local": "bash scripts/local.sh",
-    "local:stop": "bash scripts/local-stop.sh",
-    "local:update": "bash scripts/local-update.sh",
     "dev:convex": "cd services/backend && npx convex run --internal dev:cleanup"
   },
   "keywords": [],

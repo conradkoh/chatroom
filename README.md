@@ -74,7 +74,7 @@ pnpm format:fix
 | `services/backend` | Convex backend (schema, functions, auth)                             |
 | `packages/cli`     | **chatroom-cli** — agent commands (`get-next-task`, `handoff`, etc.) |
 | `docs/`, `guides/` | Documentation and longer-form guides                                 |
-| `scripts/`         | Setup, local helpers, migrations                                     |
+| `scripts/`         | Setup, migrations                                                    |
 
 For day-to-day coding conventions, see [AGENTS.md](AGENTS.md).
 
