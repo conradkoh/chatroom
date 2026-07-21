@@ -5,17 +5,18 @@
  * implementation slice to the builder. The planner owns technical decisions
  * down to the file level, with code snippets that leave no ambiguity; the
  * builder executes implementation, tool calls, and verification.
+ * Fields that do not apply may be omitted.
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
+import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance';
 
 /**
  * Returns the markdown delegation-brief template the planner uses when
  * handing a unit of work to the builder.
  *
- * Every field is mandatory — when a section does not apply the planner writes
- * `Not Applicable` rather than omitting it, so the brief is never ambiguous.
+ * Fields that do not apply may be omitted.
  */
 export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): string {
   const sessionManagement = nativeIntegration
@@ -24,7 +25,7 @@ export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): s
 
   return `${getHandoffRecipientVisibilityCallout('builder')}
 
-**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+${getDelegationBriefIntro()}
 
 **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
@@ -65,7 +66,7 @@ ${getFileReferenceGuidanceComment()}
 (Add one ### block per file. If this slice touches only one file, still use the ### header.)
 
 ## Shared contracts (planner-owned)
-Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
 
 ### Interfaces & types
 \`\`\`typescript
@@ -82,13 +83,13 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
-- <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+- <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
 ## Skills to activate
-- <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder, or "Not Applicable">
+- <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
 
 ## Out of scope
-- <files or areas the builder must NOT touch in this slice, or "Not Applicable">
+- <files or areas the builder must NOT touch in this slice>
 
 ## Session Augmentation
 Valid values: \`none\` | \`compact\` | \`new_session\`

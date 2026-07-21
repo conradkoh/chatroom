@@ -8,9 +8,8 @@
  * prompts/cli/get-next-task/fullOutput.ts and native task delivery) rather
  * than baked into the static init/system prompt.
  *
- * Every section is mandatory — when one does not apply the planner writes
- * `Not Applicable` rather than omitting it. The report captures not just what
- * changed but the reasoning behind it:
+ * Sections that do not apply may be omitted — the report captures not just
+ * what changed but the reasoning behind it:
  *  1. Template disclosure confirmation — planner attests they saw this template
  *     at task start before planning or delegating (soft verification for debugging).
  *  2. What changed — high-level view since the user's message, with proof of
@@ -31,6 +30,7 @@ import {
   getHandoffQualityPrinciplesCommentBlock,
   PROOF_OF_PRINCIPLES_HEADING_H3,
 } from '../../../utils/handoff-quality-principles';
+import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
@@ -43,7 +43,7 @@ export function getPlannerToUserReportTemplate(
 ): string {
   return `${getHandoffRecipientVisibilityCallout('user')}
 
-**Report Template (Planner → User)** — fill in EVERY section below in your handoff message. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+${getHandoffReportTemplateIntro('Report Template (Planner → User)')}
 
 \`\`\`markdown
 ## Summary
@@ -57,7 +57,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
 - <step 1: concrete artifact or outcome>
 - <step 2: concrete artifact or outcome>
-<List the planned slices/steps the planner defined (or would have defined) before delegating. Each step should name a verifiable deliverable — not vague layers like "backend work". Write \`Not Applicable\` only for trivial single-step tasks.>
+<Omit for trivial single-step tasks.>
 
 ## What changed
 <high-level view of what changed since the user's message before the detailed proofs below>
@@ -73,24 +73,24 @@ ${getFileReferenceProofOfCompletionExample()}
 
 ## Backlog Tasks Implemented
 - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
-<List every backlog item this work implemented. Write \`Not Applicable\` if no backlog items were in scope.>
+<Omit if no backlog items were in scope.>
 
 ## Backlog Pending User Review Confirmation
 - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
-- PR URL(s): <link to PR(s), or \`Not Applicable\` if no PR was raised>
-- If no backlog items apply, write \`Not Applicable\` for the checkbox and explain in one line
+- PR URL(s): <link to PR(s)>
+<Omit this section if no backlog items apply.>
 
 ## Key Technical Decisions
-- <schema design, modules, interfaces, domain entities — what you chose and why, or "Not Applicable">
+- <schema design, modules, interfaces, domain entities — what you chose and why>
 
 ## Key Tradeoffs
-- <what was weighed against what, and why you chose this path, or "Not Applicable">
+- <what was weighed against what, and why you chose this path>
 
 ## Tech Debt Observed
-- <issues noticed but intentionally left out of scope of this change, or "Not Applicable">
+- <issues noticed but intentionally left out of scope of this change>
 
 ## System Design
-<include a mermaid diagram when the change has non-trivial structure; write "Not Applicable" for trivial changes>
+<include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
 
 \`\`\`mermaid
 flowchart TD
@@ -103,6 +103,6 @@ ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 ${getUnresolvedDecisionsSectionBlock()}
 
 ## Notes / Next steps
-<anything the user should know, follow-ups, or open questions, or "Not Applicable">
+<anything the user should know, follow-ups, or open questions>
 \`\`\``;
 }

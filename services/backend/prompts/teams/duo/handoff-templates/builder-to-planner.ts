@@ -1,8 +1,7 @@
 /**
  * Handoff template: Duo builder → planner (work complete / blocked).
  *
- * Every section is mandatory — when one does not apply the builder writes
- * `Not Applicable` rather than omitting it. The handback captures not just
+ * Sections that do not apply may be omitted. The handback captures not just
  * what changed but the reasoning behind it:
  *  1. Template disclosure confirmation — builder attests they saw this template
  *     at task start before implementing (soft verification for debugging).
@@ -20,6 +19,7 @@ import {
   getHandoffQualityPrinciplesCommentBlock,
   PROOF_OF_PRINCIPLES_HEADING_H2,
 } from '../../../utils/handoff-quality-principles';
+import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
@@ -31,7 +31,7 @@ export function getBuilderToPlannerHandoffTemplate(
 ): string {
   return `${getHandoffRecipientVisibilityCallout('planner')}
 
-**Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section below. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+${getHandoffReportTemplateIntro('Handoff Template (Builder → Planner)')}
 
 \`\`\`markdown
 ## Summary
@@ -54,9 +54,9 @@ ${getFileReferenceProofOfCompletionExample()}
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 
 ## Blockers / questions
-<anything needing planner decision, or "Not Applicable">
+<anything needing planner decision. Omit if none.>
 
 ## Notes for review
-<specific areas for planner to check, or "Not Applicable">
+<specific areas for planner to check. Omit if none.>
 \`\`\``;
 }
