@@ -9,9 +9,6 @@ const toasterStyle = {
   '--normal-border': 'var(--border)',
   '--normal-bg-hover': 'var(--accent)',
   '--normal-border-hover': 'var(--border)',
-  '--toast-close-button-start': 'unset',
-  '--toast-close-button-end': 'unset',
-  '--toast-close-button-transform': 'none',
 } as React.CSSProperties;
 
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -24,9 +21,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
       closeButton
       toastOptions={{
         classNames: {
-          toast: 'group toast items-center gap-2',
+          toast: 'group toast !flex !w-full items-center gap-2',
+          content: 'flex-1 min-w-0',
           closeButton:
-            'static ml-auto shrink-0 !transform-none h-5 w-5 rounded-none border-0 bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground',
+            'sonner-close-button order-last !static shrink-0 !transform-none !h-5 !w-5 !rounded-none !border-0 !bg-transparent !text-muted-foreground hover:!bg-transparent hover:!text-foreground',
         },
       }}
       style={toasterStyle}

@@ -17,7 +17,7 @@ vi.mock('sonner', () => ({
 }));
 
 describe('Toaster', () => {
-  it('positions the close button inline on the right with theme-aware styling', () => {
+  it('uses flex layout with close button at end of toast row', () => {
     mockSonner.mockClear();
     render(<Toaster />);
 
@@ -26,15 +26,16 @@ describe('Toaster', () => {
         closeButton: true,
         toastOptions: {
           classNames: {
-            toast: 'group toast items-center gap-2',
+            toast: 'group toast !flex !w-full items-center gap-2',
+            content: 'flex-1 min-w-0',
             closeButton:
-              'static ml-auto shrink-0 !transform-none h-5 w-5 rounded-none border-0 bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground',
+              'sonner-close-button order-last !static shrink-0 !transform-none !h-5 !w-5 !rounded-none !border-0 !bg-transparent !text-muted-foreground hover:!bg-transparent hover:!text-foreground',
           },
         },
         style: expect.objectContaining({
-          '--toast-close-button-start': 'unset',
-          '--toast-close-button-end': 'unset',
-          '--toast-close-button-transform': 'none',
+          '--normal-bg': 'var(--popover)',
+          '--normal-text': 'var(--popover-foreground)',
+          '--normal-border': 'var(--border)',
         }),
       })
     );
