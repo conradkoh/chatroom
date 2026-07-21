@@ -58,6 +58,7 @@ import {
   getMachineDisplayName,
 } from '../types/machine';
 import type { Workspace } from '../types/workspace';
+import { dispatchStartAgent } from '../utils/agentStart';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
 import { resolveDefaultWantResume } from '../utils/wantResumeDefaults';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
@@ -468,18 +469,15 @@ export function useAgentControls({
       setIsStarting(true);
       setError(null);
       try {
-        await sendCommand({
+        await dispatchStartAgent(sendCommand, {
           machineId: selectedMachineId,
-          type: 'start-agent',
-          payload: {
-            chatroomId: chatroomId as Id<'chatroom_rooms'>,
-            role,
-            model: selectedModel || undefined,
-            agentHarness: selectedHarness,
-            workingDir: workingDir.trim() || undefined,
-            wantResume: effectiveWantResume,
-            ...(allowNewMachine ? { allowNewMachine: true as const } : {}),
-          },
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          model: selectedModel || undefined,
+          agentHarness: selectedHarness,
+          workingDir: workingDir.trim() || undefined,
+          wantResume: effectiveWantResume,
+          allowNewMachine,
         });
         if (selectedHarness && selectedModel) {
           recordMachineConfigUsage({
@@ -653,6 +651,34 @@ export function useAgentControls({
     handleCancelRehomeStart,
     teamId,
   };
+}
+
+function ModelPickerMeta({
+  isSelectedModelHidden,
+  machineModelFilter,
+  showChevron = false,
+}: {
+  isSelectedModelHidden: boolean;
+  machineModelFilter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined;
+  showChevron?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1 flex-shrink-0">
+      {isSelectedModelHidden && (
+        <AlertCircle
+          size={10}
+          className="text-chatroom-status-warning flex-shrink-0"
+          aria-label="Selected model is hidden by filter — choose a new model"
+        />
+      )}
+      {machineModelFilter &&
+        (machineModelFilter.hiddenModels.length > 0 ||
+          machineModelFilter.hiddenProviders.length > 0) && (
+          <div className="w-1.5 h-1.5 bg-chatroom-accent" title="Some models are hidden" />
+        )}
+      {showChevron && <ChevronDown size={10} className="text-chatroom-text-muted" />}
+    </div>
+  );
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
@@ -1142,23 +1168,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       <span className="truncate">
                         {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
                       </span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {isSelectedModelHidden && (
-                          <AlertCircle
-                            size={10}
-                            className="text-chatroom-status-warning flex-shrink-0"
-                            aria-label="Selected model is hidden by filter — choose a new model"
-                          />
-                        )}
-                        {machineModelFilter &&
-                          (machineModelFilter.hiddenModels.length > 0 ||
-                            machineModelFilter.hiddenProviders.length > 0) && (
-                            <div
-                              className="w-1.5 h-1.5 bg-chatroom-accent"
-                              title="Some models are hidden"
-                            />
-                          )}
-                      </div>
+                      <ModelPickerMeta
+                        isSelectedModelHidden={isSelectedModelHidden}
+                        machineModelFilter={machineModelFilter}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -1186,24 +1199,11 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                           >
                             {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
                           </span>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            {isSelectedModelHidden && (
-                              <AlertCircle
-                                size={10}
-                                className="text-chatroom-status-warning flex-shrink-0"
-                                aria-label="Selected model is hidden by filter — choose a new model"
-                              />
-                            )}
-                            {machineModelFilter &&
-                              (machineModelFilter.hiddenModels.length > 0 ||
-                                machineModelFilter.hiddenProviders.length > 0) && (
-                                <div
-                                  className="w-1.5 h-1.5 bg-chatroom-accent"
-                                  title="Some models are hidden"
-                                />
-                              )}
-                            <ChevronDown size={10} className="text-chatroom-text-muted" />
-                          </div>
+                          <ModelPickerMeta
+                            isSelectedModelHidden={isSelectedModelHidden}
+                            machineModelFilter={machineModelFilter}
+                            showChevron
+                          />
                         </button>
                       }
                     >
