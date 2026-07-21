@@ -17,6 +17,7 @@ export interface AgenticQueryHarnessControlsProps {
   isModelHidden?: (modelKey: string) => boolean;
   disabled?: boolean;
   filterButton?: ReactNode;
+  refreshButton?: ReactNode;
 }
 
 export function AgenticQueryHarnessControls({
@@ -29,6 +30,7 @@ export function AgenticQueryHarnessControls({
   isModelHidden,
   disabled = false,
   filterButton,
+  refreshButton,
 }: AgenticQueryHarnessControlsProps) {
   return (
     <div
@@ -53,6 +55,7 @@ export function AgenticQueryHarnessControls({
           disabled={disabled}
         />
       </div>
+      {refreshButton ? <div className="shrink-0">{refreshButton}</div> : null}
       {filterButton ? <div className="shrink-0">{filterButton}</div> : null}
     </div>
   );

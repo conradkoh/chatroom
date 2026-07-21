@@ -2,23 +2,26 @@
 
 import { Star, Plus } from 'lucide-react';
 
+import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
+
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/modules/chatroom/components/ui/dialog';
-import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
 import { HarnessFilterButton } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessFilterButton';
-import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
+import { WorkspaceCapabilitiesRefreshButton } from '@/modules/chatroom/direct-harness/components/WorkspaceCapabilitiesRefreshButton';
+import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import type { UseHarnessModelFilterResult } from '@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter';
-import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 import { SearchConfigFavoritesList } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoritesList';
+import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 
 export interface AgenticQueryConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  workspaceId: string;
   harnesses: HarnessOption[];
   harnessName: string;
   onHarnessChange: (name: string) => void;
@@ -40,6 +43,7 @@ export interface AgenticQueryConfigModalProps {
 export function AgenticQueryConfigModal({
   open,
   onOpenChange,
+  workspaceId,
   harnesses,
   harnessName,
   onHarnessChange,
@@ -75,6 +79,13 @@ export function AgenticQueryConfigModal({
             onModelChange={onModelChange}
             isModelHidden={isModelHidden}
             disabled={disabled}
+            refreshButton={
+              <WorkspaceCapabilitiesRefreshButton
+                workspaceId={workspaceId}
+                disabled={disabled}
+                hasProviders={providers.some((provider) => provider.models.length > 0)}
+              />
+            }
             filterButton={<HarnessFilterButton filter={filter} providers={providers} />}
           />
           {currentEntry && !currentIsFavorite && (

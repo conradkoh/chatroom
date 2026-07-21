@@ -8,6 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
+import { useRefreshCapabilities } from '../../direct-harness/hooks/useRefreshCapabilities';
 import { isModEnterKey } from '../../utils/isModEnterKey';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
@@ -132,9 +133,15 @@ export function AgenticQueryPanel({
     useAgenticQuery(queryId);
 
   const harnessSelection = useAgenticQueryHarnessSelection(workspaceId);
+  const { refresh: refreshCapabilities } = useRefreshCapabilities();
   const harnessControlsDisabled = isRunning || isSubmitting;
   const isFollowUpMode = canFollowUp && turns.length > 0;
   const canCompose = isFollowUpMode ? canFollowUp : canSubmit;
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    refreshCapabilities(workspaceId as Id<'chatroom_workspaces'>);
+  }, [workspaceId, refreshCapabilities]);
 
   const latestTurn = turns.length > 0 ? turns[turns.length - 1] : null;
   const olderTurns = turns.length > 1 ? turns.slice(0, -1).reverse() : [];
@@ -281,6 +288,7 @@ export function AgenticQueryPanel({
         ) : null}
 
         <AgenticQueryConfigBar
+          workspaceId={workspaceId}
           harnesses={harnessSelection.harnesses}
           harnessName={harnessSelection.harnessName}
           selectedModel={harnessSelection.selectedModel}
