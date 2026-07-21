@@ -12,7 +12,7 @@
  *   agent.requestStart | any             | STARTING        | Yellow
  *   agent.started      | any             | STARTING        | Yellow (merged)
  *   agent.requestStop  | stopped         | STOPPING        | Yellow
- *   task.acknowledged  | any             | TASK RECEIVED   | Green
+ *   task.acknowledged  | any             | TASK RECEIVED   | Yellow
  *   task.inProgress    | any             | WORKING         | Blue (pulse)
  *   task.completed     | any             | WAITING          | Green
  *   agent.awaitingHandoff | any         | AWAITING HANDOFF | Yellow
@@ -107,7 +107,7 @@ export function resolveAgentStatus(
   }
 
   if (eventType === 'task.acknowledged') {
-    return { label: 'TASK RECEIVED', variant: 'ready' };
+    return { label: 'TASK RECEIVED', variant: 'transitioning' };
   }
 
   if (eventType === 'agent.awaitingHandoff') {
@@ -129,5 +129,5 @@ export function resolveAgentStatus(
   // when an agent actually claims a task) should show "TASK RECEIVED".
 
   // ── Fallback ───────────────────────────────────────────────────────────────
-  return { label: 'ONLINE', variant: 'ready' };
+  return { label: 'ONLINE', variant: 'transitioning' };
 }
