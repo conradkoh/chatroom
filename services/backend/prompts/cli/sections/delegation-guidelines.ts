@@ -1,12 +1,8 @@
 /**
  * Delegation guidelines section for the planner role.
  *
- * When a builder is available, guidance focuses on delegation discipline.
- * When the planner works solo, guidance focuses on incremental
- * self-implementation.
- *
- * Delegation is template-driven by default: the planner hands a focused
- * slice to the builder using the Delegation Brief.
+ * Delegation is template-driven: the planner hands focused slices
+ * to the builder using the Delegation Brief.
  */
 
 import type { TeamCompositionConfig } from './team-composition';

@@ -38,7 +38,7 @@ export function getPlannerPlusBuilderOperatingModel(nativeIntegration?: boolean)
   const footer = getOperatingModelLoopFooter(nativeIntegration);
   const delegationNote = nativeIntegration
     ? getNativePlannerDelegationWaitNote()
-    : 'Other agents may be offline when you delegate — hand off and wait for work to return. If the builder remains unavailable, report to the user.';
+    : 'After delegating to the builder, hand off and wait for work to return.';
   return `**Operating model: Planner + Builder**
 
 ${delegationNote}
