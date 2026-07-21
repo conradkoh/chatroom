@@ -16,7 +16,14 @@ vi.mock('../../workspace/hooks/useChatroomWorkspaces', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
-  useSessionQuery: () => null,
+  useSessionQuery: (query: unknown, args: unknown) => {
+    if (query === 'machineConfigFavorites:getMachineConfigFavorites' && args !== 'skip') {
+      return {
+        favorites: [{ agentHarness: 'cursor-sdk', model: 'cursor-sdk/claude-sonnet' }],
+      };
+    }
+    return null;
+  },
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -87,6 +94,7 @@ function renderSetupStep(overrides?: Partial<React.ComponentProps<typeof SetupAg
   const view = render(
     <SetupAgentTeamStep
       chatroomId={CHATROOM_ID}
+      teamId="duo"
       teamRoles={['planner', 'builder']}
       participants={[]}
       machineId={MACHINE_ID}
@@ -136,5 +144,35 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
     expect(depthErrors).toHaveLength(0);
 
     consoleError.mockRestore();
+  });
+
+  it('hides reconnect toggle for duo builder in setup mode', async () => {
+    renderSetupStep();
+
+    await waitFor(() => {
+      expect(screen.getAllByTitle('Select Harness').length).toBe(2);
+    });
+
+    const harnessButtons = screen.getAllByTitle('Select Harness');
+    await userEvent.click(harnessButtons[1]!);
+
+    const harnessOption = await screen.findByText('Cursor (SDK)');
+    await userEvent.click(harnessOption);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('switch', { name: 'Reconnect to last session' })
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows favorites section in setup mode when teamId is provided', async () => {
+    renderSetupStep();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('machine-config-quick-pick').length).toBeGreaterThan(0);
+    });
+
+    expect(screen.getAllByText('Favorites').length).toBeGreaterThan(0);
   });
 });

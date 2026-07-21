@@ -1915,6 +1915,7 @@ export function ChatroomDashboard({
                 isOpen={isSetupMode && setupModalOpen}
                 onClose={handleCloseSetup}
                 chatroomId={chatroomId}
+                teamId={chatroom?.teamId}
                 teamRoles={teamRoles}
                 teamEntryPoint={teamEntryPoint}
                 participants={participants || []}

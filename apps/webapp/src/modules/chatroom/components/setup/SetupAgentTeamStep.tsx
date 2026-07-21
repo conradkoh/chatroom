@@ -17,6 +17,7 @@ interface Participant {
 
 interface SetupAgentTeamStepProps {
   chatroomId: string;
+  teamId?: string;
   teamRoles: string[];
   teamEntryPoint?: string;
   participants: Participant[];
@@ -34,6 +35,7 @@ interface SetupAgentTeamStepProps {
 // fallow-ignore-next-line complexity
 export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   chatroomId,
+  teamId,
   teamRoles,
   teamEntryPoint: _teamEntryPoint,
   participants,
@@ -176,6 +178,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
                 latestEventType={null}
                 prompt=""
                 chatroomId={chatroomId}
+                teamId={teamId}
                 connectedMachines={connectedMachines}
                 isLoadingMachines={isLoadingMachines}
                 agentConfigs={agentConfigs}

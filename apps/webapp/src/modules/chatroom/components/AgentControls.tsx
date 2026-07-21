@@ -1330,7 +1330,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
           </div>
 
-          {displayMachineId && !setupMode && (
+          {displayMachineId && (
             <MachineConfigQuickPick
               favorites={favorites}
               recommended={recommended}
