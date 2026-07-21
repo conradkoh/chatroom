@@ -20,7 +20,7 @@ export function getOperatingModelLoopFooter(nativeIntegration?: boolean): string
 
 /** Planner + builder: wait for handback via daemon delivery, not polling. */
 export function getNativePlannerDelegationWaitNote(): string {
-  return `After delegating to the builder, **run handoff as your last action and end your turn** — no further tool calls after handoff. The system delivers their handback when they finish — do not poll \`messages list\`, sleep, or run other tools while waiting. If the builder is offline, report the situation to the user — do not implement code yourself.`;
+  return `After delegating to the builder, **run handoff as your last action and end your turn** — no further tool calls after handoff. The system delivers their handback when they finish — do not poll \`messages list\`, sleep, or run other tools while waiting. If the builder is offline, report the situation to the user.`;
 }
 
 /**

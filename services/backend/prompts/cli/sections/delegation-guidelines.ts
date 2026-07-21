@@ -41,7 +41,7 @@ function getBuilderDelegationGuidelines(
 
 Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
 
-**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is. Never implement code yourself.
+**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
 
 **Decision flow:**
 \`\`\`mermaid

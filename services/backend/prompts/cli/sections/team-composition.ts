@@ -30,5 +30,5 @@ export function getTeamCompositionSection(teamMembers: string[]): string {
 
   return `**Team composition:** Duo team — you coordinate with ${roleList} for implementation.
 
-**Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history. If the builder is unavailable, report the situation to \`user\` — do not implement code yourself.`;
+**Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history. If the builder is unavailable, report the situation to \`user\`.`;
 }
