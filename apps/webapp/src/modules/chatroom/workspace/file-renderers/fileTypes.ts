@@ -1,5 +1,7 @@
 // File type detection utilities
 
+import { detectLanguage } from './language-detection';
+
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 
 export function isMarkdownFile(path: string): boolean {
@@ -19,4 +21,11 @@ export function getDefaultViewMode(path: string): FileViewMode {
   if (isMarkdownFile(path)) return 'preview';
   if (isCsvFile(path)) return 'table';
   return 'source';
+}
+
+/** Whether the explorer should open a file in the editable text pane vs read-only highlighted viewer. */
+export function shouldOpenInEditableExplorerPane(filePath: string): boolean {
+  if (isMarkdownFile(filePath)) return true;
+  if (detectLanguage(filePath)) return false;
+  return true;
 }

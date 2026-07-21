@@ -93,7 +93,7 @@ import { SourceControlPanel } from './workspace/components/panels/SourceControlP
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
-import { isMarkdownFile } from './workspace/file-renderers';
+import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
@@ -354,7 +354,7 @@ const ExplorerContent = memo(function ExplorerContent({
                   onOpenTableView={onOpenTableView}
                   onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
                 />
-              ) : (
+              ) : shouldOpenInEditableExplorerPane(activeTab.filePath) ? (
                 <MarkdownFileEditorPane
                   key={activeTab.filePath}
                   machineId={machineId}
@@ -362,6 +362,17 @@ const ExplorerContent = memo(function ExplorerContent({
                   filePath={activeTab.filePath}
                   onSendSelectionToComposer={onSendSelectionToComposer}
                   onOpenPreview={onOpenPreview}
+                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+                />
+              ) : (
+                <FileContentViewer
+                  key={activeTab.filePath}
+                  machineId={machineId}
+                  workingDir={workingDir}
+                  filePath={activeTab.filePath}
+                  onSendSelectionToComposer={onSendSelectionToComposer}
+                  onOpenPreview={onOpenPreview}
+                  onOpenTableView={onOpenTableView}
                   onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
                 />
               )
