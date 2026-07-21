@@ -93,7 +93,7 @@ import { SourceControlPanel } from './workspace/components/panels/SourceControlP
 import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
-import { isMarkdownFile } from './workspace/file-renderers';
+import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
@@ -354,7 +354,7 @@ const ExplorerContent = memo(function ExplorerContent({
                   onOpenTableView={onOpenTableView}
                   onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
                 />
-              ) : (
+              ) : shouldOpenInEditableExplorerPane(activeTab.filePath) ? (
                 <MarkdownFileEditorPane
                   key={activeTab.filePath}
                   machineId={machineId}
@@ -362,6 +362,17 @@ const ExplorerContent = memo(function ExplorerContent({
                   filePath={activeTab.filePath}
                   onSendSelectionToComposer={onSendSelectionToComposer}
                   onOpenPreview={onOpenPreview}
+                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+                />
+              ) : (
+                <FileContentViewer
+                  key={activeTab.filePath}
+                  machineId={machineId}
+                  workingDir={workingDir}
+                  filePath={activeTab.filePath}
+                  onSendSelectionToComposer={onSendSelectionToComposer}
+                  onOpenPreview={onOpenPreview}
+                  onOpenTableView={onOpenTableView}
                   onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
                 />
               )
@@ -1010,12 +1021,21 @@ export function ChatroomDashboard({
       const target = resolveWorkspaceFileLinkOpenTarget(activeView, explorerSplitViewEnabled);
       if (target === 'explorer') {
         openFileLocationInExplorer(location);
+        if (isMarkdownFile(location.filePath)) {
+          if (fileTabs.rightTabs.some((t) => t.viewType === 'preview')) {
+            fileTabs.navigateActivePreview(location.filePath);
+          } else {
+            fileTabs.openRight(location.filePath, 'preview');
+          }
+        } else {
+          fileTabs.openPreview(location.filePath);
+        }
       } else {
         setPendingFileHighlight(pendingHighlightForLocation(location));
         fileSelector.selectFile(location.filePath);
       }
     },
-    [activeView, explorerSplitViewEnabled, openFileLocationInExplorer, fileSelector]
+    [activeView, explorerSplitViewEnabled, openFileLocationInExplorer, fileSelector, fileTabs]
   );
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
@@ -1915,6 +1935,7 @@ export function ChatroomDashboard({
                 isOpen={isSetupMode && setupModalOpen}
                 onClose={handleCloseSetup}
                 chatroomId={chatroomId}
+                teamId={chatroom?.teamId}
                 teamRoles={teamRoles}
                 teamEntryPoint={teamEntryPoint}
                 participants={participants || []}

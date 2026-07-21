@@ -6,10 +6,12 @@ import { usePaginatedQuery } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
-import { toMessage } from './chatroomMessageStore';
+import {
+  MESSAGE_STORE_LIMIT,
+  MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
+  toMessage,
+} from './chatroomMessageStore';
 import type { Message } from '../types/message';
-
-const PAGE_SIZE = 20;
 
 export function useFilteredMessagesByRole(
   chatroomId: string,
@@ -22,7 +24,7 @@ export function useFilteredMessagesByRole(
   const paginated = usePaginatedQuery(
     api.messages.listMessagesBySenderRolePaginated,
     enabled && sessionId ? { chatroomId: typedChatroomId, senderRole, sessionId } : 'skip',
-    { initialNumItems: PAGE_SIZE }
+    { initialNumItems: MESSAGE_STORE_LIMIT }
   );
 
   const messages: Message[] = useMemo(
@@ -35,6 +37,6 @@ export function useFilteredMessagesByRole(
     isLoading: paginated.status === 'LoadingFirstPage',
     isLoadingMore: paginated.status === 'LoadingMore',
     canLoadMore: paginated.status === 'CanLoadMore',
-    loadMore: () => paginated.loadMore(PAGE_SIZE),
+    loadMore: () => paginated.loadMore(MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE),
   };
 }

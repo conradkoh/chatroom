@@ -102,6 +102,7 @@ describe('useChatroomTimelineFeedData', () => {
 
     const { result } = renderHook(() => useChatroomTimelineFeedData('room-1', null));
 
+    expect(mockUseChatroomTimeline).toHaveBeenCalledWith('room-1', true);
     expect(mockUseFilteredMessagesByRole).toHaveBeenCalledWith('room-1', '', false);
     expect(result.current.events).toHaveLength(1);
     expect(result.current.isLoading).toBe(true);
@@ -126,6 +127,7 @@ describe('useChatroomTimelineFeedData', () => {
 
     const { result } = renderHook(() => useChatroomTimelineFeedData('room-1', 'user'));
 
+    expect(mockUseChatroomTimeline).toHaveBeenCalledWith('room-1', false);
     expect(mockUseFilteredMessagesByRole).toHaveBeenCalledWith('room-1', 'user', true);
     expect(result.current.events.map((event) => event.id)).toEqual(['oldest', 'middle', 'newest']);
     expect(result.current.hasMoreOlder).toBe(true);

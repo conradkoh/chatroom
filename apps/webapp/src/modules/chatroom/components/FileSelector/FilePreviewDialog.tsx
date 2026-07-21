@@ -1,7 +1,5 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   Loader2,
   ChevronRight,
@@ -21,6 +19,7 @@ import { FileTypeIcon } from './fileIcons';
 import { useContainedSelectAll } from './useContainedSelectAll';
 import type { FileEntry } from './useFileSelector';
 import { usePendingFileHighlight } from '../../context/PendingFileHighlightContext';
+import { WorkspaceFileLinkProvider } from '../../context/WorkspaceFileLinkContext';
 import { FileContentActionBar } from '../../workspace/components/FileContentActionBar';
 import {
   isMarkdownFile,
@@ -31,7 +30,8 @@ import {
   CsvTableRenderer,
   SyntaxHighlighter,
 } from '../../workspace/file-renderers';
-import { useFileContent, type FileContentResult } from '../../workspace/hooks/useFileContent';
+import { type FileContentResult } from '../../workspace/hooks/useFileContent';
+import { useRequestWorkspaceFileContent } from '../../workspace/hooks/useRequestWorkspaceFileContent';
 import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
 import {
@@ -374,7 +374,7 @@ const FileContentPanel = memo(function FileContentPanel({
     );
   }
 
-  if (!contentResult) {
+  if (contentResult === undefined) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-chatroom-text-muted" />
@@ -382,7 +382,17 @@ const FileContentPanel = memo(function FileContentPanel({
     );
   }
 
-  const showToolbar = !isBinary && !!contentResult;
+  if (contentResult === null) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
+          FILE NOT FOUND
+        </span>
+      </div>
+    );
+  }
+
+  const showToolbar = !isBinary;
 
   return (
     <div className="flex flex-col min-h-0 h-full">
@@ -416,7 +426,9 @@ const FileContentPanel = memo(function FileContentPanel({
         {viewMode === 'preview' && filePath && isMarkdownFile(filePath) ? (
           /* Rendered markdown preview */
           <div className="flex-1 p-6 overflow-auto">
-            <MarkdownRenderer content={contentResult.content} />
+            <WorkspaceFileLinkProvider baseFilePath={filePath}>
+              <MarkdownRenderer content={contentResult.content} />
+            </WorkspaceFileLinkProvider>
           </div>
         ) : viewMode === 'table' && filePath && isCsvFile(filePath) ? (
           /* CSV table view */
@@ -463,24 +475,16 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isCsv = filePath ? isCsvFile(filePath) : false;
   const hasToggle = isMarkdown || isCsv;
 
-  // Fetch content result for header metadata (with transparent decompression)
-  const contentResult = useFileContent(
-    machineId && workingDir && filePath ? { machineId, workingDir, filePath } : 'skip'
-  );
+  const contentResult = useRequestWorkspaceFileContent({
+    machineId: machineId ?? '',
+    workingDir: workingDir ?? '',
+    filePath: filePath ?? '',
+    enabled: !!(machineId && workingDir && filePath),
+  });
 
   const isBinary = filePath ? isBinaryFile(filePath) : false;
-  const canCopyContent = !!contentResult && !isBinary;
+  const canCopyContent = contentResult != null && !isBinary;
   const copyContentLabel = isMarkdown ? 'Copy as Markdown' : 'Copy File Content';
-
-  // Request content mutation (triggers daemon to fetch)
-  const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
-
-  // When file is selected, request its content
-  useEffect(() => {
-    if (filePath && machineId && workingDir) {
-      requestContent({ machineId, workingDir, filePath }).catch(() => {});
-    }
-  }, [filePath, machineId, workingDir, requestContent]);
 
   // Close mobile tree when selecting a file
   const handleMobileSelectFile = useCallback(

@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 
+import { WorkspaceFileLinkProvider } from '../../context/WorkspaceFileLinkContext';
 import { MarkdownRenderer } from '../file-renderers';
 import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
 
@@ -24,7 +25,15 @@ export const MarkdownPreviewPane = memo(function MarkdownPreviewPane({
 }: MarkdownPreviewPaneProps) {
   const content = useRequestWorkspaceFileContent({ machineId, workingDir, filePath });
 
-  if (content === undefined || content === null) {
+  if (content === null) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-chatroom-text-muted text-sm">
+        Failed to load preview.
+      </div>
+    );
+  }
+
+  if (content === undefined) {
     return (
       <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
         <ChatroomLoader size="sm" />
@@ -35,7 +44,9 @@ export const MarkdownPreviewPane = memo(function MarkdownPreviewPane({
 
   return (
     <div className="flex-1 overflow-auto p-4">
-      <MarkdownRenderer content={content.content} />
+      <WorkspaceFileLinkProvider baseFilePath={filePath}>
+        <MarkdownRenderer content={content.content} />
+      </WorkspaceFileLinkProvider>
     </div>
   );
 });

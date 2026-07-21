@@ -31,6 +31,7 @@ interface SetupChecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
+  teamId?: string;
   teamRoles: string[];
   teamEntryPoint?: string;
   participants: Participant[];
@@ -56,6 +57,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   isOpen,
   onClose,
   chatroomId,
+  teamId,
   teamRoles,
   teamEntryPoint,
   participants,
@@ -173,6 +175,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
           ) : setupMachineId && setupWorkingDir ? (
             <SetupAgentTeamStep
               chatroomId={chatroomId}
+              teamId={teamId}
               teamRoles={teamRoles}
               teamEntryPoint={teamEntryPoint}
               participants={participants}

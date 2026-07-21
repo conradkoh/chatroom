@@ -65,7 +65,7 @@ export function useChatroomTimelineFeedData(
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const isFiltered = senderRoleFilter !== null;
 
-  const mainTimeline = useChatroomTimeline(chatroomId);
+  const mainTimeline = useChatroomTimeline(chatroomId, !isFiltered);
   const filteredTimeline = useRoleFilteredTimelineSource(
     chatroomId,
     senderRoleFilter ?? '',

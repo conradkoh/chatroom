@@ -56,11 +56,28 @@ describe('deriveChatStatus', () => {
     ).toBe('working');
   });
 
-  it('non-working / non-awaiting-handoff event types stay active', () => {
-    // task.acknowledged resolves to the 'ready' variant (TASK RECEIVED), not 'working'.
-    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe('active');
-    // agent.registered / agent.requestStart are transitioning, not working.
-    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe('active');
+  it('returns transitioning when an agent just received a task (task.acknowledged)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe(
+      'transitioning'
+    );
+  });
+
+  it('returns transitioning for transitional online states', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe(
+      'transitioning'
+    );
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.requestStart' })])).toBe(
+      'transitioning'
+    );
+  });
+
+  it('non-working / non-awaiting-handoff transitional event types stay transitioning', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe(
+      'transitioning'
+    );
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe(
+      'transitioning'
+    );
   });
 
   it('returns working when any online agent is working among waiting peers', () => {

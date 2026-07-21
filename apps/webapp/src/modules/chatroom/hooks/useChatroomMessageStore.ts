@@ -46,7 +46,8 @@ import type { Message } from '../types/message';
 function useTimelineDeltaSubscriptions(
   typedChatroomId: Id<'chatroom_rooms'>,
   state: ChatroomMessageStoreState,
-  dispatch: Dispatch<ChatroomMessageStoreAction>
+  dispatch: Dispatch<ChatroomMessageStoreAction>,
+  enabled: boolean
 ): void {
   // New-messages tail (newest-cursor, near-empty result).
   const newestSeenCreationTime =
@@ -58,7 +59,7 @@ function useTimelineDeltaSubscriptions(
 
   const newMessagesData = useSessionQuery(
     api.messageList.subscribeNewMessages,
-    state.isInitialized && newestSeenCreationTime !== null
+    enabled && state.isInitialized && newestSeenCreationTime !== null
       ? { chatroomId: typedChatroomId, afterCreationTime: newestSeenCreationTime }
       : 'skip'
   );
@@ -82,7 +83,7 @@ function useTimelineDeltaSubscriptions(
 
   const visibleUpdatesData = useSessionQuery(
     api.messageList.subscribeVisibleMessageUpdates,
-    state.isInitialized && recentVisibleIds.length > 0
+    enabled && state.isInitialized && recentVisibleIds.length > 0
       ? { chatroomId: typedChatroomId, messageIds: recentVisibleIds }
       : 'skip'
   );
@@ -112,7 +113,22 @@ export interface UseChatroomMessageStoreResult {
   purgeToInitialWindow: () => void;
 }
 
-export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageStoreResult {
+const noop = () => {};
+
+const DISABLED_STORE_RESULT: UseChatroomMessageStoreResult = {
+  messages: [],
+  isLoading: false,
+  hasMoreOlder: false,
+  isLoadingOlder: false,
+  loadOlderMessages: noop,
+  removeMessagesForTask: noop,
+  purgeToInitialWindow: noop,
+};
+
+export function useChatroomMessageStore(
+  chatroomId: string,
+  enabled = true
+): UseChatroomMessageStoreResult {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const convex = useConvex();
   const [sessionId] = useSessionId();
@@ -140,7 +156,7 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
 
   // ── Initial load (imperative, one-shot) ───────────────────────────────────
   useEffect(() => {
-    if (state.isInitialized || !sessionId || initialLoadRequested) return;
+    if (!enabled || state.isInitialized || !sessionId || initialLoadRequested) return;
     setInitialLoadRequested(true);
 
     void convex
@@ -162,10 +178,10 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
         console.error('[useChatroomMessageStore] Initial load failed:', err);
         setInitialLoadRequested(false);
       });
-  }, [state.isInitialized, sessionId, convex, typedChatroomId, initialLoadRequested]);
+  }, [enabled, state.isInitialized, sessionId, convex, typedChatroomId, initialLoadRequested]);
 
   // ── Reactive delta subscriptions (new-messages tail + visible-message updates) ──
-  useTimelineDeltaSubscriptions(typedChatroomId, state, dispatch);
+  useTimelineDeltaSubscriptions(typedChatroomId, state, dispatch, enabled);
 
   const loadOlderMessages = useCallback(() => {
     if (
@@ -268,6 +284,10 @@ export function useChatroomMessageStore(chatroomId: string): UseChatroomMessageS
     loadOlderBeforeRef.current = null;
     dispatch({ type: 'TRIM_TO_INITIAL_WINDOW' });
   }, []);
+
+  if (!enabled) {
+    return DISABLED_STORE_RESULT;
+  }
 
   return {
     messages: state.messages,
