@@ -6,6 +6,7 @@ import { waitForConvexDevReadyFromLogs } from './convex-readiness.js';
 import { LogBufferStore } from './log-buffer.js';
 import { buildProcessDefinitions } from './process-definitions.js';
 import type { ProcessDefinition } from './process-definitions.js';
+import { waitForWebappReadyFromLogs } from './webapp-readiness.js';
 import type {
   HealthStatus,
   LogLine,
@@ -71,6 +72,12 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     return this.logs.snapshot();
   }
 
+  private subscribeToLogs(handler: (line: LogLine) => void): () => void {
+    const onLog = (line: LogLine) => handler(line);
+    this.on('log', onLog);
+    return () => this.off('log', onLog);
+  }
+
   async startStack(config: RuntimeConfig): Promise<void> {
     this._runtimeConfig = config;
     this._phase = 'starting';
@@ -98,11 +105,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         });
 
         const result = await waitForConvexDevReadyFromLogs(
-          (handler) => {
-            const onLog = (line: LogLine) => handler(line);
-            this.on('log', onLog);
-            return () => this.off('log', onLog);
-          },
+          (handler) => this.subscribeToLogs(handler),
           {
             onWaiting: () =>
               this.updateState('convex', {
@@ -150,12 +153,60 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     // Start webapp and daemon
     for (const def of definitions) {
       if (def.id !== 'convex') {
+        if (def.id === 'webapp') {
+          this.updateState('webapp', {
+            health: 'checking',
+            healthDetail: 'Building production bundle',
+          });
+        }
         this.start(def);
       }
     }
 
+    this.monitorWebappReadiness(config);
+
     this._phase = 'running';
     this.emit('phase', this._phase);
+  }
+
+  private async checkWebappServing(
+    webappUrl: string
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    try {
+      const res = await fetch(`${webappUrl.replace(/\/$/, '')}/`);
+      if (res.ok) return { ok: true };
+      return { ok: false, reason: `HTTP ${res.status}` };
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
+    }
+  }
+
+  private monitorWebappReadiness(config: RuntimeConfig): void {
+    const webappUrl = `http://localhost:${config.webappPort}`;
+
+    void waitForWebappReadyFromLogs((handler) => this.subscribeToLogs(handler), {
+      onWaiting: () =>
+        this.updateState('webapp', {
+          health: 'checking',
+          healthDetail: 'Building and starting server',
+        }),
+    }).then(async (result) => {
+      if (!result.ok) {
+        this.updateState('webapp', { health: 'unhealthy', healthDetail: result.reason });
+        return;
+      }
+
+      const health = await this.checkWebappServing(webappUrl);
+      if (!health.ok) {
+        this.updateState('webapp', { health: 'unhealthy', healthDetail: health.reason });
+        return;
+      }
+
+      this.updateState('webapp', {
+        health: 'healthy',
+        healthDetail: webappUrl,
+      });
+    });
   }
 
   async stopStack(): Promise<void> {

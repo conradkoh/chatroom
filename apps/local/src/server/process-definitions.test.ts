@@ -36,6 +36,12 @@ describe('buildProcessDefinitions', () => {
       join(repoRoot, 'services/backend/.convex/local-dev.env'),
     ]);
 
+    const webapp = defs.find((def) => def.id === 'webapp');
+    expect(webapp?.args[1]).toContain(
+      'Starting Next.js production server on http://localhost:3000'
+    );
+    expect(webapp?.args[1]).toContain('dotenv -e .env.local -- pnpm start');
+
     const envFile = join(repoRoot, 'services/backend/.convex/local-dev.env');
     const envContents = readFileSync(envFile, 'utf8');
     expect(envContents).toContain('CONVEX_DEPLOYMENT=local:local-conradkoh-chatroom_a8c82');
