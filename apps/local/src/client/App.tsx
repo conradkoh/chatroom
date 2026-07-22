@@ -1,6 +1,7 @@
 import { Copy, RotateCcw } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
+import { SetupPanel } from './components/SetupPanel';
 import { useWebSocket } from './use-websocket';
 import type { LogLine, ManagedProcessId } from '../shared/protocol';
 
@@ -15,6 +16,7 @@ const STATUS_LABELS: Record<string, string> = {
   running: 'Running',
   stopped: 'Stopped',
   crashed: 'Crashed',
+  skipped: 'Skipped',
 };
 
 function formatTime(ts: number): string {
@@ -103,7 +105,7 @@ function HealthBadge({ health, healthDetail }: { health: string; healthDetail: s
         variant="outline"
         className="rounded-none border-chatroom-status-success text-[10px] text-chatroom-status-success"
       >
-        Healthy
+        {healthDetail === 'Hosted — external' ? 'Hosted' : 'Healthy'}
       </Badge>
     );
   }
@@ -131,7 +133,16 @@ function HealthBadge({ health, healthDetail }: { health: string; healthDetail: s
 }
 
 export function App() {
-  const { processes, logsByProcess, connectionState, config, restart } = useWebSocket();
+  const {
+    processes,
+    logsByProcess,
+    connectionState,
+    phase,
+    defaults,
+    startStack,
+    stopStack,
+    restart,
+  } = useWebSocket();
   const [selectedId, setSelectedId] = useState<ManagedProcessId>('convex');
   const [copyLabel, setCopyLabel] = useState('Copy logs');
 
@@ -151,12 +162,18 @@ export function App() {
     }
   };
 
+  if (phase === 'idle') {
+    return <SetupPanel defaults={defaults} onStart={startStack} />;
+  }
+
   const statusColor =
     connectionState === 'connected'
       ? 'bg-chatroom-status-success'
       : connectionState === 'connecting'
         ? 'bg-chatroom-status-warning'
         : 'bg-chatroom-text-muted';
+
+  const isRunning = phase === 'running';
 
   return (
     <div className="flex h-dvh">
@@ -170,12 +187,11 @@ export function App() {
               ? 'Connecting...'
               : 'Disconnected'}
         </div>
-        {config && (
-          <div className="text-[10px] leading-relaxed text-chatroom-text-muted">
-            <div>Manager: {config.managerPort}</div>
-            <div>Webapp: {config.webappPort}</div>
-            <div>Convex: {config.convexPort}</div>
-          </div>
+        {phase === 'starting' && (
+          <div className="text-[10px] text-chatroom-status-warning">Starting...</div>
+        )}
+        {phase === 'stopping' && (
+          <div className="text-[10px] text-chatroom-status-error">Stopping...</div>
         )}
         <h2 className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Processes
@@ -197,7 +213,8 @@ export function App() {
                 (p.status === 'pending' || p.status === 'stopped') && 'bg-chatroom-text-muted',
                 p.status === 'starting' && 'bg-chatroom-status-warning animate-pulse',
                 p.status === 'running' && 'bg-chatroom-status-success',
-                p.status === 'crashed' && 'bg-chatroom-status-error'
+                p.status === 'crashed' && 'bg-chatroom-status-error',
+                p.status === 'skipped' && 'bg-chatroom-text-muted'
               )}
               title={STATUS_LABELS[p.status]}
             />
@@ -205,19 +222,32 @@ export function App() {
               {p.name}
             </span>
             <HealthBadge health={p.health} healthDetail={p.healthDetail} />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 rounded-none px-2 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                restart(p.id);
-              }}
-            >
-              <RotateCcw size={12} />
-            </Button>
+            {isRunning && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 rounded-none px-2 opacity-0 transition-opacity group-hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  restart(p.id);
+                }}
+              >
+                <RotateCcw size={12} />
+              </Button>
+            )}
           </div>
         ))}
+        <div className="mt-auto">
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full rounded-none"
+            onClick={stopStack}
+            disabled={phase === 'stopping'}
+          >
+            Stop Stack
+          </Button>
+        </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b-2 border-chatroom-border px-4 py-3">

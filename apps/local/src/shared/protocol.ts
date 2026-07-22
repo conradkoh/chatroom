@@ -1,8 +1,25 @@
-export type ProcessStatus = 'pending' | 'starting' | 'running' | 'stopped' | 'crashed';
+export type ProcessStatus = 'pending' | 'starting' | 'running' | 'stopped' | 'crashed' | 'skipped';
 
 export type ManagedProcessId = 'convex' | 'webapp' | 'daemon';
 
 export type HealthStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy';
+
+export type SessionPhase = 'idle' | 'starting' | 'running' | 'stopping';
+
+export type ConvexBackendMode = 'local' | 'hosted';
+
+export type RuntimeConfig = {
+  webappPort: number;
+  convexBackendMode: ConvexBackendMode;
+  convexPort: number;
+  convexUrl: string;
+};
+
+export type RuntimeConfigDefaults = RuntimeConfig & {
+  managerPort: number;
+  hostedConvexUrlFromEnv: string | null;
+  webappPortFromEnv: number | null;
+};
 
 export type ProcessInfo = {
   id: ManagedProcessId;
@@ -25,23 +42,21 @@ export type LogLine = {
   timestamp: number;
 };
 
-export type LocalConfigSnapshot = {
-  managerPort: number;
-  convexPort: number;
-  webappPort: number;
-  convexUrl: string;
-  webappUrl: string;
-};
-
 export type ServerMessage =
   | {
       type: 'snapshot';
+      phase: SessionPhase;
       processes: ProcessInfo[];
       logs: Record<ManagedProcessId, LogLine[]>;
-      config: LocalConfigSnapshot;
+      defaults: RuntimeConfigDefaults | null;
+      runtime: RuntimeConfig | null;
     }
+  | { type: 'phase'; phase: SessionPhase }
   | { type: 'process-update'; process: ProcessInfo }
   | { type: 'log'; line: LogLine }
-  | { type: 'config'; config: LocalConfigSnapshot };
+  | { type: 'runtime-config'; runtime: RuntimeConfig | null };
 
-export type ClientMessage = { type: 'restart'; processId: ManagedProcessId };
+export type ClientMessage =
+  | { type: 'start'; config: RuntimeConfig }
+  | { type: 'stop' }
+  | { type: 'restart'; processId: ManagedProcessId };

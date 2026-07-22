@@ -1,12 +1,6 @@
-import type { LocalConfigSnapshot } from '../shared/protocol.js';
-
-export type LocalConfig = {
+export type LaunchConfig = {
   repoRoot: string;
   managerPort: number;
-  convexPort: number;
-  webappPort: number;
-  convexUrl: string;
-  webappUrl: string;
 };
 
 function parsePort(value: string | undefined, fallback: number): number {
@@ -21,27 +15,10 @@ function readFlag(argv: string[], name: string): string | undefined {
   return argv[idx + 1];
 }
 
-export function parseLocalConfig(repoRoot: string, argv: string[] = process.argv): LocalConfig {
+export function parseLocalConfig(repoRoot: string, argv: string[] = process.argv): LaunchConfig {
   const managerPort = parsePort(
     readFlag(argv, 'manager-port') ?? process.env.LOCAL_MANAGER_PORT,
     3847
   );
-  const webappPort = parsePort(
-    readFlag(argv, 'webapp-port') ?? process.env.LOCAL_WEBAPP_PORT,
-    3000
-  );
-  const convexPort = parsePort(
-    readFlag(argv, 'convex-port') ?? process.env.LOCAL_CONVEX_PORT,
-    3210
-  );
-
-  const convexUrl = `http://127.0.0.1:${convexPort}`;
-  const webappUrl = `http://localhost:${webappPort}`;
-
-  return { repoRoot, managerPort, convexPort, webappPort, convexUrl, webappUrl };
-}
-
-export function toConfigSnapshot(config: LocalConfig): LocalConfigSnapshot {
-  const { managerPort, convexPort, webappPort, convexUrl, webappUrl } = config;
-  return { managerPort, convexPort, webappPort, convexUrl, webappUrl };
+  return { repoRoot, managerPort };
 }

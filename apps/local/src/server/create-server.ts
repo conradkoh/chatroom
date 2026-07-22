@@ -3,12 +3,11 @@ import { createServer } from 'node:http';
 import { createServer as createViteServer } from 'vite';
 import { WebSocketServer } from 'ws';
 
-import type { LocalConfig } from './parse-config.js';
-import { toConfigSnapshot } from './parse-config.js';
+import type { LaunchConfig } from './parse-config.js';
 import type { ProcessManager } from './process-manager.js';
 import { attachWebSocketHub } from './websocket-hub.js';
 
-export async function createAppServer(manager: ProcessManager, config: LocalConfig) {
+export async function createAppServer(manager: ProcessManager, config: LaunchConfig) {
   const port = config.managerPort;
 
   const vite = await createViteServer({
@@ -25,12 +24,24 @@ export async function createAppServer(manager: ProcessManager, config: LocalConf
   });
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  attachWebSocketHub(wss, manager, toConfigSnapshot(config));
+  attachWebSocketHub(wss, manager);
 
   return {
     port,
     async listen() {
-      await new Promise<void>((resolve) => server.listen(port, resolve));
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', (err: NodeJS.ErrnoException) => {
+          if (err.code === 'EADDRINUSE') {
+            process.stderr.write(
+              `Port ${port} in use. Kill existing process or use: pnpm local -- --manager-port <port>\n`
+            );
+            reject(err);
+          } else {
+            reject(err);
+          }
+        });
+        server.listen(port, () => resolve());
+      });
       process.stderr.write(`Local dev manager UI: http://localhost:${port}\n`);
     },
     async close() {

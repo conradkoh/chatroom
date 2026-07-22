@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 import type {
-  LocalConfigSnapshot,
+  ClientMessage,
   LogLine,
   ManagedProcessId,
   ProcessInfo,
+  RuntimeConfig,
+  RuntimeConfigDefaults,
   ServerMessage,
+  SessionPhase,
 } from '../shared/protocol';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
@@ -18,7 +21,9 @@ export function useWebSocket() {
     daemon: [],
   });
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
-  const [config, setConfig] = useState<LocalConfigSnapshot | null>(null);
+  const [phase, setPhase] = useState<SessionPhase>('idle');
+  const [defaults, setDefaults] = useState<RuntimeConfigDefaults | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeConfig | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -41,7 +46,12 @@ export function useWebSocket() {
           case 'snapshot':
             setProcesses(msg.processes);
             setLogsByProcess(msg.logs);
-            setConfig(msg.config);
+            setPhase(msg.phase);
+            setDefaults(msg.defaults);
+            setRuntime(msg.runtime);
+            break;
+          case 'phase':
+            setPhase(msg.phase);
             break;
           case 'process-update':
             setProcesses((prev) => prev.map((p) => (p.id === msg.process.id ? msg.process : p)));
@@ -52,8 +62,8 @@ export function useWebSocket() {
               [msg.line.processId]: [...(prev[msg.line.processId] ?? []), msg.line],
             }));
             break;
-          case 'config':
-            setConfig(msg.config);
+          case 'runtime-config':
+            setRuntime(msg.runtime);
             break;
         }
       } catch {
@@ -72,9 +82,31 @@ export function useWebSocket() {
     };
   }, [connect]);
 
-  const restart = useCallback((processId: ManagedProcessId) => {
-    wsRef.current?.send(JSON.stringify({ type: 'restart', processId }));
+  const send = useCallback((msg: ClientMessage) => {
+    wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  return { processes, logsByProcess, connectionState, config, restart };
+  const startStack = useCallback(
+    (config: RuntimeConfig) => send({ type: 'start', config }),
+    [send]
+  );
+
+  const stopStack = useCallback(() => send({ type: 'stop' }), [send]);
+
+  const restart = useCallback(
+    (processId: ManagedProcessId) => send({ type: 'restart', processId }),
+    [send]
+  );
+
+  return {
+    processes,
+    logsByProcess,
+    connectionState,
+    phase,
+    defaults,
+    runtime,
+    startStack,
+    stopStack,
+    restart,
+  };
 }

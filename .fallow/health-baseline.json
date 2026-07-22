@@ -1,15 +1,23 @@
 {
   "finding_counts": {
     "apps/local/src/client/App.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
       "crap_high": {
-        "count": 2
+        "count": 1
       },
       "crap_moderate": {
         "count": 2
       }
     },
+    "apps/local/src/client/components/SetupPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "apps/local/src/client/use-websocket.ts": {
-      "crap_moderate": {
+      "crap_high": {
         "count": 1
       }
     },
@@ -19,11 +27,22 @@
       }
     },
     "apps/local/src/server/process-manager.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
       "crap_moderate": {
         "count": 2
       }
     },
     "apps/local/src/server/read-env.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/local/src/server/websocket-hub.ts": {
       "crap_moderate": {
         "count": 1
       }

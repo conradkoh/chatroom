@@ -1,13 +1,9 @@
 import type { WebSocket, WebSocketServer } from 'ws';
 
 import type { ProcessManager } from './process-manager.js';
-import type { ClientMessage, LocalConfigSnapshot, ServerMessage } from '../shared/protocol.js';
+import type { ClientMessage, ServerMessage } from '../shared/protocol.js';
 
-export function attachWebSocketHub(
-  wss: WebSocketServer,
-  manager: ProcessManager,
-  config: LocalConfigSnapshot
-): void {
+export function attachWebSocketHub(wss: WebSocketServer, manager: ProcessManager): void {
   const broadcast = (message: ServerMessage) => {
     const payload = JSON.stringify(message);
     for (const client of wss.clients) {
@@ -21,17 +17,28 @@ export function attachWebSocketHub(
   wss.on('connection', (socket: WebSocket) => {
     socket.send(
       JSON.stringify({
-        type: 'snapshot',
+        type: 'snapshot' as const,
+        phase: manager.phase,
         processes: manager.getProcesses(),
         logs: manager.getLogSnapshot(),
-        config,
-      } satisfies ServerMessage)
+        runtime: manager.runtimeConfig,
+      })
     );
 
     socket.on('message', (raw) => {
       try {
         const msg = JSON.parse(String(raw)) as ClientMessage;
-        if (msg.type === 'restart') manager.restart(msg.processId);
+        switch (msg.type) {
+          case 'start':
+            void manager.startStack(msg.config);
+            break;
+          case 'stop':
+            void manager.stopStack();
+            break;
+          case 'restart':
+            manager.restart(msg.processId);
+            break;
+        }
       } catch {
         // ignore malformed
       }

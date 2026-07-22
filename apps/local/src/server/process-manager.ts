@@ -3,40 +3,62 @@ import { EventEmitter } from 'node:events';
 
 import { waitForConvexHealthy } from './convex-health.js';
 import { LogBufferStore } from './log-buffer.js';
-import type { LocalConfig } from './parse-config.js';
+import { buildProcessDefinitions } from './process-definitions.js';
 import type { ProcessDefinition } from './process-definitions.js';
-import type { HealthStatus, LogLine, ManagedProcessId, ProcessInfo } from '../shared/protocol.js';
+import type {
+  HealthStatus,
+  LogLine,
+  ManagedProcessId,
+  ProcessInfo,
+  RuntimeConfig,
+  SessionPhase,
+} from '../shared/protocol.js';
 
 type ManagerEvents = {
   process: [ProcessInfo];
   log: [LogLine];
+  phase: [SessionPhase];
 };
 
 export class ProcessManager extends EventEmitter<ManagerEvents> {
-  private readonly definitions: ProcessDefinition[];
-  private readonly config: LocalConfig;
+  private readonly repoRoot: string;
+  private readonly managerPort: number;
   private readonly logs = new LogBufferStore();
   private readonly children = new Map<ManagedProcessId, ChildProcess>();
   private readonly state = new Map<ManagedProcessId, ProcessInfo>();
+  private _phase: SessionPhase = 'idle';
+  private _runtimeConfig: RuntimeConfig | null = null;
 
-  constructor(definitions: ProcessDefinition[], config: LocalConfig) {
+  constructor(repoRoot: string, managerPort: number) {
     super();
-    this.definitions = definitions;
-    this.config = config;
-    for (const def of definitions) {
-      const isDependent = def.id === 'webapp' || def.id === 'daemon';
-      this.state.set(def.id, {
-        id: def.id,
-        name: def.name,
-        status: isDependent ? 'pending' : 'stopped',
+    this.repoRoot = repoRoot;
+    this.managerPort = managerPort;
+    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
+      this.state.set(id, {
+        id,
+        name:
+          id === 'convex'
+            ? 'Convex (local)'
+            : id === 'webapp'
+              ? 'Webapp (production build)'
+              : 'Chatroom Daemon',
+        status: 'stopped',
         pid: null,
         startedAt: null,
         exitedAt: null,
         exitCode: null,
         health: 'unknown',
-        healthDetail: isDependent ? 'Waiting for Convex' : null,
+        healthDetail: null,
       });
     }
+  }
+
+  get phase(): SessionPhase {
+    return this._phase;
+  }
+
+  get runtimeConfig(): RuntimeConfig | null {
+    return this._runtimeConfig;
   }
 
   getProcesses(): ProcessInfo[] {
@@ -47,28 +69,112 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     return this.logs.snapshot();
   }
 
-  async startAll(): Promise<void> {
-    this.updateState('webapp', {
-      status: 'pending',
-      health: 'unknown',
-      healthDetail: 'Waiting for Convex',
-    });
-    this.updateState('daemon', {
-      status: 'pending',
-      health: 'unknown',
-      healthDetail: 'Waiting for Convex',
-    });
+  async startStack(config: RuntimeConfig): Promise<void> {
+    this._runtimeConfig = config;
+    this._phase = 'starting';
+    this.emit('phase', this._phase);
 
-    await this.runStartupSequence();
+    const definitions = buildProcessDefinitions(this.repoRoot, config);
+
+    // Initialize processes
+    for (const def of definitions) {
+      const existing = this.state.get(def.id);
+      if (existing) {
+        this.state.set(def.id, {
+          ...existing,
+          status: 'pending',
+          health: 'unknown',
+          healthDetail: def.id === 'convex' ? null : 'Waiting for Convex',
+        });
+      }
+    }
+
+    // Handle convex (local only)
+    if (config.convexBackendMode === 'local') {
+      const convexDef = definitions.find((d) => d.id === 'convex');
+      if (convexDef) {
+        this.start(convexDef);
+        this.updateState('convex', { health: 'checking', healthDetail: 'Waiting for /version' });
+
+        const result = await waitForConvexHealthy(`http://127.0.0.1:${config.convexPort}`, {
+          onCheck: () => this.updateState('convex', { health: 'checking' }),
+        });
+
+        if (!result.ok) {
+          this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
+          this._phase = 'idle';
+          this._runtimeConfig = null;
+          this.emit('phase', this._phase);
+          return;
+        }
+
+        this.updateState('convex', { health: 'healthy', healthDetail: null });
+      }
+    } else {
+      // Hosted mode: convex is skipped
+      const convexState = this.state.get('convex');
+      if (convexState) {
+        convexState.status = 'skipped';
+        convexState.health = 'healthy';
+        convexState.healthDetail = 'Hosted — external';
+        this.emit('process', convexState);
+      }
+
+      // Health check hosted URL
+      this.updateState('webapp', { health: 'checking', healthDetail: 'Checking hosted Convex' });
+      const result = await waitForConvexHealthy(config.convexUrl, {
+        onCheck: () => this.updateState('webapp', { health: 'checking' }),
+      });
+
+      if (!result.ok) {
+        this.updateState('webapp', { health: 'unhealthy', healthDetail: result.reason });
+        this._phase = 'idle';
+        this._runtimeConfig = null;
+        this.emit('phase', this._phase);
+        return;
+      }
+    }
+
+    // Start webapp and daemon
+    for (const def of definitions) {
+      if (def.id !== 'convex') {
+        this.start(def);
+      }
+    }
+
+    this._phase = 'running';
+    this.emit('phase', this._phase);
+  }
+
+  async stopStack(): Promise<void> {
+    this._phase = 'stopping';
+    this.emit('phase', this._phase);
+    await this.stopAll();
+    this._phase = 'idle';
+    this._runtimeConfig = null;
+    this.emit('phase', this._phase);
+
+    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
+      this.updateState(id, {
+        status: 'stopped',
+        health: 'unknown',
+        healthDetail: null,
+      });
+    }
   }
 
   restart(id: ManagedProcessId): void {
     if (id === 'convex') {
       this.stopAll();
-      void this.startAll();
+      if (this._runtimeConfig) {
+        void this.startStack(this._runtimeConfig);
+      }
     } else {
       this.stop(id);
-      this.start(id);
+      const def = this._runtimeConfig
+        ? buildProcessDefinitions(this.repoRoot, this._runtimeConfig).find((d) => d.id === id)
+        : undefined;
+      if (def) this.start(def);
     }
   }
 
@@ -91,32 +197,8 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     }
   }
 
-  private async runStartupSequence(): Promise<void> {
-    this.start('convex');
-    this.updateState('convex', { health: 'checking', healthDetail: 'Waiting for /version' });
-
-    const result = await waitForConvexHealthy(this.config.convexUrl, {
-      onCheck: () => this.updateState('convex', { health: 'checking' }),
-    });
-
-    if (!result.ok) {
-      this.updateState('convex', {
-        health: 'unhealthy',
-        healthDetail: result.reason,
-      });
-      return;
-    }
-
-    this.updateState('convex', { health: 'healthy', healthDetail: null });
-    this.start('webapp');
-    this.start('daemon');
-  }
-
-  private start(id: ManagedProcessId): void {
-    const def = this.definitions.find((d) => d.id === id);
-    if (!def) return;
-
-    this.updateState(id, {
+  private start(def: ProcessDefinition): void {
+    this.updateState(def.id, {
       status: 'starting',
       startedAt: Date.now(),
       exitedAt: null,
@@ -132,15 +214,15 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    this.children.set(id, child);
-    this.updateState(id, { status: 'running', pid: child.pid ?? null });
+    this.children.set(def.id, child);
+    this.updateState(def.id, { status: 'running', pid: child.pid ?? null });
 
     const onData = (stream: 'stdout' | 'stderr') => (chunk: Buffer) => {
       const text = chunk.toString('utf8');
       for (const line of text.split(/\r?\n/)) {
         if (!line) continue;
         const logLine = this.logs.append({
-          processId: id,
+          processId: def.id,
           stream,
           text: line,
           timestamp: Date.now(),
@@ -153,27 +235,14 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     child.stderr.on('data', onData('stderr'));
 
     child.on('exit', (code) => {
-      this.children.delete(id);
+      this.children.delete(def.id);
       const crashed = code !== 0;
-      this.updateState(id, {
+      this.updateState(def.id, {
         status: crashed ? 'crashed' : 'stopped',
         pid: null,
         exitedAt: Date.now(),
         exitCode: code,
       });
-      // If convex exits unhealthy, set dependents back to pending if still present
-      if (id === 'convex' && crashed) {
-        this.updateState('webapp', {
-          status: 'pending',
-          health: 'unknown',
-          healthDetail: 'Convex exited',
-        });
-        this.updateState('daemon', {
-          status: 'pending',
-          health: 'unknown',
-          healthDetail: 'Convex exited',
-        });
-      }
     });
   }
 

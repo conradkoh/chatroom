@@ -13,6 +13,7 @@
     "apps/webapp/src/modules/chatroom/utils/handleNotificationClick.ts",
     "apps/webapp/src/modules/header/index.ts",
     "apps/local/src/client/App.tsx",
+    "apps/local/src/client/components/SetupPanel.tsx",
     "apps/local/src/client/lib/utils.ts",
     "apps/local/src/client/main.tsx",
     "apps/local/src/client/globals.css",

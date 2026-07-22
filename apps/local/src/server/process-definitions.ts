@@ -1,5 +1,4 @@
-import type { LocalConfig } from './parse-config.js';
-import type { ManagedProcessId } from '../shared/protocol.js';
+import type { ManagedProcessId, RuntimeConfig } from '../shared/protocol.js';
 
 export type ProcessDefinition = {
   id: ManagedProcessId;
@@ -11,11 +10,20 @@ export type ProcessDefinition = {
   shell?: boolean;
 };
 
-export function buildProcessDefinitions(config: LocalConfig): ProcessDefinition[] {
-  const { repoRoot, convexUrl, webappUrl, webappPort } = config;
+export function buildProcessDefinitions(
+  repoRoot: string,
+  config: RuntimeConfig
+): ProcessDefinition[] {
+  const convexUrl =
+    config.convexBackendMode === 'local'
+      ? `http://127.0.0.1:${config.convexPort}`
+      : config.convexUrl;
+  const webappUrl = `http://localhost:${config.webappPort}`;
 
-  return [
-    {
+  const defs: ProcessDefinition[] = [];
+
+  if (config.convexBackendMode === 'local') {
+    defs.push({
       id: 'convex',
       name: 'Convex (local)',
       cwd: repoRoot,
@@ -27,36 +35,40 @@ export function buildProcessDefinitions(config: LocalConfig): ProcessDefinition[
         INDEX_RETENTION_DELAY: '1',
         RETENTION_DELETE_FREQUENCY: '10',
       },
+    });
+  }
+
+  defs.push({
+    id: 'webapp',
+    name: 'Webapp (production build)',
+    cwd: repoRoot,
+    command: 'sh',
+    args: [
+      '-c',
+      `pnpm turbo run build --filter=@workspace/webapp && PORT=${config.webappPort} pnpm --filter @workspace/webapp exec dotenv -e apps/webapp/.env.local -- pnpm start`,
+    ],
+    env: {
+      NODE_ENV: 'production',
+      NEXT_PUBLIC_CONVEX_URL: convexUrl,
     },
-    {
-      id: 'webapp',
-      name: 'Webapp (production build)',
-      cwd: repoRoot,
-      command: 'sh',
-      args: [
-        '-c',
-        `pnpm turbo run build --filter=@workspace/webapp && PORT=${webappPort} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
-      ],
-      env: {
-        NODE_ENV: 'production',
-        NEXT_PUBLIC_CONVEX_URL: convexUrl,
-      },
-      shell: false,
+    shell: false,
+  });
+
+  defs.push({
+    id: 'daemon',
+    name: 'Chatroom Daemon',
+    cwd: repoRoot,
+    command: 'sh',
+    args: [
+      '-c',
+      'pnpm turbo run build --filter=chatroom-cli && pnpm exec chatroom machine daemon start',
+    ],
+    env: {
+      CHATROOM_CONVEX_URL: convexUrl,
+      CHATROOM_WEB_URL: webappUrl,
     },
-    {
-      id: 'daemon',
-      name: 'Chatroom Daemon',
-      cwd: repoRoot,
-      command: 'sh',
-      args: [
-        '-c',
-        'pnpm turbo run build --filter=chatroom-cli && pnpm exec chatroom machine daemon start',
-      ],
-      env: {
-        CHATROOM_CONVEX_URL: convexUrl,
-        CHATROOM_WEB_URL: webappUrl,
-      },
-      shell: false,
-    },
-  ];
+    shell: false,
+  });
+
+  return defs;
 }

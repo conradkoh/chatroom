@@ -10,46 +10,62 @@ From the repo root:
 pnpm local
 ```
 
-Opens a browser UI at **http://localhost:3847** showing three managed processes:
-
-| Process             | Command                                                    |
-| ------------------- | ---------------------------------------------------------- |
-| **Convex (local)**  | `pnpm --filter @workspace/backend dev`                     |
-| **Webapp**          | `turbo run build --filter=@workspace/webapp && next start` |
-| **Chatroom Daemon** | `chatroom machine daemon start`                            |
+Opens a browser UI — no child processes start until you click **Start Stack**.
 
 ## Configuration
+
+### Launch-time (CLI / env)
 
 | Flag             | Env var              | Default | Description          |
 | ---------------- | -------------------- | ------- | -------------------- |
 | `--manager-port` | `LOCAL_MANAGER_PORT` | 3847    | Local dev manager UI |
-| `--webapp-port`  | `LOCAL_WEBAPP_PORT`  | 3000    | Next.js webapp       |
-| `--convex-port`  | `LOCAL_CONVEX_PORT`  | 3210    | Convex local backend |
+
+### Runtime (UI)
+
+Configured after launching `pnpm local` via the setup screen:
+
+| Setting      | Description                                           |
+| ------------ | ----------------------------------------------------- |
+| Backend mode | Local Convex or Hosted Convex                         |
+| Webapp port  | Next.js webapp port                                   |
+| Convex port  | Convex dev HTTP port (local mode only)                |
+| Convex URL   | Full deployment URL (hosted mode, e.g. .convex.cloud) |
+
+Default values loaded from `services/backend/.env.local` and `apps/webapp/.env.local`.
 
 ```bash
-# Custom ports
-pnpm local -- --manager-port 4000 --webapp-port 3001 --convex-port 3211
-
-# Via env
-LOCAL_WEBAPP_PORT=3001 pnpm local
+# Custom manager port
+pnpm local -- --manager-port 4000
 ```
 
-## Startup sequence
+## Lifecycle
 
-1. **Convex** starts (`pnpm --filter @workspace/backend dev`)
-2. Health check polls `GET /version` on the convex URL until ready (or 120s timeout)
-3. **Webapp** + **Daemon** start once Convex is healthy (turbo build, then start)
+1. **Idle** — `pnpm local` opens setup screen only
+2. **Starting** — Convex (if local) starts, health check runs, then webapp + daemon
+3. **Running** — Dashboard with logs, restart, stop
+4. **Stopping** — SIGTERM all processes, return to idle
+
+### Backend modes
+
+| Mode   | Convex spawn   | Health check                | URL source                |
+| ------ | -------------- | --------------------------- | ------------------------- |
+| Local  | `pnpm ... dev` | `GET /version` on localhost | `http://127.0.0.1:{port}` |
+| Hosted | Skipped        | `GET /version` on cloud URL | From `.env.local`         |
 
 ## Prerequisites
 
 - Run `pnpm setup` at least once so `services/backend/.env.local` exists with a `CONVEX_URL`.
 - Run `pnpm install`.
 
-## UI
+## Browser validation
 
-- **Sidebar**: process list with status indicators (green = running, yellow = starting, grey = stopped/pending, red = crashed). Convex shows health badge (healthy/checking/unhealthy). Port numbers displayed below connection status.
-- **Main panel**: scrolling log viewer for the selected process with stream badges and timestamps.
-- **Restart button** (appears on hover): restarts an individual process. Restarting Convex re-runs the health gate.
+After `pnpm local`:
+
+1. Open http://localhost:3847 — setup screen should load
+2. Verify hosted mode defaults (convex.cloud URL, correct port from .env.local)
+3. Click **Start Stack** — dashboard shows processes starting
+4. Verify convex shows "Hosted" (skipped), webapp + daemon reach Running
+5. Click **Stop Stack** — returns to setup screen
 
 ## Shutdown
 
