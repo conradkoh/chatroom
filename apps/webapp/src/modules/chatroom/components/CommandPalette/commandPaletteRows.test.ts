@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCommandPaletteRows, filterCommandsForSearch } from './commandPaletteRows';
+import {
+  buildCommandPaletteRows,
+  filterCommandsForSearch,
+  filterCommandsForSearchWithBlacklist,
+} from './commandPaletteRows';
 import type { CommandItem } from './types';
 
 function makeCmd(id: string, label: string, category = 'Test'): CommandItem {
@@ -23,6 +27,18 @@ describe('filterCommandsForSearch', () => {
     const result = filterCommandsForSearch(cmds, 'search', filter);
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe('b');
+  });
+
+  it('moves blacklisted commands to end in search results', () => {
+    const cmds = [makeCmd('a', 'Alpha'), makeCmd('b', 'Beta'), makeCmd('c', 'Gamma')];
+    const blacklisted = new Set(['b']);
+    const result = filterCommandsForSearchWithBlacklist(
+      cmds,
+      'search',
+      passthroughFilter,
+      blacklisted
+    );
+    expect(result.map((c) => c.id)).toEqual(['a', 'c', 'b']);
   });
 
   it('excludes commands with score 0', () => {
@@ -67,6 +83,25 @@ describe('buildCommandPaletteRows', () => {
     expect(rows[2]).toEqual({ type: 'heading', id: 'heading-Work', label: 'Work' });
     expect(rows[3].type).toBe('item');
     expect(rows[3].id).toBe('w1');
+  });
+
+  it('moves blacklisted commands to end in browse mode', () => {
+    const cmds = [makeCmd('a', 'Alpha'), makeCmd('b', 'Beta')];
+    const groups = new Map<string, CommandItem[]>([['Test', cmds]]);
+    const blacklisted = new Set(['a']);
+    const rows = buildCommandPaletteRows(
+      makeArgs({ groupedCommands: groups, blacklistedIds: blacklisted })
+    );
+    expect(rows.map((r) => r.id)).toEqual(['heading-Test', 'b', 'a']);
+  });
+
+  it('moves blacklisted recent commands to end', () => {
+    const recent = [makeCmd('a', 'Alpha'), makeCmd('b', 'Beta')];
+    const blacklisted = new Set(['a']);
+    const rows = buildCommandPaletteRows(
+      makeArgs({ recentCommands: recent, blacklistedIds: blacklisted })
+    );
+    expect(rows.map((r) => r.id)).toEqual(['recent', 'b', 'a']);
   });
 
   it('deduplicates recent commands from category groups', () => {
