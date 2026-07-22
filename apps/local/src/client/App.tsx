@@ -7,7 +7,6 @@ import type { LogLine, ManagedProcessId } from '../shared/protocol';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -30,24 +29,26 @@ function formatLogLine(line: LogLine): string {
 }
 
 function LogViewer({ logLines }: { logLines: LogLine[] }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [logLines.length]);
 
   useEffect(() => {
-    const container = logContainerRef.current;
+    const container = scrollRef.current;
     if (!container) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
         event.preventDefault();
         const selection = window.getSelection();
-        if (!selection) return;
+        if (!selection || !logContainerRef.current) return;
         const range = document.createRange();
-        range.selectNodeContents(container);
+        range.selectNodeContents(logContainerRef.current);
         selection.removeAllRanges();
         selection.addRange(range);
       }
@@ -59,7 +60,7 @@ function LogViewer({ logLines }: { logLines: LogLine[] }) {
 
   if (logLines.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-chatroom-text-muted">
+      <div className="flex h-full items-center justify-center overflow-y-auto text-sm text-chatroom-text-muted">
         No logs yet — waiting for process output...
       </div>
     );
@@ -67,33 +68,34 @@ function LogViewer({ logLines }: { logLines: LogLine[] }) {
 
   return (
     <div
-      ref={logContainerRef}
-      className="h-full font-mono text-xs focus-visible:outline focus-visible:outline-1 focus-visible:outline-chatroom-status-info"
+      ref={scrollRef}
+      className="h-full overflow-y-auto font-mono text-xs focus-visible:outline focus-visible:outline-1 focus-visible:outline-chatroom-status-info"
       tabIndex={0}
       role="log"
       aria-label="Process logs"
     >
-      {logLines.map((line, i) => (
-        <div
-          key={i}
-          className={cn(
-            'px-4 py-[1px] leading-5',
-            line.stream === 'stderr' ? 'text-chatroom-status-error' : 'text-chatroom-text-primary'
-          )}
-        >
-          <span className="mr-2 select-none text-chatroom-text-muted">
-            {formatTime(line.timestamp)}
-          </span>
-          <Badge
-            variant="outline"
-            className="mr-2 w-12 rounded-none px-0 text-center text-[10px] font-bold uppercase leading-none"
+      <div ref={logContainerRef}>
+        {logLines.map((line, i) => (
+          <div
+            key={i}
+            className={cn(
+              'px-4 py-[1px] leading-5',
+              line.stream === 'stderr' ? 'text-chatroom-status-error' : 'text-chatroom-text-primary'
+            )}
           >
-            {line.stream === 'stdout' ? 'OUT' : 'ERR'}
-          </Badge>
-          {line.text}
-        </div>
-      ))}
-      <div ref={bottomRef} />
+            <span className="mr-2 select-none text-chatroom-text-muted">
+              {formatTime(line.timestamp)}
+            </span>
+            <Badge
+              variant="outline"
+              className="mr-2 w-12 rounded-none px-0 text-center text-[10px] font-bold uppercase leading-none"
+            >
+              {line.stream === 'stdout' ? 'OUT' : 'ERR'}
+            </Badge>
+            {line.text}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -176,8 +178,8 @@ export function App() {
   const isRunning = phase === 'running';
 
   return (
-    <div className="flex h-dvh">
-      <aside className="flex w-64 shrink-0 flex-col gap-2 border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-4">
+    <div className="flex h-dvh overflow-hidden">
+      <aside className="flex w-64 shrink-0 flex-col gap-2 overflow-hidden border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-4">
         <h1 className="text-sm font-bold uppercase tracking-wider">Chatroom Local</h1>
         <div className="flex items-center gap-1.5 text-[11px] text-chatroom-text-muted">
           <span className={cn('inline-block h-2 w-2', statusColor)} />
@@ -193,51 +195,53 @@ export function App() {
         {phase === 'stopping' && (
           <div className="text-[10px] text-chatroom-status-error">Stopping...</div>
         )}
-        <h2 className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+        <h2 className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Processes
         </h2>
-        {processes.map((p) => (
-          <div
-            key={p.id}
-            className={cn(
-              'group flex cursor-pointer items-center gap-2 border-2 p-2 transition-colors',
-              selectedId === p.id
-                ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary'
-                : 'border-transparent hover:bg-chatroom-bg-hover'
-            )}
-            onClick={() => setSelectedId(p.id)}
-          >
-            <span
+        <div className="min-h-0 flex-1 space-y-0 overflow-y-auto">
+          {processes.map((p) => (
+            <div
+              key={p.id}
               className={cn(
-                'inline-block h-2 w-2 shrink-0',
-                (p.status === 'pending' || p.status === 'stopped') && 'bg-chatroom-text-muted',
-                p.status === 'starting' && 'bg-chatroom-status-warning animate-pulse',
-                p.status === 'running' && 'bg-chatroom-status-success',
-                p.status === 'crashed' && 'bg-chatroom-status-error',
-                p.status === 'skipped' && 'bg-chatroom-text-muted'
+                'group flex cursor-pointer items-center gap-2 border-2 p-2 transition-colors',
+                selectedId === p.id
+                  ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary'
+                  : 'border-transparent hover:bg-chatroom-bg-hover'
               )}
-              title={STATUS_LABELS[p.status]}
-            />
-            <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm">
-              {p.name}
-            </span>
-            <HealthBadge health={p.health} healthDetail={p.healthDetail} />
-            {isRunning && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 rounded-none px-2 opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  restart(p.id);
-                }}
-              >
-                <RotateCcw size={12} />
-              </Button>
-            )}
-          </div>
-        ))}
-        <div className="mt-auto">
+              onClick={() => setSelectedId(p.id)}
+            >
+              <span
+                className={cn(
+                  'inline-block h-2 w-2 shrink-0',
+                  (p.status === 'pending' || p.status === 'stopped') && 'bg-chatroom-text-muted',
+                  p.status === 'starting' && 'bg-chatroom-status-warning animate-pulse',
+                  p.status === 'running' && 'bg-chatroom-status-success',
+                  p.status === 'crashed' && 'bg-chatroom-status-error',
+                  p.status === 'skipped' && 'bg-chatroom-text-muted'
+                )}
+                title={STATUS_LABELS[p.status]}
+              />
+              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm">
+                {p.name}
+              </span>
+              <HealthBadge health={p.health} healthDetail={p.healthDetail} />
+              {isRunning && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 rounded-none px-2 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    restart(p.id);
+                  }}
+                >
+                  <RotateCcw size={12} />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-auto shrink-0">
           <Button
             variant="destructive"
             size="sm"
@@ -249,8 +253,8 @@ export function App() {
           </Button>
         </div>
       </aside>
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between border-b-2 border-chatroom-border px-4 py-3">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b-2 border-chatroom-border px-4 py-3">
           <div className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold">
             {selectedProcess ? selectedProcess.name : 'Select a process'}
             {selectedProcess && (
@@ -271,9 +275,9 @@ export function App() {
             {copyLabel}
           </Button>
         </div>
-        <ScrollArea className="flex-1">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <LogViewer logLines={logLines} />
-        </ScrollArea>
+        </div>
       </main>
     </div>
   );
