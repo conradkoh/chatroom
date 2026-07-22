@@ -10,11 +10,9 @@ function stripAnsi(text: string): string {
 
 function isWebappReadyLogLine(text: string): boolean {
   const plain = stripAnsi(text);
-  return (
-    plain.includes('Ready in') ||
-    /\bLocal:\s+http:\/\/localhost:\d+/i.test(plain) ||
-    /Starting Next\.js production server on http:\/\/localhost:\d+/i.test(plain)
-  );
+  // Only match lines emitted once the server is actually listening — not the pre-start echo
+  // from process-definitions ("Starting Next.js production server on ...").
+  return plain.includes('Ready in') || /\bLocal:\s+http:\/\/localhost:\d+/i.test(plain);
 }
 
 function isWebappFailureLogLine(text: string): boolean {
@@ -58,4 +56,46 @@ export function waitForWebappReadyFromLogs(
       }
     });
   });
+}
+
+async function checkWebappHttp(
+  webappUrl: string,
+  timeoutMs = 3000
+): Promise<WebappReadinessResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${webappUrl.replace(/\/$/, '')}/`, {
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+    if (res.ok) return { ok: true };
+    return { ok: false, reason: `HTTP ${res.status}` };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function waitForWebappHttpReady(
+  webappUrl: string,
+  options: {
+    intervalMs?: number;
+    maxAttempts?: number;
+    onCheck?: (attempt: number) => void;
+  } = {}
+): Promise<WebappReadinessResult> {
+  const { intervalMs = 500, maxAttempts = 120, onCheck } = options;
+  let lastReason = 'timed out waiting for webapp HTTP response';
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    onCheck?.(attempt);
+    const result = await checkWebappHttp(webappUrl);
+    if (result.ok) return result;
+    lastReason = result.reason;
+    if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return { ok: false, reason: lastReason };
 }

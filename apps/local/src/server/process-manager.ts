@@ -8,7 +8,7 @@ import { LogBufferStore } from './log-buffer.js';
 import { buildProcessDefinitions } from './process-definitions.js';
 import type { ProcessDefinition } from './process-definitions.js';
 import { saveSavedRuntimeConfig } from './saved-runtime-config.js';
-import { waitForWebappReadyFromLogs } from './webapp-readiness.js';
+import { waitForWebappHttpReady, waitForWebappReadyFromLogs } from './webapp-readiness.js';
 import type {
   HealthStatus,
   LogLine,
@@ -189,18 +189,6 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this.emit('phase', this._phase);
   }
 
-  private async checkWebappServing(
-    webappUrl: string
-  ): Promise<{ ok: true } | { ok: false; reason: string }> {
-    try {
-      const res = await fetch(`${webappUrl.replace(/\/$/, '')}/`);
-      if (res.ok) return { ok: true };
-      return { ok: false, reason: `HTTP ${res.status}` };
-    } catch (err) {
-      return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
-    }
-  }
-
   private monitorWebappReadiness(config: RuntimeConfig): void {
     const webappUrl = `http://localhost:${config.webappPort}`;
 
@@ -216,7 +204,18 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         return;
       }
 
-      const health = await this.checkWebappServing(webappUrl);
+      this.updateState('webapp', {
+        health: 'checking',
+        healthDetail: 'Waiting for HTTP response',
+      });
+
+      const health = await waitForWebappHttpReady(webappUrl, {
+        onCheck: () =>
+          this.updateState('webapp', {
+            health: 'checking',
+            healthDetail: 'Waiting for HTTP response',
+          }),
+      });
       if (!health.ok) {
         this.updateState('webapp', { health: 'unhealthy', healthDetail: health.reason });
         return;

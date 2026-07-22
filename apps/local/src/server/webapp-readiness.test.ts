@@ -37,7 +37,7 @@ describe('waitForWebappReadyFromLogs', () => {
     await expect(promise).resolves.toEqual({ ok: true });
   });
 
-  it('detects production server start line', async () => {
+  it('does not treat pre-start shell echo as ready', async () => {
     const handlers: ((line: LogLine) => void)[] = [];
     const promise = waitForWebappReadyFromLogs((handler) => {
       handlers.push(handler);
@@ -45,10 +45,15 @@ describe('waitForWebappReadyFromLogs', () => {
     });
 
     handlers.forEach((handler) =>
-      handler(webappLog('  ✓ Starting Next.js production server on http://localhost:6249'))
+      handler(webappLog('Starting Next.js production server on http://localhost:6249 ...'))
     );
 
-    await expect(promise).resolves.toEqual({ ok: true });
+    const result = await Promise.race([
+      promise,
+      new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 50)),
+    ]);
+
+    expect(result).toBe('pending');
   });
 
   it('rejects on start failure log line', async () => {

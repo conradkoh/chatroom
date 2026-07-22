@@ -67,6 +67,11 @@
         "count": 1
       }
     },
+    "apps/local/src/server/webapp-readiness.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/local/src/server/repo-update-service.ts": {
       "crap_moderate": {
         "count": 2
