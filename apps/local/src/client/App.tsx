@@ -3,6 +3,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 
 import { LogUrlBar } from './components/LogUrlBar';
 import { SetupPanel } from './components/SetupPanel';
+import { UpdateBanner } from './components/UpdateBanner';
 import { collectUrlsFromLogLines, stripAnsi } from './log-text';
 import { LogLineContent } from './LogLineContent';
 import { useWebSocket } from './use-websocket';
@@ -281,6 +282,8 @@ export function App() {
     startStack,
     stopStack,
     restart,
+    repoUpdate,
+    applyRepoUpdate,
   } = useWebSocket();
   const [selectedId, setSelectedId] = useState<ManagedProcessId>('convex');
   const [copyLabel, setCopyLabel] = useState('Copy logs');
@@ -301,37 +304,42 @@ export function App() {
   };
 
   const showSetup = phase === 'idle';
+  const updateBusy =
+    repoUpdate.status === 'updating' || phase === 'stopping' || phase === 'starting';
 
   return (
-    <div className="relative h-dvh overflow-hidden">
-      <div
-        className={cn(
-          'absolute inset-0 transition-fade duration-300',
-          showSetup ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-        )}
-        aria-hidden={!showSetup}
-      >
-        <SetupPanel defaults={defaults} onStart={startStack} />
-      </div>
-      <div
-        className={cn(
-          'absolute inset-0 transition-fade duration-300',
-          showSetup ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'
-        )}
-        aria-hidden={showSetup}
-      >
-        <DashboardView
-          processes={processes}
-          logsByProcess={logsByProcess}
-          connectionState={connectionState}
-          phase={phase}
-          selectedId={selectedId}
-          setSelectedId={setSelectedId}
-          copyLabel={copyLabel}
-          handleCopyLogs={handleCopyLogs}
-          stopStack={stopStack}
-          restart={restart}
-        />
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <UpdateBanner update={repoUpdate} onApplyUpdate={applyRepoUpdate} disabled={updateBusy} />
+      <div className="relative min-h-0 flex-1">
+        <div
+          className={cn(
+            'absolute inset-0 transition-fade duration-300',
+            showSetup ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+          )}
+          aria-hidden={!showSetup}
+        >
+          <SetupPanel defaults={defaults} onStart={startStack} />
+        </div>
+        <div
+          className={cn(
+            'absolute inset-0 transition-fade duration-300',
+            showSetup ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'
+          )}
+          aria-hidden={showSetup}
+        >
+          <DashboardView
+            processes={processes}
+            logsByProcess={logsByProcess}
+            connectionState={connectionState}
+            phase={phase}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            copyLabel={copyLabel}
+            handleCopyLogs={handleCopyLogs}
+            stopStack={stopStack}
+            restart={restart}
+          />
+        </div>
       </div>
     </div>
   );

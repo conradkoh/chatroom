@@ -24,6 +24,11 @@
         "count": 1
       }
     },
+    "apps/local/src/client/components/UpdateBanner.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
     "apps/local/src/client/components/SetupPanel.tsx": {
       "crap_critical": {
         "count": 1
@@ -36,6 +41,9 @@
     },
     "apps/local/src/client/use-websocket.ts": {
       "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -66,8 +74,16 @@
       }
     },
     "apps/local/src/server/websocket-hub.ts": {
+      "crap_high": {
+        "count": 1
+      },
       "crap_moderate": {
         "count": 1
+      }
+    },
+    "apps/local/src/server/repo-update-service.ts": {
+      "crap_moderate": {
+        "count": 2
       }
     },
     "apps/webapp/public/sw.js": {

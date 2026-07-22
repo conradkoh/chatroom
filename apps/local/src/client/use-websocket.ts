@@ -7,6 +7,7 @@ import type {
   ProcessInfo,
   RuntimeConfig,
   RuntimeConfigDefaults,
+  RepoUpdateStatus,
   ServerMessage,
   SessionPhase,
 } from '../shared/protocol';
@@ -24,6 +25,12 @@ export function useWebSocket() {
   const [phase, setPhase] = useState<SessionPhase>('idle');
   const [defaults, setDefaults] = useState<RuntimeConfigDefaults | null>(null);
   const [runtime, setRuntime] = useState<RuntimeConfig | null>(null);
+  const [repoUpdate, setRepoUpdate] = useState<RepoUpdateStatus>({
+    status: 'idle',
+    localCommit: null,
+    remoteCommit: null,
+    error: null,
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -49,6 +56,7 @@ export function useWebSocket() {
             setPhase(msg.phase);
             setDefaults(msg.defaults);
             setRuntime(msg.runtime);
+            setRepoUpdate(msg.repoUpdate);
             break;
           case 'phase':
             setPhase(msg.phase);
@@ -70,6 +78,9 @@ export function useWebSocket() {
             break;
           case 'runtime-config':
             setRuntime(msg.runtime);
+            break;
+          case 'repo-update':
+            setRepoUpdate(msg.update);
             break;
         }
       } catch {
@@ -104,6 +115,10 @@ export function useWebSocket() {
     [send]
   );
 
+  const checkRepoUpdate = useCallback(() => send({ type: 'check-repo-update' }), [send]);
+
+  const applyRepoUpdate = useCallback(() => send({ type: 'apply-repo-update' }), [send]);
+
   return {
     processes,
     logsByProcess,
@@ -111,8 +126,11 @@ export function useWebSocket() {
     phase,
     defaults,
     runtime,
+    repoUpdate,
     startStack,
     stopStack,
     restart,
+    checkRepoUpdate,
+    applyRepoUpdate,
   };
 }
