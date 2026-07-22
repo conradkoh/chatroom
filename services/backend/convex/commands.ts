@@ -49,7 +49,7 @@ export const syncCommands = mutation({
       v.object({
         name: v.string(),
         script: v.string(),
-        source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+        source: v.union(v.literal('package.json'), v.literal('turbo.json'), v.literal('deno.json')),
         subWorkspace: v.optional(
           v.object({
             type: v.string(),
@@ -173,10 +173,7 @@ export const appendOutput = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     runId: v.id('chatroom_commandRuns'),
-    content: v.union(
-      v.string(),
-      v.object({ compression: v.literal('gzip'), content: v.string() })
-    ),
+    content: v.union(v.string(), v.object({ compression: v.literal('gzip'), content: v.string() })),
     chunkIndex: v.number(),
   },
   handler: async (ctx, args) => {
@@ -231,11 +228,7 @@ export const controlRunOutputV2 = mutation({
   args: {
     ...SessionIdArg,
     runId: v.id('chatroom_commandRuns'),
-    action: v.union(
-      v.literal('observe'),
-      v.literal('unobserve'),
-      v.literal('requestFull')
-    ),
+    action: v.union(v.literal('observe'), v.literal('unobserve'), v.literal('requestFull')),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);

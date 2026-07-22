@@ -159,6 +159,31 @@ describe('discoverCommands — monorepo', () => {
     expect(filtered).toHaveLength(0);
   });
 
+  test('discovers deno.json tasks', async () => {
+    await writeFile(
+      join(testDir, 'deno.json'),
+      JSON.stringify({
+        name: 'my-deno-app',
+        tasks: { dev: 'deno run --watch main.ts', test: 'deno test' },
+      })
+    );
+
+    const commands = await discoverCommands(testDir);
+
+    expect(commands).toContainEqual({
+      name: 'deno: dev',
+      script: 'deno task dev',
+      source: 'deno.json',
+      subWorkspace: { type: 'deno', path: '.', name: 'my-deno-app' },
+    });
+    expect(commands).toContainEqual({
+      name: 'deno: test',
+      script: 'deno task test',
+      source: 'deno.json',
+      subWorkspace: { type: 'deno', path: '.', name: 'my-deno-app' },
+    });
+  });
+
   test('discovers turbo tasks when turbo.json is JSONC (comments + trailing commas)', async () => {
     // Regression: a // comment in turbo.json used to make JSON.parse throw,
     // silently hiding every turbo task from the process manager.
