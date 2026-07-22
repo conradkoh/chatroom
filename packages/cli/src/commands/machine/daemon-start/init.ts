@@ -43,6 +43,7 @@ import {
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import { formatAuthLoginCommand } from '../../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { acquireLockWithRetry, releaseLock } from '../pid.js';
@@ -210,7 +211,7 @@ const validateAuthenticationEffect = (convexUrl: string): Effect.Effect<string, 
       }
     }
 
-    console.error(`\nRun: chatroom auth login`);
+    console.error(`\nRun: ${formatAuthLoginCommand(convexUrl)}`);
     console.log(`\n⏳ Waiting for authentication (timeout: 5 minutes)...`);
     return yield* waitForAuthenticationEffect(convexUrl);
   });
@@ -231,7 +232,7 @@ const validateSessionEffect = (
     }
 
     console.error(`❌ Session invalid: ${validation.reason}`);
-    console.error(`\nRun: chatroom auth login`);
+    console.error(`\nRun: ${formatAuthLoginCommand(convexUrl)}`);
     console.log(`\n⏳ Waiting for re-authentication (timeout: 5 minutes)...`);
 
     const newSessionId = yield* waitForAuthenticationEffect(convexUrl);
@@ -245,6 +246,7 @@ const validateSessionEffect = (
     if (!revalidation.valid) {
       return yield* Effect.sync(() => {
         console.error(`❌ New session is also invalid: ${revalidation.reason}`);
+        console.error(`\nRun: ${formatAuthLoginCommand(convexUrl)}`);
         releaseLock();
         process.exit(1);
       });

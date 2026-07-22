@@ -455,7 +455,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ---
 
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section below. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+      **Handoff Template (Builder → Planner)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
 
       \`\`\`markdown
       ## Summary
@@ -488,10 +488,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
+      <anything needing planner decision. Omit if none.>
 
       ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
+      <specific areas for planner to check. Omit if none.>
       \`\`\`
 
       </handoff-templates>
