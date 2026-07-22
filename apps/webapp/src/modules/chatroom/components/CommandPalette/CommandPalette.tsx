@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
+import { EyeOff } from 'lucide-react';
 import { buildCommandPaletteRows } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
@@ -187,10 +188,15 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
               ))}
             </span>
           )}
+          {isBlacklisted(command.id) && (
+            <span title="Blacklisted" className="flex-shrink-0">
+              <EyeOff className="h-3.5 w-3.5 text-chatroom-text-muted" />
+            </span>
+          )}
         </>
       );
     },
-    [isSearching, getScore]
+    [isSearching, getScore, isBlacklisted]
   );
 
   return (

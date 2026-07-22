@@ -11,6 +11,7 @@ import {
 } from './commandPaletteRows';
 import type { CommandItem } from './types';
 
+import { cn } from '@/lib/utils';
 import { CommandItem as CommandItemUI } from '@/components/ui/command';
 import {
   ContextMenu,
@@ -67,7 +68,10 @@ export function CommandPaletteVirtualizedList({
           value={command.label}
           keywords={command.keywords}
           onSelect={() => onSelect(command)}
-          className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary box-border overflow-hidden"
+          className={cn(
+            'flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary box-border overflow-hidden',
+            isBlacklisted?.(command.id) && 'opacity-50'
+          )}
           style={{
             height: command.detail
               ? COMMAND_PALETTE_ITEM_WITH_DETAIL_ROW_HEIGHT
