@@ -105,7 +105,12 @@ export function SetupPanel({
                       ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary text-chatroom-text-primary'
                       : 'border-chatroom-border bg-transparent text-chatroom-text-muted hover:bg-chatroom-bg-hover'
                   )}
-                  onClick={() => setMode(m)}
+                  onClick={() => {
+                    setMode(m);
+                    if (m === 'hosted' && defaults?.hostedConvexUrlFromEnv) {
+                      setConvexUrl(defaults.hostedConvexUrlFromEnv);
+                    }
+                  }}
                 >
                   {m}
                 </button>

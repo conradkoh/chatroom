@@ -94,6 +94,12 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this._phase = 'starting';
     this.emit('phase', this._phase);
 
+    await this.stopAll();
+
+    this.updateState('convex', {
+      name: config.convexBackendMode === 'hosted' ? 'Convex (hosted)' : 'Convex (local)',
+    });
+
     const definitions = buildProcessDefinitions(this.repoRoot, config, this.managerPort);
 
     for (const def of definitions) {
@@ -161,6 +167,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         this.updateState('convex', { health: 'healthy', healthDetail: null });
       }
     } else {
+      this.clearProcessLogs('convex');
       const convexState = this.state.get('convex');
       if (convexState) {
         convexState.status = 'skipped';
