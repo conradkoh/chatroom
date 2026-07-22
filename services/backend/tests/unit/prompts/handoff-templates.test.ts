@@ -163,9 +163,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Unresolved Decisions
-      <!-- Decisions that need user input before work can proceed. -->
-      - <decision or question — options considered, recommendation if any, or "Not Applicable">
-      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to. Write \`Not Applicable\` only when there are truly no open decisions.>
+      <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
+      - <decision or question — options considered, recommendation if any>
+      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Notes / Next steps
       <anything the user should know, follow-ups, or open questions>
@@ -534,9 +534,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Unresolved Decisions
-      <!-- Decisions that need user input before work can proceed. -->
-      - <decision or question — options considered, recommendation if any, or "Not Applicable">
-      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to. Write \`Not Applicable\` only when there are truly no open decisions.>
+      <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
+      - <decision or question — options considered, recommendation if any>
+      <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Notes / Next steps
       <anything the user should know, follow-ups, or open questions>
