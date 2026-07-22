@@ -1,6 +1,7 @@
+import { waitForHttpHealth, type HttpHealthResult } from './http-health.js';
 import type { LogLine } from '../shared/protocol.js';
 
-export type WebappReadinessResult = { ok: true } | { ok: false; reason: string };
+export type WebappReadinessResult = HttpHealthResult;
 
 const ANSI_ESCAPE = /\x1b\[[0-9;]*m/g;
 
@@ -58,24 +59,8 @@ export function waitForWebappReadyFromLogs(
   });
 }
 
-async function checkWebappHttp(
-  webappUrl: string,
-  timeoutMs = 3000
-): Promise<WebappReadinessResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${webappUrl.replace(/\/$/, '')}/`, {
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-    if (res.ok) return { ok: true };
-    return { ok: false, reason: `HTTP ${res.status}` };
-  } catch (err) {
-    return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
-  } finally {
-    clearTimeout(timer);
-  }
+function webappRootUrl(webappUrl: string): string {
+  return `${webappUrl.replace(/\/$/, '')}/`;
 }
 
 export async function waitForWebappHttpReady(
@@ -87,15 +72,11 @@ export async function waitForWebappHttpReady(
   } = {}
 ): Promise<WebappReadinessResult> {
   const { intervalMs = 500, maxAttempts = 120, onCheck } = options;
-  let lastReason = 'timed out waiting for webapp HTTP response';
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    onCheck?.(attempt);
-    const result = await checkWebappHttp(webappUrl);
-    if (result.ok) return result;
-    lastReason = result.reason;
-    if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-
-  return { ok: false, reason: lastReason };
+  return waitForHttpHealth(webappRootUrl(webappUrl), {
+    intervalMs,
+    maxAttempts,
+    onCheck,
+    redirect: 'follow',
+    timeoutReason: 'timed out waiting for webapp HTTP response',
+  });
 }

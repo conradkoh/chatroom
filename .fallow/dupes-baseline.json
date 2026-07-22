@@ -2,7 +2,6 @@
   "clone_groups": [
     "apps/local/src/client/lib/utils.ts:1-23|apps/webapp/src/lib/utils.ts:1-23",
     "apps/local/src/open-browser.ts:4-19|packages/cli/src/commands/auth-login/index.ts:53-71",
-    "apps/local/src/server/convex-health.ts:10-38|apps/local/src/server/webapp-readiness.ts:68-101",
     "apps/webapp/src/app/dev/mobile-picker-harness/StandingInstructionsBarSection.tsx:66-98|apps/webapp/src/app/dev/standing-instructions-release-harness/StandingInstructionsReleaseHarness.tsx:568-596",
     "apps/webapp/src/app/dev/standing-instructions-release-harness/StandingInstructionsReleaseHarness.tsx:61-102|apps/webapp/src/modules/chatroom/components/StandingInstructionsBar.tsx:78-120",
     "apps/webapp/src/app/dev/standing-instructions-release-harness/StandingInstructionsReleaseHarness.tsx:103-120|apps/webapp/src/modules/chatroom/components/StandingInstructionsBar.tsx:121-138",
