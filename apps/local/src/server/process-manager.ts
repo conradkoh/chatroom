@@ -31,8 +31,10 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   private readonly logs = new LogBufferStore();
   private readonly children = new Map<ManagedProcessId, ChildProcess>();
   private readonly state = new Map<ManagedProcessId, ProcessInfo>();
+  private readonly lineBuffers = new Map<ManagedProcessId, string>();
   private _phase: SessionPhase = 'idle';
   private _runtimeConfig: RuntimeConfig | null = null;
+  private startGeneration = 0;
 
   constructor(repoRoot: string, managerPort: number) {
     super();
@@ -81,6 +83,11 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   async startStack(config: RuntimeConfig): Promise<void> {
+    if (this._phase === 'starting' || this._phase === 'running') return;
+
+    const generation = ++this.startGeneration;
+    const isStale = () => generation !== this.startGeneration;
+
     this._runtimeConfig = config;
     saveSavedRuntimeConfig(this.repoRoot, config);
     this._phase = 'starting';
@@ -88,7 +95,6 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
 
     const definitions = buildProcessDefinitions(this.repoRoot, config);
 
-    // Initialize processes and broadcast so the dashboard shows startup progress immediately.
     for (const def of definitions) {
       this.updateState(def.id, {
         status: 'pending',
@@ -97,7 +103,6 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       });
     }
 
-    // Handle convex (local only)
     if (config.convexBackendMode === 'local') {
       const convexDef = definitions.find((d) => d.id === 'convex');
       if (convexDef) {
@@ -118,10 +123,12 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
           }
         );
 
+        if (isStale()) return;
+
         if (!result.ok) {
           this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
-          this._phase = 'idle';
-          this._runtimeConfig = null;
+          await this.stopAll();
+          this._phase = 'failed';
           this.emit('phase', this._phase);
           return;
         }
@@ -129,31 +136,33 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         this.updateState('convex', { health: 'healthy', healthDetail: null });
       }
     } else {
-      // Hosted mode: convex is skipped
       const convexState = this.state.get('convex');
       if (convexState) {
         convexState.status = 'skipped';
         convexState.health = 'healthy';
-        convexState.healthDetail = 'Hosted — external';
+        convexState.healthDetail = 'Hosted \u2014 external';
         this.emit('process', convexState);
       }
 
-      // Health check hosted URL
-      this.updateState('webapp', { health: 'checking', healthDetail: 'Checking hosted Convex' });
+      this.updateState('convex', { health: 'checking', healthDetail: 'Checking hosted Convex' });
       const result = await waitForConvexHealthy(config.convexUrl, {
-        onCheck: () => this.updateState('webapp', { health: 'checking' }),
+        onCheck: () => this.updateState('convex', { health: 'checking' }),
       });
 
+      if (isStale()) return;
+
       if (!result.ok) {
-        this.updateState('webapp', { health: 'unhealthy', healthDetail: result.reason });
-        this._phase = 'idle';
-        this._runtimeConfig = null;
+        this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
+        this._phase = 'failed';
         this.emit('phase', this._phase);
         return;
       }
+
+      this.updateState('convex', { health: 'healthy', healthDetail: 'Hosted \u2014 external' });
     }
 
-    // Start webapp and daemon
+    if (isStale()) return;
+
     for (const def of definitions) {
       if (def.id !== 'convex') {
         if (def.id === 'webapp') {
@@ -175,6 +184,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this.monitorWebappReadiness(config);
     this.monitorDaemonReadiness();
 
+    if (isStale()) return;
     this._phase = 'running';
     this.emit('phase', this._phase);
   }
@@ -240,6 +250,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   async stopStack(): Promise<void> {
+    this.startGeneration++;
     this._phase = 'stopping';
     this.emit('phase', this._phase);
     await this.stopAll();
@@ -256,18 +267,32 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     }
   }
 
-  restart(id: ManagedProcessId): void {
+  async restart(id: ManagedProcessId): Promise<void> {
     if (id === 'convex') {
-      this.stopAll();
+      await this.stopAll();
       if (this._runtimeConfig) {
-        void this.startStack(this._runtimeConfig);
+        await this.startStack(this._runtimeConfig);
       }
-    } else {
-      this.stop(id);
-      const def = this._runtimeConfig
-        ? buildProcessDefinitions(this.repoRoot, this._runtimeConfig).find((d) => d.id === id)
-        : undefined;
-      if (def) this.start(def);
+      return;
+    }
+    this.stop(id);
+    if (id === 'webapp') {
+      this.updateState('webapp', { health: 'checking', healthDetail: 'Restarting...' });
+    }
+    if (id === 'daemon') {
+      this.updateState('daemon', { health: 'checking', healthDetail: 'Restarting...' });
+    }
+    const def = this._runtimeConfig
+      ? buildProcessDefinitions(this.repoRoot, this._runtimeConfig).find((d) => d.id === id)
+      : undefined;
+    if (def) {
+      this.start(def);
+      if (id === 'webapp' && this._runtimeConfig) {
+        this.monitorWebappReadiness(this._runtimeConfig);
+      }
+      if (id === 'daemon') {
+        this.monitorDaemonReadiness();
+      }
     }
   }
 
@@ -312,8 +337,10 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this.updateState(def.id, { status: 'running', pid: child.pid ?? null });
 
     const onData = (stream: 'stdout' | 'stderr') => (chunk: Buffer) => {
-      const text = chunk.toString('utf8');
-      for (const line of text.split(/\r?\n/)) {
+      const pending = (this.lineBuffers.get(def.id) ?? '') + chunk.toString('utf8');
+      const parts = pending.split(/\r?\n/);
+      this.lineBuffers.set(def.id, parts.pop() ?? '');
+      for (const line of parts) {
         if (!line) continue;
         const logLine = this.logs.append({
           processId: def.id,
@@ -329,6 +356,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     child.stderr.on('data', onData('stderr'));
 
     child.on('exit', (code) => {
+      this.lineBuffers.delete(def.id);
       this.children.delete(def.id);
       const crashed = code !== 0;
       this.updateState(def.id, {
@@ -341,6 +369,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   private clearProcessLogs(id: ManagedProcessId): void {
+    this.lineBuffers.delete(id);
     this.logs.clear(id);
     this.emit('logs-clear', id);
   }
