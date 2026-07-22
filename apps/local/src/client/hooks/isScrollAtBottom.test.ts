@@ -24,9 +24,9 @@ describe('isScrollAtBottom', () => {
   });
 
   test('respects custom threshold', () => {
-    const el = mockElement({ scrollTop: 100 });
+    const el = mockElement({ scrollTop: 250 });
     expect(isScrollAtBottom(el, 200)).toBe(true);
-    expect(isScrollAtBottom(el, 50)).toBe(false);
+    expect(isScrollAtBottom(el, 100)).toBe(false);
   });
 
   test('handles empty content (scrollHeight equals clientHeight)', () => {
