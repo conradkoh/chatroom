@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
+import { getCommandBlacklistKey } from '../lib/commandBlacklistKey';
+import type { CommandItem } from '../components/CommandPalette/types';
 import {
   getCommandBlacklistStore,
   subscribeCommandBlacklist,
@@ -15,14 +17,23 @@ export function useCommandBlacklist() {
     getCommandBlacklistRevision,
     () => 0
   );
-  const blacklistedIds = useMemo(() => {
+  const blacklistedKeys = useMemo(() => {
     void revision;
     return store.getAll();
   }, [store, revision]);
 
-  const blacklist = useCallback((commandId: string) => store.add(commandId), [store]);
-  const unblacklist = useCallback((commandId: string) => store.remove(commandId), [store]);
-  const isBlacklisted = useCallback((commandId: string) => store.has(commandId), [store]);
+  const blacklist = useCallback(
+    (command: CommandItem) => store.add(getCommandBlacklistKey(command)),
+    [store]
+  );
+  const unblacklist = useCallback(
+    (command: CommandItem) => store.remove(getCommandBlacklistKey(command)),
+    [store]
+  );
+  const isBlacklisted = useCallback(
+    (command: CommandItem) => store.has(getCommandBlacklistKey(command)),
+    [store]
+  );
 
-  return { blacklistedIds, blacklist, unblacklist, isBlacklisted };
+  return { blacklistedKeys, blacklist, unblacklist, isBlacklisted };
 }

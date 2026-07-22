@@ -30,4 +30,18 @@ describe('partitionCommandsByBlacklist', () => {
     const result = partitionCommandsByBlacklist(cmds, new Set(['a', 'b', 'c']));
     expect(result.map((c) => c.id)).toEqual(['a', 'b', 'c']);
   });
+
+  it('treats workspace commands with different ids as same blacklist key', () => {
+    const cmds = [
+      makeCmd('ws-roomA-open-vscode', 'Open VS Code'),
+      makeCmd('ws-roomB-open-vscode', 'Open VS Code'),
+      makeCmd('nav-go-to-file', 'Go to file'),
+    ];
+    const result = partitionCommandsByBlacklist(cmds, new Set(['ws-open-vscode']));
+    expect(result.map((c) => c.id)).toEqual([
+      'nav-go-to-file',
+      'ws-roomA-open-vscode',
+      'ws-roomB-open-vscode',
+    ]);
+  });
 });

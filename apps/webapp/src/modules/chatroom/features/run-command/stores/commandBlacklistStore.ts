@@ -19,6 +19,14 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
+/** Migrate legacy workspace-specific keys to semantic keys */
+export function migrateKey(key: string): string {
+  const wsMatch = key.match(/^ws-([^-]+)-(.+)$/);
+  // Only migrate if the id segment doesn't look like an action (contains digits or is long)
+  if (wsMatch && wsMatch[1].length > 8) return `ws-${wsMatch[2]}`;
+  return key;
+}
+
 class CommandBlacklistStore {
   private data: StorageData;
 
@@ -60,6 +68,13 @@ class CommandBlacklistStore {
       const parsed = JSON.parse(raw) as StorageData;
       if (parsed.version !== 1) return { commandIds: [], version: 1 };
       if (!Array.isArray(parsed.commandIds)) return { commandIds: [], version: 1 };
+      const migrated = [...new Set(parsed.commandIds.map((k) => migrateKey(k)))];
+      if (
+        migrated.length !== parsed.commandIds.length ||
+        migrated.some((k, i) => k !== parsed.commandIds[i])
+      ) {
+        return { commandIds: migrated, version: 1 };
+      }
       return parsed;
     } catch {
       return { commandIds: [], version: 1 };

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getCommandBlacklistStore } from './commandBlacklistStore';
+import { getCommandBlacklistStore, migrateKey } from './commandBlacklistStore';
 
 describe('CommandBlacklistStore', () => {
   let store: ReturnType<typeof getCommandBlacklistStore>;
@@ -57,5 +57,19 @@ describe('CommandBlacklistStore', () => {
     expect(all.has('cmd-1')).toBe(true);
     expect(all.has('cmd-2')).toBe(true);
     expect(all.size).toBe(2);
+  });
+});
+
+describe('migrateKey', () => {
+  it('strips workspace id from legacy workspace keys', () => {
+    expect(migrateKey('ws-abc123def456-open-vscode')).toBe('ws-open-vscode');
+  });
+
+  it('passes through built-in keys unchanged', () => {
+    expect(migrateKey('nav-go-to-file')).toBe('nav-go-to-file');
+  });
+
+  it('passes through already-migrated keys unchanged', () => {
+    expect(migrateKey('ws-open-vscode')).toBe('ws-open-vscode');
   });
 });

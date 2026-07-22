@@ -90,7 +90,7 @@ describe('buildCommandPaletteRows', () => {
     const groups = new Map<string, CommandItem[]>([['Test', cmds]]);
     const blacklisted = new Set(['a']);
     const rows = buildCommandPaletteRows(
-      makeArgs({ groupedCommands: groups, blacklistedIds: blacklisted })
+      makeArgs({ groupedCommands: groups, blacklistedKeys: blacklisted })
     );
     expect(rows.map((r) => r.id)).toEqual(['heading-Test', 'b', 'a']);
   });
@@ -99,9 +99,36 @@ describe('buildCommandPaletteRows', () => {
     const recent = [makeCmd('a', 'Alpha'), makeCmd('b', 'Beta')];
     const blacklisted = new Set(['a']);
     const rows = buildCommandPaletteRows(
-      makeArgs({ recentCommands: recent, blacklistedIds: blacklisted })
+      makeArgs({ recentCommands: recent, blacklistedKeys: blacklisted })
     );
     expect(rows.map((r) => r.id)).toEqual(['recent', 'b', 'a']);
+  });
+
+  it('treats workspace commands with different ids as same blacklist key in browse mode', () => {
+    const cmds = [
+      {
+        id: 'ws-roomA-open-vscode',
+        label: 'Open VS Code',
+        category: 'Actions',
+        action: () => undefined,
+      },
+      {
+        id: 'ws-roomB-open-vscode',
+        label: 'Open VS Code',
+        category: 'Actions',
+        action: () => undefined,
+      },
+    ];
+    const groups = new Map<string, typeof cmds>([['Actions', cmds]]);
+    const rows = buildCommandPaletteRows(
+      makeArgs({ groupedCommands: groups, blacklistedKeys: new Set(['ws-open-vscode']) })
+    );
+    // Both should be blacklisted since they share the semantic key
+    expect(rows.map((r) => r.id)).toEqual([
+      'heading-Actions',
+      'ws-roomA-open-vscode',
+      'ws-roomB-open-vscode',
+    ]);
   });
 
   it('deduplicates recent commands from category groups', () => {

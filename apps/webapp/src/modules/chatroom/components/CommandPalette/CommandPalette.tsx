@@ -64,7 +64,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   // Frécency-boosted ranking with command-aware keys and refresh
   const { rankedFilter, trackUsage, frecencyScores, getScore } = useCommandRanking(commands);
-  const { blacklistedIds, blacklist, unblacklist, isBlacklisted } = useCommandBlacklist();
+  const { blacklistedKeys, blacklist, unblacklist, isBlacklisted } = useCommandBlacklist();
 
   // Reset search when closing
   useEffect(() => {
@@ -106,7 +106,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
         groupedCommands,
         getScore,
         frecencyScores,
-        blacklistedIds,
+        blacklistedKeys,
       }),
     [
       commands,
@@ -116,7 +116,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
       groupedCommands,
       getScore,
       frecencyScores,
-      blacklistedIds,
+      blacklistedKeys,
     ]
   );
 
@@ -188,7 +188,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
               ))}
             </span>
           )}
-          {isBlacklisted(command.id) && (
+          {isBlacklisted(command) && (
             <span title="Blacklisted" className="flex-shrink-0">
               <EyeOff className="h-3.5 w-3.5 text-chatroom-text-muted" />
             </span>
