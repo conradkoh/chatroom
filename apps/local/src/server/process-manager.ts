@@ -7,6 +7,7 @@ import { waitForDaemonReadyFromLogs } from './daemon-readiness.js';
 import { LogBufferStore } from './log-buffer.js';
 import { buildProcessDefinitions } from './process-definitions.js';
 import type { ProcessDefinition } from './process-definitions.js';
+import { saveSavedRuntimeConfig } from './saved-runtime-config.js';
 import { waitForWebappReadyFromLogs } from './webapp-readiness.js';
 import type {
   HealthStatus,
@@ -81,6 +82,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
 
   async startStack(config: RuntimeConfig): Promise<void> {
     this._runtimeConfig = config;
+    saveSavedRuntimeConfig(this.repoRoot, config);
     this._phase = 'starting';
     this.emit('phase', this._phase);
 

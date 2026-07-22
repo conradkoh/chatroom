@@ -22,6 +22,7 @@ patches/
 
 # Local dev
 .chatroom/
+.local-dev/
 packages/cli/.npm-publish/
 packages/cli/.npm-publish-repack/
 

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { loadRuntimeDefaults } from './load-runtime-defaults.js';
+import { saveSavedRuntimeConfig } from './saved-runtime-config.js';
 
 let tmpDir: string;
 
@@ -51,6 +52,26 @@ describe('loadRuntimeDefaults', () => {
 
     const d = loadRuntimeDefaults(tmpDir, 3847);
     expect(d.webappPort).toBe(6249);
+    expect(d.webappPortFromEnv).toBe(6249);
+  });
+
+  it('prefers saved config over env defaults', () => {
+    const appsDir = join(tmpDir, 'apps/webapp');
+    ensureDir(appsDir);
+    writeFileSync(join(appsDir, '.env.local'), 'PORT=6249\n', 'utf8');
+
+    saveSavedRuntimeConfig(tmpDir, {
+      webappPort: 4000,
+      convexBackendMode: 'local',
+      convexPort: 3220,
+      convexUrl: 'http://127.0.0.1:3220',
+    });
+
+    const d = loadRuntimeDefaults(tmpDir, 3847);
+    expect(d.webappPort).toBe(4000);
+    expect(d.convexBackendMode).toBe('local');
+    expect(d.convexPort).toBe(3220);
+    expect(d.convexUrl).toBe('http://127.0.0.1:3220');
     expect(d.webappPortFromEnv).toBe(6249);
   });
 });
