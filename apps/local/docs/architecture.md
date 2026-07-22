@@ -79,8 +79,10 @@ const webappUrl = `http://localhost:${config.webappPort}`;
 
 Defaults loaded from:
 
-- `services/backend/.env.local` → `VITE_CONVEX_URL` / `CONVEX_DEPLOYMENT` (hosted URL hint)
+- `services/backend/.env.local` → `VITE_CONVEX_URL` / `CONVEX_DEPLOYMENT`
 - `apps/webapp/.env.local` → `NEXT_PUBLIC_CONVEX_URL`, `PORT`
+
+When env files disagree (backend local, webapp hosted), defaults prefer the `.convex.cloud` URL and hosted mode.
 
 ## Backend modes
 
