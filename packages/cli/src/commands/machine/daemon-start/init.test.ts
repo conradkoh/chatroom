@@ -505,6 +505,25 @@ describe('initDaemon', () => {
     expect(exitSpy).not.toHaveBeenCalled();
   }, 15_000);
 
+  it('includes resolved env vars in auth login command for non-production', async () => {
+    const webUrl = 'http://localhost:6249';
+    const convexUrl = 'http://localhost:3210';
+    vi.stubEnv('CHATROOM_WEB_URL', webUrl);
+    vi.mocked(getConvexUrl).mockReturnValue(convexUrl);
+
+    vi.mocked(getSessionId)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('session-123' as never);
+
+    await initDaemon();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `CHATROOM_WEB_URL=${webUrl} CHATROOM_CONVEX_URL=${convexUrl} chatroom auth login`
+      )
+    );
+  }, 15_000);
+
   it('continues when backend session validation succeeds (valid session)', async () => {
     const mockClient = await getMockClient();
     mockClient.query.mockResolvedValueOnce({

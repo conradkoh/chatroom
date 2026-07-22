@@ -8,7 +8,7 @@
 /** Markdown section block for planner/solo → user handoff reports. */
 export function getUnresolvedDecisionsSectionBlock(): string {
   return `## Unresolved Decisions
-<!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
-- <decision or question — options considered, recommendation if any>
-<Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>`;
+<!-- Decisions that need user input before work can proceed. -->
+- <decision or question — options considered, recommendation if any, or "Not Applicable">
+<Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to. Write \`Not Applicable\` only when there are truly no open decisions.>`;
 }
