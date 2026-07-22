@@ -47,7 +47,6 @@ export async function createAppServer(
         });
         server.listen(port, () => resolve());
       });
-      process.stderr.write(`Local dev manager UI: http://localhost:${port}\n`);
     },
     async close() {
       for (const client of wss.clients) {

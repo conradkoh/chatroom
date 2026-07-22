@@ -1,3 +1,4 @@
+import { openBrowser } from './open-browser.js';
 import { createAppServer } from './server/create-server.js';
 import { loadRuntimeDefaults } from './server/load-runtime-defaults.js';
 import { parseLocalConfig } from './server/parse-config.js';
@@ -38,7 +39,10 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen();
-  process.stderr.write('Setup UI: open http://localhost:' + launchConfig.managerPort + '\n');
+
+  const managerUrl = `http://localhost:${launchConfig.managerPort}`;
+  process.stderr.write(`Local dev manager UI: ${managerUrl}\n`);
+  void openBrowser(managerUrl);
 }
 
 main().catch((err) => {
