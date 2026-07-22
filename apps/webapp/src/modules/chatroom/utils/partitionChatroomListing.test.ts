@@ -56,6 +56,18 @@ describe('partitionChatroomListing', () => {
     expect(partitioned.recentByRecency.older).toEqual([]);
   });
 
+  it('includes transitioning chatrooms in active section', () => {
+    const chatrooms = [
+      makeChatroom({ _id: 'transitioning', chatStatus: 'transitioning', _creationTime: 100 }),
+      makeChatroom({ _id: 'idle-day', chatStatus: 'idle', lastActivityAt: NOW - 1_000 }),
+    ];
+
+    const partitioned = partitionChatroomListing(chatrooms);
+
+    expect(partitioned.active.map((c) => c._id)).toEqual(['transitioning']);
+    expect(partitioned.recentByRecency.lastDay.map((c) => c._id)).toEqual(['idle-day']);
+  });
+
   it('excludes active and completed chatrooms from recency buckets', () => {
     const chatrooms = [
       makeChatroom({ _id: 'active', chatStatus: 'active', lastActivityAt: NOW - 1_000 }),
