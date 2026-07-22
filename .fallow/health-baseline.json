@@ -37,6 +37,9 @@
     "apps/local/src/client/log-text.ts": {
       "crap_high": {
         "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
       }
     },
     "apps/local/src/client/use-websocket.ts": {
