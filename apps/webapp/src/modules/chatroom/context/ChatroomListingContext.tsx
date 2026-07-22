@@ -35,7 +35,7 @@ export interface ChatroomWithStatus {
   teamEntryPoint?: string;
   lastActivityAt?: number;
   agents: Agent[];
-  chatStatus: 'working' | 'active' | 'idle' | 'completed';
+  chatStatus: 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
   isFavorite: boolean;
   hasUnread: boolean;
   hasUnreadHandoff: boolean;

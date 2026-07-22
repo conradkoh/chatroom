@@ -69,7 +69,7 @@ interface TestChatroom {
   _id: string;
   _creationTime: number;
   status: 'active' | 'completed';
-  chatStatus: 'working' | 'active' | 'idle' | 'completed';
+  chatStatus: 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
   name?: string;
   teamId?: string;
   teamName?: string;

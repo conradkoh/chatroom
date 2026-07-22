@@ -221,7 +221,7 @@ function SidebarSectionHeader({
  * Designed for desktop use within the chatroom view to allow quick switching.
  *
  * Sections:
- * - Active: Chatrooms with chatStatus 'working' or 'active' (agents present and engaged)
+ * - Active: Chatrooms with chatStatus 'working', 'active', or 'transitioning' (agents online)
  * - Last Day / Last Week / Last Month / Older: Non-active chatrooms grouped by last activity
  * - Completed: Collapsible section for completed chatrooms
  *
