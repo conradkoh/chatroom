@@ -101,44 +101,21 @@ function LogViewer({ logLines }: { logLines: LogLine[] }) {
   );
 }
 
-function HealthBadge({ health, healthDetail }: { health: string; healthDetail: string | null }) {
-  const label =
-    health === 'healthy'
-      ? healthDetail === 'Hosted \u2014 external'
-        ? 'Hosted'
-        : 'Healthy'
-      : health === 'checking'
-        ? 'Checking'
-        : health === 'unhealthy'
-          ? (healthDetail ?? 'Unhealthy').slice(0, 20)
-          : '\u2014';
-
-  const colorClass =
-    health === 'healthy'
-      ? 'border-chatroom-status-success text-chatroom-status-success'
-      : health === 'checking'
-        ? 'border-chatroom-status-warning text-chatroom-status-warning'
-        : health === 'unhealthy'
-          ? 'border-chatroom-status-error text-chatroom-status-error'
-          : 'border-chatroom-border text-chatroom-text-muted';
-
-  const opacityClass = health === 'unknown' ? 'opacity-40' : 'opacity-100';
-
-  return (
-    <span className="health-badge-slot" title={healthDetail ?? undefined}>
-      <Badge
-        variant="outline"
-        className={cn(
-          'rounded-none text-[10px] transition-status transition-fade',
-          colorClass,
-          opacityClass,
-          health === 'checking' && 'animate-status-pulse'
-        )}
-      >
-        {label}
-      </Badge>
-    </span>
-  );
+function processStatusDotClass(p: ProcessInfo): string {
+  if (p.status === 'pending') return 'bg-chatroom-status-warning';
+  if (p.status === 'starting') return 'bg-chatroom-status-info animate-status-pulse';
+  if (p.status === 'crashed') return 'bg-chatroom-status-error';
+  if (p.status === 'stopped' || p.status === 'skipped') {
+    if (p.health === 'healthy') return 'bg-chatroom-status-success';
+    return 'bg-chatroom-text-muted';
+  }
+  if (p.status === 'running') {
+    if (p.health === 'healthy') return 'bg-chatroom-status-success';
+    if (p.health === 'checking') return 'bg-chatroom-status-info animate-status-pulse';
+    if (p.health === 'unhealthy') return 'bg-chatroom-status-error';
+    return 'bg-chatroom-text-muted';
+  }
+  return 'bg-chatroom-text-muted';
 }
 
 function DashboardView({
@@ -178,7 +155,7 @@ function DashboardView({
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside className="flex w-64 shrink-0 flex-col gap-2 overflow-hidden border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-4">
+      <aside className="flex w-80 shrink-0 flex-col gap-2 overflow-hidden border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-4">
         <h1 className="text-sm font-bold uppercase tracking-wider">Chatroom Local</h1>
         <div className="flex items-center gap-1.5 text-[11px] text-chatroom-text-muted">
           <span
@@ -197,7 +174,7 @@ function DashboardView({
         <div
           className={cn(
             'phase-indicator-slot transition-phase-text',
-            phase === 'starting' && 'text-chatroom-status-warning',
+            phase === 'starting' && 'text-chatroom-status-info',
             phase === 'stopping' && 'text-chatroom-status-error',
             phase !== 'starting' && phase !== 'stopping' && 'text-transparent'
           )}
@@ -212,7 +189,7 @@ function DashboardView({
             <div
               key={p.id}
               className={cn(
-                'group flex cursor-pointer items-center gap-2 border-2 p-2 transition-colors duration-150',
+                'group flex cursor-pointer items-start gap-2 border-2 p-2 transition-colors duration-150',
                 selectedId === p.id
                   ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary'
                   : 'border-transparent hover:bg-chatroom-bg-hover'
@@ -221,19 +198,12 @@ function DashboardView({
             >
               <span
                 className={cn(
-                  'inline-block h-2 w-2 shrink-0 transition-status',
-                  (p.status === 'pending' || p.status === 'stopped') && 'bg-chatroom-text-muted',
-                  p.status === 'starting' && 'bg-chatroom-status-warning animate-pulse',
-                  p.status === 'running' && 'bg-chatroom-status-success',
-                  p.status === 'crashed' && 'bg-chatroom-status-error',
-                  p.status === 'skipped' && 'bg-chatroom-text-muted'
+                  'mt-1.5 inline-block h-2 w-2 shrink-0 transition-status',
+                  processStatusDotClass(p)
                 )}
-                title={STATUS_LABELS[p.status]}
+                title={p.healthDetail ?? STATUS_LABELS[p.status]}
               />
-              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm">
-                {p.name}
-              </span>
-              <HealthBadge health={p.health} healthDetail={p.healthDetail} />
+              <span className="min-w-0 flex-1 text-sm leading-snug">{p.name}</span>
               <span className="restart-button-slot">
                 {isRunning && (
                   <Button
