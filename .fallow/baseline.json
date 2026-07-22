@@ -14,6 +14,7 @@
     "apps/webapp/src/modules/header/index.ts",
     "apps/local/src/client/App.tsx",
     "apps/local/src/client/LogLineContent.tsx",
+    "apps/local/src/client/components/LogUrlBar.tsx",
     "apps/local/src/client/components/SetupPanel.tsx",
     "apps/local/src/client/lib/utils.ts",
     "apps/local/src/client/log-text.ts",
@@ -47,6 +48,9 @@
   ],
   "unused_exports": [
     "apps/local/src/client/LogLineContent.tsx:LogLineContent",
+    "apps/local/src/client/components/LogUrlBar.tsx:LogUrlBar",
+    "apps/local/src/client/log-text.ts:collectUrlsFromLogLines",
+    "apps/local/src/client/log-text.ts:extractFirstUrl",
     "apps/local/src/client/log-text.ts:parseLogTextSegments",
     "apps/local/src/client/log-text.ts:splitUrls",
     "apps/local/src/client/log-text.ts:stripAnsi",

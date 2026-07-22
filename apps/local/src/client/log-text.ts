@@ -1,5 +1,6 @@
 const ANSI_ESCAPE = /\x1b\[([0-9;]*)m/g;
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/g;
+const URL_EXTRACT = /https?:\/\/[^\s<>"']+/;
 
 const ANSI_COLORS: Record<number, string> = {
   30: '#71717a',
@@ -103,4 +104,24 @@ export function splitUrls(text: string): { type: 'text' | 'url'; value: string }
   }
 
   return parts.length > 0 ? parts : [{ type: 'text', value: text }];
+}
+
+export function extractFirstUrl(text: string): string | null {
+  const match = stripAnsi(text).match(URL_EXTRACT);
+  return match?.[0] ?? null;
+}
+
+export function collectUrlsFromLogLines(lines: { text: string }[]): string[] {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (const line of lines) {
+    const url = extractFirstUrl(line.text);
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+
+  return urls;
 }

@@ -1,8 +1,9 @@
 import { Copy, RotateCcw } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 
+import { LogUrlBar } from './components/LogUrlBar';
 import { SetupPanel } from './components/SetupPanel';
-import { stripAnsi } from './log-text';
+import { collectUrlsFromLogLines, stripAnsi } from './log-text';
 import { LogLineContent } from './LogLineContent';
 import { useWebSocket } from './use-websocket';
 import type { ConnectionState } from './use-websocket';
@@ -145,6 +146,7 @@ function DashboardView({
 }) {
   const selectedProcess = processes.find((p) => p.id === selectedId);
   const logLines = logsByProcess[selectedId] ?? [];
+  const logUrls = useMemo(() => collectUrlsFromLogLines(logLines), [logLines]);
 
   const statusColor =
     connectionState === 'connected'
@@ -260,6 +262,7 @@ function DashboardView({
             </span>
           </Button>
         </div>
+        {logUrls.length > 0 && <LogUrlBar urls={logUrls} />}
         <div key={selectedId} className="min-h-0 flex-1 overflow-hidden">
           <LogViewer logLines={logLines} />
         </div>

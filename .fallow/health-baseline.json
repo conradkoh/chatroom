@@ -19,6 +19,11 @@
         "count": 1
       }
     },
+    "apps/local/src/client/components/LogUrlBar.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/local/src/client/components/SetupPanel.tsx": {
       "crap_critical": {
         "count": 1
