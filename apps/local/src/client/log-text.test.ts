@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   collectUrlsFromLogLines,
   extractFirstUrl,
+  extractUrls,
+  isLocalUrl,
   parseLogTextSegments,
   splitUrls,
   stripAnsi,
@@ -49,8 +51,21 @@ describe('extractFirstUrl', () => {
   });
 });
 
+describe('isLocalUrl', () => {
+  it('accepts localhost and loopback hosts', () => {
+    expect(isLocalUrl('http://localhost:3000')).toBe(true);
+    expect(isLocalUrl('http://127.0.0.1:3210')).toBe(true);
+    expect(isLocalUrl('http://[::1]:8080')).toBe(true);
+  });
+
+  it('rejects remote hosts', () => {
+    expect(isLocalUrl('https://happy-animal-123.convex.cloud')).toBe(false);
+    expect(isLocalUrl('https://unpkg.com/react-grab')).toBe(false);
+  });
+});
+
 describe('collectUrlsFromLogLines', () => {
-  it('collects unique URLs in discovery order', () => {
+  it('collects unique local URLs in discovery order', () => {
     const urls = collectUrlsFromLogLines([
       { text: 'Local: http://localhost:3000' },
       { text: 'Dashboard: http://localhost:3000' },
@@ -58,5 +73,21 @@ describe('collectUrlsFromLogLines', () => {
     ]);
 
     expect(urls).toEqual(['http://localhost:3000', 'http://127.0.0.1:3210']);
+  });
+
+  it('ignores remote URLs and still collects local URLs on the same line', () => {
+    const urls = collectUrlsFromLogLines([
+      {
+        text: 'Deploy https://happy-animal-123.convex.cloud then open http://localhost:6249',
+      },
+    ]);
+
+    expect(urls).toEqual(['http://localhost:6249']);
+  });
+
+  it('extracts all local URLs from a line, not only the first match', () => {
+    expect(
+      extractUrls('http://localhost:3000 and http://127.0.0.1:3210 https://example.com')
+    ).toEqual(['http://localhost:3000', 'http://127.0.0.1:3210', 'https://example.com']);
   });
 });

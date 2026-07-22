@@ -1,6 +1,5 @@
 const ANSI_ESCAPE = /\x1b\[([0-9;]*)m/g;
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/g;
-const URL_EXTRACT = /https?:\/\/[^\s<>"']+/;
 
 const ANSI_COLORS: Record<number, string> = {
   30: '#71717a',
@@ -106,9 +105,23 @@ export function splitUrls(text: string): { type: 'text' | 'url'; value: string }
   return parts.length > 0 ? parts : [{ type: 'text', value: text }];
 }
 
+export function isLocalUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    const host = hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+export function extractUrls(text: string): string[] {
+  const plain = stripAnsi(text);
+  return [...plain.matchAll(URL_PATTERN)].map((match) => match[1]);
+}
+
 export function extractFirstUrl(text: string): string | null {
-  const match = stripAnsi(text).match(URL_EXTRACT);
-  return match?.[0] ?? null;
+  return extractUrls(text)[0] ?? null;
 }
 
 export function collectUrlsFromLogLines(lines: { text: string }[]): string[] {
@@ -116,10 +129,11 @@ export function collectUrlsFromLogLines(lines: { text: string }[]): string[] {
   const urls: string[] = [];
 
   for (const line of lines) {
-    const url = extractFirstUrl(line.text);
-    if (url && !seen.has(url)) {
-      seen.add(url);
-      urls.push(url);
+    for (const url of extractUrls(line.text)) {
+      if (isLocalUrl(url) && !seen.has(url)) {
+        seen.add(url);
+        urls.push(url);
+      }
     }
   }
 

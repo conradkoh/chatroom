@@ -68,6 +68,8 @@
     "apps/local/src/shared/semver.ts:isRemoteVersionNewer",
     "apps/local/src/client/log-text.ts:collectUrlsFromLogLines",
     "apps/local/src/client/log-text.ts:extractFirstUrl",
+    "apps/local/src/client/log-text.ts:extractUrls",
+    "apps/local/src/client/log-text.ts:isLocalUrl",
     "apps/local/src/client/log-text.ts:parseLogTextSegments",
     "apps/local/src/client/log-text.ts:splitUrls",
     "apps/local/src/client/log-text.ts:stripAnsi",
