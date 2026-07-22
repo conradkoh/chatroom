@@ -13,6 +13,19 @@ export type RepoUpdateStatus = {
   error: string | null;
 };
 
+export type ConvexBackupEntry = {
+  id: string;
+  filename: string;
+  createdAt: number;
+  sizeBytes: number;
+};
+
+export type ConvexBackupStatus = {
+  status: 'idle' | 'listing' | 'creating' | 'restoring' | 'deleting' | 'error';
+  backups: ConvexBackupEntry[];
+  error: string | null;
+};
+
 export type ConvexBackendMode = 'local' | 'hosted';
 
 export type RuntimeConfig = {
@@ -58,17 +71,23 @@ export type ServerMessage =
       defaults: RuntimeConfigDefaults | null;
       runtime: RuntimeConfig | null;
       repoUpdate: RepoUpdateStatus;
+      backup: ConvexBackupStatus;
     }
   | { type: 'phase'; phase: SessionPhase }
   | { type: 'process-update'; process: ProcessInfo }
   | { type: 'log'; line: LogLine }
   | { type: 'logs-clear'; processId: ManagedProcessId }
   | { type: 'runtime-config'; runtime: RuntimeConfig | null }
-  | { type: 'repo-update'; update: RepoUpdateStatus };
+  | { type: 'repo-update'; update: RepoUpdateStatus }
+  | { type: 'convex-backup'; backup: ConvexBackupStatus };
 
 export type ClientMessage =
   | { type: 'start'; config: RuntimeConfig }
   | { type: 'stop' }
   | { type: 'restart'; processId: ManagedProcessId }
   | { type: 'check-repo-update' }
-  | { type: 'apply-repo-update' };
+  | { type: 'apply-repo-update' }
+  | { type: 'list-convex-backups' }
+  | { type: 'create-convex-backup' }
+  | { type: 'restore-convex-backup'; backupId: string }
+  | { type: 'delete-convex-backup'; backupId: string };

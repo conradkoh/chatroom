@@ -1,3 +1,4 @@
+import { ConvexBackupService } from './server/convex-backup-service.js';
 import { openBrowser } from './open-browser.js';
 import { createAppServer } from './server/create-server.js';
 import { loadRuntimeDefaults } from './server/load-runtime-defaults.js';
@@ -14,7 +15,8 @@ async function main(): Promise<void> {
   const manager = new ProcessManager(repoRoot, launchConfig.managerPort);
   const repoUpdate = new RepoUpdateService(repoRoot);
   repoUpdate.startPolling();
-  const app = await createAppServer(manager, launchConfig, defaults, repoUpdate);
+  const backupService = new ConvexBackupService(repoRoot);
+  const app = await createAppServer(manager, launchConfig, defaults, repoUpdate, backupService);
 
   let shuttingDown = false;
   let signalCount = 0;

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import { WebSocketServer } from 'ws';
 
+import type { ConvexBackupService } from './convex-backup-service.js';
 import type { LaunchConfig } from './parse-config.js';
 import type { ProcessManager } from './process-manager.js';
 import type { RepoUpdateService } from './repo-update-service.js';
@@ -14,7 +15,8 @@ export async function createAppServer(
   manager: ProcessManager,
   config: LaunchConfig,
   defaults: RuntimeConfigDefaults,
-  repoUpdate: RepoUpdateService
+  repoUpdate: RepoUpdateService,
+  backupService: ConvexBackupService
 ) {
   const port = config.managerPort;
 
@@ -32,7 +34,7 @@ export async function createAppServer(
   });
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  attachWebSocketHub(wss, manager, defaults, repoUpdate);
+  attachWebSocketHub(wss, manager, defaults, repoUpdate, backupService);
 
   return {
     port,
