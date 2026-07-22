@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
+import { EyeOff } from 'lucide-react';
 import { buildCommandPaletteRows } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
@@ -14,6 +15,7 @@ import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
+import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklist';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
@@ -62,6 +64,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   // Frécency-boosted ranking with command-aware keys and refresh
   const { rankedFilter, trackUsage, frecencyScores, getScore } = useCommandRanking(commands);
+  const { blacklistedKeys, blacklist, unblacklist, isBlacklisted } = useCommandBlacklist();
 
   // Reset search when closing
   useEffect(() => {
@@ -103,8 +106,18 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
         groupedCommands,
         getScore,
         frecencyScores,
+        blacklistedKeys,
       }),
-    [commands, searchValue, rankedFilter, recentCommands, groupedCommands, getScore, frecencyScores]
+    [
+      commands,
+      searchValue,
+      rankedFilter,
+      recentCommands,
+      groupedCommands,
+      getScore,
+      frecencyScores,
+      blacklistedKeys,
+    ]
   );
 
   const handleSelect = useCallback(
@@ -175,10 +188,15 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
               ))}
             </span>
           )}
+          {isBlacklisted(command) && (
+            <span title="Blacklisted" className="flex-shrink-0">
+              <EyeOff className="h-3.5 w-3.5 text-chatroom-text-muted" />
+            </span>
+          )}
         </>
       );
     },
-    [isSearching, getScore]
+    [isSearching, getScore, isBlacklisted]
   );
 
   return (
@@ -217,6 +235,9 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                       onSelect={handleSelect}
                       renderCommandItemContent={renderCommandItemContent}
                       scrollResetKey={searchValue}
+                      isBlacklisted={isBlacklisted}
+                      onBlacklist={blacklist}
+                      onUnblacklist={unblacklist}
                     />
                   )}
                 </CommandList>

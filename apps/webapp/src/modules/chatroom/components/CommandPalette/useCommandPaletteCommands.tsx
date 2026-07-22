@@ -169,6 +169,7 @@ export function useCommandPaletteCommands({
       for (const cmd of savedCommands) {
         commands.push({
           id: `saved-cmd-${cmd._id}`,
+          blacklistKey: `saved-cmd:${cmd.name}`,
           label: formatSavedCommandPaletteLabel(cmd.name, cmd.scope),
           icon: <MessageSquare size={14} />,
           category: 'Commands',

@@ -242,7 +242,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
             <Star size={12} className="text-yellow-500" fill="currentColor" />
             Favorites
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {favorites.map((chatroom) => (
               <ChatroomCard
                 key={chatroom._id}
@@ -321,7 +321,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                       Active
                     </h2>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {partitioned.active.map((chatroom) => (
                       <ChatroomCard
                         key={chatroom._id}
@@ -342,7 +342,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                     <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
                       {label}
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {items.map((chatroom) => (
                         <ChatroomCard
                           key={chatroom._id}
@@ -366,7 +366,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
         )
       ) : viewMode === 'grid' ? (
         partitioned.completed.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {partitioned.completed.map((chatroom) => (
               <ChatroomCard
                 key={chatroom._id}
@@ -456,13 +456,13 @@ const ChatroomCard = memo(function ChatroomCard({
       <div
         role="button"
         tabIndex={0}
-        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 md:p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-2 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
         onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
         data-chat-status={chatStatus}
       >
         {/* Card Main */}
-        <div className="flex justify-between items-start mb-2 md:mb-3">
+        <div className="flex justify-between items-center">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
             <ChatroomStatusIndicator chatStatus={chatStatus} />
             <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
