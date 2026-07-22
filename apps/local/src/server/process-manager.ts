@@ -76,17 +76,13 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
 
     const definitions = buildProcessDefinitions(this.repoRoot, config);
 
-    // Initialize processes
+    // Initialize processes and broadcast so the dashboard shows startup progress immediately.
     for (const def of definitions) {
-      const existing = this.state.get(def.id);
-      if (existing) {
-        this.state.set(def.id, {
-          ...existing,
-          status: 'pending',
-          health: 'unknown',
-          healthDetail: def.id === 'convex' ? null : 'Waiting for Convex',
-        });
-      }
+      this.updateState(def.id, {
+        status: 'pending',
+        health: 'unknown',
+        healthDetail: def.id === 'convex' ? null : 'Waiting for Convex',
+      });
     }
 
     // Handle convex (local only)
