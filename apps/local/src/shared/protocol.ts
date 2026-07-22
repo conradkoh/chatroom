@@ -8,8 +8,8 @@ export type SessionPhase = 'idle' | 'starting' | 'running' | 'stopping';
 
 export type RepoUpdateStatus = {
   status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'updating' | 'error';
-  localCommit: string | null;
-  remoteCommit: string | null;
+  localVersion: string | null;
+  remoteVersion: string | null;
   error: string | null;
 };
 

@@ -15,8 +15,8 @@ export class RepoUpdateService extends EventEmitter<RepoUpdateEvents> {
   private readonly repoRoot: string;
   private status: RepoUpdateStatus = {
     status: 'idle',
-    localCommit: null,
-    remoteCommit: null,
+    localVersion: null,
+    remoteVersion: null,
     error: null,
   };
   private pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -59,16 +59,16 @@ export class RepoUpdateService extends EventEmitter<RepoUpdateEvents> {
       const result = await checkRepoUpdate(this.repoRoot);
       this.publish({
         status: result.updateAvailable ? 'available' : 'up-to-date',
-        localCommit: result.localCommit,
-        remoteCommit: result.remoteCommit,
+        localVersion: result.localVersion,
+        remoteVersion: result.remoteVersion,
         error: null,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.publish({
         status: 'error',
-        localCommit: this.status.localCommit,
-        remoteCommit: this.status.remoteCommit,
+        localVersion: this.status.localVersion,
+        remoteVersion: this.status.remoteVersion,
         error: message,
       });
     }
