@@ -1,6 +1,7 @@
 import { Copy, RotateCcw } from 'lucide-react';
 import { useMemo, useState, useRef, useEffect } from 'react';
 
+import { BackupsPanel } from './components/BackupsPanel';
 import { LogUrlBar } from './components/LogUrlBar';
 import { SetupPanel } from './components/SetupPanel';
 import { UpdateBanner } from './components/UpdateBanner';
@@ -133,6 +134,11 @@ function DashboardView({
   handleCopyLogs,
   stopStack,
   restart,
+  convexBackup,
+  runtime,
+  onCreateBackup,
+  onRestoreBackup,
+  onDeleteBackup,
 }: {
   processes: ProcessInfo[];
   logsByProcess: Record<ManagedProcessId, LogLine[]>;
@@ -144,6 +150,11 @@ function DashboardView({
   handleCopyLogs: () => void;
   stopStack: () => void;
   restart: (id: ManagedProcessId) => void;
+  convexBackup: import('../shared/protocol').ConvexBackupStatus;
+  runtime: RuntimeConfig | null;
+  onCreateBackup: () => void;
+  onRestoreBackup: (id: string) => void;
+  onDeleteBackup: (id: string) => void;
 }) {
   const selectedProcess = processes.find((p) => p.id === selectedId);
   const logLines = logsByProcess[selectedId] ?? [];
@@ -232,7 +243,16 @@ function DashboardView({
             </div>
           ))}
         </div>
-        <div className="mt-auto shrink-0">
+        <div className="shrink-0 border-t-2 border-chatroom-border pt-2">
+          <BackupsPanel
+            backup={convexBackup}
+            runtime={runtime}
+            onCreateBackup={onCreateBackup}
+            onRestoreBackup={onRestoreBackup}
+            onDeleteBackup={onDeleteBackup}
+          />
+        </div>
+        <div className="shrink-0">
           <Button
             variant="destructive"
             size="sm"
@@ -288,7 +308,11 @@ export function App() {
     stopStack,
     restart,
     repoUpdate,
+    convexBackup,
     applyRepoUpdate,
+    createConvexBackup,
+    restoreConvexBackup,
+    deleteConvexBackup,
   } = useWebSocket();
   const [selectedId, setSelectedId] = useState<ManagedProcessId>('convex');
   const [copyLabel, setCopyLabel] = useState('Copy logs');
@@ -343,6 +367,11 @@ export function App() {
             handleCopyLogs={handleCopyLogs}
             stopStack={stopStack}
             restart={restart}
+            convexBackup={convexBackup}
+            runtime={runtime}
+            onCreateBackup={createConvexBackup}
+            onRestoreBackup={restoreConvexBackup}
+            onDeleteBackup={deleteConvexBackup}
           />
         </div>
       </div>
