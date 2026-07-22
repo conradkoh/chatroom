@@ -13,6 +13,10 @@ export class LogBufferStore {
     return line;
   }
 
+  clear(processId: ManagedProcessId): void {
+    this.buffers.set(processId, []);
+  }
+
   snapshot(): Record<ManagedProcessId, LogLine[]> {
     return {
       convex: [...(this.buffers.get('convex') ?? [])],

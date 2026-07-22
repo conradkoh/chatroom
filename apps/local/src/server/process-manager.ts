@@ -19,6 +19,7 @@ type ManagerEvents = {
   process: [ProcessInfo];
   log: [LogLine];
   phase: [SessionPhase];
+  'logs-clear': [ManagedProcessId];
 };
 
 export class ProcessManager extends EventEmitter<ManagerEvents> {
@@ -209,6 +210,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   private start(def: ProcessDefinition): void {
+    this.clearProcessLogs(def.id);
     this.updateState(def.id, {
       status: 'starting',
       startedAt: Date.now(),
@@ -255,6 +257,11 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         exitCode: code,
       });
     });
+  }
+
+  private clearProcessLogs(id: ManagedProcessId): void {
+    this.logs.clear(id);
+    this.emit('logs-clear', id);
   }
 
   private updateState(id: ManagedProcessId, patch: Partial<ProcessInfo>): void {

@@ -31,4 +31,11 @@ describe('LogBufferStore', () => {
     expect(snapshot.webapp).toEqual([]);
     expect(snapshot.daemon).toEqual([]);
   });
+
+  it('clears logs for a process', () => {
+    const store = new LogBufferStore();
+    store.append({ processId: 'convex', stream: 'stdout', text: 'hello', timestamp: 1 });
+    store.clear('convex');
+    expect(store.snapshot().convex).toEqual([]);
+  });
 });

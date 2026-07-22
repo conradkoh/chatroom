@@ -54,6 +54,7 @@ export type ServerMessage =
   | { type: 'phase'; phase: SessionPhase }
   | { type: 'process-update'; process: ProcessInfo }
   | { type: 'log'; line: LogLine }
+  | { type: 'logs-clear'; processId: ManagedProcessId }
   | { type: 'runtime-config'; runtime: RuntimeConfig | null };
 
 export type ClientMessage =
