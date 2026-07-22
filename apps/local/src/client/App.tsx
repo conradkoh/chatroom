@@ -9,7 +9,14 @@ import { collectUrlsFromLogLines, stripAnsi } from './log-text';
 import { LogLineContent } from './LogLineContent';
 import { useWebSocket } from './use-websocket';
 import type { ConnectionState } from './use-websocket';
-import type { LogLine, ManagedProcessId, ProcessInfo, SessionPhase } from '../shared/protocol';
+import type {
+  ConvexBackupStatus,
+  LogLine,
+  ManagedProcessId,
+  ProcessInfo,
+  RuntimeConfig,
+  SessionPhase,
+} from '../shared/protocol';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -150,7 +157,7 @@ function DashboardView({
   handleCopyLogs: () => void;
   stopStack: () => void;
   restart: (id: ManagedProcessId) => void;
-  convexBackup: import('../shared/protocol').ConvexBackupStatus;
+  convexBackup: ConvexBackupStatus;
   runtime: RuntimeConfig | null;
   onCreateBackup: () => void;
   onRestoreBackup: (id: string) => void;
@@ -309,6 +316,7 @@ export function App() {
     restart,
     repoUpdate,
     convexBackup,
+    runtime,
     applyRepoUpdate,
     createConvexBackup,
     restoreConvexBackup,
