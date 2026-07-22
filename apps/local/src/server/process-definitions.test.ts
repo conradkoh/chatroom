@@ -37,10 +37,10 @@ describe('buildProcessDefinitions', () => {
     ]);
 
     const webapp = defs.find((def) => def.id === 'webapp');
-    expect(webapp?.args[1]).toContain(
-      'Starting Next.js production server on http://localhost:3000'
-    );
-    expect(webapp?.args[1]).toContain('dotenv -e .env.local -- pnpm start');
+    expect(webapp?.name).toBe('Webapp (dev)');
+    expect(webapp?.args[1]).toContain('Starting Next.js dev server on http://localhost:3000');
+    expect(webapp?.args[1]).toContain('dotenv -e .env.local -- pnpm dev');
+    expect(webapp?.env.NODE_ENV).toBe('development');
 
     const envFile = join(repoRoot, 'services/backend/.convex/local-dev.env');
     const envContents = readFileSync(envFile, 'utf8');

@@ -67,15 +67,15 @@ function buildWebappDefinition(repoRoot: string, config: RuntimeConfig, convexUr
   const port = config.webappPort;
   return {
     id: 'webapp' as const,
-    name: 'Webapp (production build)',
+    name: 'Webapp (dev)',
     cwd: repoRoot,
     command: 'sh',
     args: [
       '-c',
-      `NEXT_PUBLIC_CONVEX_URL=${convexUrl} pnpm turbo run build --filter=@workspace/webapp && echo "Starting Next.js production server on http://localhost:${port} ..." && PORT=${port} NEXT_PUBLIC_CONVEX_URL=${convexUrl} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
+      `echo "Starting Next.js dev server on http://localhost:${port} ..." && PORT=${port} NEXT_PUBLIC_CONVEX_URL=${convexUrl} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm dev`,
     ],
     env: {
-      NODE_ENV: 'production',
+      NODE_ENV: 'development',
       NEXT_PUBLIC_CONVEX_URL: convexUrl,
     },
     shell: false,
