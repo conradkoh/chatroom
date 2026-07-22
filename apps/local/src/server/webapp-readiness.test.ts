@@ -37,18 +37,6 @@ describe('waitForWebappReadyFromLogs', () => {
     await expect(promise).resolves.toEqual({ ok: true });
   });
 
-  it('detects turbopack compiled line', async () => {
-    const handlers: ((line: LogLine) => void)[] = [];
-    const promise = waitForWebappReadyFromLogs((handler) => {
-      handlers.push(handler);
-      return () => {};
-    });
-
-    handlers.forEach((handler) => handler(webappLog('✓ Compiled in 2.1s')));
-
-    await expect(promise).resolves.toEqual({ ok: true });
-  });
-
   it('rejects on start failure log line', async () => {
     const handlers: ((line: LogLine) => void)[] = [];
     const promise = waitForWebappReadyFromLogs((handler) => {
