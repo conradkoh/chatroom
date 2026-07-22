@@ -31,6 +31,9 @@ import {
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
+import { EnhancerToolbar } from '../features/enhancers/components/EnhancerToolbar';
+import { EnhancerConfigDialog } from '../features/enhancers/components/EnhancerConfigDialog';
+import { useEnhancerConfig } from '../features/enhancers/hooks/useEnhancerConfig';
 
 import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -40,6 +43,7 @@ import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 export interface MessageInputProps {
   chatroomId: string;
+  machineId?: string | null;
   onBeforeResize?: () => void;
   onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
@@ -141,6 +145,7 @@ function cleanupOldDrafts(currentKey: string) {
 
 export function MessageInput({
   chatroomId,
+  machineId,
   onBeforeResize,
   onAfterResize,
   onRegisterFocus,
@@ -161,6 +166,13 @@ export function MessageInput({
   const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [enhancerDialogOpen, setEnhancerDialogOpen] = useState(false);
+  const {
+    config: enhancerConfig,
+    isActive: enhancerActive,
+    saveConfig,
+    disable,
+  } = useEnhancerConfig(chatroomId);
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -466,6 +478,9 @@ export function MessageInput({
         </div>
       )}
 
+      {/* Enhancer toolbar */}
+      <EnhancerToolbar isActive={enhancerActive} onOpenConfig={() => setEnhancerDialogOpen(true)} />
+
       {/* Inline send-error banner */}
       {sendError && (
         <div
@@ -543,6 +558,23 @@ export function MessageInput({
         initialValue={message}
         onClose={handleEditorClose}
         onSend={handleEditorSend}
+      />
+
+      {/* Enhancer config dialog */}
+      <EnhancerConfigDialog
+        open={enhancerDialogOpen}
+        onOpenChange={setEnhancerDialogOpen}
+        chatroomId={chatroomId}
+        machineId={machineId}
+        initialConfig={enhancerConfig}
+        onConfirm={(cfg) => {
+          saveConfig(cfg);
+          setEnhancerDialogOpen(false);
+        }}
+        onDisable={() => {
+          disable();
+          setEnhancerDialogOpen(false);
+        }}
       />
     </div>
   );

@@ -1791,6 +1791,7 @@ export function ChatroomDashboard({
                           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                             <MessageInput
                               chatroomId={chatroomId}
+                              machineId={activeWorkspace?.machineId ?? null}
                               onBeforeResize={beginResize}
                               onAfterResize={endResize}
                               onRegisterFocus={handleRegisterSendFormFocus}
