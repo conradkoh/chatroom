@@ -41,6 +41,8 @@ describe('buildProcessDefinitions', () => {
       'Starting Next.js production server on http://localhost:3000'
     );
     expect(webapp?.args[1]).toContain('dotenv -e .env.local -- pnpm start');
+    expect(webapp?.args[1]).toContain('NEXT_PUBLIC_LOCAL_MANAGER_PORT=');
+    expect(webapp?.env.NEXT_PUBLIC_LOCAL_MANAGER_PORT).toBe('3847');
 
     const envFile = join(repoRoot, 'services/backend/.convex/local-dev.env');
     const envContents = readFileSync(envFile, 'utf8');
@@ -113,6 +115,9 @@ describe('buildProcessDefinitions', () => {
 
     expect(defs.find((def) => def.id === 'convex')).toBeUndefined();
     expect(defs.find((def) => def.id === 'webapp')?.env.NEXT_PUBLIC_CONVEX_URL).toBe(hostedUrl);
+    expect(defs.find((def) => def.id === 'webapp')?.env.NEXT_PUBLIC_LOCAL_MANAGER_PORT).toBe(
+      '3847'
+    );
     expect(defs.find((def) => def.id === 'daemon')?.env.CHATROOM_CONVEX_URL).toBe(hostedUrl);
   });
 });
