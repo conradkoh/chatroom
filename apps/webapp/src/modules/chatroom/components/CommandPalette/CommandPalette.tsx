@@ -14,6 +14,7 @@ import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
+import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklist';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
@@ -62,6 +63,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   // Frécency-boosted ranking with command-aware keys and refresh
   const { rankedFilter, trackUsage, frecencyScores, getScore } = useCommandRanking(commands);
+  const { blacklistedIds, blacklist, unblacklist, isBlacklisted } = useCommandBlacklist();
 
   // Reset search when closing
   useEffect(() => {
@@ -103,8 +105,18 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
         groupedCommands,
         getScore,
         frecencyScores,
+        blacklistedIds,
       }),
-    [commands, searchValue, rankedFilter, recentCommands, groupedCommands, getScore, frecencyScores]
+    [
+      commands,
+      searchValue,
+      rankedFilter,
+      recentCommands,
+      groupedCommands,
+      getScore,
+      frecencyScores,
+      blacklistedIds,
+    ]
   );
 
   const handleSelect = useCallback(
@@ -217,6 +229,9 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                       onSelect={handleSelect}
                       renderCommandItemContent={renderCommandItemContent}
                       scrollResetKey={searchValue}
+                      isBlacklisted={isBlacklisted}
+                      onBlacklist={blacklist}
+                      onUnblacklist={unblacklist}
                     />
                   )}
                 </CommandList>

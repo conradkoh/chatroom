@@ -12,12 +12,21 @@ import {
 import type { CommandItem } from './types';
 
 import { CommandItem as CommandItemUI } from '@/components/ui/command';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface CommandPaletteVirtualizedListProps {
   rows: CommandPaletteRow[];
   onSelect: (cmd: CommandItem) => void;
   renderCommandItemContent: (command: CommandItem) => React.ReactNode;
   scrollResetKey?: string;
+  isBlacklisted?: (id: string) => boolean;
+  onBlacklist?: (id: string) => void;
+  onUnblacklist?: (id: string) => void;
 }
 
 const LIST_HEIGHT = 244;
@@ -27,6 +36,9 @@ export function CommandPaletteVirtualizedList({
   onSelect,
   renderCommandItemContent,
   scrollResetKey,
+  isBlacklisted,
+  onBlacklist,
+  onUnblacklist,
 }: CommandPaletteVirtualizedListProps) {
   const estimateSize = useCallback((_index: number, row: CommandPaletteRow) => {
     if (row.type === 'heading') return COMMAND_PALETTE_HEADING_ROW_HEIGHT;
@@ -49,7 +61,7 @@ export function CommandPaletteVirtualizedList({
         );
       }
       const command = row.command;
-      return (
+      const item = (
         <CommandItemUI
           key={command.id}
           value={command.label}
@@ -65,8 +77,32 @@ export function CommandPaletteVirtualizedList({
           {renderCommandItemContent(command)}
         </CommandItemUI>
       );
+
+      if (isBlacklisted && onBlacklist && onUnblacklist) {
+        return (
+          <ContextMenu modal={false} key={command.id}>
+            <ContextMenuTrigger asChild>{item}</ContextMenuTrigger>
+            <ContextMenuContent className="min-w-[180px] rounded-none">
+              {isBlacklisted(command.id) ? (
+                <ContextMenuItem
+                  onSelect={() => onUnblacklist(command.id)}
+                  className="rounded-none"
+                >
+                  Remove from blacklist
+                </ContextMenuItem>
+              ) : (
+                <ContextMenuItem onSelect={() => onBlacklist(command.id)} className="rounded-none">
+                  Blacklist
+                </ContextMenuItem>
+              )}
+            </ContextMenuContent>
+          </ContextMenu>
+        );
+      }
+
+      return item;
     },
-    [onSelect, renderCommandItemContent]
+    [onSelect, renderCommandItemContent, isBlacklisted, onBlacklist, onUnblacklist]
   );
 
   return (
