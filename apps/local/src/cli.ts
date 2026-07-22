@@ -17,6 +17,11 @@ async function main(): Promise<void> {
   const app = await createAppServer(manager, launchConfig, defaults, repoUpdate);
 
   let shuttingDown = false;
+  let signalCount = 0;
+
+  const forceExit = (code: number) => {
+    process.exit(code);
+  };
 
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
@@ -39,10 +44,20 @@ async function main(): Promise<void> {
     }
   };
 
+  const handleSignal = (signal: NodeJS.Signals) => {
+    signalCount += 1;
+    if (signalCount >= 2) {
+      process.stderr.write(`\n${signal} received again — forcing immediate exit.\n`);
+      forceExit(1);
+      return;
+    }
+    void shutdown(signal);
+  };
+
   // Keep handlers registered until shutdown completes — tsx exits 130 if no
   // listeners remain when its hidden SIGINT handler runs after `once` removes ours.
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => handleSignal('SIGINT'));
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
 
   await app.listen();
 
