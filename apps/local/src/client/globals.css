@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-chatroom-bg-primary: var(--chatroom-bg-primary);
+  --color-chatroom-bg-secondary: var(--chatroom-bg-secondary);
+  --color-chatroom-bg-tertiary: var(--chatroom-bg-tertiary);
+  --color-chatroom-bg-hover: var(--chatroom-bg-hover);
+  --color-chatroom-border: var(--chatroom-border);
+  --color-chatroom-border-strong: var(--chatroom-border-strong);
+  --color-chatroom-text-primary: var(--chatroom-text-primary);
+  --color-chatroom-text-secondary: var(--chatroom-text-secondary);
+  --color-chatroom-text-muted: var(--chatroom-text-muted);
+  --color-chatroom-status-success: var(--chatroom-status-success);
+  --color-chatroom-status-warning: var(--chatroom-status-warning);
+  --color-chatroom-status-error: var(--chatroom-status-error);
+  --color-chatroom-status-info: var(--chatroom-status-info);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+}
+
+:root {
+  --radius: 0px;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.145 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --ring: oklch(0.556 0 0);
+}
+
+.dark {
+  --chatroom-bg-primary: #09090b;
+  --chatroom-bg-secondary: rgba(24, 24, 27, 0.5);
+  --chatroom-bg-tertiary: #18181b;
+  --chatroom-bg-hover: #27272a;
+  --chatroom-border: rgba(250, 250, 250, 0.1);
+  --chatroom-border-strong: rgba(250, 250, 250, 0.15);
+  --chatroom-text-primary: #fafafa;
+  --chatroom-text-secondary: #a1a1aa;
+  --chatroom-text-muted: #71717a;
+  --chatroom-status-success: #34d399;
+  --chatroom-status-warning: #fbbf24;
+  --chatroom-status-error: #f87171;
+  --chatroom-status-info: #60a5fa;
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-chatroom-bg-primary text-chatroom-text-primary antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}

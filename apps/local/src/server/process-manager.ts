@@ -1,9 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
+import { waitForConvexHealthy } from './convex-health.js';
 import { LogBufferStore } from './log-buffer.js';
+import type { LocalConfig } from './parse-config.js';
 import type { ProcessDefinition } from './process-definitions.js';
-import type { LogLine, ManagedProcessId, ProcessInfo } from '../shared/protocol.js';
+import type { HealthStatus, LogLine, ManagedProcessId, ProcessInfo } from '../shared/protocol.js';
 
 type ManagerEvents = {
   process: [ProcessInfo];
@@ -12,22 +14,27 @@ type ManagerEvents = {
 
 export class ProcessManager extends EventEmitter<ManagerEvents> {
   private readonly definitions: ProcessDefinition[];
+  private readonly config: LocalConfig;
   private readonly logs = new LogBufferStore();
   private readonly children = new Map<ManagedProcessId, ChildProcess>();
   private readonly state = new Map<ManagedProcessId, ProcessInfo>();
 
-  constructor(definitions: ProcessDefinition[]) {
+  constructor(definitions: ProcessDefinition[], config: LocalConfig) {
     super();
     this.definitions = definitions;
+    this.config = config;
     for (const def of definitions) {
+      const isDependent = def.id === 'webapp' || def.id === 'daemon';
       this.state.set(def.id, {
         id: def.id,
         name: def.name,
-        status: 'stopped',
+        status: isDependent ? 'pending' : 'stopped',
         pid: null,
         startedAt: null,
         exitedAt: null,
         exitCode: null,
+        health: 'unknown',
+        healthDetail: isDependent ? 'Waiting for Convex' : null,
       });
     }
   }
@@ -41,14 +48,28 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   async startAll(): Promise<void> {
-    for (const def of this.definitions) {
-      this.start(def.id);
-    }
+    this.updateState('webapp', {
+      status: 'pending',
+      health: 'unknown',
+      healthDetail: 'Waiting for Convex',
+    });
+    this.updateState('daemon', {
+      status: 'pending',
+      health: 'unknown',
+      healthDetail: 'Waiting for Convex',
+    });
+
+    await this.runStartupSequence();
   }
 
   restart(id: ManagedProcessId): void {
-    this.stop(id);
-    this.start(id);
+    if (id === 'convex') {
+      this.stopAll();
+      void this.startAll();
+    } else {
+      this.stop(id);
+      this.start(id);
+    }
   }
 
   stop(id: ManagedProcessId): void {
@@ -68,6 +89,27 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     for (const id of this.children.keys()) {
       this.stop(id);
     }
+  }
+
+  private async runStartupSequence(): Promise<void> {
+    this.start('convex');
+    this.updateState('convex', { health: 'checking', healthDetail: 'Waiting for /version' });
+
+    const result = await waitForConvexHealthy(this.config.convexUrl, {
+      onCheck: () => this.updateState('convex', { health: 'checking' }),
+    });
+
+    if (!result.ok) {
+      this.updateState('convex', {
+        health: 'unhealthy',
+        healthDetail: result.reason,
+      });
+      return;
+    }
+
+    this.updateState('convex', { health: 'healthy', healthDetail: null });
+    this.start('webapp');
+    this.start('daemon');
   }
 
   private start(id: ManagedProcessId): void {
@@ -112,19 +154,38 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
 
     child.on('exit', (code) => {
       this.children.delete(id);
+      const crashed = code !== 0;
       this.updateState(id, {
-        status: code === 0 ? 'stopped' : 'crashed',
+        status: crashed ? 'crashed' : 'stopped',
         pid: null,
         exitedAt: Date.now(),
         exitCode: code,
       });
+      // If convex exits unhealthy, set dependents back to pending if still present
+      if (id === 'convex' && crashed) {
+        this.updateState('webapp', {
+          status: 'pending',
+          health: 'unknown',
+          healthDetail: 'Convex exited',
+        });
+        this.updateState('daemon', {
+          status: 'pending',
+          health: 'unknown',
+          healthDetail: 'Convex exited',
+        });
+      }
     });
   }
 
   private updateState(id: ManagedProcessId, patch: Partial<ProcessInfo>): void {
     const current = this.state.get(id);
     if (!current) return;
-    const next = { ...current, ...patch };
+    const next = {
+      ...current,
+      ...patch,
+      health: patch.health ?? current.health ?? ('unknown' as HealthStatus),
+      healthDetail: patch.healthDetail !== undefined ? patch.healthDetail : current.healthDetail,
+    };
     this.state.set(id, next);
     this.emit('process', next);
   }

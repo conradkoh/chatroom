@@ -3,12 +3,14 @@ import { createServer } from 'node:http';
 import { createServer as createViteServer } from 'vite';
 import { WebSocketServer } from 'ws';
 
+import type { LocalConfig } from './parse-config.js';
+import { toConfigSnapshot } from './parse-config.js';
 import type { ProcessManager } from './process-manager.js';
 import { attachWebSocketHub } from './websocket-hub.js';
 
-const PORT = 3847;
+export async function createAppServer(manager: ProcessManager, config: LocalConfig) {
+  const port = config.managerPort;
 
-export async function createAppServer(manager: ProcessManager) {
   const vite = await createViteServer({
     configFile: new URL('../../vite.config.ts', import.meta.url).pathname,
     server: { middlewareMode: true },
@@ -23,13 +25,13 @@ export async function createAppServer(manager: ProcessManager) {
   });
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  attachWebSocketHub(wss, manager);
+  attachWebSocketHub(wss, manager, toConfigSnapshot(config));
 
   return {
-    port: PORT,
+    port,
     async listen() {
-      await new Promise<void>((resolve) => server.listen(PORT, resolve));
-      process.stderr.write(`Local dev manager UI: http://localhost:${PORT}\n`);
+      await new Promise<void>((resolve) => server.listen(port, resolve));
+      process.stderr.write(`Local dev manager UI: http://localhost:${port}\n`);
     },
     async close() {
       wss.close();

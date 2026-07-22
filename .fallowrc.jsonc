@@ -115,12 +115,20 @@
       "exports": ["buildTeamRoleKey"],
     },
     {
-      "file": "**/local-dev/src/client/App.tsx",
+      "file": "apps/local/src/client/App.tsx",
       "exports": ["App"],
     },
     {
-      "file": "**/local-dev/src/client/use-websocket.ts",
+      "file": "apps/local/src/client/use-websocket.ts",
       "exports": ["useWebSocket"],
+    },
+    {
+      "file": "apps/local/src/client/lib/utils.ts",
+      "exports": ["cn"],
+    },
+    {
+      "file": "apps/local/src/server/convex-health.ts",
+      "exports": ["checkConvexHealth"],
     },
     {
       "file": "**/WorkspaceFileExplorerVirtualizedTree.tsx",

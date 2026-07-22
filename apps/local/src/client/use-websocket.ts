@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-import type { LogLine, ManagedProcessId, ProcessInfo, ServerMessage } from '../shared/protocol';
+import type {
+  LocalConfigSnapshot,
+  LogLine,
+  ManagedProcessId,
+  ProcessInfo,
+  ServerMessage,
+} from '../shared/protocol';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 
@@ -12,6 +18,7 @@ export function useWebSocket() {
     daemon: [],
   });
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
+  const [config, setConfig] = useState<LocalConfigSnapshot | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -34,6 +41,7 @@ export function useWebSocket() {
           case 'snapshot':
             setProcesses(msg.processes);
             setLogsByProcess(msg.logs);
+            setConfig(msg.config);
             break;
           case 'process-update':
             setProcesses((prev) => prev.map((p) => (p.id === msg.process.id ? msg.process : p)));
@@ -43,6 +51,9 @@ export function useWebSocket() {
               ...prev,
               [msg.line.processId]: [...(prev[msg.line.processId] ?? []), msg.line],
             }));
+            break;
+          case 'config':
+            setConfig(msg.config);
             break;
         }
       } catch {
@@ -65,5 +76,5 @@ export function useWebSocket() {
     wsRef.current?.send(JSON.stringify({ type: 'restart', processId }));
   }, []);
 
-  return { processes, logsByProcess, connectionState, restart };
+  return { processes, logsByProcess, connectionState, config, restart };
 }

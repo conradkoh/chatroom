@@ -12,10 +12,12 @@
     "apps/webapp/src/modules/chatroom/hooks/useMessages.ts",
     "apps/webapp/src/modules/chatroom/utils/handleNotificationClick.ts",
     "apps/webapp/src/modules/header/index.ts",
-    "packages/local-dev/src/client/App.tsx",
-    "packages/local-dev/src/client/main.tsx",
-    "packages/local-dev/src/client/styles.css",
-    "packages/local-dev/src/client/use-websocket.ts",
+    "apps/local/src/client/App.tsx",
+    "apps/local/src/client/lib/utils.ts",
+    "apps/local/src/client/main.tsx",
+    "apps/local/src/client/globals.css",
+    "apps/local/src/client/use-websocket.ts",
+    "apps/local/src/server/read-env.ts",
     "packages/cli/build.config.ts",
     "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts",
     "packages/cli/src/commands/machine/daemon-start/testing/mock-daemon-deps.ts",
@@ -551,8 +553,8 @@
     "apps/webapp/package.json:radix-ui",
     "apps/webapp/package.json:react-resizable-panels",
     "packages/cli/package.json:@connectrpc/connect-node",
-    "packages/local-dev/package.json:react",
-    "packages/local-dev/package.json:react-dom"
+    "apps/local/package.json:react",
+    "apps/local/package.json:react-dom"
   ],
   "unused_dev_dependencies": [],
   "circular_dependencies": [

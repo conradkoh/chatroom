@@ -1,6 +1,4 @@
-import { join } from 'node:path';
-
-import { readEnvFile } from './read-env.js';
+import type { LocalConfig } from './parse-config.js';
 import type { ManagedProcessId } from '../shared/protocol.js';
 
 export type ProcessDefinition = {
@@ -13,18 +11,16 @@ export type ProcessDefinition = {
   shell?: boolean;
 };
 
-export function buildProcessDefinitions(repoRoot: string): ProcessDefinition[] {
-  const backendEnv = readEnvFile(join(repoRoot, 'services/backend/.env.local'));
-  const convexUrl = backendEnv.CONVEX_URL ?? 'http://127.0.0.1:3210';
-  const webUrl = 'http://localhost:3000';
+export function buildProcessDefinitions(config: LocalConfig): ProcessDefinition[] {
+  const { repoRoot, convexUrl, webappUrl, webappPort } = config;
 
   return [
     {
       id: 'convex',
       name: 'Convex (local)',
-      cwd: join(repoRoot, 'services/backend'),
-      command: 'npx',
-      args: ['convex', 'dev'],
+      cwd: repoRoot,
+      command: 'pnpm',
+      args: ['--filter', '@workspace/backend', 'dev'],
       env: {
         CONVEX_NON_INTERACTIVE: 'true',
         DOCUMENT_RETENTION_DELAY: '1',
@@ -35,10 +31,16 @@ export function buildProcessDefinitions(repoRoot: string): ProcessDefinition[] {
     {
       id: 'webapp',
       name: 'Webapp (production build)',
-      cwd: join(repoRoot, 'apps/webapp'),
+      cwd: repoRoot,
       command: 'sh',
-      args: ['-c', 'pnpm build && pnpm exec dotenv -e .env.local -- next start -p 3000'],
-      env: {},
+      args: [
+        '-c',
+        `pnpm turbo run build --filter=@workspace/webapp && PORT=${webappPort} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
+      ],
+      env: {
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_CONVEX_URL: convexUrl,
+      },
       shell: false,
     },
     {
@@ -46,10 +48,13 @@ export function buildProcessDefinitions(repoRoot: string): ProcessDefinition[] {
       name: 'Chatroom Daemon',
       cwd: repoRoot,
       command: 'sh',
-      args: ['-c', 'pnpm --filter chatroom-cli build && pnpm exec chatroom machine daemon start'],
+      args: [
+        '-c',
+        'pnpm turbo run build --filter=chatroom-cli && pnpm exec chatroom machine daemon start',
+      ],
       env: {
         CHATROOM_CONVEX_URL: convexUrl,
-        CHATROOM_WEB_URL: webUrl,
+        CHATROOM_WEB_URL: webappUrl,
       },
       shell: false,
     },

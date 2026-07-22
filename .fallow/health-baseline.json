@@ -1,5 +1,33 @@
 {
   "finding_counts": {
+    "apps/local/src/client/App.tsx": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/local/src/client/use-websocket.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/local/src/server/convex-health.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/local/src/server/process-manager.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/local/src/server/read-env.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/public/sw.js": {
       "crap_critical": {
         "count": 1
@@ -1928,21 +1956,6 @@
       }
     },
     "packages/cli/src/version.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/local-dev/src/client/App.tsx": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/local-dev/src/client/use-websocket.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/local-dev/src/server/read-env.ts": {
       "crap_moderate": {
         "count": 1
       }

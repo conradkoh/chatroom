@@ -1,9 +1,13 @@
 import type { WebSocket, WebSocketServer } from 'ws';
 
 import type { ProcessManager } from './process-manager.js';
-import type { ClientMessage, ServerMessage } from '../shared/protocol.js';
+import type { ClientMessage, LocalConfigSnapshot, ServerMessage } from '../shared/protocol.js';
 
-export function attachWebSocketHub(wss: WebSocketServer, manager: ProcessManager): void {
+export function attachWebSocketHub(
+  wss: WebSocketServer,
+  manager: ProcessManager,
+  config: LocalConfigSnapshot
+): void {
   const broadcast = (message: ServerMessage) => {
     const payload = JSON.stringify(message);
     for (const client of wss.clients) {
@@ -20,6 +24,7 @@ export function attachWebSocketHub(wss: WebSocketServer, manager: ProcessManager
         type: 'snapshot',
         processes: manager.getProcesses(),
         logs: manager.getLogSnapshot(),
+        config,
       } satisfies ServerMessage)
     );
 
