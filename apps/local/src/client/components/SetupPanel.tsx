@@ -40,9 +40,11 @@ function useSetupFormState(defaults: RuntimeConfigDefaults | null) {
 
 export function SetupPanel({
   defaults,
+  disabled = false,
   onStart,
 }: {
   defaults: RuntimeConfigDefaults | null;
+  disabled?: boolean;
   onStart: (config: RuntimeConfig) => void;
 }) {
   const {
@@ -158,6 +160,7 @@ export function SetupPanel({
           variant="default"
           className="w-full rounded-none py-6 text-sm font-bold uppercase tracking-wider"
           onClick={handleStart}
+          disabled={disabled}
         >
           Start Stack
         </Button>

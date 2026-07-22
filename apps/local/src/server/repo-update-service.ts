@@ -77,7 +77,12 @@ export class RepoUpdateService extends EventEmitter<RepoUpdateEvents> {
   async apply(manager: ProcessManager): Promise<void> {
     const config = manager.runtimeConfig ?? loadSavedRuntimeConfig(this.repoRoot);
     if (!config) {
-      throw new Error('No saved runtime config found. Start the stack once before updating.');
+      this.publish({
+        ...this.status,
+        status: 'error',
+        error: 'No saved runtime config found. Start the stack once before updating.',
+      });
+      return;
     }
 
     this.publish({
@@ -98,7 +103,6 @@ export class RepoUpdateService extends EventEmitter<RepoUpdateEvents> {
         status: 'error',
         error: message,
       });
-      throw err;
     }
   }
 }

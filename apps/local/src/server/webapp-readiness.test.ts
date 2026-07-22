@@ -37,6 +37,20 @@ describe('waitForWebappReadyFromLogs', () => {
     await expect(promise).resolves.toEqual({ ok: true });
   });
 
+  it('detects production server start line', async () => {
+    const handlers: ((line: LogLine) => void)[] = [];
+    const promise = waitForWebappReadyFromLogs((handler) => {
+      handlers.push(handler);
+      return () => {};
+    });
+
+    handlers.forEach((handler) =>
+      handler(webappLog('  ✓ Starting Next.js production server on http://localhost:6249'))
+    );
+
+    await expect(promise).resolves.toEqual({ ok: true });
+  });
+
   it('rejects on start failure log line', async () => {
     const handlers: ((line: LogLine) => void)[] = [];
     const promise = waitForWebappReadyFromLogs((handler) => {

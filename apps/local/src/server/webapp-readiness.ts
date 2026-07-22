@@ -10,7 +10,11 @@ function stripAnsi(text: string): string {
 
 function isWebappReadyLogLine(text: string): boolean {
   const plain = stripAnsi(text);
-  return plain.includes('Ready in') || /\bLocal:\s+http:\/\/localhost:\d+/i.test(plain);
+  return (
+    plain.includes('Ready in') ||
+    /\bLocal:\s+http:\/\/localhost:\d+/i.test(plain) ||
+    /Starting Next\.js production server on http:\/\/localhost:\d+/i.test(plain)
+  );
 }
 
 function isWebappFailureLogLine(text: string): boolean {

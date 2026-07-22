@@ -186,6 +186,11 @@ function DashboardView({
         >
           {phase === 'starting' ? 'Starting...' : phase === 'stopping' ? 'Stopping...' : '\u00A0'}
         </div>
+        {phase === 'failed' && (
+          <div className="rounded-none border-2 border-chatroom-status-error px-2 py-1 text-[10px] text-chatroom-status-error">
+            Start failed. Check logs and retry.
+          </div>
+        )}
         <h2 className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Processes
         </h2>
@@ -318,7 +323,7 @@ export function App() {
           )}
           aria-hidden={!showSetup}
         >
-          <SetupPanel defaults={defaults} onStart={startStack} />
+          <SetupPanel defaults={defaults} disabled={phase !== 'idle'} onStart={startStack} />
         </div>
         <div
           className={cn(
