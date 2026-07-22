@@ -101,37 +101,33 @@ function LogViewer({ logLines }: { logLines: LogLine[] }) {
 }
 
 function HealthBadge({ health, healthDetail }: { health: string; healthDetail: string | null }) {
-  if (health === 'healthy') {
-    return (
-      <Badge
-        variant="outline"
-        className="rounded-none border-chatroom-status-success text-[10px] text-chatroom-status-success"
-      >
-        {healthDetail === 'Hosted — external' ? 'Hosted' : 'Healthy'}
+  const label =
+    health === 'healthy'
+      ? healthDetail === 'Hosted \u2014 external'
+        ? 'Hosted'
+        : 'Healthy'
+      : health === 'checking'
+        ? 'Checking'
+        : health === 'unhealthy'
+          ? (healthDetail ?? 'Unhealthy').slice(0, 20)
+          : '\u2014';
+
+  const colorClass =
+    health === 'healthy'
+      ? 'border-chatroom-status-success text-chatroom-status-success'
+      : health === 'checking'
+        ? 'border-chatroom-status-warning text-chatroom-status-warning'
+        : health === 'unhealthy'
+          ? 'border-chatroom-status-error text-chatroom-status-error'
+          : 'border-chatroom-border text-chatroom-text-muted opacity-0';
+
+  return (
+    <span className="health-badge-slot" title={healthDetail ?? undefined}>
+      <Badge variant="outline" className={cn('rounded-none text-[10px]', colorClass)}>
+        {label}
       </Badge>
-    );
-  }
-  if (health === 'checking') {
-    return (
-      <Badge
-        variant="outline"
-        className="rounded-none border-chatroom-status-warning text-[10px] text-chatroom-status-warning"
-      >
-        Checking...
-      </Badge>
-    );
-  }
-  if (health === 'unhealthy') {
-    return (
-      <Badge
-        variant="outline"
-        className="rounded-none border-chatroom-status-error text-[10px] text-chatroom-status-error"
-      >
-        {healthDetail ?? 'Unhealthy'}
-      </Badge>
-    );
-  }
-  return null;
+    </span>
+  );
 }
 
 export function App() {
@@ -189,12 +185,15 @@ export function App() {
               ? 'Connecting...'
               : 'Disconnected'}
         </div>
-        {phase === 'starting' && (
-          <div className="text-[10px] text-chatroom-status-warning">Starting...</div>
-        )}
-        {phase === 'stopping' && (
-          <div className="text-[10px] text-chatroom-status-error">Stopping...</div>
-        )}
+        <div
+          className={cn(
+            'phase-indicator-slot',
+            phase === 'starting' && 'text-chatroom-status-warning',
+            phase === 'stopping' && 'text-chatroom-status-error'
+          )}
+        >
+          {phase === 'starting' ? 'Starting...' : phase === 'stopping' ? 'Stopping...' : '\u00A0'}
+        </div>
         <h2 className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Processes
         </h2>
@@ -225,19 +224,21 @@ export function App() {
                 {p.name}
               </span>
               <HealthBadge health={p.health} healthDetail={p.healthDetail} />
-              {isRunning && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 rounded-none px-2 opacity-0 transition-opacity group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    restart(p.id);
-                  }}
-                >
-                  <RotateCcw size={12} />
-                </Button>
-              )}
+              <span className="restart-button-slot">
+                {isRunning && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 rounded-none p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      restart(p.id);
+                    }}
+                  >
+                    <RotateCcw size={12} />
+                  </Button>
+                )}
+              </span>
             </div>
           ))}
         </div>
@@ -266,7 +267,7 @@ export function App() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 rounded-none"
+            className="gap-2 rounded-none min-w-[7.5rem]"
             onClick={handleCopyLogs}
             disabled={logLines.length === 0}
             title="Copy all logs to clipboard"

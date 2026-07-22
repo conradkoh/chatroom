@@ -1,14 +1,17 @@
 {
   "finding_counts": {
     "apps/local/src/client/App.tsx": {
-      "crap_critical": {
+      "complexity_critical": {
         "count": 1
+      },
+      "crap_critical": {
+        "count": 2
       },
       "crap_high": {
         "count": 1
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "apps/local/src/client/components/SetupPanel.tsx": {
@@ -2472,7 +2475,6 @@
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
     "services/backend/prompts/cli/index.ts:dead code",
     "packages/cli/src/commands/auth-login/index.ts:dead code",
-    "services/backend/prompts/utils/env.ts:dead code",
     "packages/cli/src/infrastructure/auth/middleware.ts:dead code",
     "services/backend/prompts/sections/role-guidance.ts:dead code",
     "services/backend/prompts/teams/solo/prompts/fromContext.ts:dead code",
@@ -2500,6 +2502,7 @@
     "services/backend/convex/participants.ts:complexity",
     "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "apps/webapp/src/modules/chatroom/direct-harness/utils/sessionStatus.ts:high impact",
+    "services/backend/prompts/utils/env.ts:dead code",
     "packages/cli/src/commands/machine/daemon-start/file-content-classifier.ts:dead code",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
     "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",

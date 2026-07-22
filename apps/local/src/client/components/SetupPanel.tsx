@@ -90,8 +90,8 @@ export function SetupPanel({
             />
           </div>
 
-          {mode === 'local' ? (
-            <div>
+          <div className="setup-mode-field-slot">
+            <div className={cn(mode !== 'local' && 'hidden')}>
               <label className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
                 Convex port
               </label>
@@ -104,8 +104,7 @@ export function SetupPanel({
                 max={65535}
               />
             </div>
-          ) : (
-            <div>
+            <div className={cn('mt-0', mode !== 'hosted' && 'hidden')}>
               <label className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
                 Convex URL
               </label>
@@ -117,7 +116,7 @@ export function SetupPanel({
                 placeholder="https://*.convex.cloud"
               />
             </div>
-          )}
+          </div>
         </div>
 
         <Button

@@ -84,3 +84,21 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 }
+
+@layer utilities {
+  .health-badge-slot {
+    @apply inline-flex min-w-[4.5rem] shrink-0 items-center justify-end;
+  }
+
+  .restart-button-slot {
+    @apply h-7 w-7 shrink-0;
+  }
+
+  .phase-indicator-slot {
+    @apply min-h-[1rem] text-[10px] leading-4;
+  }
+
+  .setup-mode-field-slot {
+    @apply min-h-[4.75rem];
+  }
+}
