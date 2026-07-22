@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Maximize2,
   Minimize2,
+  Monitor,
   PanelRightOpen,
   Pencil,
   Settings,
@@ -29,6 +30,8 @@ import {
 } from '@/components/inline-editable-title/inline-editable-title-styles';
 import { InlineEditableTitleEditing } from '@/components/inline-editable-title/InlineEditableTitleEditing';
 import { cn } from '@/lib/utils';
+import { getLocalManagerUrl } from '@/lib/environment';
+import { openExternalUrl } from '@/lib/navigation';
 import {
   getChatStatusDescription,
   getChatStatusIndicatorClasses,
@@ -195,6 +198,16 @@ export const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
             >
               <User size={14} />
               User Profile
+            </DropdownMenuItem>
+          )}
+
+          {getLocalManagerUrl() && (
+            <DropdownMenuItem
+              onClick={() => openExternalUrl(getLocalManagerUrl()!)}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Monitor size={14} />
+              Chatroom Local Manager
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

@@ -4,6 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomTitleEditor } from './ChatroomTitleEditor';
 
+vi.mock('@/lib/environment', () => ({
+  getLocalManagerUrl: vi.fn(),
+}));
+
+import { getLocalManagerUrl } from '@/lib/environment';
+
+const mockedGetLocalManagerUrl = vi.mocked(getLocalManagerUrl);
+
 vi.mock('./useChatroomTitleEditor', () => ({
   useChatroomTitleEditor: () => ({
     isEditing: false,
@@ -34,6 +42,7 @@ describe('ChatroomTitleEditor menu', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedGetLocalManagerUrl.mockReturnValue(null);
   });
 
   it('shows shared items and calls switcher + profile', async () => {
@@ -155,5 +164,19 @@ describe('ChatroomTitleEditor menu', () => {
       />
     );
     expect(screen.queryByRole('button', { name: /focus mode/i })).not.toBeInTheDocument();
+  });
+
+  it('hides Chatroom Local Manager when getLocalManagerUrl returns null', async () => {
+    mockedGetLocalManagerUrl.mockReturnValue(null);
+    render(<ChatroomTitleEditor {...base} isDesktop />);
+    await openMenu();
+    expect(screen.queryByText('Chatroom Local Manager')).not.toBeInTheDocument();
+  });
+
+  it('shows Chatroom Local Manager when getLocalManagerUrl returns a URL', async () => {
+    mockedGetLocalManagerUrl.mockReturnValue('http://localhost:3847');
+    render(<ChatroomTitleEditor {...base} isDesktop />);
+    await openMenu();
+    expect(screen.getByText('Chatroom Local Manager')).toBeInTheDocument();
   });
 });
