@@ -39,6 +39,23 @@ export function getDaemonStartCommand(): string {
   return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
 }
 
+const DEFAULT_LOCAL_MANAGER_PORT = 3847;
+
+/** Parsed local manager port, or null if not in local environment / invalid. */
+export function getLocalManagerPort(): number | null {
+  if (!isLocalEnvironment()) return null;
+  const raw = process.env.NEXT_PUBLIC_LOCAL_MANAGER_PORT;
+  const port = raw ? Number.parseInt(raw, 10) : DEFAULT_LOCAL_MANAGER_PORT;
+  if (!Number.isFinite(port) || port < 1 || port > 65535) return null;
+  return port;
+}
+
+/** Full URL to the Chatroom Local Manager UI, or null when unavailable. */
+export function getLocalManagerUrl(): string | null {
+  const port = getLocalManagerPort();
+  return port === null ? null : `http://localhost:${port}`;
+}
+
 /**
  * Returns the chatroom auth login command with env vars for this environment.
  * @param webUrl - The web URL (window.location.origin). Required in local/dev environments.

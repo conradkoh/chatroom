@@ -94,7 +94,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this._phase = 'starting';
     this.emit('phase', this._phase);
 
-    const definitions = buildProcessDefinitions(this.repoRoot, config);
+    const definitions = buildProcessDefinitions(this.repoRoot, config, this.managerPort);
 
     for (const def of definitions) {
       this.updateState(def.id, {

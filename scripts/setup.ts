@@ -204,6 +204,7 @@ function setupWebappEnv(convexUrl: string): void {
 
   let envContent = existsSync(webappEnvPath) ? readFileSync(webappEnvPath, 'utf8') : '';
   envContent = updateEnvVariable(envContent, 'NEXT_PUBLIC_CONVEX_URL', convexUrl);
+  envContent = updateEnvVariable(envContent, 'NEXT_PUBLIC_LOCAL_MANAGER_PORT', '3847');
 
   if (!envContent.match(/^PORT=/m)) {
     const randomPort = generateRandomPort();
