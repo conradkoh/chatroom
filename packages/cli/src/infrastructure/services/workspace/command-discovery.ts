@@ -37,7 +37,7 @@ export interface SubWorkspaceInfo {
 export interface DiscoveredCommand {
   name: string;
   script: string;
-  source: 'package.json' | 'turbo.json';
+  source: 'package.json' | 'turbo.json' | 'deno.json';
   /** Structured sub-workspace info. Refers to package manager workspace packages, not the chatroom workspace (workingDir). */
   subWorkspace: SubWorkspaceInfo;
 }
@@ -231,6 +231,32 @@ async function readTurboJson(
   return turboTaskNames;
 }
 
+async function readDenoJson(workingDir: string): Promise<DiscoveredCommand[]> {
+  const commands: DiscoveredCommand[] = [];
+  for (const fileName of ['deno.json', 'deno.jsonc'] as const) {
+    const deno = await readJsonFile<{ name?: string; tasks?: Record<string, string> }>(
+      join(workingDir, fileName),
+      fileName
+    );
+    if (!deno?.tasks || typeof deno.tasks !== 'object') continue;
+
+    const pkgName = deno.name ?? basename(workingDir);
+    const subWorkspace: SubWorkspaceInfo = { type: 'deno', path: '.', name: pkgName };
+
+    for (const [taskName, taskCommand] of Object.entries(deno.tasks)) {
+      if (!isValidScriptEntry(taskName, taskCommand)) continue;
+      commands.push({
+        name: `deno: ${taskName}`,
+        script: `deno task ${taskName}`,
+        source: 'deno.json',
+        subWorkspace,
+      });
+    }
+    break; // prefer deno.json over deno.jsonc if both exist
+  }
+  return commands;
+}
+
 export async function discoverCommands(workingDir: string): Promise<DiscoveredCommand[]> {
   const commands: DiscoveredCommand[] = [];
   const pm = await detectPackageManager(workingDir);
@@ -243,6 +269,9 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
     scriptPrefix
   );
   commands.push(...rootCommands);
+
+  const denoCommands = await readDenoJson(workingDir);
+  commands.push(...denoCommands);
 
   const rootSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
   const turboTaskNames = await readTurboJson(workingDir, turboPrefix, rootSubWorkspace);
