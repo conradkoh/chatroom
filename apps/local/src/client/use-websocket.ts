@@ -62,6 +62,12 @@ export function useWebSocket() {
               [msg.line.processId]: [...(prev[msg.line.processId] ?? []), msg.line],
             }));
             break;
+          case 'logs-clear':
+            setLogsByProcess((prev) => ({
+              ...prev,
+              [msg.processId]: [],
+            }));
+            break;
           case 'runtime-config':
             setRuntime(msg.runtime);
             break;
