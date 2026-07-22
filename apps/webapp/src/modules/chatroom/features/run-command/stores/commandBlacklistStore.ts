@@ -1,3 +1,5 @@
+import { parseWorkspaceCommandBlacklistKeyFromId } from '../../../lib/workspaceCommandBlacklistKey';
+
 /**
  * CommandBlacklistStore — localStorage-backed set of blacklisted command IDs.
  *
@@ -21,9 +23,8 @@ function emit(): void {
 
 /** Migrate legacy workspace-specific keys to semantic keys */
 export function migrateKey(key: string): string {
-  const wsMatch = key.match(/^ws-([^-]+)-(.+)$/);
-  // Only migrate if the id segment doesn't look like an action (contains digits or is long)
-  if (wsMatch && wsMatch[1].length > 8) return `ws-${wsMatch[2]}`;
+  const wsKey = parseWorkspaceCommandBlacklistKeyFromId(key);
+  if (wsKey) return wsKey;
   return key;
 }
 

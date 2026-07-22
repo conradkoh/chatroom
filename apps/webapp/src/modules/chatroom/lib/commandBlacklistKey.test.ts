@@ -18,17 +18,32 @@ describe('getCommandBlacklistKey', () => {
     expect(getCommandBlacklistKey(makeCmd({ id: 'fav-lint', label: 'lint' }))).toBe('fav-lint');
   });
 
-  it('workspace command strips workspace id', () => {
-    const result = getCommandBlacklistKey(
-      makeCmd({ id: 'ws-abc-open-vscode', label: 'Open VS Code' })
+  it('workspace commands with hyphenated paths produce stable keys', () => {
+    const a = getCommandBlacklistKey(
+      makeCmd({
+        id: 'ws-m1::/Users/foo/my-project/repo-git-pull',
+        label: 'Git: Pull from Remote',
+      })
     );
-    expect(result).toBe('ws-open-vscode');
+    const b = getCommandBlacklistKey(
+      makeCmd({
+        id: 'ws-m2::/Users/bar/other-repo-git-pull',
+        label: 'Git: Pull from Remote',
+      })
+    );
+    expect(a).toBe('ws-git-pull');
+    expect(b).toBe('ws-git-pull');
   });
 
-  it('different workspace ids produce same key', () => {
-    const a = getCommandBlacklistKey(makeCmd({ id: 'ws-abc-open-vscode', label: 'Open VS Code' }));
-    const b = getCommandBlacklistKey(makeCmd({ id: 'ws-xyz-open-vscode', label: 'Open VS Code' }));
-    expect(a).toBe(b);
+  it('workspace command with blacklistKey uses it', () => {
+    const result = getCommandBlacklistKey(
+      makeCmd({
+        id: 'ws-m1::/path-open-vscode',
+        label: 'Open VS Code',
+        blacklistKey: 'ws-open-vscode',
+      })
+    );
+    expect(result).toBe('ws-open-vscode');
   });
 
   it('saved command with blacklistKey uses it', () => {
