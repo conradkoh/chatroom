@@ -1,5 +1,6 @@
 import type { WebSocket, WebSocketServer } from 'ws';
 
+import type { ConvexBackupService } from './convex-backup-service.js';
 import type { ProcessManager } from './process-manager.js';
 import type { RepoUpdateService } from './repo-update-service.js';
 import { parseRuntimeConfig } from '../shared/parse-runtime-config.js';
@@ -9,7 +10,8 @@ export function attachWebSocketHub(
   wss: WebSocketServer,
   manager: ProcessManager,
   defaults: RuntimeConfigDefaults,
-  repoUpdate: RepoUpdateService
+  repoUpdate: RepoUpdateService,
+  backupService: ConvexBackupService
 ): void {
   const broadcast = (message: ServerMessage) => {
     const payload = JSON.stringify(message);
@@ -23,6 +25,7 @@ export function attachWebSocketHub(
   manager.on('phase', (phase) => broadcast({ type: 'phase', phase }));
   manager.on('logs-clear', (processId) => broadcast({ type: 'logs-clear', processId }));
   repoUpdate.on('update', (update) => broadcast({ type: 'repo-update', update }));
+  backupService.on('update', (backup) => broadcast({ type: 'convex-backup', backup }));
 
   wss.on('connection', (socket: WebSocket) => {
     socket.send(
@@ -34,6 +37,7 @@ export function attachWebSocketHub(
         defaults,
         runtime: manager.runtimeConfig,
         repoUpdate: repoUpdate.getStatus(),
+        backup: backupService.getStatus(),
       })
     );
 
@@ -61,6 +65,21 @@ export function attachWebSocketHub(
               const message = err instanceof Error ? err.message : String(err);
               process.stderr.write(`apply-repo-update failed: ${message}\n`);
             });
+            break;
+          case 'list-convex-backups':
+            backupService.refreshList();
+            break;
+          case 'create-convex-backup':
+            void backupService.create();
+            break;
+          case 'restore-convex-backup':
+            void backupService.restore(msg.backupId, manager).catch((err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              process.stderr.write(`restore-convex-backup failed: ${message}\n`);
+            });
+            break;
+          case 'delete-convex-backup':
+            void backupService.delete(msg.backupId);
             break;
         }
       } catch {

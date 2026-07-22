@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 import type {
   ClientMessage,
+  ConvexBackupStatus,
   LogLine,
   ManagedProcessId,
   ProcessInfo,
@@ -31,6 +32,11 @@ export function useWebSocket() {
     remoteVersion: null,
     error: null,
   });
+  const [convexBackup, setConvexBackup] = useState<ConvexBackupStatus>({
+    status: 'idle',
+    backups: [],
+    error: null,
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -57,6 +63,7 @@ export function useWebSocket() {
             setDefaults(msg.defaults);
             setRuntime(msg.runtime);
             setRepoUpdate(msg.repoUpdate);
+            setConvexBackup(msg.backup);
             break;
           case 'phase':
             setPhase(msg.phase);
@@ -81,6 +88,9 @@ export function useWebSocket() {
             break;
           case 'repo-update':
             setRepoUpdate(msg.update);
+            break;
+          case 'convex-backup':
+            setConvexBackup(msg.backup);
             break;
         }
       } catch {
@@ -119,6 +129,20 @@ export function useWebSocket() {
 
   const applyRepoUpdate = useCallback(() => send({ type: 'apply-repo-update' }), [send]);
 
+  const listConvexBackups = useCallback(() => send({ type: 'list-convex-backups' }), [send]);
+
+  const createConvexBackup = useCallback(() => send({ type: 'create-convex-backup' }), [send]);
+
+  const restoreConvexBackup = useCallback(
+    (backupId: string) => send({ type: 'restore-convex-backup', backupId }),
+    [send]
+  );
+
+  const deleteConvexBackup = useCallback(
+    (backupId: string) => send({ type: 'delete-convex-backup', backupId }),
+    [send]
+  );
+
   return {
     processes,
     logsByProcess,
@@ -127,10 +151,15 @@ export function useWebSocket() {
     defaults,
     runtime,
     repoUpdate,
+    convexBackup,
     startStack,
     stopStack,
     restart,
     checkRepoUpdate,
     applyRepoUpdate,
+    listConvexBackups,
+    createConvexBackup,
+    restoreConvexBackup,
+    deleteConvexBackup,
   };
 }
