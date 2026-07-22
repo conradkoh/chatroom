@@ -119,11 +119,21 @@ function HealthBadge({ health, healthDetail }: { health: string; healthDetail: s
         ? 'border-chatroom-status-warning text-chatroom-status-warning'
         : health === 'unhealthy'
           ? 'border-chatroom-status-error text-chatroom-status-error'
-          : 'border-chatroom-border text-chatroom-text-muted opacity-0';
+          : 'border-chatroom-border text-chatroom-text-muted';
+
+  const opacityClass = health === 'unknown' ? 'opacity-40' : 'opacity-100';
 
   return (
     <span className="health-badge-slot" title={healthDetail ?? undefined}>
-      <Badge variant="outline" className={cn('rounded-none text-[10px]', colorClass)}>
+      <Badge
+        variant="outline"
+        className={cn(
+          'rounded-none text-[10px] transition-status transition-fade',
+          colorClass,
+          opacityClass,
+          health === 'checking' && 'animate-status-pulse'
+        )}
+      >
         {label}
       </Badge>
     </span>
@@ -178,7 +188,13 @@ export function App() {
       <aside className="flex w-64 shrink-0 flex-col gap-2 overflow-hidden border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-4">
         <h1 className="text-sm font-bold uppercase tracking-wider">Chatroom Local</h1>
         <div className="flex items-center gap-1.5 text-[11px] text-chatroom-text-muted">
-          <span className={cn('inline-block h-2 w-2', statusColor)} />
+          <span
+            className={cn(
+              'inline-block h-2 w-2 transition-status',
+              statusColor,
+              connectionState === 'connecting' && 'animate-status-pulse'
+            )}
+          />
           {connectionState === 'connected'
             ? 'Connected'
             : connectionState === 'connecting'
@@ -187,9 +203,10 @@ export function App() {
         </div>
         <div
           className={cn(
-            'phase-indicator-slot',
+            'phase-indicator-slot transition-phase-text',
             phase === 'starting' && 'text-chatroom-status-warning',
-            phase === 'stopping' && 'text-chatroom-status-error'
+            phase === 'stopping' && 'text-chatroom-status-error',
+            phase !== 'starting' && phase !== 'stopping' && 'text-transparent'
           )}
         >
           {phase === 'starting' ? 'Starting...' : phase === 'stopping' ? 'Stopping...' : '\u00A0'}
@@ -202,7 +219,7 @@ export function App() {
             <div
               key={p.id}
               className={cn(
-                'group flex cursor-pointer items-center gap-2 border-2 p-2 transition-colors',
+                'group flex cursor-pointer items-center gap-2 border-2 p-2 transition-colors duration-150',
                 selectedId === p.id
                   ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary'
                   : 'border-transparent hover:bg-chatroom-bg-hover'
@@ -211,7 +228,7 @@ export function App() {
             >
               <span
                 className={cn(
-                  'inline-block h-2 w-2 shrink-0',
+                  'inline-block h-2 w-2 shrink-0 transition-status',
                   (p.status === 'pending' || p.status === 'stopped') && 'bg-chatroom-text-muted',
                   p.status === 'starting' && 'bg-chatroom-status-warning animate-pulse',
                   p.status === 'running' && 'bg-chatroom-status-success',

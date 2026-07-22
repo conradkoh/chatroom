@@ -63,7 +63,7 @@ export function SetupPanel({
                   key={m}
                   type="button"
                   className={cn(
-                    'flex-1 cursor-pointer rounded-none border-2 px-4 py-2 text-sm font-medium uppercase tracking-wider transition-colors',
+                    'flex-1 cursor-pointer rounded-none border-2 px-4 py-2 text-sm font-medium uppercase tracking-wider transition-colors duration-150',
                     mode === m
                       ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary text-chatroom-text-primary'
                       : 'border-chatroom-border bg-transparent text-chatroom-text-muted hover:bg-chatroom-bg-hover'

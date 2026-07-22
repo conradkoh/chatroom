@@ -101,4 +101,36 @@
   .setup-mode-field-slot {
     @apply min-h-[4.75rem];
   }
+
+  .transition-status {
+    @apply transition-colors duration-200 ease-in-out;
+  }
+
+  .transition-fade {
+    @apply transition-opacity duration-200 ease-in-out;
+  }
+
+  .transition-phase-text {
+    @apply transition-[color,opacity] duration-300 ease-in-out;
+  }
+
+  @keyframes status-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .animate-status-pulse {
+    animation: status-pulse 2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-status-pulse {
+      animation: none;
+    }
+  }
 }
