@@ -2,9 +2,25 @@ import { render, screen } from '@testing-library/react';
 import Markdown from 'react-markdown';
 import { describe, expect, it } from 'vitest';
 
-import { fullMarkdownComponents } from './markdown-utils';
+import { fullMarkdownComponents, messageFeedProseClassNames } from './markdown-utils';
 import { WorkspaceFileLinkProvider } from '../context/WorkspaceFileLinkContext';
 import { MarkdownRenderer } from '../workspace/file-renderers/MarkdownRenderer';
+
+describe('markdown inline code selection', () => {
+  it('disables typography pseudo-element backticks on prose containers', () => {
+    expect(messageFeedProseClassNames).toContain('prose-code:before:content-none');
+    expect(messageFeedProseClassNames).toContain('prose-code:after:content-none');
+  });
+
+  it('renders inline code without decorative before/after pseudo-elements', () => {
+    render(<Markdown components={fullMarkdownComponents}>{'`chatroom context read`'}</Markdown>);
+
+    const code = screen.getByText('chatroom context read');
+    expect(code.tagName).toBe('CODE');
+    expect(code.className).toContain('before:content-none');
+    expect(code.className).toContain('after:content-none');
+  });
+});
 
 describe('markdown workspace links', () => {
   it('does not nest workspace link buttons when link label is inline code', () => {
