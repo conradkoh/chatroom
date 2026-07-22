@@ -43,6 +43,29 @@ describe('loadRuntimeDefaults', () => {
     const d = loadRuntimeDefaults(tmpDir, 3847);
     expect(d.convexBackendMode).toBe('hosted');
     expect(d.hostedConvexUrlFromEnv).toBe('https://test-123.convex.cloud');
+    expect(d.convexUrl).toBe('https://test-123.convex.cloud');
+  });
+
+  it('prefers hosted webapp env when backend env is local', () => {
+    const servicesDir = join(tmpDir, 'services/backend');
+    const appsDir = join(tmpDir, 'apps/webapp');
+    ensureDir(servicesDir);
+    ensureDir(appsDir);
+    writeFileSync(
+      join(servicesDir, '.env.local'),
+      'VITE_CONVEX_URL=http://127.0.0.1:3210\n',
+      'utf8'
+    );
+    writeFileSync(
+      join(appsDir, '.env.local'),
+      'NEXT_PUBLIC_CONVEX_URL=https://wonderful-raven-192.convex.cloud\n',
+      'utf8'
+    );
+
+    const d = loadRuntimeDefaults(tmpDir, 3847);
+    expect(d.convexBackendMode).toBe('hosted');
+    expect(d.hostedConvexUrlFromEnv).toBe('https://wonderful-raven-192.convex.cloud');
+    expect(d.convexUrl).toBe('https://wonderful-raven-192.convex.cloud');
   });
 
   it('reads webapp port from webapp env', () => {

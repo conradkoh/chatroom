@@ -2292,7 +2292,12 @@ export default defineSchema({
     workingDir: v.string(),
     name: v.string(),
     script: v.string(),
-    source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+    source: v.union(
+      v.literal('package.json'),
+      v.literal('turbo.json'),
+      v.literal('deno.json'),
+      v.literal('Makefile')
+    ),
     /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') @deprecated Use subWorkspace instead */
     workspace: v.optional(v.string()),
     /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */

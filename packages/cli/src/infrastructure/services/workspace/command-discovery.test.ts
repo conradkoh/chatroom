@@ -6,7 +6,7 @@
 
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
@@ -157,6 +157,57 @@ describe('discoverCommands — monorepo', () => {
     // No workspace-specific commands
     const filtered = commands.filter((c) => c.name.includes('('));
     expect(filtered).toHaveLength(0);
+  });
+
+  test('discovers deno.json tasks', async () => {
+    await writeFile(
+      join(testDir, 'deno.json'),
+      JSON.stringify({
+        name: 'my-deno-app',
+        tasks: { dev: 'deno run --watch main.ts', test: 'deno test' },
+      })
+    );
+
+    const commands = await discoverCommands(testDir);
+
+    expect(commands).toContainEqual({
+      name: 'deno: dev',
+      script: 'deno task dev',
+      source: 'deno.json',
+      subWorkspace: { type: 'deno', path: '.', name: 'my-deno-app' },
+    });
+    expect(commands).toContainEqual({
+      name: 'deno: test',
+      script: 'deno task test',
+      source: 'deno.json',
+      subWorkspace: { type: 'deno', path: '.', name: 'my-deno-app' },
+    });
+  });
+
+  test('discovers Makefile targets', async () => {
+    await writeFile(
+      join(testDir, 'Makefile'),
+      `.PHONY: build test
+build:
+\tnpm run build
+test:
+\tnpm test`
+    );
+
+    const commands = await discoverCommands(testDir);
+
+    expect(commands).toContainEqual({
+      name: 'make: build',
+      script: 'make build',
+      source: 'Makefile',
+      subWorkspace: { type: 'make', path: '.', name: basename(testDir) },
+    });
+    expect(commands).toContainEqual({
+      name: 'make: test',
+      script: 'make test',
+      source: 'Makefile',
+      subWorkspace: { type: 'make', path: '.', name: basename(testDir) },
+    });
   });
 
   test('discovers turbo tasks when turbo.json is JSONC (comments + trailing commas)', async () => {

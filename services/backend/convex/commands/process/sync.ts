@@ -10,7 +10,7 @@ export async function syncCommands(
     commands: Array<{
       name: string;
       script: string;
-      source: 'package.json' | 'turbo.json';
+      source: 'package.json' | 'turbo.json' | 'deno.json' | 'Makefile';
       subWorkspace?: { type: string; path: string; name: string };
     }>;
   }

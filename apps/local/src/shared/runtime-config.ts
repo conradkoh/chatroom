@@ -35,5 +35,19 @@ const _runtimeConfigKeysInDefaults: RuntimeConfigKeysInDefaults = {
 void _runtimeConfigKeysInDefaults;
 
 export function defaultConvexBackendMode(hostedUrl: string | null): ConvexBackendMode {
-  return hostedUrl && hostedUrl.includes('.convex.cloud') ? 'hosted' : 'local';
+  return hostedUrl ? 'hosted' : 'local';
+}
+
+export function findHostedConvexUrl(...urls: (string | undefined)[]): string | null {
+  for (const url of urls) {
+    if (url?.includes('.convex.cloud')) return url;
+  }
+  return null;
+}
+
+export function findLocalConvexUrl(...urls: (string | undefined)[]): string | null {
+  for (const url of urls) {
+    if (url && !url.includes('.convex.cloud')) return url;
+  }
+  return null;
 }

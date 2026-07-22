@@ -63,8 +63,14 @@ function buildConvexDefinition(repoRoot: string, config: RuntimeConfig, convexUr
   };
 }
 
-function buildWebappDefinition(repoRoot: string, config: RuntimeConfig, convexUrl: string) {
+function buildWebappDefinition(
+  repoRoot: string,
+  config: RuntimeConfig,
+  convexUrl: string,
+  managerPort: number
+) {
   const port = config.webappPort;
+  const managerPortEnv = `NEXT_PUBLIC_LOCAL_MANAGER_PORT=${managerPort}`;
   return {
     id: 'webapp' as const,
     name: 'Webapp (production build)',
@@ -72,11 +78,12 @@ function buildWebappDefinition(repoRoot: string, config: RuntimeConfig, convexUr
     command: 'sh',
     args: [
       '-c',
-      `NEXT_PUBLIC_CONVEX_URL=${convexUrl} pnpm turbo run build --filter=@workspace/webapp && echo "Starting Next.js production server on http://localhost:${port} ..." && PORT=${port} NEXT_PUBLIC_CONVEX_URL=${convexUrl} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
+      `NEXT_PUBLIC_CONVEX_URL=${convexUrl} ${managerPortEnv} pnpm turbo run build --filter=@workspace/webapp --no-cache && echo "Starting Next.js production server on http://localhost:${port} ..." && PORT=${port} NEXT_PUBLIC_CONVEX_URL=${convexUrl} ${managerPortEnv} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
     ],
     env: {
       NODE_ENV: 'production',
       NEXT_PUBLIC_CONVEX_URL: convexUrl,
+      NEXT_PUBLIC_LOCAL_MANAGER_PORT: String(managerPort),
     },
     shell: false,
   };
@@ -90,7 +97,7 @@ function buildDaemonDefinition(repoRoot: string, convexUrl: string, webappUrl: s
     command: 'sh',
     args: [
       '-c',
-      'pnpm turbo run build --filter=chatroom-cli && pnpm exec chatroom machine daemon start',
+      'pnpm turbo run build --filter=chatroom-cli --no-cache && pnpm exec chatroom machine daemon start',
     ],
     env: {
       CHATROOM_CONVEX_URL: convexUrl,
@@ -102,7 +109,8 @@ function buildDaemonDefinition(repoRoot: string, convexUrl: string, webappUrl: s
 
 export function buildProcessDefinitions(
   repoRoot: string,
-  config: RuntimeConfig
+  config: RuntimeConfig,
+  managerPort = 3847
 ): ProcessDefinition[] {
   const convexUrl = resolveConvexUrl(repoRoot, config);
   const webappUrl = `http://localhost:${config.webappPort}`;
@@ -112,7 +120,7 @@ export function buildProcessDefinitions(
     defs.push(buildConvexDefinition(repoRoot, config, convexUrl));
   }
 
-  defs.push(buildWebappDefinition(repoRoot, config, convexUrl));
+  defs.push(buildWebappDefinition(repoRoot, config, convexUrl, managerPort));
   defs.push(buildDaemonDefinition(repoRoot, convexUrl, webappUrl));
 
   return defs;

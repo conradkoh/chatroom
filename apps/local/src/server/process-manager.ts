@@ -94,7 +94,14 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this._phase = 'starting';
     this.emit('phase', this._phase);
 
-    const definitions = buildProcessDefinitions(this.repoRoot, config);
+    await this.stopAll();
+    this.clearAllProcessLogs();
+
+    this.updateState('convex', {
+      name: config.convexBackendMode === 'hosted' ? 'Convex (hosted)' : 'Convex (local)',
+    });
+
+    const definitions = buildProcessDefinitions(this.repoRoot, config, this.managerPort);
 
     for (const def of definitions) {
       this.updateState(def.id, {
@@ -161,6 +168,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         this.updateState('convex', { health: 'healthy', healthDetail: null });
       }
     } else {
+      this.clearProcessLogs('convex');
       const convexState = this.state.get('convex');
       if (convexState) {
         convexState.status = 'skipped';
@@ -296,6 +304,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   async restart(id: ManagedProcessId): Promise<void> {
+    this.clearAllProcessLogs();
     if (id === 'convex') {
       await this.stopAll();
       if (this._runtimeConfig) {
@@ -394,6 +403,16 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         exitCode: code,
       });
     });
+  }
+
+  private clearAllProcessLogs(): void {
+    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
+      this.lineBuffers.delete(id);
+    }
+    this.logs.clearAll();
+    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
+      this.emit('logs-clear', id);
+    }
   }
 
   private clearProcessLogs(id: ManagedProcessId): void {

@@ -1,16 +1,23 @@
 import { Copy, RotateCcw } from 'lucide-react';
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 
+import { BackupsPanel } from './components/BackupsPanel';
+import { LogViewer } from './components/LogViewer';
 import { LogUrlBar } from './components/LogUrlBar';
 import { SetupPanel } from './components/SetupPanel';
 import { UpdateBanner } from './components/UpdateBanner';
 import { collectUrlsFromLogLines, stripAnsi } from './log-text';
-import { LogLineContent } from './LogLineContent';
 import { useWebSocket } from './use-websocket';
 import type { ConnectionState } from './use-websocket';
-import type { LogLine, ManagedProcessId, ProcessInfo, SessionPhase } from '../shared/protocol';
+import type {
+  ConvexBackupStatus,
+  LogLine,
+  ManagedProcessId,
+  ProcessInfo,
+  RuntimeConfig,
+  SessionPhase,
+} from '../shared/protocol';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -31,78 +38,6 @@ function formatTime(ts: number): string {
 function formatLogLine(line: LogLine): string {
   const badge = line.stream === 'stdout' ? 'OUT' : 'ERR';
   return `${formatTime(line.timestamp)} [${badge}] ${stripAnsi(line.text)}`;
-}
-
-function LogViewer({ logLines }: { logLines: LogLine[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const logContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    container.scrollTop = container.scrollHeight;
-  }, [logLines.length]);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
-        event.preventDefault();
-        const selection = window.getSelection();
-        if (!selection || !logContainerRef.current) return;
-        const range = document.createRange();
-        range.selectNodeContents(logContainerRef.current);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    };
-
-    container.addEventListener('keydown', handleKeyDown);
-    return () => container.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  if (logLines.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center overflow-y-auto text-sm text-chatroom-text-muted">
-        No logs yet — waiting for process output...
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={scrollRef}
-      className="h-full overflow-y-auto font-mono text-xs focus-visible:outline focus-visible:outline-1 focus-visible:outline-chatroom-status-info"
-      tabIndex={0}
-      role="log"
-      aria-label="Process logs"
-    >
-      <div ref={logContainerRef}>
-        {logLines.map((line, i) => (
-          <div
-            key={`${line.timestamp}-${i}`}
-            className={cn(
-              'animate-log-line-in px-4 py-[1px] leading-5',
-              line.stream === 'stderr' ? 'text-chatroom-status-error' : 'text-chatroom-text-primary'
-            )}
-          >
-            <span className="mr-2 select-none text-chatroom-text-muted">
-              {formatTime(line.timestamp)}
-            </span>
-            <Badge
-              variant="outline"
-              className="mr-2 w-12 rounded-none px-0 text-center text-[10px] font-bold uppercase leading-none"
-            >
-              {line.stream === 'stdout' ? 'OUT' : 'ERR'}
-            </Badge>
-            <LogLineContent text={line.text} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function processStatusDotClass(p: ProcessInfo): string {
@@ -133,6 +68,11 @@ function DashboardView({
   handleCopyLogs,
   stopStack,
   restart,
+  convexBackup,
+  runtime,
+  onCreateBackup,
+  onRestoreBackup,
+  onDeleteBackup,
 }: {
   processes: ProcessInfo[];
   logsByProcess: Record<ManagedProcessId, LogLine[]>;
@@ -144,6 +84,11 @@ function DashboardView({
   handleCopyLogs: () => void;
   stopStack: () => void;
   restart: (id: ManagedProcessId) => void;
+  convexBackup: ConvexBackupStatus;
+  runtime: RuntimeConfig | null;
+  onCreateBackup: () => void;
+  onRestoreBackup: (id: string) => void;
+  onDeleteBackup: (id: string) => void;
 }) {
   const selectedProcess = processes.find((p) => p.id === selectedId);
   const logLines = logsByProcess[selectedId] ?? [];
@@ -232,7 +177,16 @@ function DashboardView({
             </div>
           ))}
         </div>
-        <div className="mt-auto shrink-0">
+        <div className="shrink-0 border-t-2 border-chatroom-border pt-2">
+          <BackupsPanel
+            backup={convexBackup}
+            runtime={runtime}
+            onCreateBackup={onCreateBackup}
+            onRestoreBackup={onRestoreBackup}
+            onDeleteBackup={onDeleteBackup}
+          />
+        </div>
+        <div className="shrink-0">
           <Button
             variant="destructive"
             size="sm"
@@ -270,7 +224,7 @@ function DashboardView({
         </div>
         {logUrls.length > 0 && <LogUrlBar urls={logUrls} />}
         <div key={selectedId} className="min-h-0 flex-1 overflow-hidden">
-          <LogViewer logLines={logLines} />
+          <LogViewer logLines={logLines} processId={selectedId} />
         </div>
       </main>
     </div>
@@ -288,7 +242,12 @@ export function App() {
     stopStack,
     restart,
     repoUpdate,
+    convexBackup,
+    runtime,
     applyRepoUpdate,
+    createConvexBackup,
+    restoreConvexBackup,
+    deleteConvexBackup,
   } = useWebSocket();
   const [selectedId, setSelectedId] = useState<ManagedProcessId>('convex');
   const [copyLabel, setCopyLabel] = useState('Copy logs');
@@ -343,6 +302,11 @@ export function App() {
             handleCopyLogs={handleCopyLogs}
             stopStack={stopStack}
             restart={restart}
+            convexBackup={convexBackup}
+            runtime={runtime}
+            onCreateBackup={createConvexBackup}
+            onRestoreBackup={restoreConvexBackup}
+            onDeleteBackup={deleteConvexBackup}
           />
         </div>
       </div>

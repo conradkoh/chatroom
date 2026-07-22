@@ -79,8 +79,10 @@ const webappUrl = `http://localhost:${config.webappPort}`;
 
 Defaults loaded from:
 
-- `services/backend/.env.local` → `VITE_CONVEX_URL` / `CONVEX_DEPLOYMENT` (hosted URL hint)
+- `services/backend/.env.local` → `VITE_CONVEX_URL` / `CONVEX_DEPLOYMENT`
 - `apps/webapp/.env.local` → `NEXT_PUBLIC_CONVEX_URL`, `PORT`
+
+When env files disagree (backend local, webapp hosted), defaults prefer the `.convex.cloud` URL and hosted mode.
 
 ## Backend modes
 
@@ -115,11 +117,11 @@ flowchart TD
 
 ### Process commands (repo root `cwd`)
 
-| Process             | Command                                                                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Convex (local only) | `pnpm --filter @workspace/backend dev`                                                                                                   |
-| Webapp              | `pnpm turbo run build --filter=@workspace/webapp && PORT={port} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start` |
-| Daemon              | `pnpm turbo run build --filter=chatroom-cli && pnpm exec chatroom machine daemon start`                                                  |
+| Process             | Command                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Convex (local only) | `pnpm --filter @workspace/backend dev`                                                                                                              |
+| Webapp              | `pnpm turbo run build --filter=@workspace/webapp --no-cache && PORT={port} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start` |
+| Daemon              | `pnpm turbo run build --filter=chatroom-cli --no-cache && pnpm exec chatroom machine daemon start`                                                  |
 
 Env injected per child:
 
