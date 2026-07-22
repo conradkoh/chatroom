@@ -4,6 +4,7 @@ import { loadRuntimeDefaults } from './server/load-runtime-defaults.js';
 import { parseLocalConfig } from './server/parse-config.js';
 import { ProcessManager } from './server/process-manager.js';
 import { findRepoRoot } from './server/repo-root.js';
+import { RepoUpdateService } from './server/repo-update-service.js';
 
 const repoRoot = findRepoRoot();
 
@@ -11,7 +12,9 @@ async function main(): Promise<void> {
   const launchConfig = parseLocalConfig(repoRoot);
   const defaults = loadRuntimeDefaults(repoRoot, launchConfig.managerPort);
   const manager = new ProcessManager(repoRoot, launchConfig.managerPort);
-  const app = await createAppServer(manager, launchConfig, defaults);
+  const repoUpdate = new RepoUpdateService(repoRoot);
+  repoUpdate.startPolling();
+  const app = await createAppServer(manager, launchConfig, defaults, repoUpdate);
 
   let shuttingDown = false;
 
@@ -24,6 +27,7 @@ async function main(): Promise<void> {
     forceExitTimer.unref();
 
     try {
+      repoUpdate.stopPolling();
       await manager.stopStack();
       await app.close();
     } catch (err) {

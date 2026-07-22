@@ -5,13 +5,15 @@ import { WebSocketServer } from 'ws';
 
 import type { LaunchConfig } from './parse-config.js';
 import type { ProcessManager } from './process-manager.js';
+import type { RepoUpdateService } from './repo-update-service.js';
 import { attachWebSocketHub } from './websocket-hub.js';
 import type { RuntimeConfigDefaults } from '../shared/protocol.js';
 
 export async function createAppServer(
   manager: ProcessManager,
   config: LaunchConfig,
-  defaults: RuntimeConfigDefaults
+  defaults: RuntimeConfigDefaults,
+  repoUpdate: RepoUpdateService
 ) {
   const port = config.managerPort;
 
@@ -29,7 +31,7 @@ export async function createAppServer(
   });
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  attachWebSocketHub(wss, manager, defaults);
+  attachWebSocketHub(wss, manager, defaults, repoUpdate);
 
   return {
     port,

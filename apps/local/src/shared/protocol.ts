@@ -6,6 +6,13 @@ export type HealthStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy';
 
 export type SessionPhase = 'idle' | 'starting' | 'running' | 'stopping';
 
+export type RepoUpdateStatus = {
+  status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'updating' | 'error';
+  localCommit: string | null;
+  remoteCommit: string | null;
+  error: string | null;
+};
+
 export type ConvexBackendMode = 'local' | 'hosted';
 
 export type RuntimeConfig = {
@@ -50,14 +57,18 @@ export type ServerMessage =
       logs: Record<ManagedProcessId, LogLine[]>;
       defaults: RuntimeConfigDefaults | null;
       runtime: RuntimeConfig | null;
+      repoUpdate: RepoUpdateStatus;
     }
   | { type: 'phase'; phase: SessionPhase }
   | { type: 'process-update'; process: ProcessInfo }
   | { type: 'log'; line: LogLine }
   | { type: 'logs-clear'; processId: ManagedProcessId }
-  | { type: 'runtime-config'; runtime: RuntimeConfig | null };
+  | { type: 'runtime-config'; runtime: RuntimeConfig | null }
+  | { type: 'repo-update'; update: RepoUpdateStatus };
 
 export type ClientMessage =
   | { type: 'start'; config: RuntimeConfig }
   | { type: 'stop' }
-  | { type: 'restart'; processId: ManagedProcessId };
+  | { type: 'restart'; processId: ManagedProcessId }
+  | { type: 'check-repo-update' }
+  | { type: 'apply-repo-update' };

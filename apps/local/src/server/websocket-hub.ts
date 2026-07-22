@@ -1,12 +1,14 @@
 import type { WebSocket, WebSocketServer } from 'ws';
 
 import type { ProcessManager } from './process-manager.js';
+import type { RepoUpdateService } from './repo-update-service.js';
 import type { ClientMessage, RuntimeConfigDefaults, ServerMessage } from '../shared/protocol.js';
 
 export function attachWebSocketHub(
   wss: WebSocketServer,
   manager: ProcessManager,
-  defaults: RuntimeConfigDefaults
+  defaults: RuntimeConfigDefaults,
+  repoUpdate: RepoUpdateService
 ): void {
   const broadcast = (message: ServerMessage) => {
     const payload = JSON.stringify(message);
@@ -19,6 +21,7 @@ export function attachWebSocketHub(
   manager.on('log', (line) => broadcast({ type: 'log', line }));
   manager.on('phase', (phase) => broadcast({ type: 'phase', phase }));
   manager.on('logs-clear', (processId) => broadcast({ type: 'logs-clear', processId }));
+  repoUpdate.on('update', (update) => broadcast({ type: 'repo-update', update }));
 
   wss.on('connection', (socket: WebSocket) => {
     socket.send(
@@ -29,6 +32,7 @@ export function attachWebSocketHub(
         logs: manager.getLogSnapshot(),
         defaults,
         runtime: manager.runtimeConfig,
+        repoUpdate: repoUpdate.getStatus(),
       })
     );
 
@@ -44,6 +48,12 @@ export function attachWebSocketHub(
             break;
           case 'restart':
             manager.restart(msg.processId);
+            break;
+          case 'check-repo-update':
+            void repoUpdate.check();
+            break;
+          case 'apply-repo-update':
+            void repoUpdate.apply(manager);
             break;
         }
       } catch {
