@@ -1,5 +1,6 @@
 'use client';
 
+import { Eye, EyeOff } from 'lucide-react';
 import { useCallback } from 'react';
 
 import { VirtualizedScrollList } from '../virtual-list';
@@ -92,10 +93,12 @@ export function CommandPaletteVirtualizedList({
                   onSelect={() => onUnblacklist(command.id)}
                   className="rounded-none"
                 >
+                  <Eye size={14} />
                   Remove from blacklist
                 </ContextMenuItem>
               ) : (
                 <ContextMenuItem onSelect={() => onBlacklist(command.id)} className="rounded-none">
+                  <EyeOff size={14} />
                   Blacklist
                 </ContextMenuItem>
               )}
