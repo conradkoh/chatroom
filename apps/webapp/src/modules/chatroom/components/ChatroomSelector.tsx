@@ -436,16 +436,6 @@ const ChatroomCard = memo(function ChatroomCard({
     [updateStatus, chatroom._id]
   );
 
-  const formattedDate = useMemo(() => {
-    return new Date(chatroom._creationTime).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  }, [chatroom._creationTime]);
-
   // Use computed chatStatus from context (single source of truth via deriveChatStatus)
   const { chatStatus } = chatroom;
 
@@ -520,11 +510,6 @@ const ChatroomCard = memo(function ChatroomCard({
             )}
           </div>
         </div>
-        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
-          {chatroom._id}
-        </div>
-        {/* Card Date */}
-        <div className="text-[10px] text-chatroom-text-muted mt-2 md:mt-3">{formattedDate}</div>
       </div>
     </div>
   );
@@ -598,16 +583,13 @@ const ChatroomTable = memo(function ChatroomTable({
   return (
     <div className="border-2 border-chatroom-border overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+      <div className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Name
         </span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Status
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-right">
-          Created
         </span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
       </div>
@@ -616,20 +598,12 @@ const ChatroomTable = memo(function ChatroomTable({
         const teamName = chatroom.teamName || 'Team';
         const displayName = chatroom.name || teamName;
 
-        const formattedDate = new Date(chatroom._creationTime).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        });
-
         return (
           <div
             role="button"
             tabIndex={0}
             key={chatroom._id}
-            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
+            className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
             onClick={() => onSelect(chatroom._id)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -653,23 +627,14 @@ const ChatroomTable = memo(function ChatroomTable({
               </button>
             </StopClickPropagation>
             {/* Name */}
-            <div className="flex flex-col min-w-0">
+            <div className="flex items-center min-w-0">
               <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
                 {displayName}
-              </span>
-              <span className="font-mono text-[9px] text-chatroom-text-muted truncate">
-                {chatroom._id}
               </span>
             </div>
             {/* Status */}
             <div className="flex items-center min-w-[120px]">
               <ChatroomStatusIndicator chatStatus={chatroom.chatStatus} />
-            </div>
-            {/* Created */}
-            <div className="flex items-center justify-end">
-              <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
-                {formattedDate}
-              </span>
             </div>
             {/* Actions */}
             <StopClickPropagation className="flex items-center justify-center">
