@@ -17,6 +17,7 @@ export function attachWebSocketHub(
 
   manager.on('process', (process) => broadcast({ type: 'process-update', process }));
   manager.on('log', (line) => broadcast({ type: 'log', line }));
+  manager.on('phase', (phase) => broadcast({ type: 'phase', phase }));
 
   wss.on('connection', (socket: WebSocket) => {
     socket.send(
