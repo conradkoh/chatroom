@@ -1,7 +1,7 @@
 'use client';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { LogLineContent } from '../LogLineContent';
@@ -16,8 +16,16 @@ function formatTime(ts: number): string {
 }
 
 export function LogViewer({ logLines, processId }: { logLines: LogLine[]; processId: string }) {
-  const { scrollRef, isPinned, hasUnseenBelow, scrollToEnd, handleScroll, jumpToNew } =
-    useStickToBottomScroll(logLines.length, processId);
+  const {
+    scrollRef,
+    isPinned,
+    hasUnseenBelow,
+    isAtTop,
+    scrollToEnd,
+    handleScroll,
+    jumpToNew,
+    jumpToTop,
+  } = useStickToBottomScroll(logLines.length, processId);
 
   const virtualizer = useVirtualizer({
     count: logLines.length,
@@ -64,7 +72,22 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
     );
   }
 
-  const showJumpChip = !isPinned && hasUnseenBelow;
+  const showJumpToBottom = !isPinned;
+  const showJumpToTop = !isAtTop;
+
+  const handleJumpToBottom = () => {
+    if (logLines.length > 0) {
+      virtualizer.scrollToIndex(logLines.length - 1, { align: 'end' });
+    }
+    jumpToNew();
+  };
+
+  const handleJumpToTop = () => {
+    if (logLines.length > 0) {
+      virtualizer.scrollToIndex(0, { align: 'start' });
+    }
+    jumpToTop();
+  };
 
   return (
     <div className="relative h-full min-h-0">
@@ -115,15 +138,28 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
           })}
         </div>
       </div>
-      {showJumpChip && (
+      {showJumpToTop && (
         <button
           type="button"
-          onClick={jumpToNew}
-          className="absolute left-1/2 -translate-x-1/2 bottom-4 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
-          aria-label="Jump to new logs"
+          onClick={handleJumpToTop}
+          className="absolute right-4 top-4 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          aria-label="Jump to top"
+        >
+          <ChevronUp size={16} />
+          <span className="text-xs font-medium">Jump to top</span>
+        </button>
+      )}
+      {showJumpToBottom && (
+        <button
+          type="button"
+          onClick={handleJumpToBottom}
+          className="absolute right-4 bottom-4 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          aria-label={hasUnseenBelow ? 'Jump to new logs' : 'Jump to bottom'}
         >
           <ChevronDown size={16} />
-          <span className="text-xs font-medium">Jump to new</span>
+          <span className="text-xs font-medium">
+            {hasUnseenBelow ? 'Jump to new' : 'Jump to bottom'}
+          </span>
         </button>
       )}
     </div>
