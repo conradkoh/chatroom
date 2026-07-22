@@ -39,8 +39,10 @@ async function main(): Promise<void> {
     }
   };
 
-  process.once('SIGINT', () => void shutdown('SIGINT'));
-  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  // Keep handlers registered until shutdown completes — tsx exits 130 if no
+  // listeners remain when its hidden SIGINT handler runs after `once` removes ours.
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen();
 
