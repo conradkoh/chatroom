@@ -142,7 +142,7 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
         <button
           type="button"
           onClick={handleJumpToTop}
-          className="absolute right-4 top-4 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          className="absolute right-4 top-4 z-10 flex cursor-pointer items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to top"
         >
           <ChevronUp size={16} />
@@ -153,7 +153,7 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
         <button
           type="button"
           onClick={handleJumpToBottom}
-          className="absolute right-4 bottom-4 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          className="absolute right-4 bottom-4 z-10 flex cursor-pointer items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label={hasUnseenBelow ? 'Jump to new logs' : 'Jump to bottom'}
         >
           <ChevronDown size={16} />
