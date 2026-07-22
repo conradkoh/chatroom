@@ -10,7 +10,7 @@
  *   agent.waiting      | running/undef   | WAITING         | Green
  *   agent.waiting      | stopped         | STOPPING        | Yellow
  *   agent.requestStart | any             | STARTING        | Yellow
- *   agent.started      | any             | STARTING        | Yellow (merged)
+ *   agent.started      | any             | STARTED         | Green
  *   agent.requestStop  | stopped         | STOPPING        | Yellow
  *   task.acknowledged  | any             | TASK RECEIVED   | Yellow
  *   task.inProgress    | any             | WORKING         | Blue (pulse)
@@ -97,9 +97,12 @@ export function resolveAgentStatus(
     return { label: 'WAITING', variant: 'ready' };
   }
 
-  if (eventType === 'agent.requestStart' || eventType === 'agent.started') {
-    // Merge both into STARTING — both mean "coming online soon"
+  if (eventType === 'agent.requestStart') {
     return { label: 'STARTING', variant: 'transitioning' };
+  }
+
+  if (eventType === 'agent.started') {
+    return { label: 'STARTED', variant: 'ready' };
   }
 
   if (eventType === 'agent.requestStop') {
