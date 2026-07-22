@@ -49,7 +49,12 @@ export const syncCommands = mutation({
       v.object({
         name: v.string(),
         script: v.string(),
-        source: v.union(v.literal('package.json'), v.literal('turbo.json'), v.literal('deno.json')),
+        source: v.union(
+          v.literal('package.json'),
+          v.literal('turbo.json'),
+          v.literal('deno.json'),
+          v.literal('Makefile')
+        ),
         subWorkspace: v.optional(
           v.object({
             type: v.string(),
