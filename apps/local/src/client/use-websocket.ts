@@ -27,8 +27,8 @@ export function useWebSocket() {
   const [runtime, setRuntime] = useState<RuntimeConfig | null>(null);
   const [repoUpdate, setRepoUpdate] = useState<RepoUpdateStatus>({
     status: 'idle',
-    localCommit: null,
-    remoteCommit: null,
+    localVersion: null,
+    remoteVersion: null,
     error: null,
   });
   const wsRef = useRef<WebSocket | null>(null);

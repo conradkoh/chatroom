@@ -1,4 +1,3 @@
-import { shortCommit } from '../../shared/commits';
 import type { RepoUpdateStatus } from '../../shared/protocol';
 
 import { Button } from '@/components/ui/button';
@@ -20,9 +19,9 @@ export function UpdateBanner({
           <span className="font-bold uppercase tracking-wider text-chatroom-status-warning">
             Update available
           </span>
-          {update.localCommit && update.remoteCommit && (
+          {update.localVersion && update.remoteVersion && (
             <span className="ml-2 font-mono text-chatroom-text-muted">
-              {shortCommit(update.localCommit)} → {shortCommit(update.remoteCommit)}
+              v{update.localVersion} → v{update.remoteVersion}
             </span>
           )}
         </div>
