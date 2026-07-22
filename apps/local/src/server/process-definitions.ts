@@ -1,6 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  localConvexCloudPort,
+  localConvexDeployment,
+  localConvexSitePort,
+} from './convex-local-config.js';
 import type { ManagedProcessId, RuntimeConfig } from '../shared/protocol.js';
 
 export type ProcessDefinition = {
@@ -13,58 +18,48 @@ export type ProcessDefinition = {
   shell?: boolean;
 };
 
-type LocalConvexConfig = {
-  deploymentName?: string;
-  ports?: { cloud?: number; site?: number };
-};
-
-function readLocalConvexConfig(repoRoot: string): LocalConvexConfig | null {
-  try {
-    const configPath = join(repoRoot, 'services/backend/.convex/local/default/config.json');
-    return JSON.parse(readFileSync(configPath, 'utf8')) as LocalConvexConfig;
-  } catch {
-    return null;
-  }
-}
-
-function localConvexDeployment(repoRoot: string): string | undefined {
-  const name = readLocalConvexConfig(repoRoot)?.deploymentName;
-  return name ? `local:${name}` : undefined;
-}
-
-function localConvexCloudPort(repoRoot: string, fallback: number): number {
-  return readLocalConvexConfig(repoRoot)?.ports?.cloud ?? fallback;
-}
-
-function localConvexSitePort(repoRoot: string, fallback: number): number {
-  const cloudPort = localConvexCloudPort(repoRoot, fallback);
-  return readLocalConvexConfig(repoRoot)?.ports?.site ?? cloudPort + 1;
-}
+const CONVEX_ENV_FILE = 'services/backend/.convex/local-dev.env';
 
 function resolveConvexUrl(repoRoot: string, config: RuntimeConfig): string {
   if (config.convexBackendMode !== 'local') return config.convexUrl;
   return `http://127.0.0.1:${localConvexCloudPort(repoRoot, config.convexPort)}`;
 }
 
-function buildConvexDefinition(repoRoot: string, config: RuntimeConfig, convexUrl: string) {
-  const env: Record<string, string> = {
-    CONVEX_NON_INTERACTIVE: 'true',
-    DOCUMENT_RETENTION_DELAY: '1',
-    INDEX_RETENTION_DELAY: '1',
-    RETENTION_DELETE_FREQUENCY: '10',
-    VITE_CONVEX_URL: convexUrl,
-    VITE_CONVEX_SITE_URL: `http://127.0.0.1:${localConvexSitePort(repoRoot, config.convexPort)}`,
-  };
+function writeConvexLocalEnvFile(
+  repoRoot: string,
+  config: RuntimeConfig,
+  convexUrl: string
+): string {
+  const envPath = join(repoRoot, CONVEX_ENV_FILE);
+  mkdirSync(join(repoRoot, 'services/backend/.convex'), { recursive: true });
+
+  const siteUrl = `http://127.0.0.1:${localConvexSitePort(repoRoot, config.convexPort)}`;
+  const lines = [
+    'CONVEX_NON_INTERACTIVE=true',
+    'DOCUMENT_RETENTION_DELAY=1',
+    'INDEX_RETENTION_DELAY=1',
+    'RETENTION_DELETE_FREQUENCY=10',
+    `VITE_CONVEX_URL=${convexUrl}`,
+    `VITE_CONVEX_SITE_URL=${siteUrl}`,
+  ];
+
   const deployment = localConvexDeployment(repoRoot);
-  if (deployment) env.CONVEX_DEPLOYMENT = deployment;
+  if (deployment) lines.push(`CONVEX_DEPLOYMENT=${deployment}`);
+
+  writeFileSync(envPath, `${lines.join('\n')}\n`, 'utf8');
+  return envPath;
+}
+
+function buildConvexDefinition(repoRoot: string, config: RuntimeConfig, convexUrl: string) {
+  const envFilePath = writeConvexLocalEnvFile(repoRoot, config, convexUrl);
 
   return {
     id: 'convex' as const,
     name: 'Convex (local)',
     cwd: join(repoRoot, 'services/backend'),
     command: 'pnpm',
-    args: ['exec', 'convex', 'dev'],
-    env,
+    args: ['exec', 'convex', 'dev', '--env-file', envFilePath],
+    env: {},
   };
 }
 
