@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 
 import { waitForConvexHealthy } from './convex-health.js';
 import { waitForConvexDevReadyFromLogs } from './convex-readiness.js';
+import { waitForDaemonReadyFromLogs } from './daemon-readiness.js';
 import { LogBufferStore } from './log-buffer.js';
 import { buildProcessDefinitions } from './process-definitions.js';
 import type { ProcessDefinition } from './process-definitions.js';
@@ -159,11 +160,18 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
             healthDetail: 'Building production bundle',
           });
         }
+        if (def.id === 'daemon') {
+          this.updateState('daemon', {
+            health: 'checking',
+            healthDetail: 'Building CLI and starting daemon',
+          });
+        }
         this.start(def);
       }
     }
 
     this.monitorWebappReadiness(config);
+    this.monitorDaemonReadiness();
 
     this._phase = 'running';
     this.emit('phase', this._phase);
@@ -205,6 +213,26 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       this.updateState('webapp', {
         health: 'healthy',
         healthDetail: webappUrl,
+      });
+    });
+  }
+
+  private monitorDaemonReadiness(): void {
+    void waitForDaemonReadyFromLogs((handler) => this.subscribeToLogs(handler), {
+      onWaiting: () =>
+        this.updateState('daemon', {
+          health: 'checking',
+          healthDetail: 'Building CLI and starting daemon',
+        }),
+    }).then((result) => {
+      if (!result.ok) {
+        this.updateState('daemon', { health: 'unhealthy', healthDetail: result.reason });
+        return;
+      }
+
+      this.updateState('daemon', {
+        health: 'healthy',
+        healthDetail: 'Listening for commands',
       });
     });
   }
