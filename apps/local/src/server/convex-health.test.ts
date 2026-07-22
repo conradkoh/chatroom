@@ -56,12 +56,12 @@ describe('waitForConvexHealthy', () => {
     expect(mock).toHaveBeenCalledTimes(2);
   });
 
-  it('returns not-ok after max attempts', async () => {
+  it('returns not-ok after max attempts with last HTTP reason', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not ready', { status: 503 }));
     const result = await waitForConvexHealthy(CONVEX_URL, {
       intervalMs: 10,
       maxAttempts: 3,
     });
-    expect(result).toEqual({ ok: false, reason: 'timed out waiting for Convex' });
+    expect(result).toEqual({ ok: false, reason: 'HTTP 503' });
   });
 });

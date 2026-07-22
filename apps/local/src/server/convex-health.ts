@@ -28,11 +28,14 @@ export async function waitForConvexHealthy(
   } = {}
 ): Promise<ConvexHealthResult> {
   const { intervalMs = 1000, maxAttempts = 120, onCheck } = options;
+  let lastReason = 'timed out waiting for Convex';
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     onCheck?.(attempt);
     const result = await checkConvexHealth(convexUrl);
     if (result.ok) return result;
+    lastReason = result.reason;
     if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, intervalMs));
   }
-  return { ok: false, reason: 'timed out waiting for Convex' };
+  return { ok: false, reason: lastReason };
 }

@@ -52,6 +52,10 @@ export function localConvexCloudPort(repoRoot: string, fallback: number): number
   return readLocalConvexConfig(repoRoot)?.ports?.cloud ?? fallback;
 }
 
+export function localConvexCloudUrl(repoRoot: string, fallbackPort: number): string {
+  return `http://127.0.0.1:${localConvexCloudPort(repoRoot, fallbackPort)}`;
+}
+
 export function localConvexSitePort(repoRoot: string, fallback: number): number {
   const cloudPort = localConvexCloudPort(repoRoot, fallback);
   return readLocalConvexConfig(repoRoot)?.ports?.site ?? cloudPort + 1;

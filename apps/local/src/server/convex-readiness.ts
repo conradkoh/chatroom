@@ -13,6 +13,11 @@ function isConvexDevReadyLogLine(text: string): boolean {
   return stripAnsi(text).includes('Convex functions ready!');
 }
 
+function isConvexFailureLogLine(text: string): boolean {
+  const plain = stripAnsi(text);
+  return plain.includes('EADDRINUSE') || plain.includes('Failed to start') || /✖\s/.test(plain);
+}
+
 export function waitForConvexDevReadyFromLogs(
   subscribe: (handler: (line: LogLine) => void) => () => void,
   options: {
@@ -40,6 +45,10 @@ export function waitForConvexDevReadyFromLogs(
 
     const unsubscribe = subscribe((line) => {
       if (line.processId !== 'convex') return;
+      if (isConvexFailureLogLine(line.text)) {
+        finish({ ok: false, reason: stripAnsi(line.text).slice(0, 200) });
+        return;
+      }
       if (isConvexDevReadyLogLine(line.text)) {
         finish({ ok: true });
       }

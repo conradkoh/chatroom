@@ -73,6 +73,21 @@ describe('waitForConvexDevReadyFromLogs', () => {
     vi.useRealTimers();
   });
 
+  it('rejects on port in use', async () => {
+    const { subscribe, emit } = createSubscriber();
+    const promise = waitForConvexDevReadyFromLogs(subscribe, { timeoutMs: 1000 });
+    emit({
+      processId: 'convex',
+      stream: 'stderr',
+      text: 'Error: listen EADDRINUSE: address already in use :::3210',
+      timestamp: Date.now(),
+    });
+    await expect(promise).resolves.toEqual({
+      ok: false,
+      reason: 'Error: listen EADDRINUSE: address already in use :::3210',
+    });
+  });
+
   it('ignores readiness logs from other processes', async () => {
     vi.useFakeTimers();
     const { subscribe, emit } = createSubscriber();
