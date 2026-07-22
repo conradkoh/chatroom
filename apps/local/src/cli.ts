@@ -12,15 +12,30 @@ async function main(): Promise<void> {
   const manager = new ProcessManager(repoRoot, launchConfig.managerPort);
   const app = await createAppServer(manager, launchConfig, defaults);
 
+  let shuttingDown = false;
+
   const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     process.stderr.write(`\n${signal} received — stopping all processes...\n`);
-    await manager.stopStack();
-    await app.close();
-    process.exit(0);
+
+    const forceExitTimer = setTimeout(() => process.exit(0), 10_000);
+    forceExitTimer.unref();
+
+    try {
+      await manager.stopStack();
+      await app.close();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Shutdown error: ${message}\n`);
+    } finally {
+      clearTimeout(forceExitTimer);
+      process.exit(0);
+    }
   };
 
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen();
   process.stderr.write('Setup UI: open http://localhost:' + launchConfig.managerPort + '\n');

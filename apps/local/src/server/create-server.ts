@@ -50,7 +50,12 @@ export async function createAppServer(
       process.stderr.write(`Local dev manager UI: http://localhost:${port}\n`);
     },
     async close() {
-      wss.close();
+      for (const client of wss.clients) {
+        client.terminate();
+      }
+      await new Promise<void>((resolve, reject) =>
+        wss.close((err) => (err ? reject(err) : resolve()))
+      );
       await new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve()))
       );
