@@ -2,6 +2,8 @@ import { Copy, RotateCcw } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 import { SetupPanel } from './components/SetupPanel';
+import { stripAnsi } from './log-text';
+import { LogLineContent } from './LogLineContent';
 import { useWebSocket } from './use-websocket';
 import type { ConnectionState } from './use-websocket';
 import type { LogLine, ManagedProcessId, ProcessInfo, SessionPhase } from '../shared/protocol';
@@ -26,7 +28,7 @@ function formatTime(ts: number): string {
 
 function formatLogLine(line: LogLine): string {
   const badge = line.stream === 'stdout' ? 'OUT' : 'ERR';
-  return `${formatTime(line.timestamp)} [${badge}] ${line.text}`;
+  return `${formatTime(line.timestamp)} [${badge}] ${stripAnsi(line.text)}`;
 }
 
 function LogViewer({ logLines }: { logLines: LogLine[] }) {
@@ -93,7 +95,7 @@ function LogViewer({ logLines }: { logLines: LogLine[] }) {
             >
               {line.stream === 'stdout' ? 'OUT' : 'ERR'}
             </Badge>
-            {line.text}
+            <LogLineContent text={line.text} />
           </div>
         ))}
       </div>
@@ -189,7 +191,7 @@ function DashboardView({
             <div
               key={p.id}
               className={cn(
-                'group flex cursor-pointer items-start gap-2 border-2 p-2 transition-colors duration-150',
+                'group flex cursor-pointer items-center gap-2 border-2 p-2 transition-colors duration-150',
                 selectedId === p.id
                   ? 'border-chatroom-border-strong bg-chatroom-bg-tertiary'
                   : 'border-transparent hover:bg-chatroom-bg-hover'
@@ -198,7 +200,7 @@ function DashboardView({
             >
               <span
                 className={cn(
-                  'mt-1.5 inline-block h-2 w-2 shrink-0 transition-status',
+                  'inline-block h-2 w-2 shrink-0 transition-status',
                   processStatusDotClass(p)
                 )}
                 title={p.healthDetail ?? STATUS_LABELS[p.status]}

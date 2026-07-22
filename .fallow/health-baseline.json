@@ -14,9 +14,19 @@
         "count": 1
       }
     },
+    "apps/local/src/client/LogLineContent.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
     "apps/local/src/client/components/SetupPanel.tsx": {
       "crap_critical": {
         "count": 1
+      }
+    },
+    "apps/local/src/client/log-text.ts": {
+      "crap_high": {
+        "count": 2
       }
     },
     "apps/local/src/client/use-websocket.ts": {

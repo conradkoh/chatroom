@@ -13,8 +13,10 @@
     "apps/webapp/src/modules/chatroom/utils/handleNotificationClick.ts",
     "apps/webapp/src/modules/header/index.ts",
     "apps/local/src/client/App.tsx",
+    "apps/local/src/client/LogLineContent.tsx",
     "apps/local/src/client/components/SetupPanel.tsx",
     "apps/local/src/client/lib/utils.ts",
+    "apps/local/src/client/log-text.ts",
     "apps/local/src/client/main.tsx",
     "apps/local/src/client/globals.css",
     "apps/local/src/client/use-websocket.ts",
@@ -44,6 +46,10 @@
     "services/backend/src/domain/usecase/auth/index.ts"
   ],
   "unused_exports": [
+    "apps/local/src/client/LogLineContent.tsx:LogLineContent",
+    "apps/local/src/client/log-text.ts:parseLogTextSegments",
+    "apps/local/src/client/log-text.ts:splitUrls",
+    "apps/local/src/client/log-text.ts:stripAnsi",
     "apps/webapp/src/application/auth/resolve.ts:getRolesForUser",
     "apps/webapp/src/application/auth/resolve.ts:unionPermissionsForRoles",
     "apps/webapp/src/application/auth/resolve.ts:permissionGrantMatches",
