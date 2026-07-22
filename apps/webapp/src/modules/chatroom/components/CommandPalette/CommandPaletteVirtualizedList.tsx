@@ -26,9 +26,9 @@ interface CommandPaletteVirtualizedListProps {
   onSelect: (cmd: CommandItem) => void;
   renderCommandItemContent: (command: CommandItem) => React.ReactNode;
   scrollResetKey?: string;
-  isBlacklisted?: (id: string) => boolean;
-  onBlacklist?: (id: string) => void;
-  onUnblacklist?: (id: string) => void;
+  isBlacklisted?: (command: CommandItem) => boolean;
+  onBlacklist?: (command: CommandItem) => void;
+  onUnblacklist?: (command: CommandItem) => void;
 }
 
 const LIST_HEIGHT = 244;
@@ -71,7 +71,7 @@ export function CommandPaletteVirtualizedList({
           onSelect={() => onSelect(command)}
           className={cn(
             'flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary box-border overflow-hidden',
-            isBlacklisted?.(command.id) && 'opacity-50'
+            isBlacklisted?.(command) && 'opacity-50'
           )}
           style={{
             height: command.detail
@@ -88,16 +88,13 @@ export function CommandPaletteVirtualizedList({
           <ContextMenu modal={false} key={command.id}>
             <ContextMenuTrigger asChild>{item}</ContextMenuTrigger>
             <ContextMenuContent className="min-w-[180px] rounded-none">
-              {isBlacklisted(command.id) ? (
-                <ContextMenuItem
-                  onSelect={() => onUnblacklist(command.id)}
-                  className="rounded-none"
-                >
+              {isBlacklisted(command) ? (
+                <ContextMenuItem onSelect={() => onUnblacklist(command)} className="rounded-none">
                   <Eye size={14} />
                   Remove from blacklist
                 </ContextMenuItem>
               ) : (
-                <ContextMenuItem onSelect={() => onBlacklist(command.id)} className="rounded-none">
+                <ContextMenuItem onSelect={() => onBlacklist(command)} className="rounded-none">
                   <EyeOff size={14} />
                   Blacklist
                 </ContextMenuItem>

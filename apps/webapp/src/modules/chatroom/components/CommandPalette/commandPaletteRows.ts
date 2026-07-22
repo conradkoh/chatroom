@@ -43,7 +43,7 @@ export interface BuildCommandPaletteRowsArgs {
   groupedCommands: Map<string, CommandItem[]>;
   getScore: (cmd: CommandItem) => number;
   frecencyScores: FrecencyScores;
-  blacklistedIds?: ReadonlySet<string>;
+  blacklistedKeys?: ReadonlySet<string>;
 }
 
 // fallow-ignore-next-line complexity
@@ -55,7 +55,7 @@ export function buildCommandPaletteRows({
   groupedCommands,
   getScore: _getScore,
   frecencyScores,
-  blacklistedIds = new Set(),
+  blacklistedKeys = new Set(),
 }: BuildCommandPaletteRowsArgs): CommandPaletteRow[] {
   const isSearching = search.trim().length > 0;
 
@@ -64,7 +64,7 @@ export function buildCommandPaletteRows({
       commands,
       search,
       rankedFilter,
-      blacklistedIds
+      blacklistedKeys
     );
     return filtered.map((cmd) => ({ type: 'item' as const, id: cmd.id, command: cmd }));
   }
@@ -76,7 +76,7 @@ export function buildCommandPaletteRows({
     rows.push({ type: 'heading', id: 'recent', label: 'Recent' });
     for (const cmd of partitionCommandsByBlacklist(
       sortCommandsByFrecency(recentCommands, frecencyScores),
-      blacklistedIds
+      blacklistedKeys
     )) {
       rows.push({ type: 'item', id: cmd.id, command: cmd });
     }
@@ -87,7 +87,7 @@ export function buildCommandPaletteRows({
       recentCommands.length > 0 ? items.filter((item) => !recentIds.has(item.id)) : items;
     if (itemsToShow.length === 0) continue;
     rows.push({ type: 'heading', id: `heading-${category}`, label: category });
-    for (const cmd of partitionCommandsByBlacklist(itemsToShow, blacklistedIds)) {
+    for (const cmd of partitionCommandsByBlacklist(itemsToShow, blacklistedKeys)) {
       rows.push({ type: 'item', id: cmd.id, command: cmd });
     }
   }

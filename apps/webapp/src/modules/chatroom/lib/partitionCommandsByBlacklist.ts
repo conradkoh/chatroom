@@ -1,14 +1,15 @@
 import type { CommandItem } from '../components/CommandPalette/types';
+import { getCommandBlacklistKey } from './commandBlacklistKey';
 
 export function partitionCommandsByBlacklist(
   commands: CommandItem[],
-  blacklistedIds: ReadonlySet<string>
+  blacklistedKeys: ReadonlySet<string>
 ): CommandItem[] {
-  if (blacklistedIds.size === 0) return commands;
+  if (blacklistedKeys.size === 0) return commands;
   const normal: CommandItem[] = [];
   const blacklisted: CommandItem[] = [];
   for (const cmd of commands) {
-    (blacklistedIds.has(cmd.id) ? blacklisted : normal).push(cmd);
+    (blacklistedKeys.has(getCommandBlacklistKey(cmd)) ? blacklisted : normal).push(cmd);
   }
   return [...normal, ...blacklisted];
 }

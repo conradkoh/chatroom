@@ -29,6 +29,8 @@ export type CommandItem = {
    * Used by CommandPalette to call inlineCommand.run() when showOutputInline is true.
    */
   script?: string;
+  /** Stable cross-chatroom blacklist key. Computed by getCommandBlacklistKey if omitted. */
+  blacklistKey?: string;
 };
 
 export type SettingsTab =
