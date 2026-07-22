@@ -1,13 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type {
   ConvexBackendMode,
   RuntimeConfig,
   RuntimeConfigDefaults,
 } from '../../shared/protocol';
+import { DEFAULT_RUNTIME_CONFIG, runtimeConfigFromDefaults } from '../../shared/runtime-config';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+function useSetupFormState(defaults: RuntimeConfigDefaults | null) {
+  const [mode, setMode] = useState<ConvexBackendMode>(DEFAULT_RUNTIME_CONFIG.convexBackendMode);
+  const [webappPort, setWebappPort] = useState(String(DEFAULT_RUNTIME_CONFIG.webappPort));
+  const [convexPort, setConvexPort] = useState(String(DEFAULT_RUNTIME_CONFIG.convexPort));
+  const [convexUrl, setConvexUrl] = useState(DEFAULT_RUNTIME_CONFIG.convexUrl);
+
+  useEffect(() => {
+    if (!defaults) return;
+
+    const config = runtimeConfigFromDefaults(defaults);
+    setMode(config.convexBackendMode);
+    setWebappPort(String(config.webappPort));
+    setConvexPort(String(config.convexPort));
+    setConvexUrl(config.convexUrl);
+  }, [defaults]);
+
+  return {
+    mode,
+    setMode,
+    webappPort,
+    setWebappPort,
+    convexPort,
+    setConvexPort,
+    convexUrl,
+    setConvexUrl,
+  };
+}
 
 export function SetupPanel({
   defaults,
@@ -16,16 +45,22 @@ export function SetupPanel({
   defaults: RuntimeConfigDefaults | null;
   onStart: (config: RuntimeConfig) => void;
 }) {
-  const [mode, setMode] = useState<ConvexBackendMode>(defaults?.convexBackendMode ?? 'hosted');
-  const [webappPort, setWebappPort] = useState(String(defaults?.webappPort ?? 3000));
-  const [convexPort, setConvexPort] = useState(String(defaults?.convexPort ?? 3210));
-  const [convexUrl, setConvexUrl] = useState(defaults?.convexUrl ?? 'http://127.0.0.1:3210');
+  const {
+    mode,
+    setMode,
+    webappPort,
+    setWebappPort,
+    convexPort,
+    setConvexPort,
+    convexUrl,
+    setConvexUrl,
+  } = useSetupFormState(defaults);
 
   const handleStart = () => {
     onStart({
-      webappPort: Number(webappPort) || 3000,
+      webappPort: Number(webappPort) || DEFAULT_RUNTIME_CONFIG.webappPort,
       convexBackendMode: mode,
-      convexPort: Number(convexPort) || 3210,
+      convexPort: Number(convexPort) || DEFAULT_RUNTIME_CONFIG.convexPort,
       convexUrl,
     });
   };
