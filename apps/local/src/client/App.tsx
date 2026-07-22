@@ -3,7 +3,8 @@ import { useState, useRef, useEffect } from 'react';
 
 import { SetupPanel } from './components/SetupPanel';
 import { useWebSocket } from './use-websocket';
-import type { LogLine, ManagedProcessId } from '../shared/protocol';
+import type { ConnectionState } from './use-websocket';
+import type { LogLine, ManagedProcessId, ProcessInfo, SessionPhase } from '../shared/protocol';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -77,9 +78,9 @@ function LogViewer({ logLines }: { logLines: LogLine[] }) {
       <div ref={logContainerRef}>
         {logLines.map((line, i) => (
           <div
-            key={i}
+            key={`${line.timestamp}-${i}`}
             className={cn(
-              'px-4 py-[1px] leading-5',
+              'animate-log-line-in px-4 py-[1px] leading-5',
               line.stream === 'stderr' ? 'text-chatroom-status-error' : 'text-chatroom-text-primary'
             )}
           >
@@ -140,39 +141,31 @@ function HealthBadge({ health, healthDetail }: { health: string; healthDetail: s
   );
 }
 
-export function App() {
-  const {
-    processes,
-    logsByProcess,
-    connectionState,
-    phase,
-    defaults,
-    startStack,
-    stopStack,
-    restart,
-  } = useWebSocket();
-  const [selectedId, setSelectedId] = useState<ManagedProcessId>('convex');
-  const [copyLabel, setCopyLabel] = useState('Copy logs');
-
+function DashboardView({
+  processes,
+  logsByProcess,
+  connectionState,
+  phase,
+  selectedId,
+  setSelectedId,
+  copyLabel,
+  handleCopyLogs,
+  stopStack,
+  restart,
+}: {
+  processes: ProcessInfo[];
+  logsByProcess: Record<ManagedProcessId, LogLine[]>;
+  connectionState: ConnectionState;
+  phase: SessionPhase;
+  selectedId: ManagedProcessId;
+  setSelectedId: (id: ManagedProcessId) => void;
+  copyLabel: string;
+  handleCopyLogs: () => void;
+  stopStack: () => void;
+  restart: (id: ManagedProcessId) => void;
+}) {
   const selectedProcess = processes.find((p) => p.id === selectedId);
   const logLines = logsByProcess[selectedId] ?? [];
-
-  const handleCopyLogs = async () => {
-    if (logLines.length === 0) return;
-    const text = logLines.map(formatLogLine).join('\n');
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyLabel('Copied!');
-    } catch {
-      setCopyLabel('Copy failed');
-    } finally {
-      window.setTimeout(() => setCopyLabel('Copy logs'), 1500);
-    }
-  };
-
-  if (phase === 'idle') {
-    return <SetupPanel defaults={defaults} onStart={startStack} />;
-  }
 
   const statusColor =
     connectionState === 'connected'
@@ -290,13 +283,81 @@ export function App() {
             title="Copy all logs to clipboard"
           >
             <Copy size={14} />
-            {copyLabel}
+            <span key={copyLabel} className="animate-log-line-in">
+              {copyLabel}
+            </span>
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div key={selectedId} className="min-h-0 flex-1 overflow-hidden">
           <LogViewer logLines={logLines} />
         </div>
       </main>
+    </div>
+  );
+}
+
+export function App() {
+  const {
+    processes,
+    logsByProcess,
+    connectionState,
+    phase,
+    defaults,
+    startStack,
+    stopStack,
+    restart,
+  } = useWebSocket();
+  const [selectedId, setSelectedId] = useState<ManagedProcessId>('convex');
+  const [copyLabel, setCopyLabel] = useState('Copy logs');
+
+  const logLines = logsByProcess[selectedId] ?? [];
+
+  const handleCopyLogs = async () => {
+    if (logLines.length === 0) return;
+    const text = logLines.map(formatLogLine).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyLabel('Copied!');
+    } catch {
+      setCopyLabel('Copy failed');
+    } finally {
+      window.setTimeout(() => setCopyLabel('Copy logs'), 1500);
+    }
+  };
+
+  const showSetup = phase === 'idle';
+
+  return (
+    <div className="relative h-dvh overflow-hidden">
+      <div
+        className={cn(
+          'absolute inset-0 transition-fade duration-300',
+          showSetup ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+        )}
+        aria-hidden={!showSetup}
+      >
+        <SetupPanel defaults={defaults} onStart={startStack} />
+      </div>
+      <div
+        className={cn(
+          'absolute inset-0 transition-fade duration-300',
+          showSetup ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'
+        )}
+        aria-hidden={showSetup}
+      >
+        <DashboardView
+          processes={processes}
+          logsByProcess={logsByProcess}
+          connectionState={connectionState}
+          phase={phase}
+          selectedId={selectedId}
+          setSelectedId={setSelectedId}
+          copyLabel={copyLabel}
+          handleCopyLogs={handleCopyLogs}
+          stopStack={stopStack}
+          restart={restart}
+        />
+      </div>
     </div>
   );
 }
