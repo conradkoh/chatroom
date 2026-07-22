@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import { waitForConvexHealthy } from './convex-health.js';
+import { waitForConvexDevReadyFromLogs } from './convex-readiness.js';
 import { LogBufferStore } from './log-buffer.js';
 import { buildProcessDefinitions } from './process-definitions.js';
 import type { ProcessDefinition } from './process-definitions.js';
@@ -90,11 +91,25 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       const convexDef = definitions.find((d) => d.id === 'convex');
       if (convexDef) {
         this.start(convexDef);
-        this.updateState('convex', { health: 'checking', healthDetail: 'Waiting for /version' });
-
-        const result = await waitForConvexHealthy(`http://127.0.0.1:${config.convexPort}`, {
-          onCheck: () => this.updateState('convex', { health: 'checking' }),
+        this.updateState('convex', {
+          health: 'checking',
+          healthDetail: 'Waiting for functions ready',
         });
+
+        const result = await waitForConvexDevReadyFromLogs(
+          (handler) => {
+            const onLog = (line: LogLine) => handler(line);
+            this.on('log', onLog);
+            return () => this.off('log', onLog);
+          },
+          {
+            onWaiting: () =>
+              this.updateState('convex', {
+                health: 'checking',
+                healthDetail: 'Waiting for functions ready',
+              }),
+          }
+        );
 
         if (!result.ok) {
           this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
