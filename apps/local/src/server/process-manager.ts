@@ -415,16 +415,6 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     }
   }
 
-  private clearAllProcessLogs(): void {
-    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
-      this.lineBuffers.delete(id);
-    }
-    this.logs.clearAll();
-    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
-      this.emit('logs-clear', id);
-    }
-  }
-
   private clearProcessLogs(id: ManagedProcessId): void {
     this.lineBuffers.delete(id);
     this.logs.clear(id);
