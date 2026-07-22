@@ -456,13 +456,13 @@ const ChatroomCard = memo(function ChatroomCard({
       <div
         role="button"
         tabIndex={0}
-        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 md:p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-2 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
         onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
         data-chat-status={chatStatus}
       >
         {/* Card Main */}
-        <div className="flex justify-between items-start mb-2 md:mb-3">
+        <div className="flex justify-between items-center">
           <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
             <ChatroomStatusIndicator chatStatus={chatStatus} />
             <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
