@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
 
 import { createServer as createViteServer } from 'vite';
 import { WebSocketServer } from 'ws';
@@ -18,7 +19,7 @@ export async function createAppServer(
   const port = config.managerPort;
 
   const vite = await createViteServer({
-    configFile: new URL('../../vite.config.ts', import.meta.url).pathname,
+    configFile: fileURLToPath(new URL('../../vite.config.ts', import.meta.url)),
     server: { middlewareMode: true },
     appType: 'spa',
   });

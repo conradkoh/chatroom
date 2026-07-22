@@ -4,7 +4,7 @@ export type ManagedProcessId = 'convex' | 'webapp' | 'daemon';
 
 export type HealthStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy';
 
-export type SessionPhase = 'idle' | 'starting' | 'running' | 'stopping';
+export type SessionPhase = 'idle' | 'starting' | 'running' | 'stopping' | 'failed';
 
 export type RepoUpdateStatus = {
   status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'updating' | 'error';

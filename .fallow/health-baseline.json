@@ -2,24 +2,26 @@
   "finding_counts": {
     "apps/local/src/client/App.tsx": {
       "complexity_critical": {
-        "count": 2
+        "count": 1
       },
       "crap_critical": {
         "count": 2
       },
-      "crap_high": {
-        "count": 1
-      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/local/src/client/LogLineContent.tsx": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "apps/local/src/client/LogLineContent.tsx": {
-      "crap_high": {
+    "apps/local/src/client/components/LogUrlBar.tsx": {
+      "crap_moderate": {
         "count": 1
       }
     },
-    "apps/local/src/client/components/LogUrlBar.tsx": {
+    "apps/local/src/client/components/SetupPanel.tsx": {
       "crap_moderate": {
         "count": 1
       }
@@ -29,24 +31,13 @@
         "count": 1
       }
     },
-    "apps/local/src/client/components/SetupPanel.tsx": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
     "apps/local/src/client/log-text.ts": {
-      "crap_high": {
-        "count": 2
-      },
       "crap_moderate": {
-        "count": 2
+        "count": 4
       }
     },
     "apps/local/src/client/use-websocket.ts": {
       "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
         "count": 1
       }
     },
@@ -76,17 +67,19 @@
         "count": 1
       }
     },
-    "apps/local/src/server/websocket-hub.ts": {
-      "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "apps/local/src/server/repo-update-service.ts": {
       "crap_moderate": {
         "count": 2
+      }
+    },
+    "apps/local/src/server/websocket-hub.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/local/src/shared/parse-runtime-config.ts": {
+      "crap_high": {
+        "count": 1
       }
     },
     "apps/webapp/public/sw.js": {
@@ -2494,8 +2487,10 @@
     "services/backend/prompts/config.ts:dead code",
     "services/backend/src/domain/entities/backlog-item.ts:dead code",
     "apps/webapp/src/application/auth/roles.ts:dead code",
+    "apps/local/src/shared/parse-runtime-config.ts:dead code",
     "apps/webapp/src/application/auth/resolve.ts:dead code",
     "apps/webapp/src/modules/chatroom/components/AgentPanel/InlineAgentCard.tsx:dead code",
+    "apps/local/src/client/log-text.ts:dead code",
     "services/backend/prompts/cli/roles/fromContext.ts:dead code",
     "services/backend/prompts/generator.ts:dead code",
     "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.ts:dead code",
@@ -2520,6 +2515,7 @@
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
+    "apps/local/src/server/repo-update.ts:dead code",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts:dead code",
     "packages/cli/src/infrastructure/machine/crash-loop-tracker.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/hooks/useAgenticQueryHarnessSelection.ts:untested risk",

@@ -2,6 +2,7 @@ import type { WebSocket, WebSocketServer } from 'ws';
 
 import type { ProcessManager } from './process-manager.js';
 import type { RepoUpdateService } from './repo-update-service.js';
+import { parseRuntimeConfig } from '../shared/parse-runtime-config.js';
 import type { ClientMessage, RuntimeConfigDefaults, ServerMessage } from '../shared/protocol.js';
 
 export function attachWebSocketHub(
@@ -40,20 +41,26 @@ export function attachWebSocketHub(
       try {
         const msg = JSON.parse(String(raw)) as ClientMessage;
         switch (msg.type) {
-          case 'start':
-            void manager.startStack(msg.config);
+          case 'start': {
+            const config = parseRuntimeConfig(msg.config);
+            if (!config) break;
+            void manager.startStack(config);
             break;
+          }
           case 'stop':
             void manager.stopStack();
             break;
           case 'restart':
-            manager.restart(msg.processId);
+            void manager.restart(msg.processId);
             break;
           case 'check-repo-update':
             void repoUpdate.check();
             break;
           case 'apply-repo-update':
-            void repoUpdate.apply(manager);
+            void repoUpdate.apply(manager).catch((err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              process.stderr.write(`apply-repo-update failed: ${message}\n`);
+            });
             break;
         }
       } catch {
