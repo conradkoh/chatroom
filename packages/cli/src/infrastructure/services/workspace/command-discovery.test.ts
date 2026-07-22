@@ -6,7 +6,7 @@
 
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 
 import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
@@ -181,6 +181,32 @@ describe('discoverCommands — monorepo', () => {
       script: 'deno task test',
       source: 'deno.json',
       subWorkspace: { type: 'deno', path: '.', name: 'my-deno-app' },
+    });
+  });
+
+  test('discovers Makefile targets', async () => {
+    await writeFile(
+      join(testDir, 'Makefile'),
+      `.PHONY: build test
+build:
+\tnpm run build
+test:
+\tnpm test`
+    );
+
+    const commands = await discoverCommands(testDir);
+
+    expect(commands).toContainEqual({
+      name: 'make: build',
+      script: 'make build',
+      source: 'Makefile',
+      subWorkspace: { type: 'make', path: '.', name: basename(testDir) },
+    });
+    expect(commands).toContainEqual({
+      name: 'make: test',
+      script: 'make test',
+      source: 'Makefile',
+      subWorkspace: { type: 'make', path: '.', name: basename(testDir) },
     });
   });
 

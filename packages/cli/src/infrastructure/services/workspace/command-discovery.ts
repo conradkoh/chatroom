@@ -21,6 +21,7 @@ import { join, relative, basename } from 'node:path';
 
 import { parseJsonc } from './jsonc.js';
 import { resolveSubWorkspaces } from './workspace-resolver.js';
+import { parseMakefileTargets } from './makefile-discovery.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export interface SubWorkspaceInfo {
 export interface DiscoveredCommand {
   name: string;
   script: string;
-  source: 'package.json' | 'turbo.json' | 'deno.json';
+  source: 'package.json' | 'turbo.json' | 'deno.json' | 'Makefile';
   /** Structured sub-workspace info. Refers to package manager workspace packages, not the chatroom workspace (workingDir). */
   subWorkspace: SubWorkspaceInfo;
 }
@@ -257,6 +258,38 @@ async function readDenoJson(workingDir: string): Promise<DiscoveredCommand[]> {
   return commands;
 }
 
+async function readMakefile(workingDir: string): Promise<DiscoveredCommand[]> {
+  const commands: DiscoveredCommand[] = [];
+  for (const fileName of ['Makefile', 'makefile'] as const) {
+    try {
+      const content = await readFile(join(workingDir, fileName), 'utf-8');
+      const targets = parseMakefileTargets(content);
+      if (targets.length === 0) continue;
+
+      const subWorkspace: SubWorkspaceInfo = {
+        type: 'make',
+        path: '.',
+        name: basename(workingDir),
+      };
+
+      for (const target of targets) {
+        commands.push({
+          name: `make: ${target}`,
+          script: `make ${target}`,
+          source: 'Makefile',
+          subWorkspace,
+        });
+      }
+      break; // prefer Makefile over makefile
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.debug(`[command-discovery] skipping ${fileName}: ${(error as Error).message}`);
+      }
+    }
+  }
+  return commands;
+}
+
 export async function discoverCommands(workingDir: string): Promise<DiscoveredCommand[]> {
   const commands: DiscoveredCommand[] = [];
   const pm = await detectPackageManager(workingDir);
@@ -272,6 +305,9 @@ export async function discoverCommands(workingDir: string): Promise<DiscoveredCo
 
   const denoCommands = await readDenoJson(workingDir);
   commands.push(...denoCommands);
+
+  const makefileCommands = await readMakefile(workingDir);
+  commands.push(...makefileCommands);
 
   const rootSubWorkspace: SubWorkspaceInfo = { type: 'npm', path: '.', name: rootPackageName };
   const turboTaskNames = await readTurboJson(workingDir, turboPrefix, rootSubWorkspace);
