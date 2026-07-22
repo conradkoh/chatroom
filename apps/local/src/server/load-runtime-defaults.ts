@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { readEnvFile } from './read-env.js';
 import { loadSavedRuntimeConfig } from './saved-runtime-config.js';
 import type { RuntimeConfig, RuntimeConfigDefaults } from '../shared/protocol.js';
+import { DEFAULT_RUNTIME_CONFIG, defaultConvexBackendMode } from '../shared/runtime-config.js';
 
 function loadEnvBasedDefaults(repoRoot: string): {
   runtime: RuntimeConfig;
@@ -16,16 +17,18 @@ function loadEnvBasedDefaults(repoRoot: string): {
 
   const webappPortFromEnv = webappEnv.PORT ? Number(webappEnv.PORT) : null;
   const webappPort =
-    webappPortFromEnv && Number.isInteger(webappPortFromEnv) ? webappPortFromEnv : 3000;
+    webappPortFromEnv && Number.isInteger(webappPortFromEnv)
+      ? webappPortFromEnv
+      : DEFAULT_RUNTIME_CONFIG.webappPort;
 
-  const convexBackendMode = hostedUrl && hostedUrl.includes('.convex.cloud') ? 'hosted' : 'local';
+  const convexBackendMode = defaultConvexBackendMode(hostedUrl);
 
   return {
     runtime: {
       webappPort,
       convexBackendMode,
-      convexPort: 3210,
-      convexUrl: hostedUrl ?? 'http://127.0.0.1:3210',
+      convexPort: DEFAULT_RUNTIME_CONFIG.convexPort,
+      convexUrl: hostedUrl ?? DEFAULT_RUNTIME_CONFIG.convexUrl,
     },
     hostedUrl,
     webappPortFromEnv,
