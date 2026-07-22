@@ -65,11 +65,15 @@ describe('migrateKey', () => {
     expect(migrateKey('ws-abc123def456-open-vscode')).toBe('ws-open-vscode');
   });
 
+  it('migrates legacy workspace id with hyphens in path', () => {
+    expect(migrateKey('ws-abc::/Users/foo/my-project/repo-git-pull')).toBe('ws-git-pull');
+  });
+
   it('passes through built-in keys unchanged', () => {
     expect(migrateKey('nav-go-to-file')).toBe('nav-go-to-file');
   });
 
   it('passes through already-migrated keys unchanged', () => {
-    expect(migrateKey('ws-open-vscode')).toBe('ws-open-vscode');
+    expect(migrateKey('ws-git-pull')).toBe('ws-git-pull');
   });
 });
