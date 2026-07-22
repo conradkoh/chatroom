@@ -26,6 +26,11 @@
         "count": 1
       }
     },
+    "apps/local/src/server/load-runtime-defaults.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
     "apps/local/src/server/process-manager.ts": {
       "complexity_critical": {
         "count": 1

@@ -6,8 +6,13 @@ import { WebSocketServer } from 'ws';
 import type { LaunchConfig } from './parse-config.js';
 import type { ProcessManager } from './process-manager.js';
 import { attachWebSocketHub } from './websocket-hub.js';
+import type { RuntimeConfigDefaults } from '../shared/protocol.js';
 
-export async function createAppServer(manager: ProcessManager, config: LaunchConfig) {
+export async function createAppServer(
+  manager: ProcessManager,
+  config: LaunchConfig,
+  defaults: RuntimeConfigDefaults
+) {
   const port = config.managerPort;
 
   const vite = await createViteServer({
@@ -24,7 +29,7 @@ export async function createAppServer(manager: ProcessManager, config: LaunchCon
   });
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  attachWebSocketHub(wss, manager);
+  attachWebSocketHub(wss, manager, defaults);
 
   return {
     port,
