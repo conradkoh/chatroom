@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import { waitForConvexHealthy } from './convex-health.js';
+import { localConvexCloudUrl } from './convex-local-config.js';
 import { waitForConvexDevReadyFromLogs } from './convex-readiness.js';
 import { waitForDaemonReadyFromLogs } from './daemon-readiness.js';
 import { LogBufferStore } from './log-buffer.js';
@@ -133,6 +134,30 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
           return;
         }
 
+        const convexUrl = localConvexCloudUrl(this.repoRoot, config.convexPort);
+        this.updateState('convex', {
+          health: 'checking',
+          healthDetail: 'Waiting for Convex HTTP',
+        });
+
+        const httpHealth = await waitForConvexHealthy(convexUrl, {
+          onCheck: () =>
+            this.updateState('convex', {
+              health: 'checking',
+              healthDetail: 'Waiting for Convex HTTP',
+            }),
+        });
+
+        if (isStale()) return;
+
+        if (!httpHealth.ok) {
+          this.updateState('convex', { health: 'unhealthy', healthDetail: httpHealth.reason });
+          await this.stopAll();
+          this._phase = 'failed';
+          this.emit('phase', this._phase);
+          return;
+        }
+
         this.updateState('convex', { health: 'healthy', healthDetail: null });
       }
     } else {
@@ -146,7 +171,11 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
 
       this.updateState('convex', { health: 'checking', healthDetail: 'Checking hosted Convex' });
       const result = await waitForConvexHealthy(config.convexUrl, {
-        onCheck: () => this.updateState('convex', { health: 'checking' }),
+        onCheck: () =>
+          this.updateState('convex', {
+            health: 'checking',
+            healthDetail: 'Checking hosted Convex',
+          }),
       });
 
       if (isStale()) return;
