@@ -17,6 +17,12 @@ export class LogBufferStore {
     this.buffers.set(processId, []);
   }
 
+  clearAll(): void {
+    for (const id of ['convex', 'webapp', 'daemon'] as ManagedProcessId[]) {
+      this.buffers.set(id, []);
+    }
+  }
+
   snapshot(): Record<ManagedProcessId, LogLine[]> {
     return {
       convex: [...(this.buffers.get('convex') ?? [])],

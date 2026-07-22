@@ -38,4 +38,16 @@ describe('LogBufferStore', () => {
     store.clear('convex');
     expect(store.snapshot().convex).toEqual([]);
   });
+
+  it('clears logs for all processes', () => {
+    const store = new LogBufferStore();
+    store.append({ processId: 'convex', stream: 'stdout', text: 'a', timestamp: 1 });
+    store.append({ processId: 'webapp', stream: 'stdout', text: 'b', timestamp: 2 });
+    store.append({ processId: 'daemon', stream: 'stdout', text: 'c', timestamp: 3 });
+    store.clearAll();
+    const snapshot = store.snapshot();
+    expect(snapshot.convex).toEqual([]);
+    expect(snapshot.webapp).toEqual([]);
+    expect(snapshot.daemon).toEqual([]);
+  });
 });
