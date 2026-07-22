@@ -3,7 +3,12 @@ import { join } from 'node:path';
 import { readEnvFile } from './read-env.js';
 import { loadSavedRuntimeConfig } from './saved-runtime-config.js';
 import type { RuntimeConfig, RuntimeConfigDefaults } from '../shared/protocol.js';
-import { DEFAULT_RUNTIME_CONFIG, defaultConvexBackendMode } from '../shared/runtime-config.js';
+import {
+  DEFAULT_RUNTIME_CONFIG,
+  defaultConvexBackendMode,
+  findHostedConvexUrl,
+  findLocalConvexUrl,
+} from '../shared/runtime-config.js';
 
 function loadEnvBasedDefaults(repoRoot: string): {
   runtime: RuntimeConfig;
@@ -13,7 +18,11 @@ function loadEnvBasedDefaults(repoRoot: string): {
   const backendEnv = readEnvFile(join(repoRoot, 'services/backend/.env.local'));
   const webappEnv = readEnvFile(join(repoRoot, 'apps/webapp/.env.local'));
 
-  const hostedUrl = backendEnv.VITE_CONVEX_URL ?? webappEnv.NEXT_PUBLIC_CONVEX_URL ?? null;
+  const hostedUrl = findHostedConvexUrl(
+    backendEnv.VITE_CONVEX_URL,
+    webappEnv.NEXT_PUBLIC_CONVEX_URL
+  );
+  const localUrl = findLocalConvexUrl(backendEnv.VITE_CONVEX_URL, webappEnv.NEXT_PUBLIC_CONVEX_URL);
 
   const webappPortFromEnv = webappEnv.PORT ? Number(webappEnv.PORT) : null;
   const webappPort =
@@ -22,13 +31,17 @@ function loadEnvBasedDefaults(repoRoot: string): {
       : DEFAULT_RUNTIME_CONFIG.webappPort;
 
   const convexBackendMode = defaultConvexBackendMode(hostedUrl);
+  const convexUrl =
+    convexBackendMode === 'hosted' && hostedUrl
+      ? hostedUrl
+      : (localUrl ?? DEFAULT_RUNTIME_CONFIG.convexUrl);
 
   return {
     runtime: {
       webappPort,
       convexBackendMode,
       convexPort: DEFAULT_RUNTIME_CONFIG.convexPort,
-      convexUrl: hostedUrl ?? DEFAULT_RUNTIME_CONFIG.convexUrl,
+      convexUrl,
     },
     hostedUrl,
     webappPortFromEnv,
