@@ -1,8 +1,8 @@
 # Enhancers — Requirements & Implementation Plan
 
 **Branch:** `feat/enhancers` (from `release/v1.74.0`)  
-**PR:** #1085 (slice 1 — config UI)  
-**Status:** Planning slice 2 — requirements captured, implementation not started
+**PR:** #1085  
+**Status:** Implemented (slices 1–2 complete)
 
 ## Problem
 
@@ -64,6 +64,38 @@ flowchart TD
 ```
 
 **Pattern:** Mirror **agentic query** (web/daemon command → harness session → task envelope → CLI complete) but domain is **handoff enhancement**, not workspace search.
+
+## Shipped architecture
+
+```mermaid
+flowchart TD
+    P[Planner: chatroom handoff --next-role=builder] --> C{Enhancer enabled?}
+    C -->|no| H[Direct handoff mutation]
+    C -->|yes| E[enqueueHandoff → pending job]
+    E --> D[Daemon: claimForSpawn + RemoteAgentService.spawn]
+    D --> A[Single-turn enhancer agent]
+    A --> X[chatroom enhancer complete]
+    X --> F[performHandoffFromEnhancer with enhanced content]
+    F --> B[Builder receives enhanced brief]
+    H --> B
+    E -->|retries exhausted| FAIL[CLI error — no draft fallback]
+```
+
+### Key modules
+
+| Layer             | Path                                                                        | Purpose                                                     |
+| ----------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Schema            | `services/backend/convex/schema.ts`                                         | `chatroom_enhancerConfigs` + `chatroom_enhancerJobs` tables |
+| Config sync       | `services/backend/convex/web/enhancer/mutations.ts`                         | `upsertConfig`, `disableConfig`                             |
+| Complete mutation | `services/backend/convex/web/enhancer/completeLogic.ts`                     | `applyEnhancerComplete` + handoff delivery                  |
+| Interception      | `packages/cli/src/index.ts`                                                 | Commander action handler for `chatroom handoff`             |
+| Polling           | `packages/cli/src/commands/enhancer/wait-for-job.ts`                        | CLI poll loop with timeout + retry                          |
+| Daemon jobs       | `services/backend/convex/daemon/enhancer/jobs.ts`                           | `pendingForMachine`, `claimForSpawn`                        |
+| Spawn payload     | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                   | `getSpawnPayload` with envelope + prompt                    |
+| Daemon subscriber | `packages/cli/src/commands/machine/daemon-start/enhancer/job-subscriber.ts` | `pendingForMachine` subscription → spawn                    |
+| System prompt     | `services/backend/prompts/enhancer/system-prompt.ts`                        | `renderEnhancerSystemPrompt`                                |
+| Task envelope     | `services/backend/prompts/enhancer/render-task-envelope.ts`                 | `renderEnhancerTaskEnvelope`                                |
+| Event types       | `apps/webapp/src/modules/chatroom/eventTypes/enhancerEvents.tsx`            | 4 event stream variants                                     |
 
 ---
 
@@ -154,73 +186,58 @@ CHATROOM_ENHANCER_END
 6. Backend performs normal handoff mutation with **enhanced** content
 7. Planner sees success output (same as today); builder receives enhanced brief
 
-**Fallback:** If enhancer fails/times out → deliver original draft (configurable; default: fallback with log).
+**Enhancer failure behavior:** When enhancer enabled, **no fallback to draft**. Retries with exponential backoff (`ENHANCER_RETRY_BASE_MS` in `services/backend/config/reliability.ts`). After `ENHANCER_MAX_ATTEMPTS` retries, the CLI exits with error — the builder never receives the original draft.
 
 ---
 
-## Config sync (slice 1 → backend)
+## Config sync (implemented in slice 2.1)
 
-Slice 1 stores config in **localStorage** ([enhancerConfigStore.ts](apps/webapp/src/modules/chatroom/features/enhancers/stores/enhancerConfigStore.ts)). Slice 2 requires **server-visible config** so CLI/daemon can check at handoff time.
-
-**Proposed:** Convex table `chatroom_enhancerConfigs` (per chatroom, per user):
+Config is stored in both **localStorage** (cache) and `chatroom_enhancerConfigs` Convex table (SSOT). Table schema:
 
 ```typescript
 {
-  chatroomId,
-  userId,
+  chatroomId,           // v.id('chatroom_rooms')
+  userId,               // v.id('users')
   enabled: boolean,
   targetId: 'handoff:planner-to-builder',
   agentHarness: AgentHarness,
   model: string,
-  machineId: string,  // workspace machine for harness spawn
+  machineId: string,    // workspace machine for harness spawn
   updatedAt: number,
 }
 ```
 
-Webapp: on Enable/Disable in dialog → mutation sync; hydrate localStorage on load.
+Indexed by `(chatroomId, userId)` — per-user per-chatroom isolation.
+
+**Webapp:** on Enable/Disable in dialog → `upsertConfig` / `disableConfig` mutation; hydrate from server on mount.
 
 ---
 
-## Schema sketch (slice 2)
+## Schema (implemented)
 
-### `chatroom_enhancerJobs`
+### `chatroom_enhancerJobs` (schema.ts)
 
-| Field              | Type            | Notes                                            |
-| ------------------ | --------------- | ------------------------------------------------ |
-| `_id`              | Id              | job-id for CLI                                   |
-| `chatroomId`       | Id              |                                                  |
-| `targetId`         | string          | `handoff:planner-to-builder`                     |
-| `fromRole`         | string          | `planner`                                        |
-| `toRole`           | string          | `builder`                                        |
-| `status`           | union           | `pending` \| `running` \| `complete` \| `failed` |
-| `draftContent`     | string          | original handoff                                 |
-| `enhancedContent`  | optional string | set by complete                                  |
-| `templateSnapshot` | string          | resolved template at job creation                |
-| `agentHarness`     | string          | from config                                      |
-| `model`            | string          | from config                                      |
-| `machineId`        | string          | spawn target                                     |
-| `createdAt`        | number          |                                                  |
-| `completedAt`      | optional number |                                                  |
+Full table with indexes: `by_chatroom_status`, `by_machine_status`, `by_status_nextRetryAt`.
 
-### Daemon command
+Key additional fields beyond initial sketch: `runningSince`, `attemptCount`, `maxAttempts`, `nextRetryAt`, `lastError`, `workingDir`, `pendingHandoffArgs` (stores sender/target info for handoff delivery on complete).
 
-Extend `chatroom_directHarnessCommands` or add `chatroom_enhancerCommands` with `runEnhancer` — spawn single-turn session, inject envelope, await complete.
+### Daemon integration
 
-**Session constraints:** Disable tools at harness level (see harness-specific controls documented in chatroom). Enhancer is **not** a chatroom team role — ephemeral worker session.
+Not a new command table — enhancer jobs are claimed via `claimForSpawn` mutation (atomic `pending` → `running`), spawned via `RemoteAgentService.spawn()` directly, not the AgentProcessManager. Enhancer is **not** a chatroom team role — ephemeral worker session.
 
 ---
 
 ## Implementation phases
 
-| Phase | Slice          | Deliverable                                                   |
-| ----- | -------------- | ------------------------------------------------------------- |
-| 0     | **2.0 (this)** | `docs/plans/enhancers.md`                                     |
-| 1     | **2.1**        | Convex schema + `enhancerConfigs` sync from webapp            |
-| 2     | **2.2**        | `chatroom enhancer complete` CLI + validation                 |
-| 3     | **2.3**        | Enhancer system prompt + task envelope builder                |
-| 4     | **2.4**        | Handoff CLI interception + job queue                          |
-| 5     | **2.5**        | Daemon spawn + single-turn session lifecycle                  |
-| 6     | **2.6**        | E2E integration test: planner handoff → enhanced builder task |
+| Phase | Slice            | Deliverable                                                     | Commit             |
+| ----- | ---------------- | --------------------------------------------------------------- | ------------------ |
+| 0     | **2.0 (this)**   | `docs/plans/enhancers.md`                                       | `d6bbde8b9`        |
+| 1     | **2.1**          | Convex schema + `enhancerConfigs` sync from webapp              | `84dd9be85`        |
+| 2     | **2.2**          | `chatroom enhancer complete` CLI + prompts + mutation           | `ee43e71a0`        |
+| 3     | **2.3**          | Handoff CLI interception + job lifecycle + retries + delivery   | `bd2647605`        |
+| 4     | **2.4**          | Daemon spawn + single-turn session lifecycle                    | `0dc4eae1a`        |
+| 5     | **2.5** (merged) | Combined with 2.4 — same daemon lifecycle                       | —                  |
+| 6     | **2.6** (merged) | Integration tests (config, complete, handoff, spawn — 17 tests) | Across all commits |
 
 ---
 
@@ -251,20 +268,29 @@ Extend `chatroom_directHarnessCommands` or add `chatroom_enhancerCommands` with 
 
 ---
 
-## Open decisions
+## Resolved decisions
 
-| Decision                        | Options                         | Recommendation                                                  |
-| ------------------------------- | ------------------------------- | --------------------------------------------------------------- |
-| Enhancer failure                | Fail handoff vs deliver draft   | **Deliver draft** with warning log (don't block builder)        |
-| Config scope                    | Per-user vs per-chatroom        | **Per-user per-chatroom** (matches localStorage key)            |
-| Harness spawn                   | Remote agent vs direct harness  | **Remote agent** on configured machine (reuse daemon spawn)     |
-| Template validation on complete | Strict section check vs lenient | **Lenient v1** — non-empty + contains `## Goal` or `## Summary` |
+| Decision                        | Resolution                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Enhancer failure                | **No fallback.** Retries with exponential backoff; terminal failure surfaces CLI error, no draft delivered |
+| Config scope                    | **Per user per chatroom** (matches localStorage key)                                                       |
+| Harness spawn                   | **Remote agent** via daemon `RemoteAgentService.spawn()`                                                   |
+| Template validation on complete | **None** — trust the enhancer; non-empty only                                                              |
 
 ---
 
 ## References
 
 - Slice 1 UI: [apps/webapp/src/modules/chatroom/features/enhancers/](apps/webapp/src/modules/chatroom/features/enhancers/)
+- Backend enhancer module: [services/backend/convex/web/enhancer/](services/backend/convex/web/enhancer/)
+- Daemon enhancer module: [services/backend/convex/daemon/enhancer/](services/backend/convex/daemon/enhancer/)
+- Enhancer prompts: [services/backend/prompts/enhancer/](services/backend/prompts/enhancer/)
+- CLI complete command: [packages/cli/src/commands/enhancer/complete.ts](packages/cli/src/commands/enhancer/complete.ts)
+- CLI wait-for-job: [packages/cli/src/commands/enhancer/wait-for-job.ts](packages/cli/src/commands/enhancer/wait-for-job.ts)
+- Daemon subscriber: [packages/cli/src/commands/machine/daemon-start/enhancer/](packages/cli/src/commands/machine/daemon-start/enhancer/)
 - Handoff templates: [services/backend/prompts/cli/handoff-templates/](services/backend/prompts/cli/handoff-templates/)
 - Agentic query plan: [docs/plans/agentic-search-ask.md](docs/plans/agentic-search-ask.md)
-- Handoff mutation: [services/backend/convex/messages.ts](services/backend/convex/messages.ts) (`_handoffHandler`)
+- Handoff mutation: [services/backend/convex/messages.ts](services/backend/convex/messages.ts) (`_handoffHandler` | `performHandoffFromEnhancer`)
+- Integration tests: [services/backend/tests/integration/enhancer-config.spec.ts](services/backend/tests/integration/enhancer-config.spec.ts), [enhancer-complete.spec.ts](services/backend/tests/integration/enhancer-complete.spec.ts), [enhancer-handoff.spec.ts](services/backend/tests/integration/enhancer-handoff.spec.ts), [enhancer-spawn.spec.ts](services/backend/tests/integration/enhancer-spawn.spec.ts)
+- Event stream types: [apps/webapp/src/domain/entities/event-stream-event.ts](apps/webapp/src/domain/entities/event-stream-event.ts)
+- Event type registry: [apps/webapp/src/modules/chatroom/eventTypes/enhancerEvents.tsx](apps/webapp/src/modules/chatroom/eventTypes/enhancerEvents.tsx)
