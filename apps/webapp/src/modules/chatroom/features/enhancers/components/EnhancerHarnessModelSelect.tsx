@@ -2,10 +2,18 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useMachineModels } from '@/hooks/useMachineModels';
-import { getHarnessDisplayName, getModelDisplayLabel } from '../../../types/machine';
+import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
+import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
+import {
+  ModelSelect,
+  ModelFilterButton,
+  groupFlatModels,
+  useMachineModelFilter,
+} from '@/modules/chatroom/components/model-selection';
+import { getHarnessDisplayName } from '../../../types/machine';
 import type { AgentHarness } from '../../../types/machine';
 
 interface EnhancerHarnessModelSelectProps {
@@ -37,10 +45,35 @@ export function EnhancerHarnessModelSelect({
     [machine]
   );
 
+  const modelFilter = useMachineModelFilter(machineId, agentHarness);
   const { availableModels } = useMachineModels(machineId ?? undefined);
   const availableModelsForHarness = useMemo(
     () => (agentHarness ? (availableModels[agentHarness] ?? []) : []),
     [availableModels, agentHarness]
+  );
+  const visibleModels = useMemo(
+    () => availableModelsForHarness.filter((m) => !modelFilter.isHidden(m)),
+    [availableModelsForHarness, modelFilter.isHidden]
+  );
+  const modelGroups = useMemo(() => groupFlatModels(visibleModels), [visibleModels]);
+
+  const harnessOptions: HarnessOption[] = useMemo(
+    () =>
+      availableHarnesses.map((h) => ({
+        name: h,
+        displayName: getHarnessDisplayName(h),
+        agents: [],
+        providers: [],
+      })),
+    [availableHarnesses]
+  );
+
+  const handleHarnessChange = useCallback(
+    (name: string) => {
+      onHarnessChange(name as AgentHarness);
+      onModelChange('');
+    },
+    [onHarnessChange, onModelChange]
   );
 
   if (!machineId) {
@@ -57,47 +90,38 @@ export function EnhancerHarnessModelSelect({
         <label className="block text-xs font-medium text-chatroom-text-secondary mb-1">
           Agent harness
         </label>
-        <select
+        <HarnessHarnessSelect
+          harnesses={harnessOptions}
           value={agentHarness ?? ''}
-          onChange={(e) => {
-            onHarnessChange(e.target.value as AgentHarness);
-            onModelChange('');
-          }}
-          disabled={disabled || availableHarnesses.length === 0}
-          className="w-full border-2 border-chatroom-border bg-chatroom-bg-primary text-sm text-chatroom-text-primary px-2 py-1.5 rounded-none focus:outline-none focus:border-chatroom-accent disabled:opacity-40"
-        >
-          <option value="" disabled>
-            {availableHarnesses.length === 0 ? 'No harnesses available' : 'Select a harness'}
-          </option>
-          {availableHarnesses.map((h) => (
-            <option key={h} value={h}>
-              {getHarnessDisplayName(h)}
-            </option>
-          ))}
-        </select>
+          onValueChange={handleHarnessChange}
+          disabled={disabled || harnessOptions.length === 0}
+        />
       </div>
-
       <div>
         <label className="block text-xs font-medium text-chatroom-text-secondary mb-1">Model</label>
-        <select
-          value={model ?? ''}
-          onChange={(e) => onModelChange(e.target.value)}
-          disabled={disabled || !agentHarness || availableModelsForHarness.length === 0}
-          className="w-full border-2 border-chatroom-border bg-chatroom-bg-primary text-sm text-chatroom-text-primary px-2 py-1.5 rounded-none focus:outline-none focus:border-chatroom-accent disabled:opacity-40"
-        >
-          <option value="" disabled>
-            {!agentHarness
-              ? 'Select a harness first'
-              : availableModelsForHarness.length === 0
-                ? 'No models available'
-                : 'Select a model'}
-          </option>
-          {availableModelsForHarness.map((m) => (
-            <option key={m} value={m}>
-              {getModelDisplayLabel(m)}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <ModelSelect
+              groups={modelGroups}
+              value={model ?? ''}
+              onValueChange={onModelChange}
+              isHidden={modelFilter.isHidden}
+              disabled={disabled || !agentHarness}
+              triggerVariant="chatroom"
+              allowDeselect={false}
+              placeholder={!agentHarness ? 'Select a harness first' : 'Select a model'}
+              filter={modelFilter.filter}
+            />
+          </div>
+          {agentHarness && (
+            <ModelFilterButton
+              filter={modelFilter}
+              availableModels={availableModelsForHarness}
+              disabled={disabled}
+              variant="chatroom"
+            />
+          )}
+        </div>
       </div>
     </div>
   );
