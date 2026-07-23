@@ -128,4 +128,15 @@ describe('HarnessHarnessSelect', () => {
     expect(searchInput).toHaveValue('Cursor');
     expect(screen.getAllByRole('option')).toHaveLength(1);
   });
+
+  it('uses getHarnessDisplayName for labels even when displayName differs', () => {
+    const harnesses = [
+      { name: 'pi-sdk', displayName: 'Wrong Label', agents: [], providers: [] },
+    ];
+    render(<HarnessHarnessSelect harnesses={harnesses} value="pi-sdk" onValueChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Select harness' })).toHaveTextContent('Pi (SDK)');
+    openDropdown();
+    expect(screen.getByRole('option', { name: /Pi \(SDK\)/ })).toBeInTheDocument();
+  });
 });

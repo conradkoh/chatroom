@@ -17,7 +17,12 @@ import {
   pickerTriggerChevronClassName,
   PICKER_TRIGGER_CHEVRON_SIZE,
 } from '../../../components/picker/pickerTriggerStyles';
+import { getHarnessDisplayName } from '../../../types/machine';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
+
+function harnessOptionLabel(h: HarnessOption): string {
+  return getHarnessDisplayName(h.name);
+}
 
 interface HarnessHarnessSelectProps {
   harnesses: HarnessOption[];
@@ -43,13 +48,15 @@ export function HarnessHarnessSelect({
     [harnesses, value]
   );
   const triggerLabel = hasHarnesses
-    ? (selectedHarness?.displayName ?? 'Harness...')
+    ? selectedHarness
+      ? harnessOptionLabel(selectedHarness)
+      : 'Harness...'
     : 'No harnesses available';
 
   const filteredHarnesses = filterPickerItems(
     harnesses,
     searchTerm,
-    (h) => `${h.displayName} ${h.name}`
+    (h) => `${harnessOptionLabel(h)} ${h.name}`
   );
 
   return (
@@ -90,7 +97,7 @@ export function HarnessHarnessSelect({
                 handleOpenChange(false);
               }}
             >
-              {h.displayName}
+              {harnessOptionLabel(h)}
             </PickerOptionRow>
           ))
         )}
