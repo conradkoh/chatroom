@@ -14,6 +14,7 @@ import {
   getLabelColorClass,
   getRowHighlightClass,
 } from './AgentPanel/AgentStatusRow';
+import { PlannerEnhancerIndicator } from '../features/enhancers/components/PlannerEnhancerIndicator';
 import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
@@ -41,6 +42,7 @@ interface AgentSidebarRowProps {
   agentConfig: AgentConfig | undefined;
   isLoadingStatuses: boolean;
   onOpen: () => void;
+  enhancerIndicator?: React.ReactNode;
 }
 
 interface AgentSidebarInfoProps {
@@ -92,6 +94,7 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   agentConfig,
   isLoadingStatuses,
   onOpen,
+  enhancerIndicator,
 }: AgentSidebarRowProps) {
   const online_ = agentStatus?.online ?? false;
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
@@ -130,6 +133,7 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
           labelColorClass={labelColorClass}
           lastSeenLabel={lastSeenLabel}
         />
+        {enhancerIndicator}
         {/* View Indicator */}
         <div className="text-chatroom-text-muted">
           <ChevronRight size={14} />
@@ -239,6 +243,11 @@ export const AgentPanel = memo(function AgentPanel({
             agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
             isLoadingStatuses={isLoadingStatuses}
             onOpen={openAgentListModal}
+            enhancerIndicator={
+              role.toLowerCase() === 'planner' ? (
+                <PlannerEnhancerIndicator chatroomId={chatroomId} />
+              ) : undefined
+            }
           />
         ))}
       </div>

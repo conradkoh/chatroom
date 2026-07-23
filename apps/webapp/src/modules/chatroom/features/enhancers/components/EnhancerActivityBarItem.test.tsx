@@ -20,6 +20,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
           getConfig: 'enhancer:getConfig',
           upsertConfig: 'enhancer:upsertConfig',
           disableConfig: 'enhancer:disableConfig',
+          getActiveJob: 'enhancer:getActiveJob',
+          cancelActiveJob: 'enhancer:cancelActiveJob',
         },
       },
     },
