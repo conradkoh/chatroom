@@ -434,6 +434,35 @@ export interface CommandStopEvent extends EventStreamEventBase {
   runId: string;
 }
 
+export interface EnhancerJobCreatedEvent extends EventStreamEventBase {
+  type: 'enhancer.job.created';
+  jobId: string;
+  userId: string;
+  attemptCount: number;
+  maxAttempts: number;
+}
+
+export interface EnhancerAttemptFailedEvent extends EventStreamEventBase {
+  type: 'enhancer.attempt.failed';
+  jobId: string;
+  attemptCount: number;
+  error: string;
+  nextRetryAt?: number;
+}
+
+export interface EnhancerJobFailedEvent extends EventStreamEventBase {
+  type: 'enhancer.job.failed';
+  jobId: string;
+  attemptCount: number;
+  error: string;
+}
+
+export interface EnhancerJobCompleteEvent extends EventStreamEventBase {
+  type: 'enhancer.job.complete';
+  jobId: string;
+  attemptCount: number;
+}
+
 // ─── Event Stream Event Union ────────────────────────────────────────────────
 
 /**
@@ -484,4 +513,8 @@ export type EventStreamEvent =
   | DaemonPickFolderEvent
   | DaemonLocalActionEvent
   | CommandRunEvent
-  | CommandStopEvent;
+  | CommandStopEvent
+  | EnhancerJobCreatedEvent
+  | EnhancerAttemptFailedEvent
+  | EnhancerJobFailedEvent
+  | EnhancerJobCompleteEvent;

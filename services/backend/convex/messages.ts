@@ -768,6 +768,21 @@ export const handoff = mutation({
   },
 });
 
+/** Thin wrapper for enhancer handoff delivery. */
+export async function performHandoffFromEnhancer(
+  ctx: MutationCtx,
+  args: {
+    sessionId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    senderRole: string;
+    targetRole: string;
+    content: string;
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+  }
+) {
+  return _handoffHandler(ctx, args);
+}
+
 /** Returns the allowed handoff roles for a given role based on the current message classification. */
 export const getAllowedHandoffRoles = query({
   args: {

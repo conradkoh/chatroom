@@ -41,6 +41,10 @@ async function insertJob(
       attemptCount: 1,
       maxAttempts: 3,
       createdAt: Date.now(),
+      pendingHandoffArgs: {
+        senderRole: 'planner',
+        targetRole: 'builder',
+      },
     });
   });
 }

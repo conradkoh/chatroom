@@ -119,6 +119,11 @@ import type * as web_directHarness_messageQueue from "../web/directHarness/messa
 import type * as web_directHarness_messages from "../web/directHarness/messages.js";
 import type * as web_directHarness_sessions from "../web/directHarness/sessions.js";
 import type * as web_directHarness_turns from "../web/directHarness/turns.js";
+import type * as web_enhancer_completeLogic from "../web/enhancer/completeLogic.js";
+import type * as web_enhancer_index from "../web/enhancer/index.js";
+import type * as web_enhancer_internal from "../web/enhancer/internal.js";
+import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
+import type * as web_enhancer_queries from "../web/enhancer/queries.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaces from "../workspaces.js";
@@ -241,6 +246,11 @@ declare const fullApi: ApiFromModules<{
   "web/directHarness/messages": typeof web_directHarness_messages;
   "web/directHarness/sessions": typeof web_directHarness_sessions;
   "web/directHarness/turns": typeof web_directHarness_turns;
+  "web/enhancer/completeLogic": typeof web_enhancer_completeLogic;
+  "web/enhancer/index": typeof web_enhancer_index;
+  "web/enhancer/internal": typeof web_enhancer_internal;
+  "web/enhancer/mutations": typeof web_enhancer_mutations;
+  "web/enhancer/queries": typeof web_enhancer_queries;
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
   workspaces: typeof workspaces;

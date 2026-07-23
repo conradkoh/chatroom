@@ -268,6 +268,43 @@ export type SkillActivatedEvent = {
   timestamp: number;
 };
 
+export type EnhancerJobCreatedEvent = {
+  type: 'enhancer.job.created';
+  chatroomId: Id<'chatroom_rooms'>;
+  jobId: Id<'chatroom_enhancerJobs'>;
+  userId: Id<'users'>;
+  attemptCount: number;
+  maxAttempts: number;
+  timestamp: number;
+};
+
+export type EnhancerAttemptFailedEvent = {
+  type: 'enhancer.attempt.failed';
+  chatroomId: Id<'chatroom_rooms'>;
+  jobId: Id<'chatroom_enhancerJobs'>;
+  attemptCount: number;
+  error: string;
+  nextRetryAt?: number;
+  timestamp: number;
+};
+
+export type EnhancerJobFailedEvent = {
+  type: 'enhancer.job.failed';
+  chatroomId: Id<'chatroom_rooms'>;
+  jobId: Id<'chatroom_enhancerJobs'>;
+  attemptCount: number;
+  error: string;
+  timestamp: number;
+};
+
+export type EnhancerJobCompleteEvent = {
+  type: 'enhancer.job.complete';
+  chatroomId: Id<'chatroom_rooms'>;
+  jobId: Id<'chatroom_enhancerJobs'>;
+  attemptCount: number;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -293,4 +330,8 @@ export type ChatroomEvent =
   | AgentSessionAugmentedEvent
   | AgentRestartLimitReachedEvent
   | AgentStopTimeoutEvent
-  | AgentAwaitingHandoffEvent;
+  | AgentAwaitingHandoffEvent
+  | EnhancerJobCreatedEvent
+  | EnhancerAttemptFailedEvent
+  | EnhancerJobFailedEvent
+  | EnhancerJobCompleteEvent;

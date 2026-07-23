@@ -17,6 +17,7 @@ import { commandEventDefinitions } from './commandEvents';
 import { configEventDefinitions } from './configEvents';
 import { connectionEventDefinitions } from './connectionEvents';
 import { daemonEventDefinitions } from './daemonEvents';
+import { enhancerEventDefinitions } from './enhancerEvents';
 import { initRegistry } from './registry';
 import { skillEventDefinitions } from './skillEvents';
 import { taskEventDefinitions } from './taskEvents';
@@ -55,6 +56,7 @@ export function initializeEventTypes(): void {
     ...configEventDefinitions,
     ...commandEventDefinitions,
     ...connectionEventDefinitions,
+    ...enhancerEventDefinitions,
     ...workflowEventDefinitions,
   });
 }

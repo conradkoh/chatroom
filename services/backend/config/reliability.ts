@@ -124,3 +124,17 @@ export const CIRCUIT_COOLDOWN_MS = 60_000; // 1 minute
  *  Long enough that a temporarily-offline loop still sees its close request when it
  *  reconnects, short enough to keep the table small. */
 export const CONNECTION_CLOSE_REQUEST_TTL_MS = 10 * 60_000; // 10 min
+
+// ─── Enhancer ────────────────────────────────────────────────────────────────
+
+/** Max enhancer attempts before terminal failure (no draft fallback). */
+export const ENHANCER_MAX_ATTEMPTS = 3;
+
+/** Base delay for exponential backoff between enhancer retries (ms). */
+export const ENHANCER_RETRY_BASE_MS = 2_000;
+
+/** Per-attempt timeout while job is `running` before recording failure (ms). */
+export const ENHANCER_ATTEMPT_TIMEOUT_MS = 120_000;
+
+/** CLI poll interval while waiting for enhancer job (ms). */
+export const ENHANCER_CLI_POLL_INTERVAL_MS = 1_000;

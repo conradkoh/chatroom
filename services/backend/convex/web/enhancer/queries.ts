@@ -27,3 +27,25 @@ export const getConfig = query({
     };
   },
 });
+
+export const getJob = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    jobId: v.id('chatroom_enhancerJobs'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
+    if (!job || job.chatroomId !== args.chatroomId) return null;
+    return {
+      status: job.status,
+      attemptCount: job.attemptCount,
+      maxAttempts: job.maxAttempts,
+      lastError: job.lastError,
+      runningSince: job.runningSince,
+      nextRetryAt: job.nextRetryAt,
+      completedAt: job.completedAt,
+    };
+  },
+});

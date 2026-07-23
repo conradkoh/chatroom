@@ -1659,6 +1659,43 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
         timestamp: v.number(),
+      }),
+      // Enhancer job created for planner→builder handoff
+      v.object({
+        type: v.literal('enhancer.job.created'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        userId: v.id('users'),
+        attemptCount: v.number(),
+        maxAttempts: v.number(),
+        timestamp: v.number(),
+      }),
+      // Enhancer attempt failed (will retry)
+      v.object({
+        type: v.literal('enhancer.attempt.failed'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        error: v.string(),
+        nextRetryAt: v.optional(v.number()),
+        timestamp: v.number(),
+      }),
+      // Enhancer job failed after max attempts
+      v.object({
+        type: v.literal('enhancer.job.failed'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job completed with enhanced content
+      v.object({
+        type: v.literal('enhancer.job.complete'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        timestamp: v.number(),
       })
     )
   )
@@ -2995,6 +3032,7 @@ export default defineSchema({
     workingDir: v.string(),
     attemptCount: v.number(),
     maxAttempts: v.number(),
+    runningSince: v.optional(v.number()),
     nextRetryAt: v.optional(v.number()),
     lastError: v.optional(v.string()),
     createdAt: v.number(),
