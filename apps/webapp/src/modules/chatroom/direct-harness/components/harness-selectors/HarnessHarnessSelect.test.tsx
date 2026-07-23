@@ -137,4 +137,22 @@ describe('HarnessHarnessSelect', () => {
     openDropdown();
     expect(screen.getByRole('option', { name: /Pi \(SDK\)/ })).toBeInTheDocument();
   });
+
+  it('shows version suffix when HarnessOption.version is set', () => {
+    const harnesses = [
+      {
+        name: 'opencode-sdk',
+        displayName: 'ignored',
+        version: { version: '1.17.18' },
+        agents: [],
+        providers: [],
+      },
+    ];
+    render(
+      <HarnessHarnessSelect harnesses={harnesses} value="opencode-sdk" onValueChange={vi.fn()} />
+    );
+    expect(screen.getByRole('button', { name: 'Select harness' })).toHaveTextContent(
+      'OpenCode (SDK) v1.17.18'
+    );
+  });
 });

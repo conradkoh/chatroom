@@ -17,11 +17,11 @@ import {
   pickerTriggerChevronClassName,
   PICKER_TRIGGER_CHEVRON_SIZE,
 } from '../../../components/picker/pickerTriggerStyles';
-import { getHarnessDisplayName } from '../../../types/machine';
+import { formatHarnessLabel } from '../../../types/machine';
 import type { HarnessOption } from '../../hooks/useHarnessConfig';
 
 function harnessOptionLabel(h: HarnessOption): string {
-  return getHarnessDisplayName(h.name);
+  return formatHarnessLabel(h.name, h.version);
 }
 
 interface HarnessHarnessSelectProps {

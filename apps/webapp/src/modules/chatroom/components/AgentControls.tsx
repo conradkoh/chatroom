@@ -48,6 +48,7 @@ import type {
   SendCommandFn,
 } from '../types/machine';
 import {
+  formatHarnessLabel,
   getHarnessDisplayName,
   getModelDisplayLabel,
   getMachineDisplayName,
@@ -71,10 +72,6 @@ export interface AgentControlsProps {
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
-}
-
-function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
-  return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
 }
 
 // ─── Hook: useAgentControls ─────────────────────────────────────────
