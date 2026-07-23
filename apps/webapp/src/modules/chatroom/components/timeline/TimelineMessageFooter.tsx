@@ -50,6 +50,8 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
 
 export interface TimelineMessageFooterProps {
   message: Message;
+  /** When set, copy/download use this instead of message.content (e.g. enhancer toggle). */
+  displayContent?: string;
 }
 
 /**
@@ -58,7 +60,9 @@ export interface TimelineMessageFooterProps {
  */
 export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
+  displayContent,
 }: TimelineMessageFooterProps) {
+  const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
   const isAddedToContext = isAttached('message', message._id);
 
@@ -68,11 +72,11 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
       addAttachment({
         type: 'message',
         id: message._id as Id<'chatroom_messages'>,
-        content: message.content,
+        content: markdownContent,
         senderRole: message.senderRole,
       });
     },
-    [addAttachment, message._id, message.content, message.senderRole]
+    [addAttachment, message._id, markdownContent, message.senderRole]
   );
 
   return (
@@ -81,7 +85,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
       data-testid="timeline-message-footer"
     >
       <div className="flex items-center gap-1">
-        <CopyMarkdownButton content={message.content} />
+        <CopyMarkdownButton content={markdownContent} />
         <button
           type="button"
           onClick={handleAddToContext}
@@ -90,7 +94,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         >
           <Paperclip size={12} />
         </button>
-        <MessageDownloadMenu message={message} />
+        <MessageDownloadMenu message={message} contentOverride={displayContent} />
       </div>
       <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
         {formatTimestamp(message._creationTime)}
