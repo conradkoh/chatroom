@@ -18,3 +18,4 @@ export {
   findModelLabel,
   hasVisibleModels,
 } from './modelGroups';
+export { harnessModelKey, getHarnessModelLabel } from './modelKeys';
