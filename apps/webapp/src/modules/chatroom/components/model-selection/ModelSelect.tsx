@@ -33,6 +33,8 @@ export interface ModelSelectProps {
   filter?: ModelFilterState | null;
   allowDeselect?: boolean;
   emptyLabel?: string;
+  /** Override trigger label lookup. Defaults to findModelLabel. */
+  getTriggerLabel?: (groups: ModelGroup[], value: string) => string | undefined;
 }
 
 export function ModelSelect({
@@ -49,11 +51,12 @@ export function ModelSelect({
   filter,
   allowDeselect = true,
   emptyLabel,
+  getTriggerLabel,
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false);
   const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(setOpen);
 
-  const selectedLabel = findModelLabel(groups, value);
+  const selectedLabel = getTriggerLabel?.(groups, value) ?? findModelLabel(groups, value);
   const anyVisible = hasVisibleModels(groups, isHidden);
   const isDisabled = !anyVisible || disabled;
   const triggerLabel =

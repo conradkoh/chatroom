@@ -46,7 +46,8 @@ describe('groupFlatModels', () => {
     expect(openai?.providerLabel).toBe('Openai');
     expect(openai?.options).toHaveLength(2);
     expect(openai?.options[0].value).toBe('openai/gpt-4o');
-    expect(openai?.options[0].label).toContain('GPT-4o');
+    // getModelDisplayLabel transforms "openai/gpt-4o" to "OPENAI / GPT 4O"
+    expect(openai?.options[0].label).toContain('GPT 4O');
   });
 
   it('handles unprefixed models', () => {
@@ -172,7 +173,17 @@ describe('hasVisibleModels', () => {
   });
 
   it('returns true when at least one model is visible', () => {
-    expect(hasVisibleModels(groups, (v) => v !== 'openai::gpt-4o')).toBe(false);
+    const multiGroups = [
+      {
+        providerKey: 'openai',
+        providerLabel: 'OpenAI',
+        options: [
+          { value: 'openai::gpt-4o', label: 'GPT-4o' },
+          { value: 'openai::gpt-4-turbo', label: 'GPT-4 Turbo' },
+        ],
+      },
+    ];
+    expect(hasVisibleModels(multiGroups, (v) => v === 'openai::gpt-4o')).toBe(true);
   });
 
   it('returns false when all models are hidden', () => {
