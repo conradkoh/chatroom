@@ -13,7 +13,7 @@ import {
   groupFlatModels,
   useMachineModelFilter,
 } from '@/modules/chatroom/components/model-selection';
-import { getHarnessDisplayName } from '../../../types/machine';
+import { formatHarnessLabel } from '../../../types/machine';
 import type { AgentHarness } from '../../../types/machine';
 
 interface EnhancerHarnessModelSelectProps {
@@ -59,13 +59,17 @@ export function EnhancerHarnessModelSelect({
 
   const harnessOptions: HarnessOption[] = useMemo(
     () =>
-      availableHarnesses.map((h) => ({
-        name: h,
-        displayName: getHarnessDisplayName(h),
-        agents: [],
-        providers: [],
-      })),
-    [availableHarnesses]
+      availableHarnesses.map((h) => {
+        const version = machine?.harnessVersions?.[h];
+        return {
+          name: h,
+          displayName: formatHarnessLabel(h, version),
+          version,
+          agents: [],
+          providers: [],
+        };
+      }),
+    [availableHarnesses, machine?.harnessVersions]
   );
 
   const handleHarnessChange = useCallback(
