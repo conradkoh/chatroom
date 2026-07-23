@@ -2954,6 +2954,63 @@ export default defineSchema({
     .index('by_messageId', ['messageId']),
 
   /**
+   * Per-user-per-chatroom enhancer configuration.
+   * Synced from webapp; read by handoff CLI at interception time.
+   */
+  chatroom_enhancerConfigs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    enabled: v.boolean(),
+    targetId: v.literal('handoff:planner-to-builder'),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom_user', ['chatroomId', 'userId'])
+    .index('by_chatroom', ['chatroomId']),
+
+  /**
+   * One-shot enhancer job per intercepted handoff.
+   * Populated in slice 2.3; schema now so migrations are stable.
+   */
+  chatroom_enhancerJobs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    targetId: v.literal('handoff:planner-to-builder'),
+    fromRole: v.string(),
+    toRole: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('complete'),
+      v.literal('failed')
+    ),
+    draftContent: v.string(),
+    enhancedContent: v.optional(v.string()),
+    templateSnapshot: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    workingDir: v.string(),
+    attemptCount: v.number(),
+    maxAttempts: v.number(),
+    nextRetryAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    pendingHandoffArgs: v.optional(
+      v.object({
+        senderRole: v.string(),
+        targetRole: v.string(),
+        attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+      })
+    ),
+  })
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_status_nextRetryAt', ['status', 'nextRetryAt']),
+
+  /**
    * Messages produced by a harness session (both user prompts and assistant
    * response chunks). seq is monotonically increasing per session.
    * role distinguishes user messages from assistant responses.

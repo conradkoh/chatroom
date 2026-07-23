@@ -44,17 +44,18 @@ export function EnhancerConfigDialog({
   );
   const [model, setModel] = useState<string>(initialConfig?.model ?? '');
 
-  const canEnable = !!targetId && !!agentHarness && !!model;
+  const canEnable = !!targetId && !!agentHarness && !!model && !!machineId;
 
   const handleConfirm = useCallback(() => {
-    if (!canEnable) return;
+    if (!canEnable || !machineId) return;
     onConfirm({
       enabled: true,
       targetId: targetId as EnhancerConfig['targetId'],
       agentHarness,
       model,
+      machineId,
     });
-  }, [canEnable, targetId, agentHarness, model, onConfirm]);
+  }, [canEnable, targetId, agentHarness, model, machineId, onConfirm]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {

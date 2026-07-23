@@ -17,7 +17,8 @@ export function getEnhancerConfig(chatroomId: string): EnhancerConfig | null {
       typeof parsed.enabled !== 'boolean' ||
       typeof parsed.targetId !== 'string' ||
       typeof parsed.agentHarness !== 'string' ||
-      typeof parsed.model !== 'string'
+      typeof parsed.model !== 'string' ||
+      typeof parsed.machineId !== 'string'
     ) {
       return null;
     }

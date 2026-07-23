@@ -11,6 +11,7 @@ function makeConfig(overrides?: Partial<EnhancerConfig>): EnhancerConfig {
     targetId: 'handoff:planner-to-builder',
     agentHarness: 'opencode',
     model: 'anthropic/claude-opus-4',
+    machineId: 'machine-1',
     ...overrides,
   };
 }

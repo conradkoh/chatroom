@@ -13,8 +13,9 @@ export interface EnhancerConfig {
   readonly targetId: EnhancerTargetId;
   readonly agentHarness: AgentHarness;
   readonly model: string;
+  readonly machineId: string;
 }
 
 export function isEnhancerConfigActive(config: EnhancerConfig | null): boolean {
-  return config?.enabled === true && !!config.agentHarness && !!config.model;
+  return config?.enabled === true && !!config.agentHarness && !!config.model && !!config.machineId;
 }
