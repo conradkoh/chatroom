@@ -17,9 +17,9 @@ describe('applyHarnessVersions', () => {
       { name: 'opencode-sdk', displayName: 'OpenCode (SDK)', agents: [], providers: [] },
     ];
     const result = applyHarnessVersions(harnesses, {
-      'opencode-sdk': { version: '1.17.18' },
+      'opencode-sdk': { version: '1.17.18', major: 1 },
     });
-    expect(result[0].version).toEqual({ version: '1.17.18' });
+    expect(result[0].version).toEqual({ version: '1.17.18', major: 1 });
     expect(result[0].displayName).toBe('OpenCode (SDK) v1.17.18');
   });
 
@@ -34,7 +34,9 @@ describe('applyHarnessVersions', () => {
     const harnesses = [
       { name: 'opencode-sdk', displayName: 'OpenCode (SDK)', agents: [], providers: [] },
     ];
-    const result = applyHarnessVersions(harnesses, { 'cursor-sdk': { version: '1.0.0' } });
+    const result = applyHarnessVersions(harnesses, {
+      'cursor-sdk': { version: '1.0.0', major: 1 },
+    });
     expect(result[0].version).toBeUndefined();
   });
 });

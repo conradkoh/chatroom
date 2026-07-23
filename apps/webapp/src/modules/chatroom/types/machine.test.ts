@@ -51,7 +51,7 @@ describe('formatHarnessLabel', () => {
   });
 
   it('appends version suffix when version is provided', () => {
-    expect(formatHarnessLabel('opencode-sdk', { version: '1.17.18' })).toBe(
+    expect(formatHarnessLabel('opencode-sdk', { version: '1.17.18', major: 1 })).toBe(
       'OpenCode (SDK) v1.17.18'
     );
   });

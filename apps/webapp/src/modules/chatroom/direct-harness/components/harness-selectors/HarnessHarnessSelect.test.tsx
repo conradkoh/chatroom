@@ -143,7 +143,7 @@ describe('HarnessHarnessSelect', () => {
       {
         name: 'opencode-sdk',
         displayName: 'ignored',
-        version: { version: '1.17.18' },
+        version: { version: '1.17.18', major: 1 },
         agents: [],
         providers: [],
       },

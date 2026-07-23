@@ -47,12 +47,7 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import {
-  formatHarnessLabel,
-  getHarnessDisplayName,
-  getModelDisplayLabel,
-  getMachineDisplayName,
-} from '../types/machine';
+import { formatHarnessLabel, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
 import type { Workspace } from '../types/workspace';
 import { dispatchStartAgent } from '../utils/agentStart';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
