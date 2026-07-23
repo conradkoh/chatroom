@@ -61,6 +61,9 @@ import type * as daemon_directHarness_messages from "../daemon/directHarness/mes
 import type * as daemon_directHarness_queue from "../daemon/directHarness/queue.js";
 import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
 import type * as daemon_directHarness_turns from "../daemon/directHarness/turns.js";
+import type * as daemon_enhancer_index from "../daemon/enhancer/index.js";
+import type * as daemon_enhancer_jobs from "../daemon/enhancer/jobs.js";
+import type * as daemon_enhancer_spawnPayload from "../daemon/enhancer/spawnPayload.js";
 import type * as dev from "../dev.js";
 import type * as directHarnessCleanup from "../directHarnessCleanup.js";
 import type * as discussions from "../discussions.js";
@@ -188,6 +191,9 @@ declare const fullApi: ApiFromModules<{
   "daemon/directHarness/queue": typeof daemon_directHarness_queue;
   "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
   "daemon/directHarness/turns": typeof daemon_directHarness_turns;
+  "daemon/enhancer/index": typeof daemon_enhancer_index;
+  "daemon/enhancer/jobs": typeof daemon_enhancer_jobs;
+  "daemon/enhancer/spawnPayload": typeof daemon_enhancer_spawnPayload;
   dev: typeof dev;
   directHarnessCleanup: typeof directHarnessCleanup;
   discussions: typeof discussions;

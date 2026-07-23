@@ -3046,6 +3046,7 @@ export default defineSchema({
     ),
   })
     .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_machine_status', ['machineId', 'status'])
     .index('by_status_nextRetryAt', ['status', 'nextRetryAt']),
 
   /**

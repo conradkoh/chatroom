@@ -120,7 +120,7 @@ export const enqueueHandoff = mutation({
       targetId: 'handoff:planner-to-builder',
       fromRole: 'planner',
       toRole: 'builder',
-      status: 'running',
+      status: 'pending',
       draftContent: args.content,
       templateSnapshot,
       agentHarness: config.agentHarness,
@@ -130,7 +130,6 @@ export const enqueueHandoff = mutation({
       attemptCount: 1,
       maxAttempts: ENHANCER_MAX_ATTEMPTS,
       createdAt: now,
-      runningSince: now,
       pendingHandoffArgs: {
         senderRole: args.senderRole,
         targetRole: args.targetRole,
@@ -216,12 +215,7 @@ export const recordAttemptFailure = mutation({
       now
     );
 
-    await ctx.db.patch(args.jobId, {
-      status: 'running',
-      runningSince: now,
-    });
-
-    return { terminal: false, status: 'running' as const, nextRetryAt };
+    return { terminal: false, status: 'pending' as const, nextRetryAt };
   },
 });
 

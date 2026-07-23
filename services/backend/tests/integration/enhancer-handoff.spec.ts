@@ -41,7 +41,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
 
     const job = await t.run(async (ctx) => ctx.db.get(result.jobId as Id<'chatroom_enhancerJobs'>));
     expect(job).toBeDefined();
-    expect(job!.status).toBe('running');
+    expect(job!.status).toBe('pending');
     expect(job!.draftContent).toBe('Original draft content');
     expect(job!.pendingHandoffArgs).toBeDefined();
     expect(job!.pendingHandoffArgs!.senderRole).toBe('planner');
@@ -77,6 +77,13 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       senderRole: 'planner',
       targetRole: 'builder',
       content: 'Original draft content',
+    });
+
+    // Daemon claims the job (transitions pending → running)
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId,
     });
 
     await t.mutation(api.web.enhancer.index.complete, {
@@ -139,13 +146,27 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       error: 'Timeout on attempt 1',
     });
     expect(result1.terminal).toBe(false);
-    expect(result1.status).toBe('running');
+    expect(result1.status).toBe('pending');
 
     const job1 = await t.run(async (ctx) => ctx.db.get(jobId));
     expect(job1!.attemptCount).toBe(2);
     expect(job1!.lastError).toBe('Timeout on attempt 1');
+    expect(job1!.status).toBe('pending');
 
-    // Second failure (attempt 2 → attempt 3, still running)
+    // Clear nextRetryAt so claim can succeed (daemon would respect backoff in production)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(jobId, { nextRetryAt: undefined });
+    });
+
+    // Daemon re-claims the job for next attempt
+    const claim2 = await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId: 'machine-1',
+    });
+    expect(claim2.claimed).toBe(true);
+
+    // Second failure (attempt 2 → attempt 3, pending after)
     const result2 = await t.mutation(api.web.enhancer.index.recordAttemptFailure, {
       sessionId,
       chatroomId: chatroom,
@@ -156,6 +177,19 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
 
     const job2 = await t.run(async (ctx) => ctx.db.get(jobId));
     expect(job2!.attemptCount).toBe(3);
+    expect(job2!.status).toBe('pending');
+
+    // Clear nextRetryAt for third attempt
+    await t.run(async (ctx) => {
+      await ctx.db.patch(jobId, { nextRetryAt: undefined });
+    });
+
+    // Daemon re-claims for third attempt
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId: 'machine-1',
+    });
 
     // Third failure (attempt 3 → terminal)
     const result3 = await t.mutation(api.web.enhancer.index.recordAttemptFailure, {
