@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -114,7 +114,15 @@ describe('buildProcessDefinitions', () => {
       convexUrl: hostedUrl,
     });
 
-    expect(defs.find((def) => def.id === 'convex')).toBeUndefined();
+    const convex = defs.find((def) => def.id === 'convex');
+    expect(convex).toBeDefined();
+    expect(convex?.command).toBe('pnpm');
+    expect(convex?.args).toEqual(['--filter', '@workspace/backend', 'dev']);
+    expect(convex?.cwd).toBe(repoRoot);
+    expect(convex?.args).not.toContain('--env-file');
+
+    expect(existsSync(join(repoRoot, 'services/backend/.convex/local-dev.env'))).toBe(false);
+
     expect(defs.find((def) => def.id === 'webapp')?.env.NEXT_PUBLIC_CONVEX_URL).toBe(hostedUrl);
     expect(defs.find((def) => def.id === 'webapp')?.env.NEXT_PUBLIC_LOCAL_MANAGER_PORT).toBe(
       '3847'

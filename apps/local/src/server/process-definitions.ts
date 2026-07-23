@@ -50,15 +50,25 @@ function writeConvexLocalEnvFile(
   return envPath;
 }
 
-function buildConvexDefinition(repoRoot: string, config: RuntimeConfig, convexUrl: string) {
+function buildLocalConvexDefinition(repoRoot: string, config: RuntimeConfig, convexUrl: string) {
   const envFilePath = writeConvexLocalEnvFile(repoRoot, config, convexUrl);
-
   return {
     id: 'convex' as const,
     name: 'Convex (local)',
     cwd: join(repoRoot, 'services/backend'),
     command: 'pnpm',
     args: ['exec', 'convex', 'dev', '--env-file', envFilePath],
+    env: {},
+  };
+}
+
+function buildHostedConvexDefinition(repoRoot: string) {
+  return {
+    id: 'convex' as const,
+    name: 'Convex (hosted dev)',
+    cwd: repoRoot,
+    command: 'pnpm',
+    args: ['--filter', '@workspace/backend', 'dev'],
     env: {},
   };
 }
@@ -117,7 +127,9 @@ export function buildProcessDefinitions(
   const defs: ProcessDefinition[] = [];
 
   if (config.convexBackendMode === 'local') {
-    defs.push(buildConvexDefinition(repoRoot, config, convexUrl));
+    defs.push(buildLocalConvexDefinition(repoRoot, config, convexUrl));
+  } else {
+    defs.push(buildHostedConvexDefinition(repoRoot));
   }
 
   defs.push(buildWebappDefinition(repoRoot, config, convexUrl, managerPort));

@@ -94,24 +94,28 @@ When env files disagree (backend local, webapp hosted), defaults prefer the `.co
 
 ### Hosted Convex (`convexBackendMode: 'hosted'`)
 
-1. **Do not spawn** the convex process (show as `skipped` in UI).
-2. Health gate: `GET {convexUrl}/version` → 200 (validates deployment is reachable).
-3. Pass `convexUrl` from config to webapp and daemon env overrides.
+1. Spawn `pnpm --filter @workspace/backend dev` from repo root.
+2. Wait for "Convex functions ready!" from logs.
+3. Health gate: `GET {convexUrl}/version` → 200 (validates deployment is reachable).
+4. Pass `convexUrl` from config to webapp and daemon env overrides.
 
-This matches setups where `convex dev` syncs to a cloud deployment and the webapp already points at `*.convex.cloud`.
+This runs `convex dev` against the cloud deployment URL from `services/backend/.env.local`, enabling local backend code changes to sync to the dev server.
 
 ## Startup sequence
 
 ```mermaid
 flowchart TD
     A[User clicks Start] --> B{Backend mode?}
-    B -->|local| C[Start Convex dev]
-    B -->|hosted| D[Health check hosted URL]
-    C --> E[Health check local /version]
-    E -->|fail| F[Mark unhealthy - stop]
-    D -->|fail| F
-    E -->|ok| G[Start webapp + daemon in parallel]
-    D -->|ok| G
+    B -->|local| C[Start Convex dev --env-file]
+    B -->|hosted| I[Start Convex dev (filter)]
+    C --> E[Wait for functions ready]
+    I --> J[Wait for functions ready]
+    E --> K[Health check local /version]
+    J --> L[Health check cloud URL]
+    K -->|fail| F[Mark unhealthy - stop]
+    L -->|fail| F
+    K -->|ok| G[Start webapp + daemon in parallel]
+    L -->|ok| G
     G --> H[Running]
 ```
 
@@ -119,7 +123,8 @@ flowchart TD
 
 | Process             | Command                                                                                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Convex (local only) | `pnpm --filter @workspace/backend dev`                                                                                                              |
+| Convex (local)      | `pnpm exec convex dev --env-file services/backend/.convex/local-dev.env`                                                                            |
+| Convex (hosted dev) | `pnpm --filter @workspace/backend dev`                                                                                                              |
 | Webapp              | `pnpm turbo run build --filter=@workspace/webapp --no-cache && PORT={port} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start` |
 | Daemon              | `pnpm turbo run build --filter=chatroom-cli --no-cache && pnpm exec chatroom machine daemon start`                                                  |
 
@@ -161,7 +166,7 @@ type ClientMessage =
 type ProcessStatus = 'pending' | 'starting' | 'running' | 'stopped' | 'crashed' | 'skipped';
 ```
 
-`skipped` — convex in hosted mode (not managed locally).
+`skipped` — convex in certain configurations (not managed locally).
 
 ## UI screens
 
@@ -177,7 +182,7 @@ type ProcessStatus = 'pending' | 'starting' | 'running' | 'stopped' | 'crashed' 
 
 - Existing sidebar + log viewer
 - **Stop Stack** button
-- Health badge on convex (or "Hosted — external" when skipped)
+- Health badge on convex
 - Per-process restart
 
 ## Error handling
@@ -211,13 +216,13 @@ apps/local/
 1. **Unit tests** — config parsing, health check mocks, process definition env for local vs hosted.
 2. **Manual / agent browser** — after `pnpm local`:
    - Setup screen loads at manager URL
-   - Hosted mode: Start → webapp + daemon reach running; convex shows skipped
+   - Hosted mode: Start → convex syncs to cloud, webapp + daemon reach running
    - Local mode: Start → all three processes healthy (requires local convex)
 3. **Smoke script** (optional) — `curl` manager port + WebSocket snapshot.
 
 ## Implementation slices
 
 1. **Architecture + idle mode** — docs, remove auto-start, protocol, defaults loader, Setup UI shell
-2. **Hosted backend mode** — skip convex, health hosted URL, fix env injection
+2. **Hosted backend mode** — start convex against cloud deployment, health cloud URL, fix env injection
 3. **Setup UI polish** — full form, stop stack, phase transitions
 4. **Browser validation + commits** — verify flows, separate commits per slice
