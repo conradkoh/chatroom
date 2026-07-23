@@ -263,6 +263,37 @@ agenticQueryCommand
     });
   });
 
+const enhancerCommand = program.command('enhancer').description('Handoff enhancer commands');
+
+enhancerCommand
+  .command('complete')
+  .description('Submit the enhanced handoff markdown')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--job-id <id>', 'Enhancer job identifier')
+  .action(async (options: { chatroomId: string; jobId: string }) => {
+    await maybeRequireAuth();
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+    let body: string;
+    try {
+      const { ENHANCER_STDIN_DELIMITER, HANDOFF_MESSAGE_MARKER, validateStdinHeredocBody } =
+        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+      const decoded = decode(stdinContent, { singleParam: 'result' });
+      body = decoded.result;
+      body = body.replace(new RegExp(`^(${HANDOFF_MESSAGE_MARKER}\\s*)+`, 'i'), '').trim();
+      validateStdinHeredocBody(body, ENHANCER_STDIN_DELIMITER);
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+    if (!body?.trim()) {
+      console.error('❌ Enhanced handoff body is empty');
+      process.exit(1);
+    }
+    const { enhancerComplete } = await import('./commands/enhancer/complete.js');
+    await enhancerComplete(options.chatroomId, { jobId: options.jobId, enhancedContent: body });
+  });
+
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
 // ============================================================================

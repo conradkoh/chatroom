@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { agentHarnessValidator } from '../../schema';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
+import { applyEnhancerComplete } from './completeLogic';
 
 export const upsertConfig = mutation({
   args: {
@@ -67,5 +68,38 @@ export const disableConfig = mutation({
     if (!existing) return { removed: false };
     await ctx.db.delete(existing._id);
     return { removed: true };
+  },
+});
+
+export const complete = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    jobId: v.id('chatroom_enhancerJobs'),
+    enhancedContent: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
+    if (!job || job.chatroomId !== args.chatroomId) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not found' });
+    }
+
+    const applied = await applyEnhancerComplete(ctx, {
+      jobId: args.jobId,
+      enhancedContent: args.enhancedContent,
+    });
+    if (!applied.ok) {
+      const code =
+        applied.reason === 'empty_content'
+          ? 'INVALID_CONTENT'
+          : applied.reason === 'invalid_status'
+            ? 'INVALID_STATUS'
+            : 'NOT_FOUND';
+      throw new ConvexError({ code, message: applied.message });
+    }
+
+    return { success: true as const };
   },
 });

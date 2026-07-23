@@ -1,2 +1,2 @@
-export { upsertConfig, disableConfig } from './mutations';
+export { upsertConfig, disableConfig, complete } from './mutations';
 export { getConfig } from './queries';
