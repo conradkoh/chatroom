@@ -1,11 +1,19 @@
 'use client';
 
+import { useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 
 import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
-import { HarnessModelSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessModelSelect';
+import {
+  ModelSelect,
+  groupProviderOptions,
+  harnessModelKey,
+  getHarnessModelLabel,
+  findModelLabel,
+} from '@/modules/chatroom/components/model-selection';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
+import type { ModelGroup } from '@/modules/chatroom/components/model-selection/types';
 
 export interface AgenticQueryHarnessControlsProps {
   harnesses: HarnessOption[];
@@ -32,6 +40,17 @@ export function AgenticQueryHarnessControls({
   filterButton,
   refreshButton,
 }: AgenticQueryHarnessControlsProps) {
+  const groups = useMemo(
+    () => groupProviderOptions(providers, { modelKey: harnessModelKey }),
+    [providers]
+  );
+
+  const getTriggerLabel = useCallback(
+    (_groups: ModelGroup[], val: string) =>
+      getHarnessModelLabel(providers, val) ?? findModelLabel(_groups, val),
+    [providers]
+  );
+
   return (
     <div
       className="flex flex-col gap-2 min-w-0"
@@ -48,12 +67,15 @@ export function AgenticQueryHarnessControls({
           />
         </div>
         <div className="flex-1 min-w-0">
-          <HarnessModelSelect
-            providers={providers}
+          <ModelSelect
+            groups={groups}
             value={selectedModel}
             onValueChange={onModelChange}
             isHidden={isModelHidden}
+            getTriggerLabel={getTriggerLabel}
             disabled={disabled}
+            triggerVariant="harness"
+            contentClassName="w-72"
           />
         </div>
       </div>

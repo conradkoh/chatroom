@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 
 import type { HarnessOption } from './useHarnessConfig';
-import { useHarnessModelFilter } from './useHarnessModelFilter';
+import { useMachineModelFilter } from '../../components/model-selection';
 import {
   resolveNativeHarnessOptions,
   resolveSelectedHarnessName,
@@ -29,7 +29,7 @@ export function useNativeHarnessWorkspace(
     [harnessName, harnesses]
   );
 
-  const filter = useHarnessModelFilter(machineId, resolvedHarnessName);
+  const filter = useMachineModelFilter(machineId, resolvedHarnessName);
 
   return { harnesses, machineId, resolvedHarnessName, filter };
 }
