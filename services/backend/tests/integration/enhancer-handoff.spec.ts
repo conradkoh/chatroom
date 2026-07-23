@@ -106,6 +106,73 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(builderTask).toBeDefined();
     expect(builderTask!.content).toContain('Enhanced brief');
     expect(builderTask!.content).not.toContain('Original draft');
+
+    // Handoff message should have enhancerJobId set
+    const handoffMessages = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('type'), 'handoff'))
+        .collect()
+    );
+    const msg = handoffMessages.find((m) => m.senderRole === 'planner');
+    expect(msg).toBeDefined();
+    expect(msg!.enhancerJobId).toBe(jobId);
+    expect(msg!.content).toContain('Enhanced brief');
+  });
+
+  test('cancelActiveJob delivers draft content and marks job failed', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-cancel');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'builder',
+      content: 'Original draft content',
+    });
+
+    // Claim the job so it's running
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId,
+    });
+
+    // Cancel the job
+    await t.mutation(api.web.enhancer.index.cancelActiveJob, {
+      sessionId,
+      chatroomId,
+      jobId,
+    });
+
+    // Job should be marked failed with cancelled_by_user
+    const job = await t.run(async (ctx) => ctx.db.get(jobId));
+    expect(job!.status).toBe('failed');
+    expect(job!.lastError).toBe('cancelled_by_user');
+
+    // Handoff should have been delivered with draft content
+    const handoffMessages = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('type'), 'handoff'))
+        .collect()
+    );
+    const msg = handoffMessages.find((m) => m.senderRole === 'planner');
+    expect(msg).toBeDefined();
+    expect(msg!.content).toContain('Original draft');
+    expect(msg!.enhancerJobId).toBe(jobId);
   });
 
   test('recordAttemptFailure retries with backoff then fails after max attempts', async () => {

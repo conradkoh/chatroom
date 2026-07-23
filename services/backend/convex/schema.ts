@@ -436,6 +436,9 @@ export default defineSchema({
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
 
+    // Link to the enhancer job that produced this message (for enhanced handoffs)
+    enhancerJobId: v.optional(v.id('chatroom_enhancerJobs')),
+
     // Attached backlog tasks for context
     // User can attach multiple backlog tasks to a message for agent context
     // Attached tasks remain in 'backlog' status until agent hands off to user,

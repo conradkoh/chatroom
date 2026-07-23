@@ -49,6 +49,7 @@ export async function applyEnhancerComplete(
     targetRole: handoffArgs.targetRole,
     content: enhancedContent,
     attachedArtifactIds: handoffArgs.attachedArtifactIds,
+    jobId: params.jobId,
   });
 
   if (!handoffResult.success) {

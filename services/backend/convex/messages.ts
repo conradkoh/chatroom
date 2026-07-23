@@ -178,6 +178,18 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
     })
   );
 
+  // Batch enhancer job lookups: fetch draftContent for messages linked to enhancer jobs
+  const uniqueJobIds = [
+    ...new Set(messages.flatMap((m) => (m.enhancerJobId != null ? [m.enhancerJobId] : []))),
+  ];
+  const jobDraftMap = new Map<string, string>();
+  await Promise.all(
+    uniqueJobIds.map(async (id) => {
+      const job = await ctx.db.get('chatroom_enhancerJobs', id);
+      if (job?.draftContent) jobDraftMap.set(id.toString(), job.draftContent);
+    })
+  );
+
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
       // Use batched task lookup
@@ -194,11 +206,18 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
         ? progressByTaskId.get(message.taskId.toString())
         : undefined;
 
+      // Resolve enhancer original content (draft from enhancer job)
+      const enhancerOriginalContent =
+        message.enhancerJobId != null
+          ? jobDraftMap.get(message.enhancerJobId.toString())
+          : undefined;
+
       return {
         ...message,
         ...(taskStatus && { taskStatus }),
         ...attachments,
         ...(latestProgress && { latestProgress }),
+        ...(enhancerOriginalContent && { enhancerOriginalContent }),
       };
     })
   );
@@ -507,6 +526,7 @@ async function _handoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    enhancerJobId?: Id<'chatroom_enhancerJobs'>;
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -650,6 +670,7 @@ async function _handoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
+    ...(args.enhancerJobId && { enhancerJobId: args.enhancerJobId }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -778,9 +799,10 @@ export async function performHandoffFromEnhancer(
     targetRole: string;
     content: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+    jobId: Id<'chatroom_enhancerJobs'>;
   }
 ) {
-  return _handoffHandler(ctx, args);
+  return _handoffHandler(ctx, { ...args, enhancerJobId: args.jobId });
 }
 
 /** Returns the allowed handoff roles for a given role based on the current message classification. */

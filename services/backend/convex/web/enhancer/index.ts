@@ -4,5 +4,6 @@ export {
   enqueueHandoff,
   recordAttemptFailure,
   complete,
+  cancelActiveJob,
 } from './mutations';
-export { getConfig, getJob } from './queries';
+export { getConfig, getJob, getActiveJob } from './queries';
