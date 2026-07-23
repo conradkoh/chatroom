@@ -98,7 +98,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this.clearAllProcessLogs();
 
     this.updateState('convex', {
-      name: config.convexBackendMode === 'hosted' ? 'Convex (hosted)' : 'Convex (local)',
+      name: config.convexBackendMode === 'hosted' ? 'Convex (hosted dev)' : 'Convex (local)',
     });
 
     const definitions = buildProcessDefinitions(this.repoRoot, config, this.managerPort);
@@ -168,34 +168,60 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
         this.updateState('convex', { health: 'healthy', healthDetail: null });
       }
     } else {
-      this.clearProcessLogs('convex');
-      const convexState = this.state.get('convex');
-      if (convexState) {
-        convexState.status = 'skipped';
-        convexState.health = 'healthy';
-        convexState.healthDetail = 'Hosted \u2014 external';
-        this.emit('process', convexState);
+      const convexDef = definitions.find((d) => d.id === 'convex');
+      if (convexDef) {
+        this.start(convexDef);
+        this.updateState('convex', {
+          health: 'checking',
+          healthDetail: 'Waiting for functions ready',
+        });
+
+        const result = await waitForConvexDevReadyFromLogs(
+          (handler) => this.subscribeToLogs(handler),
+          {
+            onWaiting: () =>
+              this.updateState('convex', {
+                health: 'checking',
+                healthDetail: 'Waiting for functions ready',
+              }),
+          }
+        );
+
+        if (isStale()) return;
+
+        if (!result.ok) {
+          this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
+          await this.stopAll();
+          this._phase = 'failed';
+          this.emit('phase', this._phase);
+          return;
+        }
+
+        this.updateState('convex', {
+          health: 'checking',
+          healthDetail: 'Waiting for Convex HTTP',
+        });
+
+        const httpHealth = await waitForConvexHealthy(config.convexUrl, {
+          onCheck: () =>
+            this.updateState('convex', {
+              health: 'checking',
+              healthDetail: 'Waiting for Convex HTTP',
+            }),
+        });
+
+        if (isStale()) return;
+
+        if (!httpHealth.ok) {
+          this.updateState('convex', { health: 'unhealthy', healthDetail: httpHealth.reason });
+          await this.stopAll();
+          this._phase = 'failed';
+          this.emit('phase', this._phase);
+          return;
+        }
+
+        this.updateState('convex', { health: 'healthy', healthDetail: 'Hosted \u2014 syncing' });
       }
-
-      this.updateState('convex', { health: 'checking', healthDetail: 'Checking hosted Convex' });
-      const result = await waitForConvexHealthy(config.convexUrl, {
-        onCheck: () =>
-          this.updateState('convex', {
-            health: 'checking',
-            healthDetail: 'Checking hosted Convex',
-          }),
-      });
-
-      if (isStale()) return;
-
-      if (!result.ok) {
-        this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
-        this._phase = 'failed';
-        this.emit('phase', this._phase);
-        return;
-      }
-
-      this.updateState('convex', { health: 'healthy', healthDetail: 'Hosted \u2014 external' });
     }
 
     if (isStale()) return;
