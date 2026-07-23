@@ -1,18 +1,7 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import {
-  Play,
-  Square,
-  RotateCw,
-  Loader2,
-  AlertCircle,
-  ChevronDown,
-  SlidersHorizontal,
-  FileText,
-} from 'lucide-react';
+import { Play, Square, RotateCw, Loader2, AlertCircle, ChevronDown, FileText } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
 import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
@@ -20,7 +9,13 @@ import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
-import { ModelFilterPanel } from './ModelFilterPanel';
+import {
+  ModelSelect,
+  ModelFilterButton,
+  ModelPickerMeta,
+  groupFlatModels,
+  useMachineModelFilter,
+} from './model-selection';
 import {
   ResponsivePickerShell,
   PickerSearch,
@@ -377,15 +372,9 @@ export function useAgentControls({
 
   // Machine-level model filter — used to exclude blacklisted models from
   // automatic selection and the model combobox.
-  const machineModelFilterResult = useSessionQuery(
-    api.machines.getMachineModelFilters,
-    selectedMachineId && selectedHarness
-      ? { machineId: selectedMachineId, agentHarness: selectedHarness }
-      : 'skip'
-  );
-  const machineModelFilter = machineModelFilterResult ?? null;
-  const machineModelFilterLoading =
-    !!selectedMachineId && !!selectedHarness && machineModelFilterResult === undefined;
+  const modelFilter = useMachineModelFilter(selectedMachineId, selectedHarness);
+  const machineModelFilter = modelFilter.filter ?? null;
+  const machineModelFilterLoading = modelFilter.enabled && modelFilter.filter === undefined;
 
   // Wait for async machine models + filter before deriving selection — avoids flashing
   // a stale model label when switching machines or harnesses.
@@ -653,34 +642,6 @@ export function useAgentControls({
   };
 }
 
-function ModelPickerMeta({
-  isSelectedModelHidden,
-  machineModelFilter,
-  showChevron = false,
-}: {
-  isSelectedModelHidden: boolean;
-  machineModelFilter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined;
-  showChevron?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-1 flex-shrink-0">
-      {isSelectedModelHidden && (
-        <AlertCircle
-          size={10}
-          className="text-chatroom-status-warning flex-shrink-0"
-          aria-label="Selected model is hidden by filter — choose a new model"
-        />
-      )}
-      {machineModelFilter &&
-        (machineModelFilter.hiddenModels.length > 0 ||
-          machineModelFilter.hiddenProviders.length > 0) && (
-          <div className="w-1.5 h-1.5 bg-chatroom-accent" title="Some models are hidden" />
-        )}
-      {showChevron && <ChevronDown size={10} className="text-chatroom-text-muted" />}
-    </div>
-  );
-}
-
 // ─── Component: RemoteTabContent ────────────────────────────────────
 // The "Remote" tab UI: machine selection, harness, model, working dir,
 // start/stop/restart buttons.
@@ -849,13 +810,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     return s;
   }, [linkedMachineIdsProp, chatroomWorkspaces]);
 
-  const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
-  const {
-    searchTerm: modelSearch,
-    setSearchTerm: setModelSearch,
-    handleOpenChange: handleModelOpenChange,
-  } = usePickerSearchState(setModelPopoverOpen);
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [machinePopoverOpen, setMachinePopoverOpen] = useState(false);
   const [harnessPopoverOpen, setHarnessPopoverOpen] = useState(false);
   const {
@@ -882,49 +836,21 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     [availableHarnessesForMachine, harnessSearch, harnessVersionsForMachine]
   );
 
-  // Load machine-level model filters for the selected machine + harness
-  const machineModelFilter = useSessionQuery(
-    api.machines.getMachineModelFilters,
-    displayMachineId && displayHarness
-      ? { machineId: displayMachineId, agentHarness: displayHarness }
-      : 'skip'
-  );
-
-  const upsertModelFilter = useSessionMutation(api.machines.upsertMachineModelFilters);
-
-  const handleFilterChange = useCallback(
-    (hiddenModels: string[], hiddenProviders: string[]) => {
-      if (!displayMachineId || !displayHarness) return;
-      upsertModelFilter({
-        machineId: displayMachineId,
-        agentHarness: displayHarness,
-        hiddenModels,
-        hiddenProviders,
-      });
-    },
-    [displayMachineId, displayHarness, upsertModelFilter]
-  );
-
-  // Compute visible models (exclude hidden models entirely from combobox)
+  // Machine-level model filter for the displayed machine + harness
+  const modelFilter = useMachineModelFilter(displayMachineId, displayHarness);
   const visibleModels = useMemo(
-    () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
-    [availableModelsForHarness, machineModelFilter]
+    () => availableModelsForHarness.filter((m) => !modelFilter.isHidden(m)),
+    [availableModelsForHarness, modelFilter.isHidden]
   );
-
-  const filteredModels = useMemo(
-    () => filterPickerItems(visibleModels, modelSearch, (m) => getModelDisplayLabel(m)),
-    [visibleModels, modelSearch]
-  );
-
-  // True when the currently selected model exists in the full list but is filtered out
+  const modelGroups = useMemo(() => groupFlatModels(visibleModels), [visibleModels]);
   const isSelectedModelHidden = useMemo(
     () =>
       !!(
         displayModel &&
         availableModelsForHarness.includes(displayModel) &&
-        !visibleModels.includes(displayModel)
+        modelFilter.isHidden(displayModel)
       ),
-    [displayModel, availableModelsForHarness, visibleModels]
+    [displayModel, availableModelsForHarness, modelFilter.isHidden]
   );
 
   return (
@@ -1170,69 +1096,25 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       </span>
                       <ModelPickerMeta
                         isSelectedModelHidden={isSelectedModelHidden}
-                        machineModelFilter={machineModelFilter}
+                        filter={modelFilter.filter}
                       />
                     </div>
                   </div>
                 ) : (
                   <div className="flex-1 min-w-0">
-                    <ResponsivePickerShell
-                      open={modelPopoverOpen}
-                      onOpenChange={handleModelOpenChange}
+                    <ModelSelect
+                      groups={modelGroups}
+                      value={displayModel ?? ''}
+                      onValueChange={(m) => handleModelChange(m || null)}
+                      isHidden={modelFilter.isHidden}
                       disabled={isBusy || !displayHarness}
-                      title="Select model"
-                      align="start"
+                      triggerVariant="chatroom"
                       contentClassName="w-[420px]"
-                      trigger={
-                        <button
-                          type="button"
-                          disabled={isBusy || !displayHarness}
-                          aria-label="Select model"
-                          className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                          title="Select Model"
-                        >
-                          <span
-                            className={cn(
-                              'truncate',
-                              isSelectedModelHidden && 'text-chatroom-status-warning'
-                            )}
-                          >
-                            {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                          </span>
-                          <ModelPickerMeta
-                            isSelectedModelHidden={isSelectedModelHidden}
-                            machineModelFilter={machineModelFilter}
-                            showChevron
-                          />
-                        </button>
-                      }
-                    >
-                      <PickerSearch
-                        value={modelSearch}
-                        onChange={setModelSearch}
-                        placeholder="Search models…"
-                      />
-                      <PickerScrollBody maxHeightClassName="max-h-60">
-                        {filteredModels.length === 0 ? (
-                          <p className="px-3 py-2 text-xs text-chatroom-text-muted">
-                            No models found.
-                          </p>
-                        ) : (
-                          filteredModels.map((model) => (
-                            <PickerOptionRow
-                              key={model}
-                              selected={displayModel === model}
-                              onSelect={() => {
-                                handleModelChange(model);
-                                handleModelOpenChange(false);
-                              }}
-                            >
-                              {getModelDisplayLabel(model)}
-                            </PickerOptionRow>
-                          ))
-                        )}
-                      </PickerScrollBody>
-                    </ResponsivePickerShell>
+                      selectedHidden={isSelectedModelHidden}
+                      filter={modelFilter.filter}
+                      allowDeselect={false}
+                      placeholder="Model..."
+                    />
                   </div>
                 )}
               </div>
@@ -1241,23 +1123,11 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
 
             {displayMachineId && displayHarness && (
-              <ModelFilterPanel
-                open={filterPanelOpen}
-                onOpenChange={setFilterPanelOpen}
-                trigger={
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    className="w-7 h-7 flex items-center justify-center bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-muted hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                    title="Filter models"
-                  >
-                    <SlidersHorizontal size={10} />
-                  </button>
-                }
+              <ModelFilterButton
+                filter={modelFilter}
                 availableModels={availableModelsForHarness}
-                filter={machineModelFilter}
-                onFilterChange={handleFilterChange}
                 disabled={isBusy}
+                variant="chatroom"
               />
             )}
 
