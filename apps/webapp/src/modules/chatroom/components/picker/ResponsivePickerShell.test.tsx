@@ -281,6 +281,29 @@ describe('ResponsivePickerShell', () => {
     document.body.removeChild(container);
   });
 
+  it('applies flex scroll layout to PickerScrollBody in desktop popover', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    render(
+      <ResponsivePickerShell
+        open={true}
+        onOpenChange={vi.fn()}
+        trigger={<button type="button">Open</button>}
+        title="Test"
+      >
+        <PickerSearch value="" onChange={vi.fn()} />
+        <PickerScrollBody>
+          <div>Option</div>
+        </PickerScrollBody>
+      </ResponsivePickerShell>
+    );
+
+    const scrollBody = document.querySelector('[data-picker-scroll-body]');
+    expect(scrollBody).not.toBeNull();
+    const wrapper = scrollBody?.parentElement;
+    expect(wrapper?.className).toContain('flex-col');
+    expect(wrapper?.className).toContain('overflow-hidden');
+  });
+
   it('applies flex scroll layout to PickerScrollBody in mobile drawer', () => {
     mockUseIsDesktop.mockReturnValue(false);
     render(
