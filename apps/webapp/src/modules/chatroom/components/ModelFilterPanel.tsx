@@ -4,7 +4,8 @@ import React, { useMemo, useState, useCallback } from 'react';
 
 import { PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell } from './picker';
 import { getModelDisplayLabel } from '../types/machine';
-import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../utils/modelSelection';
+import { getModelProviderKey } from '../utils/modelSelection';
+import { getProviderDisplayName } from './model-selection/modelGroups';
 
 import { cn } from '@/lib/utils';
 
@@ -21,21 +22,6 @@ interface ModelFilterPanelProps {
   onFilterChange: (hiddenModels: string[], hiddenProviders: string[]) => void;
   /** Disabled when agent is running */
   disabled?: boolean;
-}
-
-/**
- * Title-case a provider name (e.g. "github-copilot" → "Github-Copilot")
- */
-function titleCaseProvider(provider: string): string {
-  return provider
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('-');
-}
-
-function getProviderDisplayName(providerKey: string): string {
-  if (providerKey === UNPREFIXED_PROVIDER_KEY) return 'Models';
-  return titleCaseProvider(providerKey);
 }
 
 /**
