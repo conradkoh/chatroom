@@ -6,6 +6,7 @@ import type { EnhancerConfig } from '../types/enhancer';
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => [],
+  useSessionMutation: () => vi.fn(),
 }));
 
 vi.mock('@/hooks/useMachineModels', () => ({
