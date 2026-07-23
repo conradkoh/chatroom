@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 import { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 import {
+  DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
@@ -137,7 +138,7 @@ export function ResponsivePickerShell({
             align="center"
             {...(side ? { side } : {})}
           >
-            {children}
+            <div className={DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME}>{children}</div>
           </PopoverContent>
         </Popover>
       </>
@@ -154,7 +155,7 @@ export function ResponsivePickerShell({
           align={align}
           {...(side ? { side } : {})}
         >
-          {children}
+          <div className={DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME}>{children}</div>
         </PopoverContent>
       </Popover>
     );
