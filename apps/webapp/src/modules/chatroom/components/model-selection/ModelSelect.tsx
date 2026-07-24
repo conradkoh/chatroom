@@ -3,6 +3,7 @@
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
+import { MODEL_PICKER_SCROLL_MAX_H } from './constants';
 import { findModelLabel, hasVisibleModels } from './modelGroups';
 import { ModelPickerMeta } from './ModelPickerMeta';
 import { ModelSelectList } from './ModelSelectList';
@@ -106,7 +107,7 @@ export function ModelSelect({
       trigger={trigger}
     >
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models…" />
-      <PickerScrollBody maxHeightClassName="max-h-60">
+      <PickerScrollBody maxHeightClassName={MODEL_PICKER_SCROLL_MAX_H}>
         <ModelSelectList
           groups={groups}
           value={value}

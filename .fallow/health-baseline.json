@@ -759,6 +759,11 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/components/model-selection/ModelPickerField.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/components/model-selection/ModelPickerMeta.tsx": {
       "crap_moderate": {
         "count": 1
@@ -959,18 +964,8 @@
         "count": 1
       }
     },
-    "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerConfigQuickPick.tsx": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerHarnessModelSelect.tsx": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "apps/webapp/src/modules/chatroom/features/enhancers/components/PlannerEnhancerToggle.tsx": {
-      "crap_moderate": {
+      "crap_high": {
         "count": 1
       }
     },
@@ -2640,6 +2635,7 @@
     "services/backend/prompts/generator.ts:dead code",
     "apps/local/src/client/log-text.ts:dead code",
     "services/backend/prompts/cli/roles/fromContext.ts:dead code",
+    "apps/webapp/src/modules/chatroom/components/model-selection/modelGroups.ts:high impact",
     "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTree.ts:high impact",
     "services/backend/application/auth/resolve.ts:dead code",
@@ -2648,7 +2644,6 @@
     "apps/local/src/server/process-manager.ts:complexity",
     "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
     "services/backend/prompts/cli/backlog/command.ts:untested risk",
-    "apps/webapp/src/modules/chatroom/components/model-selection/modelGroups.ts:high impact",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
     "services/backend/prompts/cli/index.ts:dead code",
