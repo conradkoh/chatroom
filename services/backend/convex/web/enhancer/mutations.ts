@@ -8,7 +8,7 @@ import {
   computeEnhancerBackoffMs,
   emitEnhancerEvent,
 } from './internal';
-import { findActiveEnhancerJob } from './jobHelpers';
+import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
@@ -177,11 +177,12 @@ export const recordAttemptFailure = mutation({
     error: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
     if (!job || job.chatroomId !== args.chatroomId) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not found' });
     }
+    assertEnhancerJobOwner(job, session.userId);
     if (job.status !== 'running') {
       return { terminal: true, status: job.status };
     }
@@ -242,12 +243,13 @@ export const complete = mutation({
     enhancedContent: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
     if (!job || job.chatroomId !== args.chatroomId) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not found' });
     }
+    assertEnhancerJobOwner(job, session.userId);
 
     const applied = await applyEnhancerComplete(ctx, {
       jobId: args.jobId,
@@ -277,11 +279,12 @@ export const cancelActiveJob = mutation({
     jobId: v.id('chatroom_enhancerJobs'),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
     if (!job || job.chatroomId !== args.chatroomId) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Enhancer job not found' });
     }
+    assertEnhancerJobOwner(job, session.userId);
     if (job.status !== 'pending' && job.status !== 'running') {
       throw new ConvexError({ code: 'INVALID_STATUS', message: 'Job is not active' });
     }
