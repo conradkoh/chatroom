@@ -1,9 +1,9 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { HarnessModelSelect } from './HarnessModelSelect';
+import { ModelSelect } from './ModelSelect';
+import type { ModelGroup } from './types';
 
-// jsdom does not provide matchMedia (used by vaul drawer and useIsDesktop)
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
@@ -24,26 +24,25 @@ vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
 }));
 
-// Radix UI Popover uses ResizeObserver — polyfill for jsdom
 global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
 };
 
-const PROVIDERS = [
+const GROUPS: ModelGroup[] = [
   {
-    providerID: 'openai',
-    name: 'OpenAI',
-    models: [
-      { modelID: 'gpt-4o', name: 'GPT-4o' },
-      { modelID: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    providerKey: 'openai',
+    providerLabel: 'OpenAI',
+    options: [
+      { value: 'openai::gpt-4o', label: 'GPT-4o' },
+      { value: 'openai::gpt-4-turbo', label: 'GPT-4 Turbo' },
     ],
   },
   {
-    providerID: 'opencode',
-    name: 'OpenCode',
-    models: [{ modelID: 'big-pickle', name: 'Big Pickle' }],
+    providerKey: 'opencode',
+    providerLabel: 'OpenCode',
+    options: [{ value: 'opencode::big-pickle', label: 'Big Pickle' }],
   },
 ];
 
@@ -52,12 +51,13 @@ function openDropdown() {
   fireEvent.click(trigger);
 }
 
-describe('HarnessModelSelect', () => {
+describe('ModelSelect', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(true);
   });
-  it('shows an empty-state label when no providers are available', () => {
-    render(<HarnessModelSelect providers={[]} value="" onValueChange={vi.fn()} />);
+
+  it('shows an empty-state label when groups are empty', () => {
+    render(<ModelSelect groups={[]} value="" onValueChange={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'No models available yet' })).toHaveTextContent(
       'No models yet'
@@ -67,14 +67,7 @@ describe('HarnessModelSelect', () => {
 
   it('shows an empty-state label when all models are hidden', () => {
     const isHidden = () => true;
-    render(
-      <HarnessModelSelect
-        providers={PROVIDERS}
-        value=""
-        onValueChange={vi.fn()}
-        isHidden={isHidden}
-      />
-    );
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} isHidden={isHidden} />);
 
     expect(screen.getByRole('button', { name: 'No models available yet' })).toHaveTextContent(
       'No models yet'
@@ -82,8 +75,8 @@ describe('HarnessModelSelect', () => {
     expect(screen.getByRole('button', { name: 'No models available yet' })).toBeDisabled();
   });
 
-  it('uses conventional chatroom picker trigger styling', () => {
-    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+  it('uses conventional harness trigger styling by default', () => {
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} />);
 
     const trigger = screen.getByRole('button', { name: 'Select model' });
     expect(trigger.className).toContain('bg-chatroom-bg-tertiary');
@@ -93,7 +86,7 @@ describe('HarnessModelSelect', () => {
 
   it('renders popover content with opaque chatroom primary background', () => {
     mockUseIsDesktop.mockReturnValue(true);
-    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} />);
     openDropdown();
 
     const content = document.querySelector('[data-slot="chatroom-popover-content"]');
@@ -104,7 +97,7 @@ describe('HarnessModelSelect', () => {
 
   it('renders drawer content on mobile viewport', () => {
     mockUseIsDesktop.mockReturnValue(false);
-    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} />);
     openDropdown();
 
     expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
@@ -112,7 +105,7 @@ describe('HarnessModelSelect', () => {
   });
 
   it('renders all models when no isHidden prop is passed', () => {
-    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} />);
     openDropdown();
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
     expect(screen.getByText('GPT-4 Turbo')).toBeInTheDocument();
@@ -121,14 +114,7 @@ describe('HarnessModelSelect', () => {
 
   it('hides models for which isHidden returns true', () => {
     const isHidden = (key: string) => key === 'openai::gpt-4-turbo';
-    render(
-      <HarnessModelSelect
-        providers={PROVIDERS}
-        value=""
-        onValueChange={vi.fn()}
-        isHidden={isHidden}
-      />
-    );
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} isHidden={isHidden} />);
     openDropdown();
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
     expect(screen.queryByText('GPT-4 Turbo')).not.toBeInTheDocument();
@@ -137,50 +123,34 @@ describe('HarnessModelSelect', () => {
 
   it('omits provider group entirely when ALL its models are hidden', () => {
     const isHidden = (key: string) => key.startsWith('opencode::');
-    render(
-      <HarnessModelSelect
-        providers={PROVIDERS}
-        value=""
-        onValueChange={vi.fn()}
-        isHidden={isHidden}
-      />
-    );
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} isHidden={isHidden} />);
     openDropdown();
-    // OpenAI models visible
     expect(screen.getByText('GPT-4o')).toBeInTheDocument();
-    // OpenCode group heading not rendered (no visible models)
     expect(screen.queryByText('Big Pickle')).not.toBeInTheDocument();
-    // The heading text for OpenCode should not appear since the group is skipped
     expect(screen.queryByText('OpenCode')).not.toBeInTheDocument();
   });
 
   it('shows the trigger label for the selected model even when isHidden returns true for it', () => {
-    // The currently-selected model shows in the trigger regardless of filter
     const isHidden = (key: string) => key === 'openai::gpt-4o';
     render(
-      <HarnessModelSelect
-        providers={PROVIDERS}
+      <ModelSelect
+        groups={GROUPS}
         value="openai::gpt-4o"
         onValueChange={vi.fn()}
         isHidden={isHidden}
       />
     );
-    // Label in the closed trigger is derived from providers lookup, still shows
     expect(screen.getByTitle('Select model')).toBeInTheDocument();
-    // The trigger shows the selected model's label even though it's "hidden"
-    expect(screen.getByText('OpenAI / GPT-4o')).toBeInTheDocument();
-    // Open dropdown: the hidden model should NOT appear in the list
+    expect(screen.getByText('GPT-4o')).toBeInTheDocument();
     openDropdown();
-    // GPT-4o won't appear in the dropdown (it's hidden from the list)
     const listItems = screen.queryAllByRole('option');
     const gpt4oItem = listItems.find((el) => el.textContent?.includes('GPT-4o'));
-    // Hidden from the dropdown (but trigger label unchanged)
     expect(gpt4oItem).toBeUndefined();
   });
 
   it('renders a focusable search input on mobile viewport', () => {
     mockUseIsDesktop.mockReturnValue(false);
-    render(<HarnessModelSelect providers={PROVIDERS} value="" onValueChange={vi.fn()} />);
+    render(<ModelSelect groups={GROUPS} value="" onValueChange={vi.fn()} />);
     openDropdown();
     const searchInput = screen.getByPlaceholderText('Search models…');
     expect(searchInput).toBeInTheDocument();

@@ -16,6 +16,7 @@ import {
 } from './AgentPanel/AgentStatusRow';
 import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { PlannerEnhancerToggle } from '../features/enhancers/components/PlannerEnhancerToggle';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
@@ -31,6 +32,8 @@ interface AgentPanelProps {
   agentConfigs?: AgentConfig[];
   /** Called when user clicks an agent row — opens settings to agents tab */
   onOpenAgents?: () => void;
+  /** Machine ID for enhancer config dialog */
+  machineId?: string | null;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -152,6 +155,7 @@ export const AgentPanel = memo(function AgentPanel({
   onTeamChange,
   agentConfigs = [],
   onOpenAgents,
+  machineId,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -231,16 +235,29 @@ export const AgentPanel = memo(function AgentPanel({
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
-        {agentStatuses.map(({ role }) => (
-          <AgentSidebarRow
-            key={role}
-            role={role}
-            agentStatus={agentStatuses.find((a) => a.role === role)}
-            agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
-            isLoadingStatuses={isLoadingStatuses}
-            onOpen={openAgentListModal}
-          />
-        ))}
+        {agentStatuses.flatMap(({ role }) => {
+          const row = (
+            <AgentSidebarRow
+              key={role}
+              role={role}
+              agentStatus={agentStatuses.find((a) => a.role === role)}
+              agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
+              isLoadingStatuses={isLoadingStatuses}
+              onOpen={openAgentListModal}
+            />
+          );
+
+          if (role.toLowerCase() === 'planner') {
+            return [
+              row,
+              <div key="planner-enhancer-bar" className="border-b border-chatroom-border">
+                <PlannerEnhancerToggle chatroomId={chatroomId} machineId={machineId} />
+              </div>,
+            ];
+          }
+
+          return [row];
+        })}
       </div>
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}

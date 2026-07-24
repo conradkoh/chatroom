@@ -111,7 +111,7 @@ describe('ModelFilter visibility while agent is running', () => {
       />
     );
 
-    const filterBtn = await waitFor(() => screen.getByTitle('Filter models'));
+    const filterBtn = await waitFor(() => screen.getByTitle('Configure visible models'));
     expect(filterBtn).toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe('ModelFilter visibility while agent is running', () => {
       />
     );
 
-    const filterBtn = await waitFor(() => screen.getByTitle('Filter models'));
+    const filterBtn = await waitFor(() => screen.getByTitle('Configure visible models'));
     // Clicking should not throw — triggers the filter panel
     await expect(user.click(filterBtn)).resolves.not.toThrow();
   });

@@ -5,6 +5,7 @@ import { memo } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
 
+import { EnhancerActivityBarItem } from '../features/enhancers/components/EnhancerActivityBarItem';
 import { useCommandDialog } from '../context/CommandDialogContext';
 
 import { cn } from '@/lib/utils';
@@ -24,6 +25,10 @@ interface ActivityBarProps {
   activeView: ActivityView;
   /** Called when a view icon is clicked */
   onViewChange: (view: ActivityView) => void;
+  /** Chatroom ID for enhancer config */
+  chatroomId?: string;
+  /** Machine ID for enhancer config dialog */
+  machineId?: string | null;
 }
 
 interface ActivityBarItemProps {
@@ -80,6 +85,8 @@ const ActivityBarItem = memo(function ActivityBarItem({
 export const ActivityBar = memo(function ActivityBar({
   activeView,
   onViewChange,
+  chatroomId,
+  machineId,
 }: ActivityBarProps) {
   const { openDialog, closeDialog, activeDialog } = useCommandDialog();
 
@@ -97,6 +104,9 @@ export const ActivityBar = memo(function ActivityBar({
         isActive={activeView === 'messages'}
         onClick={() => onViewChange('messages')}
       />
+      {chatroomId && (
+        <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
+      )}
       <ActivityBarItem
         icon={<MessageCircle size={20} />}
         label="Direct Harness"

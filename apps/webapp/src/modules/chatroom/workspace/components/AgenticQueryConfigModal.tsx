@@ -10,11 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/modules/chatroom/components/ui/dialog';
-import { HarnessFilterButton } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessFilterButton';
+import { ModelFilterButton } from '@/modules/chatroom/components/model-selection';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import { WorkspaceCapabilitiesRefreshButton } from '@/modules/chatroom/direct-harness/components/WorkspaceCapabilitiesRefreshButton';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
-import type { UseHarnessModelFilterResult } from '@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter';
+import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import { SearchConfigFavoritesList } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoritesList';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 
@@ -29,7 +29,7 @@ export interface AgenticQueryConfigModalProps {
   selectedModel: string;
   onModelChange: (modelKey: string) => void;
   isModelHidden?: (modelKey: string) => boolean;
-  filter: UseHarnessModelFilterResult;
+  filter: UseMachineModelFilterResult;
   currentEntry: SearchConfigEntry | null;
   isFavorite: (entry: SearchConfigEntry) => boolean;
   onAddFavorite: (entry: SearchConfigEntry) => void;
@@ -89,7 +89,9 @@ export function AgenticQueryConfigModal({
                 hasProviders={providers.some((provider) => provider.models.length > 0)}
               />
             }
-            filterButton={<HarnessFilterButton filter={filter} providers={providers} />}
+            filterButton={
+              <ModelFilterButton filter={filter} providers={providers} variant="harness" />
+            }
           />
           {currentEntry && !currentIsFavorite && (
             <button

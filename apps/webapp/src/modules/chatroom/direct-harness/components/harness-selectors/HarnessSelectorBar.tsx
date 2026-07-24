@@ -1,48 +1,30 @@
 'use client';
 
+import { useCallback, useMemo } from 'react';
+
 import { HarnessHarnessSelect } from './HarnessHarnessSelect';
 import { HarnessAgentSelect } from './HarnessAgentSelect';
-import { HarnessModelSelect } from './HarnessModelSelect';
-import { HarnessFilterButton } from './HarnessFilterButton';
+import {
+  ModelSelect,
+  ModelFilterButton,
+  groupProviderOptions,
+  harnessModelKey,
+  getHarnessModelLabel,
+  findModelLabel,
+} from '../../../components/model-selection';
 import type { HarnessOption, UseHarnessConfigResult } from '../../hooks/useHarnessConfig';
-import type { UseHarnessModelFilterResult } from '../../hooks/useHarnessModelFilter';
-
-// ─── Props ────────────────────────────────────────────────────────────────────
+import type { UseMachineModelFilterResult } from '../../../components/model-selection';
+import type { ModelGroup } from '../../../components/model-selection/types';
 
 export interface HarnessSelectorBarProps {
-  // Harness selector
   harnesses: HarnessOption[];
   harnessName: string;
   onHarnessChange: (name: string) => void;
-  /**
-   * When true, the harness dropdown is rendered but disabled — for in-session
-   * use where the harness can't change mid-session.
-   */
   harnessFrozen?: boolean;
-
-  // Agent + model state (parent-owned via useHarnessConfig)
   config: UseHarnessConfigResult;
-
-  /**
-   * Optional model filter. When omitted OR when `filter.enabled === false`,
-   * the filter button is not rendered.
-   */
-  filter?: UseHarnessModelFilterResult;
+  filter?: UseMachineModelFilterResult;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-/**
- * HarnessSelectorBar — the four controls in a single consistent row:
- *   [ Harness ▾ ] [ Agent ▾ ] [ Model ▾              ] [ ⚙ filter ]
- *
- * All four controls share identical visual language: h-8, text-xs, border
- * border-input, bg-transparent, sharp corners (from ui/select.tsx override),
- * ChevronDown at size=12.
- *
- * Reusable from both NewSessionComposer (creation) and SessionComposer
- * (in-session) via the `harnessFrozen` prop.
- */
 export function HarnessSelectorBar({
   harnesses,
   harnessName,
@@ -65,9 +47,19 @@ export function HarnessSelectorBar({
 
   const showFilter = filter && filter.enabled;
 
+  const groups = useMemo(
+    () => groupProviderOptions(providers, { modelKey: harnessModelKey }),
+    [providers]
+  );
+
+  const getTriggerLabel = useCallback(
+    (_groups: ModelGroup[], val: string) =>
+      getHarnessModelLabel(providers, val) ?? findModelLabel(_groups, val),
+    [providers]
+  );
+
   return (
     <div className="flex gap-2">
-      {/* Harness selector — fixed narrow width */}
       <div className="w-32 shrink-0">
         <HarnessHarnessSelect
           harnesses={harnesses}
@@ -76,8 +68,6 @@ export function HarnessSelectorBar({
           disabled={harnessFrozen}
         />
       </div>
-
-      {/* Agent selector — fixed narrow width */}
       <div className="w-28 shrink-0">
         <HarnessAgentSelect
           agents={currentHarnessAgents}
@@ -86,21 +76,18 @@ export function HarnessSelectorBar({
           resolvedAgent={resolvedAgent}
         />
       </div>
-
-      {/* Model selector — flex to fill remaining space */}
       <div className="flex-1 min-w-0">
-        <HarnessModelSelect
-          providers={providers}
+        <ModelSelect
+          groups={groups}
           value={selectedModel}
           onValueChange={setSelectedModel}
           isHidden={filter?.isHidden}
+          getTriggerLabel={getTriggerLabel}
+          triggerVariant="harness"
+          contentClassName="w-72"
         />
       </div>
-
-      {/* Filter button — only shown when filter is enabled */}
-      {showFilter && (
-        <HarnessFilterButton filter={filter} providers={providers} />
-      )}
+      {showFilter && <ModelFilterButton filter={filter} providers={providers} variant="harness" />}
     </div>
   );
 }

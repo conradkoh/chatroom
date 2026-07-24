@@ -7,7 +7,7 @@ import { AgenticQueryConfigModal } from './AgenticQueryConfigModal';
 
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
-import type { UseHarnessModelFilterResult } from '@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter';
+import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import { SearchConfigFavoriteDropdown } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoriteDropdown';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 
@@ -28,7 +28,7 @@ export interface AgenticQueryConfigBarProps {
   isFavorite: (entry: SearchConfigEntry) => boolean;
   onHarnessChange: (name: string) => void;
   onModelChange: (modelKey: string) => void;
-  filter: UseHarnessModelFilterResult;
+  filter: UseMachineModelFilterResult;
 }
 
 export const AgenticQueryConfigBar = memo(function AgenticQueryConfigBar({

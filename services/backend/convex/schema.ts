@@ -436,6 +436,9 @@ export default defineSchema({
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
 
+    // Link to the enhancer job that produced this message (for enhanced handoffs)
+    enhancerJobId: v.optional(v.id('chatroom_enhancerJobs')),
+
     // Attached backlog tasks for context
     // User can attach multiple backlog tasks to a message for agent context
     // Attached tasks remain in 'backlog' status until agent hands off to user,
@@ -956,6 +959,20 @@ export default defineSchema({
       v.object({
         harnessName: v.string(),
         modelKey: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_user_machine', ['userId', 'machineId']),
+
+  /** User favorites for enhancer target+harness+model configs. Scoped per machine. */
+  chatroom_enhancerConfigFavorites: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    favorites: v.array(
+      v.object({
+        targetId: v.literal('handoff:planner-to-builder'),
+        agentHarness: agentHarnessValidator,
+        model: v.string(),
       })
     ),
     updatedAt: v.number(),
@@ -1658,6 +1675,51 @@ export default defineSchema({
         type: v.literal('agent.awaitingHandoff'),
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job created for planner→builder handoff
+      v.object({
+        type: v.literal('enhancer.job.created'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        userId: v.id('users'),
+        attemptCount: v.number(),
+        maxAttempts: v.number(),
+        timestamp: v.number(),
+      }),
+      // Enhancer attempt failed (will retry)
+      v.object({
+        type: v.literal('enhancer.attempt.failed'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        error: v.string(),
+        nextRetryAt: v.optional(v.number()),
+        timestamp: v.number(),
+      }),
+      // Enhancer job failed after max attempts
+      v.object({
+        type: v.literal('enhancer.job.failed'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job completed with enhanced content
+      v.object({
+        type: v.literal('enhancer.job.complete'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job cancelled by user (draft handoff delivered)
+      v.object({
+        type: v.literal('enhancer.job.cancelled'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
         timestamp: v.number(),
       })
     )
@@ -2952,6 +3014,66 @@ export default defineSchema({
     .index('by_run', ['runId'])
     .index('by_run_role', ['runId', 'role'])
     .index('by_messageId', ['messageId']),
+
+  /**
+   * Per-user-per-chatroom enhancer configuration.
+   * Synced from webapp; read by handoff CLI at interception time.
+   */
+  chatroom_enhancerConfigs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    enabled: v.boolean(),
+    targetId: v.literal('handoff:planner-to-builder'),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom_user', ['chatroomId', 'userId'])
+    .index('by_chatroom', ['chatroomId']),
+
+  /**
+   * One-shot enhancer job per intercepted handoff.
+   * Populated in slice 2.3; schema now so migrations are stable.
+   */
+  chatroom_enhancerJobs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    targetId: v.literal('handoff:planner-to-builder'),
+    fromRole: v.string(),
+    toRole: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('complete'),
+      v.literal('failed'),
+      v.literal('cancelled')
+    ),
+    draftContent: v.string(),
+    enhancedContent: v.optional(v.string()),
+    templateSnapshot: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    workingDir: v.string(),
+    attemptCount: v.number(),
+    maxAttempts: v.number(),
+    runningSince: v.optional(v.number()),
+    nextRetryAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    pendingHandoffArgs: v.optional(
+      v.object({
+        senderRole: v.string(),
+        targetRole: v.string(),
+        attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+      })
+    ),
+  })
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_status_nextRetryAt', ['status', 'nextRetryAt']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant

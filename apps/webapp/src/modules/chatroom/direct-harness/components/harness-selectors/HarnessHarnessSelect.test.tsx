@@ -128,4 +128,31 @@ describe('HarnessHarnessSelect', () => {
     expect(searchInput).toHaveValue('Cursor');
     expect(screen.getAllByRole('option')).toHaveLength(1);
   });
+
+  it('uses getHarnessDisplayName for labels even when displayName differs', () => {
+    const harnesses = [{ name: 'pi-sdk', displayName: 'Wrong Label', agents: [], providers: [] }];
+    render(<HarnessHarnessSelect harnesses={harnesses} value="pi-sdk" onValueChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Select harness' })).toHaveTextContent('Pi (SDK)');
+    openDropdown();
+    expect(screen.getByRole('option', { name: /Pi \(SDK\)/ })).toBeInTheDocument();
+  });
+
+  it('shows version suffix when HarnessOption.version is set', () => {
+    const harnesses = [
+      {
+        name: 'opencode-sdk',
+        displayName: 'ignored',
+        version: { version: '1.17.18', major: 1 },
+        agents: [],
+        providers: [],
+      },
+    ];
+    render(
+      <HarnessHarnessSelect harnesses={harnesses} value="opencode-sdk" onValueChange={vi.fn()} />
+    );
+    expect(screen.getByRole('button', { name: 'Select harness' })).toHaveTextContent(
+      'OpenCode (SDK) v1.17.18'
+    );
+  });
 });

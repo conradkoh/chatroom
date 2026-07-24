@@ -76,4 +76,6 @@ export interface Message {
   isQueued?: boolean;
   /** Role that set the context (new-context messages only) */
   contextCreatedBy?: string;
+  /** Original planner draft before enhancer (from job.draftContent); not stored on message row */
+  enhancerOriginalContent?: string;
 }

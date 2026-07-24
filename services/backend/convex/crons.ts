@@ -99,4 +99,18 @@ crons.interval(
   internal.connectionCleanup.cleanupExpiredConnectionCloseRequests
 );
 
+// Enhancer jobs — fail stuck running jobs (every 2 minutes)
+crons.interval(
+  'reap stuck enhancer jobs',
+  { minutes: 2 },
+  internal.enhancerJobReaper.reapStuckEnhancerJobs
+);
+
+// Enhancer jobs — purge terminal rows older than retention (daily)
+crons.interval(
+  'purge terminal enhancer jobs',
+  { hours: 24 },
+  internal.enhancerJobReaper.purgeTerminalEnhancerJobs
+);
+
 export default crons;

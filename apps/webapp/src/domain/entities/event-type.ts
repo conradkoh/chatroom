@@ -64,6 +64,11 @@ export const SUPPORTED_EVENT_TYPES = {
   'config.requestRemoval': { label: 'Config Request Removal', badge: 'warning' },
   'command.run': { label: 'Command Run', badge: 'warning' },
   'command.stop': { label: 'Command Stop', badge: 'error' },
+  'enhancer.job.created': { label: 'Enhancer Job Created', badge: 'info' },
+  'enhancer.attempt.failed': { label: 'Enhancer Attempt Failed', badge: 'warning' },
+  'enhancer.job.failed': { label: 'Enhancer Job Failed', badge: 'error' },
+  'enhancer.job.complete': { label: 'Enhancer Job Complete', badge: 'success' },
+  'enhancer.job.cancelled': { label: 'Enhancer Job Cancelled', badge: 'warning' },
 } as const satisfies Record<string, SupportedEventTypeMeta>;
 
 export type EventTypeName = keyof typeof SUPPORTED_EVENT_TYPES;

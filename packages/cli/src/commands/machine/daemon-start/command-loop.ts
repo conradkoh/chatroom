@@ -32,6 +32,7 @@ import {
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
+import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
   startFileContentSubscriptionEffect,
   type FileContentSubscriptionHandle,
@@ -577,6 +578,15 @@ export const startCommandLoopEffect: Effect.Effect<
     );
     aqPendingPromptSubscriptionHandle = aqHandles.pendingPromptSubscriptionHandle;
     aqPendingHarnessSessionSubscriptionHandle = aqHandles.pendingHarnessSessionSubscriptionHandle;
+
+    const enhancerSub = startEnhancerSubscriptions(
+      session.sessionId,
+      session.machineId,
+      session.convexUrl,
+      session.backend,
+      wsClient,
+      session.agentServices
+    );
   }
 
   console.log(`\nListening for commands...`);
