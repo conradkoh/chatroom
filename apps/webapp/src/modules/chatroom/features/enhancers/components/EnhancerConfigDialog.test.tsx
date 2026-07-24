@@ -150,6 +150,36 @@ describe('EnhancerConfigDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('renders favorites below target section when provided', () => {
+    const favorite = {
+      targetId: 'handoff:planner-to-builder' as const,
+      agentHarness: 'opencode' as const,
+      model: 'anthropic/claude-opus-4',
+    };
+    render(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId="machine-1"
+        initialConfig={makeConfig()}
+        onConfirm={onConfirm}
+        onDisable={onDisable}
+        favorites={[favorite]}
+        isFavorite={() => true}
+        onAddFavorite={vi.fn()}
+        onRemoveFavorite={vi.fn()}
+        onMoveFavorite={vi.fn()}
+      />
+    );
+
+    const targetLabel = screen.getByText('Target');
+    const favoritesList = screen.getByTestId('enhancer-config-favorites-list');
+    expect(
+      targetLabel.compareDocumentPosition(favoritesList) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
   it('syncs form state when initialConfig arrives after open', () => {
     const { rerender } = render(
       <EnhancerConfigDialog
