@@ -1,8 +1,16 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EditorTab, RightPaneTab } from './useFileTabs';
 import { computeEditorSplitDrop, editorTabKey, useFileTabs } from './useFileTabs';
+
+const FILE_TABS_PERSIST_DEBOUNCE_MS = 300;
+
+function flushFileTabsPersistDebounce() {
+  act(() => {
+    vi.advanceTimersByTime(FILE_TABS_PERSIST_DEBOUNCE_MS);
+  });
+}
 
 const CHATROOM_A = 'cr-a';
 const CHATROOM_B = 'cr-b';
@@ -34,6 +42,14 @@ beforeEach(() => {
 });
 
 describe('useFileTabs persistence', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('restores pinned tabs from localStorage on mount', () => {
     writePinnedTab(CHATROOM_A, 'README.md');
 
@@ -60,6 +76,7 @@ describe('useFileTabs persistence', () => {
     act(() => {
       result.current.pinTab('package.json');
     });
+    flushFileTabsPersistDebounce();
 
     const stored = JSON.parse(localStorage.getItem(storageKey(CHATROOM_A)) ?? '{}') as {
       tabs: EditorTab[];
@@ -308,11 +325,13 @@ describe('useFileTabs agentic query tabs', () => {
   });
 
   it('persists agentic tabs to localStorage', () => {
+    vi.useFakeTimers();
     const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
 
     act(() => {
       result.current.openAgenticQueryTab('query-4', 'search', 'Agentic Search');
     });
+    flushFileTabsPersistDebounce();
 
     const stored = JSON.parse(localStorage.getItem(storageKey(CHATROOM_A)) ?? '{}') as {
       tabs: EditorTab[];
@@ -324,6 +343,7 @@ describe('useFileTabs agentic query tabs', () => {
       mode: 'search',
     });
     expect(stored.activeTabKey).toBe('agentic-query:query-4');
+    vi.useRealTimers();
   });
 
   it('keeps existing agentic tabs when opening another concurrent search session', () => {

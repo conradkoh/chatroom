@@ -91,6 +91,8 @@ const defaultPersistedState: FileTabsPersistedState = {
   editorSplit: null,
 };
 
+const FILE_TABS_PERSIST_DEBOUNCE_MS = 300;
+
 function getStorageKey(chatroomId: string | undefined): string {
   return `fileTabs:${chatroomId ?? 'global'}`;
 }
@@ -518,7 +520,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     }
     if (lastStorageKeyRef.current !== storageKey) return;
 
-    writeSavedState(storageKey, {
+    const timer = setTimeout(writeSavedState, FILE_TABS_PERSIST_DEBOUNCE_MS, storageKey, {
       tabs,
       activeTabKey,
       expandedTabPath: expandState?.filePath ?? null,
@@ -527,6 +529,8 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
       activeRightTabKey: null,
       editorSplit,
     });
+
+    return () => clearTimeout(timer);
   }, [storageKey, tabs, activeTabKey, expandState, editorSplit]);
 
   // ─── Left pane ──────────────────────────────────────────────
