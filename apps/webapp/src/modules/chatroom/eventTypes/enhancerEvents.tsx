@@ -8,6 +8,7 @@ import type {
   EnhancerAttemptFailedEvent,
   EnhancerJobFailedEvent,
   EnhancerJobCompleteEvent,
+  EnhancerJobCancelledEvent,
 } from '@/domain/entities/event-stream-event';
 
 function renderJobCreatedCell(
@@ -44,10 +45,7 @@ function renderAttemptFailedCell(
   );
 }
 
-function renderJobFailedCell(
-  event: EnhancerJobFailedEvent,
-  isSelected: boolean
-): React.ReactNode {
+function renderJobFailedCell(event: EnhancerJobFailedEvent, isSelected: boolean): React.ReactNode {
   return (
     <EventRow
       type="enhancer.job.failed"
@@ -78,9 +76,30 @@ function renderJobCompleteCell(
   );
 }
 
+function renderJobCancelledCell(
+  event: EnhancerJobCancelledEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="enhancer.job.cancelled"
+      badgeText="Enhancer"
+      badgeColor="warning"
+      primaryInfo={event.jobId.slice(-8)}
+      secondaryInfo={`Attempt ${event.attemptCount}`}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
 function renderJobCreatedDetails(event: EnhancerJobCreatedEvent): React.ReactNode {
   return (
-    <EventDetails title="Enhancer Job Created" timestamp={event.timestamp} type="enhancer.job.created">
+    <EventDetails
+      title="Enhancer Job Created"
+      timestamp={event.timestamp}
+      type="enhancer.job.created"
+    >
       <DetailRow label="Job ID" value={event.jobId} mono />
       <DetailRow label="Attempt" value={`${event.attemptCount} / ${event.maxAttempts}`} />
     </EventDetails>
@@ -89,7 +108,11 @@ function renderJobCreatedDetails(event: EnhancerJobCreatedEvent): React.ReactNod
 
 function renderAttemptFailedDetails(event: EnhancerAttemptFailedEvent): React.ReactNode {
   return (
-    <EventDetails title="Enhancer Attempt Failed" timestamp={event.timestamp} type="enhancer.attempt.failed">
+    <EventDetails
+      title="Enhancer Attempt Failed"
+      timestamp={event.timestamp}
+      type="enhancer.attempt.failed"
+    >
       <DetailRow label="Job ID" value={event.jobId} mono />
       <DetailRow label="Attempt" value={String(event.attemptCount)} />
       <DetailRow label="Error" value={event.error} />
@@ -99,7 +122,11 @@ function renderAttemptFailedDetails(event: EnhancerAttemptFailedEvent): React.Re
 
 function renderJobFailedDetails(event: EnhancerJobFailedEvent): React.ReactNode {
   return (
-    <EventDetails title="Enhancer Job Failed" timestamp={event.timestamp} type="enhancer.job.failed">
+    <EventDetails
+      title="Enhancer Job Failed"
+      timestamp={event.timestamp}
+      type="enhancer.job.failed"
+    >
       <DetailRow label="Job ID" value={event.jobId} mono />
       <DetailRow label="Attempt" value={String(event.attemptCount)} />
       <DetailRow label="Error" value={event.error} />
@@ -109,7 +136,24 @@ function renderJobFailedDetails(event: EnhancerJobFailedEvent): React.ReactNode 
 
 function renderJobCompleteDetails(event: EnhancerJobCompleteEvent): React.ReactNode {
   return (
-    <EventDetails title="Enhancer Job Complete" timestamp={event.timestamp} type="enhancer.job.complete">
+    <EventDetails
+      title="Enhancer Job Complete"
+      timestamp={event.timestamp}
+      type="enhancer.job.complete"
+    >
+      <DetailRow label="Job ID" value={event.jobId} mono />
+      <DetailRow label="Attempt" value={String(event.attemptCount)} />
+    </EventDetails>
+  );
+}
+
+function renderJobCancelledDetails(event: EnhancerJobCancelledEvent): React.ReactNode {
+  return (
+    <EventDetails
+      title="Enhancer Job Cancelled"
+      timestamp={event.timestamp}
+      type="enhancer.job.cancelled"
+    >
       <DetailRow label="Job ID" value={event.jobId} mono />
       <DetailRow label="Attempt" value={String(event.attemptCount)} />
     </EventDetails>
@@ -118,7 +162,11 @@ function renderJobCompleteDetails(event: EnhancerJobCompleteEvent): React.ReactN
 
 export const enhancerEventDefinitions: Pick<
   EventTypeRegistry,
-  'enhancer.job.created' | 'enhancer.attempt.failed' | 'enhancer.job.failed' | 'enhancer.job.complete'
+  | 'enhancer.job.created'
+  | 'enhancer.attempt.failed'
+  | 'enhancer.job.failed'
+  | 'enhancer.job.complete'
+  | 'enhancer.job.cancelled'
 > = {
   'enhancer.job.created': {
     cellRenderer: renderJobCreatedCell,
@@ -135,5 +183,9 @@ export const enhancerEventDefinitions: Pick<
   'enhancer.job.complete': {
     cellRenderer: renderJobCompleteCell,
     detailsRenderer: renderJobCompleteDetails,
+  },
+  'enhancer.job.cancelled': {
+    cellRenderer: renderJobCancelledCell,
+    detailsRenderer: renderJobCancelledDetails,
   },
 };

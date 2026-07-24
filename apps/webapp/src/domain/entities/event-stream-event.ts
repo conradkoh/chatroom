@@ -463,6 +463,12 @@ export interface EnhancerJobCompleteEvent extends EventStreamEventBase {
   attemptCount: number;
 }
 
+export interface EnhancerJobCancelledEvent extends EventStreamEventBase {
+  type: 'enhancer.job.cancelled';
+  jobId: string;
+  attemptCount: number;
+}
+
 // ─── Event Stream Event Union ────────────────────────────────────────────────
 
 /**
@@ -517,4 +523,5 @@ export type EventStreamEvent =
   | EnhancerJobCreatedEvent
   | EnhancerAttemptFailedEvent
   | EnhancerJobFailedEvent
-  | EnhancerJobCompleteEvent;
+  | EnhancerJobCompleteEvent
+  | EnhancerJobCancelledEvent;

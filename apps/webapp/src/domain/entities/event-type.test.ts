@@ -8,8 +8,8 @@ import {
 
 describe('event-type', () => {
   it('lists every chatroom_eventStream type surfaced in the event stream UI', () => {
-    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(48);
-    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(48);
+    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(49);
+    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(49);
   });
 
   it('includes recently added agent lifecycle event types', () => {
@@ -20,6 +20,7 @@ describe('event-type', () => {
     expect(isSupportedEventType('agent.taskDeliveryFailed')).toBe(true);
     expect(isSupportedEventType('enhancer.job.created')).toBe(true);
     expect(isSupportedEventType('enhancer.job.complete')).toBe(true);
+    expect(isSupportedEventType('enhancer.job.cancelled')).toBe(true);
   });
 
   it('isSupportedEventType narrows supported keys', () => {
