@@ -5,7 +5,10 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
-import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import {
+  clearChatroomUnread,
+  markChatroomUnread,
+} from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
@@ -363,6 +366,18 @@ export const markAsRead = mutation({
 
     // Clear materialized unread status
     await clearChatroomUnread(ctx, args.chatroomId, session.userId);
+  },
+});
+
+/** Marks a chatroom as unread for the owner (e.g. sidebar "Mark as Unread"). Does not change read cursor. */
+export const markAsUnread = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await markChatroomUnread(ctx, args.chatroomId, session.userId, false);
   },
 });
 
