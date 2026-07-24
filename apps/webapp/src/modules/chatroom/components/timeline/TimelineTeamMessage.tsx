@@ -1,10 +1,9 @@
 'use client';
 
 import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
-import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
   BADGE_BASE,
   formatMachineLabel,
@@ -15,6 +14,8 @@ import {
   type MachineNameEntry,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
+import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
+import { EnhancerMessageDiffSection } from '../../features/enhancers/components/EnhancerMessageDiffSection';
 import type { Message } from '../../types/message';
 
 function getMessageTypeBadge(type: string) {
@@ -36,12 +37,22 @@ export interface TimelineTeamMessageProps {
   machineId?: string;
 }
 
+// fallow-ignore-next-line complexity
 export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   message,
   chatroomId: _chatroomId,
   machines,
   machineId,
 }: TimelineTeamMessageProps) {
+  const [showOriginal, setShowOriginal] = useState(false);
+  const hasEnhancerOriginal =
+    typeof message.enhancerOriginalContent === 'string' &&
+    message.enhancerOriginalContent.length > 0;
+  const displayContent =
+    showOriginal && hasEnhancerOriginal
+      ? (message.enhancerOriginalContent ?? message.content)
+      : message.content;
+
   const messageTypeBadge = getMessageTypeBadge(message.type);
   const machineLabel = formatMachineLabel(machines, machineId);
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
@@ -61,6 +72,12 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
               {messageTypeBadge.icon}
               {messageTypeBadge.label}
             </span>
+          )}
+          {hasEnhancerOriginal && (
+            <EnhancerContentToggle
+              showOriginal={showOriginal}
+              onToggle={() => setShowOriginal((v) => !v)}
+            />
           )}
         </div>
         <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
@@ -95,11 +112,15 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
         </div>
       )}
 
-      <TimelineMarkdownBody content={message.content} />
+      <TimelineMarkdownBody content={displayContent} />
       <div className="mt-2 empty:hidden">
         <MessageAttachmentChips message={message} />
       </div>
-      <TimelineMessageFooter message={message} />
+      <EnhancerMessageDiffSection
+        message={message}
+        displayContent={displayContent}
+        hasEnhancerOriginal={hasEnhancerOriginal}
+      />
     </div>
   );
 });

@@ -6,6 +6,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';
+import { useState } from 'react';
 import type * as React from 'react';
 
 import {
@@ -15,6 +16,7 @@ import {
   chatroomIndustrialModalContentClassName,
   chatroomIndustrialOverlayClassName,
 } from '../shared/industrialDialogStyles';
+import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
 import { cn } from '@/lib/utils';
@@ -55,17 +57,21 @@ function DialogContent({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
   useAllowTouchSelection();
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
+        ref={(node) => setPortalContainer(node)}
         data-slot="chatroom-dialog-content"
         className={cn(chatroomIndustrialModalContentClassName, className)}
         onEscapeKeyDown={onEscapeKeyDown}
         {...props}
       >
-        {children}
+        <OverlayPortalContainerProvider container={portalContainer}>
+          {children}
+        </OverlayPortalContainerProvider>
         <DialogPrimitive.Close className="absolute top-4 right-4 rounded-none opacity-70 transition-opacity hover:opacity-100 text-chatroom-text-muted hover:text-chatroom-text-primary focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
           <XIcon />
           <span className="sr-only">Close</span>

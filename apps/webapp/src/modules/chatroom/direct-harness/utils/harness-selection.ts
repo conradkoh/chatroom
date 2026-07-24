@@ -1,9 +1,30 @@
-import { getHarnessDisplayName, harnessSupportsNativeIntegration } from '../../types/machine';
-import type { AgentHarness } from '../../types/machine';
+import {
+  formatHarnessLabel,
+  getHarnessDisplayName,
+  harnessSupportsNativeIntegration,
+} from '../../types/machine';
+import type { AgentHarness, HarnessVersionInfo } from '../../types/machine';
 import type { HarnessOption } from '../hooks/useHarnessConfig';
 
 const NATIVE_SDK_HARNESS_NAMES = ['pi-sdk', 'cursor-sdk', 'opencode-sdk', 'claude-sdk'] as const;
 const DEFAULT_HARNESS_PREFERENCE = NATIVE_SDK_HARNESS_NAMES;
+
+/** Merge machine.harnessVersions into harness options for consistent labeling. */
+export function applyHarnessVersions(
+  harnesses: HarnessOption[],
+  versions?: Partial<Record<AgentHarness, HarnessVersionInfo>>
+): HarnessOption[] {
+  if (!versions) return harnesses;
+  return harnesses.map((h) => {
+    const version = versions[h.name as AgentHarness];
+    if (!version) return h;
+    return {
+      ...h,
+      version,
+      displayName: formatHarnessLabel(h.name, version),
+    };
+  });
+}
 
 /** Keep only harnesses that support native direct integration (SDK harnesses). */
 function filterNativeHarnesses(harnesses: HarnessOption[]): HarnessOption[] {

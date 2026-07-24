@@ -41,16 +41,16 @@ pnpm local -- --manager-port 4000
 ## Lifecycle
 
 1. **Idle** — `pnpm local` opens setup screen only
-2. **Starting** — Convex (if local) starts, health check runs, then webapp + daemon
+2. **Starting** — Convex starts (local or hosted), health check runs, then webapp + daemon
 3. **Running** — Dashboard with logs, restart, stop
 4. **Stopping** — SIGTERM all processes, return to idle
 
 ### Backend modes
 
-| Mode   | Convex spawn   | Health check                | URL source                |
-| ------ | -------------- | --------------------------- | ------------------------- |
-| Local  | `pnpm ... dev` | `GET /version` on localhost | `http://127.0.0.1:{port}` |
-| Hosted | Skipped        | `GET /version` on cloud URL | From `.env.local`         |
+| Mode   | Convex spawn                           | Health check                | URL source                |
+| ------ | -------------------------------------- | --------------------------- | ------------------------- |
+| Local  | `pnpm exec convex dev --env-file ...`  | `GET /version` on localhost | `http://127.0.0.1:{port}` |
+| Hosted | `pnpm --filter @workspace/backend dev` | `GET /version` on cloud URL | From `.env.local`         |
 
 ## Prerequisites
 
@@ -64,7 +64,7 @@ After `pnpm local`:
 1. Open http://localhost:3847 — setup screen should load
 2. Verify hosted mode defaults (convex.cloud URL, correct port from .env.local)
 3. Click **Start Stack** — dashboard shows processes starting
-4. Verify convex shows "Hosted" (skipped), webapp + daemon reach Running
+4. Verify convex shows "Hosted" (syncing to cloud), webapp + daemon reach Running
 5. Click **Stop Stack** — returns to setup screen
 
 ## Shutdown

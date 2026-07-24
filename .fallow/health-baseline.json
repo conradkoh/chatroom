@@ -8,7 +8,7 @@
         "count": 2
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "apps/local/src/client/LogLineContent.tsx": {
@@ -16,9 +16,19 @@
         "count": 1
       }
     },
+    "apps/local/src/client/components/BackupsPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "apps/local/src/client/components/LogUrlBar.tsx": {
       "crap_moderate": {
         "count": 1
+      }
+    },
+    "apps/local/src/client/components/LogViewer.tsx": {
+      "crap_moderate": {
+        "count": 2
       }
     },
     "apps/local/src/client/components/SetupPanel.tsx": {
@@ -37,7 +47,12 @@
       }
     },
     "apps/local/src/client/use-websocket.ts": {
-      "crap_high": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/local/src/server/convex-backup-service.ts": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -73,7 +88,7 @@
       }
     },
     "apps/local/src/server/websocket-hub.ts": {
-      "crap_high": {
+      "crap_critical": {
         "count": 1
       }
     },
@@ -242,6 +257,11 @@
         "count": 2
       }
     },
+    "apps/webapp/src/lib/environment.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/lib/fuzzyMatch.ts": {
       "crap_moderate": {
         "count": 1
@@ -354,7 +374,7 @@
         "count": 5
       },
       "crap_moderate": {
-        "count": 6
+        "count": 5
       }
     },
     "apps/webapp/src/modules/chatroom/components/AgentPanel.tsx": {
@@ -449,6 +469,11 @@
       }
     },
     "apps/webapp/src/modules/chatroom/components/CommandPalette/CommandPalette.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/CommandPalette/CommandPaletteVirtualizedList.tsx": {
       "crap_high": {
         "count": 1
       }
@@ -591,9 +616,6 @@
     "apps/webapp/src/modules/chatroom/components/ModelFilterPanel.tsx": {
       "crap_critical": {
         "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/components/PromptModal.tsx": {
@@ -729,6 +751,44 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/components/model-selection/ModelFilterButton.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/model-selection/ModelGroupedList.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/model-selection/ModelPickerField.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/model-selection/ModelPickerMeta.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/model-selection/ModelSelect.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/model-selection/modelGroups.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/model-selection/useMachineModelFilter.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/components/picker/ResponsivePickerShell.tsx": {
       "complexity_critical": {
         "count": 1
@@ -778,11 +838,6 @@
         "count": 1
       },
       "crap_moderate": {
-        "count": 1
-      }
-    },
-    "apps/webapp/src/modules/chatroom/components/timeline/TimelineTeamMessage.tsx": {
-      "crap_high": {
         "count": 1
       }
     },
@@ -866,15 +921,15 @@
         "count": 1
       }
     },
-    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessModelFilter.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessTurnStoreStreaming.ts": {
       "crap_high": {
         "count": 1
       },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useNativeHarnessWorkspace.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -894,6 +949,36 @@
       "crap_critical": {
         "count": 1
       },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerActivityBarItem.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerConfigDialog.tsx": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerHarnessModelSelect.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/hooks/useEnhancerConfigDialogHost.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/stores/enhancerConfigStore.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/types/enhancer.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -934,6 +1019,11 @@
     "apps/webapp/src/modules/chatroom/features/run-command/hooks/useProcessesPanelState.ts": {
       "crap_high": {
         "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/run-command/stores/commandBlacklistStore.ts": {
+      "crap_high": {
+        "count": 1
       }
     },
     "apps/webapp/src/modules/chatroom/features/run-command/utils/grouping.ts": {
@@ -1086,6 +1176,11 @@
         "count": 2
       }
     },
+    "apps/webapp/src/modules/chatroom/lib/commandBlacklistKey.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/lib/frecencyScoring.ts": {
       "crap_moderate": {
         "count": 2
@@ -1096,10 +1191,12 @@
         "count": 2
       }
     },
-    "apps/webapp/src/modules/chatroom/utils/agentStatusLabel.ts": {
-      "complexity_critical": {
+    "apps/webapp/src/modules/chatroom/lib/workspaceCommandBlacklistKey.ts": {
+      "crap_moderate": {
         "count": 1
-      },
+      }
+    },
+    "apps/webapp/src/modules/chatroom/utils/agentStatusLabel.ts": {
       "crap_critical": {
         "count": 1
       }
@@ -1466,6 +1563,11 @@
         "count": 2
       }
     },
+    "packages/cli/src/commands/enhancer/complete.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "packages/cli/src/commands/get-next-task/index.ts": {
       "crap_moderate": {
         "count": 1
@@ -1525,6 +1627,11 @@
         "count": 1
       },
       "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/commands/machine/daemon-start/enhancer/job-subscriber.ts": {
+      "crap_high": {
         "count": 1
       }
     },
@@ -1710,6 +1817,12 @@
       }
     },
     "packages/cli/src/index.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
       "crap_high": {
         "count": 1
       },
@@ -1931,8 +2044,11 @@
       }
     },
     "packages/cli/src/infrastructure/services/workspace/command-discovery.ts": {
+      "crap_high": {
+        "count": 1
+      },
       "crap_moderate": {
-        "count": 5
+        "count": 6
       }
     },
     "packages/cli/src/infrastructure/services/workspace/git-workspace-change-source.ts": {
@@ -1966,6 +2082,14 @@
       },
       "crap_moderate": {
         "count": 2
+      }
+    },
+    "packages/cli/src/infrastructure/services/workspace/makefile-discovery.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
       }
     },
     "packages/cli/src/infrastructure/services/workspace/workspace-path-security.ts": {
@@ -2141,9 +2265,19 @@
         "count": 1
       }
     },
+    "services/backend/convex/daemon/enhancer/jobs.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
     "services/backend/convex/directHarnessCleanup.ts": {
       "crap_high": {
         "count": 1
+      }
+    },
+    "services/backend/convex/enhancerJobReaper.ts": {
+      "crap_high": {
+        "count": 2
       }
     },
     "services/backend/convex/guidelines.ts": {
@@ -2221,10 +2355,10 @@
         "count": 10
       },
       "crap_high": {
-        "count": 2
+        "count": 3
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "services/backend/convex/migrations.ts": {
@@ -2302,6 +2436,19 @@
     },
     "services/backend/convex/web/directHarness/messages.ts": {
       "crap_critical": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/web/enhancer/completeLogic.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/web/enhancer/mutations.ts": {
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -2489,21 +2636,23 @@
     "apps/webapp/src/application/auth/roles.ts:dead code",
     "apps/webapp/src/application/auth/resolve.ts:dead code",
     "apps/webapp/src/modules/chatroom/components/AgentPanel/InlineAgentCard.tsx:dead code",
+    "services/backend/prompts/generator.ts:dead code",
+    "apps/webapp/src/modules/chatroom/components/model-selection/modelGroups.ts:high impact",
     "apps/local/src/client/log-text.ts:dead code",
     "services/backend/prompts/cli/roles/fromContext.ts:dead code",
-    "services/backend/prompts/generator.ts:dead code",
     "packages/cli/src/infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.ts:dead code",
     "services/backend/application/auth/resolve.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTree.ts:high impact",
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watch-paths.ts:dead code",
     "apps/webapp/src/modules/chatroom/eventTypes/index.ts:dead code",
+    "apps/local/src/server/process-manager.ts:complexity",
     "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
     "services/backend/prompts/cli/backlog/command.ts:untested risk",
-    "apps/local/src/server/process-manager.ts:complexity",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
     "services/backend/prompts/cli/index.ts:dead code",
     "packages/cli/src/commands/auth-login/index.ts:dead code",
+    "apps/webapp/src/modules/chatroom/utils/agentStatusLabel.ts:dead code",
     "packages/cli/src/infrastructure/auth/middleware.ts:dead code",
     "services/backend/prompts/sections/role-guidance.ts:dead code",
     "services/backend/prompts/teams/solo/prompts/fromContext.ts:dead code",
@@ -2524,20 +2673,19 @@
     "services/backend/application/auth/roles.ts:dead code",
     "apps/webapp/src/modules/chatroom/hooks/persistence/messageViewMode.ts:high impact",
     "apps/webapp/src/modules/chatroom/workspace/components/explorerDialogInputUtils.ts:untested risk",
-    "apps/webapp/src/modules/chatroom/direct-harness/components/harness-selectors/harness-model-select-utils.ts:high impact",
     "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
+    "services/backend/convex/messages.ts:complexity",
     "apps/webapp/src/modules/chatroom/workspace/hooks/useFileTabs.ts:high impact",
     "services/backend/src/domain/types/skills.ts:dead code",
     "packages/cli/src/infrastructure/convex/client.ts:dead code",
     "services/backend/convex/participants.ts:complexity",
     "packages/cli/src/utils/serialization/decode/index.ts:dead code",
+    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",
     "apps/webapp/src/modules/chatroom/direct-harness/utils/sessionStatus.ts:high impact",
     "services/backend/prompts/utils/env.ts:dead code",
     "packages/cli/src/commands/machine/daemon-start/file-content-classifier.ts:dead code",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
-    "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
-    "services/backend/convex/messages.ts:complexity",
     "apps/webapp/src/lib/pathUtils.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
@@ -2547,11 +2695,11 @@
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "apps/webapp/src/modules/chatroom/triggers/fileReferenceQuery.ts:untested risk",
-    "packages/cli/src/commands/context/index.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
+    "packages/cli/src/commands/context/index.ts:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",
-    "apps/webapp/src/modules/checklist/use-checklist-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx:complexity",
+    "apps/webapp/src/modules/checklist/use-checklist-sync.ts:complexity",
     "apps/webapp/src/modules/presentation/presentation-controls.tsx:complexity",
     "apps/webapp/src/modules/presentation/use-presentation-sync.ts:complexity",
     "services/backend/convex/messageList.ts:circular dependency",

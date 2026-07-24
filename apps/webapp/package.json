@@ -1,6 +1,6 @@
 {
   "name": "@workspace/webapp",
-  "version": "1.73.1",
+  "version": "1.74.0",
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env.local -- next dev",
@@ -46,6 +46,7 @@
     "cmdk": "^1.1.1",
     "convex": "^1.42.2",
     "convex-helpers": "^0.1.120",
+    "diff": "^8.0.4",
     "dom-docx": "^0.1.12",
     "lucide-react": "^0.511.0",
     "luxon": "^3.6.1",

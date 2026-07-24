@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Copy, Paperclip } from 'lucide-react';
+import { Check, Copy, Paperclip, Sparkles } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
@@ -50,6 +50,12 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
 
 export interface TimelineMessageFooterProps {
   message: Message;
+  /** When set, copy/download use this instead of message.content (e.g. enhancer toggle). */
+  displayContent?: string;
+  /** When true, shows a blue enhancer icon before the timestamp. */
+  isEnhanced?: boolean;
+  /** Called when the user clicks the enhanced indicator. */
+  onEnhancedIconClick?: () => void;
 }
 
 /**
@@ -58,7 +64,11 @@ export interface TimelineMessageFooterProps {
  */
 export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
+  displayContent,
+  isEnhanced = false,
+  onEnhancedIconClick,
 }: TimelineMessageFooterProps) {
+  const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
   const isAddedToContext = isAttached('message', message._id);
 
@@ -68,11 +78,11 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
       addAttachment({
         type: 'message',
         id: message._id as Id<'chatroom_messages'>,
-        content: message.content,
+        content: markdownContent,
         senderRole: message.senderRole,
       });
     },
-    [addAttachment, message._id, message.content, message.senderRole]
+    [addAttachment, message._id, markdownContent, message.senderRole]
   );
 
   return (
@@ -81,7 +91,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
       data-testid="timeline-message-footer"
     >
       <div className="flex items-center gap-1">
-        <CopyMarkdownButton content={message.content} />
+        <CopyMarkdownButton content={markdownContent} />
         <button
           type="button"
           onClick={handleAddToContext}
@@ -90,11 +100,28 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         >
           <Paperclip size={12} />
         </button>
-        <MessageDownloadMenu message={message} />
+        <MessageDownloadMenu message={message} contentOverride={displayContent} />
       </div>
-      <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
-        {formatTimestamp(message._creationTime)}
-      </span>
+      <div className="flex items-center gap-1.5">
+        {isEnhanced && (
+          <button
+            type="button"
+            className="flex items-center text-blue-500 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
+            title="View enhancement diff"
+            aria-label="View enhancement diff"
+            data-testid="timeline-enhanced-indicator"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEnhancedIconClick?.();
+            }}
+          >
+            <Sparkles size={12} />
+          </button>
+        )}
+        <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+          {formatTimestamp(message._creationTime)}
+        </span>
+      </div>
     </div>
   );
 });
