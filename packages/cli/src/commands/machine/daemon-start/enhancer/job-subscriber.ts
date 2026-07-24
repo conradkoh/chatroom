@@ -79,6 +79,11 @@ export function startEnhancerJobSubscriber(
               resolvedConvexUrl: convexUrl,
             });
 
+            // Stream harness output to daemon logs (same pattern as AgentProcessManager)
+            spawnResult.onLogLine?.((line) => {
+              process.stdout.write(`${line}\n`);
+            });
+
             await new Promise<void>((resolve) => {
               spawnResult.onExit(() => resolve());
             });

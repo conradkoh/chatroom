@@ -321,7 +321,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(failedEvents.length).toBeGreaterThanOrEqual(1);
 
-    // Verify no handoff task was created
+    // Verify handoff was delivered with draft content (terminal failure fallback)
     const tasks = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_tasks')
@@ -330,6 +330,21 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         )
         .collect()
     );
-    expect(tasks.length).toBe(0);
+    const builderTask = tasks.find((t) => t.assignedTo === 'builder');
+    expect(builderTask).toBeDefined();
+    expect(builderTask!.content).toContain('Original draft');
+
+    // Handoff message should reference the enhancer job
+    const handoffMessages = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('type'), 'handoff'))
+        .collect()
+    );
+    const msg = handoffMessages.find((m) => m.senderRole === 'planner');
+    expect(msg).toBeDefined();
+    expect(msg!.content).toContain('Original draft');
+    expect(msg!.enhancerJobId).toBe(jobId);
   });
 });
