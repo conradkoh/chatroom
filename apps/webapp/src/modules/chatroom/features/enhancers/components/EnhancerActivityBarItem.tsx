@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import { useEnhancerConfig } from '../hooks/useEnhancerConfig';
+import { useEnhancerConfigFavorites } from '../hooks/useEnhancerConfigFavorites';
 
 import { cn } from '@/lib/utils';
 
@@ -16,6 +17,8 @@ interface EnhancerActivityBarItemProps {
 export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActivityBarItemProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { config, isActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
+  const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
+    useEnhancerConfigFavorites(machineId);
 
   return (
     <>
@@ -45,6 +48,11 @@ export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActiv
         chatroomId={chatroomId}
         machineId={machineId}
         initialConfig={config}
+        favorites={favorites}
+        isFavorite={isFavorite}
+        onAddFavorite={(entry) => void addFavorite(entry)}
+        onRemoveFavorite={(entry) => void removeFavorite(entry)}
+        onMoveFavorite={(from, to) => void moveFavorite(from, to)}
         onConfirm={(cfg) => {
           saveConfig(cfg);
           setDialogOpen(false);

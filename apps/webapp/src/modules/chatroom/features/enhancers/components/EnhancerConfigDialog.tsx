@@ -1,13 +1,10 @@
 'use client';
 
-import { Check } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { Check, Plus, Star } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
-import type { EnhancerConfig } from '../types/enhancer';
-import { isEnhancerConfigActive } from '../types/enhancer';
-import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
+import { EnhancerConfigFavoritesList } from './EnhancerConfigFavoritesList';
 import { EnhancerHarnessModelSelect } from './EnhancerHarnessModelSelect';
-
 import {
   Dialog,
   DialogContent,
@@ -17,6 +14,10 @@ import {
   DialogFooter,
 } from '../../../components/ui/dialog';
 import type { AgentHarness } from '../../../types/machine';
+import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
+import { isEnhancerConfigActive } from '../types/enhancer';
+import type { EnhancerConfig } from '../types/enhancer';
+import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
 interface EnhancerConfigDialogProps {
   open: boolean;
@@ -26,6 +27,11 @@ interface EnhancerConfigDialogProps {
   initialConfig: EnhancerConfig | null;
   onConfirm: (config: EnhancerConfig) => void;
   onDisable: () => void;
+  favorites: EnhancerConfigEntry[];
+  isFavorite: (entry: EnhancerConfigEntry) => boolean;
+  onAddFavorite: (entry: EnhancerConfigEntry) => void;
+  onRemoveFavorite: (entry: EnhancerConfigEntry) => void;
+  onMoveFavorite: (fromIndex: number, toIndex: number) => void;
 }
 
 export function EnhancerConfigDialog({
@@ -35,6 +41,11 @@ export function EnhancerConfigDialog({
   initialConfig,
   onConfirm,
   onDisable,
+  favorites,
+  isFavorite: checkFavorite,
+  onAddFavorite,
+  onRemoveFavorite,
+  onMoveFavorite,
 }: EnhancerConfigDialogProps) {
   const [targetId, setTargetId] = useState<string>(
     initialConfig?.targetId ?? ENHANCER_TARGETS[0].id
@@ -45,6 +56,23 @@ export function EnhancerConfigDialog({
   const [model, setModel] = useState<string>(initialConfig?.model ?? '');
 
   const canEnable = !!targetId && !!agentHarness && !!model && !!machineId;
+
+  const currentEntry = useMemo<EnhancerConfigEntry | null>(() => {
+    if (!targetId || !agentHarness || !model) return null;
+    return {
+      targetId: targetId as EnhancerConfigEntry['targetId'],
+      agentHarness,
+      model,
+    };
+  }, [targetId, agentHarness, model]);
+
+  const currentIsFavorite = currentEntry != null && checkFavorite(currentEntry);
+
+  const handleApplyFavorite = useCallback((entry: EnhancerConfigEntry) => {
+    setTargetId(entry.targetId);
+    setAgentHarness(entry.agentHarness);
+    setModel(entry.model);
+  }, []);
 
   const handleConfirm = useCallback(() => {
     if (!canEnable || !machineId) return;
@@ -80,6 +108,13 @@ export function EnhancerConfigDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-2">
+          <EnhancerConfigFavoritesList
+            favorites={favorites}
+            onApply={handleApplyFavorite}
+            onRemoveFavorite={onRemoveFavorite}
+            onMoveFavorite={onMoveFavorite}
+          />
+
           <div>
             <label className="block text-xs font-medium text-chatroom-text-secondary mb-2">
               Target
@@ -123,6 +158,23 @@ export function EnhancerConfigDialog({
             onHarnessChange={setAgentHarness}
             onModelChange={setModel}
           />
+
+          {currentEntry && !currentIsFavorite && (
+            <button
+              type="button"
+              onClick={() => onAddFavorite(currentEntry)}
+              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning"
+            >
+              <Plus size={12} />
+              Add current config to favorites
+            </button>
+          )}
+          {currentEntry && currentIsFavorite && (
+            <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
+              <Star size={12} className="text-chatroom-status-warning" />
+              Current config is favorited
+            </div>
+          )}
         </div>
 
         <DialogFooter>

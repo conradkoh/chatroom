@@ -33,6 +33,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
       setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
     },
+    enhancerConfigFavorites: {
+      getEnhancerConfigFavorites: 'enhancerConfigFavorites:getEnhancerConfigFavorites',
+      setEnhancerConfigFavorites: 'enhancerConfigFavorites:setEnhancerConfigFavorites',
+    },
   },
 }));
 

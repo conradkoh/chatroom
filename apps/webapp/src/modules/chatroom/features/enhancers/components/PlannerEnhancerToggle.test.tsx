@@ -34,6 +34,17 @@ vi.mock('../hooks/useActiveEnhancerJob', () => ({
   }),
 }));
 
+vi.mock('../hooks/useEnhancerConfigFavorites', () => ({
+  useEnhancerConfigFavorites: () => ({
+    favorites: [],
+    addFavorite: vi.fn(),
+    removeFavorite: vi.fn(),
+    moveFavorite: vi.fn(),
+    isFavorite: () => false,
+    isLoading: false,
+  }),
+}));
+
 vi.mock('@/hooks/useMachineModels', () => ({
   useMachineModels: () => ({ availableModels: {}, isLoading: false }),
 }));

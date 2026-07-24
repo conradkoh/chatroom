@@ -26,6 +26,14 @@ function makeConfig(overrides?: Partial<EnhancerConfig>): EnhancerConfig {
   };
 }
 
+const mockFavoritesProps = {
+  favorites: [] as const,
+  isFavorite: () => false,
+  onAddFavorite: vi.fn(),
+  onRemoveFavorite: vi.fn(),
+  onMoveFavorite: vi.fn(),
+};
+
 describe('EnhancerConfigDialog', () => {
   const onConfirm = vi.fn();
   const onDisable = vi.fn();
@@ -45,6 +53,7 @@ describe('EnhancerConfigDialog', () => {
         initialConfig={null}
         onConfirm={onConfirm}
         onDisable={onDisable}
+        {...mockFavoritesProps}
       />
     );
 
@@ -62,6 +71,7 @@ describe('EnhancerConfigDialog', () => {
         initialConfig={null}
         onConfirm={onConfirm}
         onDisable={onDisable}
+        {...mockFavoritesProps}
       />
     );
 
@@ -80,6 +90,7 @@ describe('EnhancerConfigDialog', () => {
         initialConfig={null}
         onConfirm={onConfirm}
         onDisable={onDisable}
+        {...mockFavoritesProps}
       />
     );
 
@@ -100,6 +111,7 @@ describe('EnhancerConfigDialog', () => {
         initialConfig={makeConfig()}
         onConfirm={onConfirm}
         onDisable={onDisable}
+        {...mockFavoritesProps}
       />
     );
 
@@ -120,6 +132,7 @@ describe('EnhancerConfigDialog', () => {
         initialConfig={null}
         onConfirm={onConfirm}
         onDisable={onDisable}
+        {...mockFavoritesProps}
       />
     );
 
