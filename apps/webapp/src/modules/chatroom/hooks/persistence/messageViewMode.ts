@@ -32,13 +32,17 @@ export function isValidMessageViewMode(v: unknown): v is MessageViewMode {
 }
 
 /** Whether a timeline message belongs in a role-filtered view (matches listMessagesBySenderRolePaginated semantics). */
-// fallow-ignore-next-line unused-export
+// fallow-ignore-next-line complexity
 export function messageMatchesSenderRoleFilter(
-  message: { senderRole: string; type: string },
+  message: { senderRole: string; type: string; targetRole?: string },
   senderRole: string
 ): boolean {
+  if (senderRole.toLowerCase() === 'user') {
+    if (message.senderRole.toLowerCase() === 'user' && message.type === 'message') return true;
+    if (message.type === 'handoff' && message.targetRole?.toLowerCase() === 'user') return true;
+    return false;
+  }
   if (message.senderRole.toLowerCase() !== senderRole.toLowerCase()) return false;
-  if (senderRole.toLowerCase() === 'user') return message.type === 'message';
   return message.type === 'message' || message.type === 'handoff';
 }
 
