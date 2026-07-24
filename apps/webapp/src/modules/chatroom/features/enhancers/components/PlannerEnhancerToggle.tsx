@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import { EnhancerConfigQuickPick } from './EnhancerConfigQuickPick';
@@ -50,15 +50,6 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
   const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
     useEnhancerConfigFavorites(machineId);
 
-  const currentEntry = useMemo<EnhancerConfigEntry | null>(() => {
-    if (!config?.targetId || !config.agentHarness || !config.model) return null;
-    return {
-      targetId: config.targetId,
-      agentHarness: config.agentHarness,
-      model: config.model,
-    };
-  }, [config]);
-
   const handleApplyFavorite = useCallback(
     (entry: EnhancerConfigEntry) => {
       if (!machineId) return;
@@ -71,17 +62,6 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
       });
     },
     [machineId, isActive, saveConfig]
-  );
-
-  const handleToggleFavorite = useCallback(
-    (entry: EnhancerConfigEntry) => {
-      if (isFavorite(entry)) {
-        void removeFavorite(entry);
-      } else {
-        void addFavorite(entry);
-      }
-    },
-    [isFavorite, removeFavorite, addFavorite]
   );
 
   const handleToggle = useCallback(
@@ -111,13 +91,10 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
       {machineId && (
         <EnhancerConfigQuickPick
           favorites={favorites}
-          currentEntry={currentEntry}
           disabled={isDisabling}
           onApply={handleApplyFavorite}
-          onToggleFavorite={handleToggleFavorite}
           onRemoveFavorite={(entry) => void removeFavorite(entry)}
           onMoveFavorite={(from, to) => void moveFavorite(from, to)}
-          isFavorite={isFavorite}
         />
       )}
 
