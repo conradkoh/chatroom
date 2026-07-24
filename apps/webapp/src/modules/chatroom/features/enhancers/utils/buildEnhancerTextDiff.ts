@@ -18,6 +18,7 @@ function splitChangeLines(value: string): string[] {
  * Builds unified and split diff representations from original vs enhanced text.
  * Uses line-level diff suitable for markdown handoff content.
  */
+// fallow-ignore-next-line complexity
 export function buildEnhancerTextDiff(original: string, enhanced: string): EnhancerTextDiff {
   const changes = diffLines(original, enhanced, { newlineIsToken: true });
 
