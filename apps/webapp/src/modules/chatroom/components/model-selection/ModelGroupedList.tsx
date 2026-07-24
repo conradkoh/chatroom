@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 
 import { PickerOptionRow } from '../picker';
 import { filterModelGroups } from './filterModelGroups';
+import { ModelFilterProviderHeader } from './ModelFilterProviderHeader';
 import { isModelEffectivelyHidden } from './modelVisibility';
 import type { ModelGroup } from './types';
 
@@ -98,31 +99,12 @@ export function ModelGroupedList(props: ModelGroupedListProps) {
         const isProviderHidden = hiddenProvidersSet.has(group.providerKey);
         return (
           <div key={group.providerKey}>
-            <div className="px-3 py-1.5 border-b border-chatroom-border flex items-center justify-between bg-chatroom-bg-tertiary">
-              <span
-                className={cn(
-                  'text-[10px] font-bold uppercase tracking-wider',
-                  isProviderHidden
-                    ? 'text-chatroom-text-muted opacity-60'
-                    : 'text-chatroom-text-secondary'
-                )}
-              >
-                {group.providerLabel}
-              </span>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onProviderToggle(group.providerKey)}
-                className={cn(
-                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                  isProviderHidden
-                    ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
-                    : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
-                )}
-              >
-                {isProviderHidden ? 'Show All' : 'Hide All'}
-              </button>
-            </div>
+            <ModelFilterProviderHeader
+              providerLabel={group.providerLabel}
+              isProviderHidden={isProviderHidden}
+              disabled={disabled}
+              onToggle={() => onProviderToggle(group.providerKey)}
+            />
 
             {group.options.map((option) => {
               const isEffectivelyHidden = isModelEffectivelyHidden(

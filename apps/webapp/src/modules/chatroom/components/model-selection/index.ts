@@ -26,4 +26,6 @@ export {
   findModelLabel,
   hasVisibleModels,
 } from './modelGroups';
+export { ModelFilterProviderHeader } from './ModelFilterProviderHeader';
+export type { ModelFilterProviderHeaderProps } from './ModelFilterProviderHeader';
 export { harnessModelKey, getHarnessModelLabel } from './modelKeys';
