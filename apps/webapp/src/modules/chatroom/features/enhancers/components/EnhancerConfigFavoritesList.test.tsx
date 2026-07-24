@@ -21,7 +21,7 @@ describe('EnhancerConfigFavoritesList', () => {
       />
     );
     expect(screen.getByTestId('enhancer-config-favorites-list')).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/Handoff: Planner/));
+    fireEvent.click(screen.getByText(/OpenCode/));
     expect(onApply).toHaveBeenCalledWith(favorite);
   });
 
@@ -37,7 +37,7 @@ describe('EnhancerConfigFavoritesList', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('renders truncation classes with long label', () => {
+  it('renders truncation classes on the button with long label', () => {
     const longLabelFav = {
       targetId: 'handoff:planner-to-builder' as const,
       agentHarness: 'opencode' as const,
@@ -51,12 +51,10 @@ describe('EnhancerConfigFavoritesList', () => {
         onMoveFavorite={vi.fn()}
       />
     );
-    const row = container.querySelector('.min-w-0');
-    expect(row).toBeInTheDocument();
-    const labelSpan = container.querySelector('.truncate');
-    expect(labelSpan).toBeInTheDocument();
-    expect(labelSpan?.textContent).toContain('★');
-    expect(labelSpan?.textContent).toContain('OPENCODE');
+    const button = container.querySelector('.truncate');
+    expect(button).toBeInTheDocument();
+    expect(button?.textContent).toContain('★');
+    expect(button?.textContent).toContain('OpenCode');
   });
 
   it('renders move up, move down, and remove buttons', () => {
