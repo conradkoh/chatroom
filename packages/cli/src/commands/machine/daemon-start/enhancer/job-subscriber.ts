@@ -1,10 +1,10 @@
 import type { ConvexClient } from 'convex/browser';
 
-import { api } from '../../../../api.js';
-import { createSpawnPrompt } from '../../../../infrastructure/services/remote-agents/spawn-prompt.js';
-import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { ENHANCER_AGENT_ROLE } from './constants.js';
+import { api } from '../../../../api.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
+import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import { createSpawnPrompt } from '../../../../infrastructure/services/remote-agents/spawn-prompt.js';
 
 export interface EnhancerJobSubscriberHandles {
   stop: () => void;
@@ -28,6 +28,9 @@ export function startEnhancerJobSubscriber(
         if (inFlight.has(job.jobId)) continue;
         inFlight.add(job.jobId);
         void (async () => {
+          let claimed = false;
+          let chatroomId = job.chatroomId;
+          let jobId = job.jobId;
           try {
             const claim = (await backend.mutation(api.daemon.enhancer.index.claimForSpawn, {
               sessionId,
@@ -35,6 +38,7 @@ export function startEnhancerJobSubscriber(
               machineId,
             })) as { claimed: boolean };
             if (!claim.claimed) return;
+            claimed = true;
 
             const payload = (await backend.query(api.daemon.enhancer.index.getSpawnPayload, {
               sessionId,
@@ -48,6 +52,8 @@ export function startEnhancerJobSubscriber(
               systemPrompt: string;
               taskEnvelope: string;
             };
+            chatroomId = payload.chatroomId;
+            jobId = payload.jobId;
 
             const service = agentServices.get(payload.agentHarness);
             if (!service) {
@@ -77,7 +83,6 @@ export function startEnhancerJobSubscriber(
               spawnResult.onExit(() => resolve());
             });
 
-            // Check if job already completed (race with enhancer complete CLI)
             const status = (await backend.query(api.web.enhancer.index.getJob, {
               sessionId,
               chatroomId: payload.chatroomId,
@@ -97,6 +102,14 @@ export function startEnhancerJobSubscriber(
               '[enhancer] spawn error:',
               err instanceof Error ? err.message : String(err)
             );
+            if (claimed) {
+              await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
+                sessionId,
+                chatroomId,
+                jobId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
           } finally {
             inFlight.delete(job.jobId);
           }

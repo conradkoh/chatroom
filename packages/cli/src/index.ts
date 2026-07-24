@@ -266,19 +266,21 @@ handoffCommandGroup
               process.exit(1);
             }
 
-            const { generateHandoffOutput } =
-              await import('@workspace/backend/prompts/generator.js');
-            const { getConvexUrl } = await import('./infrastructure/convex/client.js');
-            const convexUrl = await getConvexUrl();
-            console.log(
-              generateHandoffOutput({
-                role: options.role,
-                nextRole: options.nextRole,
-                chatroomId: options.chatroomId,
-                convexUrl,
-              })
-            );
-            return;
+            if (outcome === 'cancelled' || outcome === 'complete') {
+              const { generateHandoffOutput } =
+                await import('@workspace/backend/prompts/generator.js');
+              const { getConvexUrl } = await import('./infrastructure/convex/client.js');
+              const convexUrl = await getConvexUrl();
+              console.log(
+                generateHandoffOutput({
+                  role: options.role,
+                  nextRole: options.nextRole,
+                  chatroomId: options.chatroomId,
+                  convexUrl,
+                })
+              );
+              return;
+            }
           }
         } catch (err) {
           const error = err as { data?: { code?: string; message?: string } };

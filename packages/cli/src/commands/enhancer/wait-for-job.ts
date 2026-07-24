@@ -9,6 +9,9 @@ export interface WaitForJobDeps {
   getSessionId: () => Promise<string | null>;
 }
 
+export type EnhancerJobWaitOutcome = 'complete' | 'failed' | 'cancelled';
+
+// fallow-ignore-next-line complexity
 export async function waitForEnhancerJob(
   chatroomId: string,
   jobId: string,
@@ -21,13 +24,12 @@ export async function waitForEnhancerJob(
       recordAttemptFailure: unknown;
     };
   }
-): Promise<'complete' | 'failed'> {
+): Promise<EnhancerJobWaitOutcome> {
   const sessionId = await deps.getSessionId();
   if (!sessionId) {
     throw new Error('Not authenticated');
   }
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const job = await (
       deps.query as (
@@ -53,6 +55,10 @@ export async function waitForEnhancerJob(
 
     if (job.status === 'complete') {
       return 'complete';
+    }
+
+    if (job.status === 'cancelled') {
+      return 'cancelled';
     }
 
     if (job.status === 'failed') {
