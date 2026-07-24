@@ -2,12 +2,10 @@
 
 import { useCallback } from 'react';
 
-import { EnhancerConfigQuickPick } from './EnhancerConfigQuickPick';
 import { PlannerEnhancerToggleButton } from './PlannerEnhancerToggleButton';
 import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import type { EnhancerConfig } from '../types/enhancer';
-import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
 interface PlannerEnhancerToggleProps {
   chatroomId: string;
@@ -42,33 +40,10 @@ async function toggleEnhancerState(args: {
 }
 
 export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancerToggleProps) {
-  const {
-    config,
-    isActive,
-    saveConfig,
-    disable,
-    favorites,
-    removeFavorite,
-    moveFavorite,
-    openDialog,
-    dialog,
-  } = useEnhancerConfigDialogHost({ chatroomId, workspaceMachineId: machineId });
-  const { isEnhancing, disableEnhancer, isDisabling } = useActiveEnhancerJob(chatroomId);
-
-  const handleApplyFavorite = useCallback(
-    (entry: EnhancerConfigEntry) => {
-      const resolvedMachineId = config?.machineId ?? machineId;
-      if (!resolvedMachineId) return;
-      void saveConfig({
-        enabled: isActive,
-        targetId: entry.targetId,
-        agentHarness: entry.agentHarness,
-        model: entry.model,
-        machineId: resolvedMachineId,
-      });
-    },
-    [config?.machineId, machineId, isActive, saveConfig]
+  const { config, isActive, saveConfig, disable, openDialog, dialog } = useEnhancerConfigDialogHost(
+    { chatroomId, workspaceMachineId: machineId }
   );
+  const { isEnhancing, disableEnhancer, isDisabling } = useActiveEnhancerJob(chatroomId);
 
   const handleToggle = useCallback(
     () =>
@@ -93,16 +68,6 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
         onToggle={handleToggle}
         onConfigure={openDialog}
       />
-
-      {config?.machineId && (
-        <EnhancerConfigQuickPick
-          favorites={favorites}
-          disabled={isDisabling}
-          onApply={handleApplyFavorite}
-          onRemoveFavorite={(entry) => void removeFavorite(entry)}
-          onMoveFavorite={(from, to) => void moveFavorite(from, to)}
-        />
-      )}
 
       {dialog}
     </>
