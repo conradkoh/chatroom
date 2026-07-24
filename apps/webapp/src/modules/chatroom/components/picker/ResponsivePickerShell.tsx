@@ -134,7 +134,7 @@ export function ResponsivePickerShell({
             />
           ) : null}
           <PopoverContent
-            className={cn('p-0', contentClassName)}
+            className={cn('p-0 overflow-hidden', contentClassName)}
             align="center"
             {...(side ? { side } : {})}
           >
@@ -151,7 +151,7 @@ export function ResponsivePickerShell({
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
-          className={cn('p-0', contentClassName)}
+          className={cn('p-0 overflow-hidden', contentClassName)}
           align={align}
           {...(side ? { side } : {})}
         >

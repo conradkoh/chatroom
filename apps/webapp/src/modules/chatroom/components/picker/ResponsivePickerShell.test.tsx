@@ -322,6 +322,10 @@ describe('ResponsivePickerShell', () => {
 
     const scrollBody = document.querySelector('[data-picker-scroll-body]');
     expect(scrollBody).not.toBeNull();
+    expect(scrollBody?.className).toContain('min-h-0');
+    expect(scrollBody?.className).toContain('max-h-60');
+    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    expect(popoverContent?.className).toContain('overflow-hidden');
     const wrapper = scrollBody?.parentElement;
     expect(wrapper?.className).toContain('flex-col');
     expect(wrapper?.className).toContain('overflow-hidden');
