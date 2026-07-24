@@ -1,5 +1,7 @@
-import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
+import { ConvexError } from 'convex/values';
+
 import { ENHANCER_RETRY_BASE_MS } from '../../../config/reliability';
+import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
@@ -14,7 +16,10 @@ export async function resolveWorkspaceForEnhancer(
     .collect();
   const match = workspaces.find((w) => w.machineId === machineId && w.removedAt === undefined);
   if (!match) {
-    throw new Error(`No workspace found for machine ${machineId} in chatroom`);
+    throw new ConvexError({
+      code: 'WORKSPACE_NOT_FOUND',
+      message: `No workspace found for machine ${machineId} in chatroom`,
+    });
   }
   return match;
 }
@@ -44,7 +49,10 @@ export function resolveHandoffTemplateSnapshot(
     role: 'planner',
   });
   if (!template) {
-    throw new Error('No handoff template for planner→builder');
+    throw new ConvexError({
+      code: 'TEMPLATE_NOT_FOUND',
+      message: 'No handoff template for planner→builder',
+    });
   }
   return template;
 }

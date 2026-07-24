@@ -1713,6 +1713,14 @@ export default defineSchema({
         jobId: v.id('chatroom_enhancerJobs'),
         attemptCount: v.number(),
         timestamp: v.number(),
+      }),
+      // Enhancer job cancelled by user (draft handoff delivered)
+      v.object({
+        type: v.literal('enhancer.job.cancelled'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        timestamp: v.number(),
       })
     )
   )
@@ -3038,7 +3046,8 @@ export default defineSchema({
       v.literal('pending'),
       v.literal('running'),
       v.literal('complete'),
-      v.literal('failed')
+      v.literal('failed'),
+      v.literal('cancelled')
     ),
     draftContent: v.string(),
     enhancedContent: v.optional(v.string()),

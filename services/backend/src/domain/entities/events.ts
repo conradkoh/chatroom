@@ -305,6 +305,14 @@ export type EnhancerJobCompleteEvent = {
   timestamp: number;
 };
 
+export type EnhancerJobCancelledEvent = {
+  type: 'enhancer.job.cancelled';
+  chatroomId: Id<'chatroom_rooms'>;
+  jobId: Id<'chatroom_enhancerJobs'>;
+  attemptCount: number;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -334,4 +342,5 @@ export type ChatroomEvent =
   | EnhancerJobCreatedEvent
   | EnhancerAttemptFailedEvent
   | EnhancerJobFailedEvent
-  | EnhancerJobCompleteEvent;
+  | EnhancerJobCompleteEvent
+  | EnhancerJobCancelledEvent;

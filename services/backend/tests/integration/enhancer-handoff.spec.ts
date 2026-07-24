@@ -10,9 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
-import { ENHANCER_MAX_ATTEMPTS } from '../../config/reliability';
 
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
   test('enqueueHandoff creates job and enhancer.job.created event', async () => {
@@ -56,6 +54,38 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(events.length).toBeGreaterThanOrEqual(1);
     expect(events[0].jobId).toBe(result.jobId);
+  });
+
+  test('enqueueHandoff rejects when an active job already exists', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-dup');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'builder',
+      content: 'First draft',
+    });
+
+    await expect(
+      t.mutation(api.web.enhancer.index.enqueueHandoff, {
+        sessionId,
+        chatroomId,
+        senderRole: 'planner',
+        targetRole: 'builder',
+        content: 'Second draft',
+      })
+    ).rejects.toThrow(/ACTIVE_JOB_EXISTS|already active/i);
   });
 
   test('complete delivers handoff with enhanced content (builder task has enhanced text)', async () => {
@@ -121,7 +151,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(msg!.content).toContain('Enhanced brief');
   });
 
-  test('cancelActiveJob delivers draft content and marks job failed', async () => {
+  test('cancelActiveJob delivers draft content and marks job cancelled', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-cancel');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -156,10 +186,20 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       jobId,
     });
 
-    // Job should be marked failed with cancelled_by_user
+    // Job should be marked cancelled
     const job = await t.run(async (ctx) => ctx.db.get(jobId));
-    expect(job!.status).toBe('failed');
+    expect(job!.status).toBe('cancelled');
     expect(job!.lastError).toBe('cancelled_by_user');
+
+    const cancelEvents = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'enhancer.job.cancelled')
+        )
+        .collect()
+    );
+    expect(cancelEvents.length).toBeGreaterThanOrEqual(1);
 
     // Handoff should have been delivered with draft content
     const handoffMessages = await t.run(async (ctx) =>
@@ -176,17 +216,16 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('recordAttemptFailure retries with backoff then fails after max attempts', async () => {
-    const { sessionId, chatroomId } = await createTestSession('enh-retry-fail');
-    const chatroom = await createDuoTeamChatroom(sessionId);
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-retry-fail');
     const userId = await t.run(async (ctx) => {
-      const room = await ctx.db.get(chatroom);
+      const room = await ctx.db.get(chatroomId);
       return room!.ownerId;
     });
 
     // Insert a running job directly
     const jobId = await t.run(async (ctx) => {
       return await ctx.db.insert('chatroom_enhancerJobs', {
-        chatroomId: chatroom,
+        chatroomId,
         userId,
         targetId: 'handoff:planner-to-builder',
         fromRole: 'planner',
@@ -196,7 +235,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         templateSnapshot: '# Template\n## Goal',
         agentHarness: 'opencode',
         model: 'anthropic/claude-opus-4',
-        machineId: 'machine-1',
+        machineId,
         workingDir: '/home/test/repo',
         attemptCount: 1,
         maxAttempts: 3,
@@ -208,7 +247,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     // First failure (attempt 1 → attempt 2, still running)
     const result1 = await t.mutation(api.web.enhancer.index.recordAttemptFailure, {
       sessionId,
-      chatroomId: chatroom,
+      chatroomId,
       jobId,
       error: 'Timeout on attempt 1',
     });
@@ -229,14 +268,14 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const claim2 = await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
       sessionId,
       jobId,
-      machineId: 'machine-1',
+      machineId,
     });
     expect(claim2.claimed).toBe(true);
 
     // Second failure (attempt 2 → attempt 3, pending after)
     const result2 = await t.mutation(api.web.enhancer.index.recordAttemptFailure, {
       sessionId,
-      chatroomId: chatroom,
+      chatroomId,
       jobId,
       error: 'Timeout on attempt 2',
     });
@@ -255,13 +294,13 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
       sessionId,
       jobId,
-      machineId: 'machine-1',
+      machineId,
     });
 
     // Third failure (attempt 3 → terminal)
     const result3 = await t.mutation(api.web.enhancer.index.recordAttemptFailure, {
       sessionId,
-      chatroomId: chatroom,
+      chatroomId,
       jobId,
       error: 'Timeout on attempt 3',
     });
@@ -276,7 +315,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       ctx.db
         .query('chatroom_eventStream')
         .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroom).eq('type', 'enhancer.job.failed')
+          q.eq('chatroomId', chatroomId).eq('type', 'enhancer.job.failed')
         )
         .collect()
     );
@@ -287,7 +326,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', chatroom).eq('status', 'pending')
+          q.eq('chatroomId', chatroomId).eq('status', 'pending')
         )
         .collect()
     );

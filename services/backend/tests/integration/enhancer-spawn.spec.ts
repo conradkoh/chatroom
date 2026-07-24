@@ -9,7 +9,11 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
+import {
+  createTestSession,
+  createDuoTeamChatroom,
+  registerMachineWithDaemon,
+} from '../helpers/integration';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
 
 describe('daemon.enhancer.index', () => {
@@ -125,6 +129,7 @@ describe('daemon.enhancer.index', () => {
     const { sessionId } = await createTestSession('enh-nextretry');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'test-machine-nr';
+    await registerMachineWithDaemon(sessionId, machineId);
     const userId = await t.run(async (ctx) => {
       const room = await ctx.db.get(chatroomId);
       return room!.ownerId;

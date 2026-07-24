@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+
+import { findActiveEnhancerJob } from './jobHelpers';
 import { query } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 
@@ -10,23 +12,7 @@ export const getActiveJob = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const [pending, running] = await Promise.all([
-      ctx.db
-        .query('chatroom_enhancerJobs')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-        )
-        .collect(),
-      ctx.db
-        .query('chatroom_enhancerJobs')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'running')
-        )
-        .collect(),
-    ]);
-    const active = [...pending, ...running].find(
-      (j) => j.fromRole === 'planner' && j.toRole === 'builder'
-    );
+    const active = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'builder');
     if (!active) return null;
     return {
       jobId: active._id,

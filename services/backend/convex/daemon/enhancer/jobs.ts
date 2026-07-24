@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+
+import { getDaemonMachineAuth } from './auth';
 import { mutation, query } from '../../_generated/server';
-import { requireSession } from '../../auth/session';
 
 export const pendingForMachine = query({
   args: {
@@ -9,7 +10,9 @@ export const pendingForMachine = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireSession(ctx, args.sessionId);
+    const auth = await getDaemonMachineAuth(ctx, args.sessionId, args.machineId);
+    if (!auth) return [];
+
     const now = Date.now();
     const pending = await ctx.db
       .query('chatroom_enhancerJobs')
@@ -37,7 +40,11 @@ export const claimForSpawn = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireSession(ctx, args.sessionId);
+    const auth = await getDaemonMachineAuth(ctx, args.sessionId, args.machineId);
+    if (!auth) {
+      return { claimed: false as const };
+    }
+
     const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
     if (!job || job.machineId !== args.machineId) {
       return { claimed: false as const };
@@ -48,10 +55,10 @@ export const claimForSpawn = mutation({
     if (job.nextRetryAt !== undefined && job.nextRetryAt > Date.now()) {
       return { claimed: false as const };
     }
-    const now = Date.now();
-    await ctx.db.patch(args.jobId, {
+
+    await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
       status: 'running',
-      runningSince: now,
+      runningSince: Date.now(),
     });
     return { claimed: true as const };
   },

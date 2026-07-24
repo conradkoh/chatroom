@@ -8,6 +8,7 @@ import {
   computeEnhancerBackoffMs,
   emitEnhancerEvent,
 } from './internal';
+import { findActiveEnhancerJob } from './jobHelpers';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
@@ -61,6 +62,7 @@ export const upsertConfig = mutation({
   },
 });
 
+// fallow-ignore-next-line code-duplication
 export const disableConfig = mutation({
   args: {
     ...SessionIdArg,
@@ -113,6 +115,14 @@ export const enqueueHandoff = mutation({
       .unique();
     if (!config?.enabled || config.targetId !== 'handoff:planner-to-builder') {
       throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
+    }
+
+    const existingActive = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'builder');
+    if (existingActive) {
+      throw new ConvexError({
+        code: 'ACTIVE_JOB_EXISTS',
+        message: 'An enhancer job is already active for this handoff',
+      });
     }
 
     const workspace = await resolveWorkspaceForEnhancer(ctx, args.chatroomId, config.machineId);
@@ -298,11 +308,23 @@ export const cancelActiveJob = mutation({
 
     const now = Date.now();
     await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
-      status: 'failed',
+      status: 'cancelled',
       lastError: 'cancelled_by_user',
       completedAt: now,
       runningSince: undefined,
     });
+
+    await emitEnhancerEvent(
+      ctx,
+      {
+        type: 'enhancer.job.cancelled' as const,
+        chatroomId: args.chatroomId,
+        jobId: args.jobId,
+        attemptCount: job.attemptCount,
+      },
+      now
+    );
+
     return { success: true as const };
   },
 });
