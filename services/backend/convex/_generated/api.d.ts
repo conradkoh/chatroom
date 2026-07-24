@@ -61,6 +61,7 @@ import type * as daemon_directHarness_messages from "../daemon/directHarness/mes
 import type * as daemon_directHarness_queue from "../daemon/directHarness/queue.js";
 import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
 import type * as daemon_directHarness_turns from "../daemon/directHarness/turns.js";
+import type * as daemon_enhancer_auth from "../daemon/enhancer/auth.js";
 import type * as daemon_enhancer_index from "../daemon/enhancer/index.js";
 import type * as daemon_enhancer_jobs from "../daemon/enhancer/jobs.js";
 import type * as daemon_enhancer_spawnPayload from "../daemon/enhancer/spawnPayload.js";
@@ -68,6 +69,7 @@ import type * as dev from "../dev.js";
 import type * as directHarnessCleanup from "../directHarnessCleanup.js";
 import type * as discussions from "../discussions.js";
 import type * as enhancerConfigFavorites from "../enhancerConfigFavorites.js";
+import type * as enhancerJobReaper from "../enhancerJobReaper.js";
 import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
@@ -126,6 +128,7 @@ import type * as web_directHarness_turns from "../web/directHarness/turns.js";
 import type * as web_enhancer_completeLogic from "../web/enhancer/completeLogic.js";
 import type * as web_enhancer_index from "../web/enhancer/index.js";
 import type * as web_enhancer_internal from "../web/enhancer/internal.js";
+import type * as web_enhancer_jobHelpers from "../web/enhancer/jobHelpers.js";
 import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
 import type * as web_enhancer_queries from "../web/enhancer/queries.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
@@ -192,6 +195,7 @@ declare const fullApi: ApiFromModules<{
   "daemon/directHarness/queue": typeof daemon_directHarness_queue;
   "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
   "daemon/directHarness/turns": typeof daemon_directHarness_turns;
+  "daemon/enhancer/auth": typeof daemon_enhancer_auth;
   "daemon/enhancer/index": typeof daemon_enhancer_index;
   "daemon/enhancer/jobs": typeof daemon_enhancer_jobs;
   "daemon/enhancer/spawnPayload": typeof daemon_enhancer_spawnPayload;
@@ -199,6 +203,7 @@ declare const fullApi: ApiFromModules<{
   directHarnessCleanup: typeof directHarnessCleanup;
   discussions: typeof discussions;
   enhancerConfigFavorites: typeof enhancerConfigFavorites;
+  enhancerJobReaper: typeof enhancerJobReaper;
   eventCleanup: typeof eventCleanup;
   events: typeof events;
   guidelines: typeof guidelines;
@@ -257,6 +262,7 @@ declare const fullApi: ApiFromModules<{
   "web/enhancer/completeLogic": typeof web_enhancer_completeLogic;
   "web/enhancer/index": typeof web_enhancer_index;
   "web/enhancer/internal": typeof web_enhancer_internal;
+  "web/enhancer/jobHelpers": typeof web_enhancer_jobHelpers;
   "web/enhancer/mutations": typeof web_enhancer_mutations;
   "web/enhancer/queries": typeof web_enhancer_queries;
   workspaceFiles: typeof workspaceFiles;
