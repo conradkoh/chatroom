@@ -14,9 +14,9 @@ import {
   getLabelColorClass,
   getRowHighlightClass,
 } from './AgentPanel/AgentStatusRow';
-import { PlannerEnhancerIndicator } from '../features/enhancers/components/PlannerEnhancerIndicator';
 import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { PlannerEnhancerToggle } from '../features/enhancers/components/PlannerEnhancerToggle';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
@@ -32,6 +32,8 @@ interface AgentPanelProps {
   agentConfigs?: AgentConfig[];
   /** Called when user clicks an agent row — opens settings to agents tab */
   onOpenAgents?: () => void;
+  /** Machine ID for enhancer config dialog */
+  machineId?: string | null;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -156,6 +158,7 @@ export const AgentPanel = memo(function AgentPanel({
   onTeamChange,
   agentConfigs = [],
   onOpenAgents,
+  machineId,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -245,7 +248,7 @@ export const AgentPanel = memo(function AgentPanel({
             onOpen={openAgentListModal}
             enhancerIndicator={
               role.toLowerCase() === 'planner' ? (
-                <PlannerEnhancerIndicator chatroomId={chatroomId} />
+                <PlannerEnhancerToggle chatroomId={chatroomId} machineId={machineId} />
               ) : undefined
             }
           />
