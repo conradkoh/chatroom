@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import type { EnhancerConfig } from '../types/enhancer';
+import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => [],
@@ -27,7 +28,7 @@ function makeConfig(overrides?: Partial<EnhancerConfig>): EnhancerConfig {
 }
 
 const mockFavoritesProps = {
-  favorites: [] as const,
+  favorites: [] as EnhancerConfigEntry[],
   isFavorite: () => false,
   onAddFavorite: vi.fn(),
   onRemoveFavorite: vi.fn(),
