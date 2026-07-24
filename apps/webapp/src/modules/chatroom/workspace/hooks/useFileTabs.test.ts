@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { EditorTab, RightPaneTab } from './useFileTabs';
-import { editorTabKey, useFileTabs } from './useFileTabs';
+import { computeEditorSplitDrop, editorTabKey, useFileTabs } from './useFileTabs';
 
 const CHATROOM_A = 'cr-a';
 const CHATROOM_B = 'cr-b';
@@ -522,5 +522,25 @@ describe('useFileTabs navigateActivePreview', () => {
     // Tabs unchanged, just re-activated
     expect(result.current.rightTabs).toHaveLength(2);
     expect(result.current.activeRightTabKey).toBe('b.md::preview');
+  });
+});
+
+describe('computeEditorSplitDrop', () => {
+  it('swaps panes when moving sole primary tab to secondary', () => {
+    const result = computeEditorSplitDrop({
+      tabKey: 'agentic-query:q1',
+      side: 'right',
+      activeTabKey: 'agentic-query:q1',
+      editorSplit: {
+        enabled: true,
+        secondaryTabKeys: ['src/file.ts'],
+        activeSecondaryTabKey: 'src/file.ts',
+      },
+      tabKeysInOrder: ['agentic-query:q1', 'src/file.ts'],
+    });
+
+    expect(result.nextActiveTabKey).toBe('src/file.ts');
+    expect(result.nextEditorSplit?.secondaryTabKeys).toEqual(['agentic-query:q1']);
+    expect(result.nextEditorSplit?.activeSecondaryTabKey).toBe('agentic-query:q1');
   });
 });

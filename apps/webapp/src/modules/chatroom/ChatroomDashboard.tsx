@@ -307,6 +307,10 @@ const ExplorerContent = memo(function ExplorerContent({
   const activeSecondaryTabKey = fileTabs.editorSplit?.activeSecondaryTabKey ?? null;
   const activeSecondaryTab =
     secondaryTabs.find((t) => editorTabKey(t) === activeSecondaryTabKey) ?? null;
+  const activePrimaryTab =
+    hasEditorSplit && activeTab && secondaryTabKeySet.has(editorTabKey(activeTab))
+      ? (primaryTabs[0] ?? null)
+      : activeTab;
 
   const fileTabBar = showTabBar ? (
     <FileTabBar
@@ -425,7 +429,7 @@ const ExplorerContent = memo(function ExplorerContent({
                         onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
                         enableDragSplit
                       />
-                      {activeTab ? renderEditorContent(activeTab) : null}
+                      {activePrimaryTab ? renderEditorContent(activePrimaryTab) : null}
                     </div>
                   }
                   secondary={activeSecondaryTab ? renderEditorContent(activeSecondaryTab) : null}

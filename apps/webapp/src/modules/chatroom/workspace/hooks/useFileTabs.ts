@@ -345,16 +345,38 @@ export function computeEditorSplitDrop(params: {
     } else {
       secondaryTabKeys = [...(editorSplit?.secondaryTabKeys ?? []), tabKey];
     }
+
+    let nextActiveTabKey = activeTabKey;
+    let finalSecondaryTabKeys = secondaryTabKeys;
+
+    if (activeTabKey === tabKey) {
+      const primaryCandidate = tabKeysInOrder.find(
+        (k) => k !== tabKey && !secondaryTabKeys.includes(k)
+      );
+      if (primaryCandidate) {
+        nextActiveTabKey = primaryCandidate;
+      } else if (editorSplit?.enabled) {
+        // Primary pane would be empty — swap: promote active secondary tab to primary
+        const promoteKey =
+          editorSplit.activeSecondaryTabKey && editorSplit.activeSecondaryTabKey !== tabKey
+            ? editorSplit.activeSecondaryTabKey
+            : secondaryTabKeys.find((k) => k !== tabKey);
+        if (promoteKey) {
+          nextActiveTabKey = promoteKey;
+          finalSecondaryTabKeys = secondaryTabKeys.filter((k) => k !== promoteKey);
+        } else {
+          nextActiveTabKey = null;
+        }
+      } else {
+        nextActiveTabKey = null;
+      }
+    }
+
     const nextEditorSplit: EditorSplitState = {
       enabled: true,
-      secondaryTabKeys,
+      secondaryTabKeys: finalSecondaryTabKeys,
       activeSecondaryTabKey: tabKey,
     };
-    let nextActiveTabKey = activeTabKey;
-    if (activeTabKey === tabKey) {
-      nextActiveTabKey =
-        tabKeysInOrder.find((k) => k !== tabKey && !secondaryTabKeys.includes(k)) ?? activeTabKey;
-    }
     return { nextActiveTabKey, nextEditorSplit };
   }
 
