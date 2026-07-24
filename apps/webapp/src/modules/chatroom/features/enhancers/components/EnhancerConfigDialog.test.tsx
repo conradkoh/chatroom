@@ -173,8 +173,12 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    expect(screen.queryByText('Current config is favorited')).toBeNull();
-    expect(screen.getByTestId('enhancer-config-favorites-list')).toBeInTheDocument();
+    expect(screen.getByText('Current config is favorited')).toBeInTheDocument();
+    const starredIndicator = screen.getByText('Current config is favorited');
+    const favoritesList = screen.getByTestId('enhancer-config-favorites-list');
+    expect(
+      starredIndicator.compareDocumentPosition(favoritesList) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByLabelText('Move up')).toBeInTheDocument();
     expect(screen.getByLabelText('Move down')).toBeInTheDocument();
     expect(screen.queryByText('Add current config to favorites')).toBeNull();

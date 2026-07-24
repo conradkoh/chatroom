@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Plus } from 'lucide-react';
+import { Check, Plus, Star } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EnhancerConfigFavoritesList } from './EnhancerConfigFavoritesList';
@@ -186,13 +186,6 @@ export function EnhancerConfigDialog({
             onModelChange={setModel}
           />
 
-          <EnhancerConfigFavoritesList
-            favorites={targetFavorites}
-            onApply={handleApplyFavorite}
-            onRemoveFavorite={onRemoveFavorite}
-            onMoveFavorite={handleMoveFavorite}
-          />
-
           {currentEntry && !currentIsFavorite && (
             <button
               type="button"
@@ -203,6 +196,19 @@ export function EnhancerConfigDialog({
               Add current config to favorites
             </button>
           )}
+          {currentEntry && currentIsFavorite && (
+            <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
+              <Star size={12} className="text-chatroom-status-warning" />
+              Current config is favorited
+            </div>
+          )}
+
+          <EnhancerConfigFavoritesList
+            favorites={targetFavorites}
+            onApply={handleApplyFavorite}
+            onRemoveFavorite={onRemoveFavorite}
+            onMoveFavorite={handleMoveFavorite}
+          />
         </div>
 
         <DialogFooter>

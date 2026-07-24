@@ -126,6 +126,7 @@ import type * as web_directHarness_messages from "../web/directHarness/messages.
 import type * as web_directHarness_sessions from "../web/directHarness/sessions.js";
 import type * as web_directHarness_turns from "../web/directHarness/turns.js";
 import type * as web_enhancer_completeLogic from "../web/enhancer/completeLogic.js";
+import type * as web_enhancer_delivery from "../web/enhancer/delivery.js";
 import type * as web_enhancer_index from "../web/enhancer/index.js";
 import type * as web_enhancer_internal from "../web/enhancer/internal.js";
 import type * as web_enhancer_jobHelpers from "../web/enhancer/jobHelpers.js";
@@ -260,6 +261,7 @@ declare const fullApi: ApiFromModules<{
   "web/directHarness/sessions": typeof web_directHarness_sessions;
   "web/directHarness/turns": typeof web_directHarness_turns;
   "web/enhancer/completeLogic": typeof web_enhancer_completeLogic;
+  "web/enhancer/delivery": typeof web_enhancer_delivery;
   "web/enhancer/index": typeof web_enhancer_index;
   "web/enhancer/internal": typeof web_enhancer_internal;
   "web/enhancer/jobHelpers": typeof web_enhancer_jobHelpers;
