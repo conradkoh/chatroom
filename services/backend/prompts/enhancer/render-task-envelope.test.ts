@@ -36,6 +36,17 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('## Goal');
   });
 
+  it('forbids codebase exploration in requirements', () => {
+    const result = renderEnhancerTaskEnvelope(params);
+    expect(result).toContain('No codebase exploration');
+    expect(result).toContain('do not investigate the repository');
+  });
+
+  it('focuses on immediate handoff improvements', () => {
+    const result = renderEnhancerTaskEnvelope(params);
+    expect(result).toContain('immediate improvements to the handoff');
+  });
+
   it('contains requirements list', () => {
     const result = renderEnhancerTaskEnvelope(params);
     expect(result).toContain('Single-turn only.');
