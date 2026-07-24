@@ -37,6 +37,6 @@ describe('measureTextareaContentHeightPx', () => {
     });
 
     expect(measureTextareaContentHeightPx(textarea, 60)).toBe(60);
-    expect(textarea.style.height).toBe('0px');
+    expect(textarea.style.height).toBe('auto');
   });
 });

@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 import {
   AttachedBacklogItemChip,
@@ -240,20 +240,33 @@ export function MessageInput({
 
   // ── Auto-resize textarea ───────────────────────────────────────────────────
   const lastTextareaHeightRef = useRef(0);
+  const resizeFrameRef = useRef<number | null>(null);
 
   const autoResize = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+    if (resizeFrameRef.current !== null) return;
 
-    const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
-    textarea.style.height = `${nextHeight}px`;
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      const textarea = textareaRef.current;
+      if (!textarea) return;
 
-    if (nextHeight === lastTextareaHeightRef.current) return;
+      const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
+      textarea.style.height = `${nextHeight}px`;
 
-    onBeforeResize?.();
-    lastTextareaHeightRef.current = nextHeight;
-    onAfterResize?.();
+      if (nextHeight === lastTextareaHeightRef.current) return;
+      onBeforeResize?.();
+      lastTextareaHeightRef.current = nextHeight;
+      onAfterResize?.();
+    });
   }, [onBeforeResize, onAfterResize, effectiveMaxTextareaHeightPx]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+      }
+    };
+  }, []);
 
   // Re-measure when the composer width changes (e.g. explorer split panel resize).
   useEffect(() => {
@@ -276,14 +289,12 @@ export function MessageInput({
       setMessage(v);
       setSendError(null);
     },
-    onAfterUpdate: autoResize,
   });
 
-  // Re-measure textarea height whenever message changes (covers draft restore,
-  // editor modal close, and autocomplete file select uniformly)
-  useEffect(() => {
+  // Single resize path per message change (avoid duplicate measure from change handler + effect).
+  useLayoutEffect(() => {
     autoResize();
-  }, [message, autoResize, effectiveMaxTextareaHeightPx]);
+  }, [message, autoResize]);
 
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
