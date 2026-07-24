@@ -221,7 +221,6 @@ handoffCommandGroup
       const { api } = await import('./api.js');
       const { getConvexClient } = await import('./infrastructure/convex/client.js');
       const { getSessionId } = await import('./infrastructure/auth/storage.js');
-      const { waitForEnhancerJob } = await import('./commands/enhancer/wait-for-job.js');
       const client = await getConvexClient();
       const sessionId = await getSessionId();
       if (sessionId) {
@@ -233,7 +232,7 @@ handoffCommandGroup
             chatroomId: options.chatroomId,
           });
           if (config && (config as { enabled: boolean }).enabled) {
-            const result = await (
+            await (
               client.mutation as (
                 endpoint: unknown,
                 args: Record<string, unknown>
@@ -245,42 +244,21 @@ handoffCommandGroup
               targetRole: options.nextRole,
               content: message,
             });
-            const jobId = result.jobId;
 
-            const outcome = await waitForEnhancerJob(options.chatroomId, jobId, {
-              query: (endpoint: unknown, args: Record<string, unknown>) =>
-                client.query(endpoint as never, args as never),
-              mutation: (endpoint: unknown, args: Record<string, unknown>) =>
-                client.mutation(endpoint as never, args as never),
-              getSessionId: () => Promise.resolve(sessionId),
-              endpoints: {
-                getJob: api.web.enhancer.index.getJob,
-                recordAttemptFailure: api.web.enhancer.index.recordAttemptFailure,
-              },
-            });
-
-            if (outcome === 'failed') {
-              console.error(
-                '\n❌ ERROR: Enhancer failed after all retries. No handoff was delivered.'
-              );
-              process.exit(1);
-            }
-
-            if (outcome === 'cancelled' || outcome === 'complete') {
-              const { generateHandoffOutput } =
-                await import('@workspace/backend/prompts/generator.js');
-              const { getConvexUrl } = await import('./infrastructure/convex/client.js');
-              const convexUrl = await getConvexUrl();
-              console.log(
-                generateHandoffOutput({
-                  role: options.role,
-                  nextRole: options.nextRole,
-                  chatroomId: options.chatroomId,
-                  convexUrl,
-                })
-              );
-              return;
-            }
+            // Async handoff: planner returns immediately; enhancement runs via daemon
+            const { generateHandoffOutput } =
+              await import('@workspace/backend/prompts/generator.js');
+            const { getConvexUrl } = await import('./infrastructure/convex/client.js');
+            const convexUrl = await getConvexUrl();
+            console.log(
+              generateHandoffOutput({
+                role: options.role,
+                nextRole: options.nextRole,
+                chatroomId: options.chatroomId,
+                convexUrl,
+              })
+            );
+            return;
           }
         } catch (err) {
           const error = err as { data?: { code?: string; message?: string } };
