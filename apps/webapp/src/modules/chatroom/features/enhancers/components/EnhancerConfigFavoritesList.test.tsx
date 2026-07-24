@@ -37,6 +37,28 @@ describe('EnhancerConfigFavoritesList', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  it('renders truncation classes with long label', () => {
+    const longLabelFav = {
+      targetId: 'handoff:planner-to-builder' as const,
+      agentHarness: 'opencode' as const,
+      model: 'OPENCODE / BIG PICKLE',
+    };
+    const { container } = render(
+      <EnhancerConfigFavoritesList
+        favorites={[longLabelFav]}
+        onApply={vi.fn()}
+        onRemoveFavorite={vi.fn()}
+        onMoveFavorite={vi.fn()}
+      />
+    );
+    const row = container.querySelector('.min-w-0');
+    expect(row).toBeInTheDocument();
+    const labelSpan = container.querySelector('.truncate');
+    expect(labelSpan).toBeInTheDocument();
+    expect(labelSpan?.textContent).toContain('★');
+    expect(labelSpan?.textContent).toContain('OPENCODE');
+  });
+
   it('renders move up, move down, and remove buttons', () => {
     render(
       <EnhancerConfigFavoritesList

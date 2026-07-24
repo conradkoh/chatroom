@@ -37,7 +37,9 @@ describe('buildProcessDefinitions', () => {
     ]);
 
     const webapp = defs.find((def) => def.id === 'webapp');
-    expect(webapp?.args[1]).toContain('turbo run build --filter=@workspace/webapp --no-cache');
+    expect(webapp?.args[1]).toContain(
+      'turbo run build --filter=@workspace/webapp --cache=local:r,remote:r'
+    );
     expect(webapp?.args[1]).toContain(
       'Starting Next.js production server on http://localhost:3000'
     );
@@ -129,7 +131,7 @@ describe('buildProcessDefinitions', () => {
     );
     expect(defs.find((def) => def.id === 'daemon')?.env.CHATROOM_CONVEX_URL).toBe(hostedUrl);
     expect(defs.find((def) => def.id === 'daemon')?.args[1]).toContain(
-      'turbo run build --filter=chatroom-cli --no-cache'
+      'turbo run build --filter=chatroom-cli --cache=local:r,remote:r'
     );
   });
 });
