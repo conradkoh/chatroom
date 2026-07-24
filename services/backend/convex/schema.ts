@@ -964,6 +964,20 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_user_machine', ['userId', 'machineId']),
 
+  /** User favorites for enhancer target+harness+model configs. Scoped per machine. */
+  chatroom_enhancerConfigFavorites: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    favorites: v.array(
+      v.object({
+        targetId: v.literal('handoff:planner-to-builder'),
+        agentHarness: agentHarnessValidator,
+        model: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_user_machine', ['userId', 'machineId']),
+
   /** Per-user ranked harness+model favorites for a machine+role scope. */
   chatroom_machineConfigFavorites: defineTable({
     userId: v.id('users'),

@@ -67,6 +67,7 @@ import type * as daemon_enhancer_spawnPayload from "../daemon/enhancer/spawnPayl
 import type * as dev from "../dev.js";
 import type * as directHarnessCleanup from "../directHarnessCleanup.js";
 import type * as discussions from "../discussions.js";
+import type * as enhancerConfigFavorites from "../enhancerConfigFavorites.js";
 import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
@@ -197,6 +198,7 @@ declare const fullApi: ApiFromModules<{
   dev: typeof dev;
   directHarnessCleanup: typeof directHarnessCleanup;
   discussions: typeof discussions;
+  enhancerConfigFavorites: typeof enhancerConfigFavorites;
   eventCleanup: typeof eventCleanup;
   events: typeof events;
   guidelines: typeof guidelines;
