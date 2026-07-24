@@ -2227,13 +2227,15 @@ export default defineSchema({
       v.literal('rename'),
       v.literal('mkdir')
     ),
-    /** gzip base64 content — required for create/update, omitted for delete/rename/mkdir */
+    /** gzip base64 content — required for create/update without storageId */
     data: v.optional(
       v.object({
         compression: v.literal('gzip'),
         content: v.string(),
       })
     ),
+    /** Convex File Storage blob — transient transit for binary/large uploads */
+    storageId: v.optional(v.id('_storage')),
     /** Destination path — required for rename */
     targetFilePath: v.optional(v.string()),
     status: v.union(v.literal('pending'), v.literal('done'), v.literal('error')),

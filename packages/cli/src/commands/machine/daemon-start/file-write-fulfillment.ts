@@ -8,6 +8,8 @@
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { getBlockedUploadTargetReason } from '@workspace/backend/src/domain/constants/workspace-upload-path-policy.js';
+import { MAX_WORKSPACE_UPLOAD_BYTES } from '@workspace/backend/src/domain/constants/workspace-upload.js';
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
@@ -20,8 +22,11 @@ import {
   resolvePathWithinWorkspace,
 } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 
-/** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
-const MAX_CONTENT_BYTES = 512 * 1024;
+/** Max inline gzip payload (512KB) — matches backend MAX_CONTENT_BYTES. */
+const MAX_INLINE_CONTENT_BYTES = 512 * 1024;
+
+/** Max storage-backed upload size (70MB) — matches backend MAX_WORKSPACE_UPLOAD_BYTES. */
+const MAX_UPLOAD_CONTENT_BYTES = MAX_WORKSPACE_UPLOAD_BYTES;
 
 export type PendingFileWriteRequest = {
   _id: string;
@@ -30,6 +35,7 @@ export type PendingFileWriteRequest = {
   operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir';
   targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
+  storageId?: string;
 };
 
 /** Errors that will not succeed on retry — complete request as terminal error. */
@@ -47,6 +53,7 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'Rename target must differ from source path',
     'Directory already exists',
     'Workspace not registered for this machine',
+    'Cannot upload to this location (.git and sensitive paths are blocked)',
   ]);
   if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
@@ -77,7 +84,43 @@ function decodeWritePayload(
   if (!request.data) {
     return { ok: false, errorMessage: 'Missing file data' };
   }
-  return gunzipBase64Payload(request.data.content, MAX_CONTENT_BYTES);
+  return gunzipBase64Payload(request.data.content, MAX_INLINE_CONTENT_BYTES);
+}
+
+async function fetchStoragePayload(
+  session: DaemonSessionServiceShape,
+  request: PendingFileWriteRequest
+): Promise<{ ok: true; content: Buffer } | { ok: false; errorMessage: string }> {
+  const storageUrl = await session.backend.query(api.workspaceFiles.getWriteRequestStorageUrl, {
+    sessionId: session.sessionId,
+    requestId: request._id as never,
+  });
+
+  if (!storageUrl) {
+    return { ok: false, errorMessage: 'Missing upload data' };
+  }
+
+  const response = await fetch(storageUrl);
+  if (!response.ok) {
+    return { ok: false, errorMessage: 'Failed to fetch upload' };
+  }
+
+  const content = Buffer.from(await response.arrayBuffer());
+  if (content.length > MAX_UPLOAD_CONTENT_BYTES) {
+    return { ok: false, errorMessage: 'File content too large' };
+  }
+
+  return { ok: true, content };
+}
+
+async function resolveWritePayload(
+  session: DaemonSessionServiceShape,
+  request: PendingFileWriteRequest
+): Promise<{ ok: true; content: Buffer } | { ok: false; errorMessage: string }> {
+  if (request.data?.content) {
+    return decodeWritePayload(request);
+  }
+  return fetchStoragePayload(session, request);
 }
 
 // fallow-ignore-next-line complexity
@@ -245,12 +288,26 @@ async function fulfillOneFileWriteRequest(
       return;
     }
 
-    const payload = decodeWritePayload(request);
+    if (operation === 'create') {
+      const blockedReason = getBlockedUploadTargetReason(filePath);
+      if (blockedReason) {
+        await completeWriteRequest(session, request._id, {
+          status: 'error',
+          errorMessage: blockedReason,
+        });
+        return;
+      }
+    }
+
+    const payload = await resolveWritePayload(session, request);
     if (!payload.ok) {
       await completeWriteRequest(session, request._id, {
         status: 'error',
         errorMessage: payload.errorMessage,
       });
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${payload.errorMessage}`
+      );
       return;
     }
 

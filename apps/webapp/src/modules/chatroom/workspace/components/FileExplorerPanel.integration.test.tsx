@@ -98,6 +98,24 @@ vi.mock('../hooks/useWorkspaceFileMkdir', () => ({
   }),
 }));
 
+vi.mock('./UploadFileDialog', () => ({
+  UploadFileDialog: () => null,
+}));
+
+vi.mock('../hooks/useExplorerFileDrop', () => ({
+  useExplorerFileDrop: () => ({
+    dropHighlightPath: null,
+    uploadDialogOpen: false,
+    pendingUpload: null,
+    remainingCount: 0,
+    handleDragOver: vi.fn(),
+    handleDragLeave: vi.fn(),
+    handleDrop: vi.fn(),
+    handleUploadDialogOpenChange: vi.fn(),
+    handleUploadContinue: vi.fn(),
+  }),
+}));
+
 vi.mock('sonner', () => ({
   toast: {
     error: vi.fn(),
