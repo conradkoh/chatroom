@@ -21,7 +21,7 @@ describe('EnhancerConfigFavoritesList', () => {
       />
     );
     expect(screen.getByTestId('enhancer-config-favorites-list')).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/Handoff: Planner/));
+    fireEvent.click(screen.getByText(/OpenCode/));
     expect(onApply).toHaveBeenCalledWith(favorite);
   });
 
@@ -56,7 +56,7 @@ describe('EnhancerConfigFavoritesList', () => {
     const labelSpan = container.querySelector('.truncate');
     expect(labelSpan).toBeInTheDocument();
     expect(labelSpan?.textContent).toContain('★');
-    expect(labelSpan?.textContent).toContain('OPENCODE');
+    expect(labelSpan?.textContent).toContain('OpenCode');
   });
 
   it('renders move up, move down, and remove buttons', () => {

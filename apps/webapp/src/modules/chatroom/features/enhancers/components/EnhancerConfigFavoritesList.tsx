@@ -5,7 +5,7 @@ import { memo } from 'react';
 
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 import { buildEnhancerConfigKey } from '../types/enhancerConfigEntry';
-import { formatEnhancerConfigLabel } from '../utils/formatEnhancerConfigLabel';
+import { formatEnhancerHarnessModelLabel } from '../utils/formatEnhancerConfigLabel';
 
 export interface EnhancerConfigFavoritesListProps {
   favorites: EnhancerConfigEntry[];
@@ -40,11 +40,11 @@ export const EnhancerConfigFavoritesList = memo(function EnhancerConfigFavorites
               disabled={disabled}
               onClick={() => onApply(fav)}
               className="flex-1 min-w-0 text-left text-[11px] text-chatroom-text-primary hover:text-chatroom-accent disabled:opacity-50"
-              title={formatEnhancerConfigLabel(fav)}
+              title={formatEnhancerHarnessModelLabel(fav)}
             >
               <span className="block truncate">
                 <span className="text-chatroom-status-warning mr-1">★</span>
-                {formatEnhancerConfigLabel(fav)}
+                {formatEnhancerHarnessModelLabel(fav)}
               </span>
             </button>
             <button
