@@ -133,9 +133,6 @@ export const ENHANCER_MAX_ATTEMPTS = 3;
 /** Base delay for exponential backoff between enhancer retries (ms). */
 export const ENHANCER_RETRY_BASE_MS = 2_000;
 
-/** Per-attempt timeout while job is `running` before recording failure (ms). */
-export const ENHANCER_ATTEMPT_TIMEOUT_MS = 120_000;
-
 /** Retain terminal enhancer jobs before cron purge (ms). */
 export const ENHANCER_TERMINAL_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 

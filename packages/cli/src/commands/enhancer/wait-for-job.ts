@@ -1,7 +1,4 @@
-import {
-  ENHANCER_CLI_POLL_INTERVAL_MS,
-  ENHANCER_ATTEMPT_TIMEOUT_MS,
-} from '@workspace/backend/config/reliability';
+import { ENHANCER_CLI_POLL_INTERVAL_MS } from '@workspace/backend/config/reliability';
 
 export interface WaitForJobDeps {
   query: (endpoint: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -63,22 +60,6 @@ export async function waitForEnhancerJob(
 
     if (job.status === 'failed') {
       return 'failed';
-    }
-
-    if (job.status === 'running' && job.runningSince) {
-      const elapsed = Date.now() - job.runningSince;
-      if (elapsed > ENHANCER_ATTEMPT_TIMEOUT_MS) {
-        await (
-          deps.mutation as (endpoint: unknown, args: Record<string, unknown>) => Promise<unknown>
-        )(deps.endpoints.recordAttemptFailure, {
-          sessionId,
-          chatroomId,
-          jobId,
-          error: 'Attempt timed out',
-        });
-        await sleep(ENHANCER_CLI_POLL_INTERVAL_MS);
-        continue;
-      }
     }
 
     await sleep(ENHANCER_CLI_POLL_INTERVAL_MS);
