@@ -78,6 +78,11 @@ export const OBSERVED_SAFETY_POLL_MS = 30_000;
  */
 export const OBSERVED_SYNC_RECONCILE_MS = 15 * 60_000;
 
+/** Minimum interval between `lastObservedAt` patches for regular (non-refresh) heartbeats (ms).
+ *  Dedupes burst writes from mount + visibility refresh + interval firing close together.
+ *  Must be < OBSERVATION_TTL_MS. Set to 25s. */
+export const OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS = 25_000;
+
 /** How often frontend sends a heartbeat while chatroom view is visible (ms).
  *  Frontend sends this heartbeat to keep chatrooms marked as observed.
  *  Set to 30s. */
