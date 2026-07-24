@@ -71,7 +71,7 @@ describe('web.enhancer.index', () => {
     expect(config!.machineId).toBe('machine-2');
   });
 
-  test('disableConfig removes config', async () => {
+  test('disableConfig sets enabled false but preserves config', async () => {
     const { sessionId } = await createTestSession('enhancer-disable');
     const chatroomId = await createDuoTeamChatroom(sessionId);
 
@@ -89,13 +89,54 @@ describe('web.enhancer.index', () => {
       sessionId,
       chatroomId,
     });
-    expect(disable.removed).toBe(true);
+    expect(disable.disabled).toBe(true);
 
     const config = await t.query(api.web.enhancer.index.getConfig, {
       sessionId,
       chatroomId,
     });
-    expect(config).toBeNull();
+    expect(config).not.toBeNull();
+    expect(config!.enabled).toBe(false);
+    expect(config!.agentHarness).toBe('opencode');
+    expect(config!.model).toBe('anthropic/claude-opus-4');
+    expect(config!.machineId).toBe('machine-1');
+    expect(config!.targetId).toBe('handoff:planner-to-builder');
+  });
+
+  test('re-enable after disable restores enabled without losing config', async () => {
+    const { sessionId } = await createTestSession('enhancer-re-enable');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId: 'machine-1',
+    });
+
+    await t.mutation(api.web.enhancer.index.disableConfig, { sessionId, chatroomId });
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId: 'machine-1',
+    });
+
+    const config = await t.query(api.web.enhancer.index.getConfig, {
+      sessionId,
+      chatroomId,
+    });
+    expect(config!.enabled).toBe(true);
+    expect(config!.agentHarness).toBe('opencode');
+    expect(config!.model).toBe('anthropic/claude-opus-4');
+    expect(config!.machineId).toBe('machine-1');
   });
 
   test('per-user isolation: two users in their own chatrooms have independent configs', async () => {

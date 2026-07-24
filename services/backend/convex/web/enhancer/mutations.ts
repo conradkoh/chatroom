@@ -1,9 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
-import { agentHarnessValidator } from '../../schema';
-import { mutation } from '../../_generated/server';
-import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { performHandoffFromEnhancer } from '../../messages';
+
 import { applyEnhancerComplete } from './completeLogic';
 import {
   resolveWorkspaceForEnhancer,
@@ -12,6 +9,10 @@ import {
   emitEnhancerEvent,
 } from './internal';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
+import { mutation } from '../../_generated/server';
+import { requireChatroomAccess } from '../../auth/chatroomAccess';
+import { performHandoffFromEnhancer } from '../../messages';
+import { agentHarnessValidator } from '../../schema';
 
 export const upsertConfig = mutation({
   args: {
@@ -52,7 +53,7 @@ export const upsertConfig = mutation({
     };
 
     if (existing) {
-      await ctx.db.patch(existing._id, doc);
+      await ctx.db.patch('chatroom_enhancerConfigs', existing._id, doc);
       return { configId: existing._id };
     }
     const configId = await ctx.db.insert('chatroom_enhancerConfigs', doc);
@@ -73,9 +74,12 @@ export const disableConfig = mutation({
         q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
       )
       .unique();
-    if (!existing) return { removed: false };
-    await ctx.db.delete(existing._id);
-    return { removed: true };
+    if (!existing) return { disabled: false as const };
+    await ctx.db.patch('chatroom_enhancerConfigs', existing._id, {
+      enabled: false,
+      updatedAt: Date.now(),
+    });
+    return { disabled: true as const };
   },
 });
 
@@ -175,7 +179,7 @@ export const recordAttemptFailure = mutation({
     const now = Date.now();
     const attemptCount = job.attemptCount;
     if (attemptCount >= job.maxAttempts) {
-      await ctx.db.patch(args.jobId, {
+      await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
         status: 'failed',
         lastError: args.error,
         completedAt: now,
@@ -196,7 +200,7 @@ export const recordAttemptFailure = mutation({
     }
 
     const nextRetryAt = now + computeEnhancerBackoffMs(attemptCount);
-    await ctx.db.patch(args.jobId, {
+    await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
       status: 'pending',
       attemptCount: attemptCount + 1,
       lastError: args.error,
@@ -293,7 +297,7 @@ export const cancelActiveJob = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.jobId, {
+    await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
       status: 'failed',
       lastError: 'cancelled_by_user',
       completedAt: now,
