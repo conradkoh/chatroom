@@ -4,17 +4,13 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo } from 'react';
 
-import { useMachineModels } from '@/hooks/useMachineModels';
-import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
-import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
-import {
-  ModelSelect,
-  ModelFilterButton,
-  groupFlatModels,
-  useMachineModelFilter,
-} from '@/modules/chatroom/components/model-selection';
 import { formatHarnessLabel } from '../../../types/machine';
 import type { AgentHarness } from '../../../types/machine';
+
+import { useMachineModels } from '@/hooks/useMachineModels';
+import { ModelPickerField } from '@/modules/chatroom/components/model-selection';
+import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
+import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 
 interface EnhancerHarnessModelSelectProps {
   machineId: string | null | undefined;
@@ -45,17 +41,11 @@ export function EnhancerHarnessModelSelect({
     [machine]
   );
 
-  const modelFilter = useMachineModelFilter(machineId, agentHarness);
   const { availableModels } = useMachineModels(machineId ?? undefined);
   const availableModelsForHarness = useMemo(
     () => (agentHarness ? (availableModels[agentHarness] ?? []) : []),
     [availableModels, agentHarness]
   );
-  const visibleModels = useMemo(
-    () => availableModelsForHarness.filter((m) => !modelFilter.isHidden(m)),
-    [availableModelsForHarness, modelFilter.isHidden]
-  );
-  const modelGroups = useMemo(() => groupFlatModels(visibleModels), [visibleModels]);
 
   const harnessOptions: HarnessOption[] = useMemo(
     () =>
@@ -103,29 +93,16 @@ export function EnhancerHarnessModelSelect({
       </div>
       <div>
         <label className="block text-xs font-medium text-chatroom-text-secondary mb-1">Model</label>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <ModelSelect
-              groups={modelGroups}
-              value={model ?? ''}
-              onValueChange={onModelChange}
-              isHidden={modelFilter.isHidden}
-              disabled={disabled || !agentHarness}
-              triggerVariant="chatroom"
-              allowDeselect={false}
-              placeholder={!agentHarness ? 'Select a harness first' : 'Select a model'}
-              filter={modelFilter.filter}
-            />
-          </div>
-          {agentHarness && (
-            <ModelFilterButton
-              filter={modelFilter}
-              availableModels={availableModelsForHarness}
-              disabled={disabled}
-              variant="chatroom"
-            />
-          )}
-        </div>
+        <ModelPickerField
+          machineId={machineId}
+          harness={agentHarness}
+          availableModels={availableModelsForHarness}
+          value={model ?? ''}
+          onValueChange={onModelChange}
+          disabled={disabled}
+          triggerVariant="chatroom"
+          allowDeselect={false}
+        />
       </div>
     </div>
   );
