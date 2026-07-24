@@ -16,7 +16,7 @@ export function EditorSplitLayout({
   primary,
   secondary,
   secondaryTabBar,
-  defaultLayout = [60, 40],
+  defaultLayout = [50, 50],
   onLayout,
 }: EditorSplitLayoutProps) {
   if (!secondary) {

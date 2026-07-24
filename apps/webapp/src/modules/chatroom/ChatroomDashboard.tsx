@@ -414,6 +414,8 @@ const ExplorerContent = memo(function ExplorerContent({
             <EditorSplitDropOverlay onSplitDrop={fileTabs.handleEditorSplitDrop}>
               {hasEditorSplit ? (
                 <EditorSplitLayout
+                  key={fileTabs.editorSplitLayoutEpoch}
+                  defaultLayout={[50, 50]}
                   primary={
                     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                       <FileTabBar

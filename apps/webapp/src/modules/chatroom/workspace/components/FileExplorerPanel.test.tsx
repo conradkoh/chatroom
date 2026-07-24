@@ -99,6 +99,7 @@ const fileTabs = {
   moveTabToPrimaryPane: vi.fn(),
   closeSecondarySplit: vi.fn(),
   handleEditorSplitDrop: vi.fn(),
+  editorSplitLayoutEpoch: 0,
 } satisfies UseFileTabsReturn;
 
 const defaultProps = {

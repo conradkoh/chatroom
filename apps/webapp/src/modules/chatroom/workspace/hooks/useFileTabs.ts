@@ -298,6 +298,7 @@ export interface UseFileTabsReturn {
   moveTabToPrimaryPane: (tabKey: string) => void;
   closeSecondarySplit: () => void;
   handleEditorSplitDrop: (tabKey: string, side: SplitDropSide) => void;
+  editorSplitLayoutEpoch: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -432,6 +433,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   const [editorSplit, setEditorSplit] = useState<EditorSplitState | null>(
     () => readSavedState(storageKey).editorSplit
   );
+  const [editorSplitLayoutEpoch, setEditorSplitLayoutEpoch] = useState(0);
 
   const skipNextPersistRef = useRef(false);
 
@@ -722,6 +724,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
       });
       setEditorSplit(nextEditorSplit);
       if (nextActiveTabKey != null) setActiveTabKey(nextActiveTabKey);
+      setEditorSplitLayoutEpoch((e) => e + 1);
     },
     [tabs, activeTabKey, editorSplit, setActiveTabKey, setEditorSplit]
   );
@@ -787,5 +790,6 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     moveTabToPrimaryPane,
     closeSecondarySplit,
     handleEditorSplitDrop,
+    editorSplitLayoutEpoch,
   };
 }
