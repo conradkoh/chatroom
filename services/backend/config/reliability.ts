@@ -85,8 +85,8 @@ export const OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS = 25_000;
 
 /** How often frontend sends a heartbeat while chatroom view is visible (ms).
  *  Frontend sends this heartbeat to keep chatrooms marked as observed.
- *  Set to 30s. */
-export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 30_000;
+ *  Set to 45s (within 60s OBSERVATION_TTL_MS with margin). */
+export const FRONTEND_OBSERVATION_HEARTBEAT_MS = 45_000;
 
 /** Workspaces are included in daemon sync lists only if observed within this window (ms). */
 export const WORKSPACE_RECENCY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
