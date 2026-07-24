@@ -92,6 +92,7 @@ import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
+import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
