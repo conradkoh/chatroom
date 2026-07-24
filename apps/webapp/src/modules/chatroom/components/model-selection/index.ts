@@ -26,4 +26,9 @@ export {
   findModelLabel,
   hasVisibleModels,
 } from './modelGroups';
+export {
+  adaptProviderGroupsToModelGroups,
+  aggregateFlatModelsByProvider,
+} from './modelGroupAdapter';
+export type { ProviderGroupSource } from './modelGroupAdapter';
 export { harnessModelKey, getHarnessModelLabel } from './modelKeys';
