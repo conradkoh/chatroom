@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
+import type * as AttachmentsModule from '../../attachments';
 import type { Message } from '../../types/message';
 
 Object.defineProperty(window, 'matchMedia', {
@@ -25,7 +26,7 @@ vi.mock('./TimelineMarkdownBody', () => ({
 }));
 
 vi.mock('../../attachments', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../attachments')>();
+  const actual = (await importOriginal()) as typeof AttachmentsModule;
   return {
     ...actual,
     useAttachments: () => ({
@@ -48,6 +49,7 @@ describe('TimelineTeamMessage enhancer toggle', () => {
     render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
 
     expect(screen.queryByTestId('enhancer-content-toggle')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-enhanced-indicator')).not.toBeInTheDocument();
     expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
       'Enhanced handoff content'
     );
@@ -65,6 +67,7 @@ describe('TimelineTeamMessage enhancer toggle', () => {
     );
 
     expect(screen.getByTestId('enhancer-content-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-enhanced-indicator')).toBeInTheDocument();
     expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
       'Enhanced handoff content'
     );

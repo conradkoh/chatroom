@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Copy, Paperclip } from 'lucide-react';
+import { Check, Copy, Paperclip, Sparkles } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
@@ -52,6 +52,8 @@ export interface TimelineMessageFooterProps {
   message: Message;
   /** When set, copy/download use this instead of message.content (e.g. enhancer toggle). */
   displayContent?: string;
+  /** When true, shows a blue enhancer icon before the timestamp. */
+  isEnhanced?: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export interface TimelineMessageFooterProps {
 export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
   displayContent,
+  isEnhanced = false,
 }: TimelineMessageFooterProps) {
   const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
@@ -96,9 +99,21 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         </button>
         <MessageDownloadMenu message={message} contentOverride={displayContent} />
       </div>
-      <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
-        {formatTimestamp(message._creationTime)}
-      </span>
+      <div className="flex items-center gap-1.5">
+        {isEnhanced && (
+          <span
+            className="flex items-center text-blue-500 dark:text-blue-400"
+            title="Enhanced"
+            aria-label="Enhanced"
+            data-testid="timeline-enhanced-indicator"
+          >
+            <Sparkles size={12} />
+          </span>
+        )}
+        <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+          {formatTimestamp(message._creationTime)}
+        </span>
+      </div>
     </div>
   );
 });

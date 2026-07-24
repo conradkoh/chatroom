@@ -39,10 +39,10 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
   };
 }
 
-function renderFooter(message: Message) {
+function renderFooter(message: Message, props: { isEnhanced?: boolean } = {}) {
   return render(
     <AttachmentsProvider>
-      <TimelineMessageFooter message={message} />
+      <TimelineMessageFooter message={message} {...props} />
     </AttachmentsProvider>
   );
 }
@@ -55,5 +55,22 @@ describe('TimelineMessageFooter', () => {
     expect(screen.getByTitle('Download message')).toBeInTheDocument();
     expect(screen.getByTitle('Add to context')).toBeInTheDocument();
     expect(screen.getByText('TS:1700000000000')).toBeInTheDocument();
+  });
+
+  it('shows blue enhanced indicator before timestamp when isEnhanced', () => {
+    renderFooter(makeMessage(), { isEnhanced: true });
+
+    const indicator = screen.getByTestId('timeline-enhanced-indicator');
+    expect(indicator).toBeInTheDocument();
+    expect(indicator).toHaveClass('text-blue-500');
+    expect(indicator.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+  });
+
+  it('hides enhanced indicator when not enhanced', () => {
+    renderFooter(makeMessage(), { isEnhanced: false });
+
+    expect(screen.queryByTestId('timeline-enhanced-indicator')).not.toBeInTheDocument();
   });
 });

@@ -14,8 +14,8 @@ import {
   TIMELINE_ROW_BORDER,
   type MachineNameEntry,
 } from './timelineRowStyles';
-import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
 import { MessageAttachmentChips } from '../../attachments';
+import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
 import type { Message } from '../../types/message';
 
 function getMessageTypeBadge(type: string) {
@@ -48,7 +48,9 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
     typeof message.enhancerOriginalContent === 'string' &&
     message.enhancerOriginalContent.length > 0;
   const displayContent =
-    showOriginal && hasEnhancerOriginal ? message.enhancerOriginalContent! : message.content;
+    showOriginal && hasEnhancerOriginal
+      ? (message.enhancerOriginalContent ?? message.content)
+      : message.content;
 
   const messageTypeBadge = getMessageTypeBadge(message.type);
   const machineLabel = formatMachineLabel(machines, machineId);
@@ -113,7 +115,11 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       <div className="mt-2 empty:hidden">
         <MessageAttachmentChips message={message} />
       </div>
-      <TimelineMessageFooter message={message} displayContent={displayContent} />
+      <TimelineMessageFooter
+        message={message}
+        displayContent={displayContent}
+        isEnhanced={hasEnhancerOriginal}
+      />
     </div>
   );
 });
