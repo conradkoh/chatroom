@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SplitDropSide } from '../components/EditorSplitDropOverlay';
 import type { ExpandPane } from '../utils/editorExpandLayout';
@@ -874,40 +874,74 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   );
 
   const computedActiveTabPath = activeFilePath(tabs, activeTabKey);
-  const derivedRightTabs = viewTabsFromEditorTabs(tabs);
-  const derivedActiveRightTabKey =
-    editorSplit?.activeSecondaryTabKey && isViewTabKey(editorSplit.activeSecondaryTabKey)
-      ? editorSplit.activeSecondaryTabKey
-      : null;
+  const derivedRightTabs = useMemo(() => viewTabsFromEditorTabs(tabs), [tabs]);
+  const derivedActiveRightTabKey = useMemo(() => {
+    if (editorSplit?.activeSecondaryTabKey && isViewTabKey(editorSplit.activeSecondaryTabKey)) {
+      return editorSplit.activeSecondaryTabKey;
+    }
+    return null;
+  }, [editorSplit?.activeSecondaryTabKey]);
 
-  return {
-    tabs,
-    activeTabKey,
-    activeTabPath: computedActiveTabPath,
-    expandedTabPath: expandState?.filePath ?? null,
-    expandedPane: expandState?.pane ?? null,
-    openPreview,
-    pinTab,
-    closeTab,
-    closeOtherTabs,
-    setActiveTab: setActive,
-    toggleExpanded,
-    togglePreviewExpanded,
-    renamePath,
-    openAgenticQueryTab,
-    closeAgenticQueryTab,
-    rightTabs: derivedRightTabs,
-    activeRightTabKey: derivedActiveRightTabKey,
-    openRight,
-    closeRight,
-    setActiveRightTab: setActiveRight,
-    navigateActivePreview,
-    editorSplit,
-    moveTabToSecondaryPane,
-    moveTabToPrimaryPane,
-    setActiveSecondaryTab,
-    closeSecondarySplit,
-    handleEditorSplitDrop,
-    editorSplitLayoutEpoch,
-  };
+  return useMemo(
+    () => ({
+      tabs,
+      activeTabKey,
+      activeTabPath: computedActiveTabPath,
+      expandedTabPath: expandState?.filePath ?? null,
+      expandedPane: expandState?.pane ?? null,
+      openPreview,
+      pinTab,
+      closeTab,
+      closeOtherTabs,
+      setActiveTab: setActive,
+      toggleExpanded,
+      togglePreviewExpanded,
+      renamePath,
+      openAgenticQueryTab,
+      closeAgenticQueryTab,
+      rightTabs: derivedRightTabs,
+      activeRightTabKey: derivedActiveRightTabKey,
+      openRight,
+      closeRight,
+      setActiveRightTab: setActiveRight,
+      navigateActivePreview,
+      editorSplit,
+      moveTabToSecondaryPane,
+      moveTabToPrimaryPane,
+      setActiveSecondaryTab,
+      closeSecondarySplit,
+      handleEditorSplitDrop,
+      editorSplitLayoutEpoch,
+    }),
+    [
+      tabs,
+      activeTabKey,
+      computedActiveTabPath,
+      expandState?.filePath,
+      expandState?.pane,
+      openPreview,
+      pinTab,
+      closeTab,
+      closeOtherTabs,
+      setActive,
+      toggleExpanded,
+      togglePreviewExpanded,
+      renamePath,
+      openAgenticQueryTab,
+      closeAgenticQueryTab,
+      derivedRightTabs,
+      derivedActiveRightTabKey,
+      openRight,
+      closeRight,
+      setActiveRight,
+      navigateActivePreview,
+      editorSplit,
+      moveTabToSecondaryPane,
+      moveTabToPrimaryPane,
+      setActiveSecondaryTab,
+      closeSecondarySplit,
+      handleEditorSplitDrop,
+      editorSplitLayoutEpoch,
+    ]
+  );
 }
