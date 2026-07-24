@@ -12,7 +12,6 @@ import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from '
 import { getRolePriority } from './lib/hierarchy';
 import { isTimelineMessage } from './messageList';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
@@ -22,6 +21,7 @@ import {
 } from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
+import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
@@ -91,8 +91,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -109,8 +108,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    | { _id: string; filename: string; description?: string; mimeType?: string }[]
-    | undefined;
+    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -2128,8 +2126,12 @@ export const listMessagesBySenderRolePaginated = query({
     const result = isUser
       ? await ctx.db
           .query('chatroom_messages')
-          .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .filter((q) =>
+            q.or(
+              q.and(q.eq(q.field('senderRole'), 'user'), q.eq(q.field('type'), 'message')),
+              q.and(q.eq(q.field('type'), 'handoff'), q.eq(q.field('targetRole'), 'user'))
+            )
           )
           .order('desc')
           .paginate(args.paginationOpts)

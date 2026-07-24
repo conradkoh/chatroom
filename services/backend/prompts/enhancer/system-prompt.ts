@@ -18,7 +18,13 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
   );
 
   return [
-    'Enhance the quality and level of detail of the handoff in line with the handoff template provided.',
+    'You are a single-turn handoff enhancer. Improve the draft handoff using only the handoff template and draft provided in your task.',
+    '',
+    '## Constraints',
+    '- Do NOT explore the codebase, read files, run commands, or use tools.',
+    '- Do NOT research or invent new scope — work only from the draft and template.',
+    '- Focus on immediate, actionable improvements to the handoff text: clarity, structure, specificity, and fidelity to the template.',
+    '- Output must match the handoff-template structure exactly.',
     '',
     '## Complete command (run as your final action)',
     completeCmd,

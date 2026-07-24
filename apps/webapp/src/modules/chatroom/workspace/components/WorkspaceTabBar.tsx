@@ -85,6 +85,8 @@ export interface WorkspaceTabBarItemProps {
   onDoubleClick?: () => void;
   onContextMenu?: (event: React.MouseEvent) => void;
   onClose: (event: React.MouseEvent) => void;
+  draggable?: boolean;
+  onDragStart?: (event: React.DragEvent) => void;
 }
 
 export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
@@ -98,6 +100,8 @@ export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
   onDoubleClick,
   onContextMenu,
   onClose,
+  draggable = false,
+  onDragStart,
 }: WorkspaceTabBarItemProps) {
   return (
     <div
@@ -109,9 +113,11 @@ export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
           ? 'bg-chatroom-bg-primary text-chatroom-text-primary border-b-2 border-b-chatroom-accent'
           : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover border-b-2 border-b-transparent'
       )}
+      draggable={draggable}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
+      onDragStart={onDragStart}
       title={title}
     >
       {Icon ? (

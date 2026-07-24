@@ -88,7 +88,7 @@ function buildWebappDefinition(
     command: 'sh',
     args: [
       '-c',
-      `NEXT_PUBLIC_CONVEX_URL=${convexUrl} ${managerPortEnv} pnpm turbo run build --filter=@workspace/webapp --no-cache && echo "Starting Next.js production server on http://localhost:${port} ..." && PORT=${port} NEXT_PUBLIC_CONVEX_URL=${convexUrl} ${managerPortEnv} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
+      `NEXT_PUBLIC_CONVEX_URL=${convexUrl} ${managerPortEnv} pnpm turbo run build --filter=@workspace/webapp --cache=local:r,remote:r && echo "Starting Next.js production server on http://localhost:${port} ..." && PORT=${port} NEXT_PUBLIC_CONVEX_URL=${convexUrl} ${managerPortEnv} pnpm --filter @workspace/webapp exec dotenv -e .env.local -- pnpm start`,
     ],
     env: {
       NODE_ENV: 'production',
@@ -107,7 +107,7 @@ function buildDaemonDefinition(repoRoot: string, convexUrl: string, webappUrl: s
     command: 'sh',
     args: [
       '-c',
-      'pnpm turbo run build --filter=chatroom-cli --no-cache && pnpm exec chatroom machine daemon start',
+      'pnpm turbo run build --filter=chatroom-cli --cache=local:r,remote:r && pnpm exec chatroom machine daemon start',
     ],
     env: {
       CHATROOM_CONVEX_URL: convexUrl,

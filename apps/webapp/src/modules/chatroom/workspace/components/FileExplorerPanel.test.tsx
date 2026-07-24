@@ -94,6 +94,10 @@ const fileTabs = {
   closeRight: vi.fn(),
   setActiveRightTab: vi.fn(),
   navigateActivePreview: vi.fn(),
+  editorSplit: null,
+  moveTabToSecondaryPane: vi.fn(),
+  moveTabToPrimaryPane: vi.fn(),
+  closeSecondarySplit: vi.fn(),
 } satisfies UseFileTabsReturn;
 
 const defaultProps = {

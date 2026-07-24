@@ -31,6 +31,7 @@ async function insertTimelineMessage(
   extra?: {
     classification?: 'question' | 'new_feature' | 'follow_up';
     type?: 'message' | 'handoff' | 'join' | 'progress';
+    targetRole?: string;
   }
 ): Promise<Id<'chatroom_messages'>> {
   return await t.run(async (ctx) => {
@@ -40,6 +41,7 @@ async function insertTimelineMessage(
       content,
       type: extra?.type ?? 'message',
       ...(extra?.classification ? { classification: extra.classification } : {}),
+      ...(extra?.targetRole ? { targetRole: extra.targetRole } : {}),
     })) as Id<'chatroom_messages'>;
   });
 }
@@ -111,6 +113,29 @@ describe('listMessagesBySenderRolePaginated', () => {
     expect(result.page).toHaveLength(3);
     expect(result.page.every((m) => m.senderRole === 'planner')).toBe(true);
     expect(result.page.map((m) => m.content)).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']));
+  });
+
+  test('user filter includes handoffs to user and user messages, newest first', async () => {
+    const { sessionId } = await createTestSession('pag-role-user');
+    const chatroomId = await createChatroom(sessionId);
+    await insertTimelineMessage(chatroomId, 'user', 'user msg');
+    await insertTimelineMessage(chatroomId, 'planner', 'handoff to user', {
+      type: 'handoff',
+      targetRole: 'user',
+    });
+    await insertTimelineMessage(chatroomId, 'builder', 'builder msg');
+
+    const result = await t.query(api.messages.listMessagesBySenderRolePaginated, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toHaveLength(2);
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toEqual(expect.arrayContaining(['user msg', 'handoff to user']));
+    expect(result.page.some((m) => m.type === 'handoff' && m.targetRole === 'user')).toBe(true);
   });
 });
 

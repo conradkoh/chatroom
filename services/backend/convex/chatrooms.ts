@@ -4,8 +4,12 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
-import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import {
+  clearChatroomUnread,
+  markChatroomUnread,
+} from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
@@ -366,6 +370,18 @@ export const markAsRead = mutation({
   },
 });
 
+/** Marks a chatroom as unread for the owner (e.g. sidebar "Mark as Unread"). Does not change read cursor. */
+export const markAsUnread = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await markChatroomUnread(ctx, args.chatroomId, session.userId, false);
+  },
+});
+
 /** Returns the IDs of chatrooms that the authenticated user has favorited. */
 export const listFavoriteIds = query({
   args: {
@@ -532,11 +548,20 @@ export const recordChatroomObservation = mutation({
       .first();
 
     if (existing) {
-      // Update existing observation
+      const isRefresh = args.refresh === true;
+      const lastObservedStale =
+        now - existing.lastObservedAt >= OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS;
+
+      // Regular heartbeats: skip redundant writes that would invalidate daemon subscriptions.
+      // Refresh calls always write (lastRefreshedAt must be updated).
+      if (!isRefresh && !lastObservedStale) {
+        return;
+      }
+
       const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
         lastObservedAt: now,
       };
-      if (args.refresh) {
+      if (isRefresh) {
         patch.lastRefreshedAt = now;
       }
       await ctx.db.patch('chatroom_observation', existing._id, patch);

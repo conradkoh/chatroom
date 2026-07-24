@@ -50,7 +50,16 @@ describe('messageViewMode helpers', () => {
       );
     });
 
-    it('excludes user handoffs for user filter', () => {
+    it('includes handoffs to user for user filter', () => {
+      expect(
+        messageMatchesSenderRoleFilter(
+          { senderRole: 'planner', type: 'handoff', targetRole: 'user' },
+          'user'
+        )
+      ).toBe(true);
+    });
+
+    it('excludes user-originated handoffs (wrong direction)', () => {
       expect(messageMatchesSenderRoleFilter({ senderRole: 'user', type: 'handoff' }, 'user')).toBe(
         false
       );

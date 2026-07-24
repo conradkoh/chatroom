@@ -86,6 +86,7 @@ import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSide
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
+import { EditorSplitLayout } from './workspace/components/EditorSplitLayout';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
@@ -98,7 +99,7 @@ import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
-import type { AgenticQueryMode, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
+import type { AgenticQueryMode, EditorTab, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { editorTabKey } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
@@ -292,6 +293,20 @@ const ExplorerContent = memo(function ExplorerContent({
     [activeAgenticQueryId, fileTabs]
   );
 
+  const hasEditorSplit = !!(fileTabs.editorSplit?.enabled && activeTab?.kind === 'file');
+  const secondaryTabKeys = hasEditorSplit ? fileTabs.editorSplit!.secondaryTabKeys : [];
+  const secondaryTabKeySet = new Set(secondaryTabKeys);
+  const secondaryTabs = hasEditorSplit
+    ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t)))
+    : [];
+  const primaryTabs = hasEditorSplit
+    ? fileTabs.tabs.filter((t) => !secondaryTabKeySet.has(editorTabKey(t)))
+    : fileTabs.tabs;
+
+  const activeSecondaryTabKey = fileTabs.editorSplit?.activeSecondaryTabKey ?? null;
+  const activeSecondaryTab =
+    secondaryTabs.find((t) => editorTabKey(t) === activeSecondaryTabKey) ?? null;
+
   const fileTabBar = showTabBar ? (
     <FileTabBar
       tabs={fileTabs.tabs}
@@ -304,20 +319,83 @@ const ExplorerContent = memo(function ExplorerContent({
       onPin={fileTabs.pinTab}
       onToggleExpanded={fileTabs.toggleExpanded}
       onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
+      enableDragSplit
+      onDropToSecondary={(tabKey) => fileTabs.moveTabToSecondaryPane(tabKey)}
     />
   ) : null;
+
+  const renderEditorContent = (tab: EditorTab) => {
+    if (tab.kind === 'agentic-query') {
+      return (
+        <AgenticQueryPanel
+          key={editorTabKey(tab)}
+          queryId={tab.queryId}
+          mode={tab.mode}
+          workspaceId={activeWorkspace?.workspaceId ?? ''}
+          autocompleteFiles={autocompleteFiles}
+          hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+          onAtTriggerActivate={onAtTriggerActivate}
+          focusToken={agenticFocusToken}
+          onMetaChange={handleAgenticMetaChange}
+        />
+      );
+    }
+    if (tab.kind === 'file') {
+      if (isBinaryFile(tab.filePath)) {
+        return (
+          <FileContentViewer
+            key={tab.filePath}
+            machineId={machineId}
+            workingDir={workingDir}
+            filePath={tab.filePath}
+            onSendSelectionToComposer={onSendSelectionToComposer}
+            onOpenPreview={onOpenPreview}
+            onOpenTableView={onOpenTableView}
+            onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+          />
+        );
+      }
+      if (shouldOpenInEditableExplorerPane(tab.filePath)) {
+        return (
+          <MarkdownFileEditorPane
+            key={tab.filePath}
+            machineId={machineId}
+            workingDir={workingDir}
+            filePath={tab.filePath}
+            onSendSelectionToComposer={onSendSelectionToComposer}
+            onOpenPreview={onOpenPreview}
+            onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+          />
+        );
+      }
+      return (
+        <FileContentViewer
+          key={tab.filePath}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+          onSendSelectionToComposer={onSendSelectionToComposer}
+          onOpenPreview={onOpenPreview}
+          onOpenTableView={onOpenTableView}
+          onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
+        />
+      );
+    }
+    return null;
+  };
+
   const hasMachineAndDir = activeWorkspace?.machineId && activeWorkspace?.workingDir;
   const showContentArea = activeTab && hasMachineAndDir;
 
   return (
     <>
-      {/* Full-width tab bar when no preview/table split */}
-      {showTabBar && !hasSplit && fileTabBar}
+      {/* Full-width tab bar when no preview/table or editor split */}
+      {showTabBar && !hasSplit && !hasEditorSplit && fileTabBar}
 
       {/* Content Area — left pane + optional right pane */}
       {showContentArea ? (
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Left Pane — source code */}
+          {/* Left column — editor content (with optional horizontal split) */}
           <div
             className={cn(
               'flex flex-col min-h-0 overflow-hidden',
@@ -329,54 +407,48 @@ const ExplorerContent = memo(function ExplorerContent({
                 : 'flex-1'
             )}
           >
-            {showTabBar && hasSplit && fileTabBar}
-            {activeTab.kind === 'agentic-query' ? (
-              <AgenticQueryPanel
-                key={editorTabKey(activeTab)}
-                queryId={activeTab.queryId}
-                mode={activeTab.mode}
-                workspaceId={activeWorkspace?.workspaceId ?? ''}
-                autocompleteFiles={autocompleteFiles}
-                hasAutocompleteWorkspace={hasAutocompleteWorkspace}
-                onAtTriggerActivate={onAtTriggerActivate}
-                focusToken={agenticFocusToken}
-                onMetaChange={handleAgenticMetaChange}
+            {hasEditorSplit ? (
+              <EditorSplitLayout
+                primary={
+                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <FileTabBar
+                      tabs={primaryTabs}
+                      activeTabKey={fileTabs.activeTabKey}
+                      machineId={activeWorkspace?.machineId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      onActivate={fileTabs.setActiveTab}
+                      onClose={fileTabs.closeTab}
+                      onCloseOthers={fileTabs.closeOtherTabs}
+                      onPin={fileTabs.pinTab}
+                      onToggleExpanded={fileTabs.toggleExpanded}
+                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                    />
+                    {activeTab ? renderEditorContent(activeTab) : null}
+                  </div>
+                }
+                secondary={activeSecondaryTab ? renderEditorContent(activeSecondaryTab) : null}
+                secondaryTabBar={
+                  secondaryTabs.length > 0 ? (
+                    <FileTabBar
+                      tabs={secondaryTabs}
+                      activeTabKey={activeSecondaryTabKey}
+                      machineId={activeWorkspace?.machineId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      onActivate={(key) => fileTabs.moveTabToPrimaryPane(key)}
+                      onClose={fileTabs.closeTab}
+                      onCloseOthers={fileTabs.closeOtherTabs}
+                      onPin={fileTabs.pinTab}
+                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                    />
+                  ) : null
+                }
               />
-            ) : activeTab.kind === 'file' ? (
-              isBinaryFile(activeTab.filePath) ? (
-                <FileContentViewer
-                  key={activeTab.filePath}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  filePath={activeTab.filePath}
-                  onSendSelectionToComposer={onSendSelectionToComposer}
-                  onOpenPreview={onOpenPreview}
-                  onOpenTableView={onOpenTableView}
-                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-                />
-              ) : shouldOpenInEditableExplorerPane(activeTab.filePath) ? (
-                <MarkdownFileEditorPane
-                  key={activeTab.filePath}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  filePath={activeTab.filePath}
-                  onSendSelectionToComposer={onSendSelectionToComposer}
-                  onOpenPreview={onOpenPreview}
-                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-                />
-              ) : (
-                <FileContentViewer
-                  key={activeTab.filePath}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  filePath={activeTab.filePath}
-                  onSendSelectionToComposer={onSendSelectionToComposer}
-                  onOpenPreview={onOpenPreview}
-                  onOpenTableView={onOpenTableView}
-                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-                />
-              )
-            ) : null}
+            ) : (
+              <>
+                {showTabBar && hasSplit && fileTabBar}
+                {renderEditorContent(activeTab)}
+              </>
+            )}
           </div>
 
           {/* Right Pane — preview/table */}

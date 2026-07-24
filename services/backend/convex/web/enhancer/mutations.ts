@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { applyEnhancerComplete } from './completeLogic';
+import { deliverPendingHandoffFromJob } from './delivery';
 import {
   resolveWorkspaceForEnhancer,
   resolveHandoffTemplateSnapshot,
@@ -12,7 +13,6 @@ import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
-import { performHandoffFromEnhancer } from '../../messages';
 import { agentHarnessValidator } from '../../schema';
 
 export const upsertConfig = mutation({
@@ -190,9 +190,20 @@ export const recordAttemptFailure = mutation({
     const now = Date.now();
     const attemptCount = job.attemptCount;
     if (attemptCount >= job.maxAttempts) {
+      // Terminal failure: deliver draft content via handoff before marking failed
+      let error = args.error;
+      const handoffResult = await deliverPendingHandoffFromJob(ctx, {
+        sessionId: args.sessionId,
+        job,
+        content: job.draftContent,
+      });
+      if (!handoffResult.success) {
+        error = `${error}; draft handoff delivery failed: ${handoffResult.error?.message}`;
+      }
+
       await ctx.db.patch('chatroom_enhancerJobs', args.jobId, {
         status: 'failed',
-        lastError: args.error,
+        lastError: error,
         completedAt: now,
         runningSince: undefined,
       });
@@ -203,7 +214,7 @@ export const recordAttemptFailure = mutation({
           chatroomId: args.chatroomId,
           jobId: args.jobId,
           attemptCount,
-          error: args.error,
+          error,
         },
         now
       );
@@ -288,19 +299,10 @@ export const cancelActiveJob = mutation({
     if (job.status !== 'pending' && job.status !== 'running') {
       throw new ConvexError({ code: 'INVALID_STATUS', message: 'Job is not active' });
     }
-    const handoffArgs = job.pendingHandoffArgs;
-    if (!handoffArgs) {
-      throw new ConvexError({ code: 'INVALID_STATUS', message: 'Job missing handoff args' });
-    }
-
-    const handoffResult = await performHandoffFromEnhancer(ctx, {
+    const handoffResult = await deliverPendingHandoffFromJob(ctx, {
       sessionId: args.sessionId,
-      chatroomId: args.chatroomId,
-      senderRole: handoffArgs.senderRole,
-      targetRole: handoffArgs.targetRole,
+      job,
       content: job.draftContent,
-      attachedArtifactIds: handoffArgs.attachedArtifactIds,
-      jobId: args.jobId,
     });
     if (!handoffResult.success) {
       throw new ConvexError({
