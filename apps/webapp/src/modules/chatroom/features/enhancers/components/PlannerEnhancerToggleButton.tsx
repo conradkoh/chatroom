@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import { Settings2, Sparkles } from 'lucide-react';
 
 import {
   ContextMenu,
@@ -64,6 +64,7 @@ export function PlannerEnhancerToggleButton({
           onSelect={onConfigure}
           data-testid="planner-enhancer-configure"
         >
+          <Settings2 size={14} />
           Configure
         </ContextMenuItem>
       </ContextMenuContent>
