@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest';
 
-import { buildEnhancerConfigKey, enhancerConfigEntriesEqual } from './enhancerConfigEntry';
+import {
+  buildEnhancerConfigKey,
+  enhancerConfigEntriesEqual,
+  filterFavoritesForTarget,
+  isEnhancerConfigFavoriteForTarget,
+} from './enhancerConfigEntry';
 
 describe('enhancerConfigEntry', () => {
   test('buildEnhancerConfigKey joins target, harness, and model', () => {
@@ -39,5 +44,33 @@ describe('enhancerConfigEntry', () => {
       model: 'claude',
     };
     expect(enhancerConfigEntriesEqual(a, b)).toBe(false);
+  });
+
+  test('filterFavoritesForTarget includes entries missing targetId for default target', () => {
+    const favorites = [
+      {
+        targetId: undefined as unknown as 'handoff:planner-to-builder',
+        agentHarness: 'opencode' as const,
+        model: 'gpt-4',
+      },
+    ];
+    expect(filterFavoritesForTarget(favorites, 'handoff:planner-to-builder')).toHaveLength(1);
+  });
+
+  test('isEnhancerConfigFavoriteForTarget matches harness and model within target', () => {
+    const favorites = [
+      {
+        targetId: 'handoff:planner-to-builder' as const,
+        agentHarness: 'opencode' as const,
+        model: 'gpt-4',
+      },
+    ];
+    expect(
+      isEnhancerConfigFavoriteForTarget(
+        favorites,
+        { agentHarness: 'opencode', model: 'gpt-4' },
+        'handoff:planner-to-builder'
+      )
+    ).toBe(true);
   });
 });
