@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useDeferredValue, useMemo } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
@@ -59,6 +59,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   className,
 }: MarkdownRendererProps) {
+  const deferredContent = useDeferredValue(content);
   const { baseFilePath } = useWorkspaceFileLink();
   const components = useMemo(() => {
     if (!baseFilePath) return fullMarkdownComponents;
@@ -72,11 +73,14 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     };
   }, [baseFilePath]);
 
-  return (
-    <div className={className ?? proseClassNames}>
+  const markdownBody = useMemo(
+    () => (
       <Markdown remarkPlugins={chatroomRemarkPlugins} components={components}>
-        {content}
+        {deferredContent}
       </Markdown>
-    </div>
+    ),
+    [components, deferredContent]
   );
+
+  return <div className={className ?? proseClassNames}>{markdownBody}</div>;
 });

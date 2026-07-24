@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 import type { FileLocation } from '../workspace/utils/fileLocation';
 
@@ -22,15 +22,15 @@ export function WorkspaceFileLinkProvider({
   children: ReactNode;
 }) {
   const parent = useContext(WorkspaceFileLinkContext);
+  const value = useMemo(
+    () => ({
+      onOpenFile: onOpenFile ?? parent.onOpenFile,
+      baseFilePath: baseFilePath ?? parent.baseFilePath,
+    }),
+    [onOpenFile, parent.onOpenFile, baseFilePath, parent.baseFilePath]
+  );
   return (
-    <WorkspaceFileLinkContext.Provider
-      value={{
-        onOpenFile: onOpenFile ?? parent.onOpenFile,
-        baseFilePath: baseFilePath ?? parent.baseFilePath,
-      }}
-    >
-      {children}
-    </WorkspaceFileLinkContext.Provider>
+    <WorkspaceFileLinkContext.Provider value={value}>{children}</WorkspaceFileLinkContext.Provider>
   );
 }
 
