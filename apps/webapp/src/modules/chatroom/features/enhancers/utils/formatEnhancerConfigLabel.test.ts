@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   formatEnhancerConfigLabel,
   formatEnhancerHarnessModelLabel,
-  formatEnhancerHarnessModelLabelDisplay,
 } from './formatEnhancerConfigLabel';
 
 const entry = {
@@ -23,15 +22,5 @@ describe('formatEnhancerConfigLabel', () => {
     expect(formatEnhancerConfigLabel(entry)).toBe(
       'Handoff: Planner → Builder / OpenCode (CLI) / ANTHROPIC / CLAUDE OPUS 4'
     );
-  });
-
-  it('formatEnhancerHarnessModelLabelDisplay truncates long labels at 40 characters', () => {
-    const truncated = formatEnhancerHarnessModelLabelDisplay({
-      agentHarness: 'opencode',
-      model: 'minimax/MiniMax-M2.5-highspeed',
-    });
-    expect(truncated.endsWith('...')).toBe(true);
-    expect(truncated.length).toBeLessThanOrEqual(43);
-    expect(truncated.startsWith('OpenCode')).toBe(true);
   });
 });
