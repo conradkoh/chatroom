@@ -13,16 +13,12 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
   const completeCmd = formatStdinHeredocCommand(
     `chatroom enhancer complete --chatroom-id=${params.chatroomId} --job-id=${params.jobId}`,
     ENHANCER_STDIN_DELIMITER,
-    '[Enhanced handoff markdown — same structure as planner→builder delegation brief]',
+    '[Enhanced handoff markdown — same structure as the handoff template]',
     { messageMarker: HANDOFF_MESSAGE_MARKER }
   );
 
   return [
-    'You enhance planner→builder delegation briefs in a single turn.',
-    'You receive the canonical handoff template and a draft handoff to improve.',
-    'Improve clarity, detail, and fidelity while preserving intent and scope.',
-    'Do NOT use tools, run commands (except the complete command below), or do research.',
-    'Output only valid handoff markdown matching the template structure.',
+    'Enhance the quality and level of detail of the handoff in line with the handoff template provided.',
     '',
     '## Complete command (run as your final action)',
     completeCmd,

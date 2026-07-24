@@ -23,13 +23,16 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('job-id=job-123');
   });
 
-  it('contains single-turn instruction', () => {
+  it('contains the generalized enhancement instruction', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('single turn');
+    expect(result).toContain(
+      'Enhance the quality and level of detail of the handoff in line with the handoff template provided.'
+    );
   });
 
-  it('contains no tools instruction', () => {
+  it('does not contain hard-coded role references', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('Do NOT use tools');
+    expect(result).not.toContain('planner→builder');
+    expect(result).not.toContain('Do NOT use tools');
   });
 });
