@@ -10,10 +10,10 @@ import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSet
 import { CopyButton } from './CopyButton';
 import { MachineCapabilitiesRefreshButton } from './MachineCapabilitiesRefreshButton';
 import {
-  ModelSelect,
   ModelFilterButton,
+  ModelPickerField,
   ModelPickerMeta,
-  groupFlatModels,
+  useHarnessModelPicker,
   useMachineModelFilter,
 } from './model-selection';
 import {
@@ -829,21 +829,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   );
 
   // Machine-level model filter for the displayed machine + harness
-  const modelFilter = useMachineModelFilter(displayMachineId, displayHarness);
-  const visibleModels = useMemo(
-    () => availableModelsForHarness.filter((m) => !modelFilter.isHidden(m)),
-    [availableModelsForHarness, modelFilter.isHidden]
-  );
-  const modelGroups = useMemo(() => groupFlatModels(visibleModels), [visibleModels]);
-  const isSelectedModelHidden = useMemo(
-    () =>
-      !!(
-        displayModel &&
-        availableModelsForHarness.includes(displayModel) &&
-        modelFilter.isHidden(displayModel)
-      ),
-    [displayModel, availableModelsForHarness, modelFilter.isHidden]
-  );
+  const { modelFilter, isSelectedModelHidden } = useHarnessModelPicker({
+    machineId: displayMachineId,
+    harness: displayHarness,
+    availableModels: availableModelsForHarness,
+    selectedModel: displayModel,
+  });
 
   return (
     <div className="space-y-2">
@@ -1094,18 +1085,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                   </div>
                 ) : (
                   <div className="flex-1 min-w-0">
-                    <ModelSelect
-                      groups={modelGroups}
+                    <ModelPickerField
+                      machineId={displayMachineId}
+                      harness={displayHarness}
+                      availableModels={availableModelsForHarness}
                       value={displayModel ?? ''}
                       onValueChange={(m) => handleModelChange(m || null)}
-                      isHidden={modelFilter.isHidden}
                       disabled={isBusy || !displayHarness}
                       triggerVariant="chatroom"
-                      contentClassName="w-[420px]"
-                      selectedHidden={isSelectedModelHidden}
-                      filter={modelFilter.filter}
                       allowDeselect={false}
                       placeholder="Model..."
+                      className="gap-1"
                     />
                   </div>
                 )}
@@ -1114,7 +1104,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               <div className="flex-1" />
             )}
 
-            {displayMachineId && displayHarness && (
+            {displayMachineId && displayHarness && isAgentRunning && (
               <ModelFilterButton
                 filter={modelFilter}
                 availableModels={availableModelsForHarness}
