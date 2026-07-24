@@ -238,6 +238,33 @@ interface ExplorerEditorTabContentProps {
 }
 
 // fallow-ignore-next-line complexity
+function areExplorerEditorTabContentPropsEqual(
+  prev: ExplorerEditorTabContentProps,
+  next: ExplorerEditorTabContentProps
+): boolean {
+  if (editorTabKey(prev.tab) !== editorTabKey(next.tab)) return false;
+  if (prev.machineId !== next.machineId || prev.workingDir !== next.workingDir) return false;
+
+  if (prev.tab.kind === 'preview' || prev.tab.kind === 'table') {
+    return next.tab.kind === prev.tab.kind && next.tab.filePath === prev.tab.filePath;
+  }
+
+  return (
+    prev.workspaceId === next.workspaceId &&
+    prev.autocompleteFiles === next.autocompleteFiles &&
+    prev.hasAutocompleteWorkspace === next.hasAutocompleteWorkspace &&
+    prev.onAtTriggerActivate === next.onAtTriggerActivate &&
+    prev.agenticFocusToken === next.agenticFocusToken &&
+    prev.onAgenticMetaChange === next.onAgenticMetaChange &&
+    prev.onOpenPreview === next.onOpenPreview &&
+    prev.onOpenTableView === next.onOpenTableView &&
+    prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
+    prev.onOpenSelectionOnRemote === next.onOpenSelectionOnRemote &&
+    prev.tab === next.tab
+  );
+}
+
+// fallow-ignore-next-line complexity
 const ExplorerEditorTabContent = memo(function ExplorerEditorTabContent({
   tab,
   workspaceId,
@@ -330,7 +357,7 @@ const ExplorerEditorTabContent = memo(function ExplorerEditorTabContent({
     );
   }
   return null;
-});
+}, areExplorerEditorTabContentPropsEqual);
 
 interface ExplorerContentProps {
   fileTabs: UseFileTabsReturn;
