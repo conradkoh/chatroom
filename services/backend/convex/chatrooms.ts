@@ -4,6 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
@@ -532,11 +533,20 @@ export const recordChatroomObservation = mutation({
       .first();
 
     if (existing) {
-      // Update existing observation
+      const isRefresh = args.refresh === true;
+      const lastObservedStale =
+        now - existing.lastObservedAt >= OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS;
+
+      // Regular heartbeats: skip redundant writes that would invalidate daemon subscriptions.
+      // Refresh calls always write (lastRefreshedAt must be updated).
+      if (!isRefresh && !lastObservedStale) {
+        return;
+      }
+
       const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
         lastObservedAt: now,
       };
-      if (args.refresh) {
+      if (isRefresh) {
         patch.lastRefreshedAt = now;
       }
       await ctx.db.patch('chatroom_observation', existing._id, patch);
