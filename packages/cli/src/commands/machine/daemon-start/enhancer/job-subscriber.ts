@@ -1,7 +1,7 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_ROLE } from './constants.js';
-import { api } from '../../../../api.js';
+import { api, type Id } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { createSpawnPrompt } from '../../../../infrastructure/services/remote-agents/spawn-prompt.js';
@@ -44,8 +44,8 @@ export function startEnhancerJobSubscriber(
               sessionId,
               jobId: job.jobId,
             })) as {
-              chatroomId: string;
-              jobId: string;
+              chatroomId: Id<'chatroom_rooms'>;
+              jobId: Id<'chatroom_enhancerJobs'>;
               agentHarness: string;
               model: string;
               workingDir: string;
