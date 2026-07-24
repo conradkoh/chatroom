@@ -1,13 +1,11 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
-import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import { EnhancerConfigQuickPick } from './EnhancerConfigQuickPick';
 import { PlannerEnhancerToggleButton } from './PlannerEnhancerToggleButton';
 import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
-import { useEnhancerConfig } from '../hooks/useEnhancerConfig';
-import { useEnhancerConfigFavorites } from '../hooks/useEnhancerConfigFavorites';
+import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import type { EnhancerConfig } from '../types/enhancer';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
@@ -44,24 +42,32 @@ async function toggleEnhancerState(args: {
 }
 
 export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancerToggleProps) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const { config, isActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
+  const {
+    config,
+    isActive,
+    saveConfig,
+    disable,
+    favorites,
+    removeFavorite,
+    moveFavorite,
+    openDialog,
+    dialog,
+  } = useEnhancerConfigDialogHost({ chatroomId, workspaceMachineId: machineId });
   const { isEnhancing, disableEnhancer, isDisabling } = useActiveEnhancerJob(chatroomId);
-  const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
-    useEnhancerConfigFavorites(machineId);
 
   const handleApplyFavorite = useCallback(
     (entry: EnhancerConfigEntry) => {
-      if (!machineId) return;
+      const resolvedMachineId = config?.machineId ?? machineId;
+      if (!resolvedMachineId) return;
       void saveConfig({
         enabled: isActive,
         targetId: entry.targetId,
         agentHarness: entry.agentHarness,
         model: entry.model,
-        machineId,
+        machineId: resolvedMachineId,
       });
     },
-    [machineId, isActive, saveConfig]
+    [config?.machineId, machineId, isActive, saveConfig]
   );
 
   const handleToggle = useCallback(
@@ -73,9 +79,9 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
         disableEnhancer,
         disable,
         saveConfig,
-        openDialog: () => setDialogOpen(true),
+        openDialog,
       }),
-    [isActive, isEnhancing, config, disableEnhancer, disable, saveConfig]
+    [isActive, isEnhancing, config, disableEnhancer, disable, saveConfig, openDialog]
   );
 
   return (
@@ -85,10 +91,10 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
         isEnhancing={isEnhancing}
         isDisabling={isDisabling}
         onToggle={handleToggle}
-        onConfigure={() => setDialogOpen(true)}
+        onConfigure={openDialog}
       />
 
-      {machineId && (
+      {config?.machineId && (
         <EnhancerConfigQuickPick
           favorites={favorites}
           disabled={isDisabling}
@@ -98,26 +104,7 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
         />
       )}
 
-      <EnhancerConfigDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        chatroomId={chatroomId}
-        machineId={machineId}
-        initialConfig={config}
-        favorites={favorites}
-        isFavorite={isFavorite}
-        onAddFavorite={(entry) => void addFavorite(entry)}
-        onRemoveFavorite={(entry) => void removeFavorite(entry)}
-        onMoveFavorite={(from, to) => void moveFavorite(from, to)}
-        onConfirm={(cfg) => {
-          saveConfig(cfg);
-          setDialogOpen(false);
-        }}
-        onDisable={() => {
-          disable();
-          setDialogOpen(false);
-        }}
-      />
+      {dialog}
     </>
   );
 }

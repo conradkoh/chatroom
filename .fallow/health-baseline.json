@@ -959,15 +959,17 @@
       }
     },
     "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerConfigDialog.tsx": {
-      "crap_critical": {
-        "count": 1
-      },
       "crap_high": {
-        "count": 1
+        "count": 2
       }
     },
     "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerHarnessModelSelect.tsx": {
       "crap_high": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/features/enhancers/hooks/useEnhancerConfigDialogHost.tsx": {
+      "crap_moderate": {
         "count": 1
       }
     },
@@ -1563,11 +1565,6 @@
     },
     "packages/cli/src/commands/enhancer/complete.ts": {
       "crap_moderate": {
-        "count": 1
-      }
-    },
-    "packages/cli/src/commands/enhancer/wait-for-job.ts": {
-      "crap_high": {
         "count": 1
       }
     },
@@ -2269,13 +2266,18 @@
       }
     },
     "services/backend/convex/daemon/enhancer/jobs.ts": {
-      "crap_moderate": {
+      "crap_high": {
         "count": 1
       }
     },
     "services/backend/convex/directHarnessCleanup.ts": {
       "crap_high": {
         "count": 1
+      }
+    },
+    "services/backend/convex/enhancerJobReaper.ts": {
+      "crap_high": {
+        "count": 2
       }
     },
     "services/backend/convex/guidelines.ts": {
@@ -2444,10 +2446,10 @@
     },
     "services/backend/convex/web/enhancer/mutations.ts": {
       "crap_high": {
-        "count": 2
+        "count": 3
       },
       "crap_moderate": {
-        "count": 2
+        "count": 1
       }
     },
     "services/backend/convex/workspacePathSecurity.ts": {

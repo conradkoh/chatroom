@@ -1,11 +1,8 @@
 'use client';
 
 import { Sparkles } from 'lucide-react';
-import { useState } from 'react';
 
-import { EnhancerConfigDialog } from './EnhancerConfigDialog';
-import { useEnhancerConfig } from '../hooks/useEnhancerConfig';
-import { useEnhancerConfigFavorites } from '../hooks/useEnhancerConfigFavorites';
+import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 
 import { cn } from '@/lib/utils';
 
@@ -15,10 +12,10 @@ interface EnhancerActivityBarItemProps {
 }
 
 export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActivityBarItemProps) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const { config, isActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
-  const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
-    useEnhancerConfigFavorites(machineId);
+  const { isActive, openDialog, dialog } = useEnhancerConfigDialogHost({
+    chatroomId,
+    workspaceMachineId: machineId,
+  });
 
   return (
     <>
@@ -30,7 +27,7 @@ export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActiv
             ? 'text-chatroom-text-primary'
             : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
         )}
-        onClick={() => setDialogOpen(true)}
+        onClick={openDialog}
         title={isActive ? 'Enhancer active — click to configure' : 'Configure enhancer'}
         aria-label={isActive ? 'Enhancer active' : 'Configure enhancer'}
         aria-pressed={isActive}
@@ -42,26 +39,7 @@ export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActiv
         <Sparkles size={20} />
       </button>
 
-      <EnhancerConfigDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        chatroomId={chatroomId}
-        machineId={machineId}
-        initialConfig={config}
-        favorites={favorites}
-        isFavorite={isFavorite}
-        onAddFavorite={(entry) => void addFavorite(entry)}
-        onRemoveFavorite={(entry) => void removeFavorite(entry)}
-        onMoveFavorite={(from, to) => void moveFavorite(from, to)}
-        onConfirm={(cfg) => {
-          saveConfig(cfg);
-          setDialogOpen(false);
-        }}
-        onDisable={() => {
-          disable();
-          setDialogOpen(false);
-        }}
-      />
+      {dialog}
     </>
   );
 }

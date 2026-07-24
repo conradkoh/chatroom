@@ -14,6 +14,15 @@ vi.mock('@/hooks/useMachineModels', () => ({
   useMachineModels: () => ({ availableModels: {}, isLoading: false }),
 }));
 
+vi.mock('./EnhancerHarnessModelSelect', () => ({
+  EnhancerHarnessModelSelect: ({ machineId }: { machineId?: string | null }) =>
+    !machineId ? (
+      <p className="text-xs text-chatroom-text-muted">
+        Select a workspace with a connected machine to choose a model.
+      </p>
+    ) : null,
+}));
+
 const CHATROOM_ID = 'room-1';
 
 function makeConfig(overrides?: Partial<EnhancerConfig>): EnhancerConfig {
@@ -139,5 +148,37 @@ describe('EnhancerConfigDialog', () => {
 
     fireEvent.click(screen.getByText('Cancel'));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('syncs form state when initialConfig arrives after open', () => {
+    const { rerender } = render(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId="machine-1"
+        initialConfig={null}
+        onConfirm={onConfirm}
+        onDisable={onDisable}
+        {...mockFavoritesProps}
+      />
+    );
+
+    expect(screen.getByText('Enable').hasAttribute('disabled')).toBe(true);
+
+    rerender(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId="machine-1"
+        initialConfig={makeConfig({ model: 'anthropic/claude-sonnet-4' })}
+        onConfirm={onConfirm}
+        onDisable={onDisable}
+        {...mockFavoritesProps}
+      />
+    );
+
+    expect(screen.getByText('Disable')).toBeDefined();
   });
 });

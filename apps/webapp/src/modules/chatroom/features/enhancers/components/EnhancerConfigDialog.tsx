@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Star } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EnhancerConfigFavoritesList } from './EnhancerConfigFavoritesList';
 import { EnhancerHarnessModelSelect } from './EnhancerHarnessModelSelect';
@@ -34,6 +34,7 @@ interface EnhancerConfigDialogProps {
   onMoveFavorite: (fromIndex: number, toIndex: number) => void;
 }
 
+// fallow-ignore-next-line complexity
 export function EnhancerConfigDialog({
   open,
   onOpenChange,
@@ -54,6 +55,13 @@ export function EnhancerConfigDialog({
     initialConfig?.agentHarness ?? null
   );
   const [model, setModel] = useState<string>(initialConfig?.model ?? '');
+
+  useEffect(() => {
+    if (!open) return;
+    setTargetId(initialConfig?.targetId ?? ENHANCER_TARGETS[0].id);
+    setAgentHarness(initialConfig?.agentHarness ?? null);
+    setModel(initialConfig?.model ?? '');
+  }, [open, initialConfig]);
 
   const canEnable = !!targetId && !!agentHarness && !!model && !!machineId;
 

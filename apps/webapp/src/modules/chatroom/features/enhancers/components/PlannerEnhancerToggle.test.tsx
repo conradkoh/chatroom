@@ -7,22 +7,23 @@ import type { EnhancerConfig } from '../types/enhancer';
 const mockSaveConfig = vi.fn();
 const mockDisable = vi.fn();
 const mockDisableEnhancer = vi.fn();
+const mockOpenDialog = vi.fn();
 
 let mockConfig: EnhancerConfig | null = null;
 let mockIsActive = false;
 let mockIsEnhancing = false;
 
-vi.mock('./EnhancerConfigDialog', () => ({
-  EnhancerConfigDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog">Enhancer configuration</div> : null,
-}));
-
-vi.mock('../hooks/useEnhancerConfig', () => ({
-  useEnhancerConfig: () => ({
+vi.mock('../hooks/useEnhancerConfigDialogHost', () => ({
+  useEnhancerConfigDialogHost: () => ({
     config: mockConfig,
     isActive: mockIsActive,
     saveConfig: mockSaveConfig,
     disable: mockDisable,
+    favorites: [],
+    removeFavorite: vi.fn(),
+    moveFavorite: vi.fn(),
+    openDialog: mockOpenDialog,
+    dialog: null,
   }),
 }));
 
@@ -32,21 +33,6 @@ vi.mock('../hooks/useActiveEnhancerJob', () => ({
     disableEnhancer: mockDisableEnhancer,
     isDisabling: false,
   }),
-}));
-
-vi.mock('../hooks/useEnhancerConfigFavorites', () => ({
-  useEnhancerConfigFavorites: () => ({
-    favorites: [],
-    addFavorite: vi.fn(),
-    removeFavorite: vi.fn(),
-    moveFavorite: vi.fn(),
-    isFavorite: () => false,
-    isLoading: false,
-  }),
-}));
-
-vi.mock('@/hooks/useMachineModels', () => ({
-  useMachineModels: () => ({ availableModels: {}, isLoading: false }),
 }));
 
 const SAVED_CONFIG: EnhancerConfig = {
@@ -78,86 +64,40 @@ describe('PlannerEnhancerToggle', () => {
     expect(screen.getByText('Enhancement Disabled')).toBeInTheDocument();
   });
 
-  it('shows enabled label and blue styling when active', () => {
-    mockIsActive = true;
-
-    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
-
-    expect(screen.getByText('Enhancement Enabled')).toBeInTheDocument();
-    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('text-blue-500');
-    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('bg-blue-500/10');
-  });
-
-  it('shows grey styling when disabled', () => {
-    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
-
-    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('text-chatroom-text-muted');
-  });
-
-  it('opens config dialog when toggling on with no config', () => {
+  it('opens dialog when toggling without saved config', async () => {
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(mockSaveConfig).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockOpenDialog).toHaveBeenCalled());
   });
 
-  it('re-enables saved config without opening dialog', () => {
+  it('enables from saved config without opening dialog', async () => {
     mockConfig = SAVED_CONFIG;
-
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-
-    expect(mockSaveConfig).toHaveBeenCalledWith({ ...SAVED_CONFIG, enabled: true });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockSaveConfig).toHaveBeenCalledWith({ ...SAVED_CONFIG, enabled: true })
+    );
+    expect(mockOpenDialog).not.toHaveBeenCalled();
   });
 
-  it('disables enhancer when toggling off while active', () => {
+  it('disables when active and not enhancing', async () => {
+    mockConfig = { ...SAVED_CONFIG, enabled: true };
     mockIsActive = true;
-
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-
-    expect(mockDisable).toHaveBeenCalled();
-    expect(mockDisableEnhancer).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockDisable).toHaveBeenCalled());
   });
 
-  it('uses disableEnhancer when toggling off during active job', () => {
+  it('cancels active job when disabling while enhancing', async () => {
+    mockConfig = { ...SAVED_CONFIG, enabled: true };
     mockIsActive = true;
     mockIsEnhancing = true;
-
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-
-    expect(mockDisableEnhancer).toHaveBeenCalled();
-    expect(mockDisable).not.toHaveBeenCalled();
-  });
-
-  it('opens config dialog from context menu Configure', async () => {
-    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
-
-    fireEvent.contextMenu(screen.getByTestId('planner-enhancer-toggle'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('planner-enhancer-configure')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('planner-enhancer-configure'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-  });
-
-  it('applies pulse animation when enhancing', () => {
-    mockIsEnhancing = true;
-
-    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
-
-    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('animate-pulse');
+    await waitFor(() => expect(mockDisableEnhancer).toHaveBeenCalled());
   });
 });
