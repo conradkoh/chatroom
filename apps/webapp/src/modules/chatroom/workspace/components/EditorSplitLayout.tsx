@@ -32,7 +32,7 @@ export function EditorSplitLayout({
       }}
     >
       <ResizablePanel defaultSize={defaultLayout[0]} minSize={20}>
-        {primary}
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">{primary}</div>
       </ResizablePanel>
       <ResizableHandle />
       <ResizablePanel defaultSize={defaultLayout[1]} minSize={20}>

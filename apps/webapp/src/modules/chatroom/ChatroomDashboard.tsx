@@ -417,7 +417,7 @@ const ExplorerContent = memo(function ExplorerContent({
                   key={fileTabs.editorSplitLayoutEpoch}
                   defaultLayout={[50, 50]}
                   primary={
-                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <div className="flex flex-col h-full min-h-0 overflow-hidden">
                       <FileTabBar
                         tabs={primaryTabs}
                         activeTabKey={fileTabs.activeTabKey}
@@ -434,7 +434,13 @@ const ExplorerContent = memo(function ExplorerContent({
                       {activePrimaryTab ? renderEditorContent(activePrimaryTab) : null}
                     </div>
                   }
-                  secondary={activeSecondaryTab ? renderEditorContent(activeSecondaryTab) : null}
+                  secondary={
+                    activeSecondaryTab ? (
+                      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        {renderEditorContent(activeSecondaryTab)}
+                      </div>
+                    ) : null
+                  }
                   secondaryTabBar={
                     secondaryTabs.length > 0 ? (
                       <FileTabBar
