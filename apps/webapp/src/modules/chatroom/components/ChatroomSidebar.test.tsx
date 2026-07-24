@@ -11,6 +11,7 @@ const mockUpdateStatus = vi.fn().mockResolvedValue(undefined);
 const mockSendCommand = vi.fn().mockResolvedValue(undefined);
 const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
+const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
 const mockPush = vi.fn();
 
@@ -37,6 +38,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'markAsUnread') {
         return mockMarkAsUnread;
       }
+      if (name === 'markAsRead') {
+        return mockMarkAsRead;
+      }
       if (name === 'updateStatus') {
         return mockUpdateStatus;
       }
@@ -56,6 +60,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     chatrooms: {
       updateStatus: { name: 'updateStatus' },
       markAsUnread: { name: 'markAsUnread' },
+      markAsRead: { name: 'markAsRead' },
     },
     machines: {
       sendCommand: { name: 'sendCommand' },
@@ -136,6 +141,10 @@ describe('ChatroomSidebar', () => {
     mockSendCommand.mockResolvedValue(undefined);
     mockRestartOfflineAgents.mockReset();
     mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: ['builder'] });
+    mockMarkAsUnread.mockReset();
+    mockMarkAsUnread.mockResolvedValue(undefined);
+    mockMarkAsRead.mockReset();
+    mockMarkAsRead.mockResolvedValue(undefined);
     mockToastSuccess.mockReset();
     mockPush.mockReset();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
@@ -223,6 +232,37 @@ describe('ChatroomSidebar', () => {
       expect(mockMarkAsUnread).toHaveBeenCalledWith({
         chatroomId: chatroom._id,
       });
+      expect(mockMarkAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows "Mark as Read" when chatroom hasUnread is true', async () => {
+    const chatroom = makeChatroom({ hasUnread: true });
+    renderSidebar([chatroom]);
+
+    const sidebarItem = screen.getByText('Test Chat').closest('[role="button"]');
+    if (sidebarItem) fireEvent.contextMenu(sidebarItem, { button: 2 });
+
+    await waitFor(() => {
+      expect(screen.getByText('Mark as Read')).toBeInTheDocument();
+      expect(screen.queryByText('Mark as Unread')).not.toBeInTheDocument();
+    });
+  });
+
+  it('selecting "Mark as Read" calls markAsRead with chatroomId', async () => {
+    const chatroom = makeChatroom({ hasUnread: true });
+    renderSidebar([chatroom]);
+
+    const sidebarItem = screen.getByText('Test Chat').closest('[role="button"]');
+    if (sidebarItem) fireEvent.contextMenu(sidebarItem, { button: 2 });
+
+    await waitFor(() => expect(screen.getByText('Mark as Read')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Mark as Read'));
+
+    await waitFor(() => {
+      expect(mockMarkAsRead).toHaveBeenCalledWith({ chatroomId: chatroom._id });
+      expect(mockMarkAsUnread).not.toHaveBeenCalled();
     });
   });
 
