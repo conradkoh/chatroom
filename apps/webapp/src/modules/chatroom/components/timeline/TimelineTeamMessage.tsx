@@ -4,7 +4,6 @@ import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { memo, useState } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
-import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
   BADGE_BASE,
   formatMachineLabel,
@@ -16,6 +15,7 @@ import {
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
+import { EnhancerMessageDiffSection } from '../../features/enhancers/components/EnhancerMessageDiffSection';
 import type { Message } from '../../types/message';
 
 function getMessageTypeBadge(type: string) {
@@ -37,6 +37,7 @@ export interface TimelineTeamMessageProps {
   machineId?: string;
 }
 
+// fallow-ignore-next-line complexity
 export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   message,
   chatroomId: _chatroomId,
@@ -115,10 +116,10 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       <div className="mt-2 empty:hidden">
         <MessageAttachmentChips message={message} />
       </div>
-      <TimelineMessageFooter
+      <EnhancerMessageDiffSection
         message={message}
         displayContent={displayContent}
-        isEnhanced={hasEnhancerOriginal}
+        hasEnhancerOriginal={hasEnhancerOriginal}
       />
     </div>
   );

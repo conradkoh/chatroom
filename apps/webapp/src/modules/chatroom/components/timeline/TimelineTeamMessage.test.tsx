@@ -109,4 +109,22 @@ describe('TimelineTeamMessage enhancer toggle', () => {
       'Enhanced handoff content'
     );
   });
+
+  it('clicking enhanced indicator opens diff panel', () => {
+    render(
+      <TimelineTeamMessage
+        message={{
+          ...BASE_MESSAGE,
+          enhancerOriginalContent: 'Original draft content',
+        }}
+        chatroomId="room-1"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('timeline-enhanced-indicator'));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Enhancement diff')).toBeInTheDocument();
+    expect(screen.getByTestId('enhancer-unified-diff-view')).toBeInTheDocument();
+  });
 });

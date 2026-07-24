@@ -54,6 +54,8 @@ export interface TimelineMessageFooterProps {
   displayContent?: string;
   /** When true, shows a blue enhancer icon before the timestamp. */
   isEnhanced?: boolean;
+  /** Called when the user clicks the enhanced indicator. */
+  onEnhancedIconClick?: () => void;
 }
 
 /**
@@ -64,6 +66,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
   displayContent,
   isEnhanced = false,
+  onEnhancedIconClick,
 }: TimelineMessageFooterProps) {
   const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
@@ -101,14 +104,19 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
       </div>
       <div className="flex items-center gap-1.5">
         {isEnhanced && (
-          <span
-            className="flex items-center text-blue-500 dark:text-blue-400"
-            title="Enhanced"
-            aria-label="Enhanced"
+          <button
+            type="button"
+            className="flex items-center text-blue-500 dark:text-blue-400 hover:bg-blue-500/10 transition-colors"
+            title="View enhancement diff"
+            aria-label="View enhancement diff"
             data-testid="timeline-enhanced-indicator"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEnhancedIconClick?.();
+            }}
           >
             <Sparkles size={12} />
-          </span>
+          </button>
         )}
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
           {formatTimestamp(message._creationTime)}

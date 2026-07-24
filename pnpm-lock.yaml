@@ -244,6 +244,9 @@ importers:
       convex-helpers:
         specifier: ^0.1.120
         version: 0.1.120(@standard-schema/spec@1.1.0)(convex@1.42.2(react@19.2.7))(react@19.2.7)(typescript@5.9.3)(zod@4.4.3)
+      diff:
+        specifier: ^8.0.4
+        version: 8.0.4
       dom-docx:
         specifier: ^0.1.12
         version: 0.1.12(playwright@1.61.1)
