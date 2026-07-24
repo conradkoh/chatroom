@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ExpandPane } from '../utils/editorExpandLayout';
+import type { SplitDropSide } from '../components/EditorSplitDropOverlay';
 
 import { getFileName } from '@/lib/pathUtils';
 
@@ -296,6 +297,7 @@ export interface UseFileTabsReturn {
   moveTabToSecondaryPane: (tabKey: string) => void;
   moveTabToPrimaryPane: (tabKey: string) => void;
   closeSecondarySplit: () => void;
+  handleEditorSplitDrop: (tabKey: string, side: SplitDropSide) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -322,6 +324,65 @@ function findFileTab(
 ): Extract<EditorTab, { kind: 'file' }> | undefined {
   const tab = tabs.find((t) => t.kind === 'file' && t.filePath === filePath);
   return tab?.kind === 'file' ? tab : undefined;
+}
+
+// ─── Editor Split Drop ────────────────────────────────────────────────────────
+
+export function computeEditorSplitDrop(params: {
+  tabKey: string;
+  side: SplitDropSide;
+  activeTabKey: string | null;
+  editorSplit: EditorSplitState | null;
+  tabKeysInOrder: string[];
+}): { nextActiveTabKey: string | null; nextEditorSplit: EditorSplitState | null } {
+  const { tabKey, side, activeTabKey, editorSplit, tabKeysInOrder } = params;
+  const wasInSecondary = editorSplit?.secondaryTabKeys.includes(tabKey) ?? false;
+
+  if (side === 'right') {
+    let secondaryTabKeys: string[];
+    if (wasInSecondary) {
+      secondaryTabKeys = editorSplit!.secondaryTabKeys;
+    } else {
+      secondaryTabKeys = [...(editorSplit?.secondaryTabKeys ?? []), tabKey];
+    }
+    const nextEditorSplit: EditorSplitState = {
+      enabled: true,
+      secondaryTabKeys,
+      activeSecondaryTabKey: tabKey,
+    };
+    let nextActiveTabKey = activeTabKey;
+    if (activeTabKey === tabKey) {
+      nextActiveTabKey =
+        tabKeysInOrder.find((k) => k !== tabKey && !secondaryTabKeys.includes(k)) ?? activeTabKey;
+    }
+    return { nextActiveTabKey, nextEditorSplit };
+  }
+
+  // side === 'left'
+  if (!editorSplit?.enabled) {
+    const nextEditorSplit: EditorSplitState | null =
+      activeTabKey && activeTabKey !== tabKey
+        ? {
+            enabled: true,
+            secondaryTabKeys: [activeTabKey],
+            activeSecondaryTabKey: activeTabKey,
+          }
+        : null;
+    return { nextActiveTabKey: tabKey, nextEditorSplit };
+  }
+
+  const secondaryTabKeys = editorSplit.secondaryTabKeys.filter((k) => k !== tabKey);
+  if (secondaryTabKeys.length === 0) {
+    return { nextActiveTabKey: tabKey, nextEditorSplit: null };
+  }
+  const activeSecondaryTabKey =
+    editorSplit.activeSecondaryTabKey === tabKey
+      ? secondaryTabKeys[0]
+      : editorSplit.activeSecondaryTabKey;
+  return {
+    nextActiveTabKey: tabKey,
+    nextEditorSplit: { enabled: true, secondaryTabKeys, activeSecondaryTabKey },
+  };
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -627,6 +688,22 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setEditorSplit(null);
   }, []);
 
+  const handleEditorSplitDrop = useCallback(
+    (tabKey: string, side: SplitDropSide) => {
+      const tabKeysInOrder = tabs.map((t) => editorTabKey(t));
+      const { nextActiveTabKey, nextEditorSplit } = computeEditorSplitDrop({
+        tabKey,
+        side,
+        activeTabKey,
+        editorSplit: editorSplit?.enabled ? editorSplit : null,
+        tabKeysInOrder,
+      });
+      setEditorSplit(nextEditorSplit);
+      if (nextActiveTabKey != null) setActiveTabKey(nextActiveTabKey);
+    },
+    [tabs, activeTabKey, editorSplit, setActiveTabKey, setEditorSplit]
+  );
+
   const navigateActivePreview = useCallback(
     (filePath: string) => {
       setRightTabs((prev) => {
@@ -687,5 +764,6 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     moveTabToSecondaryPane,
     moveTabToPrimaryPane,
     closeSecondarySplit,
+    handleEditorSplitDrop,
   };
 }

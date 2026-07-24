@@ -86,6 +86,7 @@ import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSide
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
+import { EditorSplitDropOverlay } from './workspace/components/EditorSplitDropOverlay';
 import { EditorSplitLayout } from './workspace/components/EditorSplitLayout';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
@@ -293,7 +294,7 @@ const ExplorerContent = memo(function ExplorerContent({
     [activeAgenticQueryId, fileTabs]
   );
 
-  const hasEditorSplit = !!(fileTabs.editorSplit?.enabled && activeTab?.kind === 'file');
+  const hasEditorSplit = !!fileTabs.editorSplit?.enabled;
   const secondaryTabKeys = hasEditorSplit ? fileTabs.editorSplit!.secondaryTabKeys : [];
   const secondaryTabKeySet = new Set(secondaryTabKeys);
   const secondaryTabs = hasEditorSplit
@@ -320,7 +321,6 @@ const ExplorerContent = memo(function ExplorerContent({
       onToggleExpanded={fileTabs.toggleExpanded}
       onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
       enableDragSplit
-      onDropToSecondary={(tabKey) => fileTabs.moveTabToSecondaryPane(tabKey)}
     />
   ) : null;
 
@@ -407,48 +407,52 @@ const ExplorerContent = memo(function ExplorerContent({
                 : 'flex-1'
             )}
           >
-            {hasEditorSplit ? (
-              <EditorSplitLayout
-                primary={
-                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                    <FileTabBar
-                      tabs={primaryTabs}
-                      activeTabKey={fileTabs.activeTabKey}
-                      machineId={activeWorkspace?.machineId ?? null}
-                      workingDir={activeWorkspace?.workingDir ?? null}
-                      onActivate={fileTabs.setActiveTab}
-                      onClose={fileTabs.closeTab}
-                      onCloseOthers={fileTabs.closeOtherTabs}
-                      onPin={fileTabs.pinTab}
-                      onToggleExpanded={fileTabs.toggleExpanded}
-                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
-                    />
-                    {activeTab ? renderEditorContent(activeTab) : null}
-                  </div>
-                }
-                secondary={activeSecondaryTab ? renderEditorContent(activeSecondaryTab) : null}
-                secondaryTabBar={
-                  secondaryTabs.length > 0 ? (
-                    <FileTabBar
-                      tabs={secondaryTabs}
-                      activeTabKey={activeSecondaryTabKey}
-                      machineId={activeWorkspace?.machineId ?? null}
-                      workingDir={activeWorkspace?.workingDir ?? null}
-                      onActivate={(key) => fileTabs.moveTabToPrimaryPane(key)}
-                      onClose={fileTabs.closeTab}
-                      onCloseOthers={fileTabs.closeOtherTabs}
-                      onPin={fileTabs.pinTab}
-                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
-                    />
-                  ) : null
-                }
-              />
-            ) : (
-              <>
-                {showTabBar && hasSplit && fileTabBar}
-                {renderEditorContent(activeTab)}
-              </>
-            )}
+            <EditorSplitDropOverlay onSplitDrop={fileTabs.handleEditorSplitDrop}>
+              {hasEditorSplit ? (
+                <EditorSplitLayout
+                  primary={
+                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                      <FileTabBar
+                        tabs={primaryTabs}
+                        activeTabKey={fileTabs.activeTabKey}
+                        machineId={activeWorkspace?.machineId ?? null}
+                        workingDir={activeWorkspace?.workingDir ?? null}
+                        onActivate={fileTabs.setActiveTab}
+                        onClose={fileTabs.closeTab}
+                        onCloseOthers={fileTabs.closeOtherTabs}
+                        onPin={fileTabs.pinTab}
+                        onToggleExpanded={fileTabs.toggleExpanded}
+                        onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                        enableDragSplit
+                      />
+                      {activeTab ? renderEditorContent(activeTab) : null}
+                    </div>
+                  }
+                  secondary={activeSecondaryTab ? renderEditorContent(activeSecondaryTab) : null}
+                  secondaryTabBar={
+                    secondaryTabs.length > 0 ? (
+                      <FileTabBar
+                        tabs={secondaryTabs}
+                        activeTabKey={activeSecondaryTabKey}
+                        machineId={activeWorkspace?.machineId ?? null}
+                        workingDir={activeWorkspace?.workingDir ?? null}
+                        onActivate={(key) => fileTabs.moveTabToPrimaryPane(key)}
+                        onClose={fileTabs.closeTab}
+                        onCloseOthers={fileTabs.closeOtherTabs}
+                        onPin={fileTabs.pinTab}
+                        onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                        enableDragSplit
+                      />
+                    ) : null
+                  }
+                />
+              ) : (
+                <>
+                  {showTabBar && hasSplit && fileTabBar}
+                  {renderEditorContent(activeTab)}
+                </>
+              )}
+            </EditorSplitDropOverlay>
           </div>
 
           {/* Right Pane — preview/table */}
