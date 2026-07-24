@@ -9,6 +9,25 @@ export function formatEnhancerHarnessModelLabel(
   return `${getHarnessDisplayName(entry.agentHarness)} / ${getModelDisplayLabel(entry.model)}`;
 }
 
+/** Max characters shown in favorite row labels (full label remains in title). */
+const ENHANCER_HARNESS_MODEL_LABEL_MAX_LENGTH = 40;
+
+function truncateEnhancerFavoriteLabel(
+  label: string,
+  maxLength = ENHANCER_HARNESS_MODEL_LABEL_MAX_LENGTH
+): string {
+  if (label.length <= maxLength) return label;
+  return `${label.slice(0, maxLength).trimEnd()}...`;
+}
+
+/** Truncated harness+model label for compact favorite row display. */
+export function formatEnhancerHarnessModelLabelDisplay(
+  entry: Pick<EnhancerConfigEntry, 'agentHarness' | 'model'>,
+  maxLength = ENHANCER_HARNESS_MODEL_LABEL_MAX_LENGTH
+): string {
+  return truncateEnhancerFavoriteLabel(formatEnhancerHarnessModelLabel(entry), maxLength);
+}
+
 /** Full label including target — for tooltips or non-target-scoped display. */
 // fallow-ignore-next-line unused-export
 export function formatEnhancerConfigLabel(entry: EnhancerConfigEntry): string {

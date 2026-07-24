@@ -37,13 +37,13 @@ describe('EnhancerConfigFavoritesList', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('renders truncation classes on the button with long label', () => {
+  it('renders truncated display label for long harness/model names', () => {
     const longLabelFav = {
       targetId: 'handoff:planner-to-builder' as const,
       agentHarness: 'opencode' as const,
-      model: 'OPENCODE / BIG PICKLE',
+      model: 'minimax/MiniMax-M2.5-highspeed',
     };
-    const { container } = render(
+    render(
       <EnhancerConfigFavoritesList
         favorites={[longLabelFav]}
         onApply={vi.fn()}
@@ -51,10 +51,10 @@ describe('EnhancerConfigFavoritesList', () => {
         onMoveFavorite={vi.fn()}
       />
     );
-    const button = container.querySelector('.truncate');
-    expect(button).toBeInTheDocument();
-    expect(button?.textContent).toContain('★');
-    expect(button?.textContent).toContain('OpenCode');
+    const button = screen.getByRole('button', { name: /OpenCode/i });
+    expect(button.textContent).toContain('...');
+    expect(button.textContent!.replace('★', '').trim().length).toBeLessThanOrEqual(43);
+    expect(button).toHaveAttribute('title', 'OpenCode (CLI) / MINIMAX / MINIMAX M2.5 HIGHSPEED');
   });
 
   it('renders move up, move down, and remove buttons', () => {
