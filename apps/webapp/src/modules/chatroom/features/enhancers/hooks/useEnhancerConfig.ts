@@ -5,13 +5,13 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useState } from 'react';
 
-import type { EnhancerConfig } from '../types/enhancer';
-import { isEnhancerConfigActive } from '../types/enhancer';
 import {
   getEnhancerConfig,
   setEnhancerConfig,
   clearEnhancerConfig,
 } from '../stores/enhancerConfigStore';
+import type { EnhancerConfig } from '../types/enhancer';
+import { isEnhancerConfigActive } from '../types/enhancer';
 
 export function useEnhancerConfig(chatroomId: string) {
   const [config, setConfig] = useState<EnhancerConfig | null>(() => getEnhancerConfig(chatroomId));
@@ -58,10 +58,14 @@ export function useEnhancerConfig(chatroomId: string) {
   );
 
   const disable = useCallback(async () => {
+    if (config) {
+      await saveConfig({ ...config, enabled: false });
+      return;
+    }
     clearEnhancerConfig(chatroomId);
     setConfig(null);
     await disableMutation({ chatroomId: chatroomId as Id<'chatroom_rooms'> });
-  }, [chatroomId, disableMutation]);
+  }, [chatroomId, config, saveConfig, disableMutation]);
 
   return {
     config,
