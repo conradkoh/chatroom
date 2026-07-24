@@ -33,7 +33,7 @@ const SplitDiffRow = memo(function SplitDiffRow({ line }: { line: EnhancerSplitD
 
 const SplitDiffPane = memo(function SplitDiffPane({ pane }: { pane: EnhancerSplitDiffPane }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col border border-chatroom-border bg-chatroom-bg-primary">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col border border-chatroom-border bg-chatroom-bg-primary sm:min-h-0">
       <div className="border-b border-chatroom-border bg-chatroom-bg-tertiary px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
         {pane.label}
       </div>
@@ -51,7 +51,10 @@ export const EnhancerSplitDiffView = memo(function EnhancerSplitDiffView({
   after,
 }: EnhancerSplitDiffViewProps) {
   return (
-    <div className="flex min-h-0 gap-2" data-testid="enhancer-split-diff-view">
+    <div
+      className="flex h-full min-h-0 flex-col gap-2 sm:flex-row"
+      data-testid="enhancer-split-diff-view"
+    >
       <SplitDiffPane pane={before} />
       <SplitDiffPane pane={after} />
     </div>

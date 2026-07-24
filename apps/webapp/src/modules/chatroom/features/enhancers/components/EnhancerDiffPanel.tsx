@@ -5,15 +5,16 @@ import { useEffect, useMemo } from 'react';
 import { EnhancerDiffViewModeToggle } from './EnhancerDiffViewModeToggle';
 import { EnhancerSplitDiffView } from './EnhancerSplitDiffView';
 import { EnhancerUnifiedDiffView } from './EnhancerUnifiedDiffView';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
 import { useEnhancerDiffViewMode } from '../hooks/useEnhancerDiffViewMode';
 import { buildEnhancerTextDiff } from '../utils/buildEnhancerTextDiff';
+
+import {
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+} from '@/components/ui/fixed-modal';
 
 export interface EnhancerDiffPanelProps {
   open: boolean;
@@ -34,6 +35,8 @@ export function EnhancerDiffPanel({
 }: EnhancerDiffPanelProps) {
   const { viewMode, setViewMode, resetViewMode } = useEnhancerDiffViewMode();
 
+  const handleClose = () => onOpenChange(false);
+
   useEffect(() => {
     if (!open) {
       resetViewMode();
@@ -46,29 +49,32 @@ export function EnhancerDiffPanel({
   }, [open, originalContent, enhancedContent]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] w-[min(96vw,64rem)] max-w-none flex-col gap-3">
-        <DialogHeader className="flex-shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <DialogTitle>Enhancement diff</DialogTitle>
-              <DialogDescription>
+    <FixedModal isOpen={open} onClose={handleClose} maxWidth="max-w-6xl" className="sm:!h-[85vh]">
+      <FixedModalContent>
+        <FixedModalHeader onClose={handleClose}>
+          <div className="flex w-full items-center justify-between gap-3 pr-1">
+            <div className="min-w-0">
+              <FixedModalTitle>Enhancement diff</FixedModalTitle>
+              <p className="mt-0.5 text-[10px] font-normal normal-case tracking-normal text-chatroom-text-muted">
                 Compare the original draft with the enhanced output.
-              </DialogDescription>
+              </p>
             </div>
             <EnhancerDiffViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
           </div>
-        </DialogHeader>
+        </FixedModalHeader>
 
-        <div className="min-h-0 flex-1 overflow-hidden" data-testid="enhancer-diff-panel-body">
+        <FixedModalBody
+          className="flex min-h-0 flex-1 flex-col p-3 sm:p-4"
+          data-testid="enhancer-diff-panel-body"
+        >
           {diff &&
             (viewMode === 'split' ? (
               <EnhancerSplitDiffView before={diff.split.before} after={diff.split.after} />
             ) : (
               <EnhancerUnifiedDiffView lines={diff.unified} />
             ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 }

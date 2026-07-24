@@ -40,7 +40,7 @@ export const EnhancerUnifiedDiffView = memo(function EnhancerUnifiedDiffView({
 }: EnhancerUnifiedDiffViewProps) {
   return (
     <div
-      className="overflow-auto border border-chatroom-border bg-chatroom-bg-primary"
+      className="h-full min-h-0 flex-1 overflow-auto border border-chatroom-border bg-chatroom-bg-primary"
       data-testid="enhancer-unified-diff-view"
     >
       {lines.map((line, index) => (
