@@ -1,3 +1,7 @@
+import {
+  adaptProviderGroupsToModelGroups,
+  aggregateFlatModelsByProvider,
+} from './modelGroupAdapter';
 import type { ModelGroup } from './types';
 import type { ProviderOption } from '../../direct-harness/components/harness-selectors/types';
 import { getModelDisplayLabel } from '../../types/machine';
@@ -17,22 +21,18 @@ export function getProviderDisplayName(providerKey: string): string {
 
 /** Group flat model IDs (agent/multi-agent format) by provider key. */
 export function groupFlatModels(models: string[]): ModelGroup[] {
-  const groups = new Map<string, ModelGroup>();
-  for (const model of models) {
-    const providerKey = getModelProviderKey(model);
-    const label = getModelDisplayLabel(model);
-    const existing = groups.get(providerKey);
-    if (existing) {
-      existing.options.push({ value: model, label });
-    } else {
-      groups.set(providerKey, {
+  if (models.length === 0) return [];
+  return aggregateFlatModelsByProvider(
+    models.map((model) => {
+      const providerKey = getModelProviderKey(model);
+      return {
         providerKey,
         providerLabel: getProviderDisplayName(providerKey),
-        options: [{ value: model, label }],
-      });
-    }
-  }
-  return Array.from(groups.values());
+        value: model,
+        label: getModelDisplayLabel(model),
+      };
+    })
+  );
 }
 
 /** Group ProviderOption[] (harness format) into ModelGroups. */
@@ -43,17 +43,22 @@ export function groupProviderOptions(
     modelLabel?: (provider: ProviderOption, model: { modelID: string; name: string }) => string;
   }
 ): ModelGroup[] {
-  const modelKey = options?.modelKey ?? ((p, m) => `${p}::${m}`);
-  const modelLabel = options?.modelLabel ?? ((_provider, model) => model.name);
+  if (providers.length === 0) return [];
+  const modelKey = options?.modelKey ?? ((p: string, m: string) => `${p}::${m}`);
+  const modelLabel =
+    options?.modelLabel ??
+    ((_provider: ProviderOption, model: { modelID: string; name: string }) => model.name);
 
-  return providers.map((provider) => ({
-    providerKey: provider.providerID,
-    providerLabel: provider.name,
-    options: provider.models.map((model) => ({
-      value: modelKey(provider.providerID, model.modelID),
-      label: modelLabel(provider, model),
-    })),
-  }));
+  return adaptProviderGroupsToModelGroups(
+    providers.map((provider) => ({
+      providerKey: provider.providerID,
+      providerLabel: provider.name,
+      options: provider.models.map((model) => ({
+        value: modelKey(provider.providerID, model.modelID),
+        label: modelLabel(provider, model),
+      })),
+    }))
+  );
 }
 
 /** Flatten ProviderOption[] to filter-panel model IDs (`providerID/modelID`). */
