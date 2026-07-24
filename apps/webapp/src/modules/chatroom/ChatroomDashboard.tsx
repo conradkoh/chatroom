@@ -587,14 +587,9 @@ const ExplorerContent = memo(function ExplorerContent({
                   ) : null
                 }
               />
-            ) : (
-              <>
-                {fileTabBar}
-                {activeTab ? (
-                  <ExplorerEditorTabContent tab={activeTab} {...editorTabContentProps} />
-                ) : null}
-              </>
-            )}
+            ) : activeTab ? (
+              <ExplorerEditorTabContent tab={activeTab} {...editorTabContentProps} />
+            ) : null}
           </EditorSplitDropOverlay>
         </div>
       ) : (
