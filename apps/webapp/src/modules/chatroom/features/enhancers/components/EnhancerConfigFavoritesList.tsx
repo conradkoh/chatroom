@@ -1,14 +1,12 @@
 'use client';
 
-import { ArrowUp, ArrowDown, X } from 'lucide-react';
 import { memo } from 'react';
 
+import { ConfigFavoriteRowActions } from '../../../components/ConfigFavoriteRowActions';
+import { HarnessModelConfigRow } from '../../../components/HarnessModelConfigRow';
+import { getHarnessDisplayName, getModelDisplayLabel } from '../../../types/machine';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 import { buildEnhancerConfigKey } from '../types/enhancerConfigEntry';
-import {
-  formatEnhancerHarnessModelLabel,
-  formatEnhancerHarnessModelLabelDisplay,
-} from '../utils/formatEnhancerConfigLabel';
 
 export interface EnhancerConfigFavoritesListProps {
   favorites: EnhancerConfigEntry[];
@@ -33,57 +31,24 @@ export const EnhancerConfigFavoritesList = memo(function EnhancerConfigFavorites
         Favorites
       </div>
       <div className="space-y-0.5">
-        {favorites.map((fav, i) => {
-          const fullLabel = formatEnhancerHarnessModelLabel(fav);
-          const displayLabel = formatEnhancerHarnessModelLabelDisplay(fav);
-          return (
-            <div
-              key={buildEnhancerConfigKey(fav)}
-              className="flex items-center gap-1 min-w-0 px-1.5 py-1 bg-chatroom-bg-tertiary border border-chatroom-border"
-            >
-              <button
-                type="button"
+        {favorites.map((fav, i) => (
+          <HarnessModelConfigRow
+            key={buildEnhancerConfigKey(fav)}
+            harnessLabel={getHarnessDisplayName(fav.agentHarness)}
+            modelLabel={getModelDisplayLabel(fav.model)}
+            starred
+            disabled={disabled}
+            onApply={() => onApply(fav)}
+            actions={
+              <ConfigFavoriteRowActions
                 disabled={disabled}
-                onClick={() => onApply(fav)}
-                className="flex-1 min-w-0 text-left text-[11px] text-chatroom-text-primary hover:text-chatroom-accent truncate disabled:opacity-50"
-                title={fullLabel}
-              >
-                <span className="text-chatroom-status-warning mr-1">★</span>
-                {displayLabel}
-              </button>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onMoveFavorite(i, i - 1)}
-                className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary disabled:opacity-30"
-                title="Move up"
-                aria-label="Move up"
-              >
-                <ArrowUp size={12} />
-              </button>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onMoveFavorite(i, i + 1)}
-                className="p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary disabled:opacity-30"
-                title="Move down"
-                aria-label="Move down"
-              >
-                <ArrowDown size={12} />
-              </button>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onRemoveFavorite(fav)}
-                className="p-0.5 text-chatroom-text-muted hover:text-chatroom-status-error disabled:opacity-30"
-                title="Remove favorite"
-                aria-label="Remove favorite"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          );
-        })}
+                onMoveUp={() => onMoveFavorite(i, i - 1)}
+                onMoveDown={() => onMoveFavorite(i, i + 1)}
+                onRemove={() => onRemoveFavorite(fav)}
+              />
+            }
+          />
+        ))}
       </div>
     </div>
   );

@@ -21,7 +21,7 @@ describe('EnhancerConfigFavoritesList', () => {
       />
     );
     expect(screen.getByTestId('enhancer-config-favorites-list')).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/OpenCode/));
+    fireEvent.click(screen.getByText(/CLAUDE OPUS 4/));
     expect(onApply).toHaveBeenCalledWith(favorite);
   });
 
@@ -37,7 +37,7 @@ describe('EnhancerConfigFavoritesList', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('renders truncated display label for long harness/model names', () => {
+  it('renders model on primary line and harness as subtitle', () => {
     const longLabelFav = {
       targetId: 'handoff:planner-to-builder' as const,
       agentHarness: 'opencode' as const,
@@ -51,10 +51,9 @@ describe('EnhancerConfigFavoritesList', () => {
         onMoveFavorite={vi.fn()}
       />
     );
-    const button = screen.getByRole('button', { name: /OpenCode/i });
-    expect(button.textContent).toContain('...');
-    expect(button.textContent!.replace('★', '').trim().length).toBeLessThanOrEqual(43);
-    expect(button).toHaveAttribute('title', 'OpenCode (CLI) / MINIMAX / MINIMAX M2.5 HIGHSPEED');
+    expect(screen.getByText(/MINIMAX M2\.5 HIGHSPEED/)).toBeInTheDocument();
+    expect(screen.getByText(/OpenCode/)).toBeInTheDocument();
+    expect(screen.getByTitle(/OpenCode.*MINIMAX M2\.5 HIGHSPEED/)).toBeInTheDocument();
   });
 
   it('renders move up, move down, and remove buttons', () => {
